@@ -35,6 +35,7 @@ Current next phase:
 - Vendored Codex repo: `E:\Projects\EpiphanyAgent\vendor\codex`
 - Patch plan: `E:\Projects\EpiphanyAgent\notes\codex-epiphany-mode-plan.md`
 - Handoff summary: `E:\Projects\EpiphanyAgent\notes\fresh-workspace-handoff.md`
+- Epiphany delta map: `E:\Projects\EpiphanyAgent\notes\epiphany-current-algorithmic-map.md`
 - State CLI: `E:\Projects\EpiphanyAgent\tools\epiphany_state.py`
 
 ## Useful Commands
@@ -61,6 +62,7 @@ On fresh session load, do this before wandering off into implementation:
 1. read:
    - `state/map.yaml`
    - `notes/fresh-workspace-handoff.md`
+   - `notes/epiphany-current-algorithmic-map.md`
    - `notes/codex-epiphany-mode-plan.md`
 2. run:
    - `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status`

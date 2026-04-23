@@ -70,6 +70,7 @@ accepted_design:
   - treat compaction as a role-specific state transition with safe points, explicit checkpoints, and resume packets; workers may compact aggressively between implementation passes, while mapper, verifier, and coordinator preserve different state at different boundaries
   - preserve handoff context in repo-local AGENTS and notes files
   - keep a durable repository-level algorithmic map of vendored Codex so GUI and Epiphany changes hook into the existing app-server/core boundary instead of reimplementing the turn loop
+  - keep a dedicated Epiphany delta algorithmic map that documents the currently landed divergence from plain Codex separately from the full Codex machine map and the future-facing harness spec
   - keep the Codex algorithmic map honest about auxiliary side channels and limitations: file watching, unified diffs, compaction, subagent messaging, and memory summarization are real substrate, but they do not by themselves amount to semantic repo understanding
   - vendor Codex directly into the parent repo instead of keeping it as a gitlink/submodule so Epiphany harness changes can be reviewed and committed atomically with the surrounding project state
   - for Phase 2, treat the presence of SessionState.epiphany_state as the internal activation signal and inject a bounded Epiphany summary into the developer-context path during build_initial_context rather than inventing a public operator surface early

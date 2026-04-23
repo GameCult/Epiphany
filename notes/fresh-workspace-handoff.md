@@ -42,6 +42,7 @@ Current implementation plan note:
 Current architectural/spec notes:
 
 - `notes/codex-repository-algorithmic-map.md`
+- `notes/epiphany-current-algorithmic-map.md`
 - `notes/epiphany-core-harness-surfaces.md`
 
 ## What Already Landed
@@ -106,6 +107,12 @@ Main touched files for Phase 3:
 - `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
 - `vendor/codex/codex-rs/app-server/README.md`
 - compatibility fixture/test updates in `analytics`, `exec`, and `tui`
+
+There is now also a dedicated Epiphany delta map:
+
+- `notes/epiphany-current-algorithmic-map.md`
+
+Use it when you need the answer to "how does current Epiphany differ from plain Codex right now?" without rereading the whole Codex machine map plus the whole future-facing spec.
 
 ## What Must Be Remembered Before Compaction
 
