@@ -1461,6 +1461,7 @@ mod tests {
                     agent_role: None,
                     git_info: None,
                     name: None,
+                    epiphany_state: None,
                     turns: Vec::new(),
                 },
                 model: "gpt-5".to_string(),

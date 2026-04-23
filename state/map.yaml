@@ -45,7 +45,7 @@ data_flow:
     - commit or backtrack
 
 active_subgoals:
-  - Decide and slice the Phase 3 typed app-server/protocol exposure for Epiphany thread state now that Phase 2 prompt integration is landed and verified.
+  - Define the Phase 4 repo-local hybrid retrieval slice now that the minimal Phase 3 typed client exposure is landed and verified.
   - Use the tiny CLI and typed state files on a small real task.
   - Decide whether the next executable artifact should be a patch runner or a verifier helper.
   - Run the protocol on a small real task.
@@ -74,6 +74,7 @@ accepted_design:
   - vendor Codex directly into the parent repo instead of keeping it as a gitlink/submodule so Epiphany harness changes can be reviewed and committed atomically with the surrounding project state
   - for Phase 2, treat the presence of SessionState.epiphany_state as the internal activation signal and inject a bounded Epiphany summary into the developer-context path during build_initial_context rather than inventing a public operator surface early
   - Phase 2 is landed: a dedicated EpiphanyStateInstructions fragment now renders bounded Epiphany thread state into the developer prompt path during build_initial_context, with omission/inclusion/resume coverage and a stable snapshot
+  - Phase 3 read-surface slice is landed: app-server protocol Thread payloads now carry optional typed epiphany_state hydrated from live CodexThread state when available and otherwise reconstructed from rollout with rollback/compaction semantics; dedicated Epiphany update RPCs and live notifications remain deferred
   - Epiphany should be an opinionated software development agent: pre-compaction and pre-handoff persistence of map, evidence, and next action are part of the workflow, not optional operator folklore
 
 rejected_paths:
@@ -91,5 +92,5 @@ rejected_paths:
     reason: audited candidates were either terminal-only, stale/aspirational, or incoherent wrappers; the comparison clones were removed from vendor to avoid building on untrusted drift
 
 current_status:
-  summary: Workspace initialized with protocol files, typed state, a tiny CLI, a git repo, fresh-workspace handoff notes, architecture rationale, a Codex algorithmic map note, an Epiphany core-harness surface spec, and a rolling implementation plan against vendored Codex. The Phase 1 internal/dev-usable Epiphany core state slice and the Phase 2 prompt-integration slice are both implemented and verified with a real Rust/MSVC toolchain; vendored Codex is tracked directly in the parent repo; the next move is to expose typed Epiphany state to clients without making prompt text the source of truth; and pre-compaction persistence is now an explicit part of the intended Epiphany workflow.
-  next_action: Decide and plan the Phase 3 typed app-server/protocol exposure slice so clients can read Epiphany thread state directly, keeping the surface additive and internal/dev-usable before GUI ergonomics or retrieval work.
+  summary: Workspace initialized with protocol files, typed state, a tiny CLI, a git repo, fresh-workspace handoff notes, architecture rationale, a Codex algorithmic map note, an Epiphany core-harness surface spec, and a rolling implementation plan against vendored Codex. Phase 1 durable Epiphany state, Phase 2 prompt integration, and a minimal Phase 3 typed client read surface are all implemented and verified with a real Rust/MSVC toolchain; vendored Codex is tracked directly in the parent repo; app-server Thread payloads can now carry typed Epiphany state without scraping prompt text; and pre-compaction persistence is now an explicit part of the intended Epiphany workflow.
+  next_action: Write and then implement the first bounded Phase 4 repo-local hybrid retrieval slice so Epiphany can query repo knowledge through typed state and additive query surfaces instead of repeated file-by-file shell archaeology.

@@ -45,8 +45,8 @@ The working design now is:
 - `vendor/codex` is the real target and is tracked directly in the parent repo
 - third-party OpenCodex forks were audited and removed
 - the Codex machine map and Epiphany harness spec have both been written and iterated enough to stop hand-waving
-- Phase 1 durable Epiphany state and Phase 2 prompt integration are both landed and verified
-- the next concrete step is typed app-server/protocol state exposure for clients
+- Phase 1 durable Epiphany state, Phase 2 prompt integration, and a minimal Phase 3 typed client read surface are all landed and verified
+- the next concrete step is the repo-local hybrid retrieval subsystem
 
 ## Current Slice Status
 
@@ -66,11 +66,18 @@ Phase 2 landed:
 - inject it during `Session::build_initial_context`
 - verify inclusion, omission, resume, and snapshot behavior
 
-Phase 3 is next:
+Phase 3 landed:
 
-- expose typed Epiphany state to clients over app-server/protocol surfaces
-- keep it additive and internal/dev-usable first
-- do not make prompt text the source of truth for GUI state
+- add optional typed `epiphanyState` to hydrated app-server `Thread` payloads
+- hydrate it from live loaded-thread state when available
+- fall back to rollout reconstruction with rollback/compaction semantics for stored thread reads
+- keep dedicated Epiphany update RPCs and live notifications deferred for now
+
+Phase 4 is next:
+
+- add a repo-local hybrid retrieval subsystem
+- expose typed retrieval state and a typed retrieval query surface
+- stop paying the full file-by-file shell tax for every mapping or implementation pass
 
 ## Basic Loop
 

@@ -902,6 +902,7 @@ mod tests {
             source,
             git_info: None,
             name: None,
+            epiphany_state: None,
             turns: Vec::new(),
         }
     }

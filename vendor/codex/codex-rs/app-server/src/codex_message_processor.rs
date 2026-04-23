@@ -244,6 +244,7 @@ use codex_core::find_archived_thread_path_by_id_str;
 use codex_core::find_thread_name_by_id;
 use codex_core::find_thread_names_by_ids;
 use codex_core::find_thread_path_by_id_str;
+use codex_core::latest_epiphany_state_from_rollout_items;
 use codex_core::path_utils;
 use codex_core::plugins::MarketplaceAddError;
 use codex_core::plugins::MarketplaceRemoveError;
@@ -315,6 +316,7 @@ use codex_protocol::protocol::ConversationAudioParams;
 use codex_protocol::protocol::ConversationStartParams;
 use codex_protocol::protocol::ConversationStartTransport;
 use codex_protocol::protocol::ConversationTextParams;
+use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::GitInfo as CoreGitInfo;
 use codex_protocol::protocol::InitialHistory;
@@ -2638,12 +2640,12 @@ impl CodexMessageProcessor {
             Ok(new_conv) => {
                 let NewThread {
                     thread_id,
-                    thread,
+                    thread: codex_thread,
                     session_configured,
                     ..
                 } = new_conv;
                 if let Err(error) = Self::set_app_server_client_info(
-                    thread.as_ref(),
+                    codex_thread.as_ref(),
                     app_server_client_name,
                     app_server_client_version,
                 )
@@ -2655,7 +2657,7 @@ impl CodexMessageProcessor {
                         .await;
                     return;
                 }
-                let config_snapshot = thread
+                let config_snapshot = codex_thread
                     .config_snapshot()
                     .instrument(tracing::info_span!(
                         "app_server.thread_start.config_snapshot",
@@ -2667,6 +2669,13 @@ impl CodexMessageProcessor {
                     &config_snapshot,
                     session_configured.rollout_path.clone(),
                 );
+                thread.epiphany_state = codex_thread
+                    .epiphany_state()
+                    .instrument(tracing::info_span!(
+                        "app_server.thread_start.epiphany_state",
+                        otel.name = "app_server.thread_start.epiphany_state",
+                    ))
+                    .await;
 
                 // Auto-attach a thread listener when starting a thread.
                 Self::log_listener_attach_result(
@@ -3542,6 +3551,17 @@ impl CodexMessageProcessor {
                     /*has_in_progress_turn*/ false,
                 );
                 self.attach_thread_name(thread_id, &mut thread).await;
+                if let Some(rollout_path) = thread.path.as_deref() {
+                    match load_epiphany_state_from_rollout_path(rollout_path).await {
+                        Ok(epiphany_state) => {
+                            thread.epiphany_state = epiphany_state;
+                        }
+                        Err(message) => {
+                            self.send_internal_error(request_id, message).await;
+                            return;
+                        }
+                    }
+                }
                 let thread_id = thread.id.clone();
                 let response = ThreadUnarchiveResponse { thread };
                 self.outgoing.send_response(request_id, response).await;
@@ -3993,6 +4013,9 @@ impl CodexMessageProcessor {
             )));
         };
 
+        self.apply_thread_read_epiphany_state(&mut thread, loaded_thread.as_ref())
+            .await?;
+
         let has_live_in_progress_turn = if let Some(loaded_thread) = loaded_thread.as_ref() {
             matches!(loaded_thread.agent_status().await, AgentStatus::Running)
         } else {
@@ -4082,6 +4105,27 @@ impl CodexMessageProcessor {
         )
         .await?;
         Ok(Some(thread))
+    }
+
+    async fn apply_thread_read_epiphany_state(
+        &self,
+        thread: &mut Thread,
+        loaded_thread: Option<&Arc<CodexThread>>,
+    ) -> Result<(), ThreadReadViewError> {
+        if let Some(loaded_thread) = loaded_thread {
+            thread.epiphany_state = loaded_thread.epiphany_state().await;
+            return Ok(());
+        }
+
+        let Some(rollout_path) = thread.path.as_deref() else {
+            thread.epiphany_state = None;
+            return Ok(());
+        };
+
+        thread.epiphany_state = load_epiphany_state_from_rollout_path(rollout_path)
+            .await
+            .map_err(ThreadReadViewError::Internal)?;
+        Ok(())
     }
 
     async fn apply_thread_read_rollout_fields(
@@ -4852,7 +4896,7 @@ impl CodexMessageProcessor {
     async fn load_thread_from_resume_source_or_send_internal(
         &self,
         thread_id: ThreadId,
-        thread: &CodexThread,
+        live_thread: &CodexThread,
         thread_history: &InitialHistory,
         rollout_path: &Path,
         fallback_provider: &str,
@@ -4870,7 +4914,7 @@ impl CodexMessageProcessor {
                 .await
             }
             InitialHistory::Forked(items) => {
-                let config_snapshot = thread.config_snapshot().await;
+                let config_snapshot = live_thread.config_snapshot().await;
                 let mut thread = build_thread_from_snapshot(
                     thread_id,
                     &config_snapshot,
@@ -4894,6 +4938,7 @@ impl CodexMessageProcessor {
         )
         .await?;
         self.attach_thread_name(thread_id, &mut thread).await;
+        thread.epiphany_state = live_thread.epiphany_state().await;
         Ok(thread)
     }
 
@@ -5164,6 +5209,8 @@ impl CodexMessageProcessor {
             self.send_internal_error(request_id, message).await;
             return;
         }
+
+        thread.epiphany_state = forked_thread.epiphany_state().await;
 
         self.thread_watch_manager
             .upsert_thread_silently(thread.clone())
@@ -7508,6 +7555,7 @@ impl CodexMessageProcessor {
             match read_summary_from_rollout(rollout_path.as_path(), fallback_provider).await {
                 Ok(summary) => {
                     let mut thread = summary_to_thread(summary, &self.config.cwd);
+                    thread.epiphany_state = review_thread.epiphany_state().await;
                     self.thread_watch_manager
                         .upsert_thread_silently(thread.clone())
                         .await;
@@ -9359,6 +9407,7 @@ fn thread_from_stored_thread(
         source: source.into(),
         git_info,
         name: thread.name,
+        epiphany_state: None,
         turns: Vec::new(),
     };
     (thread, history)
@@ -9842,6 +9891,7 @@ fn build_thread_from_snapshot(
         source: config_snapshot.session_source.clone().into(),
         git_info: None,
         name: None,
+        epiphany_state: None,
         turns: Vec::new(),
     }
 }
@@ -9897,8 +9947,23 @@ pub(crate) fn summary_to_thread(
         source: source.into(),
         git_info,
         name: None,
+        epiphany_state: None,
         turns: Vec::new(),
     }
+}
+
+async fn load_epiphany_state_from_rollout_path(
+    rollout_path: &Path,
+) -> std::result::Result<Option<EpiphanyThreadState>, String> {
+    let items = read_rollout_items_from_rollout(rollout_path)
+        .await
+        .map_err(|err| {
+            format!(
+                "failed to load rollout `{}` for Epiphany state: {err}",
+                rollout_path.display()
+            )
+        })?;
+    Ok(latest_epiphany_state_from_rollout_items(&items))
 }
 
 fn thread_backwards_cursor_for_sort_key(
@@ -10912,6 +10977,96 @@ mod tests {
             forked_from_id_from_rollout(path.as_path()).await,
             Some(forked_from_id.to_string())
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_epiphany_state_from_rollout_path_reads_latest_snapshot() -> Result<()> {
+        use codex_protocol::protocol::EpiphanyStateItem;
+        use codex_protocol::protocol::EpiphanyThreadState;
+        use codex_protocol::protocol::EventMsg;
+        use codex_protocol::protocol::RolloutItem;
+        use codex_protocol::protocol::RolloutLine;
+        use codex_protocol::protocol::SessionMetaLine;
+        use codex_protocol::protocol::TurnCompleteEvent;
+        use codex_protocol::protocol::TurnStartedEvent;
+        use codex_protocol::protocol::UserMessageEvent;
+        use std::fs;
+
+        let temp_dir = TempDir::new()?;
+        let path = temp_dir.path().join("rollout.jsonl");
+
+        let conversation_id = ThreadId::from_string("bfd12a78-5900-467b-9bc5-d3d35df08191")?;
+        let timestamp = "2025-09-05T16:53:11.850Z".to_string();
+        let epiphany_state = EpiphanyThreadState {
+            revision: 7,
+            objective: Some("Expose thread state to clients".to_string()),
+            active_subgoal_id: Some("phase-3".to_string()),
+            last_updated_turn_id: Some("turn-2".to_string()),
+            ..Default::default()
+        };
+
+        let rollout_lines = vec![
+            RolloutLine {
+                timestamp: timestamp.clone(),
+                item: RolloutItem::SessionMeta(SessionMetaLine {
+                    meta: SessionMeta {
+                        id: conversation_id,
+                        timestamp: timestamp.clone(),
+                        model_provider: Some("test-provider".to_string()),
+                        ..SessionMeta::default()
+                    },
+                    git: None,
+                }),
+            },
+            RolloutLine {
+                timestamp: timestamp.clone(),
+                item: RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
+                    turn_id: "turn-2".to_string(),
+                    started_at: None,
+                    model_context_window: None,
+                    collaboration_mode_kind: Default::default(),
+                })),
+            },
+            RolloutLine {
+                timestamp: timestamp.clone(),
+                item: RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+                    message: "load the scene".to_string(),
+                    images: None,
+                    text_elements: Vec::new(),
+                    local_images: Vec::new(),
+                })),
+            },
+            RolloutLine {
+                timestamp: timestamp.clone(),
+                item: RolloutItem::EpiphanyState(EpiphanyStateItem {
+                    turn_id: Some("turn-2".to_string()),
+                    state: epiphany_state.clone(),
+                }),
+            },
+            RolloutLine {
+                timestamp,
+                item: RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+                    turn_id: "turn-2".to_string(),
+                    last_agent_message: None,
+                    completed_at: None,
+                    duration_ms: None,
+                    time_to_first_token_ms: None,
+                })),
+            },
+        ];
+
+        let encoded = rollout_lines
+            .iter()
+            .map(serde_json::to_string)
+            .collect::<std::result::Result<Vec<_>, _>>()?
+            .join("\n");
+        fs::write(&path, format!("{encoded}\n"))?;
+
+        let loaded = load_epiphany_state_from_rollout_path(path.as_path())
+            .await
+            .map_err(anyhow::Error::msg)?;
+        assert_eq!(loaded, Some(epiphany_state));
         Ok(())
     }
 

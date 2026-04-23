@@ -259,6 +259,7 @@ fn turn_items_for_thread_returns_matching_turn_items() {
         agent_role: None,
         git_info: None,
         name: None,
+        epiphany_state: None,
         turns: vec![
             codex_app_server_protocol::Turn {
                 id: "turn-1".to_string(),
@@ -411,6 +412,7 @@ fn session_configured_from_thread_response_uses_review_policy_from_response() {
             agent_role: None,
             git_info: None,
             name: Some("thread".to_string()),
+            epiphany_state: None,
             turns: vec![],
         },
         model: "gpt-5.4".to_string(),

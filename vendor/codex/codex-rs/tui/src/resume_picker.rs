@@ -2048,6 +2048,7 @@ mod tests {
             agent_role: None,
             git_info: None,
             name: Some(String::from("Named thread")),
+            epiphany_state: None,
             turns: Vec::new(),
         };
 

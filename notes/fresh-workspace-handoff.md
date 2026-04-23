@@ -11,7 +11,7 @@ The working idea is simple enough:
 - keep evidence durable
 - make the harness consult that state instead of pretending the transcript is a brain
 
-The project target is now the vendored Codex core harness itself, not a sidecar wrapper first and not some random GitHub “OpenCodex” contraption held together with hope and string.
+The project target is now the vendored Codex core harness itself, not a sidecar wrapper first and not some random GitHub "OpenCodex" contraption held together with hope and string.
 
 ## Current Repo State
 
@@ -25,6 +25,7 @@ Recent anchor commits before the current in-flight work:
 - `2042687e3035c5a86d7f6aa66306d87abcc10f2d` - vendored Codex and landed the Phase 1 Epiphany core state slice
 - `c823815` - persisted the Phase 2 implementation plan and refreshed the project handoff/state
 - `efd1420` - landed and pushed the Phase 2 prompt-integration slice
+- `640e063` - documented the pre-compaction Epiphany workflow and synced the repo memory before compaction
 
 Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
@@ -66,7 +67,7 @@ Main touched files:
 - `vendor/codex/codex-rs/core/src/session/rollout_reconstruction_tests.rs`
 - plus rollout/state/app-server compatibility readers
 
-Phase 2 is now done too.
+Phase 2 is done too.
 
 The Phase 2 prompt-integration slice was implemented inside vendored Codex:
 
@@ -85,23 +86,48 @@ Main touched files for Phase 2:
 - `vendor/codex/codex-rs/core/src/session/snapshots/codex_core__session__build_initial_context_epiphany_state.snap`
 - `vendor/codex/codex-rs/protocol/src/protocol.rs`
 
+Phase 3 is landed too, in a conservative read-surface form.
+
+What landed:
+
+- app-server protocol `Thread` payloads now expose optional typed `epiphany_state`
+- hydrated thread responses prefer live `CodexThread` state when a thread is loaded
+- stored thread reads fall back to rollout reconstruction through a shared core helper that respects rollback and compaction semantics
+- the minimal typed client surface is now real without making prompt text the GUI data source
+- dedicated Epiphany-specific update RPCs and live state notifications are still deferred
+
+Main touched files for Phase 3:
+
+- `vendor/codex/codex-rs/core/src/epiphany_rollout.rs`
+- `vendor/codex/codex-rs/core/src/lib.rs`
+- `vendor/codex/codex-rs/core/src/codex_thread.rs`
+- `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
+- `vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs`
+- `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
+- `vendor/codex/codex-rs/app-server/README.md`
+- compatibility fixture/test updates in `analytics`, `exec`, and `tui`
+
 ## What Must Be Remembered Before Compaction
 
 If a future session wakes up from compaction and starts bluffing, this is the part to staple to its forehead.
 
-- Phase 1 and Phase 2 are both landed, verified, committed, and pushed.
-- The latest pushed implementation anchor before this handoff sync is `efd1420`:
-  - `Land Phase 2 Epiphany prompt integration`
+- Phase 1, Phase 2, and the minimal Phase 3 read surface are all landed and verified.
+- The latest pushed implementation anchor before this handoff sync is `640e063`:
+  - `Document pre-compaction Epiphany workflow`
 - `vendor/codex` is ordinary tracked repo content, not a submodule.
 - Phase 2 means Codex now **reads** Epiphany state during turn construction:
   - `SessionState.epiphany_state` is the internal activation signal
   - `Session::build_initial_context` injects a bounded `<epiphany_state>` developer fragment
   - resumed sessions reuse the restored Epiphany snapshot in the prompt path
+- Phase 3 means clients can now **read** typed Epiphany state directly from hydrated `Thread` payloads:
+  - `thread/start`, `thread/resume`, `thread/fork`, `thread/read`, `thread/unarchive`, and detached review-thread startup can carry `thread.epiphanyState` when present
+  - loaded threads use live state
+  - stored thread reads reconstruct from rollout with the same rollback/compaction semantics as core
+  - there are still no dedicated Epiphany update RPCs or live `thread/epiphany/*` notifications
 - The next phase is **not** GUI work.
-- The next phase is **Phase 3 typed state exposure**:
-  - expose Epiphany thread state to clients over typed app-server/protocol surfaces
-  - keep it additive and internal/dev-usable first
-  - do not make prompt text the canonical GUI data source
+- The next phase is **Phase 4 repo-local hybrid retrieval**:
+  - give Epiphany a real repo retrieval subsystem instead of repeated file-by-file shell archaeology
+  - keep it typed, additive, and GUI-friendly
 - Important Windows verification footgun still stands:
   - use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for `codex-core` work on this machine
 - Snapshot hygiene note:
@@ -138,6 +164,12 @@ Verified:
 - targeted new `codex-core` Epiphany persistence/replay tests passed
 - targeted `codex-core` `epiphany` tests passed after Phase 2
 - broader `codex-core` `build_initial_context_*` coverage passed after Phase 2
+- `cargo fmt --all` passed again after Phase 3
+- `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server -p codex-analytics -p codex-exec -p codex-tui --lib --no-run` passed after the new `Thread.epiphanyState` field fallout was patched
+- targeted Phase 3 tests passed:
+  - `cargo test -p codex-core --lib latest_epiphany_state_from_rollout_items`
+  - `cargo test -p codex-app-server --lib load_epiphany_state_from_rollout_path_reads_latest_snapshot`
+  - `cargo test -p codex-app-server-protocol --lib serialize_client_response`
 
 Important Windows footgun:
 
@@ -149,39 +181,38 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do **Phase 3 typed state exposure** next.
+Do **Phase 4 repo-local hybrid retrieval** next.
 
-The durable state seam exists and the turn loop now reads it. The next clean move is to expose that state to clients without forcing GUI code to scrape prompt text.
+The durable state seam exists, the turn loop now reads it, and clients can now load typed Epiphany state directly. The next clean move is to stop making every future agent rediscover the repo with shell spelunking.
 
 Planned slice:
 
-1. add typed app-server/protocol read surfaces for Epiphany thread state
-2. keep the new surface additive and internal/dev-usable first
-3. avoid making transcript text the canonical source for GUI state
-4. leave retrieval, invalidation, and specialist-agent scheduling for later slices
+1. define retrieval state and shard/index summaries in typed Epiphany state
+2. add a bounded hybrid retrieval surface that combines exact search with semantic chunk lookup
+3. keep the first retrieval slice additive and internal/dev-usable first
+4. leave watcher-driven invalidation, heavy GUI reflection, and specialist-agent scheduling for later slices
 
 Main files for the next slice:
 
+- `vendor/codex/codex-rs/protocol/src/`
+- `vendor/codex/codex-rs/core/src/`
 - `vendor/codex/codex-rs/app-server/src/`
 - `vendor/codex/codex-rs/app-server-protocol/src/`
-- `vendor/codex/codex-rs/protocol/src/`
-- `vendor/codex/codex-rs/core/src/session/`
 
 ## What Not To Do Next
 
 Not yet:
 
 - GUI work
-- protocol event expansion
-- retrieval indexing
+- watcher-driven semantic invalidation
 - automatic observation promotion
 - specialist-agent scheduling
 - user-facing activation flows
 
 The next slice should stay small and mean:
 
-- expose typed state reads
-- keep GUI, retrieval, and mutation logic dark
+- add typed retrieval scaffolding
+- keep GUI, mutation, and specialist-agent logic dark
 
 ## Verification Commands
 
@@ -203,4 +234,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1 and Phase 2 are landed and verified. `vendor/codex` is first-class in the parent repo now. The next clean move is typed state exposure for clients, not GUI paint and not another architectural detour. Also: pre-compaction persistence is now an explicit design rule, not a lucky habit.
+Phase 1, Phase 2, and a minimal Phase 3 typed read surface are landed and verified. `vendor/codex` is first-class in the parent repo now. The next clean move is repo-local hybrid retrieval, not GUI paint and not another architectural detour. Also: pre-compaction persistence is now an explicit design rule, not a lucky habit.

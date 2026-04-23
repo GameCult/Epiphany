@@ -1,230 +1,165 @@
-# Codex Epiphany Phase 2 Implementation Plan
+# Codex Epiphany Phase 4 Implementation Plan
 
 ## Status
 
-Implemented and verified in vendored Codex on 2026-04-23.
+Planned on 2026-04-23 after landing and verifying:
 
-What landed:
+- Phase 1 durable Epiphany thread state
+- Phase 2 prompt integration
+- a minimal Phase 3 typed client read surface via `Thread.epiphanyState`
 
-- `EpiphanyStateInstructions` as a dedicated developer-context fragment
-- a bounded `EpiphanyThreadState` renderer wrapped in `<epiphany_state> ... </epiphany_state>`
-- prompt injection from `Session::build_initial_context` whenever `SessionState.epiphany_state` is present
-- prompt-facing inclusion, omission, resume, bounded-rendering, and snapshot coverage
-
-Next likely slice:
-
-- Phase 3 typed app-server/protocol exposure so GUI clients can read Epiphany thread state directly instead of inferring it from prompt text
-
-This is the actionable implementation note for the second Epiphany patch slice against the real `openai/codex` tree now vendored directly under `vendor/codex`.
-
-Phase 1 landed in parent commit `2042687e3035c5a86d7f6aa66306d87abcc10f2d`. The durable state seam exists. Codex can now persist and replay structured Epiphany thread state. The next job is to make that state actually matter to the turn loop without pretending we already have GUI, retrieval, or operator ergonomics solved.
+The next job is to give Epiphany a real repo retrieval organ instead of making every future role rediscover the workspace with shell commands and optimism.
 
 ## Summary
 
-Land Phase 2 as a **prompt-integration slice** that derives a compact Epiphany summary from `SessionState.epiphany_state` and injects it into the developer-context path during turn construction.
+Land Phase 4 as a **bounded internal retrieval slice**:
+
+- add typed retrieval state and shard/index summaries to Epiphany state
+- add one additive app-server retrieval query surface for loaded threads
+- support hybrid retrieval from day one:
+  - exact/path/symbol/lexical results
+  - semantic chunk results
+- keep the slice internal/dev-usable first
 
 After this slice:
 
-- Epiphany state affects model behavior instead of just sitting in rollout
-- resumed Epiphany sessions carry their structured understanding back into the prompt path
-- normal non-Epiphany sessions still behave exactly as they do now
+- Epiphany can ask structured repo questions through one typed surface
+- GUI work has a real data source later
+- retrieval can evolve without making prompt text or shell transcripts the canonical knowledge path
 
-This slice still does **not** include:
+This slice should still avoid:
 
-- GUI surfaces
-- app-server notifications or typed read/update RPCs
-- retrieval indexing
-- watcher-driven semantic invalidation
-- observation promotion heuristics
+- watcher-driven invalidation
+- automatic observation promotion
+- GUI implementation
 - specialist-agent scheduling
-- public operator UX
+- user-facing activation flows
 
-## Phase 2 Principle
+## Phase 4 Principle
 
-The activation rule for Phase 2 should stay brutally simple:
+Do not build "vector search" as a separate novelty organ off to the side.
 
-- if `SessionState.epiphany_state` is `Some`, the session is Epiphany-active
-- if it is `None`, nothing new is injected
-
-That is enough for internal/dev use. Do not invent a new public toggle, preset, or protocol field in this slice.
+Build a **hybrid repo retrieval subsystem** with one typed query shape and one typed result shape. Exact lookup and semantic lookup should be different modes of the same machine, not rival religions.
 
 ## Key Changes
 
-### 1. Add a dedicated Epiphany prompt fragment renderer
+### 1. Extend Epiphany state with retrieval metadata
 
 Touch:
 
-- `vendor/codex/codex-rs/core/src/context/mod.rs`
-- `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs` (new)
+- `vendor/codex/codex-rs/protocol/src/protocol.rs`
 
-Add a new contextual fragment, tentatively:
+Add minimal retrieval metadata to `EpiphanyThreadState`, for example:
 
-- `EpiphanyStateInstructions`
+- `retrieval`
+  - `workspace_root`
+  - `index_revision`
+  - `status`
+  - `semantic_available`
+  - `last_indexed_at`
+  - `shards`
+  - `dirty_paths`
 
-Pattern it after other developer-scoped context fragments such as collaboration-mode and permissions instructions.
+Keep this metadata summary-focused. Do not dump raw embeddings, giant posting lists, or per-file sludge into thread state.
+
+### 2. Add a core retrieval facade
+
+Touch:
+
+- `vendor/codex/codex-rs/core/src/`
+
+Add a focused retrieval module, tentatively:
+
+- `epiphany_retrieval.rs`
 
 Responsibilities:
 
-- render a compact, deterministic textual summary from `EpiphanyThreadState`
-- wrap it in its own clear developer marker block such as `<epiphany_state> ... </epiphany_state>`
-- include light instruction text that tells the model how to treat the state:
-  - use it as the current structured thread understanding
-  - do not silently redefine it
-  - surface mismatches or gaps before broad edits
+- accept a loaded thread plus query params
+- resolve the relevant workspace root
+- run exact retrieval and semantic retrieval behind one interface
+- return typed ranked results with file paths, line anchors, excerpts, and retrieval mode metadata
 
-Do **not** dump raw JSON into the prompt.
+Result types should be explicit and bounded:
 
-### 2. Keep the summary bounded and intentionally selective
+- exact hits
+- semantic hits
+- optional graph-linked ids later
 
-The renderer should include only the parts that help the model stay oriented during a turn.
+Do not make the first cut depend on prompt parsing or transcript scraping.
 
-Include:
+### 3. Keep the first semantic backend small and local
 
-- `revision`
-- `objective`
-- `active_subgoal_id`
-- a bounded list of nearby `subgoals`
-- a bounded list of `invariants`
-- a compact `graphs` summary centered on the frontier
-- `graph_frontier`
-- `graph_checkpoint`
-- recent `observations`
-- recent `recent_evidence`
-- `churn`
-- `mode`
-- `last_updated_turn_id`
+The first semantic backend should be workspace-local, sharded, and incremental-friendly in storage layout, even if the initial indexing policy is still crude.
 
-Default Phase 2 shaping rules:
+Requirements:
 
-- prefer frontier and checkpoint over whole-graph dumping
-- prefer active and recent records over exhaustive history
-- cap list lengths aggressively
-- keep code refs line-anchored when rendered, but do not spam them everywhere
-- omit empty sections entirely
+- do not store everything in one giant JSON blob
+- prefer per-workspace or per-subsystem shards
+- track index revision and freshness explicitly
+- keep chunk text line-anchored and path-aware
 
-Phase 2 should **not** naively dump full scratch content. Scratch is volatile and can turn the prompt back into sludge. If scratch is rendered at all, keep it to a tiny active-summary form.
+If the first semantic backend needs to be intentionally narrow, that is fine. A small honest subsystem beats a magical blob with terrible write behavior.
 
-### 3. Inject the Epiphany summary during initial context construction
+### 4. Add one additive app-server query surface
 
 Touch:
 
-- `vendor/codex/codex-rs/core/src/session/mod.rs`
+- `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
+- `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
+- `vendor/codex/codex-rs/app-server/README.md`
 
-The integration point is:
+Add one typed method for retrieval, tentatively:
 
-- `Session::build_initial_context`
+- `thread/epiphany/retrieve`
 
-Add:
+Suggested request fields:
 
-- a read of `self.epiphany_state().await`
-- conditional rendering of `EpiphanyStateInstructions` when the state exists
-- insertion into `developer_sections`
+- `threadId`
+- `query`
+- optional `cwd`
+- optional `modes` or `preferSemantic`
+- optional `limit`
+- optional `pathPrefixes`
 
-Recommended placement:
+Suggested response fields:
 
-- after collaboration-mode instructions
-- before realtime/personality/apps/skills/plugin additions
+- `query`
+- `indexSummary`
+- `results`
 
-That keeps the Epiphany state near the top-level task discipline instead of burying it behind auxiliary capability chatter.
+Keep it additive and read-only. No write/update/index-control methods yet unless they turn out to be mechanically unavoidable.
 
-Do **not** change:
+### 5. Reuse existing exact-search substrate where practical
 
-- `TurnContext`
-- rollout protocol
-- tool routing
-- token accounting rules
+Codex already has fuzzy/exact-ish repo search substrate. Reuse what is useful instead of building a second exact-search toy from scratch.
 
-unless a small mechanical adjustment becomes unavoidable during implementation.
+But do not confuse that with the whole answer. Phase 4 exists because exact file search alone is not enough.
 
-### 4. Treat prompt integration as read-only in this slice
+### 6. Test the machine, not just the types
 
-Phase 2 is about **consuming** Epiphany state during turns, not teaching the model to rewrite canon by itself.
+Add tests for:
 
-So in this slice:
-
-- the model reads Epiphany state
-- the existing persistence seam remains the storage mechanism
-- no automatic state mutation from assistant output happens yet
-
-If state updates are needed during testing, use the internal/dev hooks that already exist from Phase 1.
-
-### 5. Add prompt-facing tests, not just persistence tests
-
-Touch:
-
-- `vendor/codex/codex-rs/core/src/session/tests.rs`
-- `vendor/codex/codex-rs/core/src/session/snapshots/` (if a new snapshot is needed)
-- optionally `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs` local tests
-
-Add at least:
-
-1. `build_initial_context_includes_epiphany_state_block_when_present`
-   - seed `SessionState.epiphany_state`
-   - call `build_initial_context`
-   - verify the developer bundle includes the Epiphany block
-
-2. `build_initial_context_omits_epiphany_state_block_when_absent`
-   - verify normal sessions stay unchanged
-
-3. one bounded-rendering test
-   - prove the renderer prefers frontier/recent items and omits empty sections
-
-4. one snapshot-style request/context test
-   - similar in spirit to the existing fork/context snapshot coverage
-   - confirm Epiphany state appears where expected in the built prompt
-
-If practical, add one resume-oriented assertion:
-
-- reconstruct a session from rollout with Epiphany state
-- build initial context
-- verify the injected Epiphany block survives replay and resume
-
-## Public Interfaces
-
-Phase 2 should still avoid public surface churn.
-
-No new:
-
-- protocol events
-- app-server notifications
-- GUI methods
-- public activation controls
-
-This is still an internal/dev-usable slice.
+1. protocol serde for the new retrieval request/response shapes
+2. core ranking/merging behavior for mixed exact + semantic results
+3. app-server handling for the new request
+4. retrieval metadata inclusion in `EpiphanyThreadState`
+5. a smoke test that proves semantic retrieval can find a concept that exact-name search would miss
 
 ## Assumptions
 
-- The existence of `SessionState.epiphany_state` is sufficient as the Phase 2 activation signal.
-- The Epiphany prompt block belongs in the developer-context path, not as a user message.
-- Prompt integration should remain compact and deterministic; this slice is not permission to stuff the entire map back into one giant haunted string.
-- Phase 2 is still safe to ship without GUI changes because non-Epiphany sessions remain untouched.
-
-## Test Plan
-
-### Core behavior
-
-- Epiphany-active sessions inject a developer-scoped Epiphany summary
-- non-Epiphany sessions do not
-- resumed sessions with persisted Epiphany state inject the latest surviving summary
-
-### Rendering discipline
-
-- empty fields do not create empty sections
-- bounded sections truncate deterministically
-- frontier/gap/evidence ordering is stable
-
-### Compatibility
-
-- existing prompt/context tests continue to pass for non-Epiphany paths
-- no new rollout compatibility fallout should appear because Phase 2 consumes existing state only
+- Phase 4 is still internal/dev-usable only.
+- Retrieval should be thread/workspace aware, not a global cross-repo soup.
+- The first retrieval slice can be read-only.
+- Watcher-driven invalidation belongs later; this slice only needs enough metadata to admit freshness honestly.
 
 ## Immediate Next Step After This Plan
 
-Implement the smallest useful prompt path only:
+Implement the smallest useful retrieval baseline:
 
-1. add `EpiphanyStateInstructions`
-2. inject it from `Session::build_initial_context` when `epiphany_state` exists
-3. add omission/inclusion tests
-4. add one snapshot proving the prompt shape
+1. extend `EpiphanyThreadState` with retrieval metadata
+2. add a core hybrid retrieval facade
+3. expose one typed `thread/epiphany/retrieve` read method
+4. document it in `app-server/README.md`
+5. verify with targeted protocol/core/app-server tests
 
-Do not start with GUI. Do not start with retrieval. Do not start teaching the model to rewrite canon from its own prose.
+Do not start with GUI. Do not start with automatic graph invalidation. Do not pretend shell transcripts are a retrieval strategy.

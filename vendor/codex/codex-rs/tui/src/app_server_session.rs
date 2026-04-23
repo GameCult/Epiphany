@@ -1576,6 +1576,7 @@ mod tests {
                 agent_role: None,
                 git_info: None,
                 name: None,
+                epiphany_state: None,
                 turns: vec![Turn {
                     id: "turn-1".to_string(),
                     items: vec![
