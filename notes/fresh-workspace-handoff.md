@@ -24,6 +24,7 @@ Recent anchor commits before the current in-flight work:
 
 - `2042687e3035c5a86d7f6aa66306d87abcc10f2d` - vendored Codex and landed the Phase 1 Epiphany core state slice
 - `c823815` - persisted the Phase 2 implementation plan and refreshed the project handoff/state
+- `efd1420` - landed and pushed the Phase 2 prompt-integration slice
 
 Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
@@ -83,6 +84,44 @@ Main touched files for Phase 2:
 - `vendor/codex/codex-rs/core/src/session/tests.rs`
 - `vendor/codex/codex-rs/core/src/session/snapshots/codex_core__session__build_initial_context_epiphany_state.snap`
 - `vendor/codex/codex-rs/protocol/src/protocol.rs`
+
+## What Must Be Remembered Before Compaction
+
+If a future session wakes up from compaction and starts bluffing, this is the part to staple to its forehead.
+
+- Phase 1 and Phase 2 are both landed, verified, committed, and pushed.
+- The latest pushed implementation anchor before this handoff sync is `efd1420`:
+  - `Land Phase 2 Epiphany prompt integration`
+- `vendor/codex` is ordinary tracked repo content, not a submodule.
+- Phase 2 means Codex now **reads** Epiphany state during turn construction:
+  - `SessionState.epiphany_state` is the internal activation signal
+  - `Session::build_initial_context` injects a bounded `<epiphany_state>` developer fragment
+  - resumed sessions reuse the restored Epiphany snapshot in the prompt path
+- The next phase is **not** GUI work.
+- The next phase is **Phase 3 typed state exposure**:
+  - expose Epiphany thread state to clients over typed app-server/protocol surfaces
+  - keep it additive and internal/dev-usable first
+  - do not make prompt text the canonical GUI data source
+- Important Windows verification footgun still stands:
+  - use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for `codex-core` work on this machine
+- Snapshot hygiene note:
+  - the new Epiphany prompt snapshot normalizes temp skill-root paths in the test harness so it stays stable across runs
+
+## Opinionated Workflow Rule
+
+Epiphany should be an **opinionated software development agent**, not a generic chat model wearing a hard hat.
+
+That means this persistence workflow is not optional ceremony. It should be part of the harness:
+
+1. before compaction, phase boundaries, or handoff:
+   - sync the canonical map
+   - append evidence
+   - refresh the handoff note
+   - make the next action explicit
+2. compaction should happen from a known checkpoint, not at some random point in the middle of an implementation trance
+3. resumed work should start from the persisted checkpoint and next action, not from vibes and transcript archaeology
+
+If the harness cannot do that by default later, it is not opinionated enough yet.
 
 ## Verification That Already Happened
 
@@ -164,4 +203,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1 and Phase 2 are landed and verified. `vendor/codex` is first-class in the parent repo now. The next clean move is typed state exposure for clients, not GUI paint and not another architectural detour.
+Phase 1 and Phase 2 are landed and verified. `vendor/codex` is first-class in the parent repo now. The next clean move is typed state exposure for clients, not GUI paint and not another architectural detour. Also: pre-compaction persistence is now an explicit design rule, not a lucky habit.

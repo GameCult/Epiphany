@@ -37,17 +37,20 @@ The working design now is:
 - use specialist agents with shared typed state and private scratch, not one heroic context trying to cosplay a whole team
 - add repo-local hybrid retrieval instead of making every role rediscover the repo with `rg` and raw stubbornness
 - treat compaction as a role-specific state transition with safe points and explicit checkpoints, not hidden brain damage
+- bake an explicit pre-compaction persistence workflow into the process, because forgetting to write down what matters and then acting surprised is not a serious engineering method
+- make Epiphany an opinionated software development agent, not a generic assistant with some extra tags bolted on
 
 ## Current Repository State
 
-- `vendor/codex` is the real target and is tracked as a gitlink/submodule-style nested repo
+- `vendor/codex` is the real target and is tracked directly in the parent repo
 - third-party OpenCodex forks were audited and removed
 - the Codex machine map and Epiphany harness spec have both been written and iterated enough to stop hand-waving
-- the next concrete step is the internal/dev-usable Phase 1 slice in vendored Codex
+- Phase 1 durable Epiphany state and Phase 2 prompt integration are both landed and verified
+- the next concrete step is typed app-server/protocol state exposure for clients
 
-## Phase 1
+## Current Slice Status
 
-Phase 1 is intentionally small and dull:
+Phase 1 landed:
 
 - add minimal Epiphany protocol types
 - store Epiphany state in Codex `SessionState`
@@ -56,7 +59,18 @@ Phase 1 is intentionally small and dull:
 - patch exhaustive `RolloutItem` matches
 - add persistence/replay compatibility tests
 
-No GUI yet. No prompt integration yet. No specialist scheduling yet. First the engine learns how to remember what it thinks without dropping pieces on the floor.
+Phase 2 landed:
+
+- add a dedicated `EpiphanyStateInstructions` developer fragment
+- render a bounded `<epiphany_state>` summary from `SessionState.epiphany_state`
+- inject it during `Session::build_initial_context`
+- verify inclusion, omission, resume, and snapshot behavior
+
+Phase 3 is next:
+
+- expose typed Epiphany state to clients over app-server/protocol surfaces
+- keep it additive and internal/dev-usable first
+- do not make prompt text the source of truth for GUI state
 
 ## Basic Loop
 
@@ -67,6 +81,19 @@ No GUI yet. No prompt integration yet. No specialist scheduling yet. First the e
 5. Verify against task success, map consistency, and simplicity.
 6. Record evidence.
 7. Commit, compare branches, or backtrack.
+
+## Pre-Compaction Discipline
+
+This part is not optional if the work is nontrivial.
+
+Before compaction, handoff, or a deliberate phase boundary:
+
+1. sync `state/map.yaml`
+2. append `state/evidence.jsonl`
+3. refresh `notes/fresh-workspace-handoff.md`
+4. state the next action plainly
+
+Epiphany should eventually make this automatic. Until then, we do it on purpose.
 
 ## Why This Exists
 

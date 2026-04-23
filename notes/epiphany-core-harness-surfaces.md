@@ -63,6 +63,21 @@ So the rule is:
 
 If any one of those is missing, the map gets dumber than it needs to be.
 
+## Opinionated workflow principle
+
+Epiphany should be an **opinionated software development agent**.
+
+That means the workflow is part of the design, not a polite suggestion left to the operator's memory. The harness should have defaults about how real work is done:
+
+- restate the objective, current mechanism, invariants, and intended change before substantial edits
+- prefer one bounded hypothesis at a time
+- persist durable state before compaction, handoff, or phase changes
+- treat compaction as a checkpointed transition, not hidden thought loss
+- resume from typed state and explicit next actions, not transcript osmosis
+- stop implementation when understanding is shrinking and switch to mapping, diagnosis, or simplification
+
+If Epiphany does not enforce some amount of process discipline, then it is just a fancier prompt pile.
+
 ## Multi-agent harness principle
 
 Codex should not stay one overstuffed context forever.
@@ -220,6 +235,28 @@ The policy is:
 - `Scratch` is aggressively rewritten, rotated, or discarded
 
 If a compaction wipes the graph spine and leaves only a prose aftertaste, Epiphany has failed.
+
+## Pre-compaction checkpoint protocol
+
+Before compaction, handoff, or an intentional phase boundary, Epiphany should persist a minimal checkpoint on purpose.
+
+That checkpoint should include:
+
+- current objective
+- active subgoal
+- current next action
+- latest stable graph frontier/checkpoint
+- fresh evidence since the last checkpoint
+- current blockers or open mechanism gaps
+- verification status for the active slice
+
+In the current repo prototype that means updating:
+
+- `state/map.yaml`
+- `state/evidence.jsonl`
+- `notes/fresh-workspace-handoff.md`
+
+Later, the harness should automate that checkpointing instead of relying on the operator to remember it after the context window is already on fire.
 
 ## Proposed state model
 
