@@ -240,6 +240,17 @@ If a compaction wipes the graph spine and leaves only a prose aftertaste, Epipha
 
 Before compaction, handoff, or an intentional phase boundary, Epiphany should persist a minimal checkpoint on purpose.
 
+This should not wait for an actual compaction interrupt.
+
+The harness should track context-pressure signals early and enter a checkpointing posture before the cliff edge:
+
+- `low`: no special action
+- `medium`: make sure the current frontier, evidence, and next action are up to date soon
+- `high`: checkpoint at the next safe point and mark compaction as pending
+- `critical`: stop nonessential exploration, persist immediately, and switch to re-entry-safe behavior
+
+If the system notices it is close to the context limit and just keeps coding until the lights go out, it is still doing transcript improv, not memory-aware work.
+
 That checkpoint should include:
 
 - current objective
@@ -991,6 +1002,8 @@ The rules should be:
 
 - compaction should prefer safe points rather than arbitrary interruption
 - if pressure arrives mid-pass, mark compaction pending and defer until the role reaches a boundary
+- compaction pressure should be detected before the hard limit; once pressure is `high`, the role should shift from "keep working" to "finish the current bounded move and checkpoint"
+- once pressure is `critical`, the role should stop nonessential work and persist the re-entry packet immediately, even if that means cutting short a line of thought
 - every compaction should emit an explicit checkpoint or resume packet
 - resume should say what survived, what was discarded, and what the role should do first
 
@@ -1034,6 +1047,8 @@ This suggests two useful compaction modes:
 
 The important thing is honesty. The system should admit that compaction happened instead of pretending the role has perfect continuity after being hit on the head.
 
+Just as important: the system should admit when compaction is *about to* happen. A role that can see the wall coming should start acting nervous on purpose.
+
 #### `churn`
 
 Health signals about whether the work is getting sloppy.
@@ -1042,6 +1057,7 @@ Suggested fields:
 
 - `understanding_status`: `clear`, `uncertain`, `stale`
 - `diff_pressure`: low/medium/high
+- `context_pressure`: low/medium/high/critical
 - `graph_freshness`: fresh/stale/missing or split freshness for architecture vs dataflow
 - `unexplained_writes`: count
 - `last_warning`
@@ -1263,7 +1279,10 @@ Behavior:
 - persist the latest Epiphany snapshot before the turn fully settles
 - persist or refresh the graph checkpoint before any compaction finalizes
 - treat compaction as a role-aware state transition, not hidden transcript trimming
+- watch context pressure before the hard limit and trigger checkpoint behavior early rather than waiting for forced compaction
 - compact at safe points where possible; otherwise mark compaction pending and defer until the active role reaches a boundary
+- when context pressure reaches `high`, checkpoint at the next safe point and narrow the active work to a bounded landing zone
+- when context pressure reaches `critical`, stop nonessential exploration and persist a re-entry-safe checkpoint immediately
 - preserve the graph spine and frontier metadata across compaction
 - preserve retrieval freshness summaries and dirty-shard metadata across compaction
 - preserve open mechanism questions, open gaps, and shard completion state across compaction

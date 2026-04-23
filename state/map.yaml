@@ -76,6 +76,7 @@ accepted_design:
   - Phase 2 is landed: a dedicated EpiphanyStateInstructions fragment now renders bounded Epiphany thread state into the developer prompt path during build_initial_context, with omission/inclusion/resume coverage and a stable snapshot
   - Phase 3 read-surface slice is landed: app-server protocol Thread payloads now carry optional typed epiphany_state hydrated from live CodexThread state when available and otherwise reconstructed from rollout with rollback/compaction semantics; dedicated Epiphany update RPCs and live notifications remain deferred
   - Epiphany should be an opinionated software development agent: pre-compaction and pre-handoff persistence of map, evidence, and next action are part of the workflow, not optional operator folklore
+  - compaction handling should be pressure-aware rather than reactive: when context pressure rises, Epiphany should narrow the active move and persist checkpoints before forced compaction actually hits
 
 rejected_paths:
   - name: pinned_map_only

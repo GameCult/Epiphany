@@ -100,6 +100,8 @@ Before compaction, handoff, or a deliberate phase boundary:
 3. refresh `notes/fresh-workspace-handoff.md`
 4. state the next action plainly
 
+If context pressure is clearly rising, do this **before** the hard compaction hits. A harness that only remembers to save itself after the blackout is still acting like a chat transcript with a superiority complex.
+
 Epiphany should eventually make this automatic. Until then, we do it on purpose.
 
 ## Why This Exists

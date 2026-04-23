@@ -144,8 +144,12 @@ That means this persistence workflow is not optional ceremony. It should be part
    - append evidence
    - refresh the handoff note
    - make the next action explicit
-2. compaction should happen from a known checkpoint, not at some random point in the middle of an implementation trance
-3. resumed work should start from the persisted checkpoint and next action, not from vibes and transcript archaeology
+2. if context pressure is climbing toward compaction:
+   - stop pretending there is plenty of room left
+   - narrow the current move to a bounded landing zone
+   - persist the checkpoint before the hard limit actually trips
+3. compaction should happen from a known checkpoint, not at some random point in the middle of an implementation trance
+4. resumed work should start from the persisted checkpoint and next action, not from vibes and transcript archaeology
 
 If the harness cannot do that by default later, it is not opinionated enough yet.
 
