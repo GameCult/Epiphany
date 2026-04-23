@@ -15,14 +15,17 @@ The project target is now the vendored Codex core harness itself, not a sidecar 
 
 ## Current Repo State
 
-Latest pushed parent commit:
-
-- `2042687e3035c5a86d7f6aa66306d87abcc10f2d`
-
 Important consequence:
 
 - `vendor/codex` is now tracked directly in the parent repo as ordinary files
 - it is **not** a submodule anymore
+
+Recent anchor commits before the current in-flight work:
+
+- `2042687e3035c5a86d7f6aa66306d87abcc10f2d` - vendored Codex and landed the Phase 1 Epiphany core state slice
+- `c823815` - persisted the Phase 2 implementation plan and refreshed the project handoff/state
+
+Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
 Canonical project state still lives in:
 
@@ -62,6 +65,25 @@ Main touched files:
 - `vendor/codex/codex-rs/core/src/session/rollout_reconstruction_tests.rs`
 - plus rollout/state/app-server compatibility readers
 
+Phase 2 is now done too.
+
+The Phase 2 prompt-integration slice was implemented inside vendored Codex:
+
+- `EpiphanyStateInstructions` renders a bounded developer fragment from `EpiphanyThreadState`
+- the fragment is wrapped in `<epiphany_state> ... </epiphany_state>`
+- `Session::build_initial_context` injects it immediately after collaboration-mode instructions when `SessionState.epiphany_state` exists
+- resumed sessions now pull the restored Epiphany state back into the prompt path instead of leaving it inert in rollout
+- prompt-facing inclusion, omission, resume, bounded-rendering, and snapshot tests were added
+
+Main touched files for Phase 2:
+
+- `vendor/codex/codex-rs/core/src/context/mod.rs`
+- `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs`
+- `vendor/codex/codex-rs/core/src/session/mod.rs`
+- `vendor/codex/codex-rs/core/src/session/tests.rs`
+- `vendor/codex/codex-rs/core/src/session/snapshots/codex_core__session__build_initial_context_epiphany_state.snap`
+- `vendor/codex/codex-rs/protocol/src/protocol.rs`
+
 ## Verification That Already Happened
 
 Rust and VS Build Tools were installed specifically so this would stop being interpretive dance.
@@ -75,6 +97,8 @@ Verified:
   - `codex-rollout`
   - `codex-state`
 - targeted new `codex-core` Epiphany persistence/replay tests passed
+- targeted `codex-core` `epiphany` tests passed after Phase 2
+- broader `codex-core` `build_initial_context_*` coverage passed after Phase 2
 
 Important Windows footgun:
 
@@ -86,25 +110,23 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do **Phase 2 prompt integration** next.
+Do **Phase 3 typed state exposure** next.
 
-The durable state seam exists. Now Codex needs to actually read it during turns.
+The durable state seam exists and the turn loop now reads it. The next clean move is to expose that state to clients without forcing GUI code to scrape prompt text.
 
 Planned slice:
 
-1. add a dedicated `EpiphanyStateInstructions` developer-context fragment
-2. render a compact, bounded summary from `EpiphanyThreadState`
-3. inject it from `Session::build_initial_context`
-4. activate it only when `SessionState.epiphany_state` is present
-5. add prompt-facing tests and one snapshot
+1. add typed app-server/protocol read surfaces for Epiphany thread state
+2. keep the new surface additive and internal/dev-usable first
+3. avoid making transcript text the canonical source for GUI state
+4. leave retrieval, invalidation, and specialist-agent scheduling for later slices
 
 Main files for the next slice:
 
-- `vendor/codex/codex-rs/core/src/context/mod.rs`
-- `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs` (new)
-- `vendor/codex/codex-rs/core/src/session/mod.rs`
-- `vendor/codex/codex-rs/core/src/session/tests.rs`
-- `vendor/codex/codex-rs/core/src/session/snapshots/`
+- `vendor/codex/codex-rs/app-server/src/`
+- `vendor/codex/codex-rs/app-server-protocol/src/`
+- `vendor/codex/codex-rs/protocol/src/`
+- `vendor/codex/codex-rs/core/src/session/`
 
 ## What Not To Do Next
 
@@ -117,10 +139,10 @@ Not yet:
 - specialist-agent scheduling
 - user-facing activation flows
 
-The next slice should be small and mean:
+The next slice should stay small and mean:
 
-- make the state matter to prompts
-- keep the rest dark
+- expose typed state reads
+- keep GUI, retrieval, and mutation logic dark
 
 ## Verification Commands
 
@@ -142,4 +164,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1 is landed, verified, committed, and pushed. `vendor/codex` is first-class in the parent repo now. The next clean move is Phase 2 prompt integration, not GUI paint and not another architectural detour.
+Phase 1 and Phase 2 are landed and verified. `vendor/codex` is first-class in the parent repo now. The next clean move is typed state exposure for clients, not GUI paint and not another architectural detour.

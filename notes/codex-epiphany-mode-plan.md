@@ -1,5 +1,20 @@
 # Codex Epiphany Phase 2 Implementation Plan
 
+## Status
+
+Implemented and verified in vendored Codex on 2026-04-23.
+
+What landed:
+
+- `EpiphanyStateInstructions` as a dedicated developer-context fragment
+- a bounded `EpiphanyThreadState` renderer wrapped in `<epiphany_state> ... </epiphany_state>`
+- prompt injection from `Session::build_initial_context` whenever `SessionState.epiphany_state` is present
+- prompt-facing inclusion, omission, resume, bounded-rendering, and snapshot coverage
+
+Next likely slice:
+
+- Phase 3 typed app-server/protocol exposure so GUI clients can read Epiphany thread state directly instead of inferring it from prompt text
+
 This is the actionable implementation note for the second Epiphany patch slice against the real `openai/codex` tree now vendored directly under `vendor/codex`.
 
 Phase 1 landed in parent commit `2042687e3035c5a86d7f6aa66306d87abcc10f2d`. The durable state seam exists. Codex can now persist and replay structured Epiphany thread state. The next job is to make that state actually matter to the turn loop without pretending we already have GUI, retrieval, or operator ergonomics solved.

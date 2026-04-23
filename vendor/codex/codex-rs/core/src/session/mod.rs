@@ -25,6 +25,7 @@ use crate::context::AvailablePluginsInstructions;
 use crate::context::AvailableSkillsInstructions;
 use crate::context::CollaborationModeInstructions;
 use crate::context::ContextualUserFragment;
+use crate::context::EpiphanyStateInstructions;
 use crate::context::NetworkRuleSaved;
 use crate::context::PermissionsInstructions;
 use crate::context::PersonalitySpecInstructions;
@@ -2434,7 +2435,7 @@ impl Session {
         &self,
         turn_context: &TurnContext,
     ) -> Vec<ResponseItem> {
-        let mut developer_sections = Vec::<String>::with_capacity(8);
+        let mut developer_sections = Vec::<String>::with_capacity(9);
         let mut contextual_user_sections = Vec::<String>::with_capacity(2);
         let shell = self.user_shell();
         let (
@@ -2443,6 +2444,7 @@ impl Session {
             collaboration_mode,
             base_instructions,
             session_source,
+            epiphany_state,
         ) = {
             let state = self.state.lock().await;
             (
@@ -2451,6 +2453,7 @@ impl Session {
                 state.session_configuration.collaboration_mode.clone(),
                 state.session_configuration.base_instructions.clone(),
                 state.session_configuration.session_source.clone(),
+                state.epiphany_state(),
             )
         };
         if let Some(model_switch_message) =
@@ -2502,6 +2505,9 @@ impl Session {
             CollaborationModeInstructions::from_collaboration_mode(&collaboration_mode)
         {
             developer_sections.push(collab_instructions.render());
+        }
+        if let Some(epiphany_state) = epiphany_state.as_ref() {
+            developer_sections.push(EpiphanyStateInstructions::from_state(epiphany_state).render());
         }
         if let Some(realtime_update) = crate::context_manager::updates::build_initial_realtime_item(
             reference_context_item.as_ref(),
