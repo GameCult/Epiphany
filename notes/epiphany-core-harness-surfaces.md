@@ -944,6 +944,59 @@ Suggested default triggers:
 
 This keeps the mapper responsive to repo change without making it inhale the worker's whole thought process.
 
+#### Agent-specific compaction policy
+
+Compaction should not be invisible housekeeping.
+
+It is a harness-level state transition, and each role should compact differently.
+
+The rules should be:
+
+- compaction should prefer safe points rather than arbitrary interruption
+- if pressure arrives mid-pass, mark compaction pending and defer until the role reaches a boundary
+- every compaction should emit an explicit checkpoint or resume packet
+- resume should say what survived, what was discarded, and what the role should do first
+
+Suggested defaults:
+
+- `Worker`
+  - compact aggressively
+  - preferred boundary: after each implementation pass or bounded write batch
+  - preserve active objective slice, edit intent, touched files, diff summary, pending checks, and unresolved blockers
+  - discard most exploratory scratch and raw shell exhaust once distilled
+
+- `Mapper`
+  - compact conservatively
+  - preferred boundary: after each graph checkpoint or subsystem pass
+  - preserve the graph frontier, open mechanism questions, open gaps, evidence refs, stale claims, and code refs
+  - discard local probing chatter once it has been distilled into observations, graph updates, or checkpoints
+
+- `Verifier`
+  - compact after each evidence batch or completed verification pass
+  - preserve pending checks, recent results, failure signatures, promoted evidence, and confidence notes
+  - discard raw command noise once promoted or explicitly rejected
+
+- `Coordinator`
+  - compact at decision boundaries rather than on every twitch
+  - preserve objectives, subgoal assignments, blockers, ownership state, and pending approvals
+  - discard transient orchestration chatter that has no durable consequence
+
+- `ChurnMonitor`
+  - can compact aggressively because it should mostly consume typed state, diffs, and progress summaries rather than long transcript context
+
+This suggests two useful compaction modes:
+
+- `SoftCompaction`
+  - trim scratch and local transcript bulk
+  - keep the current frontier and role context mostly live
+  - expected to be cheap and frequent
+
+- `HardCompaction`
+  - rebuild from durable state plus a role-specific resume packet
+  - expected to happen less often for coordinator/mapper and more often for worker/verifier
+
+The important thing is honesty. The system should admit that compaction happened instead of pretending the role has perfect continuity after being hit on the head.
+
 #### `churn`
 
 Health signals about whether the work is getting sloppy.
@@ -1172,14 +1225,18 @@ Behavior:
 
 - persist the latest Epiphany snapshot before the turn fully settles
 - persist or refresh the graph checkpoint before any compaction finalizes
+- treat compaction as a role-aware state transition, not hidden transcript trimming
+- compact at safe points where possible; otherwise mark compaction pending and defer until the active role reaches a boundary
 - preserve the graph spine and frontier metadata across compaction
 - preserve retrieval freshness summaries and dirty-shard metadata across compaction
 - preserve open mechanism questions, open gaps, and shard completion state across compaction
+- preserve role-specific resume packets so worker, mapper, verifier, and coordinator can re-enter differently
 - clear or rotate scratch as needed
 - keep evidence append-only
 - distinguish `PassComplete` from `DoneCriteriaMet` in mapping work
 - do not mark a mapping subgoal done while required mechanism questions remain open or unresolved as gaps
 - preserve enough structure that compaction does not erase the machine's understanding or lose the next re-entry point
+- emit explicit compaction telemetry describing the role, reason, boundary reached, retained state, discarded state, and checkpoint revision
 
 If compaction wipes the map, we have built a goldfish with a dashboard.
 
@@ -1580,6 +1637,7 @@ This is where Epiphany graduates from "better instructions" to an actual harness
 - add the agent registry and role ownership model
 - add role-scoped private scratch
 - add subscription-driven wakeups for mapper, worker, verifier, and coordinator
+- add role-specific compaction policies, safe points, and resume packets
 - keep the shared state plane authoritative while keeping role prompts narrow
 
 This is where Epiphany stops being one careful mind and becomes a coordinated pack.

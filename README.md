@@ -18,9 +18,45 @@ The goal is not to prove a new frontier architecture in a weekend. The goal is t
 - `protocol/controller-actions.md`: allowed actions and write rules
 - `notes/fresh-workspace-handoff.md`: concise summary for a fresh workspace
 - `notes/codex-epiphany-mode-plan.md`: concrete patch plan for vendored Codex
+- `notes/codex-repository-algorithmic-map.md`: current machine map of vendored Codex
+- `notes/epiphany-core-harness-surfaces.md`: where Epiphany should patch into that machine
 - `notes/architecture-rationale.md`: why the map/scratch/evidence architecture exists
 - `tools/epiphany_state.py`: tiny CLI for inspecting and updating branch/evidence state
 - `eval-plan.md`: how to compare this protocol against plain prompting
+
+## Current Direction
+
+This repo is no longer pretending the solution is "just prompt harder."
+
+The working design now is:
+
+- patch Epiphany into Codex's core harness, not into a chat transcript costume
+- treat typed thread state as the primary artifact and the UI as a reflection/steering layer
+- keep the machine map as two linked graphs: architecture and dataflow
+- preserve rich natural-language explanations alongside code refs, because language is still the model's least embarrassing organ
+- use specialist agents with shared typed state and private scratch, not one heroic context trying to cosplay a whole team
+- add repo-local hybrid retrieval instead of making every role rediscover the repo with `rg` and raw stubbornness
+- treat compaction as a role-specific state transition with safe points and explicit checkpoints, not hidden brain damage
+
+## Current Repository State
+
+- `vendor/codex` is the real target and is tracked as a gitlink/submodule-style nested repo
+- third-party OpenCodex forks were audited and removed
+- the Codex machine map and Epiphany harness spec have both been written and iterated enough to stop hand-waving
+- the next concrete step is the internal/dev-usable Phase 1 slice in vendored Codex
+
+## Phase 1
+
+Phase 1 is intentionally small and dull:
+
+- add minimal Epiphany protocol types
+- store Epiphany state in Codex `SessionState`
+- persist one Epiphany rollout snapshot per real user turn
+- restore it through rollout reconstruction
+- patch exhaustive `RolloutItem` matches
+- add persistence/replay compatibility tests
+
+No GUI yet. No prompt integration yet. No specialist scheduling yet. First the engine learns how to remember what it thinks without dropping pieces on the floor.
 
 ## Basic Loop
 
