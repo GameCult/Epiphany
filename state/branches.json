@@ -1,0 +1,15 @@
+{
+  "branches": [
+    {
+      "id": "main",
+      "hypothesis": "External typed state will reduce drift relative to plain prompting on iterative coding tasks.",
+      "status": "active",
+      "artifacts": [
+        "state/map.yaml",
+        "state/scratch.md",
+        "state/evidence.jsonl"
+      ],
+      "notes": "Initial scaffold plus tiny CLI. No evaluated task yet."
+    }
+  ]
+}

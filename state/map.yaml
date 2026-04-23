@@ -1,0 +1,90 @@
+experiment:
+  name: EpiphanyAgent
+  status: scaffolded
+  phase: manual_external_typed_state
+  premise: >
+    Test whether separating map, scratch, and output reduces architectural drift
+    for coding tasks when using a strong general model.
+
+objective:
+  primary: >
+    Build a model-agnostic protocol that Codex can use in this workspace and that
+    can later be evaluated on open models without requiring frontier-scale
+    training.
+  immediate:
+    - Finish the initial workspace scaffold.
+    - Keep controller actions and write rules explicit.
+    - Ground the Codex epiphany-mode idea against the real open-source codebase.
+    - Use the first minimal runner or manual operating loop on a small real task.
+    - Try the protocol on a small real task.
+
+constraints:
+  - No frontier-scale training budget.
+  - Start with external state and prompting.
+  - Keep the protocol light enough to use during normal work.
+  - Prefer evidence over vibes.
+
+invariants:
+  - The map is canonical and slow-changing.
+  - Scratch is temporary and allowed to be wrong.
+  - Output must not silently redefine the map.
+  - Accepted changes should have recorded evidence.
+  - Rejected paths stay recorded.
+
+data_flow:
+  observe:
+    - task request
+    - repository state
+    - verifier results
+  process:
+    - update map only with stable understanding
+    - think about one subgoal at a time
+    - propose one bounded change
+    - verify against task goals and invariants
+    - record evidence
+    - commit or backtrack
+
+active_subgoals:
+  - Implement the Phase 1 internal/dev-usable Epiphany core state slice in vendored Codex: protocol types, SessionState storage, rollout persistence, replay, and compatibility tests.
+  - Use the tiny CLI and typed state files on a small real task.
+  - Decide whether the next executable artifact should be a patch runner or a verifier helper.
+  - Run the protocol on a small real task.
+
+accepted_design:
+  - external typed state files
+  - bounded controller actions
+  - verifier-guided acceptance
+  - manual first, automation later
+  - patch Codex via collaboration-mode presets before touching protocol enums
+  - make Phase 1 preset selection, labeling, and instruction lookup preset-name-aware where needed because Epiphany initially rides on ModeKind::Default
+  - for a GUI-centered experiment, build a dedicated wrapper around customized vendored Codex instead of adopting third-party OpenCodex forks
+  - treat Epiphany as core-owned structured thread state in Codex, with the GUI as a reflection and steering layer rather than the source of truth
+  - represent the Epiphany machine map as two linked graphs (architecture and dataflow) with rich natural-language node fields such as purpose, mechanism, and metaphor, plus line-anchored code references
+  - make the graph model compaction-aware: preserve a durable spine, checkpoint and reselect a frontier, and allow scratch to be rewritten or discarded
+  - for mapping work, distinguish a completed pass from actual understanding: require representative concrete transformation questions, record unresolved mechanism gaps durably, and carry those gates across compaction
+  - treat Epiphany as a supervising harness over specialist agents sharing a typed state plane, with private role-scoped scratch by default and explicit ownership for map, evidence, and code-change domains
+  - add a repo-local hybrid retrieval subsystem to Epiphany: combine exact path/symbol/lexical search with semantic chunk retrieval and graph-linked lookup, shard it by repo/subsystem, and track freshness from diffs
+  - treat Codex's existing file watcher, subagent lifecycle, memory pipeline, and diff stream as reusable substrate, but add the missing semantic layer above them: typed repo understanding, freshness invalidation, structured tool-output distillation, and shared state across specialist agents
+  - insert a structured observation layer between raw tool output and durable Epiphany state so evidence, invalidation, and graph updates are promoted from typed distillation rather than transcript osmosis
+  - design Epiphany as GUI-first rather than transcript-first: the primary artifact is typed thread state, chat is one client of that state, user steering should go through typed updates, and long-running retrieval/remap/verification work should surface as explicit observable jobs
+  - preserve handoff context in repo-local AGENTS and notes files
+  - keep a durable repository-level algorithmic map of vendored Codex so GUI and Epiphany changes hook into the existing app-server/core boundary instead of reimplementing the turn loop
+  - keep the Codex algorithmic map honest about auxiliary side channels and limitations: file watching, unified diffs, compaction, subagent messaging, and memory summarization are real substrate, but they do not by themselves amount to semantic repo understanding
+
+rejected_paths:
+  - name: pinned_map_only
+    reason: still one token stream with no typed write semantics
+  - name: train_new_base_model_first
+    reason: too expensive for a first falsifiable experiment
+  - name: exact_name_open_codex_cli_as_gui_surface
+    reason: ymichael/open-codex is terminal-focused and has no Web UI or desktop surface
+  - name: read_opencodex_web_readme_claude_models_as_current_gui_support
+    reason: the Web UI has stale/aspirational Claude/Gemini model definitions, but the new-session selector only exposes Codex and the serve backend rejects non-Codex agents
+  - name: imdigitalashish_opencodex_as_primary_gui_surface
+    reason: the repo is a Tauri wrapper around an archived/vendored opencode CLI, has mismatched GUI/API model IDs versus the CLI model registry, runs the non-interactive tool path with broad auto-approval, and commits generated/binary/local-state artifacts
+  - name: third_party_opencodex_forks_as_gui_base
+    reason: audited candidates were either terminal-only, stale/aspirational, or incoherent wrappers; the comparison clones were removed from vendor to avoid building on untrusted drift
+
+current_status:
+  summary: Workspace initialized with protocol files, typed state, a tiny CLI, a git repo, fresh-workspace handoff notes, architecture rationale, a Codex algorithmic map note, an Epiphany core-harness surface spec, and an actionable Phase 1 implementation plan against vendored Codex. Third-party OpenCodex comparison clones were audited and removed.
+  next_action: Implement the Phase 1 internal/dev-usable Epiphany core state slice: add the minimal protocol types, store Epiphany state in SessionState, persist one rollout snapshot per real user turn, rehydrate it through rollout reconstruction, patch exhaustive RolloutItem matches, and add persistence/replay compatibility tests before touching prompts, presets, or GUI surfaces.
