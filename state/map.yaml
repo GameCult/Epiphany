@@ -77,6 +77,7 @@ accepted_design:
   - Phase 3 read-surface slice is landed: app-server protocol Thread payloads now carry optional typed epiphany_state hydrated from live CodexThread state when available and otherwise reconstructed from rollout with rollback/compaction semantics; dedicated Epiphany update RPCs and live notifications remain deferred
   - Epiphany should be an opinionated software development agent: pre-compaction and pre-handoff persistence of map, evidence, and next action are part of the workflow, not optional operator folklore
   - compaction handling should be pressure-aware rather than reactive: when context pressure rises, Epiphany should narrow the active move and persist checkpoints before forced compaction actually hits
+  - repo-local AGENTS instructions should carry the session bootstrap and re-entry protocol explicitly, including running epiphany_state.py status on fresh load and after compaction
 
 rejected_paths:
   - name: pinned_map_only

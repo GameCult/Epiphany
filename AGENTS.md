@@ -15,16 +15,19 @@ The motivating failure mode is that an agent can make many plausible local edits
 - Update `state/map.yaml` when project understanding changes.
 - Append evidence after meaningful research, implementation, verification, or rejected paths.
 
-## Current Recommendation
+## Current Status
 
-Do not start with full protocol enum surgery.
+The old preset-backed TUI experiment is no longer the active path.
 
-Start by implementing a lightweight preset-backed Epiphany mode in the vendored Codex repo:
+What is already landed in vendored Codex:
 
-- add an `epiphany.md` collaboration-mode template
-- add an `Epiphany` collaboration preset backed by `ModeKind::Default`
-- patch the TUI to display the active preset name so the mode is visible to users
-- only add `ModeKind::Epiphany` later if the preset-backed experiment proves useful
+- Phase 1 durable Epiphany thread state
+- Phase 2 prompt integration
+- a minimal Phase 3 typed app-server/client read surface via `Thread.epiphanyState`
+
+Current next phase:
+
+- Phase 4 repo-local hybrid retrieval
 
 ## Important Paths
 
@@ -51,6 +54,32 @@ rg -n "builtin_collaboration_mode_presets|fn plan_preset|fn default_preset" .\ve
 rg -n "collaboration_mode_label|collaboration_mode_indicator|set_collaboration_mask" .\vendor\codex\codex-rs\tui\src\chatwidget.rs
 ```
 
+## Session Bootstrap And Re-entry Protocol
+
+On fresh session load, do this before wandering off into implementation:
+
+1. read:
+   - `state/map.yaml`
+   - `notes/fresh-workspace-handoff.md`
+   - `notes/codex-epiphany-mode-plan.md`
+2. run:
+   - `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status`
+3. restate the current next action from the persisted state before starting edits
+
+After compaction, resume, or any suspicious loss of continuity:
+
+1. rerun `epiphany_state.py status`
+2. reread `state/map.yaml` and `notes/fresh-workspace-handoff.md`
+3. treat the persisted next action as authoritative unless fresh evidence in the repo contradicts it
+
+When context pressure is clearly rising:
+
+1. stop broad exploration
+2. narrow the active move to a bounded landing zone
+3. persist map/evidence/handoff updates before forced compaction hits
+
+Do not wait for the blackout and then act surprised.
+
 ## Operating Discipline
 
 - Before substantial edits, restate the current mechanism and intended change.
@@ -59,3 +88,4 @@ rg -n "collaboration_mode_label|collaboration_mode_indicator|set_collaboration_m
 - Revert or discard changes that do not clearly improve the target.
 - If the diff grows while understanding shrinks, stop implementation and switch to diagnosis.
 - Keep maps and prose together; do not replace useful maps with prose-only explanations.
+- Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, append `state/evidence.jsonl`, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.
