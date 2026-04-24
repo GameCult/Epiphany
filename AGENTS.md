@@ -89,6 +89,7 @@ Do not wait for the blackout and then act surprised.
 - Prefer one clear hypothesis per iteration.
 - Verify with checks that reflect the real goal, not just proxy success.
 - Revert or discard changes that do not clearly improve the target.
+- When a change is made to fix a regression or move a benchmark and it does not fix that regression or move that benchmark, immediately revert it before trying the next hypothesis. Record the rejected path if the lesson matters.
 - If the diff grows while understanding shrinks, stop implementation and switch to diagnosis.
 - Keep maps and prose together; do not replace useful maps with prose-only explanations.
 - Before adding natural-language explanations or metaphors to an algorithmic map, first read the relevant source paths and anchor the explanation to concrete code references. Metaphor is compression after source grounding, not a substitute for it.

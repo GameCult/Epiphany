@@ -396,6 +396,12 @@ That means this persistence workflow is not optional ceremony. It should be part
 
 If the harness cannot do that by default later, it is not opinionated enough yet.
 
+Regression and benchmark discipline:
+
+- if a change is made to fix a regression or move a benchmark and it does not fix that regression or move that benchmark, revert it immediately
+- do not let failed hypotheses accumulate as maybe-useful scaffolding
+- record the rejected path when the lesson matters, then try the next bounded hypothesis from a clean diff
+
 ## Verification That Already Happened
 
 Rust and VS Build Tools were installed specifically so this would stop being interpretive dance.
