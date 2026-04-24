@@ -28,6 +28,7 @@ Recent anchor commits:
 - `efd1420` - landed and pushed the Phase 2 prompt-integration slice
 - `640e063` - documented the pre-compaction Epiphany workflow and synced the repo memory before compaction
 - `360dfea` - landed and pushed the Phase 4 hybrid retrieval slice
+- `80c29e0` - extracted Epiphany core organs into `epiphany-core`, landed explicit Qdrant indexing, and added licensing guardrails
 
 Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
@@ -55,7 +56,7 @@ Canonical project state still lives in:
 
 Current implementation plan note:
 
-- `notes/codex-epiphany-mode-plan.md`
+- `notes/epiphany-fork-implementation-plan.md`
 
 Current architectural/spec notes:
 
@@ -65,9 +66,9 @@ Current architectural/spec notes:
 
 ## Current Landed Baseline
 
-Phase 4 repo-local hybrid retrieval is now landed on `main` at `360dfea` and pushed to `origin/main`. It is no longer a vague scaffold, a maybe, or a working-tree-only event.
+Phase 4 repo-local hybrid retrieval is now landed on `main`. The first retrieval anchor is `360dfea`; the current pushed baseline is `80c29e0`, which also includes explicit Qdrant indexing, the `epiphany-core` extraction, and licensing guardrails. This is no longer a vague scaffold, a maybe, or a working-tree-only event.
 
-Current verified working-tree follow-up after that landed baseline:
+Current verified pushed baseline after that first retrieval anchor:
 
 - explicit `thread/epiphany/index`
 - manifest-backed Qdrant semantic persistence under `codex_home`
@@ -76,7 +77,65 @@ Current verified working-tree follow-up after that landed baseline:
 - read-only `thread/epiphany/retrieve` with BM25 fallback still intact
 - repo-owned `epiphany-core` extraction for the heavy prompt/replay/retrieval organ, leaving vendored Codex with thin adapters plus the typed host seam
 
-Current verified working-tree implementation spans:
+Current verified working-tree follow-up:
+
+- experimental loaded-thread-only `thread/epiphany/update`
+- experimental loaded-thread-only `thread/epiphany/distill`
+- experimental loaded-thread-only `thread/epiphany/promote`
+- typed patch shape for observations, evidence, objective, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
+- deterministic observation/evidence proposal generation in `epiphany-core`
+- verifier-backed promotion policy evaluation in `epiphany-core`
+- core `CodexThread.epiphany_update_state(...)` applies the patch to live `SessionState`, bumps revision, persists `RolloutItem::EpiphanyState`, and flushes rollout
+- replay helpers in both `codex-core` and `epiphany-core` accept an out-of-band Epiphany snapshot before the first real user turn so seed/update snapshots survive resume
+- retrieval remains read-only and indexing remains the only persistent semantic write path
+
+Live smoke for that follow-up:
+
+- rebuilt `codex-app-server.exe`
+- initialized app-server stdio with `experimentalApi: true`
+- started ephemeral loaded thread `019dbffc-c19a-75e0-bf35-c780bee59a68` rooted at `E:\Projects\EpiphanyAgent\epiphany-core`
+- called `thread/epiphany/update` with `expectedRevision: 0`
+- response revision was `1`
+- `thread/read` returned `epiphanyState.revision == 1`, objective `Smoke-test explicit Epiphany update persistence`, observation `obs-update-smoke`, and evidence `ev-update-smoke`
+- smoke result lives at `.epiphany-smoke/update-smoke-result.json`
+- wire-shape footgun: app-server envelope fields are camelCase, but nested reused Epiphany core DTOs currently serialize with their core snake_case field names
+
+Live smoke for the distillation follow-up:
+
+- rebuilt `codex-app-server.exe`
+- initialized app-server stdio with `experimentalApi: true`
+- started ephemeral loaded thread `019dc028-99ce-7b03-8f89-65b072cc2cca` rooted at `E:\Projects\EpiphanyAgent\epiphany-core`
+- called `thread/epiphany/distill` with `sourceKind: smoke`, `status: ok`, subject `thread/epiphany/distill`, text, and a code ref to `src/distillation.rs`
+- distill returned `expectedRevision: 0` plus observation `obs-c9bfcac23d66` and evidence `ev-c9bfcac23d66` in a patch
+- passing that patch to `thread/epiphany/update` advanced state to revision `1`
+- `thread/read` returned the generated observation/evidence ids in `epiphanyState`
+- smoke result lives at `.epiphany-smoke/distill-smoke-result.json`
+
+Live smoke for the promotion follow-up:
+
+- rebuilt `codex-app-server.exe`
+- initialized app-server stdio with `experimentalApi: true`
+- started ephemeral loaded thread `019dc087-6d3d-7323-9a2f-2487a591ef7a` rooted at `E:\Projects\EpiphanyAgent\epiphany-core`
+- distilled a promotion smoke patch
+- `thread/epiphany/promote` rejected failed verifier evidence with `accepted: false`, a rejection reason, and no `epiphanyState`
+- `thread/read` after rejection had no Epiphany state, proving rejection did not mutate state
+- `thread/epiphany/promote` accepted verifier evidence with status `ok`, appended verifier evidence, and applied through the durable update path
+- `thread/read` returned revision `1`, observation `obs-77248505f492`, patch evidence `ev-77248505f492`, and verifier evidence `ev-promote-smoke-verifier`
+- smoke result lives at `.epiphany-smoke/promote-smoke-result.json`
+
+Live smoke after the pushed baseline:
+
+- built `codex-app-server.exe` with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
+- used an isolated `CODEX_HOME` at `.epiphany-smoke/codex-home`
+- started an ephemeral loaded app-server thread rooted at `E:\Projects\EpiphanyAgent\epiphany-core`
+- preflighted the bounded smoke corpus as 5 tracked files / 106,748 bytes
+- `thread/epiphany/index` against real local Qdrant/Ollama returned ready state with 5 indexed files and 198 chunks
+- Qdrant collection `epiphany_workspace_fa24bab116f8d229` was created
+- `thread/epiphany/retrieve` returned persistent semantic chunks from `src/prompt.rs`, proving the fresh Qdrant path works after explicit indexing
+- env/default backend config is good enough for the current slice; do not build a first-class config surface yet unless a real operator pain appears
+- unrelated app-server startup noise showed up during the smoke: project trust warning, plugin sync 403, and unauthenticated OpenAI websocket warning
+
+Current verified implementation spans:
 
 - `epiphany-core/Cargo.toml`
 - `epiphany-core/src/prompt.rs`
@@ -90,6 +149,8 @@ Current verified working-tree implementation spans:
 - `vendor/codex/codex-rs/core/src/codex_thread.rs`
 - `vendor/codex/codex-rs/core/src/lib.rs`
 - `vendor/codex/codex-rs/core/Cargo.toml`
+- `vendor/codex/codex-rs/core/src/session/rollout_reconstruction.rs`
+- `vendor/codex/codex-rs/core/src/session/rollout_reconstruction_tests.rs`
 - `vendor/codex/codex-rs/core/src/session/tests.rs`
 - `vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs`
 - `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
@@ -105,9 +166,13 @@ What is wired right now:
   - the prompt-state renderer used by Phase 2 prompt injection
   - the rollout replay helper used by Phase 3 stored-thread hydration and rollback/compaction-aware reads
   - the heavy retrieval/indexing engine used by the current Phase 4 work
+  - the deterministic observation distiller used by `thread/epiphany/distill`
+  - the promotion policy evaluator used by `thread/epiphany/promote`
 - vendored `codex-core` now keeps thin adapters at:
   - `core/src/epiphany_retrieval.rs`
   - `core/src/epiphany_rollout.rs`
+  - `core/src/epiphany_distillation.rs`
+  - `core/src/epiphany_promotion.rs`
   - `core/src/context/epiphany_state_instructions.rs`
 - the retrieval machine is still hybrid:
   - exact/path-ish lookup via `codex_file_search`
@@ -116,12 +181,19 @@ What is wired right now:
   - `epiphany_retrieval_state()`
   - `epiphany_retrieve(...)`
   - `epiphany_index(...)`
+  - `epiphany_update_state(...)`
 - app-server protocol now declares experimental `thread/epiphany/retrieve`
 - app-server protocol now also declares experimental `thread/epiphany/index`
+- app-server protocol now also declares experimental `thread/epiphany/distill`
+- app-server protocol now also declares experimental `thread/epiphany/promote`
+- app-server protocol now also declares experimental `thread/epiphany/update`
 - app-server message handling now routes those methods through the core host seam
+- `thread/epiphany/distill` is the first read-only proposal surface; it returns an `expectedRevision` plus a patch and requires explicit promotion through `thread/epiphany/update`
+- `thread/epiphany/promote` is the first explicit promotion gate; it rejects failed verifier evidence without mutation and applies accepted candidates through the update path
+- `thread/epiphany/update` is the first explicit durable Epiphany state write surface; it rejects empty patches, supports optional revision matching, appends observations/evidence, replaces bounded typed fields, increments state revision, and persists immediately
 - live hydrated `thread.epiphanyState` reads now backfill a lightweight retrieval summary when the thread already has Epiphany state but no persisted retrieval summary yet
 - basic protocol/core/app-server unit tests were added for the new types and mapping layer
-- the current verified working tree additionally wires:
+- the current pushed baseline additionally wires:
   - Qdrant-backed semantic indexing behind an explicit write path instead of hidden retrieval mutation
   - manifest-backed freshness checking under `codex_home`
   - local Ollama embeddings by default, with support for adjacent VoidBot-style env names as fallbacks
@@ -246,18 +318,20 @@ Main touched files for Phase 3:
 - `vendor/codex/codex-rs/app-server/README.md`
 - compatibility fixture/test updates in `analytics`, `exec`, and `tui`
 
-There is now also a dedicated Epiphany delta map:
+There is now also a dedicated Epiphany algorithmic map:
 
 - `notes/epiphany-current-algorithmic-map.md`
 
-Use it when you need the answer to "how does current Epiphany differ from plain Codex right now?" without rereading the whole Codex machine map plus the whole future-facing spec.
+Use it when you need the answer to "what machine is current Epiphany, as a fork, actually running right now?" without rereading the whole Codex machine map plus the whole future-facing spec.
 
 ## What Must Be Remembered Before Compaction
 
 If a future session wakes up from compaction and starts bluffing, this is the part to staple to its forehead.
 
 - Phase 1, Phase 2, and the minimal Phase 3 read surface are all landed and verified.
-- The current landed Phase 4 anchor is `360dfea`:
+- The current pushed Phase 4/core-extraction anchor is `80c29e0`:
+  - `Extract Epiphany core and add licensing guardrails`
+- The earlier Phase 4 slice 1 anchor is still `360dfea`:
   - `Land Epiphany Phase 4 hybrid retrieval slice`
 - `vendor/codex` is ordinary tracked repo content, not a submodule.
 - Phase 2 means Codex now **reads** Epiphany state during turn construction:
@@ -270,10 +344,11 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - stored thread reads reconstruct from rollout with the same rollback/compaction semantics as core
   - there are still no dedicated Epiphany update RPCs or live `thread/epiphany/*` notifications
 - The next phase is **not** GUI work.
-- The current landed phase is **Phase 4 slice 1 repo-local hybrid retrieval**:
+- The current landed phase is **Phase 4 repo-local retrieval/indexing**:
   - Epiphany now has a real typed repo retrieval subsystem instead of repeated file-by-file shell archaeology
-  - the next bounded follow-up is persistent semantic indexing, not proving the retriever exists again
-- The current working tree also extracted most Epiphany-owned implementation into `epiphany-core`:
+  - persistent semantic indexing now exists behind explicit `thread/epiphany/index`
+  - the next bounded follow-up is live smoke and operational polish, not proving the retriever exists again
+- The current pushed baseline also extracted most Epiphany-owned implementation into `epiphany-core`:
   - prompt rendering, rollout replay, and retrieval/indexing logic are now repo-owned
   - vendored Codex keeps the typed protocol/thread/app-server seam plus thin adapters
 - Phase 4 slice 1 is now landed on `main` and was verified before landing:
@@ -352,25 +427,20 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. The current Phase 4 slice is already verified in the working tree.
+Do not restart verification from superstition. The current Phase 4 retrieval/indexing/core-extraction baseline is already verified, committed, and pushed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, and the first retrieval slice is now real and landed. The next clean move is the bounded persistent-semantic follow-up after reboot, not pretending the already-shipped slice still needs ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, and the first distill/promote/update path is live-smoked. The next clean move is richer map/churn promotion policy, not pretending the already-shipped slices still need ceremony.
 
 Current next implementation move:
 
-1. keep the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
-2. keep the current verified working-tree `thread/epiphany/index` follow-up bounded:
-   - explicit write path
-   - Qdrant-backed semantic persistence
-   - local Ollama embeddings by default
-   - BM25 fallback still alive
-3. keep the new `epiphany-core` boundary honest:
-   - heavy Epiphany-owned logic in the sibling crate
-   - thin adapters and typed seams in vendored Codex
-4. next practical move:
-   - smoke the explicit indexing path against a live loaded thread and the real local services
-   - then decide whether env-scoped backend config is good enough for now or deserves a cleaner surface
-5. do not casually add durable retrieval-summary writes to `thread/epiphany/retrieve`
+1. treat the live-smoked retrieval/indexing baseline, typed update surface, typed distill proposal surface, and typed promote gate as real
+2. keep the current env/default Qdrant/Ollama config surface for now
+3. keep `thread/epiphany/retrieve` and `thread/epiphany/distill` read-only
+4. build the next layer above the distill/promote/update surfaces:
+   - richer map/churn patch generation from verified observations
+   - promotion policy beyond simple evidence-linked observation acceptance
+   - verifier-backed acceptance/rejection evidence
+   - no GUI, watcher, or specialist-agent machinery yet
 
 ## What Not To Do Next
 
@@ -384,8 +454,9 @@ Not yet:
 
 The next slice should stay small and mean:
 
-- harden the explicit persistent semantic retrieval/indexing path
-- keep GUI, mutation, and specialist-agent logic dark
+- harden the explicit state-update path with a live app-server smoke when useful
+- harden distillation only through explicit proposal/promotion checks, not hidden writes
+- keep GUI, watcher mutation, and specialist-agent logic dark
 
 ## Verification Commands
 

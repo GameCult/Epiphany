@@ -23,10 +23,22 @@ use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
+use codex_protocol::protocol::EpiphanyChurnState;
+use codex_protocol::protocol::EpiphanyEvidenceRecord;
+use codex_protocol::protocol::EpiphanyGraphCheckpoint;
+use codex_protocol::protocol::EpiphanyGraphFrontier;
+use codex_protocol::protocol::EpiphanyGraphs;
+use codex_protocol::protocol::EpiphanyInvariant;
+use codex_protocol::protocol::EpiphanyModeState;
+use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalState;
+use codex_protocol::protocol::EpiphanyScratchPad;
+use codex_protocol::protocol::EpiphanyStateItem;
+use codex_protocol::protocol::EpiphanySubgoal;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::Op;
+use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::Submission;
@@ -82,6 +94,40 @@ pub struct CodexThread {
     rollout_path: Option<PathBuf>,
     out_of_band_elicitation_count: Mutex<u64>,
     _watch_registration: WatchRegistration,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct EpiphanyStateUpdate {
+    pub expected_revision: Option<u64>,
+    pub objective: Option<String>,
+    pub active_subgoal_id: Option<String>,
+    pub subgoals: Option<Vec<EpiphanySubgoal>>,
+    pub invariants: Option<Vec<EpiphanyInvariant>>,
+    pub graphs: Option<EpiphanyGraphs>,
+    pub graph_frontier: Option<EpiphanyGraphFrontier>,
+    pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
+    pub scratch: Option<EpiphanyScratchPad>,
+    pub observations: Vec<EpiphanyObservation>,
+    pub evidence: Vec<EpiphanyEvidenceRecord>,
+    pub churn: Option<EpiphanyChurnState>,
+    pub mode: Option<EpiphanyModeState>,
+}
+
+impl EpiphanyStateUpdate {
+    fn is_empty(&self) -> bool {
+        self.objective.is_none()
+            && self.active_subgoal_id.is_none()
+            && self.subgoals.is_none()
+            && self.invariants.is_none()
+            && self.graphs.is_none()
+            && self.graph_frontier.is_none()
+            && self.graph_checkpoint.is_none()
+            && self.scratch.is_none()
+            && self.observations.is_empty()
+            && self.evidence.is_empty()
+            && self.churn.is_none()
+            && self.mode.is_none()
+    }
 }
 
 /// Conduit for the bidirectional stream of messages that compose a thread
@@ -324,6 +370,53 @@ impl CodexThread {
         self.codex.session.epiphany_state().await
     }
 
+    pub async fn epiphany_update_state(
+        &self,
+        update: EpiphanyStateUpdate,
+    ) -> CodexResult<EpiphanyThreadState> {
+        if update.is_empty() {
+            return Err(CodexErr::InvalidRequest(
+                "epiphany update patch must contain at least one mutation".to_string(),
+            ));
+        }
+
+        let reference_turn_id = self
+            .codex
+            .session
+            .reference_context_item()
+            .await
+            .and_then(|item| item.turn_id);
+        let mut next_state = self
+            .codex
+            .session
+            .epiphany_state()
+            .await
+            .unwrap_or_default();
+        if let Some(expected_revision) = update.expected_revision
+            && next_state.revision != expected_revision
+        {
+            return Err(CodexErr::InvalidRequest(format!(
+                "epiphany state revision mismatch: expected {expected_revision}, found {}",
+                next_state.revision
+            )));
+        }
+
+        apply_epiphany_state_update(&mut next_state, update, reference_turn_id.clone());
+        self.codex
+            .session
+            .set_epiphany_state(Some(next_state.clone()))
+            .await;
+        self.codex
+            .session
+            .persist_rollout_items(&[RolloutItem::EpiphanyState(EpiphanyStateItem {
+                turn_id: reference_turn_id,
+                state: next_state.clone(),
+            })])
+            .await;
+        self.codex.session.flush_rollout().await?;
+        Ok(next_state)
+    }
+
     pub async fn epiphany_retrieval_state(&self) -> EpiphanyRetrievalState {
         let config = self.codex.thread_config_snapshot().await;
         let workspace_root = config.cwd.to_path_buf();
@@ -444,6 +537,110 @@ impl CodexThread {
         }
 
         Ok(*guard)
+    }
+}
+
+fn apply_epiphany_state_update(
+    state: &mut EpiphanyThreadState,
+    update: EpiphanyStateUpdate,
+    reference_turn_id: Option<String>,
+) {
+    if let Some(objective) = update.objective {
+        state.objective = Some(objective);
+    }
+    if let Some(active_subgoal_id) = update.active_subgoal_id {
+        state.active_subgoal_id = Some(active_subgoal_id);
+    }
+    if let Some(subgoals) = update.subgoals {
+        state.subgoals = subgoals;
+    }
+    if let Some(invariants) = update.invariants {
+        state.invariants = invariants;
+    }
+    if let Some(graphs) = update.graphs {
+        state.graphs = graphs;
+    }
+    if let Some(graph_frontier) = update.graph_frontier {
+        state.graph_frontier = Some(graph_frontier);
+    }
+    if let Some(graph_checkpoint) = update.graph_checkpoint {
+        state.graph_checkpoint = Some(graph_checkpoint);
+    }
+    if let Some(scratch) = update.scratch {
+        state.scratch = Some(scratch);
+    }
+    if let Some(churn) = update.churn {
+        state.churn = Some(churn);
+    }
+    if let Some(mode) = update.mode {
+        state.mode = Some(mode);
+    }
+
+    prepend_recent(&mut state.observations, update.observations);
+    prepend_recent(&mut state.recent_evidence, update.evidence);
+    state.revision = state.revision.saturating_add(1);
+    state.last_updated_turn_id = reference_turn_id;
+}
+
+fn prepend_recent<T>(items: &mut Vec<T>, mut new_items: Vec<T>) {
+    if new_items.is_empty() {
+        return;
+    }
+    new_items.append(items);
+    *items = new_items;
+}
+
+#[cfg(test)]
+mod epiphany_update_tests {
+    use super::*;
+
+    #[test]
+    fn apply_epiphany_state_update_replaces_typed_fields_and_prepends_evidence() {
+        let mut state = EpiphanyThreadState {
+            revision: 3,
+            recent_evidence: vec![EpiphanyEvidenceRecord {
+                id: "old-evidence".to_string(),
+                kind: "research".to_string(),
+                status: "ok".to_string(),
+                summary: "Older finding".to_string(),
+                code_refs: Vec::new(),
+            }],
+            ..Default::default()
+        };
+
+        apply_epiphany_state_update(
+            &mut state,
+            EpiphanyStateUpdate {
+                objective: Some("Keep the map honest".to_string()),
+                evidence: vec![EpiphanyEvidenceRecord {
+                    id: "new-evidence".to_string(),
+                    kind: "verification".to_string(),
+                    status: "ok".to_string(),
+                    summary: "New finding".to_string(),
+                    code_refs: Vec::new(),
+                }],
+                churn: Some(EpiphanyChurnState {
+                    understanding_status: "grounded".to_string(),
+                    diff_pressure: "low".to_string(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            Some("turn-1".to_string()),
+        );
+
+        assert_eq!(state.revision, 4);
+        assert_eq!(state.objective.as_deref(), Some("Keep the map honest"));
+        assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-1"));
+        assert_eq!(state.recent_evidence[0].id, "new-evidence");
+        assert_eq!(state.recent_evidence[1].id, "old-evidence");
+        assert_eq!(
+            state
+                .churn
+                .as_ref()
+                .map(|churn| churn.diff_pressure.as_str()),
+            Some("low")
+        );
     }
 }
 

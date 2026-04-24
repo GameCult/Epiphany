@@ -341,6 +341,21 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyIndexParams,
         response: v2::ThreadEpiphanyIndexResponse,
     },
+    #[experimental("thread/epiphany/distill")]
+    ThreadEpiphanyDistill => "thread/epiphany/distill" {
+        params: v2::ThreadEpiphanyDistillParams,
+        response: v2::ThreadEpiphanyDistillResponse,
+    },
+    #[experimental("thread/epiphany/promote")]
+    ThreadEpiphanyPromote => "thread/epiphany/promote" {
+        params: v2::ThreadEpiphanyPromoteParams,
+        response: v2::ThreadEpiphanyPromoteResponse,
+    },
+    #[experimental("thread/epiphany/update")]
+    ThreadEpiphanyUpdate => "thread/epiphany/update" {
+        params: v2::ThreadEpiphanyUpdateParams,
+        response: v2::ThreadEpiphanyUpdateResponse,
+    },
     #[experimental("thread/epiphany/retrieve")]
     ThreadEpiphanyRetrieve => "thread/epiphany/retrieve" {
         params: v2::ThreadEpiphanyRetrieveParams,
@@ -1702,6 +1717,126 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_distill_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyDistill {
+            request_id: RequestId::Integer(10),
+            response: v2::ThreadEpiphanyDistillResponse {
+                expected_revision: 7,
+                patch: v2::ThreadEpiphanyUpdatePatch {
+                    observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                        id: "obs-123".to_string(),
+                        summary: "Smoke passed".to_string(),
+                        source_kind: "smoke".to_string(),
+                        status: "ok".to_string(),
+                        code_refs: Vec::new(),
+                        evidence_ids: vec!["ev-123".to_string()],
+                    }],
+                    evidence: vec![codex_protocol::protocol::EpiphanyEvidenceRecord {
+                        id: "ev-123".to_string(),
+                        kind: "verification".to_string(),
+                        status: "ok".to_string(),
+                        summary: "Smoke passed".to_string(),
+                        code_refs: Vec::new(),
+                    }],
+                    ..Default::default()
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(10));
+        assert_eq!(response.method(), "thread/epiphany/distill");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/distill",
+                "id": 10,
+                "response": {
+                    "expectedRevision": 7,
+                    "patch": {
+                        "observations": [
+                            {
+                                "id": "obs-123",
+                                "summary": "Smoke passed",
+                                "source_kind": "smoke",
+                                "status": "ok",
+                                "evidence_ids": ["ev-123"]
+                            }
+                        ],
+                        "evidence": [
+                            {
+                                "id": "ev-123",
+                                "kind": "verification",
+                                "status": "ok",
+                                "summary": "Smoke passed"
+                            }
+                        ]
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_promote_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyPromote {
+            request_id: RequestId::Integer(11),
+            response: v2::ThreadEpiphanyPromoteResponse {
+                accepted: false,
+                reasons: vec!["verifierEvidence.status must be accepting".to_string()],
+                epiphany_state: None,
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(11));
+        assert_eq!(response.method(), "thread/epiphany/promote");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/promote",
+                "id": 11,
+                "response": {
+                    "accepted": false,
+                    "reasons": ["verifierEvidence.status must be accepting"],
+                    "epiphanyState": null
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_update_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyUpdate {
+            request_id: RequestId::Integer(12),
+            response: v2::ThreadEpiphanyUpdateResponse {
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 2,
+                    objective: Some("Keep the map honest".to_string()),
+                    ..Default::default()
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(12));
+        assert_eq!(response.method(), "thread/epiphany/update");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/update",
+                "id": 12,
+                "response": {
+                    "epiphanyState": {
+                        "revision": 2,
+                        "objective": "Keep the map honest"
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_config_requirements_read() -> Result<()> {
         let request = ClientRequest::ConfigRequirementsRead {
             request_id: RequestId::Integer(1),
@@ -2223,6 +2358,65 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/index"));
+    }
+
+    #[test]
+    fn thread_epiphany_distill_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyDistill {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyDistillParams {
+                thread_id: "thr_123".to_string(),
+                source_kind: "smoke".to_string(),
+                status: "ok".to_string(),
+                text: "smoke passed".to_string(),
+                subject: Some("thread/epiphany/distill".to_string()),
+                evidence_kind: None,
+                code_refs: Vec::new(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/distill"));
+    }
+
+    #[test]
+    fn thread_epiphany_promote_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyPromote {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyPromoteParams {
+                thread_id: "thr_123".to_string(),
+                expected_revision: Some(1),
+                patch: v2::ThreadEpiphanyUpdatePatch {
+                    objective: Some("Keep the map honest".to_string()),
+                    ..Default::default()
+                },
+                verifier_evidence: codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    id: "ev-verifier".to_string(),
+                    kind: "verification".to_string(),
+                    status: "ok".to_string(),
+                    summary: "Verifier accepted promotion".to_string(),
+                    code_refs: Vec::new(),
+                },
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/promote"));
+    }
+
+    #[test]
+    fn thread_epiphany_update_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyUpdate {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyUpdateParams {
+                thread_id: "thr_123".to_string(),
+                expected_revision: Some(1),
+                patch: v2::ThreadEpiphanyUpdatePatch {
+                    objective: Some("Keep the map honest".to_string()),
+                    ..Default::default()
+                },
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/update"));
     }
 
     #[test]

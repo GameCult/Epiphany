@@ -1,28 +1,33 @@
-# Codex Epiphany Phase 4 Implementation Plan
+# Epiphany Fork Implementation Plan
 
 ## Status
 
-Updated on 2026-04-24 after landing the first bounded Phase 4 slice on `main`:
+Updated on 2026-04-24 after landing the Phase 4 retrieval/indexing/core-extraction baseline on `main`.
+
+This note tracks Epiphany as a fork of Codex with an opinionated modeling architecture. The point is not to offer Codex another collaboration preset. The point is to make the harness force the model to carry explicit structure about the codebase, the active subgoal, the evidence trail, and the machine it is modifying.
 
 - Phase 1 durable Epiphany thread state
 - Phase 2 prompt integration
 - a minimal Phase 3 typed client read surface via `Thread.epiphanyState`
 - a verified Phase 4 slice 1 query-time hybrid retriever across protocol, core, app-server protocol, and app-server
-- a verified Phase 4 slice 2 working-tree follow-up that adds explicit persistent semantic indexing through `thread/epiphany/index` while keeping `thread/epiphany/retrieve` read-only
+- a verified Phase 4 slice 2 follow-up that adds explicit persistent semantic indexing through `thread/epiphany/index` while keeping `thread/epiphany/retrieve` read-only
 - the heavy Epiphany-owned prompt/replay/retrieval implementation has now been extracted into the repo-owned `epiphany-core` crate, leaving vendored Codex with thin host adapters plus the typed integration seam
+- a first typed state-update slice that adds explicit loaded-thread-only `thread/epiphany/update`, appends observations/evidence, replaces bounded map/scratch/churn fields, bumps the state revision, and persists an immediate rollout `EpiphanyState` snapshot
+- a first typed distillation/proposal slice that adds read-only loaded-thread-only `thread/epiphany/distill`, producing deterministic observation/evidence patches for explicit promotion through `thread/epiphany/update`
 
-The next job is no longer to prove the retriever exists, and it is no longer to sketch the persistent follow-up in prose. That part is done in the working tree. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` into a durable Epiphany-state writer just because the state object has a `retrieval` field, and do not widen the new explicit indexing path into watcher-driven or GUI-shaped machinery before it earns it.
+The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, or build the first observation proposal surface. Those parts are landed. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` or `thread/epiphany/distill` into durable Epiphany-state writers, and do not widen the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
 
 ## Summary
 
-Land Phase 4 as a **bounded internal retrieval slice**:
+Phase 4 lands as a **bounded internal retrieval/indexing slice**:
 
 - add typed retrieval state and shard/index summaries to Epiphany state
 - add one additive app-server retrieval query surface for loaded threads
+- add one explicit semantic indexing surface for loaded threads
 - support hybrid retrieval from day one:
   - exact/path/symbol/lexical results
   - semantic chunk results
-- keep the slice internal/dev-usable first
+- keep the slice internal/dev-usable first while the fork architecture hardens
 
 After this slice:
 
@@ -46,7 +51,7 @@ Build a **hybrid repo retrieval subsystem** with one typed query shape and one t
 
 ## Recovered bounded decision
 
-After rehydrating from the repo state and the lone dirty working-tree diff, the first bounded Phase 4 slice should be:
+After rehydrating from the repo state, the first bounded Phase 4 slice was:
 
 - query-time
 - loaded-thread-first
@@ -64,6 +69,8 @@ Updated follow-up direction after landing the verified slice:
 - keep the BM25 implementation as the proven baseline/fallback
 - for the first persistent semantic backend, prefer Qdrant over JSON/blob/postgres-thrash designs, but do not make it a hard requirement for basic Epiphany use
 - do not turn retrieval into vector-only soup; exact/path lookup remains first-class and BM25 remains useful as bootstrap/control/fallback when Qdrant is unavailable
+- live app-server smoke verified the explicit Qdrant path against real local services using an ephemeral loaded thread rooted at `epiphany-core`; the smoke indexed 5 files into 198 chunks, created Qdrant collection `epiphany_workspace_fa24bab116f8d229`, and retrieved persistent semantic chunks from `src/prompt.rs`
+- env/default backend configuration is good enough for the current slice; defer a first-class backend config surface until a real operator pain proves it deserves to exist
 
 Preflight note:
 
@@ -78,7 +85,7 @@ Current landed implementation note:
   - `E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs`
   - `E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs`
   - `E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs`
-- the vendored host seam is now wired through the working tree across:
+- the vendored host seam is now wired through:
   - `core/src/epiphany_retrieval.rs`
   - `core/src/epiphany_rollout.rs`
   - `core/src/context/epiphany_state_instructions.rs`
@@ -88,7 +95,7 @@ Current landed implementation note:
   - `app-server-protocol/src/protocol/v2.rs`
   - `app-server-protocol/src/export.rs`
   - `app-server/src/codex_message_processor.rs`
-- the slice is now formatted, verified, committed, and pushed on `main`:
+- the retrieval/indexing/core-extraction baseline is now formatted, verified, committed, and pushed on `main` at `80c29e0`:
   - `cargo fmt --all` passed
   - targeted no-run compile for `codex-core`, `codex-app-server-protocol`, and `codex-app-server` passed
   - targeted Phase 4 tests passed in core, app-server protocol, and app-server
@@ -180,7 +187,7 @@ Suggested response fields:
 
 Keep it additive and read-only. That part is now landed.
 
-Follow-up addition that is now verified in the working tree:
+Follow-up addition that is now verified and pushed:
 
 - `thread/epiphany/index`
 
@@ -193,6 +200,32 @@ Current bounded shape of that follow-up:
 - it leaves exact/path lookup first-class
 - it keeps BM25 alive as the fallback/control path when the persistent backend is stale, missing, or unavailable
 - it now runs through the sibling `epiphany-core` crate so modified Codex alone is not quietly the whole product
+
+Follow-up addition now landed in the working tree:
+
+- `thread/epiphany/update`
+
+Current bounded shape of that follow-up:
+
+- it is the explicit write path for durable Epiphany state, not a retrieval side effect
+- it requires a loaded thread
+- it optionally checks `expectedRevision`
+- it can append observations and evidence
+- it can replace bounded typed fields: objective, active subgoal, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
+- it increments the Epiphany revision, updates `lastUpdatedTurnId` when a reference turn exists, writes live `SessionState`, persists `RolloutItem::EpiphanyState`, and flushes the rollout
+- rollout replay now accepts an out-of-band Epiphany snapshot before the first real user turn so pre-turn seed updates survive resume
+
+Follow-up addition now landed after the update surface:
+
+- `thread/epiphany/distill`
+
+Current bounded shape of that follow-up:
+
+- it is a read-only proposal path, not a second state writer
+- it requires a loaded thread so the response can include the current `expectedRevision`
+- it normalizes one explicit source/status/text observation plus optional subject, evidence kind, and code refs
+- it returns deterministic observation/evidence records inside a `ThreadEpiphanyUpdatePatch`
+- callers must pass the patch to `thread/epiphany/update` to make it durable
 
 ### 5. Reuse existing exact-search substrate where practical
 
@@ -217,18 +250,21 @@ Add tests for:
 - The first retrieval slice can be read-only.
 - Watcher-driven invalidation belongs later; this slice only needs enough metadata to admit freshness honestly.
 
-## Immediate Next Step After This Plan
+## Immediate Next Step
 
-Treat the current retrieval baseline and the new explicit indexing follow-up as real and only grow them where the current machine is still visibly missing an organ:
+Treat the current retrieval baseline, explicit indexing follow-up, explicit update path, and first distillation proposal path as real and live-smoked. The next machine gap is no longer "can Epiphany retrieve code?" or "can it propose one durable observation patch?" It can. The next gap is "can Epiphany decide which observations deserve promotion, and what map/churn edits they imply?"
 
 1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
-2. treat the verified working-tree `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
+2. treat the verified and live-smoked `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
 3. keep the new `epiphany-core` boundary honest instead of letting vendored Codex re-accumulate the heavy implementation
 4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
-5. if a later follow-up is needed, keep it tight:
-   - live smoke/operational polish for the explicit indexing path
-   - maybe a cleaner config surface for backend settings if env-only starts feeling too feral
+5. build the next layer above the landed distill/update surfaces:
+   - richer typed observation distillation from tool/model outputs
+   - promotion policy that decides when to call `thread/epiphany/update` explicitly
+   - verifier-backed acceptance/rejection evidence
+   - no hidden retrieval writes
    - not GUI work
    - not watcher-driven invalidation
+   - not specialist-agent scheduling
 
 Do not start with GUI. Do not start with automatic graph invalidation. Do not pretend shell transcripts are a retrieval strategy.

@@ -2,16 +2,16 @@
 
 ## Project Purpose
 
-This repo explores an Epiphany mode for AI coding agents: external typed state, explicit mental maps, bounded scratch work, verifier evidence, and aggressive anti-churn discipline.
+This repo explores Epiphany as an opinionated fork of Codex: external typed state, explicit mental maps, bounded scratch work, verifier evidence, and aggressive anti-churn discipline wired into the harness instead of taped onto the chat transcript.
 
-The motivating failure mode is that an agent can make many plausible local edits after global coherence has already failed. The project goal is to test whether explicit map/scratch/evidence channels reduce that drift.
+The motivating failure mode is that an agent can make many plausible local edits after global coherence has already failed. The project goal is to force the model to model the thing it is changing, then test whether explicit map/scratch/evidence channels reduce drift.
 
 ## Canonical State
 
 - Treat `state/map.yaml` as the canonical project map.
 - Treat `state/scratch.md` as disposable working memory for one bounded subgoal.
 - Treat `state/evidence.jsonl` as the durable log of what was learned, verified, rejected, or accepted.
-- Treat `notes/codex-epiphany-mode-plan.md` as the current patch plan for adding Epiphany mode to the vendored Codex repo.
+- Treat `notes/epiphany-fork-implementation-plan.md` as the current implementation plan for the Epiphany fork architecture.
 - Update `state/map.yaml` when project understanding changes.
 - Append evidence after meaningful research, implementation, verification, or rejected paths.
 
@@ -19,23 +19,24 @@ The motivating failure mode is that an agent can make many plausible local edits
 
 The old preset-backed TUI experiment is no longer the active path.
 
-What is already landed in vendored Codex:
+What is already landed across vendored Codex and `epiphany-core`:
 
 - Phase 1 durable Epiphany thread state
 - Phase 2 prompt integration
 - a minimal Phase 3 typed app-server/client read surface via `Thread.epiphanyState`
+- Phase 4 hybrid retrieval/indexing with explicit Qdrant-backed indexing and BM25 fallback
 
 Current next phase:
 
-- Phase 4 repo-local hybrid retrieval
+- live-smoke the explicit indexing path against the local Qdrant/Ollama services
 
 ## Important Paths
 
 - Project root: `E:\Projects\EpiphanyAgent`
 - Vendored Codex repo: `E:\Projects\EpiphanyAgent\vendor\codex`
-- Patch plan: `E:\Projects\EpiphanyAgent\notes\codex-epiphany-mode-plan.md`
+- Fork implementation plan: `E:\Projects\EpiphanyAgent\notes\epiphany-fork-implementation-plan.md`
 - Handoff summary: `E:\Projects\EpiphanyAgent\notes\fresh-workspace-handoff.md`
-- Epiphany delta map: `E:\Projects\EpiphanyAgent\notes\epiphany-current-algorithmic-map.md`
+- Epiphany algorithmic map: `E:\Projects\EpiphanyAgent\notes\epiphany-current-algorithmic-map.md`
 - State CLI: `E:\Projects\EpiphanyAgent\tools\epiphany_state.py`
 
 ## Useful Commands
@@ -63,7 +64,7 @@ On fresh session load, do this before wandering off into implementation:
    - `state/map.yaml`
    - `notes/fresh-workspace-handoff.md`
    - `notes/epiphany-current-algorithmic-map.md`
-   - `notes/codex-epiphany-mode-plan.md`
+   - `notes/epiphany-fork-implementation-plan.md`
 2. run:
    - `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status`
 3. restate the current next action from the persisted state before starting edits
@@ -90,4 +91,5 @@ Do not wait for the blackout and then act surprised.
 - Revert or discard changes that do not clearly improve the target.
 - If the diff grows while understanding shrinks, stop implementation and switch to diagnosis.
 - Keep maps and prose together; do not replace useful maps with prose-only explanations.
+- Before adding natural-language explanations or metaphors to an algorithmic map, first read the relevant source paths and anchor the explanation to concrete code references. Metaphor is compression after source grounding, not a substitute for it.
 - Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, append `state/evidence.jsonl`, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.

@@ -14946,6 +14946,113 @@
         ],
         "type": "object"
       },
+      "ThreadEpiphanyUpdatePatch": {
+        "properties": {
+          "activeSubgoalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "churn": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyChurnState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyEvidenceRecord"
+            },
+            "type": "array"
+          },
+          "graphCheckpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyGraphCheckpoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graphFrontier": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyGraphFrontier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graphs": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyGraphs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invariants": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyInvariant"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyModeState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "objective": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyObservation"
+            },
+            "type": "array"
+          },
+          "scratch": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyScratchPad"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subgoals": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanySubgoal"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "ThreadForkParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "description": "There are two ways to fork a thread: 1. By thread_id: load the thread from disk by thread_id and fork it into a new thread. 2. By path: load the thread from disk by path and fork it into a new thread.\n\nIf using path, the thread_id param will be ignored.\n\nPrefer using thread_id whenever possible.",

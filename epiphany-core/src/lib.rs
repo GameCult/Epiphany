@@ -1,7 +1,15 @@
+mod distillation;
+mod promotion;
 mod prompt;
 mod retrieval;
 mod rollout;
 
+pub use distillation::EpiphanyDistillInput;
+pub use distillation::EpiphanyDistillProposal;
+pub use distillation::distill_observation;
+pub use promotion::EpiphanyPromotionDecision;
+pub use promotion::EpiphanyPromotionInput;
+pub use promotion::evaluate_promotion;
 pub use prompt::render_epiphany_state;
 pub use retrieval::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
 pub use retrieval::EPIPHANY_RETRIEVAL_MAX_LIMIT;

@@ -1083,7 +1083,7 @@ EpiphanyTurnIntent
 
 This is the answer to: "why does this edit deserve to exist?"
 
-It should be lightweight, but it must exist before broad write actions in Epiphany mode.
+It should be lightweight, but it must exist before broad write actions in Epiphany.
 
 ## Where the state lives in core
 
@@ -1395,9 +1395,12 @@ Best option:
 
 - add an optional `epiphany` field to the app-server `Thread` type
 
-Fallback option:
+Current landed partial path:
 
-- add dedicated `thread/epiphany/read` and `thread/epiphany/update` methods if we want to avoid widening `Thread` immediately
+- `Thread.epiphanyState` now carries the current typed read surface on hydrated thread payloads.
+- `thread/epiphany/update` now exists as the first explicit loaded-thread-only write surface for typed state patches.
+- `thread/epiphany/distill` now exists as the first explicit loaded-thread-only read-only proposal surface for turning one observation input into an observation/evidence update patch.
+- a dedicated full-graph `thread/epiphany/read` may still be useful later if `Thread.epiphanyState` becomes too heavy for baseline thread hydration.
 
 My preference is:
 
@@ -1638,7 +1641,7 @@ No fancy UI yet. Just make the machine capable of remembering what it thinks.
 ### Phase 2: prompt integration
 
 - derive a compact Epiphany summary during turn construction
-- inject that summary into the developer/context path for Epiphany mode
+- inject that summary into the developer/context path for Epiphany
 
 This makes the state actually matter to the agent loop.
 
@@ -1662,8 +1665,9 @@ Now the agents can ask better questions without paying the full file-by-file tax
 
 ### Phase 5: semantic invalidation and distillation
 
-- wire watcher and diff inputs into scoped graph/retrieval/invariant invalidation
-- promote raw tool outputs through structured observations instead of transcript osmosis
+- first landed slice: `thread/epiphany/distill` drafts deterministic observation/evidence patches, and `thread/epiphany/update` remains the only promotion/write path
+- next slice: add promotion policy and verifier acceptance around those patches instead of letting raw tool output become truth by osmosis
+- later: wire watcher and diff inputs into scoped graph/retrieval/invariant invalidation
 - make freshness and promoted facts visible to the coordinator and specialists
 
 This is where the harness stops trusting raw history as its only memory of what happened.

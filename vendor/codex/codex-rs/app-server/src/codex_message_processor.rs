@@ -146,14 +146,21 @@ use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadCompactStartResponse;
 use codex_app_server_protocol::ThreadDecrementElicitationParams;
 use codex_app_server_protocol::ThreadDecrementElicitationResponse;
+use codex_app_server_protocol::ThreadEpiphanyDistillParams;
+use codex_app_server_protocol::ThreadEpiphanyDistillResponse;
 use codex_app_server_protocol::ThreadEpiphanyIndexParams;
 use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
+use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
+use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveParams;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
+use codex_app_server_protocol::ThreadEpiphanyUpdateParams;
+use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
+use codex_app_server_protocol::ThreadEpiphanyUpdateResponse;
 use codex_app_server_protocol::ThreadForkParams;
 use codex_app_server_protocol::ThreadForkResponse;
 use codex_app_server_protocol::ThreadIncrementElicitationParams;
@@ -230,10 +237,13 @@ use codex_core::CodexThread;
 use codex_core::CodexThreadTurnContextOverrides;
 use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
 use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
+use codex_core::EpiphanyDistillInput;
+use codex_core::EpiphanyPromotionInput;
 use codex_core::EpiphanyRetrieveQuery;
 use codex_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
 use codex_core::EpiphanyRetrieveResult as CoreEpiphanyRetrieveResult;
 use codex_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
+use codex_core::EpiphanyStateUpdate;
 use codex_core::ForkSnapshot;
 use codex_core::NewThread;
 use codex_core::RolloutRecorder;
@@ -250,6 +260,8 @@ use codex_core::config::edit::ConfigEditsBuilder;
 use codex_core::config_loader::CloudRequirementsLoadError;
 use codex_core::config_loader::CloudRequirementsLoadErrorCode;
 use codex_core::config_loader::project_trust_key;
+use codex_core::distill_observation;
+use codex_core::evaluate_promotion;
 use codex_core::exec::ExecCapturePolicy;
 use codex_core::exec::ExecExpiration;
 use codex_core::exec::ExecParams;
@@ -968,6 +980,18 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
                 self.thread_epiphany_index(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyDistill { request_id, params } => {
+                self.thread_epiphany_distill(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyPromote { request_id, params } => {
+                self.thread_epiphany_promote(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyUpdate { request_id, params } => {
+                self.thread_epiphany_update(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyRetrieve { request_id, params } => {
@@ -4130,6 +4154,236 @@ impl CodexMessageProcessor {
                 self.send_internal_error(
                     request_id,
                     format!("failed to index Epiphany retrieval state for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_distill(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyDistillParams,
+    ) {
+        let ThreadEpiphanyDistillParams {
+            thread_id,
+            source_kind,
+            status,
+            text,
+            subject,
+            evidence_kind,
+            code_refs,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let expected_revision = thread
+            .epiphany_state()
+            .await
+            .map(|state| state.revision)
+            .unwrap_or(0);
+        let proposal = match distill_observation(EpiphanyDistillInput {
+            source_kind,
+            status,
+            text,
+            subject,
+            evidence_kind,
+            code_refs,
+        }) {
+            Ok(proposal) => proposal,
+            Err(err) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("failed to distill Epiphany observation: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let response = ThreadEpiphanyDistillResponse {
+            expected_revision,
+            patch: ThreadEpiphanyUpdatePatch {
+                observations: vec![proposal.observation],
+                evidence: vec![proposal.evidence],
+                ..Default::default()
+            },
+        };
+
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_promote(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyPromoteParams,
+    ) {
+        let ThreadEpiphanyPromoteParams {
+            thread_id,
+            expected_revision,
+            patch,
+            verifier_evidence,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let decision = evaluate_promotion(EpiphanyPromotionInput {
+            has_state_replacements: thread_epiphany_patch_has_state_replacements(&patch),
+            observations: patch.observations.clone(),
+            evidence: patch.evidence.clone(),
+            verifier_evidence: verifier_evidence.clone(),
+        });
+        if !decision.accepted {
+            self.outgoing
+                .send_response(
+                    request_id,
+                    ThreadEpiphanyPromoteResponse {
+                        accepted: false,
+                        reasons: decision.reasons,
+                        epiphany_state: None,
+                    },
+                )
+                .await;
+            return;
+        }
+
+        let mut evidence = patch.evidence;
+        evidence.push(verifier_evidence);
+        let update = EpiphanyStateUpdate {
+            expected_revision,
+            objective: patch.objective,
+            active_subgoal_id: patch.active_subgoal_id,
+            subgoals: patch.subgoals,
+            invariants: patch.invariants,
+            graphs: patch.graphs,
+            graph_frontier: patch.graph_frontier,
+            graph_checkpoint: patch.graph_checkpoint,
+            scratch: patch.scratch,
+            observations: patch.observations,
+            evidence,
+            churn: patch.churn,
+            mode: patch.mode,
+        };
+        let response = match thread.epiphany_update_state(update).await {
+            Ok(epiphany_state) => ThreadEpiphanyPromoteResponse {
+                accepted: true,
+                reasons: Vec::new(),
+                epiphany_state: Some(epiphany_state),
+            },
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to promote Epiphany state update: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_update(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyUpdateParams,
+    ) {
+        let ThreadEpiphanyUpdateParams {
+            thread_id,
+            expected_revision,
+            patch,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let update = EpiphanyStateUpdate {
+            expected_revision,
+            objective: patch.objective,
+            active_subgoal_id: patch.active_subgoal_id,
+            subgoals: patch.subgoals,
+            invariants: patch.invariants,
+            graphs: patch.graphs,
+            graph_frontier: patch.graph_frontier,
+            graph_checkpoint: patch.graph_checkpoint,
+            scratch: patch.scratch,
+            observations: patch.observations,
+            evidence: patch.evidence,
+            churn: patch.churn,
+            mode: patch.mode,
+        };
+        let response = match thread.epiphany_update_state(update).await {
+            Ok(epiphany_state) => ThreadEpiphanyUpdateResponse { epiphany_state },
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to update Epiphany state for {thread_uuid}: {err}"),
                 )
                 .await;
                 return;
@@ -10054,6 +10308,19 @@ async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<EpiphanyThre
         state.retrieval = Some(thread.epiphany_retrieval_state().await);
     }
     epiphany_state
+}
+
+fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatch) -> bool {
+    patch.objective.is_some()
+        || patch.active_subgoal_id.is_some()
+        || patch.subgoals.is_some()
+        || patch.invariants.is_some()
+        || patch.graphs.is_some()
+        || patch.graph_frontier.is_some()
+        || patch.graph_checkpoint.is_some()
+        || patch.scratch.is_some()
+        || patch.churn.is_some()
+        || patch.mode.is_some()
 }
 
 fn map_epiphany_retrieve_response(

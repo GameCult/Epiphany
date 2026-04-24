@@ -2113,9 +2113,10 @@ mod tests {
                 .is_some_and(|stem| {
                     stem.ends_with("Params")
                         || stem == "InitializeCapabilities"
-                        // EpiphanyThreadState is durable sparse state rather than a conventional
-                        // request/response envelope, so optional fields are intentional there.
-                        || stem == "EpiphanyThreadState"
+                        // Epiphany DTOs are durable sparse state rather than conventional
+                        // request/response envelopes, so optional fields are intentional there.
+                        || stem.starts_with("Epiphany")
+                        || stem == "ThreadEpiphanyUpdatePatch"
                         || matches!(
                             stem,
                             "CollabAgentRef"

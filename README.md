@@ -17,8 +17,9 @@ The goal is not to prove a new frontier architecture in a weekend. The goal is t
 - `state/evidence.jsonl`: verifier outputs, acceptance reasons, and reversions
 - `protocol/controller-actions.md`: allowed actions and write rules
 - `notes/fresh-workspace-handoff.md`: concise summary for a fresh workspace
-- `notes/codex-epiphany-mode-plan.md`: concrete patch plan for vendored Codex
+- `notes/epiphany-fork-implementation-plan.md`: current implementation plan for the Epiphany fork architecture
 - `notes/codex-repository-algorithmic-map.md`: current machine map of vendored Codex
+- `notes/epiphany-current-algorithmic-map.md`: current machine map of the Epiphany fork itself
 - `notes/epiphany-core-harness-surfaces.md`: where Epiphany should patch into that machine
 - `notes/architecture-rationale.md`: why the map/scratch/evidence architecture exists
 - `tools/epiphany_state.py`: tiny CLI for inspecting and updating branch/evidence state
@@ -30,12 +31,13 @@ This repo is no longer pretending the solution is "just prompt harder."
 
 The working design now is:
 
-- patch Epiphany into Codex's core harness, not into a chat transcript costume
+- fork Codex into Epiphany, an opinionated harness that makes models keep an explicit model of the thing they are changing
 - treat typed thread state as the primary artifact and the UI as a reflection/steering layer
 - keep the machine map as two linked graphs: architecture and dataflow
 - preserve rich natural-language explanations alongside code refs, because language is still the model's least embarrassing organ
 - use specialist agents with shared typed state and private scratch, not one heroic context trying to cosplay a whole team
 - add repo-local hybrid retrieval instead of making every role rediscover the repo with `rg` and raw stubbornness
+- use an explicit typed state-update surface for durable observations, evidence, map/frontier edits, and churn state instead of letting retrieval or transcript drift mutate the map sideways
 - treat compaction as a role-specific state transition with safe points and explicit checkpoints, not hidden brain damage
 - bake an explicit pre-compaction persistence workflow into the process, because forgetting to write down what matters and then acting surprised is not a serious engineering method
 - make Epiphany an opinionated software development agent, not a generic assistant with some extra tags bolted on
@@ -43,10 +45,11 @@ The working design now is:
 ## Current Repository State
 
 - `vendor/codex` is the real target and is tracked directly in the parent repo
+- `epiphany-core/` is the repo-owned crate that now holds the thicker Epiphany prompt, rollout replay, and retrieval/indexing organs
 - third-party OpenCodex forks were audited and removed
 - the Codex machine map and Epiphany harness spec have both been written and iterated enough to stop hand-waving
-- Phase 1 durable Epiphany state, Phase 2 prompt integration, and a minimal Phase 3 typed client read surface are all landed and verified
-- the next concrete step is the repo-local hybrid retrieval subsystem
+- Phase 1 durable Epiphany state, Phase 2 prompt integration, a minimal Phase 3 typed client read surface, the Phase 4 hybrid retrieval/indexing slice, the first typed Epiphany state-update surface, the first typed distillation/proposal surface, and the first explicit promotion gate are all landed and verified
+- the next concrete step is richer map/churn promotion on top of the explicit distill/promote/update surfaces, not more retrieval plumbing and not GUI paint
 
 ## Current Slice Status
 
@@ -73,11 +76,36 @@ Phase 3 landed:
 - fall back to rollout reconstruction with rollback/compaction semantics for stored thread reads
 - keep dedicated Epiphany update RPCs and live notifications deferred for now
 
-Phase 4 is next:
+Phase 4 landed:
 
 - add a repo-local hybrid retrieval subsystem
-- expose typed retrieval state and a typed retrieval query surface
-- stop paying the full file-by-file shell tax for every mapping or implementation pass
+- expose typed retrieval state and typed `thread/epiphany/retrieve`
+- keep retrieval read-only
+- add explicit `thread/epiphany/index` for Qdrant-backed persistent semantic indexing
+- preserve exact/path lookup and BM25 fallback when the persistent semantic backend is stale, missing, or unavailable
+- move the heavy Epiphany-owned implementation into `epiphany-core/`, leaving vendored Codex with thin adapters plus the typed protocol/thread/app-server seam
+
+State-update slice landed:
+
+- add experimental loaded-thread-only `thread/epiphany/update`
+- append observations and evidence through typed state patches
+- replace bounded typed fields such as objective, subgoals, graph frontier/checkpoint, scratch, churn, and mode
+- bump Epiphany state revision and persist an immediate rollout snapshot
+- keep retrieval read-only and indexing explicit instead of mixing query and mutation paths
+
+Distillation slice landed:
+
+- add experimental loaded-thread-only `thread/epiphany/distill`
+- turn one explicit source/status/text observation into deterministic observation/evidence records
+- return a patch plus `expectedRevision` for explicit promotion through `thread/epiphany/update`
+- keep distillation read-only so proposals do not become durable facts without a promotion step
+
+Promotion slice landed:
+
+- add experimental loaded-thread-only `thread/epiphany/promote`
+- require verifier evidence before promotion
+- reject failed promotion candidates with structured reasons and no state mutation
+- accepted candidates flow through the existing durable update path
 
 ## Basic Loop
 

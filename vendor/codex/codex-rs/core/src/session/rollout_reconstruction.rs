@@ -73,7 +73,10 @@ fn finalize_active_segment<'a>(
         *previous_turn_settings = active_segment.previous_turn_settings;
     }
 
-    if epiphany_state.is_none() && active_segment.counts_as_user_turn {
+    if epiphany_state.is_none()
+        && (active_segment.counts_as_user_turn
+            || (active_segment.turn_id.is_none() && active_segment.epiphany_state.is_some()))
+    {
         *epiphany_state = active_segment.epiphany_state;
     }
 

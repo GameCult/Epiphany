@@ -4,11 +4,11 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Keep the new `epiphany-core` extraction honest in repo memory, then smoke the explicit indexing path against live Qdrant/Ollama without widening the machine again.
+- Move from the landed explicit typed state-update, distillation, and promotion surfaces toward richer verified map/churn promotion without hidden writes.
 
 ## Working Notes
 
-- The landed Phase 4 slice 1 baseline is still `360dfea` on `main`. The current working tree still carries the explicit `thread/epiphany/index` Qdrant follow-up on top of that.
+- The landed Phase 4 retrieval/indexing/core-extraction baseline is now `80c29e0` on `main`. The older `360dfea` commit is only the first hybrid retrieval anchor, not the current repo state.
 - The extraction boundary is now the important truth:
   - `epiphany-core/src/retrieval.rs` owns the heavy hybrid retrieval/indexing engine
   - `epiphany-core/src/prompt.rs` owns the Epiphany prompt-state renderer
@@ -45,13 +45,91 @@ This file is intentionally disposable.
   - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
   - `cargo test -p codex-app-server --lib map_epiphany_`
   - `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
+- Current repo sanity task:
+  - keep docs from describing the already-landed Qdrant/indexing/core-extraction work as a dirty working-tree follow-up
+  - keep README, map, plan, handoff, and Epiphany algorithmic map in agreement about the current landing zone
+  - keep `notes/epiphany-current-algorithmic-map.md` focused on exact current control flow, not general fork-positioning prose
+- Local dependency sanity:
+  - Qdrant at `http://127.0.0.1:6333` responds and currently has VoidBot collections
+  - Ollama at `http://127.0.0.1:11434` exposes the default `qwen3-embedding:0.6b` model
 - Mechanical honesty still matters:
   - do not widen `thread/epiphany/retrieve` into a durable Epiphany-state write without a clean out-of-band rollout/update semantic
   - do not let `epiphany-core` sprawl into GUI or watcher machinery just because it now owns the bigger organ
+  - do not add metaphors or natural-language modeling prose to an algorithmic map until the relevant source is in context and the prose is anchored to concrete refs
+  - meticulous workflow discipline is not ceremony for its own sake; the useful loop is rehydrate, bound the slice, read the code being described, make the smallest coherent change, verify the seam that matters, and persist the learned state before charging onward
+- Source-grounded Epiphany map audit on 2026-04-24 reread the cited protocol/session/rollout/prompt/thread/app-server/retrieval code before editing:
+  - sharpened the distinction between full core resume reconstruction and the narrower `epiphany-core` stored-thread replay helper
+  - removed unsupported broad wording around thread hydration surfaces and anchored the actual live/reconstructed paths
+  - made the retrieval branch explicit: exact search always runs, Qdrant is used only with a fresh compatible manifest/collection and working Ollama query embedding, otherwise query-time BM25 supplies semantic chunks
+  - corrected indexing wording so the explicit index path returns ready state on successful writes or an error, not a casual stale state
+- Live app-server smoke on 2026-04-24:
+  - built `codex-app-server.exe` with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
+  - used an isolated `CODEX_HOME` under `.epiphany-smoke/codex-home`
+  - started an ephemeral loaded app-server thread rooted at `E:\Projects\EpiphanyAgent\epiphany-core`
+  - preflighted the bounded smoke corpus as 5 tracked files / 106,748 bytes
+  - `thread/epiphany/index` with real Qdrant/Ollama returned ready state: 5 files, 198 chunks, `qdrant-ollama-v1:qwen3-embedding:0.6b`
+  - Qdrant collection `epiphany_workspace_fa24bab116f8d229` was created and the manifest landed under the isolated Codex home
+  - `thread/epiphany/retrieve` returned persistent semantic chunks from `src/prompt.rs`, proving the fresh Qdrant path is used after explicit indexing
+  - env/default backend config is sufficient for this slice; do not add a first-class config surface yet
+  - unrelated app-server startup noise remains: project trust warning, plugin sync 403, and unauthenticated OpenAI websocket warning
+- Typed state-update implementation on 2026-04-24:
+  - added experimental loaded-thread-only `thread/epiphany/update`
+  - protocol patch accepts optional `expectedRevision`, append-only observations/evidence, and bounded replacements for objective, active subgoal, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
+  - `CodexThread.epiphany_update_state(...)` rejects empty patches, checks revision when supplied, applies the patch to live `SessionState`, increments revision, sets `last_updated_turn_id` from the current reference turn when available, persists `RolloutItem::EpiphanyState`, and flushes rollout
+  - replay helpers now accept an out-of-band Epiphany snapshot before the first user turn so seed updates survive resume
+  - stable app-server schema fixtures were regenerated; the export test now treats Epiphany DTOs as sparse durable state, not conventional response envelopes
+  - verification passed:
+    - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml rollout`
+    - `cargo test -p codex-core --lib epiphany`
+    - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
+    - `cargo test -p codex-app-server --lib map_epiphany_`
+    - `cargo test -p codex-app-server-protocol`
+  - live app-server stdio smoke passed after rebuilding `codex-app-server.exe`:
+    - started ephemeral loaded thread `019dbffc-c19a-75e0-bf35-c780bee59a68`
+    - called `thread/epiphany/update` with `expectedRevision: 0`
+    - response revision was `1`
+    - `thread/read` returned `epiphanyState.revision == 1`, objective `Smoke-test explicit Epiphany update persistence`, observation `obs-update-smoke`, and evidence `ev-update-smoke`
+    - smoke result: `.epiphany-smoke/update-smoke-result.json`
+    - wire footgun: app-server envelope fields are camelCase, but nested reused Epiphany core DTO fields such as `source_kind`, `understanding_status`, and `recent_evidence` are snake_case
+- Typed distillation/proposal implementation on 2026-04-24:
+  - added repo-owned `epiphany-core/src/distillation.rs`
+  - added thin vendored core re-export at `vendor/codex/codex-rs/core/src/epiphany_distillation.rs`
+  - added experimental loaded-thread-only `thread/epiphany/distill`
+  - distill is read-only: it returns `expectedRevision` plus a `ThreadEpiphanyUpdatePatch`, and callers must pass that patch to `thread/epiphany/update` to make it durable
+  - `distill_observation(...)` normalizes required `sourceKind`, `status`, and `text`; rejects empty required fields; builds a bounded summary; fingerprints source/status/subject/text into stable observation/evidence ids; defaults test/smoke/verification sources to evidence kind `verification`; and carries code refs into both records
+  - first smoke exposed that returning `expectedRevision: null` for brand-new threads was too loose, so the handler now defaults absent Epiphany state to revision `0`
+  - verification passed:
+    - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml distill`
+    - `cargo test -p codex-core --lib distill`
+    - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
+    - `cargo test -p codex-app-server --lib thread_epiphany`
+    - `cargo test -p codex-app-server-protocol`
+    - `cargo build -p codex-app-server --bin codex-app-server`
+  - live app-server stdio smoke passed after rebuilding `codex-app-server.exe`:
+    - started ephemeral loaded thread `019dc028-99ce-7b03-8f89-65b072cc2cca`
+    - called `thread/epiphany/distill` with smoke input and a code ref to `src/distillation.rs`
+    - distill returned `expectedRevision: 0`, observation `obs-c9bfcac23d66`, and evidence `ev-c9bfcac23d66`
+    - passing the patch to `thread/epiphany/update` advanced state to revision `1`
+    - `thread/read` returned the generated observation/evidence ids
+    - smoke result: `.epiphany-smoke/distill-smoke-result.json`
+- Typed promotion gate implementation on 2026-04-24:
+  - added repo-owned `epiphany-core/src/promotion.rs`
+  - added thin vendored core re-export at `vendor/codex/codex-rs/core/src/epiphany_promotion.rs`
+  - added experimental loaded-thread-only `thread/epiphany/promote`
+  - promotion evaluates a patch plus required verifier evidence; failed policy returns `accepted: false` with reasons and no state mutation
+  - accepted policy appends verifier evidence and applies the patch through `CodexThread.epiphany_update_state(...)`, preserving the durable update path as the only state writer
+  - initial policy requires an actual mutation, nonempty verifier evidence, accepting verifier status (`ok`, `accepted`, `verified`, `pass`, `passed`), valid evidence records, unique ids, and evidence-linked observations
+  - live app-server stdio smoke passed:
+    - started ephemeral loaded thread `019dc087-6d3d-7323-9a2f-2487a591ef7a`
+    - distilled a promotion smoke patch
+    - `thread/epiphany/promote` rejected failed verifier evidence with no `epiphanyState`
+    - accepted verifier evidence promoted through update to revision `1`
+    - `thread/read` returned observation `obs-77248505f492`, distill evidence `ev-77248505f492`, and verifier evidence `ev-promote-smoke-verifier`
+    - smoke result: `.epiphany-smoke/promote-smoke-result.json`
 
 ## Open Questions
 
-- After the explicit indexing path has been live-smoked, should backend config stay env-scoped for a while or earn a cleaner first-class config surface?
 - How much more can move into `epiphany-core` without sacrificing the typed Codex host seam that makes the integration first-class?
+- How should verified observations imply map/churn edits without turning promotion into automatic graph fanfic?
 
 Do not promote anything from here into the map unless it survives verification or repeated reuse without contradiction.

@@ -57,7 +57,18 @@ use codex_protocol::protocol::AgentStatus as CoreAgentStatus;
 use codex_protocol::protocol::AskForApproval as CoreAskForApproval;
 use codex_protocol::protocol::CodexErrorInfo as CoreCodexErrorInfo;
 use codex_protocol::protocol::CreditsSnapshot as CoreCreditsSnapshot;
+use codex_protocol::protocol::EpiphanyChurnState as CoreEpiphanyChurnState;
+use codex_protocol::protocol::EpiphanyCodeRef as CoreEpiphanyCodeRef;
+use codex_protocol::protocol::EpiphanyEvidenceRecord as CoreEpiphanyEvidenceRecord;
+use codex_protocol::protocol::EpiphanyGraphCheckpoint as CoreEpiphanyGraphCheckpoint;
+use codex_protocol::protocol::EpiphanyGraphFrontier as CoreEpiphanyGraphFrontier;
+use codex_protocol::protocol::EpiphanyGraphs as CoreEpiphanyGraphs;
+use codex_protocol::protocol::EpiphanyInvariant as CoreEpiphanyInvariant;
+use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
+use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalStatus as CoreEpiphanyRetrievalStatus;
+use codex_protocol::protocol::EpiphanyScratchPad as CoreEpiphanyScratchPad;
+use codex_protocol::protocol::EpiphanySubgoal as CoreEpiphanySubgoal;
 use codex_protocol::protocol::EpiphanyThreadState as CoreEpiphanyThreadState;
 use codex_protocol::protocol::ExecCommandSource as CoreExecCommandSource;
 use codex_protocol::protocol::ExecCommandStatus as CoreExecCommandStatus;
@@ -3918,6 +3929,111 @@ pub struct ThreadEpiphanyIndexParams {
 #[ts(export_to = "v2/")]
 pub struct ThreadEpiphanyIndexResponse {
     pub index_summary: ThreadEpiphanyRetrieveIndexSummary,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyDistillParams {
+    pub thread_id: String,
+    pub source_kind: String,
+    pub status: String,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub subject: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub evidence_kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub code_refs: Vec<CoreEpiphanyCodeRef>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyDistillResponse {
+    pub expected_revision: u64,
+    pub patch: ThreadEpiphanyUpdatePatch,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyPromoteParams {
+    pub thread_id: String,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    pub patch: ThreadEpiphanyUpdatePatch,
+    pub verifier_evidence: CoreEpiphanyEvidenceRecord,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyPromoteResponse {
+    pub accepted: bool,
+    pub reasons: Vec<String>,
+    pub epiphany_state: Option<CoreEpiphanyThreadState>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyUpdateParams {
+    pub thread_id: String,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    pub patch: ThreadEpiphanyUpdatePatch,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyUpdatePatch {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub objective: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub active_subgoal_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub subgoals: Option<Vec<CoreEpiphanySubgoal>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub invariants: Option<Vec<CoreEpiphanyInvariant>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graphs: Option<CoreEpiphanyGraphs>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graph_frontier: Option<CoreEpiphanyGraphFrontier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graph_checkpoint: Option<CoreEpiphanyGraphCheckpoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub scratch: Option<CoreEpiphanyScratchPad>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observations: Vec<CoreEpiphanyObservation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<CoreEpiphanyEvidenceRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub churn: Option<CoreEpiphanyChurnState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub mode: Option<CoreEpiphanyModeState>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyUpdateResponse {
+    pub epiphany_state: CoreEpiphanyThreadState,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

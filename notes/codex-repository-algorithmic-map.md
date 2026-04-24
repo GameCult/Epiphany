@@ -449,7 +449,7 @@ So a dedicated GUI wrapper should probably:
 
 That keeps the wrapper thin and avoids rebuilding the dangerous part twice.
 
-## Where Epiphany mode naturally hooks in
+## Where Epiphany naturally hooks in
 
 Epiphany should hook in at the turn-construction and prompt-assembly layer, not by inventing a parallel execution engine.
 

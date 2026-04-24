@@ -192,6 +192,25 @@ async fn record_initial_history_resumed_hydrates_epiphany_state_from_latest_surv
 }
 
 #[tokio::test]
+async fn record_initial_history_resumed_hydrates_out_of_band_epiphany_state_before_first_turn() {
+    let (session, _turn_context) = make_session_and_context().await;
+    let epiphany_state = sample_epiphany_state("control-plane-update");
+
+    session
+        .record_initial_history(InitialHistory::Resumed(ResumedHistory {
+            conversation_id: ThreadId::default(),
+            history: vec![RolloutItem::EpiphanyState(EpiphanyStateItem {
+                turn_id: None,
+                state: epiphany_state.clone(),
+            })],
+            rollout_path: PathBuf::from("resumed.jsonl"),
+        }))
+        .await;
+
+    assert_eq!(session.epiphany_state().await, Some(epiphany_state));
+}
+
+#[tokio::test]
 async fn record_initial_history_resumed_hydrates_previous_turn_settings_from_lifecycle_turn_with_missing_turn_context_id()
  {
     let (session, turn_context) = make_session_and_context().await;

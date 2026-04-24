@@ -27,7 +27,10 @@ fn finalize_active_segment(
         return;
     }
 
-    if epiphany_state.is_none() && active_segment.counts_as_user_turn {
+    if epiphany_state.is_none()
+        && (active_segment.counts_as_user_turn
+            || (active_segment.turn_id.is_none() && active_segment.epiphany_state.is_some()))
+    {
         *epiphany_state = active_segment.epiphany_state;
     }
 }
@@ -323,6 +326,20 @@ mod tests {
                 replacement_history: None,
             }),
         ];
+
+        assert_eq!(
+            latest_epiphany_state_from_rollout_items(&rollout_items, simple_is_user_turn_boundary),
+            Some(state)
+        );
+    }
+
+    #[test]
+    fn latest_epiphany_state_from_rollout_items_accepts_out_of_band_snapshot() {
+        let state = sample_epiphany_state("control-plane-update");
+        let rollout_items = vec![RolloutItem::EpiphanyState(EpiphanyStateItem {
+            turn_id: None,
+            state: state.clone(),
+        })];
 
         assert_eq!(
             latest_epiphany_state_from_rollout_items(&rollout_items, simple_is_user_turn_boundary),

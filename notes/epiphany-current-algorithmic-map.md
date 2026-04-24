@@ -1,368 +1,786 @@
-# Epiphany Current Algorithmic Delta Map
+# Epiphany Current Algorithmic Map
 
-This note is not a full machine map for Codex. We already have that in [E:/Projects/EpiphanyAgent/notes/codex-repository-algorithmic-map.md](E:/Projects/EpiphanyAgent/notes/codex-repository-algorithmic-map.md).
+This is the current control-flow map for Epiphany as it exists in the repo now.
 
-This one is narrower and meaner: it documents where the current Epiphany prototype already diverges from upstream Codex in the code we actually have in the working tree.
+It is not the future harness spec, and it is not the full Codex machine map. Codex still owns the ordinary turn loop, model/tool execution, persistence substrate, and app-server plumbing. Epiphany is the fork-layer that adds typed modeling state, prompt-facing state injection, client-visible state reads, and repo-local retrieval/indexing organs.
 
-Scope: current state after Phase 1, Phase 2, the minimal Phase 3 typed read surface, and the first bounded Phase 4 repo-local hybrid retrieval slice. It does **not** describe planned invalidation, GUI reflection, or multi-agent scheduling as if they already exist.
+The important question for this file is not "what is Epiphany supposed to become?" It is: when the current code runs, where does Epiphany state go?
 
-## Mental model in one sentence
+## Current Truth
 
-Current Epiphany is a thin but real overlay on Codex's thread harness: Codex now carries structured thread state through persistence, replay, prompt assembly, hydrated client thread payloads, and typed repo-local retrieval/indexing surfaces, while the heavier Epiphany prompt, replay, and retrieval organs live in a sibling repo-owned crate instead of entirely inside vendored Codex.
+Current Epiphany is a forked Codex harness with a typed modeling spine.
 
-## Divergence summary
+The spine exists in nine live paths:
 
-Today Epiphany differs from plain Codex in five currently active places:
+- protocol state shape: `EpiphanyThreadState`, `RolloutItem::EpiphanyState`, retrieval summaries, and prompt tags live in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:103).
+- in-memory session state: `SessionState` stores an optional `EpiphanyThreadState`, and `Session` exposes thin async accessors over it in [state/session.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/state/session.rs:21) and [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:1240).
+- prompt injection: `build_initial_context` reads the optional state and adds a bounded `<epiphany_state>` developer fragment in [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2434).
+- per-turn persistence: normal turn setup persists one `RolloutItem::EpiphanyState` after the `TurnContext` when state exists in [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2677).
+- client read hydration: app-server thread views attach live or reconstructed `thread.epiphanyState` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10202).
+- explicit distillation proposals: app-server routes read-only `thread/epiphany/distill` through a loaded-thread handler into `epiphany-core` so one explicit observation can become a patch candidate without mutating state in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4158) and [distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28).
+- explicit promotion gates: app-server routes `thread/epiphany/promote` through a loaded-thread handler into `epiphany-core` policy evaluation, rejects failed verifier evidence without mutation, and applies accepted candidates through the same durable update path in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4237) and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:19).
+- explicit state updates: app-server routes `thread/epiphany/update` through a loaded `CodexThread` update method that mutates live `SessionState`, bumps the revision, and persists an immediate `RolloutItem::EpiphanyState` snapshot in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4229) and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:373).
+- retrieval/indexing: app-server routes `thread/epiphany/retrieve` and `thread/epiphany/index` through loaded `CodexThread` host methods into `epiphany-core` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4031) and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:420).
 
-1. **Durable state exists**
-   - Codex rollout/history now has a first-class `EpiphanyThreadState` snapshot.
+The thick Epiphany-owned implementation is mostly outside vendored Codex now:
 
-2. **Prompt assembly reads that state**
-   - turn construction injects a bounded developer-facing Epiphany summary when the thread has one.
+- prompt rendering lives in [epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:27).
+- generic rollout replay for stored-thread reads lives in [epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs:35).
+- retrieval and indexing live in [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:97).
+- deterministic observation distillation lives in [epiphany-core/src/distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:13).
+- verifier-backed promotion policy lives in [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:6).
 
-3. **Hydrated client thread payloads can read that state**
-   - app-server `Thread` payloads now expose optional typed `epiphanyState`.
-
-4. **Replay semantics respect rollback and compaction**
-   - the "latest Epiphany state" is not "last one in the file." It is reconstructed using turn/rollback boundaries.
-
-5. **Repo-local retrieval/indexing now exists behind typed surfaces**
-   - loaded threads can answer structured repo queries through exact/path lookup plus BM25/Qdrant-backed retrieval, and they can explicitly build the persistent semantic side through a separate indexing path.
-
-That is already a meaningful divergence from stock Codex, even if the more glamorous organs are still missing.
-
-## The delta flow
+## Whole Control Flow
 
 ```mermaid
 flowchart TD
-    A["SessionState.epiphany_state"] --> B["Persist once per real user turn as RolloutItem::EpiphanyState"]
-    B --> C["Rollout replay / resume / rollback / compaction reconstruction"]
-    C --> D["Live SessionState restored"]
-    D --> E["thin Codex prompt adapter calls epiphany-core renderer"]
-    D --> F["CodexThread exposes epiphany_state()"]
-    F --> G["app-server hydrates Thread.epiphanyState"]
-    B --> H["app-server stored-thread reads reconstruct latest surviving Epiphany state from rollout"]
-    G --> I["Client can read typed state"]
-    H --> I
-    D --> J["CodexThread host methods call epiphany-core retrieval/indexing engine"]
-    J --> K["app-server routes thread/epiphany/retrieve"]
-    J --> M["app-server routes thread/epiphany/index"]
-    K --> L["Hybrid exact/path + BM25/Qdrant-backed retrieval results"]
+    A["Loaded Codex Session"] --> B["SessionState.epiphany_state"]
+    B --> C["build_initial_context"]
+    C --> D["EpiphanyStateInstructions wrapper"]
+    D --> E["epiphany-core render_epiphany_state"]
+    E --> F["<epiphany_state> developer fragment"]
+    F --> G["Model/tool turn runs in normal Codex loop"]
+    G --> H["record_context_updates_and_set_reference_context_item"]
+    H --> I["Persist TurnContext"]
+    H --> J["Persist RolloutItem::EpiphanyState if state exists"]
+    J --> K["Rollout file"]
+    K --> L["Session resume reconstruction"]
+    L --> B
+    K --> M["Stored thread/read reconstruction"]
+    M --> N["Thread.epiphanyState"]
+    B --> O["Live thread.epiphanyState"]
+    O --> N
+    O --> P["Backfill retrieval summary if missing"]
+    P --> N
+    N --> Q["Client can read typed state"]
+    A --> R["thread/epiphany/retrieve requires loaded thread"]
+    A --> S["thread/epiphany/index requires loaded thread"]
+    A --> AA["thread/epiphany/distill requires loaded thread"]
+    A --> AD["thread/epiphany/promote requires loaded thread"]
+    A --> Z["thread/epiphany/update requires loaded thread"]
+    AA --> AB["epiphany-core distill_observation"]
+    AB --> AC["Observation/evidence patch proposal"]
+    AC --> AD
+    AD --> AE["epiphany-core evaluate_promotion"]
+    AE --> AF{"Accepted?"}
+    AF -->|"No"| AG["Return reasons, no state mutation"]
+    AF -->|"Yes"| Z
+    R --> T["CodexThread.epiphany_retrieve"]
+    S --> U["CodexThread.epiphany_index"]
+    Z --> ZA["CodexThread.epiphany_update_state"]
+    ZA --> ZB["Apply typed patch and increment revision"]
+    ZB --> B
+    ZB --> ZC["Persist immediate RolloutItem::EpiphanyState"]
+    ZC --> K
+    T --> V["epiphany-core retrieve_workspace"]
+    U --> W["epiphany-core index_workspace"]
+    V --> X["Exact/path search + Qdrant if fresh + BM25 fallback"]
+    W --> Y["Ollama embeddings + Qdrant points + manifest under codex_home"]
 ```
 
-The important thing is that the same state is now flowing through three layers:
+What this means in plain English:
 
-- durable storage
-- prompt construction
-- typed client reads
+- Epiphany state is a durable object, not prompt folklore.
+- The prompt can read it every turn when it exists.
+- The app-server can expose it as typed thread data.
+- A loaded thread can ask for a typed observation/evidence proposal without mutating state.
+- A loaded thread can ask a verifier-backed promotion gate to reject or apply that proposal.
+- A loaded thread can now accept explicit typed state patches and persist them immediately.
+- Retrieval and indexing are typed side paths hanging off loaded threads.
+- Retrieval remains read-only; state mutation has its own control-plane door.
 
-That is the current Epiphany spine, and retrieval now hangs off it instead of living as shell archaeology.
+## Natural Language Spine
 
-## Divergence 1: durable typed Epiphany state
+This is the same flow in the language Epiphany is supposed to make the model carry around while it works. The images below are compression of the code paths cited in the flow sections, not free-floating lore. Tiny but important distinction; otherwise we are just painting flames on a shopping cart.
 
-### What changed
+| Stage | What It Means | Mental Image |
+| --- | --- | --- |
+| State shape | Epiphany first gives the system a real object for understanding, instead of asking the transcript to remember what matters. | A labeled field notebook with fixed sections, not loose napkins in a storm. |
+| Resume | When a thread wakes up, Epiphany rebuilds the latest surviving model of the work before asking the agent to continue. | The foreman finds yesterday's marked-up blueprint before letting anyone pick up a saw. |
+| Prompt injection | The current model is summarized into the developer context so the agent starts the turn facing the actual map. | The blueprint is pinned above the workbench, not buried in a drawer. |
+| Turn execution | Codex still runs the ordinary model/tool loop; Epiphany is context and discipline around that loop, not a replacement engine yet. | The same workshop machines run, but now there is a work order on the wall. |
+| Persistence | After a real user turn, Epiphany snapshots the current model beside the normal turn context. | The field notebook gets dated and shelved after each real work session. |
+| Thread read | Clients can ask for the current Epiphany model as typed data instead of scraping prompt text or transcript debris. | The dashboard reads the blueprint file directly, not a photo of the workbench. |
+| Retrieval | A loaded thread can ask a structured question of the repo through one typed retrieval surface. | A librarian brings back marked pages instead of making the agent rummage through every shelf. |
+| Indexing | Persistent semantic memory is built only through an explicit indexing path. | The librarian updates the card catalog only when asked, not while pretending to answer a question. |
+| Distillation | One explicit observation can be normalized into a typed observation/evidence patch, but not promoted automatically. | The clerk drafts a ledger entry in pencil before anyone is allowed to ink it. |
+| Promotion | A verifier-backed gate can reject a proposal without mutation or send it through the durable update path. | The foreman stamps the pencil draft before the clerk reaches for the red pen. |
+| State updates | A loaded thread can accept explicit typed patches that append observations/evidence and replace bounded map/scratch/churn fields. | The clerk finally has the red pen, but still writes only on the ledger page the form allows. |
 
-Codex now has a first-class structured Epiphany snapshot in protocol and rollout:
+## Flow 1: State Shape
 
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs)
+### Input
 
-Important pieces:
+The protocol layer defines the object that all other Epiphany paths agree on.
 
-- `EPIPHANY_STATE_OPEN_TAG` / `EPIPHANY_STATE_CLOSE_TAG`
-- `RolloutItem::EpiphanyState(EpiphanyStateItem)`
-- `EpiphanyThreadState`
-- supporting structs for:
-  - subgoals
-  - invariants
-  - two linked graphs
-  - frontier/checkpoint
-  - scratch
-  - observations
-  - recent evidence
-  - churn
-  - mode
+### Plain-language role
 
-### How this differs from plain Codex
+This is where Epiphany stops being an instruction style and becomes a thing the program can carry. The state shape is the skeleton: objective, subgoals, graph, scratch, observations, evidence, churn, mode, and retrieval summary all get named places to live.
 
-Stock Codex persists turn context and transcript-shaped history, but it does not persist a dedicated repo-understanding state plane with its own graph, evidence, and churn structures.
+The point is not just serialization. The point is pressure. If understanding has a typed slot, later code can ask whether that slot is fresh, missing, stale, or contradictory. Without this shape, the agent has only memory soup and a little sailor hat.
 
-Current Epiphany adds exactly that.
+### Mechanism
 
-### Why it matters
+`vendor/codex/codex-rs/protocol/src/protocol.rs` adds:
 
-This is the first place where Epiphany stops being "remember this in prose" and becomes "there is a canonical object for current understanding."
+- prompt tags: `EPIPHANY_STATE_OPEN_TAG` and `EPIPHANY_STATE_CLOSE_TAG`.
+- rollout storage: `RolloutItem::EpiphanyState(EpiphanyStateItem)`.
+- canonical thread state: `EpiphanyThreadState`.
+- map/scratch/evidence/churn/mode structs.
+- retrieval metadata: `EpiphanyRetrievalState`, `EpiphanyRetrievalStatus`, and `EpiphanyRetrievalShardSummary`.
 
-## Divergence 2: per-turn persistence and replay
+Code refs:
 
-### What changed
+- [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:103)
+- [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:2955)
+- [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:2972)
+- [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:3168)
 
-Session persistence and replay now carry Epiphany state through the thread lifecycle:
+### Output
 
-- [E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/epiphany_rollout.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/epiphany_rollout.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs)
+Every other current Epiphany path moves this shape around. There is no separate prompt-only representation pretending to be canonical.
 
-Current behavior:
+## Flow 2: Resume Rebuilds Live State
 
-- `SessionState` can store `epiphany_state`
-- after a real user turn, Codex persists one `RolloutItem::EpiphanyState(...)`
-- resume restores the latest surviving Epiphany snapshot
-- rollback skips rolled-back Epiphany snapshots
-- compaction does not erase the latest surviving snapshot
-- the vendored rollout wrapper now delegates the replay scan into `epiphany-core` and only supplies Codex's idea of what counts as a user-turn boundary
+### Input
 
-The key helper is:
+A session is resumed from rollout items.
 
-- `latest_epiphany_state_from_rollout_items(...)`
+### Plain-language role
 
-That helper reverse-scans rollout items and respects:
+Resume is the amnesia antidote. Codex can already rebuild conversation history, but Epiphany adds a second reconstruction target: the current model of what the work means.
 
-- user-turn boundaries
-- explicit rollback markers
-- compaction boundaries
+The important behavior is selective survival. If a later turn was rolled back, its Epiphany snapshot must die with it. If compaction happened, the latest valid model should survive. This is the difference between a real field notebook and a cursed diary that keeps pages from timelines you deleted.
 
-### How this differs from plain Codex
+### Mechanism
 
-Plain Codex replay reconstructs thread history, but there is no extra layer saying "this is the thread's durable model of the system."
+`Session::apply_rollout_reconstruction` calls the ordinary Codex rollout reconstruction path, replaces history/reference context, then writes the reconstructed `epiphany_state` back into live session state.
 
-Epiphany now piggybacks on rollout as a second narrative:
+The current core resume path uses Codex-side reconstruction code in `session/rollout_reconstruction.rs`, because resume has to rebuild history, reference context, previous turn settings, and Epiphany state together. The app-server stored-thread read path uses the narrower `epiphany-core` replay helper through the codex-core re-export, because that path only needs the latest surviving Epiphany snapshot for `Thread.epiphanyState`.
 
-- transcript/history narrative
-- understanding-state narrative
+That distinction matters. The `epiphany-core` helper is not a full history reconstructor. It reverse-scans rollout items, groups them by user-turn boundaries supplied by Codex, skips rolled-back user turns, and deliberately lets an older valid snapshot survive a compaction marker.
 
-### Good metaphor
+Code refs:
 
-Codex used to keep the conversation diary.
+- [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:1197)
+- [session/rollout_reconstruction.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/rollout_reconstruction.rs:107)
+- [epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs:35)
+- [epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs:295)
+- [core/src/epiphany_rollout.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/epiphany_rollout.rs:5)
+- [session/rollout_reconstruction_tests.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/rollout_reconstruction_tests.rs:1200)
 
-Epiphany adds the field notebook.
+### Output
 
-Not the whole future laboratory, just the notebook.
+`SessionState.epiphany_state` is restored before later turn construction asks for prompt context.
 
-## Divergence 3: prompt assembly consults structured state
+### Invariant
 
-### What changed
+The latest state is not merely the last serialized `EpiphanyState` item. Replay respects user-turn boundaries and rollback, and current tests explicitly preserve the latest valid Epiphany state across compaction. Rolled-back state should not resurrect itself like a little gremlin.
 
-Turn construction now reads Epiphany state and injects a bounded developer fragment:
+## Flow 3: Turn Startup Injects State Into The Prompt
 
-- [E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs)
+### Input
 
-Current behavior:
+A loaded session starts building initial turn context and already has `SessionState.epiphany_state`.
 
-- if `SessionState.epiphany_state` is present
-- `Session::build_initial_context(...)` adds `EpiphanyStateInstructions`
-- the vendored wrapper now calls `epiphany_core::render_epiphany_state(...)` instead of owning the heavy rendering logic itself
-- the fragment is wrapped in `<epiphany_state> ... </epiphany_state>`
-- the renderer is bounded and selective
+### Plain-language role
 
-The renderer currently summarizes:
+Prompt injection is where the stored model becomes model-facing guidance. It does not ask the agent to rediscover the project from the transcript. It hands the agent a compact orientation packet before the tool loop begins.
+
+This is also where restraint matters. The renderer is deliberately bounded by hard section limits because a map that floods the prompt becomes another swamp. Epiphany should show the current frontier, the live risks, and the important evidence, not every artifact it has ever seen.
+
+### Mechanism
+
+`Session::build_initial_context` locks session state and copies:
+
+- reference context
+- previous turn settings
+- collaboration mode
+- base instructions
+- session source
+- `epiphany_state`
+
+It then builds the normal developer bundle. After collaboration-mode instructions, it checks `epiphany_state.as_ref()` and pushes `EpiphanyStateInstructions::from_state(...).render()`.
+
+`EpiphanyStateInstructions` is only a Codex adapter. It calls `epiphany_core::render_epiphany_state(state)` and wraps the result in the protocol tags.
+
+Code refs:
+
+- [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2434)
+- [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2447)
+- [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2509)
+- [context/epiphany_state_instructions.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs:7)
+- [epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:27)
+- [epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:17)
+
+### Output
+
+The model sees a bounded developer-context fragment:
+
+```text
+<epiphany_state>
+...
+</epiphany_state>
+```
+
+The renderer selects the useful current state instead of dumping raw JSON:
 
 - objective
 - active subgoal
 - invariants
-- frontier/checkpoint
+- graph frontier/checkpoint
 - focused graph nodes/edges/links
 - scratch summary
 - observations
-- evidence
+- recent evidence
 - churn
 - mode
 
-### How this differs from plain Codex
+### Invariant
 
-Plain Codex builds prompt context from history, instructions, tools, and runtime policy.
+Prompt injection is read-only. It does not update canonical state. If the model learns something from the prompt, committing that understanding now requires an explicit proposal/update path, not a side effect of seeing the prompt.
 
-Current Epiphany adds one more structured feed:
+## Flow 4: Normal Turns Persist Epiphany State
 
-- developer-visible thread understanding
+### Input
 
-### Important limit
+A real user turn enters the normal context-update path.
 
-This is still read-only prompt use.
+### Plain-language role
 
-The model is not yet updating canonical Epiphany state itself. It can read the map, but it is not yet the clerk writing the ledger.
+Persistence is the checkpoint ritual. After a real turn, Epiphany writes the current model next to the normal turn context so the next wakeup has something sturdier than vibes.
 
-## Divergence 4: typed client thread read surface
+This is deliberately tied to real user turns. The system is not spraying snapshots after every tiny internal twitch. The notebook gets an entry when the work session actually advances.
 
-### What changed
+### Mechanism
 
-Hydrated app-server thread payloads can now expose typed Epiphany state:
+`record_context_updates_and_set_reference_context_item`:
 
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs)
+1. decides whether to inject full initial context or just settings diffs.
+2. records any model-visible context items.
+3. persists one `RolloutItem::TurnContext`.
+4. reads current `self.epiphany_state().await`.
+5. if present, persists one `RolloutItem::EpiphanyState` with the current turn id.
+6. advances the reference context item baseline.
 
-Current behavior:
+Code refs:
 
-- `Thread` has optional `epiphany_state`
-- `thread/start` can hydrate it from a live loaded thread
-- `thread/resume` can hydrate it from a live loaded thread
-- `thread/fork` can hydrate it from a live loaded thread
-- `thread/read` can hydrate it:
-  - from live thread state when loaded
-  - otherwise from rollout reconstruction
-- `thread/unarchive` and detached review-thread startup can hydrate it too
+- [session/turn.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/turn.rs:168)
+- [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2677)
+- [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2702)
 
-### How this differs from plain Codex
+### Output
 
-Plain Codex clients can inspect thread metadata, turns, items, and diffs, but there is no typed thread field for "the thread's current structured repo understanding."
+The rollout contains Epiphany snapshots aligned to real user turns.
 
-Epiphany adds the first piece of that client-visible state plane.
+### Invariant
 
-### Important limit
+No state means no `EpiphanyState` rollout item. Current code does not synthesize an empty Epiphany state just because the fork exists.
 
-This is a **read surface**, not a full Epiphany control plane.
+## Flow 5: Thread Reads Hydrate Typed Client State
 
-We do **not** yet have:
+### Input
 
-- `thread/epiphany/read`
-- `thread/epiphany/update`
-- `thread/epiphany/stateUpdated`
-- `thread/epiphany/evidenceAppended`
+The app-server needs to return a hydrated `Thread` payload through surfaces such as `thread/read`, `thread/resume`, `thread/fork`, or detached review-thread startup. The protocol comment also marks `thread/start` and payload-reusing notifications/responses as places where this field may be populated.
 
-So the client can now see the state, but cannot yet steer or subscribe to it as a first-class live surface.
+### Plain-language role
 
-## Divergence 5: repo-local retrieval/indexing
+Thread hydration is the place where Epiphany becomes visible as application data. The GUI or any other client should not have to scrape the prompt to know what the agent thinks the system is.
 
-### What changed
+The subtle bit is the retrieval summary backfill. If live state exists but has no retrieval metadata, the read view can attach a current freshness summary. That is a window display, not a ledger write.
 
-Loaded threads now expose typed retrieval/indexing surfaces backed by a repo-owned implementation crate and a thin vendored host seam:
+### Mechanism
 
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs)
-- [E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/epiphany_retrieval.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/epiphany_retrieval.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs)
-- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs)
+For `thread/read`, `read_thread_view` loads the persisted thread view and optional live thread. It then calls `apply_thread_read_epiphany_state`.
 
-Current behavior:
+`apply_thread_read_epiphany_state` chooses:
 
-- `EpiphanyThreadState` now has retrieval metadata via `retrieval`
-- `epiphany-core` now owns the heavy retrieval/indexing engine and manifest/Qdrant/Ollama/BM25 logic
-- `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs` is now a thin re-export layer instead of the whole engine
-- `CodexThread` exposes:
-  - `epiphany_retrieval_state()`
-  - `epiphany_retrieve(...)`
-  - `epiphany_index(...)`
-- app-server protocol exposes experimental `thread/epiphany/retrieve`
-- app-server protocol also exposes experimental `thread/epiphany/index`
-- the retrieval machine is hybrid from day one:
-  - exact/path-ish hits via existing `codex_file_search`
-  - semantic hits via workspace-local BM25 chunk search over a gitignore-respecting corpus
-  - persistent semantic retrieval from Qdrant when the explicit index is fresh
-- live `thread.epiphanyState` hydration backfills a lightweight retrieval summary when the thread has Epiphany state but no persisted retrieval metadata yet
+- if the thread is loaded, use `live_thread_epiphany_state`.
+- otherwise, read rollout items from disk and reconstruct the latest surviving Epiphany state with `latest_epiphany_state_from_rollout_items`.
 
-### How this differs from plain Codex
+`live_thread_epiphany_state` reads `CodexThread.epiphany_state()`. If state exists but has no retrieval summary, it calls `thread.epiphany_retrieval_state().await` and backfills the summary into the returned API object. That backfill is for the view; it is not a durable rollout write.
 
-Plain Codex has pieces of repo search substrate scattered around:
+Code refs:
 
-- fuzzy/exact-ish file search
-- BM25 usage in tool-search paths
-- shell access if the operator wants to rummage manually
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4216)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4332)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:5163)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:5435)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:7781)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10122)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10146)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4529)
 
-What it does not have is one Epiphany-owned retrieval organ that says:
+### Output
 
-- this query is for repo understanding
-- this thread/workspace is the scope
-- exact and semantic lookup are the same machine
-- results come back in a typed shape instead of as transcript confetti
+Clients can read `thread.epiphanyState` as typed data.
 
-What changed now is that the heavier part of that organ no longer lives entirely inside vendored Codex. The host seam is still patched into Codex, but the actual engine mostly lives in `epiphany-core`, which makes the ownership boundary less muddy and makes modified Codex alone a less complete rebuild kit.
+### Invariant
 
-### Why it matters
+This is a read surface. There is still no shipped `thread/epiphany/update`, `thread/epiphany/stateUpdated`, or `thread/epiphany/evidenceAppended`.
 
-This is the first time Epiphany can ask a structured repo question without falling back to file-by-file terminal spelunking.
+## Flow 6: Retrieval Request Control Flow
 
-That changes the shape of the harness. The map is no longer just a notebook the prompt can read. It now has a first retrieval organ hanging off the same typed spine.
+### Input
 
-### Important limits
+A client sends experimental `thread/epiphany/retrieve`.
 
-This slice is intentionally small and honest:
+### Plain-language role
 
-- query-time only
-- loaded-thread-first
-- read-only
-- local BM25 rather than embeddings
-- no watcher-driven invalidation
-- explicit indexing rather than hidden retrieval mutation
-- env-driven backend config for now
+Retrieval is Epiphany's first repo-sensing organ. It lets the harness ask "where is the evidence for this idea?" without turning every mapping pass into shell archaeology.
 
-## What has *not* diverged yet
+The hybrid part matters. Exact/path search is the skeleton key for known names. Qdrant semantic search is the memory for concepts. BM25 is the sane fallback when the vector machinery is absent or stale. They are one retrieval machine, not rival cults in tiny robes.
 
-This matters because the spec is ahead of the code in a few obvious places.
+Protocol shape:
 
-### Not yet shipped
+- `threadId`
+- `query`
+- optional `limit`
+- optional `pathPrefixes`
 
-- no code-intelligence layer
-- no watcher-driven semantic invalidation
-- no observation-promotion machinery beyond the data model
-- no live Epiphany event stream
-- no typed write/update methods for Epiphany state
-- no mutation gates enforcing map freshness or declared intent
-- no specialist-agent scheduling
-- no GUI reflection layer
+Code refs:
 
-So current Epiphany is real, but still skeletal.
+- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:345)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3926)
 
-## Current algorithmic shape versus plain Codex
+### Mechanism
 
-### Plain Codex steady-state path
+The app-server handler:
+
+1. parses the thread id.
+2. trims and rejects empty queries.
+3. rejects zero limits.
+4. requires the thread to be loaded.
+5. clamps limit to Epiphany bounds.
+6. calls `CodexThread.epiphany_retrieve`.
+7. maps core results into app-server protocol DTOs.
+
+`CodexThread.epiphany_retrieve` snapshots the thread config, extracts `cwd` as workspace root, gets `codex_home`, and runs `epiphany_retrieval::retrieve_workspace` in `spawn_blocking`.
+
+`epiphany-core::retrieve_workspace`:
+
+1. validates workspace root and query.
+2. normalizes limit and path prefixes.
+3. runs exact/path search through `codex_file_search`.
+4. tries persistent semantic search.
+5. uses Qdrant only when the manifest matches the current backend config, the workspace snapshot is clean, the collection exists, and Ollama can embed the query.
+6. if no manifest exists, the manifest is stale, the collection is missing, or Qdrant/Ollama errors, falls back to query-time BM25 chunks.
+7. merges exact and semantic results.
+8. sorts with exact files first, semantic chunks second, exact directories third, then score/path/line ordering.
+9. truncates to the requested limit.
+10. returns query, index summary, and typed results.
+
+Code refs:
+
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4022)
+- [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:456)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:135)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:404)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:487)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:1450)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10132)
+
+### Output
+
+The response contains:
+
+- query
+- index summary
+- result kind: exact file, exact directory, or semantic chunk
+- path
+- score
+- optional line range
+- optional excerpt
+
+### Invariant
+
+`thread/epiphany/retrieve` is read-only with respect to durable Epiphany state and persistent semantic indexing. It may build a query-time BM25 corpus in memory and report retrieval freshness, but it does not rebuild Qdrant, does not write the manifest, and does not persist Epiphany state.
+
+## Flow 7: Explicit Indexing Control Flow
+
+### Input
+
+A client sends experimental `thread/epiphany/index`.
+
+### Plain-language role
+
+Indexing is catalog maintenance. It is intentionally not hidden inside retrieval because hidden writes make state harder to reason about and harder to trust.
+
+The explicit path says: if we want persistent semantic memory, we ask for it. Then Epiphany chunks files, embeds them, writes Qdrant points, and records a manifest so later reads can tell whether the catalog still matches the shelves.
+
+Protocol shape:
+
+- `threadId`
+- `forceFullRebuild`
+
+Code refs:
+
+- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:340)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3910)
+
+### Mechanism
+
+The app-server handler:
+
+1. parses the thread id.
+2. requires the thread to be loaded.
+3. calls `CodexThread.epiphany_index(force_full_rebuild)`.
+4. maps the returned core retrieval state into an app-server index summary response.
+
+`CodexThread.epiphany_index` snapshots `cwd`, reads `codex_home`, and runs `epiphany_retrieval::index_workspace` in `spawn_blocking`.
+
+`epiphany-core::index_workspace`:
+
+1. validates workspace root.
+2. loads env-derived backend config.
+3. snapshots indexable workspace files.
+4. loads the manifest under `codex_home`.
+5. checks Qdrant collection compatibility.
+6. computes full rebuild versus incremental reindex.
+7. chunks changed files.
+8. embeds chunks through local Ollama.
+9. creates or updates Qdrant collection/points.
+10. deletes removed points when needed.
+11. writes updated manifest metadata.
+12. returns a ready `EpiphanyRetrievalState` if the write succeeds, or an error if workspace/Qdrant/Ollama/manifest work fails.
+
+Code refs:
+
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4098)
+- [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:438)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:124)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:249)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:342)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:394)
+
+### Output
+
+The response returns an index summary. The persistent side effects are:
+
+- Qdrant collection/points for semantic chunks.
+- manifest JSON under `codex_home`.
+
+### Invariant
+
+Indexing is the only current persistent semantic write path. Retrieval does not secretly mutate the index. Good. Sneaky writes are how the goblin gets in.
+
+## Flow 8: Retrieval State Summary Backfill
+
+### Input
+
+A live thread has Epiphany state, but `state.retrieval` is `None`.
+
+### Plain-language role
+
+Retrieval-summary backfill is a dashboard convenience. It answers "does this workspace currently have a usable semantic index?" when a client reads thread state.
+
+It must stay light. It should measure the catalog, not rewrite the catalog. If this path starts mutating durable state, it becomes a hidden indexing/update surface wearing a fake mustache.
+
+### Mechanism
+
+`live_thread_epiphany_state` calls `thread.epiphany_retrieval_state().await`. That method runs `retrieval_state_for_workspace`, which:
+
+1. checks the workspace exists.
+2. loads backend config.
+3. tries to load the manifest from `codex_home`.
+4. returns a query-time baseline summary if no manifest exists.
+5. marks stale if revision or collection differs.
+6. compares manifest file metadata to current workspace metadata.
+7. returns ready or stale summary with dirty paths.
+
+Code refs:
+
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10122)
+- [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:420)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:97)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:1229)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:1365)
+- [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:1416)
+
+### Output
+
+The API view of `thread.epiphanyState.retrieval` can show current retrieval/index freshness without making the thread-read path write to rollout.
+
+## Flow 9: Explicit State Update Control Flow
+
+### Input
+
+A client sends experimental `thread/epiphany/update` for a loaded thread.
+
+### Plain-language role
+
+State update is the red-pen path. It is the first shipped control-plane door for turning explicit observations and state decisions into the durable Epiphany model.
+
+The important boundary is that this is not automatic transcript osmosis. The caller must submit a typed patch. Epiphany accepts only named state pieces: objective, active subgoal, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, observations, evidence, churn, and mode. Retrieval still does not get to scribble in the notebook while pretending to fetch books.
+
+Protocol shape:
+
+- `threadId`
+- optional `expectedRevision`
+- `patch`
+  - optional replacement fields for objective, subgoals, invariants, graph state, scratch, churn, and mode
+  - append-only `observations`
+  - append-only `evidence`
+
+Wire-shape caveat: the app-server envelope is camelCase, but the nested reused Epiphany core DTOs keep their core snake_case field names. That is why an observation uses `source_kind` and churn uses `understanding_status` / `diff_pressure` inside the patch.
+
+Code refs:
+
+- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:344)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3936)
+
+### Mechanism
+
+The app-server handler:
+
+1. parses the thread id.
+2. requires the thread to be loaded.
+3. maps the app-server patch DTO into `EpiphanyStateUpdate`.
+4. calls `CodexThread.epiphany_update_state`.
+5. returns the updated `EpiphanyThreadState`.
+6. reports empty patches and revision mismatches as invalid requests.
+
+`CodexThread.epiphany_update_state`:
+
+1. rejects an empty patch.
+2. reads the current reference turn id when one exists.
+3. starts from the live `SessionState.epiphany_state` or a default empty state.
+4. enforces `expectedRevision` when supplied.
+5. applies typed replacements, prepends new observations/evidence, increments `revision`, and records `last_updated_turn_id`.
+6. writes the new state back into live `SessionState`.
+7. immediately persists `RolloutItem::EpiphanyState`.
+8. flushes the rollout durability barrier.
+
+The replay helpers now also accept an out-of-band Epiphany snapshot before the first real user turn, so a seed/update written through this path is not lost just because no model turn has happened yet.
+
+Code refs:
+
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4149)
+- [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:100)
+- [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:373)
+- [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:543)
+- [session/rollout_reconstruction.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/rollout_reconstruction.rs:45)
+- [epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs:18)
+
+### Output
+
+The response contains the updated `epiphanyState`. The durable side effect is a rollout `EpiphanyState` snapshot.
+
+### Invariant
+
+This is an explicit write surface, not a hidden side effect. It does not run retrieval, indexing, watcher invalidation, automatic graph inference, or specialist-agent scheduling. It is just the clerk with the red pen, finally given a form.
+
+## Flow 10: Observation Distillation Proposal Control Flow
+
+### Input
+
+A client sends experimental `thread/epiphany/distill` for a loaded thread with:
+
+- `threadId`
+- `sourceKind`
+- `status`
+- `text`
+- optional `subject`
+- optional `evidenceKind`
+- optional `codeRefs`
+
+### Plain-language role
+
+Distillation is the pencil-draft path. It turns one explicit thing the client claims to have observed into the same observation/evidence records that `thread/epiphany/update` can persist, but it deliberately stops short of writing them.
+
+That restraint is the point. This surface is not "the transcript became truth." It is "here is a shaped candidate; now choose whether to promote it." The current implementation is deterministic and boring on purpose: normalize whitespace, attach code refs, choose a stable id, and return a patch. No hidden model call, no watcher magic, no tiny bureaucracy pretending it is wisdom.
+
+Protocol shape:
+
+- `threadId`
+- `sourceKind`
+- `status`
+- `text`
+- optional `subject`
+- optional `evidenceKind`
+- optional `codeRefs`
+
+Response shape:
+
+- `expectedRevision`
+- `patch`
+  - `observations`
+  - `evidence`
+
+Wire-shape caveat is the same as update: the app-server envelope is camelCase, but nested reused Epiphany core DTOs keep their core snake_case fields.
+
+Code refs:
+
+- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:345)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3937)
+- [epiphany-core/src/distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:13)
+
+### Mechanism
+
+The app-server handler:
+
+1. parses the thread id.
+2. requires the thread to be loaded.
+3. reads the current Epiphany revision, defaulting to `0` if the thread has not yet created state.
+4. calls `distill_observation`.
+5. returns a `ThreadEpiphanyUpdatePatch` containing one observation and one evidence record.
+
+`distill_observation`:
+
+1. normalizes required `sourceKind`, `status`, and `text`.
+2. rejects empty required fields.
+3. normalizes optional `subject` and `evidenceKind`.
+4. builds a bounded summary from `subject: text` or just `text`.
+5. fingerprints source/status/subject/text into stable observation/evidence ids.
+6. defaults evidence kind to `verification` for test/smoke/verification sources, otherwise `observation`.
+7. copies code refs into both records so the proposal carries its anchors.
+
+Code refs:
+
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4158)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4194)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4217)
+- [epiphany-core/src/distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28)
+
+### Output
+
+The response is a promotion-ready patch. It is not durable until a caller submits it to `thread/epiphany/update`.
+
+### Invariant
+
+Distillation is read-only. It does not mutate `SessionState`, does not persist rollout items, does not run retrieval, and does not infer graph/churn changes. It sharpens one proposed observation into a typed shape; promotion remains a separate red-pen act.
+
+## Flow 11: Promotion Gate Control Flow
+
+### Input
+
+A client sends experimental `thread/epiphany/promote` for a loaded thread with:
+
+- `threadId`
+- optional `expectedRevision`
+- `patch`
+- `verifierEvidence`
+
+### Plain-language role
+
+Promotion is the stamp between pencil and ink. It is not another writer and it is not automatic wisdom. It looks at a proposed patch plus verifier evidence, decides whether the proposal has enough structure to deserve promotion, and either rejects with reasons or forwards the accepted patch into the existing durable update path.
+
+The important thing is the failure behavior. A bad verifier status returns `accepted: false` and leaves `SessionState` untouched. That makes rejection a first-class outcome instead of a half-committed shrug. Tiny bureaucracy, actually useful for once.
+
+Protocol shape:
+
+- `threadId`
+- optional `expectedRevision`
+- `patch`
+- `verifierEvidence`
+
+Response shape:
+
+- `accepted`
+- `reasons`
+- optional `epiphanyState`
+
+Code refs:
+
+- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:349)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3963)
+- [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:6)
+
+### Mechanism
+
+The app-server handler:
+
+1. parses the thread id.
+2. requires the thread to be loaded.
+3. sends the patch shape plus verifier evidence to `evaluate_promotion`.
+4. returns `accepted: false`, reasons, and `epiphanyState: null` when policy rejects.
+5. appends verifier evidence to the patch evidence when policy accepts.
+6. maps the patch into `EpiphanyStateUpdate`.
+7. calls `CodexThread.epiphany_update_state`.
+8. returns the updated `EpiphanyThreadState`.
+
+`evaluate_promotion` currently enforces a deliberately small policy:
+
+1. the patch must contain at least one mutation.
+2. verifier evidence must have nonempty id/kind/status/summary.
+3. verifier status must be accepting: `ok`, `accepted`, `verified`, `pass`, or `passed`.
+4. patch evidence records must be nonempty and unique by id.
+5. observations must be nonempty, unique by id, and cite existing evidence ids.
+
+Code refs:
+
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4237)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4270)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4280)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4308)
+- [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:19)
+
+### Output
+
+Rejected promotions return reasons and no state. Accepted promotions return the updated `epiphanyState` from the durable update path.
+
+### Invariant
+
+Promotion is a gate, not independent persistence. It does not write rollout items directly and it does not mutate state on rejection. Accepted promotions still go through `CodexThread.epiphany_update_state`, so the red pen remains one tool, not three tools in a coat.
+
+## Current Non-Flows
+
+These are deliberately not shipped yet:
+
+- no live Epiphany event stream.
+- no automatic evidence promotion from tool output; the current distill/promote path still requires explicit verifier-backed calls.
+- no watcher-driven graph or semantic invalidation.
+- no code-intelligence graph.
+- no specialist-agent scheduler.
+- no GUI reflection layer.
+- no durable retrieval-summary write from `thread/epiphany/retrieve`.
+
+The current system is therefore not "the model maintains a map automatically." More precisely:
 
 ```text
-input -> turn context -> prompt -> model/tool loop -> transcript/history -> rollout -> client thread/items
+stored Epiphany state
+-> rendered into model context
+-> persisted across turns and resume
+-> visible to clients
+-> retrieval/indexing can inform future work
+-> explicit distillation can draft observation/evidence patches
+-> explicit promotion can reject or accept verified candidates
+-> explicit update patches can revise durable map/evidence/churn state
 ```
 
-### Current Epiphany path
+The remaining missing organ is:
 
 ```text
-input
--> turn context
--> prompt + bounded epiphany_state fragment
--> model/tool loop
--> transcript/history
--> rollout + epiphany_state snapshot
--> replay-aware epiphany restoration
--> hydrated client thread payload with epiphanyState
--> thin Codex adapters into repo-owned epiphany-core organs
--> optional typed repo retrieval through thread/epiphany/retrieve
--> optional explicit semantic indexing through thread/epiphany/index
+model/tool observations
+-> structured observation distillation
+-> promotion policy / verifier acceptance
+-> typed Epiphany state update
+-> durable evidence/map/churn mutation
 ```
 
-That is the real delta.
+That remaining missing organ is richer map/churn promotion. The typed write path exists, the first deterministic distillation proposal path exists, and the first verifier-backed promotion gate exists. What does not exist yet is a policy that turns accepted observations into graph/frontier/churn edits without drifting into automatic graph fanfic.
 
-The transcript is no longer the only thing with continuity.
+In natural language: current Epiphany can preserve a map, show a map, retrieve evidence for the map, draft one explicit observation/evidence patch, reject or accept a verified candidate, and apply explicit map/evidence/churn edits. It still cannot safely derive richer map/churn edits from observations by itself. Teeth are installed; chewing is still supervised.
 
-## Where the divergence is already meaningful
+## Verification Hooks
 
-Even without invalidation or GUI, the divergence is already structurally important in five ways:
+Current tests cover the landed flows at useful seams:
 
-1. **Understanding has a durable object now**
-   - not just prose and replayed vibes
+- prompt rendering and omission/inclusion/resume behavior in `codex-core`.
+- rollback and compaction replay behavior in `codex-core` and `epiphany-core`.
+- explicit out-of-band Epiphany snapshot replay before the first user turn.
+- deterministic observation/evidence distillation in `epiphany-core`.
+- verifier-backed promotion policy in `epiphany-core`.
+- typed state-update patch application in `codex-core`.
+- retrieval ranking, fallback, stale manifest detection, and mocked Qdrant/Ollama indexing in `epiphany-core`.
+- app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/promote`, and `thread/epiphany/update`.
+- app-server mapping of core retrieval/index summaries into protocol responses.
 
-2. **The turn loop can consult that understanding**
-   - not just whatever history happens to fit in the window
+Useful commands:
 
-3. **Clients can read that understanding directly**
-   - not by scraping the prompt or reverse-engineering transcript fragments
-
-4. **The harness has typed repo retrieval/indexing organs now**
-   - not just shell archaeology plus vibes
-
-5. **Most of the heavy Epiphany-owned implementation now lives outside vendored Codex**
-   - not because plugins are fashionable, but because keeping the thicker organ repo-owned makes the boundary less muddy while preserving first-class typed integration
-
-That is not the full Epiphany vision yet, but it is no longer cosmetic either.
-
-## Recommended next companion note
-
-The useful follow-on section for this file is probably not "more retrieval exists."
-
-It is more likely one of these:
-
-- structured observation promotion from retrieval/tool output into durable Epiphany state
-- live health/config semantics for the explicit indexing path
-- eventual watcher-driven invalidation only if the current explicit path proves too manual
-
-Those would be the next places where the machine stops being a better notebook and starts being a more opinionated harness.
+```powershell
+cargo test --manifest-path .\epiphany-core\Cargo.toml
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-core --lib epiphany
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server-protocol --lib thread_epiphany_
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server --lib map_epiphany_
+```

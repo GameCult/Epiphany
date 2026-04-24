@@ -742,6 +742,467 @@
       ],
       "type": "object"
     },
+    "EpiphanyChurnState": {
+      "properties": {
+        "diff_pressure": {
+          "type": "string"
+        },
+        "graph_freshness": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "understanding_status": {
+          "type": "string"
+        },
+        "unexplained_writes": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "warning": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "diff_pressure",
+        "understanding_status"
+      ],
+      "type": "object"
+    },
+    "EpiphanyCodeRef": {
+      "properties": {
+        "end_line": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "start_line": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "symbol": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "type": "object"
+    },
+    "EpiphanyEvidenceRecord": {
+      "properties": {
+        "code_refs": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyCodeRef"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "EpiphanyGraph": {
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphEdge"
+          },
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphNode"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "EpiphanyGraphCheckpoint": {
+      "properties": {
+        "checkpoint_id": {
+          "type": "string"
+        },
+        "frontier_node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "graph_revision": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "open_gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "open_question_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "checkpoint_id",
+        "graph_revision"
+      ],
+      "type": "object"
+    },
+    "EpiphanyGraphEdge": {
+      "properties": {
+        "code_refs": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyCodeRef"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "kind": {
+          "type": "string"
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mechanism": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "target_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "source_id",
+        "target_id"
+      ],
+      "type": "object"
+    },
+    "EpiphanyGraphFrontier": {
+      "properties": {
+        "active_edge_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "active_node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "dirty_paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "open_gap_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "open_question_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "EpiphanyGraphLink": {
+      "properties": {
+        "architecture_node_id": {
+          "type": "string"
+        },
+        "code_refs": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyCodeRef"
+          },
+          "type": "array"
+        },
+        "dataflow_node_id": {
+          "type": "string"
+        },
+        "relationship": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "architecture_node_id",
+        "dataflow_node_id"
+      ],
+      "type": "object"
+    },
+    "EpiphanyGraphNode": {
+      "properties": {
+        "code_refs": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyCodeRef"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "mechanism": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metaphor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "purpose": {
+          "type": "string"
+        },
+        "status": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "purpose",
+        "title"
+      ],
+      "type": "object"
+    },
+    "EpiphanyGraphs": {
+      "properties": {
+        "architecture": {
+          "$ref": "#/definitions/EpiphanyGraph"
+        },
+        "dataflow": {
+          "$ref": "#/definitions/EpiphanyGraph"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphLink"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "EpiphanyInvariant": {
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "description",
+        "id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "EpiphanyModeState": {
+      "properties": {
+        "kind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ModeKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "EpiphanyObservation": {
+      "properties": {
+        "code_refs": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyCodeRef"
+          },
+          "type": "array"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "source_kind": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "source_kind",
+        "status",
+        "summary"
+      ],
+      "type": "object"
+    },
+    "EpiphanyScratchPad": {
+      "properties": {
+        "hypothesis": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_probe": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "EpiphanySubgoal": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "title"
+      ],
+      "type": "object"
+    },
     "ExperimentalFeatureEnablementSetParams": {
       "properties": {
         "enablement": {
@@ -3247,6 +3708,113 @@
       "required": [
         "threadId"
       ],
+      "type": "object"
+    },
+    "ThreadEpiphanyUpdatePatch": {
+      "properties": {
+        "activeSubgoalId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "churn": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyChurnState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyEvidenceRecord"
+          },
+          "type": "array"
+        },
+        "graphCheckpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyGraphCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "graphFrontier": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyGraphFrontier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "graphs": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyGraphs"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invariants": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyInvariant"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyModeState"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "objective": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyObservation"
+          },
+          "type": "array"
+        },
+        "scratch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyScratchPad"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "subgoals": {
+          "items": {
+            "$ref": "#/definitions/EpiphanySubgoal"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        }
+      },
       "type": "object"
     },
     "ThreadForkParams": {
