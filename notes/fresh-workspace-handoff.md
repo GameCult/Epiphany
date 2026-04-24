@@ -19,6 +19,7 @@ Important consequence:
 
 - `vendor/codex` is now tracked directly in the parent repo as ordinary files
 - it is **not** a submodule anymore
+- `epiphany-core/` is now a sibling repo-owned crate that holds the bulk of the Epiphany prompt, rollout replay, and retrieval/indexing logic instead of leaving that whole organ smeared through vendored Codex
 
 Recent anchor commits:
 
@@ -36,6 +37,22 @@ Canonical project state still lives in:
 - `state/scratch.md`
 - `state/evidence.jsonl`
 
+## Licensing State
+
+- the repo now has a top-level `LICENSE` file that acts as an operative
+  repository license notice rather than a policy draft
+- `vendor/codex/**` remains governed by its upstream Apache-2.0 and related
+  third-party notices
+- Project-Authored Material outside `vendor/codex/**` is publicly licensed
+  under PolyForm Noncommercial 1.0.0, with separate commercial licensing
+  intended by written agreement
+- external contributions require `CONTRIBUTOR_LICENSE_AGREEMENT.md` or a
+  separate written agreement accepted by the Project Steward; contributors keep
+  ownership but grant broad sublicensing/relicensing rights so future commercial
+  licensing is not blocked by old contribution archaeology
+- do not describe the repository as a whole as OSI Open Source unless and until
+  the project-authored material is also published under an OSI-approved license
+
 Current implementation plan note:
 
 - `notes/codex-epiphany-mode-plan.md`
@@ -50,10 +67,26 @@ Current architectural/spec notes:
 
 Phase 4 repo-local hybrid retrieval is now landed on `main` at `360dfea` and pushed to `origin/main`. It is no longer a vague scaffold, a maybe, or a working-tree-only event.
 
-Current landed implementation spans:
+Current verified working-tree follow-up after that landed baseline:
 
+- explicit `thread/epiphany/index`
+- manifest-backed Qdrant semantic persistence under `codex_home`
+- local Ollama embeddings by default
+- stale/fresh retrieval summaries
+- read-only `thread/epiphany/retrieve` with BM25 fallback still intact
+- repo-owned `epiphany-core` extraction for the heavy prompt/replay/retrieval organ, leaving vendored Codex with thin adapters plus the typed host seam
+
+Current verified working-tree implementation spans:
+
+- `epiphany-core/Cargo.toml`
+- `epiphany-core/src/prompt.rs`
+- `epiphany-core/src/rollout.rs`
+- `epiphany-core/src/retrieval.rs`
+- `epiphany-core/src/lib.rs`
 - `vendor/codex/codex-rs/protocol/src/protocol.rs`
 - `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs`
+- `vendor/codex/codex-rs/core/src/epiphany_rollout.rs`
+- `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs`
 - `vendor/codex/codex-rs/core/src/codex_thread.rs`
 - `vendor/codex/codex-rs/core/src/lib.rs`
 - `vendor/codex/codex-rs/core/Cargo.toml`
@@ -68,17 +101,32 @@ Current landed implementation spans:
 What is wired right now:
 
 - `EpiphanyThreadState` already has retrieval metadata fields and types in protocol
-- `codex-core` now has a new `epiphany_retrieval.rs` module
-- the core retriever is query-time and hybrid:
+- repo-owned `epiphany-core` now owns:
+  - the prompt-state renderer used by Phase 2 prompt injection
+  - the rollout replay helper used by Phase 3 stored-thread hydration and rollback/compaction-aware reads
+  - the heavy retrieval/indexing engine used by the current Phase 4 work
+- vendored `codex-core` now keeps thin adapters at:
+  - `core/src/epiphany_retrieval.rs`
+  - `core/src/epiphany_rollout.rs`
+  - `core/src/context/epiphany_state_instructions.rs`
+- the retrieval machine is still hybrid:
   - exact/path-ish lookup via `codex_file_search`
   - semantic lookup via BM25 chunk search over a local gitignore-respecting corpus
 - `CodexThread` now exposes:
   - `epiphany_retrieval_state()`
   - `epiphany_retrieve(...)`
+  - `epiphany_index(...)`
 - app-server protocol now declares experimental `thread/epiphany/retrieve`
-- app-server message handling now routes that method to the core retriever
+- app-server protocol now also declares experimental `thread/epiphany/index`
+- app-server message handling now routes those methods through the core host seam
 - live hydrated `thread.epiphanyState` reads now backfill a lightweight retrieval summary when the thread already has Epiphany state but no persisted retrieval summary yet
 - basic protocol/core/app-server unit tests were added for the new types and mapping layer
+- the current verified working tree additionally wires:
+  - Qdrant-backed semantic indexing behind an explicit write path instead of hidden retrieval mutation
+  - manifest-backed freshness checking under `codex_home`
+  - local Ollama embeddings by default, with support for adjacent VoidBot-style env names as fallbacks
+  - persistent semantic retrieval preference when the index is fresh, and BM25 fallback when it is stale, missing, or unavailable
+- modified Codex alone is no longer the whole Epiphany organ; the heavier implementation now lives in the sibling crate and vendored Codex mostly hosts typed seams and adapters
 
 Important recovery facts:
 
@@ -107,12 +155,14 @@ Updated follow-up direction:
 
 What got verified:
 
+- `cargo fmt --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml` passed
+- `cargo test --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml` passed
 - `cargo fmt --all` passed
 - `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` passed with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
 - targeted Phase 4 tests passed:
-  - `cargo test -p codex-core --lib retrieve_workspace_`
-  - `cargo test -p codex-app-server-protocol --lib thread_epiphany_retrieve`
-  - `cargo test -p codex-app-server --lib map_epiphany_retrieve_response_preserves_summary_and_results`
+  - `cargo test -p codex-core --lib epiphany`
+  - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
+  - `cargo test -p codex-app-server --lib map_epiphany_`
 - full `cargo test -p codex-app-server-protocol` passed after regenerating stable schema fixtures
 
 Notable verification fixes:
@@ -156,7 +206,7 @@ Main touched files:
 
 Phase 2 is done too.
 
-The Phase 2 prompt-integration slice was implemented inside vendored Codex:
+The Phase 2 prompt-integration slice was originally implemented inside vendored Codex and now renders through the repo-owned prompt crate with a thin wrapper in `codex-core`:
 
 - `EpiphanyStateInstructions` renders a bounded developer fragment from `EpiphanyThreadState`
 - the fragment is wrapped in `<epiphany_state> ... </epiphany_state>`
@@ -166,6 +216,7 @@ The Phase 2 prompt-integration slice was implemented inside vendored Codex:
 
 Main touched files for Phase 2:
 
+- `epiphany-core/src/prompt.rs`
 - `vendor/codex/codex-rs/core/src/context/mod.rs`
 - `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs`
 - `vendor/codex/codex-rs/core/src/session/mod.rs`
@@ -185,6 +236,7 @@ What landed:
 
 Main touched files for Phase 3:
 
+- `epiphany-core/src/rollout.rs`
 - `vendor/codex/codex-rs/core/src/epiphany_rollout.rs`
 - `vendor/codex/codex-rs/core/src/lib.rs`
 - `vendor/codex/codex-rs/core/src/codex_thread.rs`
@@ -221,6 +273,9 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
 - The current landed phase is **Phase 4 slice 1 repo-local hybrid retrieval**:
   - Epiphany now has a real typed repo retrieval subsystem instead of repeated file-by-file shell archaeology
   - the next bounded follow-up is persistent semantic indexing, not proving the retriever exists again
+- The current working tree also extracted most Epiphany-owned implementation into `epiphany-core`:
+  - prompt rendering, rollout replay, and retrieval/indexing logic are now repo-owned
+  - vendored Codex keeps the typed protocol/thread/app-server seam plus thin adapters
 - Phase 4 slice 1 is now landed on `main` and was verified before landing:
   - protocol/core/app-server wiring exists and passed targeted verification
   - stable app-server protocol schema fixtures were regenerated
@@ -230,6 +285,9 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - semantic lookup via local BM25 chunk search
   - query-time, read-only, loaded-thread-first behavior
   - no embeddings or persistent vector store yet
+- The recovered boundary choice for the current follow-up is:
+  - keep the protocol/thread/app-server seam inside vendored Codex
+  - move heavy Epiphany-owned implementation into the sibling crate when that can be done without giving up first-class typed integration
 - Important Windows verification footgun still stands:
   - use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for `codex-core` work on this machine
 - Snapshot hygiene note:
@@ -301,13 +359,18 @@ The durable state seam exists, the turn loop reads it, clients can load typed Ep
 Current next implementation move:
 
 1. keep the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
-2. after reboot and Qdrant availability, keep the next follow-up narrow:
-   - retrieval persistence/freshness semantics
-   - probably via a dedicated Epiphany update path
-   - Qdrant-backed persistent semantic indexing as the preferred backend, with BM25 fallback for no-Qdrant or degraded mode
-   - not GUI work
-   - not watcher-driven invalidation
-3. do not casually add durable retrieval-summary writes to `thread/epiphany/retrieve`
+2. keep the current verified working-tree `thread/epiphany/index` follow-up bounded:
+   - explicit write path
+   - Qdrant-backed semantic persistence
+   - local Ollama embeddings by default
+   - BM25 fallback still alive
+3. keep the new `epiphany-core` boundary honest:
+   - heavy Epiphany-owned logic in the sibling crate
+   - thin adapters and typed seams in vendored Codex
+4. next practical move:
+   - smoke the explicit indexing path against a live loaded thread and the real local services
+   - then decide whether env-scoped backend config is good enough for now or deserves a cleaner surface
+5. do not casually add durable retrieval-summary writes to `thread/epiphany/retrieve`
 
 ## What Not To Do Next
 
@@ -321,7 +384,7 @@ Not yet:
 
 The next slice should stay small and mean:
 
-- add persistent semantic retrieval/indexing scaffolding
+- harden the explicit persistent semantic retrieval/indexing path
 - keep GUI, mutation, and specialist-agent logic dark
 
 ## Verification Commands

@@ -120,3 +120,19 @@ python .\tools\epiphany_state.py add-evidence --type verify --status ok --note "
 python .\tools\epiphany_state.py add-branch --id b1 --hypothesis "Smaller verifier beats elaborate verifier"
 python .\tools\epiphany_state.py close-branch --id b1 --status rejected --note "More ceremony, no better signal"
 ```
+
+## Licensing
+
+The root `LICENSE` file is now an operative repository license notice, not just
+a throat-clearing draft. In short: `vendor/codex/**` and other third-party
+material keep their upstream licenses, while Project-Authored Material outside
+`vendor/codex/**` is publicly available under PolyForm Noncommercial 1.0.0 and
+is also intended to be available under separate commercial terms by written
+agreement. That makes the repo source-available and dual-licensed, not OSI open
+source as a whole.
+
+External contributions require the EpiphanyAgent Contributor License Agreement
+in `CONTRIBUTOR_LICENSE_AGREEMENT.md`, or a separate written agreement accepted
+by the Project Steward. The point is simple: contributors keep ownership, but
+the project gets the right to sublicense and relicense contributions without
+future archaeology through old pull requests.

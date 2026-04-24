@@ -140,6 +140,7 @@ Hydrated thread responses such as `thread/start`, `thread/resume`, `thread/fork`
 
 Experimental Epiphany retrieval:
 
+- `thread/epiphany/index` runs an explicit loaded-thread-only semantic indexing pass that writes a Qdrant-backed workspace index under Codex home metadata, using local Ollama embeddings by default. It is the write path for persistent semantic retrieval and keeps `thread/epiphany/retrieve` read-only.
 - `thread/epiphany/retrieve` runs a loaded-thread-only hybrid repo query that combines `codex_file_search` path hits with BM25 chunk retrieval and returns typed result metadata plus an Epiphany retrieval summary.
 
 - `thread/start` — create a new thread; emits `thread/started` (including the current `thread.status`) and auto-subscribes you to turn/item events for that thread. When the request includes a `cwd` and the resolved sandbox is `workspace-write` or full access, app-server also marks that project as trusted in the user `config.toml`. Pass `sessionStartSource: "clear"` when starting a replacement thread after clearing the current session so `SessionStart` hooks receive `source: "clear"` instead of the default `"startup"`. For permissions, prefer `permissionProfile`; the legacy `sandbox` shorthand is still accepted but cannot be combined with `permissionProfile`.

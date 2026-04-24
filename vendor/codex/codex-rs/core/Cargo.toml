@@ -75,6 +75,7 @@ codex-utils-string = { workspace = true }
 codex-utils-stream-parser = { workspace = true }
 codex-utils-template = { workspace = true }
 codex-windows-sandbox = { package = "codex-windows-sandbox", path = "../windows-sandbox-rs" }
+epiphany-core = { path = "../../../../epiphany-core" }
 csv = { workspace = true }
 dirs = { workspace = true }
 dunce = { workspace = true }
@@ -91,7 +92,7 @@ notify = { workspace = true }
 once_cell = { workspace = true }
 rand = { workspace = true }
 regex-lite = { workspace = true }
-reqwest = { workspace = true, features = ["json", "stream"] }
+reqwest = { workspace = true, features = ["blocking", "json", "stream"] }
 rmcp = { workspace = true, default-features = false, features = [
     "base64",
     "macros",

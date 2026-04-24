@@ -45,9 +45,10 @@ data_flow:
     - commit or backtrack
 
 active_subgoals:
-  - Keep the landed Phase 4 slice as the retrieval baseline and keep the repo memory aligned with reality.
-  - After reboot and Qdrant availability, design the next bounded persistent semantic follow-up without widening the current machine casually.
-  - Preserve exact/path lookup and BM25 fallback while treating Qdrant as the preferred persistent semantic backend.
+  - Keep the extracted Phase 4 persistent-semantic follow-up aligned with reality in both code and repo memory.
+  - Keep vendored Codex as a thin typed host seam while Epiphany-owned prompt and retrieval/indexing logic live in the repo-owned `epiphany-core` crate.
+  - Preserve exact/path lookup and BM25 fallback while the Qdrant path stays explicit and bounded.
+  - Smoke the new explicit indexing path against a live loaded thread and decide whether backend config should stay env-scoped or grow a cleaner first-class surface later.
 
 accepted_design:
   - external typed state files
@@ -80,6 +81,9 @@ accepted_design:
   - repo-local AGENTS instructions should carry the session bootstrap and re-entry protocol explicitly, including running epiphany_state.py status on fresh load and after compaction
   - implement the first Phase 4 retrieval slice as a query-time hybrid retriever: reuse existing codex_file_search substrate for exact/path lookup and use workspace-local BM25 chunk search as the first semantic backend so the retrieval seam is proven before adding persistence
   - for the first persistent semantic retrieval store after the verified BM25 baseline, prefer a real vector database such as Qdrant over JSON/blob/postgres-thrash designs; treat Qdrant as the preferred persistent semantic backend rather than a hard requirement, keep exact/path lookup as a first-class organ, and keep BM25 available as a bootstrap/fallback/control path when Qdrant is unavailable or not configured instead of turning retrieval into vector-only soup
+  - land the first persistent-semantic follow-up as an explicit indexing/update path rather than a hidden side effect in retrieval: keep `thread/epiphany/retrieve` read-only, add additive `thread/epiphany/index`, persist Qdrant index metadata under `codex_home`, use local Ollama embeddings by default, and fall back to BM25 whenever the persistent backend is stale, missing, or unavailable
+  - extract Epiphany-owned implementation into a sibling repo-owned crate where possible, leaving vendored Codex with thin host adapters plus the typed protocol/thread/app-server seams that make the integration first-class
+  - keep the licensing path compatible with future commercial use: Project-Authored Material outside `vendor/codex/**` is public under PolyForm Noncommercial 1.0.0 plus separate commercial terms, and outside contributions require a CLA granting broad sublicensing/relicensing rights
 
 rejected_paths:
   - name: pinned_map_only
@@ -96,5 +100,5 @@ rejected_paths:
     reason: audited candidates were either terminal-only, stale/aspirational, or incoherent wrappers; the comparison clones were removed from vendor to avoid building on untrusted drift
 
 current_status:
-  summary: Workspace initialized with protocol files, typed state, a tiny CLI, a git repo, fresh-workspace handoff notes, architecture rationale, a Codex algorithmic map note, an Epiphany core-harness surface spec, and a rolling implementation plan against vendored Codex. Phase 1 durable Epiphany state, Phase 2 prompt integration, and a minimal Phase 3 typed client read surface are all implemented and verified with a real Rust/MSVC toolchain; vendored Codex is tracked directly in the parent repo; app-server Thread payloads can now carry typed Epiphany state without scraping prompt text; pre-compaction persistence is now an explicit part of the intended Epiphany workflow; and the first bounded Phase 4 repo-local hybrid retrieval slice is now landed on `main` at `360dfea`, including stable schema fixture regeneration and the Windows `CARGO_TARGET_DIR` verification path.
-  next_action: After reboot and Qdrant availability, prototype the next bounded persistent semantic retrieval follow-up as a Qdrant-backed backend with explicit freshness/indexing semantics while keeping the landed query-time BM25 retriever as fallback and exact/path lookup first-class. Do not bolt durable EpiphanyState writes onto `thread/epiphany/retrieve` without a clean out-of-band rollout semantic.
+  summary: Workspace initialized with protocol files, typed state, a tiny CLI, a git repo, fresh-workspace handoff notes, architecture rationale, a Codex algorithmic map note, an Epiphany core-harness surface spec, and a rolling implementation plan against vendored Codex. Phase 1 durable Epiphany state, Phase 2 prompt integration, a minimal Phase 3 typed client read surface, and the landed Phase 4 slice 1 query-time hybrid retriever on `main` at `360dfea` are all intact. The current verified working tree now carries the next bounded Phase 4 follow-up too: explicit `thread/epiphany/index`, manifest-backed Qdrant semantic persistence under `codex_home`, local Ollama embeddings by default, stale/fresh retrieval metadata, and read-only retrieval that still preserves exact/path search plus BM25 fallback instead of turning the machine into vector-only soup. The heavy Epiphany-owned prompt renderer, rollout replay helper, and retrieval/indexing engine now live in the repo-owned `epiphany-core` crate, while vendored Codex carries thin adapters and the typed host seam. The repo also now has an operative source-available/commercial licensing notice and a CLA gate for external contributions.
+  next_action: Exercise the explicit indexing path against a live loaded thread with the real local Qdrant and Ollama services now that the heavy prompt/retrieval organs live in `epiphany-core`. Keep vendored Codex thin, keep `thread/epiphany/retrieve` read-only, and only revisit backend configuration if the current env-scoped surface proves too feral during the live smoke.

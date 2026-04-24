@@ -336,6 +336,11 @@ client_request_definitions! {
         params: v2::ThreadReadParams,
         response: v2::ThreadReadResponse,
     },
+    #[experimental("thread/epiphany/index")]
+    ThreadEpiphanyIndex => "thread/epiphany/index" {
+        params: v2::ThreadEpiphanyIndexParams,
+        response: v2::ThreadEpiphanyIndexResponse,
+    },
     #[experimental("thread/epiphany/retrieve")]
     ThreadEpiphanyRetrieve => "thread/epiphany/retrieve" {
         params: v2::ThreadEpiphanyRetrieveParams,
@@ -1635,6 +1640,68 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_index_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyIndex {
+            request_id: RequestId::Integer(9),
+            response: v2::ThreadEpiphanyIndexResponse {
+                index_summary: v2::ThreadEpiphanyRetrieveIndexSummary {
+                    workspace_root: absolute_path("/workspace"),
+                    index_revision: Some("qdrant-ollama-v1:qwen3-embedding:0.6b".to_string()),
+                    status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                    semantic_available: true,
+                    last_indexed_at_unix_seconds: Some(1_744_500_100),
+                    indexed_file_count: Some(12),
+                    indexed_chunk_count: Some(34),
+                    shards: vec![v2::ThreadEpiphanyRetrieveShardSummary {
+                        shard_id: "workspace".to_string(),
+                        path_prefix: PathBuf::from("."),
+                        indexed_file_count: Some(12),
+                        indexed_chunk_count: Some(34),
+                        status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                        exact_available: true,
+                        semantic_available: true,
+                    }],
+                    dirty_paths: Vec::new(),
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(9));
+        assert_eq!(response.method(), "thread/epiphany/index");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/index",
+                "id": 9,
+                "response": {
+                    "indexSummary": {
+                        "workspaceRoot": absolute_path_string("workspace"),
+                        "indexRevision": "qdrant-ollama-v1:qwen3-embedding:0.6b",
+                        "status": "ready",
+                        "semanticAvailable": true,
+                        "lastIndexedAtUnixSeconds": 1744500100,
+                        "indexedFileCount": 12,
+                        "indexedChunkCount": 34,
+                        "shards": [
+                            {
+                                "shardId": "workspace",
+                                "pathPrefix": ".",
+                                "indexedFileCount": 12,
+                                "indexedChunkCount": 34,
+                                "status": "ready",
+                                "exactAvailable": true,
+                                "semanticAvailable": true
+                            }
+                        ],
+                        "dirtyPaths": []
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_config_requirements_read() -> Result<()> {
         let request = ClientRequest::ConfigRequirementsRead {
             request_id: RequestId::Integer(1),
@@ -2143,6 +2210,19 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/retrieve"));
+    }
+
+    #[test]
+    fn thread_epiphany_index_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyIndex {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyIndexParams {
+                thread_id: "thr_123".to_string(),
+                force_full_rebuild: true,
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/index"));
     }
 
     #[test]

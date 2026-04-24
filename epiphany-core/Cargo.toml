@@ -1,0 +1,30 @@
+[package]
+name = "epiphany-core"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license-file = "../LICENSE"
+
+[lib]
+name = "epiphany_core"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+bm25 = "2.3.2"
+chrono = "0.4.44"
+codex-file-search = { path = "../vendor/codex/codex-rs/file-search" }
+codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
+ignore = "0.4.23"
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10.6"
+tracing = "0.1.44"
+uuid = { version = "1", features = ["v4", "v5"] }
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"
+tempfile = "3"
+tokio = { version = "1", features = ["rt", "rt-multi-thread"] }
+wiremock = "0.6"

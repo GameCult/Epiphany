@@ -3907,6 +3907,22 @@ pub struct ThreadReadResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyIndexParams {
+    pub thread_id: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub force_full_rebuild: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyIndexResponse {
+    pub index_summary: ThreadEpiphanyRetrieveIndexSummary,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
 pub struct ThreadEpiphanyRetrieveParams {
     pub thread_id: String,
     pub query: String,

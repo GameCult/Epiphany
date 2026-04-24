@@ -4,67 +4,54 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Rebase the repo memory onto the landed Phase 4 baseline and make the next Qdrant follow-up explicit.
+- Keep the new `epiphany-core` extraction honest in repo memory, then smoke the explicit indexing path against live Qdrant/Ollama without widening the machine again.
 
 ## Working Notes
 
-- The first bounded Phase 4 slice is landed on `main` at `360dfea`. The landed retrieval wiring spans:
-  - `vendor/codex/codex-rs/protocol/src/protocol.rs`
-  - `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs`
-  - `vendor/codex/codex-rs/core/src/codex_thread.rs`
-  - `vendor/codex/codex-rs/core/src/lib.rs`
-  - `vendor/codex/codex-rs/core/Cargo.toml`
-  - `vendor/codex/codex-rs/core/src/session/tests.rs`
-  - `vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs`
-  - `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
-  - `vendor/codex/codex-rs/app-server-protocol/src/export.rs`
-  - `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
-  - `vendor/codex/codex-rs/app-server/README.md`
-  - regenerated stable fixtures under `vendor/codex/codex-rs/app-server-protocol/schema/`
-- The current implementation shape is the bounded one we wanted:
+- The landed Phase 4 slice 1 baseline is still `360dfea` on `main`. The current working tree still carries the explicit `thread/epiphany/index` Qdrant follow-up on top of that.
+- The extraction boundary is now the important truth:
+  - `epiphany-core/src/retrieval.rs` owns the heavy hybrid retrieval/indexing engine
+  - `epiphany-core/src/prompt.rs` owns the Epiphany prompt-state renderer
+  - `epiphany-core/src/rollout.rs` owns the latest-Epiphany-state replay helper used for Phase 3 stored-thread hydration
+  - `epiphany-core/src/lib.rs` re-exports the stable surface used by vendored Codex
+  - `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs` is now a thin re-export wrapper
+  - `vendor/codex/codex-rs/core/src/epiphany_rollout.rs` is now a thin wrapper that supplies the Codex-specific user-turn-boundary predicate
+  - `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs` is now a thin `ContextualUserFragment` adapter around `epiphany_core::render_epiphany_state(...)`
+  - `vendor/codex/codex-rs/core/Cargo.toml` now depends on the sibling crate by path
+- What still must live in vendored Codex because that is where the typed host seam exists:
+  - protocol types in `vendor/codex/codex-rs/protocol/src/protocol.rs`
+  - `CodexThread` bridge methods in `vendor/codex/codex-rs/core/src/codex_thread.rs`
+  - the user-turn-boundary rule in `vendor/codex/codex-rs/core/src/context_manager/history.rs`
+  - app-server protocol surfaces in `vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs` and `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
+  - request routing in `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
+- Why this shape is worth keeping:
+  - it shrinks the Apache-mixed surface
+  - it makes modified Codex alone less useful as a standalone Epiphany rebuild kit
+  - it preserves first-class typed integration instead of hiding the machine behind an opaque plugin blob
+- Retrieval/indexing behavior is still the bounded machine we wanted:
   - exact/path-ish lookup via `codex_file_search`
-  - semantic lookup via query-time BM25 chunk search in the new core retrieval module
-  - additive experimental app-server method `thread/epiphany/retrieve`
-  - lightweight retrieval-summary backfill for live `thread.epiphanyState` when the thread already has Epiphany state but no persisted retrieval summary yet
-- `codex-core` now depends on both `bm25` and `codex-file-search`; `ignore` is used to walk a gitignore-respecting local corpus for semantic chunking.
-- The semantic side is intentionally small:
-  - text-only files
-  - size cap per file
-  - fixed line-window chunking with overlap
-  - no embeddings, no persistent blob, no watcher invalidation
-- Corpus preflight for the tracked `vendor/codex/codex-rs` source at `vendor/codex` HEAD `d45ab10`: `3642` tracked files, `31.09 MB`.
-- Do not use raw working-tree size as the retrieval denominator here; build artifacts and other debris inflate it badly and will lie to the design.
-- Verification is no longer theoretical:
-  - `cargo fmt --all` passed
-  - `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` passed with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
-  - targeted Phase 4 tests passed in core, app-server protocol, and app-server
-  - full `cargo test -p codex-app-server-protocol` passed after regenerating stable schema fixtures
-  - the slice is now committed and pushed on `main` as `360dfea`
-- Small fallout that had to be patched:
-  - `codex_message_processor.rs` had an unnecessary `live_thread.as_ref()`
-  - `core/src/session/tests.rs` needed `retrieval: None` in the prompt fixture Epiphany state
-  - the exact-hit retrieval test fixture needed an actually matchable path (`session_checkpoint.rs`)
-  - `EpiphanyThreadState` needed an explicit exemption in the protocol export test because it is a sparse durable state object, not a params bag
-- Important schema footgun:
-  - `cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- --experimental` rewrites the same checked-in stable schema tree
-  - leaving the repo in that state makes stable protocol tests fail
-  - the checked-in repo state must stay on the stable fixture generation path
-  - despite the giant `git status` scream wall, the real schema content diff is small and expected:
-    - `git diff --numstat` shows actual content changes in `15` generated schema files
-    - plus the newly tracked Epiphany TypeScript schema files
-    - the broader wall is mostly line-ending/worktree noise, not extra logical surface area
-- After inspecting the live code path, do not widen `thread/epiphany/retrieve` into a durable Epiphany-state write right now:
-  - durable `EpiphanyState` snapshots are currently persisted on real user-turn boundaries
-  - making retrieval calls append durable snapshots would require a new out-of-band rollout semantic or a fake turn boundary
-  - that is a bigger machine than this slice deserves
-- New infrastructure direction:
-  - for the first persistent semantic backend after this verified BM25 slice, use Qdrant instead of inventing another monolithic JSON/blob/postgres-embedding store
-  - Qdrant should be the preferred persistent semantic backend later, not a hard runtime requirement for basic Epiphany use
-  - exact/path lookup stays first-class
-  - BM25 should stay available as a bootstrap/fallback/control path for users who do not want Qdrant or when Qdrant is unavailable
+  - semantic lookup via BM25 chunk search when persistent semantic state is unavailable or stale
+  - explicit `thread/epiphany/index` for Qdrant-backed semantic persistence
+  - read-only `thread/epiphany/retrieve`
+  - manifest metadata under `codex_home`
+  - local Ollama embeddings defaulting to `qwen3-embedding:0.6b`
+- Corpus preflight for the tracked `vendor/codex/codex-rs` source at `vendor/codex` HEAD `d45ab10`: `3642` tracked files / `31.09 MB`.
+- Do not use raw working-tree size as the retrieval denominator here; build artifacts and other sludge lie.
+- Verification is now split cleanly across the repo-owned crate and the vendored host:
+  - `cargo fmt --manifest-path .\\epiphany-core\\Cargo.toml`
+  - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml`
+  - `cargo fmt --all`
+  - `cargo test -p codex-core --lib epiphany`
+  - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
+  - `cargo test -p codex-app-server --lib map_epiphany_`
+  - `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
+- Mechanical honesty still matters:
+  - do not widen `thread/epiphany/retrieve` into a durable Epiphany-state write without a clean out-of-band rollout/update semantic
+  - do not let `epiphany-core` sprawl into GUI or watcher machinery just because it now owns the bigger organ
 
 ## Open Questions
 
-- When retrieval freshness/persistence semantics come later, should they ride a dedicated Epiphany update path instead of piggybacking on a read/query method?
+- After the explicit indexing path has been live-smoked, should backend config stay env-scoped for a while or earn a cleaner first-class config surface?
+- How much more can move into `epiphany-core` without sacrificing the typed Codex host seam that makes the integration first-class?
 
 Do not promote anything from here into the map unless it survives verification or repeated reuse without contradiction.

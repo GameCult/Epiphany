@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+epiphany-core/target/
+epiphany-core/Cargo.lock

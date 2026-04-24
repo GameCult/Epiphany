@@ -8,8 +8,10 @@ Updated on 2026-04-24 after landing the first bounded Phase 4 slice on `main`:
 - Phase 2 prompt integration
 - a minimal Phase 3 typed client read surface via `Thread.epiphanyState`
 - a verified Phase 4 slice 1 query-time hybrid retriever across protocol, core, app-server protocol, and app-server
+- a verified Phase 4 slice 2 working-tree follow-up that adds explicit persistent semantic indexing through `thread/epiphany/index` while keeping `thread/epiphany/retrieve` read-only
+- the heavy Epiphany-owned prompt/replay/retrieval implementation has now been extracted into the repo-owned `epiphany-core` crate, leaving vendored Codex with thin host adapters plus the typed integration seam
 
-The next job is no longer to prove the retriever exists. That part is done. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` into a durable Epiphany-state writer just because the state object has a `retrieval` field, and do not regress into another blob-shaped persistent semantic store when the time comes to add one.
+The next job is no longer to prove the retriever exists, and it is no longer to sketch the persistent follow-up in prose. That part is done in the working tree. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` into a durable Epiphany-state writer just because the state object has a `retrieval` field, and do not widen the new explicit indexing path into watcher-driven or GUI-shaped machinery before it earns it.
 
 ## Summary
 
@@ -72,8 +74,14 @@ Preflight note:
 Current landed implementation note:
 
 - the protocol scaffold still exists in `vendor/codex/codex-rs/protocol/src/protocol.rs`
-- it is now wired through the working tree across:
+- the heavier Epiphany-owned implementation now lives in:
+  - `E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs`
+  - `E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs`
+  - `E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs`
+- the vendored host seam is now wired through the working tree across:
   - `core/src/epiphany_retrieval.rs`
+  - `core/src/epiphany_rollout.rs`
+  - `core/src/context/epiphany_state_instructions.rs`
   - `core/src/codex_thread.rs`
   - `core/src/session/tests.rs`
   - `app-server-protocol/src/protocol/common.rs`
@@ -112,18 +120,15 @@ Keep this metadata summary-focused. Do not dump raw embeddings, giant posting li
 
 Touch:
 
-- `vendor/codex/codex-rs/core/src/`
-
-Add a focused retrieval module, tentatively:
-
-- `epiphany_retrieval.rs`
+- `E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs`
+- `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs`
 
 Responsibilities:
 
-- accept a loaded thread plus query params
-- resolve the relevant workspace root
-- run exact retrieval and semantic retrieval behind one interface
-- return typed ranked results with file paths, line anchors, excerpts, and retrieval mode metadata
+- the repo-owned crate should accept a loaded-thread-derived workspace root plus query params
+- it should run exact retrieval and semantic retrieval behind one interface
+- it should return typed ranked results with file paths, line anchors, excerpts, and retrieval mode metadata
+- the vendored Codex file should stay a thin adapter or re-export layer, not the place where the heavy organ grows back out of spite
 
 Result types should be explicit and bounded:
 
@@ -173,7 +178,21 @@ Suggested response fields:
 - `indexSummary`
 - `results`
 
-Keep it additive and read-only. No write/update/index-control methods yet unless they turn out to be mechanically unavoidable.
+Keep it additive and read-only. That part is now landed.
+
+Follow-up addition that is now verified in the working tree:
+
+- `thread/epiphany/index`
+
+Current bounded shape of that follow-up:
+
+- it is the explicit write path for persistent semantic indexing
+- it persists manifest metadata under `codex_home`
+- it targets Qdrant as the preferred persistent semantic backend
+- it uses local Ollama embeddings by default
+- it leaves exact/path lookup first-class
+- it keeps BM25 alive as the fallback/control path when the persistent backend is stale, missing, or unavailable
+- it now runs through the sibling `epiphany-core` crate so modified Codex alone is not quietly the whole product
 
 ### 5. Reuse existing exact-search substrate where practical
 
@@ -200,14 +219,15 @@ Add tests for:
 
 ## Immediate Next Step After This Plan
 
-Treat the current retrieval baseline as real and only grow it when the next bounded follow-up is ready:
+Treat the current retrieval baseline and the new explicit indexing follow-up as real and only grow them where the current machine is still visibly missing an organ:
 
 1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
-2. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
-3. if a later follow-up is needed, keep it tight:
-   - retrieval freshness/persistence semantics
-   - probably a dedicated Epiphany update path
-   - Qdrant-backed persistent semantic indexing as the preferred backend, with BM25 fallback for no-Qdrant or degraded mode
+2. treat the verified working-tree `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
+3. keep the new `epiphany-core` boundary honest instead of letting vendored Codex re-accumulate the heavy implementation
+4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
+5. if a later follow-up is needed, keep it tight:
+   - live smoke/operational polish for the explicit indexing path
+   - maybe a cleaner config surface for backend settings if env-only starts feeling too feral
    - not GUI work
    - not watcher-driven invalidation
 

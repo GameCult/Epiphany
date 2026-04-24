@@ -146,6 +146,8 @@ use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadCompactStartResponse;
 use codex_app_server_protocol::ThreadDecrementElicitationParams;
 use codex_app_server_protocol::ThreadDecrementElicitationResponse;
+use codex_app_server_protocol::ThreadEpiphanyIndexParams;
+use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveParams;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
@@ -962,6 +964,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadRead { request_id, params } => {
                 self.thread_read(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
+                self.thread_epiphany_index(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyRetrieve { request_id, params } => {
@@ -4073,6 +4079,57 @@ impl CodexMessageProcessor {
                 self.send_internal_error(
                     request_id,
                     format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_index(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyIndexParams,
+    ) {
+        let ThreadEpiphanyIndexParams {
+            thread_id,
+            force_full_rebuild,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let response = match thread
+            .epiphany_index(force_full_rebuild)
+            .await
+            .and_then(map_epiphany_retrieve_index_summary)
+            .map(|index_summary| ThreadEpiphanyIndexResponse { index_summary })
+        {
+            Ok(response) => response,
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to index Epiphany retrieval state for {thread_uuid}: {err}"),
                 )
                 .await;
                 return;
@@ -11284,6 +11341,39 @@ mod tests {
             ThreadEpiphanyRetrieveResultKind::SemanticChunk
         );
         assert_eq!(response.results[0].path, PathBuf::from("notes/design.md"));
+        Ok(())
+    }
+
+    #[test]
+    fn map_epiphany_retrieve_index_summary_preserves_ready_qdrant_summary() -> Result<()> {
+        let summary = map_epiphany_retrieve_index_summary(
+            codex_protocol::protocol::EpiphanyRetrievalState {
+                workspace_root: test_path_buf("/repo"),
+                index_revision: Some("qdrant-ollama-v1:qwen3-embedding:0.6b".to_string()),
+                status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                semantic_available: true,
+                last_indexed_at_unix_seconds: Some(1_744_500_100),
+                indexed_file_count: Some(12),
+                indexed_chunk_count: Some(34),
+                shards: vec![codex_protocol::protocol::EpiphanyRetrievalShardSummary {
+                    shard_id: "workspace".to_string(),
+                    path_prefix: PathBuf::from("."),
+                    indexed_file_count: Some(12),
+                    indexed_chunk_count: Some(34),
+                    status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                    exact_available: true,
+                    semantic_available: true,
+                }],
+                dirty_paths: Vec::new(),
+            },
+        )?;
+
+        assert_eq!(
+            summary.index_revision.as_deref(),
+            Some("qdrant-ollama-v1:qwen3-embedding:0.6b")
+        );
+        assert_eq!(summary.indexed_file_count, Some(12));
+        assert!(summary.dirty_paths.is_empty());
         Ok(())
     }
 

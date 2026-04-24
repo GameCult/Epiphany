@@ -326,7 +326,38 @@ impl CodexThread {
 
     pub async fn epiphany_retrieval_state(&self) -> EpiphanyRetrievalState {
         let config = self.codex.thread_config_snapshot().await;
-        epiphany_retrieval::retrieval_state_for_workspace(config.cwd.as_path())
+        let workspace_root = config.cwd.to_path_buf();
+        let codex_home = self.codex.session.codex_home().await;
+        let fallback_workspace_root = workspace_root.clone();
+        let fallback_codex_home = codex_home.clone();
+        tokio::task::spawn_blocking(move || {
+            epiphany_retrieval::retrieval_state_for_workspace(&workspace_root, codex_home.as_path())
+        })
+        .await
+        .unwrap_or_else(|_| {
+            epiphany_retrieval::retrieval_state_for_workspace(
+                &fallback_workspace_root,
+                fallback_codex_home.as_path(),
+            )
+        })
+    }
+
+    pub async fn epiphany_index(
+        &self,
+        force_full_rebuild: bool,
+    ) -> anyhow::Result<EpiphanyRetrievalState> {
+        let config = self.codex.thread_config_snapshot().await;
+        let workspace_root = config.cwd.to_path_buf();
+        let codex_home = self.codex.session.codex_home().await;
+        tokio::task::spawn_blocking(move || {
+            epiphany_retrieval::index_workspace(
+                &workspace_root,
+                codex_home.as_path(),
+                force_full_rebuild,
+            )
+        })
+        .await
+        .map_err(|err| anyhow::anyhow!("epiphany index worker failed: {err}"))?
     }
 
     pub async fn epiphany_retrieve(
@@ -335,8 +366,9 @@ impl CodexThread {
     ) -> anyhow::Result<EpiphanyRetrieveResponse> {
         let config = self.codex.thread_config_snapshot().await;
         let workspace_root = config.cwd.to_path_buf();
+        let codex_home = self.codex.session.codex_home().await;
         tokio::task::spawn_blocking(move || {
-            epiphany_retrieval::retrieve_workspace(&workspace_root, query)
+            epiphany_retrieval::retrieve_workspace(&workspace_root, codex_home.as_path(), query)
         })
         .await
         .map_err(|err| anyhow::anyhow!("epiphany retrieval worker failed: {err}"))?
