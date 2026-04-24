@@ -384,6 +384,7 @@ use codex_thread_store::ThreadStoreError;
 use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataParams;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
+use futures::FutureExt;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::Error as IoError;
@@ -988,6 +989,7 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyPromote { request_id, params } => {
                 self.thread_epiphany_promote(to_connection_request_id(request_id), params)
+                    .boxed()
                     .await;
             }
             ClientRequest::ThreadEpiphanyUpdate { request_id, params } => {
@@ -2463,8 +2465,10 @@ impl CodexMessageProcessor {
                 experimental_raw_events,
                 request_trace,
             )
+            .boxed()
             .await;
         };
+        let thread_start_task = thread_start_task.boxed();
         self.background_tasks
             .spawn(thread_start_task.instrument(request_context.span()));
     }

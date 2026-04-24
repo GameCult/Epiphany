@@ -422,6 +422,7 @@ impl MessageProcessor {
                     /*outbound_initialized*/ None,
                     request_context.clone(),
                 )
+                .boxed()
                 .await;
             },
         )
@@ -466,6 +467,7 @@ impl MessageProcessor {
                     Some(outbound_initialized),
                     request_context.clone(),
                 )
+                .boxed()
                 .await;
             },
         )

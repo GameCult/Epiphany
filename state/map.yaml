@@ -94,6 +94,7 @@ accepted_design:
   - land Epiphany's first typed distillation/proposal surface as `thread/epiphany/distill`: loaded-thread-only, read-only, deterministic observation/evidence patch generation with a concrete `expectedRevision`, and explicit promotion through `thread/epiphany/update`
   - land Epiphany's first explicit promotion gate as `thread/epiphany/promote`: loaded-thread-only, verifier-backed, rejects failed candidates without mutation, and applies accepted candidates through the existing durable update path
   - land the first richer map/churn promotion safety layer: state replacement promotions must include explicit observations and patch evidence, and subgoal/invariant/graph/frontier/checkpoint/churn replacements get structural validation in `epiphany-core` before reaching the durable update path
+  - keep Windows app-server verification explicit about stack pressure: Cargo config sets `RUST_MIN_STACK=67108864`, and large JSON/in-process request futures are boxed so the test binary does not depend on shell folklore or tiny default test-thread stacks
 
 rejected_paths:
   - name: pinned_map_only

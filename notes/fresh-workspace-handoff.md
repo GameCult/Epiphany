@@ -366,6 +366,10 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - move heavy Epiphany-owned implementation into the sibling crate when that can be done without giving up first-class typed integration
 - Important Windows verification footgun still stands:
   - use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for `codex-core` work on this machine
+- App-server stack-pressure footgun from the richer promotion slice:
+  - without a larger test-thread stack, unrelated app-server tests can overflow after the expanded request/promotion machinery
+  - `vendor/codex/codex-rs/.cargo/config.toml` now sets `RUST_MIN_STACK=67108864`
+  - do not remove that and then act shocked when Windows eats the test harness again
 - Snapshot hygiene note:
   - the new Epiphany prompt snapshot normalizes temp skill-root paths in the test harness so it stays stable across runs
 
@@ -417,6 +421,7 @@ Verified:
   - `cargo test -p codex-app-server-protocol --lib thread_epiphany_retrieve`
   - `cargo test -p codex-app-server --lib map_epiphany_retrieve_response_preserves_summary_and_results`
 - full `cargo test -p codex-app-server-protocol` passed after restoring stable schema fixtures
+- after tracing the stack overflow from the richer promotion slice, full `cargo test -p codex-app-server --lib` now passes 232/232 with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` and repo-local Cargo config supplying `RUST_MIN_STACK=67108864`
 
 Important Windows footgun:
 

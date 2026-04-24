@@ -86,6 +86,7 @@ use codex_feedback::CodexFeedback;
 use codex_login::AuthManager;
 use codex_protocol::protocol::SessionSource;
 pub use codex_state::log_db::LogDbLayer;
+use futures::FutureExt;
 use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tokio::time::timeout;
@@ -433,6 +434,7 @@ fn start_uninitialized(args: InProcessStartArgs) -> InProcessClientHandle {
                                         Arc::clone(&session),
                                         &outbound_initialized,
                                     )
+                                    .boxed()
                                     .await;
                                 let opted_out_notification_methods_snapshot =
                                     session.opted_out_notification_methods();

@@ -136,6 +136,13 @@ This file is intentionally disposable.
     - `cargo test -p codex-core --lib epiphany`
     - `cargo test -p codex-app-server --lib epiphany`
   - attempted full `cargo test -p codex-app-server --lib` compiled but hit a pre-existing-looking stack overflow in `in_process_start_uses_requested_session_source_for_thread_start`; Epiphany-scoped app-server tests passed
+- Stack-overflow trace/fix on 2026-04-24:
+  - the original `in_process_start_uses_requested_session_source_for_thread_start` failure reproduced without `RUST_MIN_STACK`
+  - breadcrumbs showed `thread/start` completed in the processor and the overflow happened before response routing, pointing at app-server request/future stack pressure rather than Epiphany promotion semantics
+  - `RUST_MIN_STACK=67108864` made exact failures pass; later exact failures in guardian lifecycle and thread-start tracing tests confirmed the app-server test binary had crossed a Windows stack threshold
+  - `vendor/codex/codex-rs/.cargo/config.toml` now sets `RUST_MIN_STACK=67108864` so Cargo-driven tests get the required stack without shell folklore
+  - large app-server JSON/in-process request futures, `thread_start_task`, and the expanded `thread/epiphany/promote` arm are boxed to reduce dispatcher stack pressure
+  - full `cargo test -p codex-app-server --lib` now passes 232/232 with no shell `RUST_MIN_STACK` set
 
 ## Open Questions
 
