@@ -74,6 +74,11 @@ Treat this as the current structured thread understanding. Use it to stay orient
 - Last updated turn: `phase2-turn`
 - Frontier focus: `arch-session`, `flow-prompt`
 
+## Operating Discipline
+- Do not build the Jenga tower: one regression or benchmark hypothesis gets one real measurement.
+- If a fix attempt does not fix the regression or move the benchmark, revert it before trying the next hypothesis.
+- If the diff grows while understanding shrinks, stop implementation and switch to diagnosis.
+
 ## Subgoals
 - `phase2-prompt` [in_progress; active]: Inject the structured state into build_initial_context.
   summary: Wire a compact developer fragment into the initial prompt bundle.

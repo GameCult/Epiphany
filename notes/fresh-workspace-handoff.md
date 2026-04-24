@@ -401,6 +401,7 @@ Regression and benchmark discipline:
 - if a change is made to fix a regression or move a benchmark and it does not fix that regression or move that benchmark, revert it immediately
 - do not let failed hypotheses accumulate as maybe-useful scaffolding
 - record the rejected path when the lesson matters, then try the next bounded hypothesis from a clean diff
+- this is also rendered by `epiphany-core::render_epiphany_state(...)` in hydrated Epiphany developer context, because runtime harness pressure beats wall art
 
 ## Verification That Already Happened
 

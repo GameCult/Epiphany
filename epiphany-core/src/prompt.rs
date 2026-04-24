@@ -23,6 +23,12 @@ const OBSERVATION_LIMIT: usize = 3;
 const EVIDENCE_LIMIT: usize = 3;
 const CODE_REF_LIMIT: usize = 2;
 const DIRTY_PATH_LIMIT: usize = 4;
+const OPERATING_DISCIPLINE_SECTION: &str = concat!(
+    "## Operating Discipline\n",
+    "- Do not build the Jenga tower: one regression or benchmark hypothesis gets one real measurement.\n",
+    "- If a fix attempt does not fix the regression or move the benchmark, revert it before trying the next hypothesis.\n",
+    "- If the diff grows while understanding shrinks, stop implementation and switch to diagnosis."
+);
 
 pub fn render_epiphany_state(state: &EpiphanyThreadState) -> String {
     let mut sections = vec![concat!(
@@ -34,6 +40,7 @@ pub fn render_epiphany_state(state: &EpiphanyThreadState) -> String {
     .to_string()];
 
     sections.push(render_overview(state));
+    sections.push(OPERATING_DISCIPLINE_SECTION.to_string());
 
     if let Some(subgoals) = render_subgoals(state) {
         sections.push(subgoals);
@@ -765,6 +772,8 @@ mod tests {
 
         assert!(rendered.contains("`arch-session`"));
         assert!(rendered.contains("`flow-build-context`"));
+        assert!(rendered.contains("Do not build the Jenga tower"));
+        assert!(rendered.contains("revert it before trying the next hypothesis"));
         assert!(!rendered.contains("## Scratch"));
         assert!(!rendered.contains("## Invariants"));
         assert!(rendered.contains("`core/src/session/mod.rs:2433-2617`"));

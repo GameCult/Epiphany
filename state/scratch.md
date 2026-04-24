@@ -58,6 +58,7 @@ This file is intentionally disposable.
   - do not add metaphors or natural-language modeling prose to an algorithmic map until the relevant source is in context and the prose is anchored to concrete refs
   - meticulous workflow discipline is not ceremony for its own sake; the useful loop is rehydrate, bound the slice, read the code being described, make the smallest coherent change, verify the seam that matters, and persist the learned state before charging onward
   - for regression or benchmark work, failed hypotheses are not souvenirs: if a change does not fix the regression or move the benchmark, revert it immediately before trying the next hypothesis
+  - the anti-Jenga rule is now rendered by `epiphany-core/src/prompt.rs` in the Epiphany developer-state block, which is closer to behavior than more AGENTS repetition
 - Source-grounded Epiphany map audit on 2026-04-24 reread the cited protocol/session/rollout/prompt/thread/app-server/retrieval code before editing:
   - sharpened the distinction between full core resume reconstruction and the narrower `epiphany-core` stored-thread replay helper
   - removed unsupported broad wording around thread hydration surfaces and anchored the actual live/reconstructed paths
