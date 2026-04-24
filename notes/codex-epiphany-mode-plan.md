@@ -2,7 +2,7 @@
 
 ## Status
 
-Updated on 2026-04-24 after verifying the first bounded Phase 4 slice in the working tree:
+Updated on 2026-04-24 after landing the first bounded Phase 4 slice on `main`:
 
 - Phase 1 durable Epiphany thread state
 - Phase 2 prompt integration
@@ -69,7 +69,7 @@ Preflight note:
 - at `vendor/codex` HEAD `d45ab10`, tracked `codex-rs` source is `3642` files / `31.09 MB`
 - raw working-tree size under `codex-rs` can be heavily inflated by build artifacts and will lie to the design
 
-Current in-flight implementation note:
+Current landed implementation note:
 
 - the protocol scaffold still exists in `vendor/codex/codex-rs/protocol/src/protocol.rs`
 - it is now wired through the working tree across:
@@ -80,7 +80,7 @@ Current in-flight implementation note:
   - `app-server-protocol/src/protocol/v2.rs`
   - `app-server-protocol/src/export.rs`
   - `app-server/src/codex_message_processor.rs`
-- the slice is now formatted and verified in the working tree:
+- the slice is now formatted, verified, committed, and pushed on `main`:
   - `cargo fmt --all` passed
   - targeted no-run compile for `codex-core`, `codex-app-server-protocol`, and `codex-app-server` passed
   - targeted Phase 4 tests passed in core, app-server protocol, and app-server
@@ -200,9 +200,9 @@ Add tests for:
 
 ## Immediate Next Step After This Plan
 
-Treat the current retrieval baseline as real and ship it cleanly:
+Treat the current retrieval baseline as real and only grow it when the next bounded follow-up is ready:
 
-1. clean up, stage, and push the current verified query-time hybrid retriever as the Phase 4 slice 1 landing zone
+1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
 2. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
 3. if a later follow-up is needed, keep it tight:
    - retrieval freshness/persistence semantics

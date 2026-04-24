@@ -45,9 +45,9 @@ data_flow:
     - commit or backtrack
 
 active_subgoals:
-  - Clean up and ship the verified Phase 4 repo-local hybrid retrieval slice without widening scope.
-  - Keep the canonical map, handoff note, evidence log, and checked-in stable schema state aligned with the verified landing zone.
-  - Preserve BM25 as the no-hassle fallback while treating Qdrant as the preferred later persistent semantic backend.
+  - Keep the landed Phase 4 slice as the retrieval baseline and keep the repo memory aligned with reality.
+  - After reboot and Qdrant availability, design the next bounded persistent semantic follow-up without widening the current machine casually.
+  - Preserve exact/path lookup and BM25 fallback while treating Qdrant as the preferred persistent semantic backend.
 
 accepted_design:
   - external typed state files
@@ -96,5 +96,5 @@ rejected_paths:
     reason: audited candidates were either terminal-only, stale/aspirational, or incoherent wrappers; the comparison clones were removed from vendor to avoid building on untrusted drift
 
 current_status:
-  summary: Workspace initialized with protocol files, typed state, a tiny CLI, a git repo, fresh-workspace handoff notes, architecture rationale, a Codex algorithmic map note, an Epiphany core-harness surface spec, and a rolling implementation plan against vendored Codex. Phase 1 durable Epiphany state, Phase 2 prompt integration, and a minimal Phase 3 typed client read surface are all implemented and verified with a real Rust/MSVC toolchain; vendored Codex is tracked directly in the parent repo; app-server Thread payloads can now carry typed Epiphany state without scraping prompt text; pre-compaction persistence is now an explicit part of the intended Epiphany workflow; and the first bounded Phase 4 repo-local hybrid retrieval slice is now wired and verified in the working tree across protocol, core, app-server protocol, and app-server, including stable schema fixture regeneration and the Windows `CARGO_TARGET_DIR` verification path.
-  next_action: Clean up and push the current verified query-time hybrid retriever as the Phase 4 slice 1 landing zone. Do not bolt durable EpiphanyState writes onto `thread/epiphany/retrieve` without a clean out-of-band rollout semantic; after the push and reboot, the next persistent semantic retrieval slice should target a Qdrant-backed store with explicit freshness/indexing semantics as the preferred semantic backend while BM25 remains the fallback when Qdrant is unavailable.
+  summary: Workspace initialized with protocol files, typed state, a tiny CLI, a git repo, fresh-workspace handoff notes, architecture rationale, a Codex algorithmic map note, an Epiphany core-harness surface spec, and a rolling implementation plan against vendored Codex. Phase 1 durable Epiphany state, Phase 2 prompt integration, and a minimal Phase 3 typed client read surface are all implemented and verified with a real Rust/MSVC toolchain; vendored Codex is tracked directly in the parent repo; app-server Thread payloads can now carry typed Epiphany state without scraping prompt text; pre-compaction persistence is now an explicit part of the intended Epiphany workflow; and the first bounded Phase 4 repo-local hybrid retrieval slice is now landed on `main` at `360dfea`, including stable schema fixture regeneration and the Windows `CARGO_TARGET_DIR` verification path.
+  next_action: After reboot and Qdrant availability, prototype the next bounded persistent semantic retrieval follow-up as a Qdrant-backed backend with explicit freshness/indexing semantics while keeping the landed query-time BM25 retriever as fallback and exact/path lookup first-class. Do not bolt durable EpiphanyState writes onto `thread/epiphany/retrieve` without a clean out-of-band rollout semantic.

@@ -20,12 +20,13 @@ Important consequence:
 - `vendor/codex` is now tracked directly in the parent repo as ordinary files
 - it is **not** a submodule anymore
 
-Recent anchor commits before the current in-flight work:
+Recent anchor commits:
 
 - `2042687e3035c5a86d7f6aa66306d87abcc10f2d` - vendored Codex and landed the Phase 1 Epiphany core state slice
 - `c823815` - persisted the Phase 2 implementation plan and refreshed the project handoff/state
 - `efd1420` - landed and pushed the Phase 2 prompt-integration slice
 - `640e063` - documented the pre-compaction Epiphany workflow and synced the repo memory before compaction
+- `360dfea` - landed and pushed the Phase 4 hybrid retrieval slice
 
 Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
@@ -45,11 +46,11 @@ Current architectural/spec notes:
 - `notes/epiphany-current-algorithmic-map.md`
 - `notes/epiphany-core-harness-surfaces.md`
 
-## Current In-Flight Work
+## Current Landed Baseline
 
-Phase 4 repo-local hybrid retrieval is now verified in the working tree. It is still uncommitted, but it is no longer a vague scaffold or a maybe.
+Phase 4 repo-local hybrid retrieval is now landed on `main` at `360dfea` and pushed to `origin/main`. It is no longer a vague scaffold, a maybe, or a working-tree-only event.
 
-Current working-tree implementation spans:
+Current landed implementation spans:
 
 - `vendor/codex/codex-rs/protocol/src/protocol.rs`
 - `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs`
@@ -204,8 +205,8 @@ Use it when you need the answer to "how does current Epiphany differ from plain 
 If a future session wakes up from compaction and starts bluffing, this is the part to staple to its forehead.
 
 - Phase 1, Phase 2, and the minimal Phase 3 read surface are all landed and verified.
-- The latest local implementation anchor before the current in-flight retrieval slice is `d45ab10`:
-  - `Add Epiphany delta algorithmic map`
+- The current landed Phase 4 anchor is `360dfea`:
+  - `Land Epiphany Phase 4 hybrid retrieval slice`
 - `vendor/codex` is ordinary tracked repo content, not a submodule.
 - Phase 2 means Codex now **reads** Epiphany state during turn construction:
   - `SessionState.epiphany_state` is the internal activation signal
@@ -217,11 +218,11 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - stored thread reads reconstruct from rollout with the same rollback/compaction semantics as core
   - there are still no dedicated Epiphany update RPCs or live `thread/epiphany/*` notifications
 - The next phase is **not** GUI work.
-- The next phase is **Phase 4 repo-local hybrid retrieval**:
-  - give Epiphany a real repo retrieval subsystem instead of repeated file-by-file shell archaeology
-  - keep it typed, additive, and GUI-friendly
-- Phase 4 slice 1 is now verified in the working tree:
-  - protocol/core/app-server wiring exists and passes targeted verification
+- The current landed phase is **Phase 4 slice 1 repo-local hybrid retrieval**:
+  - Epiphany now has a real typed repo retrieval subsystem instead of repeated file-by-file shell archaeology
+  - the next bounded follow-up is persistent semantic indexing, not proving the retriever exists again
+- Phase 4 slice 1 is now landed on `main` and was verified before landing:
+  - protocol/core/app-server wiring exists and passed targeted verification
   - stable app-server protocol schema fixtures were regenerated
   - `write_schema_fixtures --experimental` is a trap if it is left as the checked-in tree
 - The recovered bounded implementation choice for the first slice is:
@@ -295,18 +296,18 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 Do not restart verification from superstition. The current Phase 4 slice is already verified in the working tree.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, and the first retrieval slice is now real. The next clean move is to ship that verified slice cleanly instead of widening it before Qdrant is even online.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, and the first retrieval slice is now real and landed. The next clean move is the bounded persistent-semantic follow-up after reboot, not pretending the already-shipped slice still needs ceremony.
 
 Current next implementation move:
 
-1. clean up, stage, commit, and push the current verified query-time hybrid retriever as the Phase 4 slice 1 landing zone
-2. do not casually add durable retrieval-summary writes to `thread/epiphany/retrieve`
-3. if a follow-up is needed later, keep it narrow:
+1. keep the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
+2. after reboot and Qdrant availability, keep the next follow-up narrow:
    - retrieval persistence/freshness semantics
    - probably via a dedicated Epiphany update path
    - Qdrant-backed persistent semantic indexing as the preferred backend, with BM25 fallback for no-Qdrant or degraded mode
    - not GUI work
    - not watcher-driven invalidation
+3. do not casually add durable retrieval-summary writes to `thread/epiphany/retrieve`
 
 ## What Not To Do Next
 
@@ -320,7 +321,7 @@ Not yet:
 
 The next slice should stay small and mean:
 
-- add typed retrieval scaffolding
+- add persistent semantic retrieval/indexing scaffolding
 - keep GUI, mutation, and specialist-agent logic dark
 
 ## Verification Commands

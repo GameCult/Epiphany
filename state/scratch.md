@@ -4,11 +4,11 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Clean up, persist, and ship the verified first bounded Phase 4 repo-local hybrid retrieval slice in vendored Codex.
+- Rebase the repo memory onto the landed Phase 4 baseline and make the next Qdrant follow-up explicit.
 
 ## Working Notes
 
-- The old lone-diff situation is gone. The current in-flight Phase 4 wiring now spans:
+- The first bounded Phase 4 slice is landed on `main` at `360dfea`. The landed retrieval wiring spans:
   - `vendor/codex/codex-rs/protocol/src/protocol.rs`
   - `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs`
   - `vendor/codex/codex-rs/core/src/codex_thread.rs`
@@ -39,6 +39,7 @@ This file is intentionally disposable.
   - `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` passed with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
   - targeted Phase 4 tests passed in core, app-server protocol, and app-server
   - full `cargo test -p codex-app-server-protocol` passed after regenerating stable schema fixtures
+  - the slice is now committed and pushed on `main` as `360dfea`
 - Small fallout that had to be patched:
   - `codex_message_processor.rs` had an unnecessary `live_thread.as_ref()`
   - `core/src/session/tests.rs` needed `retrieval: None` in the prompt fixture Epiphany state
@@ -50,7 +51,7 @@ This file is intentionally disposable.
   - the checked-in repo state must stay on the stable fixture generation path
   - despite the giant `git status` scream wall, the real schema content diff is small and expected:
     - `git diff --numstat` shows actual content changes in `15` generated schema files
-    - plus the new untracked Epiphany TypeScript schema files
+    - plus the newly tracked Epiphany TypeScript schema files
     - the broader wall is mostly line-ending/worktree noise, not extra logical surface area
 - After inspecting the live code path, do not widen `thread/epiphany/retrieve` into a durable Epiphany-state write right now:
   - durable `EpiphanyState` snapshots are currently persisted on real user-turn boundaries
