@@ -25,10 +25,12 @@ What is already landed across vendored Codex and `epiphany-core`:
 - Phase 2 prompt integration
 - a minimal Phase 3 typed app-server/client read surface via `Thread.epiphanyState`
 - Phase 4 hybrid retrieval/indexing with explicit Qdrant-backed indexing and BM25 fallback
+- Phase 5 typed state update, read-only distillation, verifier-backed promotion, and structural map/churn promotion validation
 
-Current next phase:
+Current phase:
 
-- live-smoke the explicit indexing path against the local Qdrant/Ollama services
+- Phase 5 semantic distillation and promotion is active.
+- Next bounded move: build richer observation-to-map/churn proposal machinery above `thread/epiphany/distill`, `thread/epiphany/promote`, and `thread/epiphany/update`, while keeping retrieval/distillation read-only and avoiding watcher, GUI, or specialist-agent machinery.
 
 ## Important Paths
 

@@ -4,10 +4,11 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Move from structural map/churn promotion validation toward richer observation-to-map proposal machinery without hidden writes.
+- Continue Phase 5 by moving from structural map/churn promotion validation toward richer observation-to-map/churn proposal machinery without hidden writes.
 
 ## Working Notes
 
+- Phase 4 is landed retrieval/indexing/core-extraction. Phase 5 is the current semantic distillation/promotion/proposal phase.
 - The Phase 4 retrieval/indexing/core-extraction anchor is `80c29e0` on `main`. The older `360dfea` commit is only the first hybrid retrieval anchor, and later `main` also includes the typed update/distill/promote surfaces, promotion safety layer, and app-server stack-pressure fix.
 - The extraction boundary is now the important truth:
   - `epiphany-core/src/retrieval.rs` owns the heavy hybrid retrieval/indexing engine

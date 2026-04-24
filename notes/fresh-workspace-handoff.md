@@ -345,12 +345,15 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - `thread/start`, `thread/resume`, `thread/fork`, `thread/read`, `thread/unarchive`, and detached review-thread startup can carry `thread.epiphanyState` when present
   - loaded threads use live state
   - stored thread reads reconstruct from rollout with the same rollback/compaction semantics as core
-- later slices added dedicated experimental `thread/epiphany/update`, `thread/epiphany/distill`, `thread/epiphany/promote`, `thread/epiphany/retrieve`, and `thread/epiphany/index`; there is still no live `thread/epiphany/*` notification stream
-- The next phase is **not** GUI work.
-- The current landed phase is **Phase 4 repo-local retrieval/indexing**:
+- Phase 4 repo-local retrieval/indexing is landed:
   - Epiphany now has a real typed repo retrieval subsystem instead of repeated file-by-file shell archaeology
   - persistent semantic indexing now exists behind explicit `thread/epiphany/index`
-  - the next bounded follow-up is live smoke and operational polish, not proving the retriever exists again
+- Phase 5 semantic distillation/promotion is active:
+  - dedicated experimental `thread/epiphany/update`, `thread/epiphany/distill`, and `thread/epiphany/promote` exist and are live-smoked
+  - structural map/churn promotion validation is landed in `epiphany-core`
+  - the next bounded follow-up is richer observation-to-map/churn proposal machinery, not proving the retriever exists again
+- There is still no live `thread/epiphany/*` notification stream.
+- The next phase is **not** GUI work.
 - The current pushed baseline also extracted most Epiphany-owned implementation into `epiphany-core`:
   - prompt rendering, rollout replay, and retrieval/indexing logic are now repo-owned
   - vendored Codex keeps the typed protocol/thread/app-server seam plus thin adapters
@@ -443,16 +446,16 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. The current Phase 4 retrieval/indexing/core-extraction baseline is already verified, committed, and pushed.
+Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/promote/update and the first structural promotion safety layer are also landed.
 
 The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the first distill/promote/update path is live-smoked, and promotion now has a first structural map/churn safety layer. The next clean move is richer observation-to-map proposal machinery, not pretending the already-shipped slices still need ceremony.
 
-Current next implementation move:
+Current Phase 5 implementation move:
 
-1. treat the live-smoked retrieval/indexing baseline, typed update surface, typed distill proposal surface, and typed promote gate as real
+1. treat the live-smoked retrieval/indexing baseline as Phase 4 and the typed update/distill/promote surfaces as the active Phase 5 baseline
 2. keep the current env/default Qdrant/Ollama config surface for now
 3. keep `thread/epiphany/retrieve` and `thread/epiphany/distill` read-only
-4. build the next layer above the distill/promote/update surfaces:
+4. continue Phase 5 by building the next layer above the distill/promote/update surfaces:
    - richer map/churn patch generation from verified observations
    - promotion policy beyond structural validation only when the evidence path stays explicit
    - verifier-backed acceptance/rejection evidence

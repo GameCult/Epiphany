@@ -2,7 +2,7 @@
 
 ## Status
 
-Updated on 2026-04-24 after landing the Phase 4 retrieval/indexing/core-extraction baseline on `main`.
+Updated on 2026-04-24 after landing the Phase 4 retrieval/indexing/core-extraction baseline and moving into Phase 5 semantic distillation/promotion on `main`.
 
 This note tracks Epiphany as a fork of Codex with an opinionated modeling architecture. The point is not to offer Codex another collaboration preset. The point is to make the harness force the model to carry explicit structure about the codebase, the active subgoal, the evidence trail, and the machine it is modifying.
 
@@ -15,6 +15,7 @@ This note tracks Epiphany as a fork of Codex with an opinionated modeling archit
 - a first typed state-update slice that adds explicit loaded-thread-only `thread/epiphany/update`, appends observations/evidence, replaces bounded map/scratch/churn fields, bumps the state revision, and persists an immediate rollout `EpiphanyState` snapshot
 - a first typed distillation/proposal slice that adds read-only loaded-thread-only `thread/epiphany/distill`, producing deterministic observation/evidence patches for explicit promotion through `thread/epiphany/update`
 - a first richer promotion-policy slice that treats map/churn/frontier/checkpoint replacements as higher-risk state edits: accepted promotions must be tied to explicit observations and patch evidence, and structural graph/churn mistakes are rejected before the durable update path
+- current phase: Phase 5 semantic distillation/promotion/proposal machinery
 
 The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, or make promotion notice broken map/churn replacements. Those parts are landed. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` or `thread/epiphany/distill` into durable Epiphany-state writers, and do not widen the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
 
@@ -266,13 +267,13 @@ Add tests for:
 
 ## Immediate Next Step
 
-Treat the current retrieval baseline, explicit indexing follow-up, explicit update path, and first distillation proposal path as real and live-smoked. The next machine gap is no longer "can Epiphany retrieve code?" or "can it propose one durable observation patch?" It can. The next gap is "can Epiphany decide which observations deserve promotion, and what map/churn edits they imply?"
+Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, verifier-backed promotion gate, and structural map/churn promotion validation as the active Phase 5 baseline. The next machine gap is no longer "can Epiphany retrieve code?" or "can it propose one durable observation patch?" It can. The next gap is "can Epiphany decide which observations deserve promotion, and what map/churn edits they imply?"
 
 1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
 2. treat the verified and live-smoked `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
 3. keep the new `epiphany-core` boundary honest instead of letting vendored Codex re-accumulate the heavy implementation
 4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
-5. build the next layer above the landed distill/update/promote surfaces:
+5. continue Phase 5 by building the next layer above the landed distill/update/promote surfaces:
    - richer typed observation distillation from tool/model outputs
    - promotion policy beyond structural validation, but only when it can stay evidence-backed
    - verifier-backed acceptance/rejection evidence
