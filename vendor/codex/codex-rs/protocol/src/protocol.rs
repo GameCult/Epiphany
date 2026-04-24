@@ -2972,30 +2972,46 @@ pub struct EpiphanyStateItem {
 pub struct EpiphanyThreadState {
     pub revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub objective: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub active_subgoal_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanySubgoal>")]
     pub subgoals: Vec<EpiphanySubgoal>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyInvariant>")]
     pub invariants: Vec<EpiphanyInvariant>,
     #[serde(default, skip_serializing_if = "EpiphanyGraphs::is_empty")]
+    #[ts(type = "EpiphanyGraphs")]
     pub graphs: EpiphanyGraphs,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyGraphFrontier | null")]
     pub graph_frontier: Option<EpiphanyGraphFrontier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyGraphCheckpoint | null")]
     pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyRetrievalState | null")]
+    pub retrieval: Option<EpiphanyRetrievalState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyScratchPad | null")]
     pub scratch: Option<EpiphanyScratchPad>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyObservation>")]
     pub observations: Vec<EpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyEvidenceRecord>")]
     pub recent_evidence: Vec<EpiphanyEvidenceRecord>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyChurnState | null")]
     pub churn: Option<EpiphanyChurnState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyModeState | null")]
     pub mode: Option<EpiphanyModeState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub last_updated_turn_id: Option<String>,
 }
 
@@ -3005,6 +3021,7 @@ pub struct EpiphanySubgoal {
     pub title: String,
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub summary: Option<String>,
 }
 
@@ -3014,6 +3031,7 @@ pub struct EpiphanyInvariant {
     pub description: String,
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub rationale: Option<String>,
 }
 
@@ -3053,12 +3071,16 @@ pub struct EpiphanyGraphNode {
     pub title: String,
     pub purpose: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub mechanism: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub metaphor: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub status: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyCodeRef>")]
     pub code_refs: Vec<EpiphanyCodeRef>,
 }
 
@@ -3068,12 +3090,16 @@ pub struct EpiphanyGraphEdge {
     pub target_id: String,
     pub kind: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub label: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub mechanism: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyCodeRef>")]
     pub code_refs: Vec<EpiphanyCodeRef>,
 }
 
@@ -3082,8 +3108,10 @@ pub struct EpiphanyGraphLink {
     pub dataflow_node_id: String,
     pub architecture_node_id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub relationship: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyCodeRef>")]
     pub code_refs: Vec<EpiphanyCodeRef>,
 }
 
@@ -3091,12 +3119,16 @@ pub struct EpiphanyGraphLink {
 pub struct EpiphanyCodeRef {
     pub path: PathBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
     pub start_line: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
     pub end_line: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub symbol: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub note: Option<String>,
 }
 
@@ -3119,24 +3151,91 @@ pub struct EpiphanyGraphCheckpoint {
     pub checkpoint_id: String,
     pub graph_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub summary: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
     pub frontier_node_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
     pub open_question_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
     pub open_gap_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyRetrievalState {
+    pub workspace_root: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub index_revision: Option<String>,
+    #[serde(default)]
+    pub status: EpiphanyRetrievalStatus,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(type = "boolean")]
+    pub semantic_available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "bigint | null")]
+    pub last_indexed_at_unix_seconds: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub indexed_file_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub indexed_chunk_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyRetrievalShardSummary>")]
+    pub shards: Vec<EpiphanyRetrievalShardSummary>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub dirty_paths: Vec<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum EpiphanyRetrievalStatus {
+    #[default]
+    Unavailable,
+    Ready,
+    Stale,
+    Indexing,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyRetrievalShardSummary {
+    pub shard_id: String,
+    pub path_prefix: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub indexed_file_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub indexed_chunk_count: Option<u32>,
+    #[serde(default)]
+    pub status: EpiphanyRetrievalStatus,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(type = "boolean")]
+    pub exact_available: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(type = "boolean")]
+    pub semantic_available: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyScratchPad {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub summary: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub hypothesis: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub next_probe: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
     pub notes: Vec<String>,
 }
 
@@ -3167,10 +3266,13 @@ pub struct EpiphanyChurnState {
     pub understanding_status: String,
     pub diff_pressure: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub graph_freshness: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
     pub warning: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
     pub unexplained_writes: Option<u32>,
 }
 
@@ -3178,6 +3280,7 @@ pub struct EpiphanyChurnState {
 pub struct EpiphanyModeState {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "ModeKind | null")]
     pub kind: Option<ModeKind>,
 }
 
@@ -5536,6 +5639,25 @@ mod tests {
                 frontier_node_ids: vec!["turn-context".to_string()],
                 open_question_ids: vec!["q1".to_string()],
                 open_gap_ids: vec!["g1".to_string()],
+            }),
+            retrieval: Some(EpiphanyRetrievalState {
+                workspace_root: test_path_buf("/repo"),
+                index_revision: Some("bm25-v1".to_string()),
+                status: EpiphanyRetrievalStatus::Ready,
+                semantic_available: true,
+                last_indexed_at_unix_seconds: Some(1_744_500_000),
+                indexed_file_count: Some(12),
+                indexed_chunk_count: Some(34),
+                shards: vec![EpiphanyRetrievalShardSummary {
+                    shard_id: "workspace".to_string(),
+                    path_prefix: PathBuf::from("."),
+                    indexed_file_count: Some(12),
+                    indexed_chunk_count: Some(34),
+                    status: EpiphanyRetrievalStatus::Ready,
+                    exact_available: true,
+                    semantic_available: true,
+                }],
+                dirty_paths: vec![test_path_buf("/repo/core/src/session/mod.rs")],
             }),
             scratch: Some(EpiphanyScratchPad {
                 summary: Some("Persist first, get fancy later".to_string()),

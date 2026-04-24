@@ -146,6 +146,12 @@ use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadCompactStartResponse;
 use codex_app_server_protocol::ThreadDecrementElicitationParams;
 use codex_app_server_protocol::ThreadDecrementElicitationResponse;
+use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
+use codex_app_server_protocol::ThreadEpiphanyRetrieveParams;
+use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
+use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
+use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
+use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
 use codex_app_server_protocol::ThreadForkParams;
 use codex_app_server_protocol::ThreadForkResponse;
 use codex_app_server_protocol::ThreadIncrementElicitationParams;
@@ -220,6 +226,12 @@ use codex_chatgpt::connectors;
 use codex_config::types::McpServerTransportConfig;
 use codex_core::CodexThread;
 use codex_core::CodexThreadTurnContextOverrides;
+use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
+use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
+use codex_core::EpiphanyRetrieveQuery;
+use codex_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
+use codex_core::EpiphanyRetrieveResult as CoreEpiphanyRetrieveResult;
+use codex_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
 use codex_core::ForkSnapshot;
 use codex_core::NewThread;
 use codex_core::RolloutRecorder;
@@ -950,6 +962,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadRead { request_id, params } => {
                 self.thread_read(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyRetrieve { request_id, params } => {
+                self.thread_epiphany_retrieve(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadTurnsList { request_id, params } => {
@@ -3990,6 +4006,82 @@ impl CodexMessageProcessor {
         self.outgoing.send_response(request_id, response).await;
     }
 
+    async fn thread_epiphany_retrieve(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyRetrieveParams,
+    ) {
+        let ThreadEpiphanyRetrieveParams {
+            thread_id,
+            query,
+            limit,
+            path_prefixes,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let query = query.trim().to_string();
+        if query.is_empty() {
+            self.send_invalid_request_error(request_id, "query must not be empty".to_string())
+                .await;
+            return;
+        }
+
+        if matches!(limit, Some(0)) {
+            self.send_invalid_request_error(
+                request_id,
+                "limit must be greater than zero".to_string(),
+            )
+            .await;
+            return;
+        }
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let limit = limit
+            .map(|value| value as usize)
+            .unwrap_or(EPIPHANY_RETRIEVAL_DEFAULT_LIMIT)
+            .clamp(1, EPIPHANY_RETRIEVAL_MAX_LIMIT);
+        let response = match thread
+            .epiphany_retrieve(EpiphanyRetrieveQuery {
+                query,
+                limit,
+                path_prefixes,
+            })
+            .await
+            .and_then(map_epiphany_retrieve_response)
+        {
+            Ok(response) => response,
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        self.outgoing.send_response(request_id, response).await;
+    }
+
     /// Builds the API view for `thread/read` from persisted metadata plus optional live state.
     async fn read_thread_view(
         &self,
@@ -4113,7 +4205,7 @@ impl CodexMessageProcessor {
         loaded_thread: Option<&Arc<CodexThread>>,
     ) -> Result<(), ThreadReadViewError> {
         if let Some(loaded_thread) = loaded_thread {
-            thread.epiphany_state = loaded_thread.epiphany_state().await;
+            thread.epiphany_state = live_thread_epiphany_state(loaded_thread).await;
             return Ok(());
         }
 
@@ -4938,7 +5030,7 @@ impl CodexMessageProcessor {
         )
         .await?;
         self.attach_thread_name(thread_id, &mut thread).await;
-        thread.epiphany_state = live_thread.epiphany_state().await;
+        thread.epiphany_state = live_thread_epiphany_state(live_thread).await;
         Ok(thread)
     }
 
@@ -5210,7 +5302,7 @@ impl CodexMessageProcessor {
             return;
         }
 
-        thread.epiphany_state = forked_thread.epiphany_state().await;
+        thread.epiphany_state = live_thread_epiphany_state(forked_thread.as_ref()).await;
 
         self.thread_watch_manager
             .upsert_thread_silently(thread.clone())
@@ -7555,7 +7647,8 @@ impl CodexMessageProcessor {
             match read_summary_from_rollout(rollout_path.as_path(), fallback_provider).await {
                 Ok(summary) => {
                     let mut thread = summary_to_thread(summary, &self.config.cwd);
-                    thread.epiphany_state = review_thread.epiphany_state().await;
+                    thread.epiphany_state =
+                        live_thread_epiphany_state(review_thread.as_ref()).await;
                     self.thread_watch_manager
                         .upsert_thread_silently(thread.clone())
                         .await;
@@ -9896,6 +9989,82 @@ fn build_thread_from_snapshot(
     }
 }
 
+async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<EpiphanyThreadState> {
+    let mut epiphany_state = thread.epiphany_state().await;
+    if let Some(state) = epiphany_state.as_mut()
+        && state.retrieval.is_none()
+    {
+        state.retrieval = Some(thread.epiphany_retrieval_state().await);
+    }
+    epiphany_state
+}
+
+fn map_epiphany_retrieve_response(
+    response: CoreEpiphanyRetrieveResponse,
+) -> anyhow::Result<ThreadEpiphanyRetrieveResponse> {
+    Ok(ThreadEpiphanyRetrieveResponse {
+        query: response.query,
+        index_summary: map_epiphany_retrieve_index_summary(response.index_summary)?,
+        results: response
+            .results
+            .into_iter()
+            .map(map_epiphany_retrieve_result)
+            .collect(),
+    })
+}
+
+fn map_epiphany_retrieve_index_summary(
+    summary: codex_protocol::protocol::EpiphanyRetrievalState,
+) -> anyhow::Result<ThreadEpiphanyRetrieveIndexSummary> {
+    Ok(ThreadEpiphanyRetrieveIndexSummary {
+        workspace_root: AbsolutePathBuf::from_absolute_path(summary.workspace_root)
+            .map_err(anyhow::Error::from)?,
+        index_revision: summary.index_revision,
+        status: summary.status,
+        semantic_available: summary.semantic_available,
+        last_indexed_at_unix_seconds: summary.last_indexed_at_unix_seconds,
+        indexed_file_count: summary.indexed_file_count,
+        indexed_chunk_count: summary.indexed_chunk_count,
+        shards: summary
+            .shards
+            .into_iter()
+            .map(|shard| ThreadEpiphanyRetrieveShardSummary {
+                shard_id: shard.shard_id,
+                path_prefix: shard.path_prefix,
+                indexed_file_count: shard.indexed_file_count,
+                indexed_chunk_count: shard.indexed_chunk_count,
+                status: shard.status,
+                exact_available: shard.exact_available,
+                semantic_available: shard.semantic_available,
+            })
+            .collect(),
+        dirty_paths: summary.dirty_paths,
+    })
+}
+
+fn map_epiphany_retrieve_result(
+    result: CoreEpiphanyRetrieveResult,
+) -> ThreadEpiphanyRetrieveResult {
+    ThreadEpiphanyRetrieveResult {
+        kind: match result.kind {
+            CoreEpiphanyRetrieveResultKind::ExactFile => {
+                ThreadEpiphanyRetrieveResultKind::ExactFile
+            }
+            CoreEpiphanyRetrieveResultKind::ExactDirectory => {
+                ThreadEpiphanyRetrieveResultKind::ExactDirectory
+            }
+            CoreEpiphanyRetrieveResultKind::SemanticChunk => {
+                ThreadEpiphanyRetrieveResultKind::SemanticChunk
+            }
+        },
+        path: result.path,
+        score: result.score,
+        line_start: result.line_start,
+        line_end: result.line_end,
+        excerpt: result.excerpt,
+    }
+}
+
 pub(crate) fn summary_to_thread(
     summary: ConversationSummary,
     fallback_cwd: &AbsolutePathBuf,
@@ -11067,6 +11236,54 @@ mod tests {
             .await
             .map_err(anyhow::Error::msg)?;
         assert_eq!(loaded, Some(epiphany_state));
+        Ok(())
+    }
+
+    #[test]
+    fn map_epiphany_retrieve_response_preserves_summary_and_results() -> Result<()> {
+        let response = map_epiphany_retrieve_response(codex_core::EpiphanyRetrieveResponse {
+            query: "checkpoint frontier".to_string(),
+            index_summary: codex_protocol::protocol::EpiphanyRetrievalState {
+                workspace_root: test_path_buf("/repo"),
+                index_revision: Some("query-time-bm25-v1".to_string()),
+                status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                semantic_available: true,
+                last_indexed_at_unix_seconds: Some(1_744_500_000),
+                indexed_file_count: Some(12),
+                indexed_chunk_count: Some(34),
+                shards: vec![codex_protocol::protocol::EpiphanyRetrievalShardSummary {
+                    shard_id: "workspace".to_string(),
+                    path_prefix: PathBuf::from("."),
+                    indexed_file_count: Some(12),
+                    indexed_chunk_count: Some(34),
+                    status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                    exact_available: true,
+                    semantic_available: true,
+                }],
+                dirty_paths: vec![PathBuf::from("src/session/mod.rs")],
+            },
+            results: vec![codex_core::EpiphanyRetrieveResult {
+                kind: codex_core::EpiphanyRetrieveResultKind::SemanticChunk,
+                path: PathBuf::from("notes/design.md"),
+                score: 2.5,
+                line_start: Some(3),
+                line_end: Some(9),
+                excerpt: Some("checkpoint frontier".to_string()),
+            }],
+        })?;
+
+        assert_eq!(response.query, "checkpoint frontier");
+        assert_eq!(
+            response.index_summary.workspace_root,
+            test_path_buf("/repo").abs()
+        );
+        assert_eq!(response.index_summary.indexed_chunk_count, Some(34));
+        assert_eq!(response.results.len(), 1);
+        assert_eq!(
+            response.results[0].kind,
+            ThreadEpiphanyRetrieveResultKind::SemanticChunk
+        );
+        assert_eq!(response.results[0].path, PathBuf::from("notes/design.md"));
         Ok(())
     }
 

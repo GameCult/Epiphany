@@ -1,5 +1,8 @@
 use crate::agent::AgentStatus;
 use crate::config::ConstraintResult;
+use crate::epiphany_retrieval;
+use crate::epiphany_retrieval::EpiphanyRetrieveQuery;
+use crate::epiphany_retrieval::EpiphanyRetrieveResponse;
 use crate::file_watcher::WatchRegistration;
 use crate::session::Codex;
 use crate::session::SessionSettingsUpdate;
@@ -20,6 +23,7 @@ use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
+use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::Op;
@@ -318,6 +322,24 @@ impl CodexThread {
 
     pub async fn epiphany_state(&self) -> Option<EpiphanyThreadState> {
         self.codex.session.epiphany_state().await
+    }
+
+    pub async fn epiphany_retrieval_state(&self) -> EpiphanyRetrievalState {
+        let config = self.codex.thread_config_snapshot().await;
+        epiphany_retrieval::retrieval_state_for_workspace(config.cwd.as_path())
+    }
+
+    pub async fn epiphany_retrieve(
+        &self,
+        query: EpiphanyRetrieveQuery,
+    ) -> anyhow::Result<EpiphanyRetrieveResponse> {
+        let config = self.codex.thread_config_snapshot().await;
+        let workspace_root = config.cwd.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            epiphany_retrieval::retrieve_workspace(&workspace_root, query)
+        })
+        .await
+        .map_err(|err| anyhow::anyhow!("epiphany retrieval worker failed: {err}"))?
     }
 
     pub async fn read_mcp_resource(

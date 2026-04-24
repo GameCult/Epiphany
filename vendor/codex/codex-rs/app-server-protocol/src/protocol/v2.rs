@@ -57,6 +57,7 @@ use codex_protocol::protocol::AgentStatus as CoreAgentStatus;
 use codex_protocol::protocol::AskForApproval as CoreAskForApproval;
 use codex_protocol::protocol::CodexErrorInfo as CoreCodexErrorInfo;
 use codex_protocol::protocol::CreditsSnapshot as CoreCreditsSnapshot;
+use codex_protocol::protocol::EpiphanyRetrievalStatus as CoreEpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyThreadState as CoreEpiphanyThreadState;
 use codex_protocol::protocol::ExecCommandSource as CoreExecCommandSource;
 use codex_protocol::protocol::ExecCommandStatus as CoreExecCommandStatus;
@@ -3901,6 +3902,83 @@ pub struct ThreadReadParams {
 #[ts(export_to = "v2/")]
 pub struct ThreadReadResponse {
     pub thread: Thread,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRetrieveParams {
+    pub thread_id: String,
+    pub query: String,
+    #[ts(optional = nullable)]
+    pub limit: Option<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub path_prefixes: Vec<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRetrieveResponse {
+    pub query: String,
+    pub index_summary: ThreadEpiphanyRetrieveIndexSummary,
+    pub results: Vec<ThreadEpiphanyRetrieveResult>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRetrieveIndexSummary {
+    pub workspace_root: AbsolutePathBuf,
+    pub index_revision: Option<String>,
+    pub status: CoreEpiphanyRetrievalStatus,
+    pub semantic_available: bool,
+    #[ts(type = "number | null")]
+    pub last_indexed_at_unix_seconds: Option<i64>,
+    #[ts(type = "number | null")]
+    pub indexed_file_count: Option<u32>,
+    #[ts(type = "number | null")]
+    pub indexed_chunk_count: Option<u32>,
+    pub shards: Vec<ThreadEpiphanyRetrieveShardSummary>,
+    pub dirty_paths: Vec<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRetrieveShardSummary {
+    pub shard_id: String,
+    pub path_prefix: PathBuf,
+    #[ts(type = "number | null")]
+    pub indexed_file_count: Option<u32>,
+    #[ts(type = "number | null")]
+    pub indexed_chunk_count: Option<u32>,
+    pub status: CoreEpiphanyRetrievalStatus,
+    pub exact_available: bool,
+    pub semantic_available: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum ThreadEpiphanyRetrieveResultKind {
+    ExactFile,
+    ExactDirectory,
+    SemanticChunk,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRetrieveResult {
+    pub kind: ThreadEpiphanyRetrieveResultKind,
+    pub path: PathBuf,
+    pub score: f32,
+    #[ts(type = "number | null")]
+    pub line_start: Option<u32>,
+    #[ts(type = "number | null")]
+    pub line_end: Option<u32>,
+    pub excerpt: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

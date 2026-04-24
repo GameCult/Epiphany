@@ -2,17 +2,17 @@
 
 This note is not a full machine map for Codex. We already have that in [E:/Projects/EpiphanyAgent/notes/codex-repository-algorithmic-map.md](E:/Projects/EpiphanyAgent/notes/codex-repository-algorithmic-map.md).
 
-This one is narrower and meaner: it documents where the current Epiphany prototype already diverges from upstream Codex in the code we have actually landed.
+This one is narrower and meaner: it documents where the current Epiphany prototype already diverges from upstream Codex in the code we actually have in the working tree.
 
-Scope: current state after Phase 1, Phase 2, and the minimal Phase 3 typed read surface. It does **not** describe planned retrieval, invalidation, GUI reflection, or multi-agent scheduling as if they already exist.
+Scope: current state after Phase 1, Phase 2, the minimal Phase 3 typed read surface, and the first bounded Phase 4 repo-local hybrid retrieval slice. It does **not** describe planned invalidation, GUI reflection, or multi-agent scheduling as if they already exist.
 
 ## Mental model in one sentence
 
-Current Epiphany is a thin but real overlay on Codex's thread harness: Codex now carries a structured thread-state snapshot through persistence, replay, prompt assembly, and hydrated client thread payloads.
+Current Epiphany is a thin but real overlay on Codex's thread harness: Codex now carries structured thread state through persistence, replay, prompt assembly, hydrated client thread payloads, and one typed repo-local hybrid retrieval surface.
 
 ## Divergence summary
 
-Today Epiphany differs from plain Codex in four shipped places:
+Today Epiphany differs from plain Codex in five currently active places:
 
 1. **Durable state exists**
    - Codex rollout/history now has a first-class `EpiphanyThreadState` snapshot.
@@ -25,6 +25,9 @@ Today Epiphany differs from plain Codex in four shipped places:
 
 4. **Replay semantics respect rollback and compaction**
    - the "latest Epiphany state" is not "last one in the file." It is reconstructed using turn/rollback boundaries.
+
+5. **Repo-local hybrid retrieval now exists behind one typed surface**
+   - loaded threads can answer structured repo queries through exact/path lookup plus BM25 chunk retrieval.
 
 That is already a meaningful divergence from stock Codex, even if the more glamorous organs are still missing.
 
@@ -41,6 +44,9 @@ flowchart TD
     B --> H["app-server stored-thread reads reconstruct latest surviving Epiphany state from rollout"]
     G --> I["Client can read typed state"]
     H --> I
+    D --> J["CodexThread exposes epiphany_retrieve() and epiphany_retrieval_state()"]
+    J --> K["app-server routes thread/epiphany/retrieve"]
+    K --> L["Hybrid exact/path + BM25 chunk results"]
 ```
 
 The important thing is that the same state is now flowing through three layers:
@@ -49,7 +55,7 @@ The important thing is that the same state is now flowing through three layers:
 - prompt construction
 - typed client reads
 
-That is the current Epiphany spine.
+That is the current Epiphany spine, and retrieval now hangs off it instead of living as shell archaeology.
 
 ## Divergence 1: durable typed Epiphany state
 
@@ -207,11 +213,68 @@ We do **not** yet have:
 
 - `thread/epiphany/read`
 - `thread/epiphany/update`
-- `thread/epiphany/retrieve`
 - `thread/epiphany/stateUpdated`
 - `thread/epiphany/evidenceAppended`
 
 So the client can now see the state, but cannot yet steer or subscribe to it as a first-class live surface.
+
+## Divergence 5: repo-local hybrid retrieval
+
+### What changed
+
+Loaded threads now expose a typed retrieval surface that combines exact/path-ish lookup with semantic chunk retrieval:
+
+- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs)
+- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/epiphany_retrieval.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/epiphany_retrieval.rs)
+- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs)
+- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs)
+- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs)
+- [E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs)
+
+Current behavior:
+
+- `EpiphanyThreadState` now has retrieval metadata via `retrieval`
+- `CodexThread` exposes:
+  - `epiphany_retrieval_state()`
+  - `epiphany_retrieve(...)`
+- app-server protocol exposes experimental `thread/epiphany/retrieve`
+- the retrieval machine is hybrid from day one:
+  - exact/path-ish hits via existing `codex_file_search`
+  - semantic hits via workspace-local BM25 chunk search over a gitignore-respecting corpus
+- live `thread.epiphanyState` hydration backfills a lightweight retrieval summary when the thread has Epiphany state but no persisted retrieval metadata yet
+
+### How this differs from plain Codex
+
+Plain Codex has pieces of repo search substrate scattered around:
+
+- fuzzy/exact-ish file search
+- BM25 usage in tool-search paths
+- shell access if the operator wants to rummage manually
+
+What it does not have is one Epiphany-owned retrieval organ that says:
+
+- this query is for repo understanding
+- this thread/workspace is the scope
+- exact and semantic lookup are the same machine
+- results come back in a typed shape instead of as transcript confetti
+
+### Why it matters
+
+This is the first time Epiphany can ask a structured repo question without falling back to file-by-file terminal spelunking.
+
+That changes the shape of the harness. The map is no longer just a notebook the prompt can read. It now has a first retrieval organ hanging off the same typed spine.
+
+### Important limits
+
+This slice is intentionally small and honest:
+
+- query-time only
+- loaded-thread-first
+- read-only
+- local BM25 rather than embeddings
+- no watcher-driven invalidation
+- no persistent vector store
+- no explicit retrieval update/write path yet
 
 ## What has *not* diverged yet
 
@@ -219,7 +282,6 @@ This matters because the spec is ahead of the code in a few obvious places.
 
 ### Not yet shipped
 
-- no retrieval subsystem
 - no code-intelligence layer
 - no watcher-driven semantic invalidation
 - no observation-promotion machinery beyond the data model
@@ -250,6 +312,7 @@ input
 -> rollout + epiphany_state snapshot
 -> replay-aware epiphany restoration
 -> hydrated client thread payload with epiphanyState
+-> optional typed repo retrieval through thread/epiphany/retrieve
 ```
 
 That is the real delta.
@@ -258,7 +321,7 @@ The transcript is no longer the only thing with continuity.
 
 ## Where the divergence is already meaningful
 
-Even without retrieval or GUI, the divergence is already structurally important in three ways:
+Even without invalidation or GUI, the divergence is already structurally important in four ways:
 
 1. **Understanding has a durable object now**
    - not just prose and replayed vibes
@@ -269,12 +332,19 @@ Even without retrieval or GUI, the divergence is already structurally important 
 3. **Clients can read that understanding directly**
    - not by scraping the prompt or reverse-engineering transcript fragments
 
+4. **The harness has one typed repo retrieval organ now**
+   - not just shell archaeology plus vibes
+
 That is not the full Epiphany vision yet, but it is no longer cosmetic either.
 
 ## Recommended next companion note
 
-Once Phase 4 lands, this file should get a new section:
+If the next bounded slice lands, the useful follow-on section for this file is probably not "more retrieval exists."
 
-- `Divergence 5: repo-local hybrid retrieval`
+It is more likely one of these:
 
-That will probably be the moment the divergence starts feeling less like a careful extension and more like a different operating philosophy living inside the same harness.
+- retrieval freshness/persistence semantics
+- structured observation promotion from retrieval/tool output into durable Epiphany state
+- Qdrant-backed persistent semantic indexing as a preferred backend, with BM25 fallback instead of a hard dependency
+
+Those would be the next places where the machine stops being a better notebook and starts being a more opinionated harness.

@@ -12,6 +12,8 @@ export type { CollaborationMode } from "./CollaborationMode";
 export type { ContentItem } from "./ContentItem";
 export type { ConversationGitInfo } from "./ConversationGitInfo";
 export type { ConversationSummary } from "./ConversationSummary";
+export type { EpiphanyRetrievalStatus } from "./EpiphanyRetrievalStatus";
+export type { EpiphanyThreadState } from "./EpiphanyThreadState";
 export type { ExecCommandApprovalParams } from "./ExecCommandApprovalParams";
 export type { ExecCommandApprovalResponse } from "./ExecCommandApprovalResponse";
 export type { ExecPolicyAmendment } from "./ExecPolicyAmendment";

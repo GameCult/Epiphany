@@ -45,6 +45,91 @@ Current architectural/spec notes:
 - `notes/epiphany-current-algorithmic-map.md`
 - `notes/epiphany-core-harness-surfaces.md`
 
+## Current In-Flight Work
+
+Phase 4 repo-local hybrid retrieval is now verified in the working tree. It is still uncommitted, but it is no longer a vague scaffold or a maybe.
+
+Current working-tree implementation spans:
+
+- `vendor/codex/codex-rs/protocol/src/protocol.rs`
+- `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs`
+- `vendor/codex/codex-rs/core/src/codex_thread.rs`
+- `vendor/codex/codex-rs/core/src/lib.rs`
+- `vendor/codex/codex-rs/core/Cargo.toml`
+- `vendor/codex/codex-rs/core/src/session/tests.rs`
+- `vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs`
+- `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
+- `vendor/codex/codex-rs/app-server-protocol/src/export.rs`
+- `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
+- `vendor/codex/codex-rs/app-server/README.md`
+- regenerated stable fixtures under `vendor/codex/codex-rs/app-server-protocol/schema/`
+
+What is wired right now:
+
+- `EpiphanyThreadState` already has retrieval metadata fields and types in protocol
+- `codex-core` now has a new `epiphany_retrieval.rs` module
+- the core retriever is query-time and hybrid:
+  - exact/path-ish lookup via `codex_file_search`
+  - semantic lookup via BM25 chunk search over a local gitignore-respecting corpus
+- `CodexThread` now exposes:
+  - `epiphany_retrieval_state()`
+  - `epiphany_retrieve(...)`
+- app-server protocol now declares experimental `thread/epiphany/retrieve`
+- app-server message handling now routes that method to the core retriever
+- live hydrated `thread.epiphanyState` reads now backfill a lightweight retrieval summary when the thread already has Epiphany state but no persisted retrieval summary yet
+- basic protocol/core/app-server unit tests were added for the new types and mapping layer
+
+Important recovery facts:
+
+- existing exact/path lookup substrate already exists through `codex_file_search`
+- app-server fuzzy search currently uses it in `vendor/codex/codex-rs/app-server/src/fuzzy_file_search.rs`
+- `codex-core` already depends on `bm25`
+- `vendor/codex/codex-rs/core/src/tools/handlers/tool_search.rs` already shows how BM25 is used in-tree
+- tracked corpus preflight for `vendor/codex/codex-rs` at `vendor/codex` HEAD `d45ab10` is `3642` files / `31.09 MB`
+- raw working-tree size under `codex-rs` is polluted by build artifacts and should not be used as the retrieval corpus estimate
+
+Recovered bounded design decision:
+
+- the first Phase 4 slice should be a query-time hybrid retriever
+- reuse `codex_file_search` for exact/path-ish lookup
+- use workspace-local BM25 chunk search as the initial semantic backend
+- keep the first slice loaded-thread-only and read-only
+- defer embeddings, vector stores, persistent indexing, and watcher-driven invalidation for later slices
+
+Updated follow-up direction:
+
+- the verified BM25 slice is still the right first landing zone
+- the first persistent semantic store after that should target Qdrant rather than another blob-thrashing JSON/Postgres embedding store
+- Qdrant should be the preferred persistent semantic backend later, not a hard requirement for basic Epiphany use
+- exact/path lookup stays first-class
+- BM25 should stay around as bootstrap/fallback/control for users who do not want Qdrant or when Qdrant is unavailable instead of turning the machine into vector-only confidence soup
+
+What got verified:
+
+- `cargo fmt --all` passed
+- `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` passed with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
+- targeted Phase 4 tests passed:
+  - `cargo test -p codex-core --lib retrieve_workspace_`
+  - `cargo test -p codex-app-server-protocol --lib thread_epiphany_retrieve`
+  - `cargo test -p codex-app-server --lib map_epiphany_retrieve_response_preserves_summary_and_results`
+- full `cargo test -p codex-app-server-protocol` passed after regenerating stable schema fixtures
+
+Notable verification fixes:
+
+- `codex_message_processor.rs` needed the live-thread retrieval helper call to stop pretending `&CodexThread` needed `.as_ref()`
+- `core/src/session/tests.rs` needed `retrieval: None` in the prompt fixture Epiphany state
+- the exact-hit retrieval test fixture needed a genuinely matchable file name (`session_checkpoint.rs`)
+- `EpiphanyThreadState` needed an explicit exemption in the protocol export test because sparse durable thread state intentionally uses optional fields
+
+Important schema caveat:
+
+- `cargo run -p codex-app-server-protocol --bin write_schema_fixtures -- --experimental` rewrites the same checked-in schema tree as stable generation
+- leaving the repo in that state makes stable protocol tests fail
+- the safe checked-in state for this slice is the stable fixture generation output
+- after inspection, do not bolt durable Epiphany-state writes onto `thread/epiphany/retrieve` just because the retrieval summary exists:
+  - current Epiphany snapshots are persisted on real user-turn boundaries
+  - out-of-band durable retrieval writes would need new rollout semantics and are a larger machine than this slice deserves
+
 ## What Already Landed
 
 Phase 1 is done.
@@ -119,8 +204,8 @@ Use it when you need the answer to "how does current Epiphany differ from plain 
 If a future session wakes up from compaction and starts bluffing, this is the part to staple to its forehead.
 
 - Phase 1, Phase 2, and the minimal Phase 3 read surface are all landed and verified.
-- The latest pushed implementation anchor before this handoff sync is `640e063`:
-  - `Document pre-compaction Epiphany workflow`
+- The latest local implementation anchor before the current in-flight retrieval slice is `d45ab10`:
+  - `Add Epiphany delta algorithmic map`
 - `vendor/codex` is ordinary tracked repo content, not a submodule.
 - Phase 2 means Codex now **reads** Epiphany state during turn construction:
   - `SessionState.epiphany_state` is the internal activation signal
@@ -135,6 +220,15 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
 - The next phase is **Phase 4 repo-local hybrid retrieval**:
   - give Epiphany a real repo retrieval subsystem instead of repeated file-by-file shell archaeology
   - keep it typed, additive, and GUI-friendly
+- Phase 4 slice 1 is now verified in the working tree:
+  - protocol/core/app-server wiring exists and passes targeted verification
+  - stable app-server protocol schema fixtures were regenerated
+  - `write_schema_fixtures --experimental` is a trap if it is left as the checked-in tree
+- The recovered bounded implementation choice for the first slice is:
+  - exact/path lookup via existing `codex_file_search`
+  - semantic lookup via local BM25 chunk search
+  - query-time, read-only, loaded-thread-first behavior
+  - no embeddings or persistent vector store yet
 - Important Windows verification footgun still stands:
   - use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for `codex-core` work on this machine
 - Snapshot hygiene note:
@@ -181,6 +275,13 @@ Verified:
   - `cargo test -p codex-core --lib latest_epiphany_state_from_rollout_items`
   - `cargo test -p codex-app-server --lib load_epiphany_state_from_rollout_path_reads_latest_snapshot`
   - `cargo test -p codex-app-server-protocol --lib serialize_client_response`
+- `cargo fmt --all` passed for the Phase 4 retrieval slice
+- `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` passed for the Phase 4 retrieval slice when `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
+- targeted Phase 4 tests passed:
+  - `cargo test -p codex-core --lib retrieve_workspace_`
+  - `cargo test -p codex-app-server-protocol --lib thread_epiphany_retrieve`
+  - `cargo test -p codex-app-server --lib map_epiphany_retrieve_response_preserves_summary_and_results`
+- full `cargo test -p codex-app-server-protocol` passed after restoring stable schema fixtures
 
 Important Windows footgun:
 
@@ -192,23 +293,20 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do **Phase 4 repo-local hybrid retrieval** next.
+Do not restart verification from superstition. The current Phase 4 slice is already verified in the working tree.
 
-The durable state seam exists, the turn loop now reads it, and clients can now load typed Epiphany state directly. The next clean move is to stop making every future agent rediscover the repo with shell spelunking.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, and the first retrieval slice is now real. The next clean move is to ship that verified slice cleanly instead of widening it before Qdrant is even online.
 
-Planned slice:
+Current next implementation move:
 
-1. define retrieval state and shard/index summaries in typed Epiphany state
-2. add a bounded hybrid retrieval surface that combines exact search with semantic chunk lookup
-3. keep the first retrieval slice additive and internal/dev-usable first
-4. leave watcher-driven invalidation, heavy GUI reflection, and specialist-agent scheduling for later slices
-
-Main files for the next slice:
-
-- `vendor/codex/codex-rs/protocol/src/`
-- `vendor/codex/codex-rs/core/src/`
-- `vendor/codex/codex-rs/app-server/src/`
-- `vendor/codex/codex-rs/app-server-protocol/src/`
+1. clean up, stage, commit, and push the current verified query-time hybrid retriever as the Phase 4 slice 1 landing zone
+2. do not casually add durable retrieval-summary writes to `thread/epiphany/retrieve`
+3. if a follow-up is needed later, keep it narrow:
+   - retrieval persistence/freshness semantics
+   - probably via a dedicated Epiphany update path
+   - Qdrant-backed persistent semantic indexing as the preferred backend, with BM25 fallback for no-Qdrant or degraded mode
+   - not GUI work
+   - not watcher-driven invalidation
 
 ## What Not To Do Next
 

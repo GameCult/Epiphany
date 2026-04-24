@@ -336,6 +336,11 @@ client_request_definitions! {
         params: v2::ThreadReadParams,
         response: v2::ThreadReadResponse,
     },
+    #[experimental("thread/epiphany/retrieve")]
+    ThreadEpiphanyRetrieve => "thread/epiphany/retrieve" {
+        params: v2::ThreadEpiphanyRetrieveParams,
+        response: v2::ThreadEpiphanyRetrieveResponse,
+    },
     ThreadTurnsList => "thread/turns/list" {
         params: v2::ThreadTurnsListParams,
         response: v2::ThreadTurnsListResponse,
@@ -1548,6 +1553,88 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_retrieve_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyRetrieve {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyRetrieveResponse {
+                query: "checkpoint frontier".to_string(),
+                index_summary: v2::ThreadEpiphanyRetrieveIndexSummary {
+                    workspace_root: absolute_path("/workspace"),
+                    index_revision: Some("query-time-bm25-v1".to_string()),
+                    status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                    semantic_available: true,
+                    last_indexed_at_unix_seconds: Some(1_744_500_000),
+                    indexed_file_count: Some(12),
+                    indexed_chunk_count: Some(34),
+                    shards: vec![v2::ThreadEpiphanyRetrieveShardSummary {
+                        shard_id: "workspace".to_string(),
+                        path_prefix: PathBuf::from("."),
+                        indexed_file_count: Some(12),
+                        indexed_chunk_count: Some(34),
+                        status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                        exact_available: true,
+                        semantic_available: true,
+                    }],
+                    dirty_paths: vec![PathBuf::from("src/session/mod.rs")],
+                },
+                results: vec![v2::ThreadEpiphanyRetrieveResult {
+                    kind: v2::ThreadEpiphanyRetrieveResultKind::SemanticChunk,
+                    path: PathBuf::from("notes/design.md"),
+                    score: 2.5,
+                    line_start: Some(3),
+                    line_end: Some(9),
+                    excerpt: Some("checkpoint frontier".to_string()),
+                }],
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/retrieve");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/retrieve",
+                "id": 8,
+                "response": {
+                    "query": "checkpoint frontier",
+                    "indexSummary": {
+                        "workspaceRoot": absolute_path_string("workspace"),
+                        "indexRevision": "query-time-bm25-v1",
+                        "status": "ready",
+                        "semanticAvailable": true,
+                        "lastIndexedAtUnixSeconds": 1744500000,
+                        "indexedFileCount": 12,
+                        "indexedChunkCount": 34,
+                        "shards": [
+                            {
+                                "shardId": "workspace",
+                                "pathPrefix": ".",
+                                "indexedFileCount": 12,
+                                "indexedChunkCount": 34,
+                                "status": "ready",
+                                "exactAvailable": true,
+                                "semanticAvailable": true
+                            }
+                        ],
+                        "dirtyPaths": ["src/session/mod.rs"]
+                    },
+                    "results": [
+                        {
+                            "kind": "semanticChunk",
+                            "path": "notes/design.md",
+                            "score": 2.5,
+                            "lineStart": 3,
+                            "lineEnd": 9,
+                            "excerpt": "checkpoint frontier"
+                        }
+                    ]
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_config_requirements_read() -> Result<()> {
         let request = ClientRequest::ConfigRequirementsRead {
             request_id: RequestId::Integer(1),
@@ -2042,6 +2129,22 @@ mod tests {
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("mock/experimentalMethod"));
     }
+
+    #[test]
+    fn thread_epiphany_retrieve_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyRetrieve {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyRetrieveParams {
+                thread_id: "thr_123".to_string(),
+                query: "checkpoint frontier".to_string(),
+                limit: Some(5),
+                path_prefixes: vec![PathBuf::from("notes")],
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/retrieve"));
+    }
+
     #[test]
     fn thread_realtime_start_is_marked_experimental() {
         let request = ClientRequest::ThreadRealtimeStart {

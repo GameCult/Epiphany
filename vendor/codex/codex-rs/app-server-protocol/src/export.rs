@@ -2113,6 +2113,9 @@ mod tests {
                 .is_some_and(|stem| {
                     stem.ends_with("Params")
                         || stem == "InitializeCapabilities"
+                        // EpiphanyThreadState is durable sparse state rather than a conventional
+                        // request/response envelope, so optional fields are intentional there.
+                        || stem == "EpiphanyThreadState"
                         || matches!(
                             stem,
                             "CollabAgentRef"

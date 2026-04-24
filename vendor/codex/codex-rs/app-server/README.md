@@ -136,7 +136,11 @@ Example with notification opt-out:
 
 ## API Overview
 
-Hydrated thread responses such as `thread/start`, `thread/resume`, `thread/fork`, `thread/read`, and `thread/unarchive` may include `thread.epiphanyState` when the thread has persisted Epiphany state. When the thread is currently loaded, app-server prefers the live in-memory value; otherwise it reconstructs the latest surviving snapshot from rollout items using the same rollback/compaction semantics as core session replay.
+Hydrated thread responses such as `thread/start`, `thread/resume`, `thread/fork`, `thread/read`, and `thread/unarchive` may include `thread.epiphanyState` when the thread has persisted Epiphany state. When the thread is currently loaded, app-server prefers the live in-memory value; otherwise it reconstructs the latest surviving snapshot from rollout items using the same rollback/compaction semantics as core session replay. For live threads with Epiphany state but no persisted retrieval summary yet, app-server backfills a lightweight query-time retrieval summary instead of pretending the retrieval field is absent.
+
+Experimental Epiphany retrieval:
+
+- `thread/epiphany/retrieve` runs a loaded-thread-only hybrid repo query that combines `codex_file_search` path hits with BM25 chunk retrieval and returns typed result metadata plus an Epiphany retrieval summary.
 
 - `thread/start` — create a new thread; emits `thread/started` (including the current `thread.status`) and auto-subscribes you to turn/item events for that thread. When the request includes a `cwd` and the resolved sandbox is `workspace-write` or full access, app-server also marks that project as trusted in the user `config.toml`. Pass `sessionStartSource: "clear"` when starting a replacement thread after clearing the current session so `SessionStart` hooks receive `source: "clear"` instead of the default `"startup"`. For permissions, prefer `permissionProfile`; the legacy `sandbox` shorthand is still accepted but cannot be combined with `permissionProfile`.
 - `thread/resume` — reopen an existing thread by id so subsequent `turn/start` calls append to it. Accepts the same permission override rules as `thread/start`.

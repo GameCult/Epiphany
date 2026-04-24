@@ -410,6 +410,7 @@ fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {
             warning: Some("Keep the fragment bounded; do not turn it into another transcript dump.".to_string()),
             unexplained_writes: Some(0),
         }),
+        retrieval: None,
         mode: Some(EpiphanyModeState {
             name: "epiphany".to_string(),
             kind: Some(ModeKind::Default),
