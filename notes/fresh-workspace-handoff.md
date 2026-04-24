@@ -29,6 +29,8 @@ Recent anchor commits:
 - `640e063` - documented the pre-compaction Epiphany workflow and synced the repo memory before compaction
 - `360dfea` - landed and pushed the Phase 4 hybrid retrieval slice
 - `80c29e0` - extracted Epiphany core organs into `epiphany-core`, landed explicit Qdrant indexing, and added licensing guardrails
+- `bb557d1` - hardened verifier-backed promotion for map/churn replacement patches
+- `fbd4dc2` - added repo-local app-server test stack configuration after tracing Windows stack pressure
 
 Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
@@ -66,9 +68,9 @@ Current architectural/spec notes:
 
 ## Current Landed Baseline
 
-Phase 4 repo-local hybrid retrieval is now landed on `main`. The first retrieval anchor is `360dfea`; the current pushed baseline is `80c29e0`, which also includes explicit Qdrant indexing, the `epiphany-core` extraction, and licensing guardrails. This is no longer a vague scaffold, a maybe, or a working-tree-only event.
+Phase 4 repo-local hybrid retrieval is now landed on `main`. The first retrieval anchor is `360dfea`; `80c29e0` adds explicit Qdrant indexing, the `epiphany-core` extraction, and licensing guardrails. Later `main` also includes the typed update/distill/promote surfaces, promotion safety layer, and app-server stack-pressure fix. This is no longer a vague scaffold, a maybe, or a working-tree-only event.
 
-Current verified pushed baseline after that first retrieval anchor:
+Current verified baseline after that first retrieval anchor:
 
 - explicit `thread/epiphany/index`
 - manifest-backed Qdrant semantic persistence under `codex_home`
@@ -77,7 +79,7 @@ Current verified pushed baseline after that first retrieval anchor:
 - read-only `thread/epiphany/retrieve` with BM25 fallback still intact
 - repo-owned `epiphany-core` extraction for the heavy prompt/replay/retrieval organ, leaving vendored Codex with thin adapters plus the typed host seam
 
-Current verified working-tree follow-up:
+Current verified typed state/promotion layer:
 
 - experimental loaded-thread-only `thread/epiphany/update`
 - experimental loaded-thread-only `thread/epiphany/distill`
@@ -369,6 +371,7 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
 - App-server stack-pressure footgun from the richer promotion slice:
   - without a larger test-thread stack, unrelated app-server tests can overflow after the expanded request/promotion machinery
   - `vendor/codex/codex-rs/.cargo/config.toml` now sets `RUST_MIN_STACK=67108864`
+  - boxed-future request-dispatch experiments were tested and removed; the Cargo stack config is the minimal verified fix
   - do not remove that and then act shocked when Windows eats the test harness again
 - Snapshot hygiene note:
   - the new Epiphany prompt snapshot normalizes temp skill-root paths in the test harness so it stays stable across runs
@@ -421,7 +424,7 @@ Verified:
   - `cargo test -p codex-app-server-protocol --lib thread_epiphany_retrieve`
   - `cargo test -p codex-app-server --lib map_epiphany_retrieve_response_preserves_summary_and_results`
 - full `cargo test -p codex-app-server-protocol` passed after restoring stable schema fixtures
-- after tracing the stack overflow from the richer promotion slice, full `cargo test -p codex-app-server --lib` now passes 232/232 with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` and repo-local Cargo config supplying `RUST_MIN_STACK=67108864`
+- after tracing the stack overflow from the richer promotion slice, full `cargo test -p codex-app-server --lib` now passes 232/232 with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` and repo-local Cargo config supplying `RUST_MIN_STACK=67108864`; the temporary boxed-future request-dispatch experiments were removed after config-only verification passed
 
 Important Windows footgun:
 

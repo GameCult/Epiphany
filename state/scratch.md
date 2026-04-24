@@ -8,7 +8,7 @@ This file is intentionally disposable.
 
 ## Working Notes
 
-- The landed Phase 4 retrieval/indexing/core-extraction baseline is now `80c29e0` on `main`. The older `360dfea` commit is only the first hybrid retrieval anchor, not the current repo state.
+- The Phase 4 retrieval/indexing/core-extraction anchor is `80c29e0` on `main`. The older `360dfea` commit is only the first hybrid retrieval anchor, and later `main` also includes the typed update/distill/promote surfaces, promotion safety layer, and app-server stack-pressure fix.
 - The extraction boundary is now the important truth:
   - `epiphany-core/src/retrieval.rs` owns the heavy hybrid retrieval/indexing engine
   - `epiphany-core/src/prompt.rs` owns the Epiphany prompt-state renderer
@@ -141,8 +141,8 @@ This file is intentionally disposable.
   - breadcrumbs showed `thread/start` completed in the processor and the overflow happened before response routing, pointing at app-server request/future stack pressure rather than Epiphany promotion semantics
   - `RUST_MIN_STACK=67108864` made exact failures pass; later exact failures in guardian lifecycle and thread-start tracing tests confirmed the app-server test binary had crossed a Windows stack threshold
   - `vendor/codex/codex-rs/.cargo/config.toml` now sets `RUST_MIN_STACK=67108864` so Cargo-driven tests get the required stack without shell folklore
-  - large app-server JSON/in-process request futures, `thread_start_task`, and the expanded `thread/epiphany/promote` arm are boxed to reduce dispatcher stack pressure
-  - full `cargo test -p codex-app-server --lib` now passes 232/232 with no shell `RUST_MIN_STACK` set
+  - boxed-future experiments in app-server request dispatch were removed after exact repros and the full app-server suite passed with the Cargo stack config alone
+  - full `cargo test -p codex-app-server --lib` now passes 232/232 with no shell `RUST_MIN_STACK` set and no new boxed request-dispatch futures
 
 ## Open Questions
 
