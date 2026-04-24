@@ -14,8 +14,9 @@ This note tracks Epiphany as a fork of Codex with an opinionated modeling archit
 - the heavy Epiphany-owned prompt/replay/retrieval implementation has now been extracted into the repo-owned `epiphany-core` crate, leaving vendored Codex with thin host adapters plus the typed integration seam
 - a first typed state-update slice that adds explicit loaded-thread-only `thread/epiphany/update`, appends observations/evidence, replaces bounded map/scratch/churn fields, bumps the state revision, and persists an immediate rollout `EpiphanyState` snapshot
 - a first typed distillation/proposal slice that adds read-only loaded-thread-only `thread/epiphany/distill`, producing deterministic observation/evidence patches for explicit promotion through `thread/epiphany/update`
+- a first richer promotion-policy slice that treats map/churn/frontier/checkpoint replacements as higher-risk state edits: accepted promotions must be tied to explicit observations and patch evidence, and structural graph/churn mistakes are rejected before the durable update path
 
-The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, or build the first observation proposal surface. Those parts are landed. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` or `thread/epiphany/distill` into durable Epiphany-state writers, and do not widen the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
+The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, or make promotion notice broken map/churn replacements. Those parts are landed. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` or `thread/epiphany/distill` into durable Epiphany-state writers, and do not widen the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
 
 ## Summary
 
@@ -227,6 +228,19 @@ Current bounded shape of that follow-up:
 - it returns deterministic observation/evidence records inside a `ThreadEpiphanyUpdatePatch`
 - callers must pass the patch to `thread/epiphany/update` to make it durable
 
+Follow-up addition now landed after the promotion gate:
+
+- richer `thread/epiphany/promote` policy for state replacement patches
+
+Current bounded shape of that follow-up:
+
+- it keeps the wire protocol stable
+- it still rejects failed verifier evidence without mutation
+- it now passes replacement fields into `epiphany-core` policy evaluation instead of reducing them to a generic boolean
+- map/churn/frontier/checkpoint replacements must include explicit observations and patch evidence, so state edits are tied to a verified observation trail
+- subgoals, invariants, graphs, graph links, frontier ids, checkpoint ids, and churn fields get lightweight structural validation before accepted patches are sent to `thread/epiphany/update`
+- it still does not infer graph edits automatically; callers must submit explicit typed replacements
+
 ### 5. Reuse existing exact-search substrate where practical
 
 Codex already has fuzzy/exact-ish repo search substrate. Reuse what is useful instead of building a second exact-search toy from scratch.
@@ -258,9 +272,9 @@ Treat the current retrieval baseline, explicit indexing follow-up, explicit upda
 2. treat the verified and live-smoked `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
 3. keep the new `epiphany-core` boundary honest instead of letting vendored Codex re-accumulate the heavy implementation
 4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
-5. build the next layer above the landed distill/update surfaces:
+5. build the next layer above the landed distill/update/promote surfaces:
    - richer typed observation distillation from tool/model outputs
-   - promotion policy that decides when to call `thread/epiphany/update` explicitly
+   - promotion policy beyond structural validation, but only when it can stay evidence-backed
    - verifier-backed acceptance/rejection evidence
    - no hidden retrieval writes
    - not GUI work

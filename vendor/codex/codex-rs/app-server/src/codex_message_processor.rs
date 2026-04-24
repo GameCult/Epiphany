@@ -4269,6 +4269,13 @@ impl CodexMessageProcessor {
 
         let decision = evaluate_promotion(EpiphanyPromotionInput {
             has_state_replacements: thread_epiphany_patch_has_state_replacements(&patch),
+            active_subgoal_id: patch.active_subgoal_id.clone(),
+            subgoals: patch.subgoals.clone(),
+            invariants: patch.invariants.clone(),
+            graphs: patch.graphs.clone(),
+            graph_frontier: patch.graph_frontier.clone(),
+            graph_checkpoint: patch.graph_checkpoint.clone(),
+            churn: patch.churn.clone(),
             observations: patch.observations.clone(),
             evidence: patch.evidence.clone(),
             verifier_evidence: verifier_evidence.clone(),

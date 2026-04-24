@@ -190,6 +190,7 @@ What is wired right now:
 - app-server message handling now routes those methods through the core host seam
 - `thread/epiphany/distill` is the first read-only proposal surface; it returns an `expectedRevision` plus a patch and requires explicit promotion through `thread/epiphany/update`
 - `thread/epiphany/promote` is the first explicit promotion gate; it rejects failed verifier evidence without mutation and applies accepted candidates through the update path
+- `thread/epiphany/promote` now has a first richer map/churn safety layer: state replacement patches must carry explicit observations and patch evidence, and subgoal/invariant/graph/frontier/checkpoint/churn structure is validated before the durable update path is called
 - `thread/epiphany/update` is the first explicit durable Epiphany state write surface; it rejects empty patches, supports optional revision matching, appends observations/evidence, replaces bounded typed fields, increments state revision, and persists immediately
 - live hydrated `thread.epiphanyState` reads now backfill a lightweight retrieval summary when the thread already has Epiphany state but no persisted retrieval summary yet
 - basic protocol/core/app-server unit tests were added for the new types and mapping layer
@@ -429,7 +430,7 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 Do not restart verification from superstition. The current Phase 4 retrieval/indexing/core-extraction baseline is already verified, committed, and pushed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, and the first distill/promote/update path is live-smoked. The next clean move is richer map/churn promotion policy, not pretending the already-shipped slices still need ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the first distill/promote/update path is live-smoked, and promotion now has a first structural map/churn safety layer. The next clean move is richer observation-to-map proposal machinery, not pretending the already-shipped slices still need ceremony.
 
 Current next implementation move:
 
@@ -438,7 +439,7 @@ Current next implementation move:
 3. keep `thread/epiphany/retrieve` and `thread/epiphany/distill` read-only
 4. build the next layer above the distill/promote/update surfaces:
    - richer map/churn patch generation from verified observations
-   - promotion policy beyond simple evidence-linked observation acceptance
+   - promotion policy beyond structural validation only when the evidence path stays explicit
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet
 

@@ -4,7 +4,7 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Move from the landed explicit typed state-update, distillation, and promotion surfaces toward richer verified map/churn promotion without hidden writes.
+- Move from structural map/churn promotion validation toward richer observation-to-map proposal machinery without hidden writes.
 
 ## Working Notes
 
@@ -126,10 +126,20 @@ This file is intentionally disposable.
     - accepted verifier evidence promoted through update to revision `1`
     - `thread/read` returned observation `obs-77248505f492`, distill evidence `ev-77248505f492`, and verifier evidence `ev-promote-smoke-verifier`
     - smoke result: `.epiphany-smoke/promote-smoke-result.json`
+- Richer promotion safety layer on 2026-04-24:
+  - `epiphany-core/src/promotion.rs` now receives the actual replacement fields instead of only a `has_state_replacements` boolean
+  - state replacement promotions must include explicit observations and patch evidence before verifier evidence can stamp them into the durable update path
+  - subgoal, invariant, graph, graph link, frontier, checkpoint, and churn replacements get lightweight structural validation
+  - `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs` still keeps the host seam thin: it passes the patch fields into `evaluate_promotion`, then accepted promotions go through `CodexThread.epiphany_update_state(...)`
+  - verification passed:
+    - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml`
+    - `cargo test -p codex-core --lib epiphany`
+    - `cargo test -p codex-app-server --lib epiphany`
+  - attempted full `cargo test -p codex-app-server --lib` compiled but hit a pre-existing-looking stack overflow in `in_process_start_uses_requested_session_source_for_thread_start`; Epiphany-scoped app-server tests passed
 
 ## Open Questions
 
 - How much more can move into `epiphany-core` without sacrificing the typed Codex host seam that makes the integration first-class?
-- How should verified observations imply map/churn edits without turning promotion into automatic graph fanfic?
+- How should verified observations propose map/churn edits without turning promotion into automatic graph fanfic?
 
 Do not promote anything from here into the map unless it survives verification or repeated reuse without contradiction.

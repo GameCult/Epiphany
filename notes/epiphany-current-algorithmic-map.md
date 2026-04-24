@@ -699,13 +699,15 @@ The app-server handler:
 7. calls `CodexThread.epiphany_update_state`.
 8. returns the updated `EpiphanyThreadState`.
 
-`evaluate_promotion` currently enforces a deliberately small policy:
+`evaluate_promotion` currently enforces a deliberately small but now map-aware policy:
 
 1. the patch must contain at least one mutation.
 2. verifier evidence must have nonempty id/kind/status/summary.
 3. verifier status must be accepting: `ok`, `accepted`, `verified`, `pass`, or `passed`.
 4. patch evidence records must be nonempty and unique by id.
 5. observations must be nonempty, unique by id, and cite existing evidence ids.
+6. state replacement patches, including map/frontier/checkpoint/churn edits, must include at least one explicit observation and at least one patch evidence record.
+7. subgoal, invariant, graph, frontier, checkpoint, and churn replacements get lightweight structural validation before they can reach the durable update path.
 
 Code refs:
 
@@ -714,6 +716,7 @@ Code refs:
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4280)
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4308)
 - [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:19)
+- [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:122)
 
 ### Output
 
@@ -758,9 +761,9 @@ model/tool observations
 -> durable evidence/map/churn mutation
 ```
 
-That remaining missing organ is richer map/churn promotion. The typed write path exists, the first deterministic distillation proposal path exists, and the first verifier-backed promotion gate exists. What does not exist yet is a policy that turns accepted observations into graph/frontier/churn edits without drifting into automatic graph fanfic.
+That remaining missing organ is richer map/churn promotion. The typed write path exists, the first deterministic distillation proposal path exists, and the first verifier-backed promotion gate exists. The first map/churn safety layer now exists too: promotion can reject state replacement patches that are not tied to explicit observations/evidence or that contain structurally broken subgoal, invariant, graph, frontier, checkpoint, or churn fields.
 
-In natural language: current Epiphany can preserve a map, show a map, retrieve evidence for the map, draft one explicit observation/evidence patch, reject or accept a verified candidate, and apply explicit map/evidence/churn edits. It still cannot safely derive richer map/churn edits from observations by itself. Teeth are installed; chewing is still supervised.
+In natural language: current Epiphany can preserve a map, show a map, retrieve evidence for the map, draft one explicit observation/evidence patch, reject or accept a verified candidate, apply explicit map/evidence/churn edits, and sanity-check those edits before they hit the ledger. It still does not derive graph edits by itself. Teeth are installed; chewing is still supervised.
 
 ## Verification Hooks
 
@@ -771,6 +774,7 @@ Current tests cover the landed flows at useful seams:
 - explicit out-of-band Epiphany snapshot replay before the first user turn.
 - deterministic observation/evidence distillation in `epiphany-core`.
 - verifier-backed promotion policy in `epiphany-core`.
+- map/churn promotion validation for evidence-backed state replacements in `epiphany-core`.
 - typed state-update patch application in `codex-core`.
 - retrieval ranking, fallback, stale manifest detection, and mocked Qdrant/Ollama indexing in `epiphany-core`.
 - app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/promote`, and `thread/epiphany/update`.
