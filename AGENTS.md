@@ -14,23 +14,7 @@ The motivating failure mode is that an agent can make many plausible local edits
 - Treat `notes/epiphany-fork-implementation-plan.md` as the current implementation plan for the Epiphany fork architecture.
 - Update `state/map.yaml` when project understanding changes.
 - Append evidence after meaningful research, implementation, verification, or rejected paths.
-
-## Current Status
-
-The old preset-backed TUI experiment is no longer the active path.
-
-What is already landed across vendored Codex and `epiphany-core`:
-
-- Phase 1 durable Epiphany thread state
-- Phase 2 prompt integration
-- a minimal Phase 3 typed app-server/client read surface via `Thread.epiphanyState`
-- Phase 4 hybrid retrieval/indexing with explicit Qdrant-backed indexing and BM25 fallback
-- Phase 5 typed state update, read-only distillation, verifier-backed promotion, and structural map/churn promotion validation
-
-Current phase:
-
-- Phase 5 semantic distillation and promotion is active.
-- Next bounded move: build richer observation-to-map/churn proposal machinery above `thread/epiphany/distill`, `thread/epiphany/promote`, and `thread/epiphany/update`, while keeping retrieval/distillation read-only and avoiding watcher, GUI, or specialist-agent machinery.
+- Do not store volatile current phase/status blocks in this file; keep current status in `state/map.yaml`, `state/evidence.jsonl`, and `notes/fresh-workspace-handoff.md`.
 
 ## Important Paths
 
