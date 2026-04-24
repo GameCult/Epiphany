@@ -345,7 +345,7 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - `thread/start`, `thread/resume`, `thread/fork`, `thread/read`, `thread/unarchive`, and detached review-thread startup can carry `thread.epiphanyState` when present
   - loaded threads use live state
   - stored thread reads reconstruct from rollout with the same rollback/compaction semantics as core
-  - there are still no dedicated Epiphany update RPCs or live `thread/epiphany/*` notifications
+- later slices added dedicated experimental `thread/epiphany/update`, `thread/epiphany/distill`, `thread/epiphany/promote`, `thread/epiphany/retrieve`, and `thread/epiphany/index`; there is still no live `thread/epiphany/*` notification stream
 - The next phase is **not** GUI work.
 - The current landed phase is **Phase 4 repo-local retrieval/indexing**:
   - Epiphany now has a real typed repo retrieval subsystem instead of repeated file-by-file shell archaeology
