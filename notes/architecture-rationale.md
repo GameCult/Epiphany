@@ -89,6 +89,34 @@ Current controller actions:
 - `backtrack`
 - `speak`
 
+## Compact-Rehydrate-Continue Cycle
+
+Compaction is not an implementation accident. In Epiphany it is an explicit architectural state transition:
+
+```text
+compact -> rehydrate -> continue
+```
+
+The purpose is to make context loss survivable without pretending nothing happened. The harness should checkpoint what matters before memory pressure becomes a blackout, then restart from durable state instead of transcript archaeology.
+
+Before compacting, Epiphany should persist:
+
+- the current objective and active subgoal
+- the latest stable map/frontier/checkpoint
+- accepted evidence and rejected paths since the last checkpoint
+- open questions, blockers, and next action
+- verification status for the current slice
+
+After rehydrating, Epiphany should:
+
+- reread canonical state instead of trusting residue in the prompt
+- restore the active subgoal and map frontier
+- restate the next action from persisted state
+- continue with one bounded move
+- avoid broad implementation until the current mechanism is understood again
+
+This cycle is the harness admitting the model is not a magic continuous mind. A compacted agent wakes up from durable structure, not vibes in a trench coat.
+
 ## Evaluation Shape
 
 Compare four conditions:

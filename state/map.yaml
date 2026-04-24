@@ -69,6 +69,7 @@ accepted_design:
   - insert a structured observation layer between raw tool output and durable Epiphany state so evidence, invalidation, and graph updates are promoted from typed distillation rather than transcript osmosis
   - design Epiphany as GUI-first rather than transcript-first: the primary artifact is typed thread state, chat is one client of that state, user steering should go through typed updates, and long-running retrieval/remap/verification work should surface as explicit observable jobs
   - treat compaction as a role-specific state transition with safe points, explicit checkpoints, and resume packets; workers may compact aggressively between implementation passes, while mapper, verifier, and coordinator preserve different state at different boundaries
+  - make the compact-rehydrate-continue cycle an explicit Epiphany architecture primitive: compact only from a checkpoint when possible, rehydrate from canonical map/handoff/evidence, restate the persisted next action, then continue with one bounded move
   - preserve handoff context in repo-local AGENTS and notes files
   - keep a durable repository-level algorithmic map of vendored Codex so GUI and Epiphany changes hook into the existing app-server/core boundary instead of reimplementing the turn loop
   - keep a dedicated Epiphany algorithmic map that documents the currently landed fork architecture separately from the full Codex machine map and the future-facing harness spec
