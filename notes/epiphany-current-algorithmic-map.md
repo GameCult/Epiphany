@@ -18,7 +18,7 @@ The spine exists in nine live paths:
 - per-turn persistence: normal turn setup persists one `RolloutItem::EpiphanyState` after the `TurnContext` when state exists in [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2677).
 - client read hydration: app-server thread views attach live or reconstructed `thread.epiphanyState` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4520).
 - explicit distillation proposals: app-server routes read-only `thread/epiphany/distill` through a loaded-thread handler into `epiphany-core` so one explicit observation can become a patch candidate without mutating state in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4166) and [distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28).
-- explicit map/churn proposals: app-server routes read-only `thread/epiphany/propose` through a loaded-thread handler into `epiphany-core` so verified observations with code refs and accepting recent evidence can focus or extend architecture graph nodes, carry linked dataflow nodes and incident graph edges into the frontier, update churn candidates with map-delta pressure, and still avoid mutation until promotion in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4244) and [proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:42).
+- explicit map/churn proposals: app-server routes read-only `thread/epiphany/propose` through a loaded-thread handler into `epiphany-core` so verified observations with code refs and accepting recent evidence can prioritize the strongest selected observation, focus or extend architecture graph nodes, rescue unanchored graph nodes through strict semantic overlap, carry linked dataflow nodes and incident graph edges into the frontier, update churn candidates with map-delta pressure, and still avoid mutation until promotion in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4244) and [proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:61).
 - explicit promotion gates: app-server routes `thread/epiphany/promote` through a loaded-thread handler into `epiphany-core` policy evaluation, rejects failed verifier evidence without mutation, and applies accepted candidates through the same durable update path in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4316) and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33).
 - explicit state updates: app-server routes `thread/epiphany/update` through a loaded `CodexThread` update method that mutates live `SessionState`, bumps the revision, and persists an immediate `RolloutItem::EpiphanyState` snapshot in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4337) and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:373).
 - retrieval/indexing: app-server routes `thread/epiphany/retrieve` and `thread/epiphany/index` through loaded `CodexThread` host methods into `epiphany-core` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4039), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:438), and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:456).
@@ -29,7 +29,7 @@ The thick Epiphany-owned implementation is mostly outside vendored Codex now:
 - generic rollout replay for stored-thread reads lives in [epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs:38).
 - retrieval and indexing live in [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:144) and [retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:160), with summary-only freshness reads in [retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:100).
 - deterministic observation distillation lives in [epiphany-core/src/distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28).
-- deterministic map/churn proposal from verified, evidence-backed observations lives in [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:42).
+- deterministic map/churn proposal from verified, evidence-backed observations lives in [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:61).
 - verifier-backed promotion policy lives in [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33).
 
 ## Whole Control Flow
@@ -683,7 +683,7 @@ A client sends experimental `thread/epiphany/propose` for a loaded thread with:
 
 Proposal is the tracing-paper path. It starts from observations that are already in the thread's typed state, requires those observations to have verified/accepted status, requires each selected observation to cite accepting `recent_evidence`, requires source-grounding through code refs, and returns a candidate patch that can replace graph/frontier/churn fields only if a later promotion accepts it.
 
-This is the first shipped chewing motion. It is deliberately small: no model call, no watcher invalidation, no automatic graph truth. It now first checks that selected observations are backed by current accepting evidence, then tries to match observed code refs against existing architecture nodes, falls back to same-path refs and deterministic path-node ids, enriches matching nodes with any newly observed refs, creates path-derived candidate nodes only for genuinely unmapped surfaces, expands frontier focus through graph links, marks named incident edges active, emits a proposal observation/evidence pair, and marks churn according to whether the proposal refined, expanded, or mixed the map. Diff pressure now reflects the proposed map delta, touched paths, observation count, and unresolved write risk instead of blindly inheriting the previous pressure. It is a candidate, not an oracle. We do not crown the goblin because it found a wrench.
+This is the first shipped chewing motion. It is deliberately small: no model call, no watcher invalidation, no automatic graph truth. It now first checks that selected observations are backed by current accepting evidence, scores the selected observations so the strongest verifier/test/smoke-backed signal becomes the proposal's primary summary, then tries to match observed code refs against existing architecture nodes. Concrete matching still wins: exact code refs, same-path refs, and deterministic path-node ids are tried before anything semantic. Only after those fail can strict semantic overlap reuse an existing architecture node, and only when that graph node has no code refs yet; anchored nodes stay governed by concrete refs because otherwise the map starts doing interpretive dance in a trench coat. Proposal then enriches matching nodes with newly observed refs, creates path-derived candidate nodes only for genuinely unmapped surfaces, expands frontier focus through graph links, marks named incident edges active, emits a proposal observation/evidence pair, and marks churn according to whether the proposal refined, expanded, or mixed the map. Diff pressure now reflects the proposed map delta, touched paths, observation count, and unresolved write risk instead of blindly inheriting the previous pressure. It is a candidate, not an oracle. We do not crown the goblin because it found a wrench.
 
 Protocol shape:
 
@@ -704,7 +704,7 @@ Code refs:
 
 - [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350)
 - [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3963)
-- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:34)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:61)
 
 ### Mechanism
 
@@ -724,26 +724,29 @@ The app-server handler:
 3. rejects observations whose status is not accepting: `ok`, `accepted`, `verified`, `pass`, or `passed`.
 4. rejects selected observations that do not cite existing accepting `recent_evidence`.
 5. rejects proposals without code refs.
-6. clones the current graphs and searches architecture nodes for exact code-ref overlap, same-path overlap, then the deterministic path-node id.
-7. enriches matching architecture nodes with newly observed refs, preserving their existing title/purpose/status.
-8. creates path-derived candidate architecture nodes only when no existing node matches that code path.
-9. expands focused node ids through graph links so architecture nodes pull their linked dataflow nodes into the frontier, and vice versa.
-10. marks named graph edges incident to focused nodes as active.
-11. merges focused node ids, active edge ids, and observed paths into the graph frontier.
-12. emits a proposal observation/evidence pair tied to the candidate patch, including evidence-backed selection counts and reused/created node counts.
-13. emits churn with `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map` depending on whether the candidate reused existing nodes, created new nodes, or did both.
-14. emits `diff_pressure` from the proposal shape: low for narrow refinements, medium for new single-surface expansion, and high for mixed/multi-path/multi-observation changes or existing unexplained writes.
+6. scores selected observations and evidence by source kind, evidence kind, code refs, and summary presence so proposal wording is anchored to the strongest selected signal instead of raw id order.
+7. builds semantic terms from selected observations, accepting evidence, code-ref paths, symbols, and notes.
+8. clones the current graphs and searches architecture nodes for exact code-ref overlap, same-path overlap, then the deterministic path-node id.
+9. if no concrete match exists, searches unanchored architecture nodes for a unique strong semantic match and refuses tied semantic matches.
+10. enriches matching architecture nodes with newly observed refs, preserving their existing title/purpose/status.
+11. creates path-derived candidate architecture nodes only when no existing node matches that code path or unanchored graph language.
+12. expands focused node ids through graph links so architecture nodes pull their linked dataflow nodes into the frontier, and vice versa.
+13. marks named graph edges incident to focused nodes as active.
+14. merges focused node ids, active edge ids, and observed paths into the graph frontier.
+15. emits a proposal observation/evidence pair tied to the candidate patch, including evidence-backed selection counts, priority label, primary observation id, and reused/created node counts.
+16. emits churn with `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map` depending on whether the candidate reused existing nodes, created new nodes, or did both.
+17. emits `diff_pressure` from the proposal shape: low for narrow refinements, medium for new single-surface expansion, and high for mixed/multi-path/multi-observation changes or existing unexplained writes.
 
 Code refs:
 
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4244)
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4287)
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4301)
-- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:42)
-- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:200)
-- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:354)
-- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:380)
-- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:498)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:61)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:228)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:419)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:479)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:770)
 
 ### Output
 
@@ -855,7 +858,7 @@ stored Epiphany state
 -> explicit update patches can revise durable map/evidence/churn state
 ```
 
-The current remaining missing organ is not the red pen and not the first chewing motion. Those exist. Proposal now has the first bits of map memory, focus, and selection hygiene: it requires accepting recent evidence behind selected observations, reuses existing architecture nodes by code-ref overlap before creating new path nodes, follows graph links and incident edges into the frontier, and reports churn pressure from the actual proposal shape. The missing organ is broader judgment: stronger proposal heuristics than path/link/evidence overlap, watcher/freshness inputs, and eventually role-scoped specialist ownership without silently auto-promoting anything.
+The current remaining missing organ is not the red pen and not the first chewing motion. Those exist. Proposal now has the first bits of map memory, focus, and selection hygiene: it requires accepting recent evidence behind selected observations, prioritizes stronger selected observations for proposal wording, reuses existing architecture nodes by concrete code-ref/path/id checks before creating new path nodes, can rescue unanchored graph nodes through strict unique semantic overlap, follows graph links and incident edges into the frontier, and reports churn pressure from the actual proposal shape. The missing organ is broader judgment: automatic observation selection beyond caller-supplied ids, watcher/freshness inputs, and eventually role-scoped specialist ownership without silently auto-promoting anything.
 
 ```text
 model/tool observations
@@ -866,9 +869,9 @@ model/tool observations
 -> durable evidence/map/churn mutation
 ```
 
-The typed write path exists, the first deterministic observation/evidence distillation path exists, the first deterministic map/churn proposal path exists, proposal-quality hardening now requires accepting recent evidence, reuses existing graph nodes by observed code refs, focuses linked frontier context, reports map-delta pressure, and the first verifier-backed promotion gate exists. The first map/churn safety layer also exists: promotion can reject state replacement patches that are not tied to explicit observations/evidence or that contain structurally broken subgoal, invariant, graph, frontier, checkpoint, or churn fields.
+The typed write path exists, the first deterministic observation/evidence distillation path exists, the first deterministic map/churn proposal path exists, proposal-quality hardening now requires accepting recent evidence, reuses existing graph nodes by observed code refs, prioritizes stronger selected observations, rescues unanchored graph nodes by strict semantic overlap, focuses linked frontier context, reports map-delta pressure, and the first verifier-backed promotion gate exists. The first map/churn safety layer also exists: promotion can reject state replacement patches that are not tied to explicit observations/evidence or that contain structurally broken subgoal, invariant, graph, frontier, checkpoint, or churn fields.
 
-In natural language: current Epiphany can preserve a map, show a map, retrieve evidence for the map, draft one explicit observation/evidence patch, derive a bounded graph/frontier/churn candidate from verified evidence-backed observations with code refs, reject or accept a verified candidate, apply explicit map/evidence/churn edits, and sanity-check those edits before they hit the ledger. It still does not automatically know which observations matter most beyond explicit ids and evidence links, invalidate stale graph regions, or coordinate specialist ownership. Teeth are installed; chewing is supervised; the next slices are about taste, not jawbones.
+In natural language: current Epiphany can preserve a map, show a map, retrieve evidence for the map, draft one explicit observation/evidence patch, derive a bounded graph/frontier/churn candidate from verified evidence-backed observations with code refs, favor the strongest selected observation when drafting that candidate, reject or accept a verified candidate, apply explicit map/evidence/churn edits, and sanity-check those edits before they hit the ledger. It still does not automatically choose the observation set, invalidate stale graph regions, or coordinate specialist ownership. Teeth are installed; chewing is supervised; the next slices are about taste, not jawbones.
 
 ## Verification Hooks
 

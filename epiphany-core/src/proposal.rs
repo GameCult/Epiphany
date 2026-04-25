@@ -16,12 +16,31 @@ use std::path::Path;
 use std::path::PathBuf;
 
 const SUMMARY_LIMIT: usize = 220;
+const SEMANTIC_REUSE_MIN_SCORE: usize = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SelectionQuality {
     observation_count: usize,
     evidence_count: usize,
     source_kinds: Vec<String>,
+    priority_label: String,
+    primary_observation_id: String,
+    primary_observation_summary: String,
+    semantic_terms: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ArchitectureMatchKind {
+    ExactCodeRef,
+    SamePath,
+    DeterministicId,
+    Semantic,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ArchitectureMatch {
+    index: usize,
+    kind: ArchitectureMatchKind,
 }
 
 #[derive(Debug, Clone)]
@@ -50,17 +69,25 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     let mut active_node_ids = Vec::new();
     let mut reused_nodes = 0usize;
     let mut created_nodes = 0usize;
+    let mut semantic_reused_nodes = 0usize;
 
     for path in &code_ref_paths {
         let path_code_refs = code_refs_for_path(&code_refs, &path);
         let candidate_node_id = graph_node_id(&path);
-        if let Some(node_index) =
-            find_architecture_node_for_path(&graphs, &path_code_refs, path, &candidate_node_id)
-        {
-            let node = &mut graphs.architecture.nodes[node_index];
+        if let Some(node_match) = find_architecture_node_for_path(
+            &graphs,
+            &path_code_refs,
+            path,
+            &candidate_node_id,
+            &selection_quality.semantic_terms,
+        ) {
+            let node = &mut graphs.architecture.nodes[node_match.index];
             active_node_ids.push(node.id.clone());
             merge_code_refs(&mut node.code_refs, path_code_refs);
             reused_nodes += 1;
+            if node_match.kind == ArchitectureMatchKind::Semantic {
+                semantic_reused_nodes += 1;
+            }
         } else {
             let node_id = candidate_node_id;
             active_node_ids.push(node_id.clone());
@@ -70,13 +97,14 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
                 purpose: truncate_chars(
                     &format!(
                         "Candidate implementation surface from verified observation: {}",
-                        observations[0].summary
+                        selection_quality.primary_observation_summary
                     ),
                     SUMMARY_LIMIT,
                 ),
                 mechanism: Some(format!(
-                    "Proposed from observation ids: {}",
-                    observation_ids.join(", ")
+                    "Proposed from prioritized observation {:?} and selected observation ids: {}",
+                    selection_quality.primary_observation_id,
+                    observation_ids.join(", "),
                 )),
                 metaphor: None,
                 status: Some("candidate".to_string()),
@@ -87,7 +115,7 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     }
 
     let mut frontier = input.state.graph_frontier.clone().unwrap_or_default();
-    let frontier_node_ids = linked_frontier_node_ids(&graphs, active_node_ids);
+    let frontier_node_ids = linked_frontier_node_ids(&graphs, unique_strings(active_node_ids));
     let frontier_edge_ids = incident_edge_ids(&graphs, &frontier_node_ids);
     merge_unique(&mut frontier.active_node_ids, frontier_node_ids);
     merge_unique(&mut frontier.active_edge_ids, frontier_edge_ids);
@@ -116,7 +144,7 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
         status: "candidate".to_string(),
         summary: truncate_chars(
             &format!(
-                "Proposed graph frontier and churn update from {}: {}; reused {reused_nodes} existing node(s), created {created_nodes} new node(s)",
+                "Proposed graph frontier and churn update from {}: {}; reused {reused_nodes} existing node(s), {semantic_reused_nodes} by semantic graph signal, created {created_nodes} new node(s)",
                 selection_summary,
                 observation_ids.join(", "),
             ),
@@ -138,7 +166,7 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
         diff_pressure,
         graph_freshness: Some(graph_freshness),
         warning: Some(format!(
-            "Map/churn proposal derived from {selection_summary}; reused {reused_nodes} existing node(s), created {created_nodes} new node(s); promote only after verifier acceptance."
+            "Map/churn proposal derived from {selection_summary}; reused {reused_nodes} existing node(s), {semantic_reused_nodes} by semantic graph signal, created {created_nodes} new node(s); promote only after verifier acceptance."
         )),
         unexplained_writes: input
             .state
@@ -205,6 +233,12 @@ fn evaluate_selection_quality(
     let mut seen_evidence_ids = HashSet::new();
     let mut source_kinds = Vec::new();
     let mut seen_source_kinds = HashSet::new();
+    let mut semantic_terms = Vec::new();
+    let mut seen_semantic_terms = HashSet::new();
+    let mut primary_observation_id = String::new();
+    let mut primary_observation_summary = String::new();
+    let mut primary_score = 0usize;
+    let mut strong_signal_count = 0usize;
 
     for observation in observations {
         if observation.evidence_ids.is_empty() {
@@ -215,6 +249,22 @@ fn evaluate_selection_quality(
         }
 
         let mut has_accepting_evidence = false;
+        let mut observation_score = observation_priority_score(observation);
+        push_semantic_terms(
+            &mut semantic_terms,
+            &mut seen_semantic_terms,
+            &observation.summary,
+        );
+        push_semantic_terms(
+            &mut semantic_terms,
+            &mut seen_semantic_terms,
+            &observation.source_kind,
+        );
+        push_code_ref_semantic_terms(
+            &mut semantic_terms,
+            &mut seen_semantic_terms,
+            &observation.code_refs,
+        );
         for evidence_id in &observation.evidence_ids {
             let evidence = state
                 .recent_evidence
@@ -236,9 +286,25 @@ fn evaluate_selection_quality(
                 ));
             }
             has_accepting_evidence = true;
+            observation_score += evidence_priority_score(evidence);
             if seen_evidence_ids.insert(evidence.id.clone()) {
                 evidence_ids.push(evidence.id.clone());
             }
+            push_semantic_terms(
+                &mut semantic_terms,
+                &mut seen_semantic_terms,
+                &evidence.summary,
+            );
+            push_semantic_terms(
+                &mut semantic_terms,
+                &mut seen_semantic_terms,
+                &evidence.kind,
+            );
+            push_code_ref_semantic_terms(
+                &mut semantic_terms,
+                &mut seen_semantic_terms,
+                &evidence.code_refs,
+            );
         }
 
         if !has_accepting_evidence {
@@ -252,13 +318,62 @@ fn evaluate_selection_quality(
         if !source_kind.is_empty() && seen_source_kinds.insert(source_kind.to_string()) {
             source_kinds.push(source_kind.to_string());
         }
+        if observation_score >= 8 {
+            strong_signal_count += 1;
+        }
+        if primary_observation_id.is_empty() || observation_score > primary_score {
+            primary_observation_id = observation.id.clone();
+            primary_observation_summary = observation.summary.clone();
+            primary_score = observation_score;
+        }
     }
 
     Ok(SelectionQuality {
         observation_count: observations.len(),
         evidence_count: evidence_ids.len(),
         source_kinds,
+        priority_label: selection_priority_label(strong_signal_count, observations.len()),
+        primary_observation_id,
+        primary_observation_summary,
+        semantic_terms,
     })
+}
+
+fn observation_priority_score(observation: &EpiphanyObservation) -> usize {
+    signal_kind_weight(&observation.source_kind)
+        + observation.code_refs.len().min(3)
+        + usize::from(!observation.summary.trim().is_empty())
+}
+
+fn evidence_priority_score(evidence: &EpiphanyEvidenceRecord) -> usize {
+    signal_kind_weight(&evidence.kind)
+        + evidence.code_refs.len().min(2)
+        + usize::from(!evidence.summary.trim().is_empty())
+}
+
+fn signal_kind_weight(value: &str) -> usize {
+    let lower = value.trim().to_ascii_lowercase();
+    if lower.contains("verification") || lower.contains("verifier") {
+        4
+    } else if lower.contains("test") || lower.contains("smoke") {
+        3
+    } else if lower.contains("tool") || lower.contains("review") {
+        2
+    } else if lower.contains("observation") {
+        1
+    } else {
+        0
+    }
+}
+
+fn selection_priority_label(strong_signal_count: usize, observation_count: usize) -> String {
+    if strong_signal_count == observation_count {
+        "high-priority verified selection".to_string()
+    } else if strong_signal_count > 0 {
+        "mixed-priority verified selection".to_string()
+    } else {
+        "low-priority accepted selection".to_string()
+    }
 }
 
 fn collect_code_refs(observations: &[&EpiphanyObservation]) -> Result<Vec<EpiphanyCodeRef>> {
@@ -306,18 +421,27 @@ fn find_architecture_node_for_path(
     path_code_refs: &[EpiphanyCodeRef],
     path: &Path,
     candidate_node_id: &str,
-) -> Option<usize> {
+    semantic_terms: &[String],
+) -> Option<ArchitectureMatch> {
     graphs
         .architecture
         .nodes
         .iter()
         .position(|node| has_exact_code_ref_overlap(&node.code_refs, path_code_refs))
+        .map(|index| ArchitectureMatch {
+            index,
+            kind: ArchitectureMatchKind::ExactCodeRef,
+        })
         .or_else(|| {
             graphs
                 .architecture
                 .nodes
                 .iter()
                 .position(|node| node.code_refs.iter().any(|code_ref| code_ref.path == path))
+                .map(|index| ArchitectureMatch {
+                    index,
+                    kind: ArchitectureMatchKind::SamePath,
+                })
         })
         .or_else(|| {
             graphs
@@ -325,6 +449,16 @@ fn find_architecture_node_for_path(
                 .nodes
                 .iter()
                 .position(|node| node.id == candidate_node_id)
+                .map(|index| ArchitectureMatch {
+                    index,
+                    kind: ArchitectureMatchKind::DeterministicId,
+                })
+        })
+        .or_else(|| {
+            find_semantic_architecture_node(graphs, semantic_terms).map(|index| ArchitectureMatch {
+                index,
+                kind: ArchitectureMatchKind::Semantic,
+            })
         })
 }
 
@@ -340,6 +474,67 @@ fn has_exact_code_ref_overlap(
         .iter()
         .map(code_ref_key)
         .any(|key| existing_keys.contains(&key))
+}
+
+fn find_semantic_architecture_node(
+    graphs: &EpiphanyGraphs,
+    semantic_terms: &[String],
+) -> Option<usize> {
+    if semantic_terms.is_empty() {
+        return None;
+    }
+
+    let mut best_index = None;
+    let mut best_score = 0usize;
+    let mut tied = false;
+    for (index, node) in graphs.architecture.nodes.iter().enumerate() {
+        let score = semantic_node_score(node, semantic_terms);
+        if !semantic_score_can_reuse(node, score) {
+            continue;
+        }
+        if score > best_score {
+            best_index = Some(index);
+            best_score = score;
+            tied = false;
+        } else if score == best_score {
+            tied = true;
+        }
+    }
+
+    if tied { None } else { best_index }
+}
+
+fn semantic_score_can_reuse(node: &EpiphanyGraphNode, score: usize) -> bool {
+    if score < SEMANTIC_REUSE_MIN_SCORE {
+        return false;
+    }
+    // Once a graph node is anchored to code, keep reuse on concrete ref/path/id checks.
+    // Semantic matching is only a rescue path for useful map prose that has no refs yet.
+    node.code_refs.is_empty()
+}
+
+fn semantic_node_score(node: &EpiphanyGraphNode, semantic_terms: &[String]) -> usize {
+    let mut node_terms = Vec::new();
+    let mut seen = HashSet::new();
+    push_semantic_terms(&mut node_terms, &mut seen, &node.id);
+    push_semantic_terms(&mut node_terms, &mut seen, &node.title);
+    push_semantic_terms(&mut node_terms, &mut seen, &node.purpose);
+    if let Some(mechanism) = node.mechanism.as_deref() {
+        push_semantic_terms(&mut node_terms, &mut seen, mechanism);
+    }
+    if let Some(metaphor) = node.metaphor.as_deref() {
+        push_semantic_terms(&mut node_terms, &mut seen, metaphor);
+    }
+    if let Some(status) = node.status.as_deref() {
+        push_semantic_terms(&mut node_terms, &mut seen, status);
+    }
+    push_code_ref_semantic_terms(&mut node_terms, &mut seen, &node.code_refs);
+
+    let node_terms = node_terms.into_iter().collect::<HashSet<_>>();
+    semantic_terms
+        .iter()
+        .filter(|term| node_terms.contains(term.as_str()))
+        .count()
 }
 
 fn merge_code_refs(target: &mut Vec<EpiphanyCodeRef>, additions: Vec<EpiphanyCodeRef>) {
@@ -414,6 +609,17 @@ where
     }
 }
 
+fn unique_strings(values: Vec<String>) -> Vec<String> {
+    let mut unique = Vec::new();
+    let mut seen = HashSet::new();
+    for value in values {
+        if seen.insert(value.clone()) {
+            unique.push(value);
+        }
+    }
+    unique
+}
+
 fn graph_node_id(path: &Path) -> String {
     let mut hasher = Sha1::new();
     hasher.update(path.to_string_lossy().as_bytes());
@@ -460,6 +666,72 @@ fn code_ref_key(code_ref: &EpiphanyCodeRef) -> String {
         code_ref.start_line.unwrap_or_default(),
         code_ref.end_line.unwrap_or_default(),
         code_ref.symbol.as_deref().unwrap_or_default()
+    )
+}
+
+fn push_code_ref_semantic_terms(
+    target: &mut Vec<String>,
+    seen: &mut HashSet<String>,
+    code_refs: &[EpiphanyCodeRef],
+) {
+    for code_ref in code_refs {
+        push_path_semantic_terms(target, seen, &code_ref.path);
+        if let Some(symbol) = code_ref.symbol.as_deref() {
+            push_semantic_terms(target, seen, symbol);
+        }
+        if let Some(note) = code_ref.note.as_deref() {
+            push_semantic_terms(target, seen, note);
+        }
+    }
+}
+
+fn push_path_semantic_terms(target: &mut Vec<String>, seen: &mut HashSet<String>, path: &Path) {
+    if let Some(file_stem) = path.file_stem().and_then(|value| value.to_str()) {
+        push_semantic_terms(target, seen, file_stem);
+    }
+    if let Some(parent) = path.parent().and_then(|value| value.to_str()) {
+        push_semantic_terms(target, seen, parent);
+    }
+}
+
+fn push_semantic_terms(target: &mut Vec<String>, seen: &mut HashSet<String>, value: &str) {
+    for term in semantic_terms(value) {
+        if seen.insert(term.clone()) {
+            target.push(term);
+        }
+    }
+}
+
+fn semantic_terms(value: &str) -> Vec<String> {
+    value
+        .split(|character: char| !character.is_ascii_alphanumeric())
+        .map(str::trim)
+        .filter(|term| term.len() >= 3)
+        .map(str::to_ascii_lowercase)
+        .filter(|term| !is_semantic_stopword(term))
+        .collect()
+}
+
+fn is_semantic_stopword(value: &str) -> bool {
+    matches!(
+        value,
+        "and"
+            | "are"
+            | "but"
+            | "can"
+            | "for"
+            | "from"
+            | "has"
+            | "into"
+            | "not"
+            | "now"
+            | "one"
+            | "out"
+            | "the"
+            | "this"
+            | "that"
+            | "through"
+            | "with"
     )
 }
 
@@ -550,10 +822,12 @@ fn selection_quality_summary(selection_quality: &SelectionQuality, path_count: u
         selection_quality.source_kinds.join("/")
     };
     format!(
-        "{} evidence-backed observation(s), {} accepting evidence record(s), {} code path(s), source kind(s): {}",
+        "{} evidence-backed observation(s), {} accepting evidence record(s), {} code path(s), {}, primary observation: {}, source kind(s): {}",
         selection_quality.observation_count,
         selection_quality.evidence_count,
         path_count,
+        selection_quality.priority_label,
+        selection_quality.primary_observation_id,
         source_kinds
     )
 }
@@ -700,6 +974,115 @@ mod tests {
         assert_eq!(proposal.graphs.architecture.nodes[0].id, node_id);
         assert_eq!(proposal.graphs.architecture.nodes[0].code_refs.len(), 1);
         assert_eq!(proposal.churn.understanding_status, "proposal_refines_map");
+    }
+
+    #[test]
+    fn propose_map_update_reuses_strong_semantic_graph_match_without_refs() {
+        let mut state = state_with_observation("verified");
+        state.graphs.architecture.nodes.push(EpiphanyGraphNode {
+            id: "prompt-renderer".to_string(),
+            title: "Prompt renderer".to_string(),
+            purpose: "Inject Epiphany state into developer context".to_string(),
+            mechanism: Some("Renders typed state as a bounded prompt fragment".to_string()),
+            ..Default::default()
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
+        assert_eq!(proposal.graphs.architecture.nodes[0].id, "prompt-renderer");
+        assert_eq!(proposal.graphs.architecture.nodes[0].code_refs.len(), 1);
+        assert_eq!(
+            proposal.graph_frontier.active_node_ids,
+            vec!["prompt-renderer".to_string()]
+        );
+        assert!(
+            proposal
+                .churn
+                .warning
+                .as_deref()
+                .unwrap_or_default()
+                .contains("1 by semantic graph signal")
+        );
+    }
+
+    #[test]
+    fn propose_map_update_refuses_ambiguous_semantic_graph_match() {
+        let mut state = state_with_observation("verified");
+        for node_id in ["prompt-renderer-a", "prompt-renderer-b"] {
+            state.graphs.architecture.nodes.push(EpiphanyGraphNode {
+                id: node_id.to_string(),
+                title: "Prompt renderer".to_string(),
+                purpose: "Inject Epiphany state into developer context".to_string(),
+                mechanism: Some("Renders typed state as a bounded prompt fragment".to_string()),
+                ..Default::default()
+            });
+        }
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(proposal.graphs.architecture.nodes.len(), 3);
+        assert!(
+            proposal
+                .graph_frontier
+                .active_node_ids
+                .iter()
+                .any(|node_id| node_id.starts_with("arch-path-"))
+        );
+        assert_eq!(proposal.churn.understanding_status, "proposal_expands_map");
+    }
+
+    #[test]
+    fn propose_map_update_prioritizes_stronger_selected_observation() {
+        let mut state = state_with_observation("ok");
+        state.observations[0].id = "obs-weak".to_string();
+        state.observations[0].source_kind = "observation".to_string();
+        state.observations[0].summary = "Prompt renderer might be involved".to_string();
+        state.observations[0].evidence_ids = vec!["ev-weak".to_string()];
+        state.recent_evidence[0].id = "ev-weak".to_string();
+        state.recent_evidence[0].kind = "observation".to_string();
+        state.recent_evidence[0].summary = "Manual note mentioned prompt renderer".to_string();
+        state.observations.push(EpiphanyObservation {
+            id: "obs-strong".to_string(),
+            summary: "Live smoke verified prompt renderer Epiphany state injection".to_string(),
+            source_kind: "smoke".to_string(),
+            status: "ok".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            evidence_ids: vec!["ev-strong".to_string()],
+        });
+        state.recent_evidence.push(EpiphanyEvidenceRecord {
+            id: "ev-strong".to_string(),
+            kind: "verification".to_string(),
+            status: "ok".to_string(),
+            summary: "Verifier accepted prompt renderer state injection".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-weak".to_string(), "obs-strong".to_string()],
+        })
+        .expect("proposal");
+
+        assert!(
+            proposal.graphs.architecture.nodes[0]
+                .purpose
+                .contains("Live smoke verified")
+        );
+        assert!(
+            proposal
+                .observation
+                .summary
+                .contains("primary observation: obs-strong")
+        );
     }
 
     #[test]

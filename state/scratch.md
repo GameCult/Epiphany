@@ -4,7 +4,7 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Continue Phase 5 proposal-quality hardening beyond graph-node reuse, linked frontier focus, evidence-backed selection, and map-delta churn pressure, without hidden writes.
+- Continue Phase 5 proposal-quality hardening beyond graph-node reuse, linked frontier focus, evidence-backed selection, selected-observation prioritization, strict unanchored-node semantic reuse, and map-delta churn pressure, without hidden writes.
 
 ## Working Notes
 
@@ -16,6 +16,8 @@ This file is intentionally disposable.
   - proposal now tries exact code-ref overlap, same-path overlap, and deterministic path-node id fallback against existing architecture graph nodes before creating new candidate path nodes
   - matching nodes are focused and enriched with newly observed refs without overwriting their existing title, purpose, or status
   - proposal expands frontier focus through existing graph links, marks named incident architecture/dataflow edges active, emits proposal observation/evidence with evidence-backed selection counts plus reused/created node counts, and marks churn as `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map`
+  - proposal now scores selected observations/evidence so candidate wording uses the strongest selected verifier/test/smoke-backed signal instead of raw id order
+  - proposal can reuse an unanchored architecture graph node through strict unique semantic overlap, but refuses tied semantic matches and leaves code-anchored nodes under concrete exact/path/deterministic-id matching
   - churn `diff_pressure` now comes from the candidate map delta, touched path count, selected observation count, and existing unexplained write risk, with existing pressure kept as a floor
   - app-server exposes experimental loaded-thread-only `thread/epiphany/propose`
   - live stdio smoke proved propose is read-only, and propose -> promote persists graph/churn only after verifier evidence
@@ -160,6 +162,6 @@ This file is intentionally disposable.
 ## Open Questions
 
 - How much more can move into `epiphany-core` without sacrificing the typed Codex host seam that makes the integration first-class?
-- How should verified evidence-backed observations be prioritized automatically without turning proposal into automatic graph fanfic?
+- How should Epiphany choose the observation set automatically without turning proposal into automatic graph fanfic?
 
 Do not promote anything from here into the map unless it survives verification or repeated reuse without contradiction.

@@ -87,7 +87,7 @@ Current verified typed state/promotion layer:
 - experimental loaded-thread-only `thread/epiphany/propose`
 - typed patch shape for observations, evidence, objective, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
 - deterministic observation/evidence proposal generation in `epiphany-core`
-- deterministic map/churn proposal generation in `epiphany-core`, now with first-pass graph-node reuse by exact code-ref, same-path overlap, or deterministic path-node id before new candidate nodes are created, linked frontier focus through graph links and named incident edges, evidence-backed selected observations via accepting `recent_evidence`, and churn pressure derived from the proposed map delta
+- deterministic map/churn proposal generation in `epiphany-core`, now with first-pass graph-node reuse by exact code-ref, same-path overlap, or deterministic path-node id before new candidate nodes are created, strict semantic reuse for unanchored architecture nodes, linked frontier focus through graph links and named incident edges, evidence-backed selected observations via accepting `recent_evidence`, selected-observation prioritization, and churn pressure derived from the proposed map delta
 - verifier-backed promotion policy evaluation in `epiphany-core`
 - core `CodexThread.epiphany_update_state(...)` applies the patch to live `SessionState`, bumps revision, persists `RolloutItem::EpiphanyState`, and flushes rollout
 - replay helpers in both `codex-core` and `epiphany-core` accept an out-of-band Epiphany snapshot before the first real user turn so seed/update snapshots survive resume
@@ -356,7 +356,7 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - dedicated experimental `thread/epiphany/update`, `thread/epiphany/distill`, and `thread/epiphany/promote` exist and are live-smoked
   - structural map/churn promotion validation is landed in `epiphany-core`
   - proposal selection now rejects observations without accepting `recent_evidence`, and churn pressure now reflects map-delta shape
-  - the next bounded follow-up is richer graph-semantic proposal machinery beyond explicit ids/evidence/path/link matching, not proving the retriever exists again
+  - the next bounded follow-up is richer observation-set selection and map-delta judgment beyond caller-supplied ids/evidence/path/link/semantic-unanchored matching, not proving the retriever exists again
 - There is still no live `thread/epiphany/*` notification stream.
 - The next phase is **not** GUI work.
 - The current pushed baseline also extracted most Epiphany-owned implementation into `epiphany-core`:
@@ -451,9 +451,9 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, and map-delta churn pressure are also landed.
+Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, selected-observation prioritization, strict unanchored-node semantic reuse, and map-delta churn pressure are also landed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, and reports churn pressure from the proposal shape. The next clean move is stronger proposal heuristics from richer evidence/graph semantics, not pretending the already-shipped slices still need ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, prioritizes stronger selected observations for proposal wording, can reuse unanchored architecture nodes through strict semantic overlap, and reports churn pressure from the proposal shape. The next clean move is automatic observation-set selection and richer map-delta judgment, not pretending the already-shipped slices still need ceremony.
 
 Current Phase 5 implementation move:
 
@@ -462,7 +462,7 @@ Current Phase 5 implementation move:
 3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
 4. continue Phase 5 by hardening the next layer above the distill/propose/promote/update surfaces:
    - richer map/churn patch generation from verified observations and tool/model outputs
-   - better existing-graph matching beyond exact refs/same path/deterministic ids/graph links/evidence links, plus richer observation prioritization than explicit id selection
+   - better observation-set selection beyond caller-supplied ids/evidence links, plus richer map-delta judgment than the current exact refs/same path/deterministic ids/graph links/strict unanchored semantic matching
    - promotion policy beyond structural validation only when the evidence path stays explicit
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet
