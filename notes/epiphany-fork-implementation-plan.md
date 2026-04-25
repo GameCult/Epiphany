@@ -2,7 +2,7 @@
 
 ## Status
 
-Updated on 2026-04-24 after landing the Phase 4 retrieval/indexing/core-extraction baseline and moving into Phase 5 semantic distillation/promotion on `main`.
+Updated on 2026-04-25 after landing automatic bounded observation selection inside the Phase 5 read-only proposal path on `main`.
 
 This note tracks Epiphany as a fork of Codex with an opinionated modeling architecture. The point is not to offer Codex another collaboration preset. The point is to make the harness force the model to carry explicit structure about the codebase, the active subgoal, the evidence trail, and the machine it is modifying.
 
