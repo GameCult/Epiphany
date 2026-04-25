@@ -50,6 +50,7 @@ use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use rmcp::model::ReadResourceRequestParams;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use tokio::sync::Mutex;
 use tokio::sync::watch;
@@ -401,6 +402,14 @@ impl CodexThread {
             )));
         }
 
+        let validation_errors = epiphany_state_update_validation_errors(&next_state, &update);
+        if !validation_errors.is_empty() {
+            return Err(CodexErr::InvalidRequest(format!(
+                "invalid epiphany update patch: {}",
+                validation_errors.join("; ")
+            )));
+        }
+
         apply_epiphany_state_update(&mut next_state, update, reference_turn_id.clone());
         self.codex
             .session
@@ -540,6 +549,99 @@ impl CodexThread {
     }
 }
 
+fn epiphany_state_update_validation_errors(
+    state: &EpiphanyThreadState,
+    update: &EpiphanyStateUpdate,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut known_evidence_ids: HashSet<&str> = state
+        .recent_evidence
+        .iter()
+        .filter_map(|evidence| nonempty_id(&evidence.id))
+        .collect();
+    let existing_evidence_ids = known_evidence_ids.clone();
+    let existing_observation_ids: HashSet<&str> = state
+        .observations
+        .iter()
+        .filter_map(|observation| nonempty_id(&observation.id))
+        .collect();
+
+    let mut patch_evidence_ids = HashSet::new();
+    for evidence in &update.evidence {
+        require_nonempty_update(&evidence.id, "patch.evidence.id", &mut errors);
+        require_nonempty_update(&evidence.kind, "patch.evidence.kind", &mut errors);
+        require_nonempty_update(&evidence.status, "patch.evidence.status", &mut errors);
+        require_nonempty_update(&evidence.summary, "patch.evidence.summary", &mut errors);
+        if !evidence.id.is_empty() && !patch_evidence_ids.insert(evidence.id.as_str()) {
+            errors.push(format!("duplicate evidence id {:?}", evidence.id));
+        }
+        if existing_evidence_ids.contains(evidence.id.as_str()) {
+            errors.push(format!(
+                "evidence id {:?} already exists in Epiphany state",
+                evidence.id
+            ));
+        }
+        if let Some(id) = nonempty_id(&evidence.id) {
+            known_evidence_ids.insert(id);
+        }
+    }
+
+    let mut patch_observation_ids = HashSet::new();
+    for observation in &update.observations {
+        require_nonempty_update(&observation.id, "patch.observations.id", &mut errors);
+        require_nonempty_update(
+            &observation.summary,
+            "patch.observations.summary",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &observation.source_kind,
+            "patch.observations.source_kind",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &observation.status,
+            "patch.observations.status",
+            &mut errors,
+        );
+        if !observation.id.is_empty() && !patch_observation_ids.insert(observation.id.as_str()) {
+            errors.push(format!("duplicate observation id {:?}", observation.id));
+        }
+        if existing_observation_ids.contains(observation.id.as_str()) {
+            errors.push(format!(
+                "observation id {:?} already exists in Epiphany state",
+                observation.id
+            ));
+        }
+        if observation.evidence_ids.is_empty() {
+            errors.push(format!(
+                "observation {:?} must cite at least one evidence id",
+                observation.id
+            ));
+        }
+        for evidence_id in &observation.evidence_ids {
+            if !known_evidence_ids.contains(evidence_id.as_str()) {
+                errors.push(format!(
+                    "observation {:?} cites missing evidence id {:?}",
+                    observation.id, evidence_id
+                ));
+            }
+        }
+    }
+
+    errors
+}
+
+fn nonempty_id(id: &str) -> Option<&str> {
+    if id.is_empty() { None } else { Some(id) }
+}
+
+fn require_nonempty_update(value: &str, label: &str, errors: &mut Vec<String>) {
+    if value.trim().is_empty() {
+        errors.push(format!("{label} must not be empty"));
+    }
+}
+
 fn apply_epiphany_state_update(
     state: &mut EpiphanyThreadState,
     update: EpiphanyStateUpdate,
@@ -594,6 +696,27 @@ fn prepend_recent<T>(items: &mut Vec<T>, mut new_items: Vec<T>) {
 mod epiphany_update_tests {
     use super::*;
 
+    fn evidence(id: &str) -> EpiphanyEvidenceRecord {
+        EpiphanyEvidenceRecord {
+            id: id.to_string(),
+            kind: "verification".to_string(),
+            status: "ok".to_string(),
+            summary: "Evidence summary".to_string(),
+            code_refs: Vec::new(),
+        }
+    }
+
+    fn observation(id: &str, evidence_ids: Vec<&str>) -> EpiphanyObservation {
+        EpiphanyObservation {
+            id: id.to_string(),
+            summary: "Observation summary".to_string(),
+            source_kind: "smoke".to_string(),
+            status: "ok".to_string(),
+            code_refs: Vec::new(),
+            evidence_ids: evidence_ids.into_iter().map(str::to_string).collect(),
+        }
+    }
+
     #[test]
     fn apply_epiphany_state_update_replaces_typed_fields_and_prepends_evidence() {
         let mut state = EpiphanyThreadState {
@@ -640,6 +763,100 @@ mod epiphany_update_tests {
                 .as_ref()
                 .map(|churn| churn.diff_pressure.as_str()),
             Some("low")
+        );
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_accepts_observation_linked_to_existing_evidence() {
+        let state = EpiphanyThreadState {
+            recent_evidence: vec![evidence("ev-existing")],
+            ..Default::default()
+        };
+        let update = EpiphanyStateUpdate {
+            observations: vec![observation("obs-new", vec!["ev-existing"])],
+            ..Default::default()
+        };
+
+        assert!(epiphany_state_update_validation_errors(&state, &update).is_empty());
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_rejects_observation_with_missing_evidence() {
+        let update = EpiphanyStateUpdate {
+            observations: vec![observation("obs-new", vec!["ev-missing"])],
+            ..Default::default()
+        };
+
+        let errors =
+            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &update);
+
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("cites missing evidence id"))
+        );
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_rejects_empty_and_duplicate_append_ids() {
+        let state = EpiphanyThreadState {
+            observations: vec![observation("obs-existing", vec!["ev-existing"])],
+            recent_evidence: vec![evidence("ev-existing")],
+            ..Default::default()
+        };
+        let update = EpiphanyStateUpdate {
+            observations: vec![
+                observation("obs-existing", vec!["ev-new"]),
+                observation("obs-dup", vec!["ev-new"]),
+                observation("obs-dup", vec!["ev-new"]),
+                EpiphanyObservation {
+                    id: String::new(),
+                    ..observation("unused", vec!["ev-new"])
+                },
+            ],
+            evidence: vec![
+                evidence("ev-existing"),
+                evidence("ev-new"),
+                evidence("ev-new"),
+                EpiphanyEvidenceRecord {
+                    id: String::new(),
+                    ..evidence("unused")
+                },
+            ],
+            ..Default::default()
+        };
+
+        let errors = epiphany_state_update_validation_errors(&state, &update);
+
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("evidence id \"ev-existing\" already exists"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("duplicate evidence id \"ev-new\""))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("observation id \"obs-existing\" already exists"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("duplicate observation id \"obs-dup\""))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("patch.evidence.id must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("patch.observations.id must not be empty"))
         );
     }
 }

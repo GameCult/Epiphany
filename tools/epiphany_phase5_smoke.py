@@ -108,6 +108,24 @@ class AppServerClient:
             return None
         return self._wait_for(request_id)
 
+    def send_expect_error(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        msg: dict[str, Any] = {"method": method}
+        request_id = self.next_id
+        self.next_id += 1
+        msg["id"] = request_id
+        if params is not None:
+            msg["params"] = params
+
+        self._record("sent", msg)
+        assert self.proc is not None and self.proc.stdin is not None
+        self.proc.stdin.write(json.dumps(msg, separators=(",", ":")) + "\n")
+        self.proc.stdin.flush()
+        return self._wait_for_error(request_id)
+
     def _wait_for(self, request_id: int, timeout: float = 45.0) -> dict[str, Any]:
         assert self.proc is not None
         deadline = time.time() + timeout
@@ -129,6 +147,26 @@ class AppServerClient:
                 raise RuntimeError(f"request {request_id} returned non-object result: {result!r}")
             return result
         raise TimeoutError(f"timed out waiting for response {request_id}")
+
+    def _wait_for_error(self, request_id: int, timeout: float = 45.0) -> dict[str, Any]:
+        assert self.proc is not None
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                raise RuntimeError(
+                    f"app-server exited with {self.proc.returncode} before response {request_id}"
+                )
+            try:
+                msg = self.messages.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            if msg.get("id") != request_id:
+                continue
+            error = msg.get("error")
+            if not isinstance(error, dict):
+                raise RuntimeError(f"request {request_id} unexpectedly succeeded: {msg!r}")
+            return error
+        raise TimeoutError(f"timed out waiting for error response {request_id}")
 
     def wait_for_notification(
         self,
@@ -388,6 +426,54 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "verifier-only promote notification should include appended verifier evidence",
         )
 
+        invalid_direct_update_notification_start = len(client.notifications)
+        invalid_direct_update_error = client.send_expect_error(
+            "thread/epiphany/update",
+            {
+                "threadId": thread_id,
+                "expectedRevision": 2,
+                "patch": {
+                    "observations": [
+                        {
+                            "id": "obs-phase5-invalid-direct-update",
+                            "summary": "Invalid direct update should not bypass evidence integrity",
+                            "source_kind": "smoke",
+                            "status": "ok",
+                            "evidence_ids": ["ev-phase5-missing-direct-update"],
+                        }
+                    ]
+                },
+            },
+        )
+        invalid_direct_update_message = str(invalid_direct_update_error.get("message", ""))
+        require(
+            "invalid epiphany update patch" in invalid_direct_update_message,
+            "invalid direct update should return update validation error",
+        )
+        require(
+            "cites missing evidence id" in invalid_direct_update_message,
+            "invalid direct update should name the missing evidence id",
+        )
+        client.require_no_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=invalid_direct_update_notification_start,
+        )
+        invalid_direct_update_notification_count = client.count_notifications(
+            "thread/epiphany/stateUpdated",
+            start_index=invalid_direct_update_notification_start,
+        )
+        read_after_invalid_direct_update = client.send(
+            "thread/read", {"threadId": thread_id, "includeTurns": False}
+        )
+        assert read_after_invalid_direct_update is not None
+        require(
+            read_after_invalid_direct_update["thread"]
+            .get("epiphanyState", {})
+            .get("revision")
+            == 2,
+            "invalid direct update should not mutate state",
+        )
+
         propose = client.send("thread/epiphany/propose", {"threadId": thread_id})
         assert propose is not None
         proposal_patch = propose["patch"]
@@ -624,6 +710,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "verifierOnlyPromoteChangedFields": verifier_only_notification["params"][
                 "changedFields"
             ],
+            "invalidDirectUpdateMessage": invalid_direct_update_message,
+            "invalidDirectUpdateNotificationCount": invalid_direct_update_notification_count,
+            "invalidDirectUpdateRevisionAfterReject": read_after_invalid_direct_update["thread"]
+            .get("epiphanyState", {})
+            .get("revision"),
             "proposalExpectedRevision": propose["expectedRevision"],
             "proposalObservationId": proposal_patch["observations"][0]["id"],
             "proposalChurn": proposal_patch["churn"],
