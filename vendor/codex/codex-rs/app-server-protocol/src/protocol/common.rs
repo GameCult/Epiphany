@@ -1889,6 +1889,11 @@ mod tests {
             v2::ThreadEpiphanyStateUpdatedNotification {
                 thread_id: "thr_123".to_string(),
                 source: v2::ThreadEpiphanyStateUpdatedSource::Update,
+                revision: 7,
+                changed_fields: vec![
+                    v2::ThreadEpiphanyStateUpdatedField::Objective,
+                    v2::ThreadEpiphanyStateUpdatedField::Evidence,
+                ],
                 epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
                     revision: 7,
                     objective: Some("Keep the map live".to_string()),
@@ -1902,6 +1907,8 @@ mod tests {
                 "params": {
                     "threadId": "thr_123",
                     "source": "update",
+                    "revision": 7,
+                    "changedFields": ["objective", "evidence"],
                     "epiphanyState": {
                         "revision": 7,
                         "objective": "Keep the map live"
@@ -2515,6 +2522,8 @@ mod tests {
             v2::ThreadEpiphanyStateUpdatedNotification {
                 thread_id: "thr_123".to_string(),
                 source: v2::ThreadEpiphanyStateUpdatedSource::Promote,
+                revision: 0,
+                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::Churn],
                 epiphany_state: codex_protocol::protocol::EpiphanyThreadState::default(),
             },
         );

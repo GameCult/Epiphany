@@ -321,6 +321,7 @@ export type { ThreadEpiphanyRetrieveIndexSummary } from "./ThreadEpiphanyRetriev
 export type { ThreadEpiphanyRetrieveResult } from "./ThreadEpiphanyRetrieveResult";
 export type { ThreadEpiphanyRetrieveResultKind } from "./ThreadEpiphanyRetrieveResultKind";
 export type { ThreadEpiphanyRetrieveShardSummary } from "./ThreadEpiphanyRetrieveShardSummary";
+export type { ThreadEpiphanyStateUpdatedField } from "./ThreadEpiphanyStateUpdatedField";
 export type { ThreadEpiphanyStateUpdatedNotification } from "./ThreadEpiphanyStateUpdatedNotification";
 export type { ThreadEpiphanyStateUpdatedSource } from "./ThreadEpiphanyStateUpdatedSource";
 export type { ThreadEpiphanyUpdatePatch } from "./ThreadEpiphanyUpdatePatch";

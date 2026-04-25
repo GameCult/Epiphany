@@ -296,6 +296,14 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             update_notification["params"]["epiphanyState"]["revision"] == 1,
             "update notification should publish revision 1",
         )
+        require(
+            update_notification["params"]["revision"] == 1,
+            "update notification should expose revision at the event level",
+        )
+        require(
+            update_notification["params"]["changedFields"] == ["observations", "evidence"],
+            "update notification should identify appended observation/evidence fields",
+        )
 
         propose = client.send("thread/epiphany/propose", {"threadId": thread_id})
         assert propose is not None
@@ -478,6 +486,15 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "promote notification should publish revision 2",
         )
         require(
+            promote_notification["params"]["revision"] == 2,
+            "promote notification should expose revision at the event level",
+        )
+        require(
+            promote_notification["params"]["changedFields"]
+            == ["graphs", "graphFrontier", "observations", "evidence", "churn"],
+            "promote notification should identify promoted graph/evidence/churn fields",
+        )
+        require(
             final_state["churn"]["diff_pressure"] == "medium",
             "accepted state should preserve risky churn pressure",
         )
@@ -498,9 +515,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "distillEvidenceKind": evidence["kind"],
             "distillSummary": evidence["summary"],
             "updateNotificationSource": update_notification["params"]["source"],
-            "updateNotificationRevision": update_notification["params"]["epiphanyState"][
-                "revision"
-            ],
+            "updateNotificationRevision": update_notification["params"]["revision"],
+            "updateNotificationChangedFields": update_notification["params"]["changedFields"],
             "proposalExpectedRevision": propose["expectedRevision"],
             "proposalObservationId": proposal_patch["observations"][0]["id"],
             "proposalChurn": proposal_patch["churn"],
@@ -516,8 +532,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "accepted": accepted["accepted"],
             "finalRevision": final_state["revision"],
             "promoteNotificationSource": promote_notification["params"]["source"],
-            "promoteNotificationRevision": promote_notification["params"]["epiphanyState"][
-                "revision"
+            "promoteNotificationRevision": promote_notification["params"]["revision"],
+            "promoteNotificationChangedFields": promote_notification["params"][
+                "changedFields"
             ],
             "finalChurn": final_state["churn"],
             "graphNodeCount": len(

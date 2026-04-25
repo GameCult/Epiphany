@@ -160,6 +160,7 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdateParams;
@@ -4375,6 +4376,7 @@ impl CodexMessageProcessor {
             return;
         }
 
+        let changed_fields = epiphany_update_patch_changed_fields(&patch);
         let mut evidence = patch.evidence;
         evidence.push(verifier_evidence);
         let update = EpiphanyStateUpdate {
@@ -4419,6 +4421,8 @@ impl CodexMessageProcessor {
                 ThreadEpiphanyStateUpdatedNotification {
                     thread_id: thread_uuid.to_string(),
                     source: ThreadEpiphanyStateUpdatedSource::Promote,
+                    revision: epiphany_state.revision,
+                    changed_fields,
                     epiphany_state,
                 },
             ))
@@ -4457,6 +4461,7 @@ impl CodexMessageProcessor {
             }
         };
 
+        let changed_fields = epiphany_update_patch_changed_fields(&patch);
         let update = EpiphanyStateUpdate {
             expected_revision,
             objective: patch.objective,
@@ -4497,6 +4502,8 @@ impl CodexMessageProcessor {
                 ThreadEpiphanyStateUpdatedNotification {
                     thread_id: thread_uuid.to_string(),
                     source: ThreadEpiphanyStateUpdatedSource::Update,
+                    revision: epiphany_state.revision,
+                    changed_fields,
                     epiphany_state,
                 },
             ))
@@ -10499,6 +10506,49 @@ fn map_epiphany_retrieve_result(
     }
 }
 
+fn epiphany_update_patch_changed_fields(
+    patch: &ThreadEpiphanyUpdatePatch,
+) -> Vec<ThreadEpiphanyStateUpdatedField> {
+    let mut fields = Vec::new();
+    if patch.objective.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Objective);
+    }
+    if patch.active_subgoal_id.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::ActiveSubgoalId);
+    }
+    if patch.subgoals.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Subgoals);
+    }
+    if patch.invariants.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Invariants);
+    }
+    if patch.graphs.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Graphs);
+    }
+    if patch.graph_frontier.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::GraphFrontier);
+    }
+    if patch.graph_checkpoint.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::GraphCheckpoint);
+    }
+    if patch.scratch.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Scratch);
+    }
+    if !patch.observations.is_empty() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Observations);
+    }
+    if !patch.evidence.is_empty() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Evidence);
+    }
+    if patch.churn.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Churn);
+    }
+    if patch.mode.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Mode);
+    }
+    fields
+}
+
 pub(crate) fn summary_to_thread(
     summary: ConversationSummary,
     fallback_cwd: &AbsolutePathBuf,
@@ -11752,6 +11802,31 @@ mod tests {
         assert_eq!(summary.indexed_file_count, Some(12));
         assert!(summary.dirty_paths.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn epiphany_update_patch_changed_fields_reports_patch_surface() {
+        let fields = epiphany_update_patch_changed_fields(&ThreadEpiphanyUpdatePatch {
+            objective: Some("Keep the event readable".to_string()),
+            graphs: Some(Default::default()),
+            graph_frontier: Some(Default::default()),
+            observations: vec![Default::default()],
+            evidence: vec![Default::default()],
+            churn: Some(Default::default()),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            fields,
+            vec![
+                ThreadEpiphanyStateUpdatedField::Objective,
+                ThreadEpiphanyStateUpdatedField::Graphs,
+                ThreadEpiphanyStateUpdatedField::GraphFrontier,
+                ThreadEpiphanyStateUpdatedField::Observations,
+                ThreadEpiphanyStateUpdatedField::Evidence,
+                ThreadEpiphanyStateUpdatedField::Churn,
+            ]
+        );
     }
 
     #[tokio::test]

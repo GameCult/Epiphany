@@ -12853,11 +12853,39 @@
       ],
       "type": "object"
     },
+    "ThreadEpiphanyStateUpdatedField": {
+      "enum": [
+        "objective",
+        "activeSubgoalId",
+        "subgoals",
+        "invariants",
+        "graphs",
+        "graphFrontier",
+        "graphCheckpoint",
+        "scratch",
+        "observations",
+        "evidence",
+        "churn",
+        "mode"
+      ],
+      "type": "string"
+    },
     "ThreadEpiphanyStateUpdatedNotification": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {
+        "changedFields": {
+          "items": {
+            "$ref": "#/definitions/ThreadEpiphanyStateUpdatedField"
+          },
+          "type": "array"
+        },
         "epiphanyState": {
           "$ref": "#/definitions/EpiphanyThreadState"
+        },
+        "revision": {
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
         },
         "source": {
           "$ref": "#/definitions/ThreadEpiphanyStateUpdatedSource"
@@ -12867,7 +12895,9 @@
         }
       },
       "required": [
+        "changedFields",
         "epiphanyState",
+        "revision",
         "source",
         "threadId"
       ],
