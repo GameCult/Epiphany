@@ -31,6 +31,8 @@ Recent anchor commits:
 - `80c29e0` - extracted Epiphany core organs into `epiphany-core`, landed explicit Qdrant indexing, and added licensing guardrails
 - `bb557d1` - hardened verifier-backed promotion for map/churn replacement patches
 - `fbd4dc2` - added repo-local app-server test stack configuration after tracing Windows stack pressure
+- `cabad31` - added experimental `thread/epiphany/stateUpdated` notifications after successful update/promote writes
+- `4c770e9` - labeled Epiphany state update notifications with typed `source` values
 
 Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
