@@ -1,5 +1,7 @@
 use crate::agent::AgentStatus;
 use crate::config::ConstraintResult;
+use crate::epiphany_promotion::EpiphanyStateReplacementValidationInput;
+use crate::epiphany_promotion::validate_state_replacement_patch;
 use crate::epiphany_retrieval;
 use crate::epiphany_retrieval::EpiphanyRetrieveQuery;
 use crate::epiphany_retrieval::EpiphanyRetrieveResponse;
@@ -629,7 +631,39 @@ fn epiphany_state_update_validation_errors(
         }
     }
 
+    errors.extend(epiphany_state_replacement_validation_errors(state, update));
     errors
+}
+
+fn epiphany_state_replacement_validation_errors(
+    state: &EpiphanyThreadState,
+    update: &EpiphanyStateUpdate,
+) -> Vec<String> {
+    let validates_subgoal_target = update.subgoals.is_some() || update.active_subgoal_id.is_some();
+    let validates_graph_target = update.graphs.is_some()
+        || update.graph_frontier.is_some()
+        || update.graph_checkpoint.is_some();
+
+    validate_state_replacement_patch(EpiphanyStateReplacementValidationInput {
+        active_subgoal_id: update.active_subgoal_id.as_deref(),
+        subgoals: if validates_subgoal_target {
+            update
+                .subgoals
+                .as_deref()
+                .or(Some(state.subgoals.as_slice()))
+        } else {
+            None
+        },
+        invariants: update.invariants.as_deref(),
+        graphs: if validates_graph_target {
+            update.graphs.as_ref().or(Some(&state.graphs))
+        } else {
+            None
+        },
+        graph_frontier: update.graph_frontier.as_ref(),
+        graph_checkpoint: update.graph_checkpoint.as_ref(),
+        churn: update.churn.as_ref(),
+    })
 }
 
 fn nonempty_id(id: &str) -> Option<&str> {
@@ -695,6 +729,8 @@ fn prepend_recent<T>(items: &mut Vec<T>, mut new_items: Vec<T>) {
 #[cfg(test)]
 mod epiphany_update_tests {
     use super::*;
+    use codex_protocol::protocol::EpiphanyGraph;
+    use codex_protocol::protocol::EpiphanyGraphNode;
 
     fn evidence(id: &str) -> EpiphanyEvidenceRecord {
         EpiphanyEvidenceRecord {
@@ -857,6 +893,40 @@ mod epiphany_update_tests {
             errors
                 .iter()
                 .any(|error| error.contains("patch.observations.id must not be empty"))
+        );
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_rejects_structurally_invalid_replacements() {
+        let state = EpiphanyThreadState {
+            graphs: EpiphanyGraphs {
+                architecture: EpiphanyGraph {
+                    nodes: vec![EpiphanyGraphNode {
+                        id: "state".to_string(),
+                        title: "State".to_string(),
+                        purpose: "Carry the explicit map".to_string(),
+                        ..Default::default()
+                    }],
+                    edges: Vec::new(),
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let update = EpiphanyStateUpdate {
+            graph_frontier: Some(EpiphanyGraphFrontier {
+                active_node_ids: vec!["missing".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let errors = epiphany_state_update_validation_errors(&state, &update);
+
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("graph frontier references missing node"))
         );
     }
 }

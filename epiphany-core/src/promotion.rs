@@ -30,6 +30,25 @@ pub struct EpiphanyPromotionDecision {
     pub reasons: Vec<String>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct EpiphanyStateReplacementValidationInput<'a> {
+    pub active_subgoal_id: Option<&'a str>,
+    pub subgoals: Option<&'a [EpiphanySubgoal]>,
+    pub invariants: Option<&'a [EpiphanyInvariant]>,
+    pub graphs: Option<&'a EpiphanyGraphs>,
+    pub graph_frontier: Option<&'a EpiphanyGraphFrontier>,
+    pub graph_checkpoint: Option<&'a EpiphanyGraphCheckpoint>,
+    pub churn: Option<&'a EpiphanyChurnState>,
+}
+
+pub fn validate_state_replacement_patch(
+    input: EpiphanyStateReplacementValidationInput<'_>,
+) -> Vec<String> {
+    let mut reasons = Vec::new();
+    validate_state_replacements(input, &mut reasons);
+    reasons
+}
+
 pub fn evaluate_promotion(input: EpiphanyPromotionInput) -> EpiphanyPromotionDecision {
     let mut reasons = Vec::new();
 
@@ -74,7 +93,18 @@ pub fn evaluate_promotion(input: EpiphanyPromotionInput) -> EpiphanyPromotionDec
             reasons.push(format!("duplicate observation id {:?}", observation.id));
         }
     }
-    validate_state_replacements(&input, &mut reasons);
+    validate_state_replacements(
+        EpiphanyStateReplacementValidationInput {
+            active_subgoal_id: input.active_subgoal_id.as_deref(),
+            subgoals: input.subgoals.as_deref(),
+            invariants: input.invariants.as_deref(),
+            graphs: input.graphs.as_ref(),
+            graph_frontier: input.graph_frontier.as_ref(),
+            graph_checkpoint: input.graph_checkpoint.as_ref(),
+            churn: input.churn.as_ref(),
+        },
+        &mut reasons,
+    );
     validate_delta_promotion_policy(&input, &mut reasons);
 
     EpiphanyPromotionDecision {
@@ -123,33 +153,36 @@ fn validate_observation(
     }
 }
 
-fn validate_state_replacements(input: &EpiphanyPromotionInput, reasons: &mut Vec<String>) {
-    if let Some(subgoals) = &input.subgoals {
-        validate_subgoals(subgoals, input.active_subgoal_id.as_deref(), reasons);
+fn validate_state_replacements(
+    input: EpiphanyStateReplacementValidationInput<'_>,
+    reasons: &mut Vec<String>,
+) {
+    if let Some(subgoals) = input.subgoals {
+        validate_subgoals(subgoals, input.active_subgoal_id, reasons);
     }
-    if let Some(active_subgoal_id) = input.active_subgoal_id.as_deref() {
+    if let Some(active_subgoal_id) = input.active_subgoal_id {
         require_nonempty(active_subgoal_id, "patch.active_subgoal_id", reasons);
     }
-    if let Some(invariants) = &input.invariants {
+    if let Some(invariants) = input.invariants {
         validate_invariants(invariants, reasons);
     }
-    if let Some(graphs) = &input.graphs {
+    if let Some(graphs) = input.graphs {
         validate_graphs(graphs, reasons);
-        if let Some(frontier) = &input.graph_frontier {
+        if let Some(frontier) = input.graph_frontier {
             validate_frontier_against_graphs(frontier, graphs, reasons);
         }
-        if let Some(checkpoint) = &input.graph_checkpoint {
+        if let Some(checkpoint) = input.graph_checkpoint {
             validate_checkpoint_against_graphs(checkpoint, graphs, reasons);
         }
     } else {
-        if let Some(frontier) = &input.graph_frontier {
+        if let Some(frontier) = input.graph_frontier {
             validate_frontier_shape(frontier, reasons);
         }
-        if let Some(checkpoint) = &input.graph_checkpoint {
+        if let Some(checkpoint) = input.graph_checkpoint {
             validate_checkpoint_shape(checkpoint, reasons);
         }
     }
-    if let Some(churn) = &input.churn {
+    if let Some(churn) = input.churn {
         validate_churn(churn, reasons);
     }
 }
@@ -666,6 +699,42 @@ mod tests {
                 .reasons
                 .iter()
                 .any(|reason| reason.contains("missing target node"))
+        );
+    }
+
+    #[test]
+    fn validate_state_replacement_patch_rejects_structural_map_errors() {
+        let graphs = EpiphanyGraphs {
+            architecture: EpiphanyGraph {
+                nodes: vec![EpiphanyGraphNode {
+                    id: "state".to_string(),
+                    title: "State".to_string(),
+                    purpose: "Carry the explicit map".to_string(),
+                    ..Default::default()
+                }],
+                edges: Vec::new(),
+            },
+            ..Default::default()
+        };
+        let frontier = EpiphanyGraphFrontier {
+            active_node_ids: vec!["missing".to_string()],
+            ..Default::default()
+        };
+
+        let reasons = validate_state_replacement_patch(EpiphanyStateReplacementValidationInput {
+            active_subgoal_id: None,
+            subgoals: None,
+            invariants: None,
+            graphs: Some(&graphs),
+            graph_frontier: Some(&frontier),
+            graph_checkpoint: None,
+            churn: None,
+        });
+
+        assert!(
+            reasons
+                .iter()
+                .any(|reason| reason.contains("graph frontier references missing node"))
         );
     }
 

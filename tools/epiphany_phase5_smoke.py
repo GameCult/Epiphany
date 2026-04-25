@@ -474,6 +474,50 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "invalid direct update should not mutate state",
         )
 
+        invalid_replacement_update_notification_start = len(client.notifications)
+        invalid_replacement_update_error = client.send_expect_error(
+            "thread/epiphany/update",
+            {
+                "threadId": thread_id,
+                "expectedRevision": 2,
+                "patch": {
+                    "graphFrontier": {
+                        "active_node_ids": ["missing-direct-update-node"],
+                    }
+                },
+            },
+        )
+        invalid_replacement_update_message = str(
+            invalid_replacement_update_error.get("message", "")
+        )
+        require(
+            "invalid epiphany update patch" in invalid_replacement_update_message,
+            "invalid replacement update should return update validation error",
+        )
+        require(
+            "graph frontier references missing node" in invalid_replacement_update_message,
+            "invalid replacement update should name the missing graph frontier node",
+        )
+        client.require_no_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=invalid_replacement_update_notification_start,
+        )
+        invalid_replacement_update_notification_count = client.count_notifications(
+            "thread/epiphany/stateUpdated",
+            start_index=invalid_replacement_update_notification_start,
+        )
+        read_after_invalid_replacement_update = client.send(
+            "thread/read", {"threadId": thread_id, "includeTurns": False}
+        )
+        assert read_after_invalid_replacement_update is not None
+        require(
+            read_after_invalid_replacement_update["thread"]
+            .get("epiphanyState", {})
+            .get("revision")
+            == 2,
+            "invalid replacement update should not mutate state",
+        )
+
         propose = client.send("thread/epiphany/propose", {"threadId": thread_id})
         assert propose is not None
         proposal_patch = propose["patch"]
@@ -713,6 +757,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "invalidDirectUpdateMessage": invalid_direct_update_message,
             "invalidDirectUpdateNotificationCount": invalid_direct_update_notification_count,
             "invalidDirectUpdateRevisionAfterReject": read_after_invalid_direct_update["thread"]
+            .get("epiphanyState", {})
+            .get("revision"),
+            "invalidReplacementUpdateMessage": invalid_replacement_update_message,
+            "invalidReplacementUpdateNotificationCount": invalid_replacement_update_notification_count,
+            "invalidReplacementUpdateRevisionAfterReject": read_after_invalid_replacement_update[
+                "thread"
+            ]
             .get("epiphanyState", {})
             .get("revision"),
             "proposalExpectedRevision": propose["expectedRevision"],
