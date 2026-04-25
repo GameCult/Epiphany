@@ -80,3 +80,4 @@ Do not wait for the blackout and then act surprised.
 - Keep maps and prose together; do not replace useful maps with prose-only explanations.
 - Before adding natural-language explanations or metaphors to an algorithmic map, first read the relevant source paths and anchor the explanation to concrete code references. Metaphor is compression after source grounding, not a substitute for it.
 - Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, append `state/evidence.jsonl`, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.
+- Do not write handoff notes that trap the next session in indefinite tiny hardening work. Bounded slices are a landing discipline, not a roadmap; when a phase is complete enough, name the next larger organ to build.
