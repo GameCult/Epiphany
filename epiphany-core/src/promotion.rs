@@ -75,6 +75,7 @@ pub fn evaluate_promotion(input: EpiphanyPromotionInput) -> EpiphanyPromotionDec
         }
     }
     validate_state_replacements(&input, &mut reasons);
+    validate_delta_promotion_policy(&input, &mut reasons);
 
     EpiphanyPromotionDecision {
         accepted: reasons.is_empty(),
@@ -150,6 +151,34 @@ fn validate_state_replacements(input: &EpiphanyPromotionInput, reasons: &mut Vec
     }
     if let Some(churn) = &input.churn {
         validate_churn(churn, reasons);
+    }
+}
+
+fn validate_delta_promotion_policy(input: &EpiphanyPromotionInput, reasons: &mut Vec<String>) {
+    let Some(churn) = input.churn.as_ref() else {
+        return;
+    };
+    if !is_risky_delta(churn) {
+        return;
+    }
+
+    if churn
+        .warning
+        .as_deref()
+        .map(str::trim)
+        .unwrap_or_default()
+        .is_empty()
+    {
+        reasons.push(
+            "medium/high churn promotions must include patch.churn.warning explaining the delta"
+                .to_string(),
+        );
+    }
+    if !is_strong_verifier_kind(&input.verifier_evidence.kind) {
+        reasons.push(format!(
+            "medium/high churn promotions require verifierEvidence.kind to be verification/test/smoke/review, got {:?}",
+            input.verifier_evidence.kind
+        ));
     }
 }
 
@@ -435,6 +464,39 @@ fn is_accepting_status(status: &str) -> bool {
     )
 }
 
+fn is_risky_delta(churn: &EpiphanyChurnState) -> bool {
+    pressure_rank(&churn.diff_pressure) >= 2
+        || churn
+            .graph_freshness
+            .as_deref()
+            .map(|freshness| {
+                let freshness = freshness.trim().to_ascii_lowercase();
+                freshness.contains("broadened")
+                    || freshness.contains("semantic")
+                    || freshness.contains("updated")
+            })
+            .unwrap_or(false)
+}
+
+fn pressure_rank(value: &str) -> u8 {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "critical" => 4,
+        "high" => 3,
+        "medium" => 2,
+        "low" => 1,
+        _ => 0,
+    }
+}
+
+fn is_strong_verifier_kind(kind: &str) -> bool {
+    let kind = kind.trim().to_ascii_lowercase();
+    kind.contains("verification")
+        || kind.contains("verifier")
+        || kind.contains("test")
+        || kind.contains("smoke")
+        || kind.contains("review")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -627,6 +689,68 @@ mod tests {
                 understanding_status: "grounded".to_string(),
                 diff_pressure: "low".to_string(),
                 graph_freshness: Some("fresh".to_string()),
+                ..Default::default()
+            }),
+            ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
+        });
+
+        assert!(decision.accepted, "{:?}", decision.reasons);
+    }
+
+    #[test]
+    fn evaluate_promotion_rejects_risky_churn_without_warning() {
+        let decision = evaluate_promotion(EpiphanyPromotionInput {
+            churn: Some(EpiphanyChurnState {
+                understanding_status: "proposal_updates_map".to_string(),
+                diff_pressure: "high".to_string(),
+                graph_freshness: Some("proposal-updated".to_string()),
+                ..Default::default()
+            }),
+            ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
+        });
+
+        assert!(!decision.accepted);
+        assert!(
+            decision
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("patch.churn.warning"))
+        );
+    }
+
+    #[test]
+    fn evaluate_promotion_rejects_risky_churn_with_weak_verifier_kind() {
+        let mut input = promotion_input(true, vec![observation()], vec![evidence()], "ok");
+        input.churn = Some(EpiphanyChurnState {
+            understanding_status: "proposal_refines_map".to_string(),
+            diff_pressure: "medium".to_string(),
+            graph_freshness: Some("proposal-broadened".to_string()),
+            warning: Some("Same-path broadening needs explicit verifier review.".to_string()),
+            ..Default::default()
+        });
+        input.verifier_evidence.kind = "observation".to_string();
+
+        let decision = evaluate_promotion(input);
+
+        assert!(!decision.accepted);
+        assert!(
+            decision
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("verifierEvidence.kind"))
+        );
+    }
+
+    #[test]
+    fn evaluate_promotion_accepts_risky_churn_with_strong_verifier_and_warning() {
+        let decision = evaluate_promotion(EpiphanyPromotionInput {
+            churn: Some(EpiphanyChurnState {
+                understanding_status: "proposal_refines_map".to_string(),
+                diff_pressure: "medium".to_string(),
+                graph_freshness: Some("proposal-semantically-anchored".to_string()),
+                warning: Some(
+                    "Semantic anchoring was verified against source context.".to_string(),
+                ),
                 ..Default::default()
             }),
             ..promotion_input(true, vec![observation()], vec![evidence()], "ok")

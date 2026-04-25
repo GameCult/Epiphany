@@ -89,7 +89,7 @@ Current verified typed state/promotion layer:
 - deterministic observation/evidence proposal generation in `epiphany-core`
 - observation distillation now keeps noisy tool/command/shell/model output bounded by selecting salient output lines and defaulting evidence kind to `tool-output` or `model-output` when the caller did not provide one
 - deterministic map/churn proposal generation in `epiphany-core`, now with first-pass graph-node reuse by exact code-ref, same-path overlap, or deterministic path-node id before new candidate nodes are created, strict semantic reuse for unanchored architecture nodes, linked frontier focus through graph links and named incident edges, evidence-backed selected observations via accepting `recent_evidence`, selected-observation prioritization, automatic bounded observation selection when ids are omitted, and match-kind-aware churn pressure derived from exact-ref refinement, same-path broadening, deterministic-node reuse, semantic anchoring, or new candidate surfaces
-- verifier-backed promotion policy evaluation in `epiphany-core`
+- verifier-backed promotion policy evaluation in `epiphany-core`, now rejecting risky churn deltas unless they carry explicit warning rationale and strong verifier evidence kind
 - core `CodexThread.epiphany_update_state(...)` applies the patch to live `SessionState`, bumps revision, persists `RolloutItem::EpiphanyState`, and flushes rollout
 - replay helpers in both `codex-core` and `epiphany-core` accept an out-of-band Epiphany snapshot before the first real user turn so seed/update snapshots survive resume
 - retrieval remains read-only and indexing remains the only persistent semantic write path
@@ -360,8 +360,9 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - proposal can now omit `observationIds` and let `epiphany-core` choose a bounded coherent path cluster from existing verified, evidence-backed observations using source/evidence quality plus graph-frontier focus
   - proposal churn now distinguishes exact-ref refinements from same-path broadening, deterministic-node reuse, semantic unanchored-node reuse, and new candidate surfaces before setting graph freshness and diff pressure
   - distillation now summarizes noisy tool/command/shell/model output into salient typed evidence rather than preserving raw output sludge as the summary
+  - promotion now rejects medium/high/broadening/semantic/update churn deltas that lack a warning or only carry weak generic verifier evidence
   - the Epiphany algorithmic map has been semantically audited flow-by-flow against the cited code; stale line anchors were fixed, and the current typed spine still describes a coherent machine
-  - the next bounded follow-up is promotion policy over richer deltas, not proving the retriever exists again
+  - the next bounded follow-up is live-smoke coverage for the richer Phase 5 app-server chain, not proving the retriever exists again
 - There is still no live `thread/epiphany/*` notification stream.
 - The next phase is **not** GUI work.
 - The current pushed baseline also extracted most Epiphany-owned implementation into `epiphany-core`:
@@ -456,9 +457,9 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation selection, match-kind-aware map-delta churn pressure, and source-output-aware distillation are also landed.
+Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation selection, match-kind-aware map-delta churn pressure, source-output-aware distillation, and risky-delta promotion policy are also landed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer, distillation summarizes noisy source output into typed evidence, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, prioritizes stronger selected observations for proposal wording, can reuse unanchored architecture nodes through strict semantic overlap, can auto-select a bounded evidence-backed observation cluster when ids are omitted, and reports match-kind-aware churn pressure from the proposal shape. The next clean move is promotion policy over richer deltas, not pretending the already-shipped slices still need ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer and risky-delta policy, distillation summarizes noisy source output into typed evidence, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, prioritizes stronger selected observations for proposal wording, can reuse unanchored architecture nodes through strict semantic overlap, can auto-select a bounded evidence-backed observation cluster when ids are omitted, and reports match-kind-aware churn pressure from the proposal shape. The next clean move is live-smoke coverage for the richer Phase 5 chain, not pretending the already-shipped slices still need ceremony.
 
 Current Phase 5 implementation move:
 
@@ -466,8 +467,7 @@ Current Phase 5 implementation move:
 2. keep the current env/default Qdrant/Ollama config surface for now
 3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
 4. continue Phase 5 by hardening the next layer above the distill/propose/promote/update surfaces:
-   - promotion policy that can reason over match-kind-aware deltas without becoming a second writer
-   - promotion policy beyond structural validation only when the evidence path stays explicit
+   - live-smoke source-output distillation, proposal, risky-delta rejection, and accepted promotion through app-server
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet
 
@@ -507,4 +507,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Read-only distillation now summarizes noisy tool/model output into typed evidence, read-only proposal can auto-select a bounded evidence-backed observation cluster and report match-kind-aware map-delta pressure, and the current Epiphany algorithmic map has been source-audited against the code flow it describes. The next clean move is promotion policy over richer deltas, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
+Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Read-only distillation now summarizes noisy tool/model output into typed evidence, read-only proposal can auto-select a bounded evidence-backed observation cluster and report match-kind-aware map-delta pressure, promotion rejects risky deltas without warning plus strong verifier evidence, and the current Epiphany algorithmic map has been source-audited against the code flow it describes. The next clean move is live-smoke coverage for the richer Phase 5 chain, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
