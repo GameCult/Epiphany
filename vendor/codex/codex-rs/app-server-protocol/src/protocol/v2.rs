@@ -3960,6 +3960,23 @@ pub struct ThreadEpiphanyDistillResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyProposeParams {
+    pub thread_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observation_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyProposeResponse {
+    pub expected_revision: u64,
+    pub patch: ThreadEpiphanyUpdatePatch,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
 pub struct ThreadEpiphanyPromoteParams {
     pub thread_id: String,
     #[serde(default)]

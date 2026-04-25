@@ -18,7 +18,8 @@ The spine exists in nine live paths:
 - per-turn persistence: normal turn setup persists one `RolloutItem::EpiphanyState` after the `TurnContext` when state exists in [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2677).
 - client read hydration: app-server thread views attach live or reconstructed `thread.epiphanyState` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4520).
 - explicit distillation proposals: app-server routes read-only `thread/epiphany/distill` through a loaded-thread handler into `epiphany-core` so one explicit observation can become a patch candidate without mutating state in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4166) and [distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28).
-- explicit promotion gates: app-server routes `thread/epiphany/promote` through a loaded-thread handler into `epiphany-core` policy evaluation, rejects failed verifier evidence without mutation, and applies accepted candidates through the same durable update path in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4237) and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33).
+- explicit map/churn proposals: app-server routes read-only `thread/epiphany/propose` through a loaded-thread handler into `epiphany-core` so verified observations with code refs can become candidate graph frontier/churn patches without mutating state in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4244) and [proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:34).
+- explicit promotion gates: app-server routes `thread/epiphany/promote` through a loaded-thread handler into `epiphany-core` policy evaluation, rejects failed verifier evidence without mutation, and applies accepted candidates through the same durable update path in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4316) and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33).
 - explicit state updates: app-server routes `thread/epiphany/update` through a loaded `CodexThread` update method that mutates live `SessionState`, bumps the revision, and persists an immediate `RolloutItem::EpiphanyState` snapshot in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4337) and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:373).
 - retrieval/indexing: app-server routes `thread/epiphany/retrieve` and `thread/epiphany/index` through loaded `CodexThread` host methods into `epiphany-core` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4039), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:438), and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:456).
 
@@ -28,6 +29,7 @@ The thick Epiphany-owned implementation is mostly outside vendored Codex now:
 - generic rollout replay for stored-thread reads lives in [epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs:38).
 - retrieval and indexing live in [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:144) and [retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:160), with summary-only freshness reads in [retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:100).
 - deterministic observation distillation lives in [epiphany-core/src/distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28).
+- deterministic map/churn proposal from verified observations lives in [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:34).
 - verifier-backed promotion policy lives in [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33).
 
 ## Whole Control Flow
@@ -57,11 +59,15 @@ flowchart TD
     A --> R["thread/epiphany/retrieve requires loaded thread"]
     A --> S["thread/epiphany/index requires loaded thread"]
     A --> AA["thread/epiphany/distill requires loaded thread"]
+    A --> AH["thread/epiphany/propose requires loaded thread"]
     A --> AD["thread/epiphany/promote requires loaded thread"]
     A --> Z["thread/epiphany/update requires loaded thread"]
     AA --> AB["epiphany-core distill_observation"]
     AB --> AC["Observation/evidence patch proposal"]
     AC --> AD
+    AH --> AI["epiphany-core propose_map_update"]
+    AI --> AJ["Map/churn patch proposal"]
+    AJ --> AD
     AD --> AE["epiphany-core evaluate_promotion"]
     AE --> AF{"Accepted?"}
     AF -->|"No"| AG["Return reasons, no state mutation"]
@@ -89,6 +95,7 @@ What this means in plain English:
 - A loaded thread can now accept explicit typed state patches and persist them immediately.
 - Retrieval and indexing are typed side paths hanging off loaded threads.
 - Retrieval remains read-only; state mutation has its own control-plane door.
+- Map/churn proposal is also read-only; accepted graph/churn edits still go through promotion and update.
 
 ## Natural Language Spine
 
@@ -106,6 +113,7 @@ This is the same flow in the language Epiphany is supposed to make the model car
 | Retrieval | A loaded thread can ask a structured question of the repo through one typed retrieval surface. | A librarian brings back marked pages instead of making the agent rummage through every shelf. |
 | Indexing | Persistent semantic memory is built only through an explicit indexing path. | The librarian updates the card catalog only when asked, not while pretending to answer a question. |
 | Distillation | One explicit observation can be normalized into a typed observation/evidence patch, but not promoted automatically. | The clerk drafts a ledger entry in pencil before anyone is allowed to ink it. |
+| Proposal | Verified observations with code refs can produce a candidate graph frontier/churn patch without writing it. | The clerk sketches a blueprint revision on tracing paper before anyone touches the master copy. |
 | Promotion | A verifier-backed gate can reject a proposal without mutation or send it through the durable update path. | The foreman stamps the pencil draft before the clerk reaches for the red pen. |
 | State updates | A loaded thread can accept explicit typed patches that append observations/evidence and replace bounded map/scratch/churn fields. | The clerk finally has the red pen, but still writes only on the ledger page the form allows. |
 
@@ -662,7 +670,81 @@ The response is a promotion-ready patch. It is not durable until a caller submit
 
 Distillation is read-only. It does not mutate `SessionState`, does not persist rollout items, does not run retrieval, and does not infer graph/churn changes. It sharpens one proposed observation into a typed shape; promotion remains a separate red-pen act.
 
-## Flow 11: Promotion Gate Control Flow
+## Flow 11: Map/Churn Proposal Control Flow
+
+### Input
+
+A client sends experimental `thread/epiphany/propose` for a loaded thread with:
+
+- `threadId`
+- `observationIds`
+
+### Plain-language role
+
+Proposal is the tracing-paper path. It starts from observations that are already in the thread's typed state, requires those observations to have verified/accepted status, requires source-grounding through code refs, and returns a candidate patch that can replace graph/frontier/churn fields only if a later promotion accepts it.
+
+This is the first shipped chewing motion. It is deliberately small: no model call, no watcher invalidation, no automatic graph truth. It creates or focuses architecture nodes for the observed code paths, moves those nodes into the frontier, emits a proposal observation/evidence pair, and marks churn as `proposal_ready`. It is a candidate, not an oracle. We do not crown the goblin because it found a wrench.
+
+Protocol shape:
+
+- `threadId`
+- `observationIds`
+
+Response shape:
+
+- `expectedRevision`
+- `patch`
+  - `observations`
+  - `evidence`
+  - `graphs`
+  - `graphFrontier`
+  - `churn`
+
+Code refs:
+
+- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3963)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:34)
+
+### Mechanism
+
+The app-server handler:
+
+1. parses the thread id.
+2. requires the thread to be loaded.
+3. requires existing Epiphany state.
+4. reads the current state revision as `expectedRevision`.
+5. calls `propose_map_update`.
+6. returns a `ThreadEpiphanyUpdatePatch` containing proposal observation/evidence, replacement graphs/frontier, and churn.
+
+`propose_map_update`:
+
+1. normalizes and deduplicates requested observation ids.
+2. rejects unknown observations.
+3. rejects observations whose status is not accepting: `ok`, `accepted`, `verified`, `pass`, or `passed`.
+4. rejects proposals without code refs.
+5. clones the current graphs and appends missing architecture nodes for observed code-ref paths.
+6. merges those node ids and paths into the graph frontier.
+7. emits a proposal observation/evidence pair tied to the candidate patch.
+8. emits a churn replacement with `understanding_status: proposal_ready`.
+
+Code refs:
+
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4244)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4287)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4301)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:34)
+- [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:346)
+
+### Output
+
+The response is a promotion-ready map/churn patch. The live smoke proved `thread/epiphany/propose` does not mutate state by itself; `thread/read` stayed at revision `1` with no persisted churn after proposal, then `thread/epiphany/promote` advanced revision to `2` and persisted the graph/churn patch only after verifier evidence accepted it.
+
+### Invariant
+
+Proposal is read-only. It does not mutate `SessionState`, does not persist rollout items, does not run retrieval, does not ask a model to infer a graph, and does not bypass promotion. It prepares a better bite; promotion still decides whether to swallow.
+
+## Flow 12: Promotion Gate Control Flow
 
 ### Input
 
@@ -695,7 +777,7 @@ Response shape:
 Code refs:
 
 - [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:349)
-- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3963)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3980)
 - [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33)
 
 ### Mechanism
@@ -723,10 +805,10 @@ The app-server handler:
 
 Code refs:
 
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4237)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4271)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4287)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4314)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4316)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4349)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4363)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4393)
 - [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33)
 - [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:125)
 
@@ -743,7 +825,7 @@ Promotion is a gate, not independent persistence. It does not write rollout item
 These are deliberately not shipped yet:
 
 - no live Epiphany event stream.
-- no automatic evidence promotion from tool output; the current distill/promote path still requires explicit verifier-backed calls.
+- no automatic evidence promotion from tool output; the current distill/propose/promote path still requires explicit verifier-backed calls.
 - no watcher-driven graph or semantic invalidation.
 - no code-intelligence graph.
 - no specialist-agent scheduler.
@@ -759,11 +841,12 @@ stored Epiphany state
 -> visible to clients
 -> retrieval/indexing can inform future work
 -> explicit distillation can draft observation/evidence patches
+-> explicit proposal can draft map/churn patches from verified observations
 -> explicit promotion can reject or accept verified candidates
 -> explicit update patches can revise durable map/evidence/churn state
 ```
 
-The current remaining missing organ is not the red pen. The red pen exists. The missing organ is the part that can propose a good map/churn edit from verified observations without silently auto-promoting it:
+The current remaining missing organ is not the red pen and not the first chewing motion. Those exist. The missing organ is broader judgment: richer proposal heuristics, better observation selection, watcher/freshness inputs, and eventually role-scoped specialist ownership without silently auto-promoting anything.
 
 ```text
 model/tool observations
@@ -774,9 +857,9 @@ model/tool observations
 -> durable evidence/map/churn mutation
 ```
 
-The typed write path exists, the first deterministic observation/evidence distillation path exists, and the first verifier-backed promotion gate exists. The first map/churn safety layer also exists: promotion can reject state replacement patches that are not tied to explicit observations/evidence or that contain structurally broken subgoal, invariant, graph, frontier, checkpoint, or churn fields.
+The typed write path exists, the first deterministic observation/evidence distillation path exists, the first deterministic map/churn proposal path exists, and the first verifier-backed promotion gate exists. The first map/churn safety layer also exists: promotion can reject state replacement patches that are not tied to explicit observations/evidence or that contain structurally broken subgoal, invariant, graph, frontier, checkpoint, or churn fields.
 
-In natural language: current Epiphany can preserve a map, show a map, retrieve evidence for the map, draft one explicit observation/evidence patch, reject or accept a verified candidate, apply explicit map/evidence/churn edits, and sanity-check those edits before they hit the ledger. It still does not derive graph edits by itself. Teeth are installed; chewing is still supervised, and the next slice is teaching it to prepare a better bite without swallowing automatically.
+In natural language: current Epiphany can preserve a map, show a map, retrieve evidence for the map, draft one explicit observation/evidence patch, derive a bounded graph/frontier/churn candidate from verified observations with code refs, reject or accept a verified candidate, apply explicit map/evidence/churn edits, and sanity-check those edits before they hit the ledger. It still does not automatically know which observations matter most, invalidate stale graph regions, or coordinate specialist ownership. Teeth are installed; chewing is supervised; the next slices are about taste, not jawbones.
 
 ## Verification Hooks
 
@@ -786,11 +869,12 @@ Current tests cover the landed flows at useful seams:
 - rollback and compaction replay behavior in `codex-core` and `epiphany-core`.
 - explicit out-of-band Epiphany snapshot replay before the first user turn.
 - deterministic observation/evidence distillation in `epiphany-core`.
+- deterministic map/churn proposal in `epiphany-core`.
 - verifier-backed promotion policy in `epiphany-core`.
 - map/churn promotion validation for evidence-backed state replacements in `epiphany-core`.
 - typed state-update patch application in `codex-core`.
 - retrieval ranking, fallback, stale manifest detection, and mocked Qdrant/Ollama indexing in `epiphany-core`.
-- app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/promote`, and `thread/epiphany/update`.
+- app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/promote`, and `thread/epiphany/update`.
 - app-server mapping of core retrieval/index summaries into protocol responses.
 
 Useful commands:

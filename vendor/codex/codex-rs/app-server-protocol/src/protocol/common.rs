@@ -346,6 +346,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyDistillParams,
         response: v2::ThreadEpiphanyDistillResponse,
     },
+    #[experimental("thread/epiphany/propose")]
+    ThreadEpiphanyPropose => "thread/epiphany/propose" {
+        params: v2::ThreadEpiphanyProposeParams,
+        response: v2::ThreadEpiphanyProposeResponse,
+    },
     #[experimental("thread/epiphany/promote")]
     ThreadEpiphanyPromote => "thread/epiphany/promote" {
         params: v2::ThreadEpiphanyPromoteParams,
@@ -1778,6 +1783,46 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_propose_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyPropose {
+            request_id: RequestId::Integer(12),
+            response: v2::ThreadEpiphanyProposeResponse {
+                expected_revision: 7,
+                patch: v2::ThreadEpiphanyUpdatePatch {
+                    churn: Some(codex_protocol::protocol::EpiphanyChurnState {
+                        understanding_status: "proposal_ready".to_string(),
+                        diff_pressure: "low".to_string(),
+                        graph_freshness: Some("proposal".to_string()),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(12));
+        assert_eq!(response.method(), "thread/epiphany/propose");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/propose",
+                "id": 12,
+                "response": {
+                    "expectedRevision": 7,
+                    "patch": {
+                        "churn": {
+                            "understanding_status": "proposal_ready",
+                            "diff_pressure": "low",
+                            "graph_freshness": "proposal"
+                        }
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_thread_epiphany_promote_response() -> Result<()> {
         let response = ClientResponse::ThreadEpiphanyPromote {
             request_id: RequestId::Integer(11),
@@ -2376,6 +2421,19 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/distill"));
+    }
+
+    #[test]
+    fn thread_epiphany_propose_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyPropose {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyProposeParams {
+                thread_id: "thr_123".to_string(),
+                observation_ids: vec!["obs-123".to_string()],
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/propose"));
     }
 
     #[test]

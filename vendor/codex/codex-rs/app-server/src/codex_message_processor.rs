@@ -152,6 +152,8 @@ use codex_app_server_protocol::ThreadEpiphanyIndexParams;
 use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
 use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
+use codex_app_server_protocol::ThreadEpiphanyProposeParams;
+use codex_app_server_protocol::ThreadEpiphanyProposeResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveParams;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
@@ -238,6 +240,7 @@ use codex_core::CodexThreadTurnContextOverrides;
 use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
 use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
 use codex_core::EpiphanyDistillInput;
+use codex_core::EpiphanyMapProposalInput;
 use codex_core::EpiphanyPromotionInput;
 use codex_core::EpiphanyRetrieveQuery;
 use codex_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
@@ -984,6 +987,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyDistill { request_id, params } => {
                 self.thread_epiphany_distill(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyPropose { request_id, params } => {
+                self.thread_epiphany_propose(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyPromote { request_id, params } => {
@@ -4227,6 +4234,78 @@ impl CodexMessageProcessor {
             patch: ThreadEpiphanyUpdatePatch {
                 observations: vec![proposal.observation],
                 evidence: vec![proposal.evidence],
+                ..Default::default()
+            },
+        };
+
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_propose(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyProposeParams,
+    ) {
+        let ThreadEpiphanyProposeParams {
+            thread_id,
+            observation_ids,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let state = match thread.epiphany_state().await {
+            Some(state) => state,
+            None => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread has no Epiphany state: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let expected_revision = state.revision;
+        let proposal = match codex_core::propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids,
+        }) {
+            Ok(proposal) => proposal,
+            Err(err) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("failed to propose Epiphany map update: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let response = ThreadEpiphanyProposeResponse {
+            expected_revision,
+            patch: ThreadEpiphanyUpdatePatch {
+                observations: vec![proposal.observation],
+                evidence: vec![proposal.evidence],
+                graphs: Some(proposal.graphs),
+                graph_frontier: Some(proposal.graph_frontier),
+                churn: Some(proposal.churn),
                 ..Default::default()
             },
         };

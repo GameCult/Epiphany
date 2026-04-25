@@ -15,9 +15,10 @@ This note tracks Epiphany as a fork of Codex with an opinionated modeling archit
 - a first typed state-update slice that adds explicit loaded-thread-only `thread/epiphany/update`, appends observations/evidence, replaces bounded map/scratch/churn fields, bumps the state revision, and persists an immediate rollout `EpiphanyState` snapshot
 - a first typed distillation/proposal slice that adds read-only loaded-thread-only `thread/epiphany/distill`, producing deterministic observation/evidence patches for explicit promotion through `thread/epiphany/update`
 - a first richer promotion-policy slice that treats map/churn/frontier/checkpoint replacements as higher-risk state edits: accepted promotions must be tied to explicit observations and patch evidence, and structural graph/churn mistakes are rejected before the durable update path
+- a first typed map/churn proposal slice that adds read-only loaded-thread-only `thread/epiphany/propose`, producing candidate graph frontier/churn patches from verified observations with code refs for explicit promotion through `thread/epiphany/promote`
 - current phase: Phase 5 semantic distillation/promotion/proposal machinery
 
-The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, or make promotion notice broken map/churn replacements. Those parts are landed. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve` or `thread/epiphany/distill` into durable Epiphany-state writers, and do not widen the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
+The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, or ship the first read-only map/churn proposal surface. Those parts are landed. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve`, `thread/epiphany/distill`, or `thread/epiphany/propose` into durable Epiphany-state writers, and do not widen the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
 
 ## Summary
 
@@ -267,14 +268,15 @@ Add tests for:
 
 ## Immediate Next Step
 
-Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, verifier-backed promotion gate, and structural map/churn promotion validation as the active Phase 5 baseline. The next machine gap is no longer "can Epiphany retrieve code?" or "can it propose one durable observation patch?" It can. The next gap is "can Epiphany decide which observations deserve promotion, and what map/churn edits they imply?"
+Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, read-only map/churn proposal path, verifier-backed promotion gate, and structural map/churn promotion validation as the active Phase 5 baseline. The next machine gap is no longer "can Epiphany retrieve code?", "can it propose one durable observation patch?", or "can it draft one bounded map/churn candidate?" It can. The next gap is "can Epiphany make better proposal choices from richer evidence without silently promoting them?"
 
 1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
 2. treat the verified and live-smoked `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
 3. keep the new `epiphany-core` boundary honest instead of letting vendored Codex re-accumulate the heavy implementation
 4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
-5. continue Phase 5 by building the next layer above the landed distill/update/promote surfaces:
+5. continue Phase 5 by hardening the layer above the landed distill/propose/promote/update surfaces:
    - richer typed observation distillation from tool/model outputs
+   - better proposal heuristics for existing graph matching, frontier focus, and churn semantics
    - promotion policy beyond structural validation, but only when it can stay evidence-backed
    - verifier-backed acceptance/rejection evidence
    - no hidden retrieval writes

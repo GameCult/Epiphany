@@ -446,17 +446,18 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/promote/update and the first structural promotion safety layer are also landed.
+Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update and the first structural promotion safety layer are also landed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the first distill/promote/update path is live-smoked, and promotion now has a first structural map/churn safety layer. The next clean move is richer observation-to-map proposal machinery, not pretending the already-shipped slices still need ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, and promotion now has a first structural map/churn safety layer. The next clean move is improving proposal quality from richer evidence, not pretending the already-shipped slices still need ceremony.
 
 Current Phase 5 implementation move:
 
-1. treat the live-smoked retrieval/indexing baseline as Phase 4 and the typed update/distill/promote surfaces as the active Phase 5 baseline
+1. treat the live-smoked retrieval/indexing baseline as Phase 4 and the typed update/distill/propose/promote surfaces as the active Phase 5 baseline
 2. keep the current env/default Qdrant/Ollama config surface for now
-3. keep `thread/epiphany/retrieve` and `thread/epiphany/distill` read-only
-4. continue Phase 5 by building the next layer above the distill/promote/update surfaces:
-   - richer map/churn patch generation from verified observations
+3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
+4. continue Phase 5 by hardening the next layer above the distill/propose/promote/update surfaces:
+   - richer map/churn patch generation from verified observations and tool/model outputs
+   - better existing-graph matching, frontier focus, and churn semantics
    - promotion policy beyond structural validation only when the evidence path stays explicit
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet
@@ -474,7 +475,7 @@ Not yet:
 The next slice should stay small and mean:
 
 - harden the explicit state-update path with a live app-server smoke when useful
-- harden distillation only through explicit proposal/promotion checks, not hidden writes
+- harden distillation/proposal only through explicit promotion checks, not hidden writes
 - keep GUI, watcher mutation, and specialist-agent logic dark
 
 ## Verification Commands
