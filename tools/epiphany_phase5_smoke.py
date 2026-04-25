@@ -298,6 +298,37 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "missing-warning rejection should name patch.churn.warning",
         )
 
+        risky_expansion_low_pressure = copy.deepcopy(proposal_patch)
+        risky_expansion_low_pressure["churn"]["diff_pressure"] = "low"
+        risky_expansion_low_pressure["churn"]["graph_freshness"] = "proposal-expanded"
+        risky_expansion_low_pressure["churn"].pop("warning", None)
+        reject_expansion_low_pressure = client.send(
+            "thread/epiphany/promote",
+            {
+                "threadId": thread_id,
+                "expectedRevision": 1,
+                "patch": risky_expansion_low_pressure,
+                "verifierEvidence": {
+                    "id": "ev-phase5-expanded-low-pressure-verifier",
+                    "kind": "verification",
+                    "status": "ok",
+                    "summary": "Intentional expanded-low-pressure rejection check",
+                },
+            },
+        )
+        assert reject_expansion_low_pressure is not None
+        require(
+            not reject_expansion_low_pressure["accepted"],
+            "expanded churn should reject without warning even when pressure is low",
+        )
+        require(
+            any(
+                "patch.churn.warning" in reason
+                for reason in reject_expansion_low_pressure["reasons"]
+            ),
+            "expanded-low-pressure rejection should name patch.churn.warning",
+        )
+
         read_after_warning_reject = client.send(
             "thread/read", {"threadId": thread_id, "includeTurns": False}
         )
@@ -373,27 +404,31 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "final read should return persisted revision 2",
         )
 
-    result = {
-        "threadId": thread_id,
-        "codexHome": str(codex_home),
-        "distillExpectedRevision": distill["expectedRevision"],
-        "distillObservationId": observation["id"],
-        "distillEvidenceId": evidence["id"],
-        "distillEvidenceKind": evidence["kind"],
-        "distillSummary": evidence["summary"],
-        "proposalExpectedRevision": propose["expectedRevision"],
-        "proposalObservationId": proposal_patch["observations"][0]["id"],
-        "proposalChurn": proposal_patch["churn"],
-        "readOnlyRevisionAfterPropose": state_after_propose.get("revision"),
-        "missingWarningAccepted": reject_missing_warning["accepted"],
-        "missingWarningReasons": reject_missing_warning["reasons"],
-        "weakVerifierAccepted": reject_weak_verifier["accepted"],
-        "weakVerifierReasons": reject_weak_verifier["reasons"],
-        "accepted": accepted["accepted"],
-        "finalRevision": final_state["revision"],
-        "finalChurn": final_state["churn"],
-        "graphNodeCount": len(final_state.get("graphs", {}).get("architecture", {}).get("nodes", [])),
-    }
+        result = {
+            "threadId": thread_id,
+            "codexHome": str(codex_home),
+            "distillExpectedRevision": distill["expectedRevision"],
+            "distillObservationId": observation["id"],
+            "distillEvidenceId": evidence["id"],
+            "distillEvidenceKind": evidence["kind"],
+            "distillSummary": evidence["summary"],
+            "proposalExpectedRevision": propose["expectedRevision"],
+            "proposalObservationId": proposal_patch["observations"][0]["id"],
+            "proposalChurn": proposal_patch["churn"],
+            "readOnlyRevisionAfterPropose": state_after_propose.get("revision"),
+            "missingWarningAccepted": reject_missing_warning["accepted"],
+            "missingWarningReasons": reject_missing_warning["reasons"],
+            "expandedLowPressureAccepted": reject_expansion_low_pressure["accepted"],
+            "expandedLowPressureReasons": reject_expansion_low_pressure["reasons"],
+            "weakVerifierAccepted": reject_weak_verifier["accepted"],
+            "weakVerifierReasons": reject_weak_verifier["reasons"],
+            "accepted": accepted["accepted"],
+            "finalRevision": final_state["revision"],
+            "finalChurn": final_state["churn"],
+            "graphNodeCount": len(
+                final_state.get("graphs", {}).get("architecture", {}).get("nodes", [])
+            ),
+        }
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     return result

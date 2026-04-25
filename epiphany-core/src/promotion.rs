@@ -472,6 +472,7 @@ fn is_risky_delta(churn: &EpiphanyChurnState) -> bool {
             .map(|freshness| {
                 let freshness = freshness.trim().to_ascii_lowercase();
                 freshness.contains("broadened")
+                    || freshness.contains("expanded")
                     || freshness.contains("semantic")
                     || freshness.contains("updated")
             })
@@ -704,6 +705,27 @@ mod tests {
                 understanding_status: "proposal_updates_map".to_string(),
                 diff_pressure: "high".to_string(),
                 graph_freshness: Some("proposal-updated".to_string()),
+                ..Default::default()
+            }),
+            ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
+        });
+
+        assert!(!decision.accepted);
+        assert!(
+            decision
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("patch.churn.warning"))
+        );
+    }
+
+    #[test]
+    fn evaluate_promotion_rejects_expanded_churn_even_with_low_pressure() {
+        let decision = evaluate_promotion(EpiphanyPromotionInput {
+            churn: Some(EpiphanyChurnState {
+                understanding_status: "proposal_expands_map".to_string(),
+                diff_pressure: "low".to_string(),
+                graph_freshness: Some("proposal-expanded".to_string()),
                 ..Default::default()
             }),
             ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
