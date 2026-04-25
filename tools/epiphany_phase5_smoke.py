@@ -150,6 +150,28 @@ class AppServerClient:
             time.sleep(0.1)
         raise TimeoutError(f"timed out waiting for notification {method}")
 
+    def require_no_notification(
+        self,
+        method: str,
+        *,
+        start_index: int = 0,
+        timeout: float = 1.0,
+    ) -> None:
+        assert self.proc is not None
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                raise RuntimeError(
+                    f"app-server exited with {self.proc.returncode} while checking {method}"
+                )
+            for msg in self.notifications[start_index:]:
+                if msg.get("method") == method:
+                    raise AssertionError(f"unexpected notification {method}: {msg!r}")
+            time.sleep(0.1)
+
+    def count_notifications(self, method: str, *, start_index: int = 0) -> int:
+        return sum(1 for msg in self.notifications[start_index:] if msg.get("method") == method)
+
     def _read_stdout(self) -> None:
         assert self.proc is not None and self.proc.stdout is not None
         for line in self.proc.stdout:
@@ -382,6 +404,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(state_after_propose.get("revision") == 2, "read-only propose should not mutate")
         require("churn" not in state_after_propose, "propose should not persist churn before promotion")
 
+        rejected_notification_start = len(client.notifications)
+
         risky_missing_warning = copy.deepcopy(proposal_patch)
         risky_missing_warning["churn"]["diff_pressure"] = "medium"
         risky_missing_warning["churn"]["graph_freshness"] = "proposal_broadened"
@@ -510,6 +534,14 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             read_after_kind_reject["thread"].get("epiphanyState", {}).get("revision") == 2,
             "weak-kind rejection should not mutate state",
         )
+        client.require_no_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=rejected_notification_start,
+        )
+        rejected_notification_count = client.count_notifications(
+            "thread/epiphany/stateUpdated",
+            start_index=rejected_notification_start,
+        )
 
         promote_notification_start = len(client.notifications)
         accepted = client.send(
@@ -604,6 +636,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "weakVerifierReasons": reject_weak_verifier["reasons"],
             "substringVerifierAccepted": reject_substring_verifier["accepted"],
             "substringVerifierReasons": reject_substring_verifier["reasons"],
+            "rejectedPromotionNotificationCount": rejected_notification_count,
             "accepted": accepted["accepted"],
             "finalRevision": final_state["revision"],
             "promoteResponseRevision": accepted["revision"],

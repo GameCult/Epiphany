@@ -921,7 +921,7 @@ Current tests cover the landed flows at useful seams:
 - retrieval ranking, fallback, stale manifest detection, and mocked Qdrant/Ollama indexing in `epiphany-core`.
 - app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/promote`, `thread/epiphany/update`, and `thread/epiphany/stateUpdated`.
 - app-server mapping of core retrieval/index summaries into protocol responses.
-- reusable app-server smoke for the richer Phase 5 chain in `tools/epiphany_phase5_smoke.py`, including update/promote response metadata, `thread/epiphany/stateUpdated` notifications with source, revision, changed-field checks, and the verifier-only promotion edge where `Evidence` changes because verifier evidence is appended.
+- reusable app-server smoke for the richer Phase 5 chain in `tools/epiphany_phase5_smoke.py`, including update/promote response metadata, `thread/epiphany/stateUpdated` notifications with source, revision, changed-field checks, the verifier-only promotion edge where `Evidence` changes because verifier evidence is appended, and an explicit zero-notification assertion for rejected promotions.
 
 Useful commands:
 
