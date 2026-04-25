@@ -104,7 +104,7 @@ Source audit on 2026-04-25 re-read each flow below against the cited code instea
 
 The current landed machine is still coherent. The core shape is not ornamental: one protocol state object flows through session state, prompt rendering, rollout persistence, thread hydration, explicit retrieval/indexing, read-only distillation/proposal, verifier-backed promotion, and the single durable update writer. The useful simplification pressure is already present in the boundaries: retrieval reads, indexing writes only the semantic catalog, distillation/proposal draft patches, promotion gates, and update persists.
 
-Nothing in the current typed spine obviously deserves deletion right now. The parts that would turn this into Jenga are still correctly listed as non-flows: automatic tool-output ingestion, watcher invalidation, GUI reflection, specialist scheduling, and an automatic Compact-Rehydrate-Reorient-Continue coordinator. The next Perfect Machine move is therefore not adding another writer or a shiny surface. After match-kind-aware map-delta judgment, source-output-aware distillation, and first risky-delta promotion policy, the next pressure belongs in live-smoking the richer Phase 5 path and then adding only the smallest missing policy/proposal rule the smoke exposes.
+Nothing in the current typed spine obviously deserves deletion right now. The parts that would turn this into Jenga are still correctly listed as non-flows: automatic tool-output ingestion, watcher invalidation, GUI reflection, specialist scheduling, and an automatic Compact-Rehydrate-Reorient-Continue coordinator. The next Perfect Machine move is therefore not adding another writer or a shiny surface. After match-kind-aware map-delta judgment, source-output-aware distillation, first risky-delta promotion policy, and a richer app-server smoke harness, the next pressure belongs in running that harness as a guardrail and adding only the smallest source-grounded policy/proposal rule real use exposes.
 
 ## Natural Language Spine
 
@@ -879,7 +879,7 @@ stored Epiphany state
 -> explicit update patches can revise durable map/evidence/churn state
 ```
 
-The current remaining missing organ is not the red pen and not the first chewing motion. Those exist. Proposal now has the first bits of map memory, focus, and selection hygiene: it can auto-select a bounded evidence-backed observation cluster when ids are omitted, requires accepting recent evidence behind selected observations, prioritizes stronger selected observations for proposal wording, reuses existing architecture nodes by concrete code-ref/path/id checks before creating new path nodes, can rescue unanchored graph nodes through strict unique semantic overlap, follows graph links and incident edges into the frontier, and reports match-kind-aware churn pressure from the actual proposal shape. Distillation now also has the first source-output-aware teeth for tool/model summaries. Promotion now notices risky deltas instead of just checking the shape of the envelope. The missing organ is live app-server smoke coverage for the richer Phase 5 chain, watcher/freshness inputs, and eventually role-scoped specialist ownership without silently auto-promoting anything.
+The current remaining missing organ is not the red pen and not the first chewing motion. Those exist. Proposal now has the first bits of map memory, focus, and selection hygiene: it can auto-select a bounded evidence-backed observation cluster when ids are omitted, requires accepting recent evidence behind selected observations, prioritizes stronger selected observations for proposal wording, reuses existing architecture nodes by concrete code-ref/path/id checks before creating new path nodes, can rescue unanchored graph nodes through strict unique semantic overlap, follows graph links and incident edges into the frontier, and reports match-kind-aware churn pressure from the actual proposal shape. Distillation now also has the first source-output-aware teeth for tool/model summaries. Promotion now notices risky deltas instead of just checking the shape of the envelope. Richer app-server smoke coverage now exists in `tools/epiphany_phase5_smoke.py`; the remaining missing organs are watcher/freshness inputs and eventually role-scoped specialist ownership without silently auto-promoting anything.
 
 ```text
 model/tool observations
@@ -909,6 +909,7 @@ Current tests cover the landed flows at useful seams:
 - retrieval ranking, fallback, stale manifest detection, and mocked Qdrant/Ollama indexing in `epiphany-core`.
 - app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/promote`, and `thread/epiphany/update`.
 - app-server mapping of core retrieval/index summaries into protocol responses.
+- reusable app-server smoke for the richer Phase 5 chain in `tools/epiphany_phase5_smoke.py`.
 
 Useful commands:
 
@@ -917,4 +918,5 @@ cargo test --manifest-path .\epiphany-core\Cargo.toml
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-core --lib epiphany
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server-protocol --lib thread_epiphany_
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server --lib map_epiphany_
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
 ```

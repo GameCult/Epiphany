@@ -361,8 +361,9 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - proposal churn now distinguishes exact-ref refinements from same-path broadening, deterministic-node reuse, semantic unanchored-node reuse, and new candidate surfaces before setting graph freshness and diff pressure
   - distillation now summarizes noisy tool/command/shell/model output into salient typed evidence rather than preserving raw output sludge as the summary
   - promotion now rejects medium/high/broadening/semantic/update churn deltas that lack a warning or only carry weak generic verifier evidence
+  - richer Phase 5 app-server smoke is now reproducible through `tools/epiphany_phase5_smoke.py`; it verifies `shell-tool` distillation to `tool-output`, read-only proposal, risky-churn rejection without warning, risky-churn rejection with weak verifier kind, and accepted promotion only with warning plus strong verifier evidence
   - the Epiphany algorithmic map has been semantically audited flow-by-flow against the cited code; stale line anchors were fixed, and the current typed spine still describes a coherent machine
-  - the next bounded follow-up is live-smoke coverage for the richer Phase 5 app-server chain, not proving the retriever exists again
+  - the next bounded follow-up should use the richer smoke harness as a guardrail before the next source-grounded proposal/promotion hardening slice
 - There is still no live `thread/epiphany/*` notification stream.
 - The next phase is **not** GUI work.
 - The current pushed baseline also extracted most Epiphany-owned implementation into `epiphany-core`:
@@ -457,9 +458,9 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation selection, match-kind-aware map-delta churn pressure, source-output-aware distillation, and risky-delta promotion policy are also landed.
+Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation selection, match-kind-aware map-delta churn pressure, source-output-aware distillation, risky-delta promotion policy, and the reusable richer app-server smoke harness are also landed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer and risky-delta policy, distillation summarizes noisy source output into typed evidence, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, prioritizes stronger selected observations for proposal wording, can reuse unanchored architecture nodes through strict semantic overlap, can auto-select a bounded evidence-backed observation cluster when ids are omitted, and reports match-kind-aware churn pressure from the proposal shape. The next clean move is live-smoke coverage for the richer Phase 5 chain, not pretending the already-shipped slices still need ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer and risky-delta policy, distillation summarizes noisy source output into typed evidence, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, prioritizes stronger selected observations for proposal wording, can reuse unanchored architecture nodes through strict semantic overlap, can auto-select a bounded evidence-backed observation cluster when ids are omitted, and reports match-kind-aware churn pressure from the proposal shape. The richer Phase 5 chain has now been smoke-tested through app-server and captured as a reusable tool instead of a one-off ritual.
 
 Current Phase 5 implementation move:
 
@@ -467,7 +468,8 @@ Current Phase 5 implementation move:
 2. keep the current env/default Qdrant/Ollama config surface for now
 3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
 4. continue Phase 5 by hardening the next layer above the distill/propose/promote/update surfaces:
-   - live-smoke source-output distillation, proposal, risky-delta rejection, and accepted promotion through app-server
+   - run `tools/epiphany_phase5_smoke.py` before changing proposal or promotion policy
+   - add the next smallest promotion/proposal rule only after a source-grounded gap appears in real use or smoke output
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet
 
@@ -485,6 +487,7 @@ The next slice should stay small and mean:
 
 - harden the explicit state-update path with a live app-server smoke when useful
 - harden distillation/proposal only through explicit promotion checks, not hidden writes
+- use `tools/epiphany_phase5_smoke.py` as the current app-server seam guardrail
 - keep GUI, watcher mutation, and specialist-agent logic dark
 
 ## Verification Commands
@@ -495,6 +498,7 @@ State sanity from the repo root:
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status
 Get-Content -Tail 5 '.\state\evidence.jsonl'
 git status --short
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
 ```
 
 Targeted `codex-core` test pattern on this Windows machine:
@@ -507,4 +511,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Read-only distillation now summarizes noisy tool/model output into typed evidence, read-only proposal can auto-select a bounded evidence-backed observation cluster and report match-kind-aware map-delta pressure, promotion rejects risky deltas without warning plus strong verifier evidence, and the current Epiphany algorithmic map has been source-audited against the code flow it describes. The next clean move is live-smoke coverage for the richer Phase 5 chain, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
+Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Read-only distillation now summarizes noisy tool/model output into typed evidence, read-only proposal can auto-select a bounded evidence-backed observation cluster and report match-kind-aware map-delta pressure, promotion rejects risky deltas without warning plus strong verifier evidence, and the current Epiphany algorithmic map has been source-audited against the code flow it describes. The richer Phase 5 chain is now live-smoked through app-server by `tools/epiphany_phase5_smoke.py`. The next clean move is the next source-grounded proposal/promotion hardening slice, with that smoke harness as a guardrail; not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
