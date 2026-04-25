@@ -21,7 +21,7 @@ The spine exists in eleven live paths:
 - explicit map/churn proposals: app-server routes read-only `thread/epiphany/propose` through a loaded-thread handler into `epiphany-core` so verified observations with code refs and accepting recent evidence can be selected explicitly or auto-selected as a bounded path cluster, prioritize the strongest selected observation, focus or extend architecture graph nodes, rescue unanchored graph nodes through strict semantic overlap, carry linked dataflow nodes and incident graph edges into the frontier, update churn candidates with match-kind-aware map-delta judgment and pressure, and still avoid mutation until promotion in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4244) and [proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:115).
 - explicit promotion gates: app-server routes `thread/epiphany/promote` through a loaded-thread handler into `epiphany-core` policy evaluation, rejects failed verifier evidence without mutation, applies accepted candidates through the same durable update path, and now treats medium/high/expanded/broadening/semantic churn deltas as needing explicit rationale plus stronger verifier evidence whose kind is token-matched rather than substring-matched in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4316) and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33).
 - explicit state updates: app-server routes `thread/epiphany/update` through a loaded `CodexThread` update method that rejects malformed appended observation/evidence graph records and structurally invalid replacement fields, mutates live `SessionState` only after validation, bumps the revision, and persists an immediate `RolloutItem::EpiphanyState` snapshot in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4436), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:374), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:552), and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:44).
-- live state notifications and write responses: app-server declares experimental `thread/epiphany/stateUpdated` and emits it with the updated typed state, typed `source`, event-level `revision`, and typed `changedFields` after successful direct updates and accepted promotions, but not after rejected promotions; direct `thread/epiphany/update` and accepted `thread/epiphany/promote` responses now expose the same revision/change metadata, and accepted promotions always report `Evidence` because verifier evidence is appended even when the patch evidence list is empty, in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:1097), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3992), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4058), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4069), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4379), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4464), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10509), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10552).
+- live state notifications and write responses: app-server declares experimental `thread/epiphany/stateUpdated` and emits it with the updated typed state, typed `source`, event-level `revision`, and typed `changedFields` after successful direct updates and accepted promotions, but not after rejected promotions; direct `thread/epiphany/update` and accepted `thread/epiphany/promote` responses expose the same revision/change metadata, accepted promotions always report `Evidence` because verifier evidence is appended even when the patch evidence list is empty, and successful write response/notification states now use the same client-visible live projection as `thread/read`, including retrieval-summary backfill when durable state has no persisted retrieval metadata, in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:1097), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3992), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4058), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4069), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4381), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4415), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4470), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4502), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10430), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10440), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10526), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10569).
 - retrieval/indexing: app-server routes `thread/epiphany/retrieve` and `thread/epiphany/index` through loaded `CodexThread` host methods into `epiphany-core` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4046), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4122), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:438), and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:456).
 
 The thick Epiphany-owned implementation is mostly outside vendored Codex now:
@@ -80,8 +80,9 @@ flowchart TD
     ZA --> ZB["Apply typed patch and increment revision"]
     ZB --> B
     ZB --> ZC["Persist immediate RolloutItem::EpiphanyState"]
-    ZB --> ZD["Emit thread/epiphany/stateUpdated notification with source, revision, changedFields"]
-    ZD --> Q
+    ZB --> ZD["Project client-visible live state (retrieval summary backfill if needed)"]
+    ZD --> ZE["Return response and emit thread/epiphany/stateUpdated with source, revision, changedFields"]
+    ZE --> Q
     ZC --> K
     T --> V["epiphany-core retrieve_workspace"]
     U --> W["epiphany-core index_workspace"]
@@ -98,6 +99,7 @@ What this means in plain English:
 - A loaded thread can ask a verifier-backed promotion gate to reject or apply that proposal.
 - A loaded thread can now accept explicit typed state patches and persist them immediately.
 - Successful direct updates and accepted promotions now return and notify clients that typed state changed, which revision landed, and which top-level state fields changed.
+- Those write response/notification states are now projected through the same live read helper as `thread/read`, so retrieval-summary backfill is consistent across client-visible state surfaces without becoming a durable write.
 - Retrieval and indexing are typed side paths hanging off loaded threads.
 - Retrieval remains read-only; state mutation has its own control-plane door.
 - Map/churn proposal is also read-only; accepted graph/churn edits still go through promotion and update.
@@ -129,7 +131,7 @@ This is the same flow in the language Epiphany is supposed to make the model car
 | Proposal | Verified observations with code refs and accepting recent evidence can produce a candidate graph frontier/churn patch without writing it. The caller can provide ids, or the proposal engine can choose a small ready path cluster, then reuse existing map nodes, focus linked context, and report pressure from the actual map delta. | The clerk overlays tracing paper on the old blueprint before drawing a new wall through the plumbing, choosing only the relevant marked pages before measuring how much load the sketch would put on the frame. |
 | Promotion | A verifier-backed gate can reject a proposal without mutation or send it through the durable update path. | The foreman stamps the pencil draft before the clerk reaches for the red pen. |
 | State updates | A loaded thread can accept explicit typed patches that append validated observations/evidence and replace bounded map/scratch/churn fields. Malformed appended evidence graph records and structurally broken replacement fields are rejected before mutation. | The clerk finally has the red pen, but the ledger refuses orphan receipts and impossible blueprint tabs before the ink touches paper. |
-| State responses and notifications | Successful direct updates and accepted promotions return the landed revision and changed-field labels to the caller, then publish the updated typed state to app-server clients with source, revision, and changed-field labels saying which control-plane door caused it and which ledger sections changed. | The clerk hands the filing receipt to the person at the counter, then rings the little bell for the room; both say which page number landed and which tabs were touched. |
+| State responses and notifications | Successful direct updates and accepted promotions return the landed revision and changed-field labels to the caller, then publish the updated typed state to app-server clients with source, revision, and changed-field labels saying which control-plane door caused it and which ledger sections changed. The state object is the same client-visible projection as `thread/read`, including retrieval-summary backfill when needed. | The clerk hands the filing receipt to the person at the counter, then rings the little bell for the room; both say which page number landed and which tabs were touched, with the card-catalog status clipped to the same page the dashboard would show. |
 
 ## Flow 1: State Shape
 
@@ -571,10 +573,11 @@ The app-server handler:
 2. requires the thread to be loaded.
 3. maps the app-server patch DTO into `EpiphanyStateUpdate`.
 4. calls `CodexThread.epiphany_update_state`.
-5. returns the updated `EpiphanyThreadState` plus response-level `revision` and `changedFields`.
-6. computes `changedFields` from the accepted patch surface.
-7. emits `thread/epiphany/stateUpdated` with `source: "update"`, event-level `revision`, typed `changedFields`, and the same updated state.
-8. reports empty patches and revision mismatches as invalid requests before notification.
+5. computes `changedFields` from the accepted patch surface.
+6. projects the just-written state through `client_visible_live_thread_epiphany_state`, which reuses the `thread/read` live-state helper and backfills retrieval summary metadata when needed.
+7. returns the client-visible `EpiphanyThreadState` plus response-level `revision` and `changedFields`.
+8. emits `thread/epiphany/stateUpdated` with `source: "update"`, event-level `revision`, typed `changedFields`, and the same client-visible updated state.
+9. reports empty patches and revision mismatches as invalid requests before notification.
 
 `CodexThread.epiphany_update_state`:
 
@@ -595,8 +598,11 @@ The replay helpers now also accept an out-of-band Epiphany snapshot before the f
 
 Code refs:
 
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4436)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4507)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4439)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4502)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4512)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10430)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10440)
 - [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:100)
 - [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:374)
 - [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:552)
@@ -608,7 +614,7 @@ Code refs:
 
 ### Output
 
-The response contains the updated `epiphanyState`, response-level `revision`, and response-level `changedFields`. The durable side effect is a rollout `EpiphanyState` snapshot. The live side effect is a `thread/epiphany/stateUpdated` notification carrying `source: "update"`, event-level `revision`, typed `changedFields`, and the same updated state to app-server clients. Invalid append or replacement patches return an invalid-request error, leave revision unchanged, and emit no state update notification.
+The response contains the updated client-visible `epiphanyState`, response-level `revision`, and response-level `changedFields`. The durable side effect is a rollout `EpiphanyState` snapshot. The live side effect is a `thread/epiphany/stateUpdated` notification carrying `source: "update"`, event-level `revision`, typed `changedFields`, and the same client-visible updated state to app-server clients. That state uses the same retrieval-summary backfill as `thread/read`, but the backfill remains a view projection rather than a durable mutation. Invalid append or replacement patches return an invalid-request error, leave revision unchanged, and emit no state update notification.
 
 ### Invariant
 
@@ -834,8 +840,9 @@ The app-server handler:
 5. appends verifier evidence to the patch evidence when policy accepts.
 6. maps the patch into `EpiphanyStateUpdate`.
 7. calls `CodexThread.epiphany_update_state`.
-8. returns the updated `EpiphanyThreadState` plus response-level `revision` and `changedFields`.
-9. emits `thread/epiphany/stateUpdated` with `source: "promote"`, event-level `revision`, and typed `changedFields` only for the accepted path; `Evidence` is included even if the accepted patch had no patch evidence because verifier evidence was appended to the durable state.
+8. projects the just-written state through `client_visible_live_thread_epiphany_state`, matching the `thread/read` live-state view and retrieval-summary backfill.
+9. returns the client-visible `EpiphanyThreadState` plus response-level `revision` and `changedFields`.
+10. emits `thread/epiphany/stateUpdated` with `source: "promote"`, event-level `revision`, and typed `changedFields` only for the accepted path; `Evidence` is included even if the accepted patch had no patch evidence because verifier evidence was appended to the durable state.
 
 `evaluate_promotion` currently enforces a deliberately small but now delta-aware policy:
 
@@ -854,8 +861,11 @@ Code refs:
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4316)
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4349)
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4363)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4393)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4417)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4399)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4415)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4427)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10430)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10440)
 - [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33)
 - [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:126)
 - [epiphany-core/src/promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:157)
@@ -863,7 +873,7 @@ Code refs:
 
 ### Output
 
-Rejected promotions return reasons and no state. Accepted promotions return the updated `epiphanyState`, response-level `revision`, and response-level `changedFields` from the durable update path, then emit `thread/epiphany/stateUpdated` with `source: "promote"`, event-level `revision`, typed `changedFields`, plus that state. Because accepted promotion always appends verifier evidence, promotion responses and notifications report `Evidence` even when the submitted patch evidence array was empty.
+Rejected promotions return reasons and no state. Accepted promotions return the updated client-visible `epiphanyState`, response-level `revision`, and response-level `changedFields` from the durable update path, then emit `thread/epiphany/stateUpdated` with `source: "promote"`, event-level `revision`, typed `changedFields`, plus that same projected state. Because accepted promotion always appends verifier evidence, promotion responses and notifications report `Evidence` even when the submitted patch evidence array was empty. Because accepted promotion now uses the `thread/read` live-state projection, clients also see retrieval-summary backfill consistently without promotion becoming a retrieval writer.
 
 ### Invariant
 
@@ -928,7 +938,7 @@ Current tests cover the landed flows at useful seams:
 - retrieval ranking, fallback, stale manifest detection, and mocked Qdrant/Ollama indexing in `epiphany-core`.
 - app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/promote`, `thread/epiphany/update`, and `thread/epiphany/stateUpdated`.
 - app-server mapping of core retrieval/index summaries into protocol responses.
-- reusable app-server smoke for the richer Phase 5 chain in `tools/epiphany_phase5_smoke.py`, including update/promote response metadata, `thread/epiphany/stateUpdated` notifications with source, revision, changed-field checks, the verifier-only promotion edge where `Evidence` changes because verifier evidence is appended, invalid direct observation/evidence and replacement update rejection without mutation or notification, and explicit zero-notification assertions for rejected promotions.
+- reusable app-server smoke for the richer Phase 5 chain in `tools/epiphany_phase5_smoke.py`, including update/promote response metadata, `thread/epiphany/stateUpdated` notifications with source, revision, changed-field checks, retrieval-summary presence in successful write response/notification states, the verifier-only promotion edge where `Evidence` changes because verifier evidence is appended, invalid direct observation/evidence and replacement update rejection without mutation or notification, and explicit zero-notification assertions for rejected promotions.
 
 Useful commands:
 

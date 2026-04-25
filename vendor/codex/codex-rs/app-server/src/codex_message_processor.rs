@@ -4411,6 +4411,8 @@ impl CodexMessageProcessor {
                 return;
             }
         };
+        let epiphany_state =
+            client_visible_live_thread_epiphany_state(thread.as_ref(), epiphany_state).await;
         let response = ThreadEpiphanyPromoteResponse {
             accepted: true,
             reasons: Vec::new(),
@@ -4496,6 +4498,8 @@ impl CodexMessageProcessor {
                 return;
             }
         };
+        let epiphany_state =
+            client_visible_live_thread_epiphany_state(thread.as_ref(), epiphany_state).await;
         let response = ThreadEpiphanyUpdateResponse {
             revision: epiphany_state.revision,
             changed_fields: changed_fields.clone(),
@@ -10431,6 +10435,13 @@ async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<EpiphanyThre
         state.retrieval = Some(thread.epiphany_retrieval_state().await);
     }
     epiphany_state
+}
+
+async fn client_visible_live_thread_epiphany_state(
+    thread: &CodexThread,
+    fallback: EpiphanyThreadState,
+) -> EpiphanyThreadState {
+    live_thread_epiphany_state(thread).await.unwrap_or(fallback)
 }
 
 fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatch) -> bool {

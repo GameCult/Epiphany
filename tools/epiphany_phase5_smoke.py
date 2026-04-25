@@ -243,6 +243,18 @@ def require(condition: bool, message: str) -> None:
         raise AssertionError(message)
 
 
+def require_retrieval_summary(state: dict[str, Any], label: str) -> dict[str, Any]:
+    retrieval = state.get("retrieval")
+    require(isinstance(retrieval, dict), f"{label} should include retrieval summary")
+    workspace_root = str(retrieval.get("workspace_root", ""))
+    require(
+        workspace_root.endswith("epiphany-core"),
+        f"{label} retrieval summary should describe the loaded workspace",
+    )
+    require("status" in retrieval, f"{label} retrieval summary should expose status")
+    return retrieval
+
+
 def reset_smoke_paths(codex_home: Path, result_path: Path, transcript_path: Path, stderr_path: Path) -> None:
     smoke_root = ROOT / ".epiphany-smoke"
     resolved_home = codex_home.resolve()
@@ -345,6 +357,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             update["changedFields"] == ["observations", "evidence"],
             "update response should expose changed fields",
         )
+        update_response_retrieval = require_retrieval_summary(
+            update["epiphanyState"],
+            "update response Epiphany state",
+        )
         update_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",
             start_index=update_notification_start,
@@ -368,6 +384,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(
             update_notification["params"]["changedFields"] == ["observations", "evidence"],
             "update notification should identify appended observation/evidence fields",
+        )
+        update_notification_retrieval = require_retrieval_summary(
+            update_notification["params"]["epiphanyState"],
+            "update notification Epiphany state",
         )
 
         verifier_only_notification_start = len(client.notifications)
@@ -412,6 +432,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             verifier_only_promote["changedFields"] == ["observations", "evidence"],
             "verifier-only promote response should expose changed fields",
         )
+        verifier_only_response_retrieval = require_retrieval_summary(
+            verifier_only_promote["epiphanyState"],
+            "verifier-only promote response Epiphany state",
+        )
         verifier_only_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",
             start_index=verifier_only_notification_start,
@@ -424,6 +448,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             verifier_only_notification["params"]["changedFields"]
             == ["observations", "evidence"],
             "verifier-only promote notification should include appended verifier evidence",
+        )
+        verifier_only_notification_retrieval = require_retrieval_summary(
+            verifier_only_notification["params"]["epiphanyState"],
+            "verifier-only promote notification Epiphany state",
         )
 
         invalid_direct_update_notification_start = len(client.notifications)
@@ -698,6 +726,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             == ["graphs", "graphFrontier", "observations", "evidence", "churn"],
             "accepted promote response should expose changed fields",
         )
+        promote_response_retrieval = require_retrieval_summary(
+            accepted["epiphanyState"],
+            "accepted promote response Epiphany state",
+        )
         promote_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",
             start_index=promote_notification_start,
@@ -722,6 +754,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             promote_notification["params"]["changedFields"]
             == ["graphs", "graphFrontier", "observations", "evidence", "churn"],
             "promote notification should identify promoted graph/evidence/churn fields",
+        )
+        promote_notification_retrieval = require_retrieval_summary(
+            promote_notification["params"]["epiphanyState"],
+            "accepted promote notification Epiphany state",
         )
         require(
             final_state["churn"]["diff_pressure"] == "medium",
@@ -748,11 +784,19 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "updateResponseChangedFields": update["changedFields"],
             "updateNotificationRevision": update_notification["params"]["revision"],
             "updateNotificationChangedFields": update_notification["params"]["changedFields"],
+            "updateResponseRetrievalStatus": update_response_retrieval["status"],
+            "updateNotificationRetrievalStatus": update_notification_retrieval["status"],
             "verifierOnlyPromoteResponseRevision": verifier_only_promote["revision"],
             "verifierOnlyPromoteResponseChangedFields": verifier_only_promote["changedFields"],
             "verifierOnlyPromoteRevision": verifier_only_notification["params"]["revision"],
             "verifierOnlyPromoteChangedFields": verifier_only_notification["params"][
                 "changedFields"
+            ],
+            "verifierOnlyPromoteResponseRetrievalStatus": verifier_only_response_retrieval[
+                "status"
+            ],
+            "verifierOnlyPromoteNotificationRetrievalStatus": verifier_only_notification_retrieval[
+                "status"
             ],
             "invalidDirectUpdateMessage": invalid_direct_update_message,
             "invalidDirectUpdateNotificationCount": invalid_direct_update_notification_count,
@@ -788,6 +832,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "promoteNotificationChangedFields": promote_notification["params"][
                 "changedFields"
             ],
+            "promoteResponseRetrievalStatus": promote_response_retrieval["status"],
+            "promoteNotificationRetrievalStatus": promote_notification_retrieval["status"],
             "finalChurn": final_state["churn"],
             "graphNodeCount": len(
                 final_state.get("graphs", {}).get("architecture", {}).get("nodes", [])
