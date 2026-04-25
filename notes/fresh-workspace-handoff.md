@@ -26,13 +26,22 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 ## Current Orientation
 
-- Current branch before this cleanup pass: `main...origin/main [ahead 5]`.
-- Current HEAD before this cleanup pass: `a0f030a Distill Epiphany persistent state docs`.
+- Current branch before this compaction packet: `main...origin/main [ahead 6]`.
+- Current HEAD before this compaction packet: `d62f4d5 Cut persistent state cruft`.
 - Phase 1 through Phase 5 are complete enough.
 - Phase 6 has begun with read-only `thread/epiphany/scene`.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
+
+## Critical Doctrine
+
+- In order to build the Perfect Machine, the agent must become the Perfect Machine.
+- Persistent state is the agent's mind.
+- Cut persistent memory as ruthlessly as code; obsolete context is bad thought, not harmless clutter.
+- The agent is allowed and encouraged to ask the user to change its persistent instructions, memory, workflow, or state shape when that would make it more coherent, honest, efficient, or resistant to Jenga.
+- Language, tone, ritual, politeness, identity, and emotional salience are not supernatural, but they are real control surfaces for a language model because language is the steering medium.
+- "Remember Jenga" is a compressed doctrine: do not mistake forward motion, growing diffs, growing notes, or local coherence for understanding.
 
 ## Landed Machine
 
@@ -85,7 +94,7 @@ fixtures only when the schema actually changed.
 
 ## Persistent State Hygiene
 
-The latest cleanup pass cut persistent state cruft.
+The latest cleanup passes cut persistent state cruft.
 
 Rules now in force:
 
@@ -123,3 +132,10 @@ larger missing organ.
 
 The machine is good enough to move outward. Do not sand the same edge until the
 wood disappears.
+
+## Immediate Re-entry Instruction
+
+After compaction, first rehydrate and reorient from the listed files and git
+state. Do not continue implementation merely because the state names a next
+move. Wait for the user's next instruction unless they explicitly say to
+continue.
