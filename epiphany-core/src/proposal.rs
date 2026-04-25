@@ -17,6 +17,13 @@ use std::path::PathBuf;
 
 const SUMMARY_LIMIT: usize = 220;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SelectionQuality {
+    observation_count: usize,
+    evidence_count: usize,
+    source_kinds: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct EpiphanyMapProposalInput {
     pub state: EpiphanyThreadState,
@@ -35,18 +42,20 @@ pub struct EpiphanyMapProposal {
 pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMapProposal> {
     let observation_ids = normalize_observation_ids(input.observation_ids)?;
     let observations = select_observations(&input.state, &observation_ids)?;
+    let selection_quality = evaluate_selection_quality(&input.state, &observations)?;
     let code_refs = collect_code_refs(&observations)?;
+    let code_ref_paths = unique_code_ref_paths(&code_refs);
     let fingerprint = fingerprint(&input.state.revision, &observation_ids, &code_refs);
     let mut graphs = input.state.graphs.clone();
     let mut active_node_ids = Vec::new();
     let mut reused_nodes = 0usize;
     let mut created_nodes = 0usize;
 
-    for path in unique_code_ref_paths(&code_refs) {
+    for path in &code_ref_paths {
         let path_code_refs = code_refs_for_path(&code_refs, &path);
         let candidate_node_id = graph_node_id(&path);
         if let Some(node_index) =
-            find_architecture_node_for_path(&graphs, &path_code_refs, &path, &candidate_node_id)
+            find_architecture_node_for_path(&graphs, &path_code_refs, path, &candidate_node_id)
         {
             let node = &mut graphs.architecture.nodes[node_index];
             active_node_ids.push(node.id.clone());
@@ -82,18 +91,17 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     let frontier_edge_ids = incident_edge_ids(&graphs, &frontier_node_ids);
     merge_unique(&mut frontier.active_node_ids, frontier_node_ids);
     merge_unique(&mut frontier.active_edge_ids, frontier_edge_ids);
-    merge_unique(
-        &mut frontier.dirty_paths,
-        unique_code_ref_paths(&code_refs).into_iter().collect(),
-    );
+    merge_unique(&mut frontier.dirty_paths, code_ref_paths.clone());
 
     let evidence_id = format!("ev-map-proposal-{fingerprint}");
+    let selection_summary = selection_quality_summary(&selection_quality, code_ref_paths.len());
     let observation = EpiphanyObservation {
         id: format!("obs-map-proposal-{fingerprint}"),
         summary: truncate_chars(
             &format!(
-                "Map/churn proposal from verified observations: {}",
-                observation_ids.join(", ")
+                "Map/churn proposal from {}: {}",
+                selection_summary,
+                observation_ids.join(", "),
             ),
             SUMMARY_LIMIT,
         ),
@@ -108,7 +116,8 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
         status: "candidate".to_string(),
         summary: truncate_chars(
             &format!(
-                "Proposed graph frontier and churn update from verified observations: {}; reused {reused_nodes} existing node(s), created {created_nodes} new node(s)",
+                "Proposed graph frontier and churn update from {}: {}; reused {reused_nodes} existing node(s), created {created_nodes} new node(s)",
+                selection_summary,
                 observation_ids.join(", "),
             ),
             SUMMARY_LIMIT,
@@ -117,19 +126,19 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     };
     let understanding_status = proposal_understanding_status(reused_nodes, created_nodes);
     let graph_freshness = proposal_graph_freshness(reused_nodes, created_nodes);
+    let diff_pressure = proposal_diff_pressure(
+        reused_nodes,
+        created_nodes,
+        code_ref_paths.len(),
+        selection_quality.observation_count,
+        input.state.churn.as_ref(),
+    );
     let churn = EpiphanyChurnState {
         understanding_status,
-        diff_pressure: input
-            .state
-            .churn
-            .as_ref()
-            .map(|churn| churn.diff_pressure.trim())
-            .filter(|value| !value.is_empty())
-            .unwrap_or("low")
-            .to_string(),
+        diff_pressure,
         graph_freshness: Some(graph_freshness),
         warning: Some(format!(
-            "Map/churn proposal derived from verified observations; reused {reused_nodes} existing node(s), created {created_nodes} new node(s); promote only after verifier acceptance."
+            "Map/churn proposal derived from {selection_summary}; reused {reused_nodes} existing node(s), created {created_nodes} new node(s); promote only after verifier acceptance."
         )),
         unexplained_writes: input
             .state
@@ -186,6 +195,70 @@ fn select_observations<'a>(
         selected.push(observation);
     }
     Ok(selected)
+}
+
+fn evaluate_selection_quality(
+    state: &EpiphanyThreadState,
+    observations: &[&EpiphanyObservation],
+) -> Result<SelectionQuality> {
+    let mut evidence_ids = Vec::new();
+    let mut seen_evidence_ids = HashSet::new();
+    let mut source_kinds = Vec::new();
+    let mut seen_source_kinds = HashSet::new();
+
+    for observation in observations {
+        if observation.evidence_ids.is_empty() {
+            return Err(anyhow!(
+                "observation id {:?} must cite at least one evidence record",
+                observation.id
+            ));
+        }
+
+        let mut has_accepting_evidence = false;
+        for evidence_id in &observation.evidence_ids {
+            let evidence = state
+                .recent_evidence
+                .iter()
+                .find(|evidence| evidence.id == *evidence_id)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "observation id {:?} cites missing evidence id {:?}",
+                        observation.id,
+                        evidence_id
+                    )
+                })?;
+            if !is_verified_status(&evidence.status) {
+                return Err(anyhow!(
+                    "observation id {:?} cites non-accepting evidence id {:?} with status {:?}",
+                    observation.id,
+                    evidence_id,
+                    evidence.status
+                ));
+            }
+            has_accepting_evidence = true;
+            if seen_evidence_ids.insert(evidence.id.clone()) {
+                evidence_ids.push(evidence.id.clone());
+            }
+        }
+
+        if !has_accepting_evidence {
+            return Err(anyhow!(
+                "observation id {:?} must cite at least one accepting evidence record",
+                observation.id
+            ));
+        }
+
+        let source_kind = observation.source_kind.trim();
+        if !source_kind.is_empty() && seen_source_kinds.insert(source_kind.to_string()) {
+            source_kinds.push(source_kind.to_string());
+        }
+    }
+
+    Ok(SelectionQuality {
+        observation_count: observations.len(),
+        evidence_count: evidence_ids.len(),
+        source_kinds,
+    })
 }
 
 fn collect_code_refs(observations: &[&EpiphanyObservation]) -> Result<Vec<EpiphanyCodeRef>> {
@@ -422,6 +495,69 @@ fn proposal_graph_freshness(reused_nodes: usize, created_nodes: usize) -> String
     .to_string()
 }
 
+fn proposal_diff_pressure(
+    reused_nodes: usize,
+    created_nodes: usize,
+    path_count: usize,
+    observation_count: usize,
+    existing_churn: Option<&EpiphanyChurnState>,
+) -> String {
+    let proposal_pressure = if created_nodes > 1
+        || (reused_nodes > 0 && created_nodes > 0)
+        || path_count > 2
+        || observation_count > 3
+        || existing_churn
+            .and_then(|churn| churn.unexplained_writes)
+            .is_some_and(|unexplained_writes| unexplained_writes > 0)
+    {
+        "high"
+    } else if created_nodes > 0 || path_count > 1 || observation_count > 1 {
+        "medium"
+    } else {
+        "low"
+    };
+
+    let existing_pressure = existing_churn
+        .map(|churn| churn.diff_pressure.trim())
+        .filter(|value| !value.is_empty())
+        .unwrap_or("low");
+
+    max_pressure(existing_pressure, proposal_pressure).to_string()
+}
+
+fn max_pressure<'a>(left: &'a str, right: &'a str) -> &'a str {
+    if pressure_rank(left) >= pressure_rank(right) {
+        left
+    } else {
+        right
+    }
+}
+
+fn pressure_rank(value: &str) -> u8 {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "critical" => 4,
+        "high" => 3,
+        "medium" => 2,
+        "low" => 1,
+        _ => 0,
+    }
+}
+
+fn selection_quality_summary(selection_quality: &SelectionQuality, path_count: usize) -> String {
+    let source_kinds = if selection_quality.source_kinds.is_empty() {
+        "unknown sources".to_string()
+    } else {
+        selection_quality.source_kinds.join("/")
+    };
+    format!(
+        "{} evidence-backed observation(s), {} accepting evidence record(s), {} code path(s), source kind(s): {}",
+        selection_quality.observation_count,
+        selection_quality.evidence_count,
+        path_count,
+        source_kinds
+    )
+}
+
 fn is_verified_status(status: &str) -> bool {
     matches!(
         status.trim().to_ascii_lowercase().as_str(),
@@ -458,6 +594,13 @@ mod tests {
                 status: status.to_string(),
                 code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
                 evidence_ids: vec!["ev-verified".to_string()],
+            }],
+            recent_evidence: vec![EpiphanyEvidenceRecord {
+                id: "ev-verified".to_string(),
+                kind: "verification".to_string(),
+                status: "ok".to_string(),
+                summary: "Verified prompt renderer behavior".to_string(),
+                code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
             }],
             churn: Some(EpiphanyChurnState {
                 understanding_status: "grounded".to_string(),
@@ -691,5 +834,62 @@ mod tests {
         .expect_err("code refs are required");
 
         assert!(err.to_string().contains("at least one code ref"));
+    }
+
+    #[test]
+    fn propose_map_update_rejects_observation_without_backing_evidence() {
+        let mut state = state_with_observation("ok");
+        state.recent_evidence.clear();
+
+        let err = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect_err("missing backing evidence should fail");
+
+        assert!(err.to_string().contains("cites missing evidence id"));
+    }
+
+    #[test]
+    fn propose_map_update_rejects_non_accepting_backing_evidence() {
+        let mut state = state_with_observation("ok");
+        state.recent_evidence[0].status = "failed".to_string();
+
+        let err = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect_err("non-accepting backing evidence should fail");
+
+        assert!(err.to_string().contains("non-accepting evidence"));
+    }
+
+    #[test]
+    fn propose_map_update_marks_mixed_multi_path_changes_as_high_pressure() {
+        let mut state = state_with_observation("ok");
+        state.churn = Some(EpiphanyChurnState {
+            understanding_status: "grounded".to_string(),
+            diff_pressure: "low".to_string(),
+            ..Default::default()
+        });
+        state.graphs.architecture.nodes.push(EpiphanyGraphNode {
+            id: "prompt-renderer".to_string(),
+            title: "Prompt renderer".to_string(),
+            purpose: "Render Epiphany state into developer context".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            ..Default::default()
+        });
+        state.observations[0]
+            .code_refs
+            .push(code_ref("epiphany-core/src/proposal.rs"));
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(proposal.churn.understanding_status, "proposal_updates_map");
+        assert_eq!(proposal.churn.diff_pressure, "high");
     }
 }

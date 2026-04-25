@@ -4,7 +4,7 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Continue Phase 5 proposal-quality hardening beyond graph-node reuse and linked frontier focus, without hidden writes.
+- Continue Phase 5 proposal-quality hardening beyond graph-node reuse, linked frontier focus, evidence-backed selection, and map-delta churn pressure, without hidden writes.
 
 ## Working Notes
 
@@ -12,9 +12,11 @@ This file is intentionally disposable.
 - First read-only `thread/epiphany/propose` slice is landed in the working tree:
   - `epiphany-core/src/proposal.rs` owns deterministic `propose_map_update`
   - selected observations must already exist in thread state, have accepting status, and carry code refs
+  - selected observations must cite accepting `recent_evidence`; missing or failed backing evidence now rejects proposal before graph/churn drafting
   - proposal now tries exact code-ref overlap, same-path overlap, and deterministic path-node id fallback against existing architecture graph nodes before creating new candidate path nodes
   - matching nodes are focused and enriched with newly observed refs without overwriting their existing title, purpose, or status
-  - proposal expands frontier focus through existing graph links, marks named incident architecture/dataflow edges active, emits proposal observation/evidence with reused/created node counts, and marks churn as `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map`
+  - proposal expands frontier focus through existing graph links, marks named incident architecture/dataflow edges active, emits proposal observation/evidence with evidence-backed selection counts plus reused/created node counts, and marks churn as `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map`
+  - churn `diff_pressure` now comes from the candidate map delta, touched path count, selected observation count, and existing unexplained write risk, with existing pressure kept as a floor
   - app-server exposes experimental loaded-thread-only `thread/epiphany/propose`
   - live stdio smoke proved propose is read-only, and propose -> promote persists graph/churn only after verifier evidence
 - The Phase 4 retrieval/indexing/core-extraction anchor is `80c29e0` on `main`. The older `360dfea` commit is only the first hybrid retrieval anchor, and later `main` also includes the typed update/distill/promote surfaces, promotion safety layer, and app-server stack-pressure fix.
@@ -158,6 +160,6 @@ This file is intentionally disposable.
 ## Open Questions
 
 - How much more can move into `epiphany-core` without sacrificing the typed Codex host seam that makes the integration first-class?
-- How should verified observations propose map/churn edits without turning promotion into automatic graph fanfic?
+- How should verified evidence-backed observations be prioritized automatically without turning proposal into automatic graph fanfic?
 
 Do not promote anything from here into the map unless it survives verification or repeated reuse without contradiction.

@@ -87,7 +87,7 @@ Current verified typed state/promotion layer:
 - experimental loaded-thread-only `thread/epiphany/propose`
 - typed patch shape for observations, evidence, objective, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
 - deterministic observation/evidence proposal generation in `epiphany-core`
-- deterministic map/churn proposal generation in `epiphany-core`, now with first-pass graph-node reuse by exact code-ref, same-path overlap, or deterministic path-node id before new candidate nodes are created, plus linked frontier focus through graph links and named incident edges
+- deterministic map/churn proposal generation in `epiphany-core`, now with first-pass graph-node reuse by exact code-ref, same-path overlap, or deterministic path-node id before new candidate nodes are created, linked frontier focus through graph links and named incident edges, evidence-backed selected observations via accepting `recent_evidence`, and churn pressure derived from the proposed map delta
 - verifier-backed promotion policy evaluation in `epiphany-core`
 - core `CodexThread.epiphany_update_state(...)` applies the patch to live `SessionState`, bumps revision, persists `RolloutItem::EpiphanyState`, and flushes rollout
 - replay helpers in both `codex-core` and `epiphany-core` accept an out-of-band Epiphany snapshot before the first real user turn so seed/update snapshots survive resume
@@ -194,7 +194,7 @@ What is wired right now:
 - app-server protocol now also declares experimental `thread/epiphany/update`
 - app-server message handling now routes those methods through the core host seam
 - `thread/epiphany/distill` is the first read-only proposal surface; it returns an `expectedRevision` plus a patch and requires explicit promotion through `thread/epiphany/update`
-- `thread/epiphany/propose` is the first read-only map/churn proposal surface; it selects verified observations with code refs, focuses existing architecture graph nodes when refs overlap, creates new candidate path nodes only for unmapped surfaces, follows graph links into related architecture/dataflow nodes, marks named incident graph edges active, and returns replacement graphs/frontier/churn for explicit promotion
+- `thread/epiphany/propose` is the first read-only map/churn proposal surface; it selects verified observations with accepting `recent_evidence` and code refs, focuses existing architecture graph nodes when refs overlap, creates new candidate path nodes only for unmapped surfaces, follows graph links into related architecture/dataflow nodes, marks named incident graph edges active, derives churn pressure from the proposal shape, and returns replacement graphs/frontier/churn for explicit promotion
 - `thread/epiphany/promote` is the first explicit promotion gate; it rejects failed verifier evidence without mutation and applies accepted candidates through the update path
 - `thread/epiphany/promote` now has a first richer map/churn safety layer: state replacement patches must carry explicit observations and patch evidence, and subgoal/invariant/graph/frontier/checkpoint/churn structure is validated before the durable update path is called
 - `thread/epiphany/update` is the first explicit durable Epiphany state write surface; it rejects empty patches, supports optional revision matching, appends observations/evidence, replaces bounded typed fields, increments state revision, and persists immediately
@@ -355,7 +355,8 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
 - Phase 5 semantic distillation/promotion is active:
   - dedicated experimental `thread/epiphany/update`, `thread/epiphany/distill`, and `thread/epiphany/promote` exist and are live-smoked
   - structural map/churn promotion validation is landed in `epiphany-core`
-  - the next bounded follow-up is richer observation-to-map/churn proposal machinery, not proving the retriever exists again
+  - proposal selection now rejects observations without accepting `recent_evidence`, and churn pressure now reflects map-delta shape
+  - the next bounded follow-up is richer graph-semantic proposal machinery beyond explicit ids/evidence/path/link matching, not proving the retriever exists again
 - There is still no live `thread/epiphany/*` notification stream.
 - The next phase is **not** GUI work.
 - The current pushed baseline also extracted most Epiphany-owned implementation into `epiphany-core`:
@@ -450,9 +451,9 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, and linked frontier focus are also landed.
+Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, and map-delta churn pressure are also landed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer, and proposal now reuses existing architecture nodes before creating new path nodes and expands frontier focus through linked graph context. The next clean move is improving proposal quality from richer evidence, not pretending the already-shipped slices still need ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, and reports churn pressure from the proposal shape. The next clean move is stronger proposal heuristics from richer evidence/graph semantics, not pretending the already-shipped slices still need ceremony.
 
 Current Phase 5 implementation move:
 
@@ -461,7 +462,7 @@ Current Phase 5 implementation move:
 3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
 4. continue Phase 5 by hardening the next layer above the distill/propose/promote/update surfaces:
    - richer map/churn patch generation from verified observations and tool/model outputs
-   - better existing-graph matching beyond exact refs/same path/deterministic ids/graph links, observation selection, and churn semantics
+   - better existing-graph matching beyond exact refs/same path/deterministic ids/graph links/evidence links, plus richer observation prioritization than explicit id selection
    - promotion policy beyond structural validation only when the evidence path stays explicit
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet
