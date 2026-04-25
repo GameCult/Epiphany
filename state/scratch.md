@@ -4,7 +4,7 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Continue Phase 5 proposal-quality hardening beyond graph-node reuse, linked frontier focus, evidence-backed selection, selected-observation prioritization, strict unanchored-node semantic reuse, and map-delta churn pressure, without hidden writes.
+- Continue Phase 5 proposal-quality hardening beyond graph-node reuse, linked frontier focus, evidence-backed selection, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation selection, and map-delta churn pressure, without hidden writes.
 
 ## Working Notes
 
@@ -18,6 +18,7 @@ This file is intentionally disposable.
   - proposal expands frontier focus through existing graph links, marks named incident architecture/dataflow edges active, emits proposal observation/evidence with evidence-backed selection counts plus reused/created node counts, and marks churn as `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map`
   - proposal now scores selected observations/evidence so candidate wording uses the strongest selected verifier/test/smoke-backed signal instead of raw id order
   - proposal can reuse an unanchored architecture graph node through strict unique semantic overlap, but refuses tied semantic matches and leaves code-anchored nodes under concrete exact/path/deterministic-id matching
+  - proposal can now omit `observationIds`; in that case `epiphany-core` ranks existing verified, code-ref-bearing observations with accepting evidence, scores them by source/evidence quality plus graph-frontier focus, and selects up to four observations from the strongest coherent path cluster
   - churn `diff_pressure` now comes from the candidate map delta, touched path count, selected observation count, and existing unexplained write risk, with existing pressure kept as a floor
   - app-server exposes experimental loaded-thread-only `thread/epiphany/propose`
   - live stdio smoke proved propose is read-only, and propose -> promote persists graph/churn only after verifier evidence

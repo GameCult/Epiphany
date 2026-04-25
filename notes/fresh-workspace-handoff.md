@@ -356,7 +356,8 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - dedicated experimental `thread/epiphany/update`, `thread/epiphany/distill`, and `thread/epiphany/promote` exist and are live-smoked
   - structural map/churn promotion validation is landed in `epiphany-core`
   - proposal selection now rejects observations without accepting `recent_evidence`, and churn pressure now reflects map-delta shape
-  - the next bounded follow-up is richer observation-set selection and map-delta judgment beyond caller-supplied ids/evidence/path/link/semantic-unanchored matching, not proving the retriever exists again
+  - proposal can now omit `observationIds` and let `epiphany-core` choose a bounded coherent path cluster from existing verified, evidence-backed observations using source/evidence quality plus graph-frontier focus
+  - the next bounded follow-up is richer map-delta judgment beyond the current evidence/path/link/semantic-unanchored/auto-selected path-cluster matching, not proving the retriever exists again
 - There is still no live `thread/epiphany/*` notification stream.
 - The next phase is **not** GUI work.
 - The current pushed baseline also extracted most Epiphany-owned implementation into `epiphany-core`:
@@ -451,9 +452,9 @@ Without that, you get to learn about `symlink_dir failed: ... A required privile
 
 ## Recommended Next Implementation
 
-Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, selected-observation prioritization, strict unanchored-node semantic reuse, and map-delta churn pressure are also landed.
+Do not restart verification from superstition. Phase 4 retrieval/indexing/core-extraction is already verified, committed, and pushed. Phase 5 distill/propose/promote/update, the first structural promotion safety layer, graph-node reuse, linked frontier focus, evidence-backed proposal selection, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation selection, and map-delta churn pressure are also landed.
 
-The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, prioritizes stronger selected observations for proposal wording, can reuse unanchored architecture nodes through strict semantic overlap, and reports churn pressure from the proposal shape. The next clean move is automatic observation-set selection and richer map-delta judgment, not pretending the already-shipped slices still need ceremony.
+The durable state seam exists, the turn loop reads it, clients can load typed Epiphany state directly, the first retrieval slice is real, the explicit persistent-semantic indexing path is landed, the distill/propose/promote/update path is live-smoked, promotion now has a first structural map/churn safety layer, and proposal now reuses existing architecture nodes before creating new path nodes, expands frontier focus through linked graph context, rejects selected observations without accepting recent evidence, prioritizes stronger selected observations for proposal wording, can reuse unanchored architecture nodes through strict semantic overlap, can auto-select a bounded evidence-backed observation cluster when ids are omitted, and reports churn pressure from the proposal shape. The next clean move is richer map-delta judgment, not pretending the already-shipped slices still need ceremony.
 
 Current Phase 5 implementation move:
 
@@ -462,7 +463,7 @@ Current Phase 5 implementation move:
 3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
 4. continue Phase 5 by hardening the next layer above the distill/propose/promote/update surfaces:
    - richer map/churn patch generation from verified observations and tool/model outputs
-   - better observation-set selection beyond caller-supplied ids/evidence links, plus richer map-delta judgment than the current exact refs/same path/deterministic ids/graph links/strict unanchored semantic matching
+   - richer map-delta judgment than the current exact refs/same path/deterministic ids/graph links/strict unanchored semantic matching and bounded auto-selected path clusters
    - promotion policy beyond structural validation only when the evidence path stays explicit
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet
@@ -503,4 +504,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. The next clean move is richer observation-set selection and map-delta judgment above the read-only proposal path, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
+Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Read-only proposal can now auto-select a bounded evidence-backed observation cluster when ids are omitted. The next clean move is richer map-delta judgment above the read-only proposal path, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.

@@ -17,6 +17,7 @@ use std::path::PathBuf;
 
 const SUMMARY_LIMIT: usize = 220;
 const SEMANTIC_REUSE_MIN_SCORE: usize = 4;
+const AUTO_OBSERVATION_SELECTION_LIMIT: usize = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SelectionQuality {
@@ -43,6 +44,21 @@ struct ArchitectureMatch {
     kind: ArchitectureMatchKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct ObservationSelectionCandidate {
+    observation_id: String,
+    score: usize,
+    index: usize,
+    path_keys: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct ProposalFocus {
+    dirty_paths: HashSet<String>,
+    active_paths: HashSet<String>,
+    mapped_paths: HashSet<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct EpiphanyMapProposalInput {
     pub state: EpiphanyThreadState,
@@ -59,7 +75,7 @@ pub struct EpiphanyMapProposal {
 }
 
 pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMapProposal> {
-    let observation_ids = normalize_observation_ids(input.observation_ids)?;
+    let observation_ids = proposal_observation_ids(&input.state, input.observation_ids)?;
     let observations = select_observations(&input.state, &observation_ids)?;
     let selection_quality = evaluate_selection_quality(&input.state, &observations)?;
     let code_refs = collect_code_refs(&observations)?;
@@ -184,7 +200,19 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     })
 }
 
-fn normalize_observation_ids(observation_ids: Vec<String>) -> Result<Vec<String>> {
+fn proposal_observation_ids(
+    state: &EpiphanyThreadState,
+    observation_ids: Vec<String>,
+) -> Result<Vec<String>> {
+    let normalized = normalize_observation_ids(observation_ids);
+    if normalized.is_empty() {
+        select_automatic_observation_ids(state)
+    } else {
+        Ok(normalized)
+    }
+}
+
+fn normalize_observation_ids(observation_ids: Vec<String>) -> Vec<String> {
     let mut normalized = Vec::new();
     let mut seen = HashSet::new();
     for id in observation_ids {
@@ -196,11 +224,169 @@ fn normalize_observation_ids(observation_ids: Vec<String>) -> Result<Vec<String>
             normalized.push(id.to_string());
         }
     }
-    if normalized.is_empty() {
-        Err(anyhow!("observationIds must include at least one id"))
-    } else {
-        Ok(normalized)
+    normalized
+}
+
+fn select_automatic_observation_ids(state: &EpiphanyThreadState) -> Result<Vec<String>> {
+    let focus = proposal_focus(state);
+    let mut candidates = Vec::new();
+
+    for (index, observation) in state.observations.iter().enumerate() {
+        if !is_verified_status(&observation.status) || observation.code_refs.is_empty() {
+            continue;
+        }
+        let Some(evidence_score) = accepting_evidence_score(state, observation) else {
+            continue;
+        };
+        let path_keys = observation_path_keys(observation);
+        if path_keys.is_empty() {
+            continue;
+        }
+        let score = observation_priority_score(observation)
+            + evidence_score
+            + observation_focus_score(&path_keys, &focus);
+        candidates.push(ObservationSelectionCandidate {
+            observation_id: observation.id.clone(),
+            score,
+            index,
+            path_keys,
+        });
     }
+
+    candidates.sort_by(|left, right| {
+        right
+            .score
+            .cmp(&left.score)
+            .then_with(|| left.index.cmp(&right.index))
+            .then_with(|| left.observation_id.cmp(&right.observation_id))
+    });
+
+    let Some(anchor) = candidates.first() else {
+        return Err(anyhow!(
+            "observationIds was omitted and no proposal-ready observations were found"
+        ));
+    };
+    let anchor_path_keys = anchor.path_keys.iter().cloned().collect::<HashSet<_>>();
+    let mut selected = candidates
+        .iter()
+        .filter(|candidate| {
+            candidate
+                .path_keys
+                .iter()
+                .any(|path_key| anchor_path_keys.contains(path_key))
+        })
+        .take(AUTO_OBSERVATION_SELECTION_LIMIT)
+        .map(|candidate| (candidate.index, candidate.observation_id.clone()))
+        .collect::<Vec<_>>();
+
+    selected.sort_by_key(|(index, _)| *index);
+    Ok(selected
+        .into_iter()
+        .map(|(_, observation_id)| observation_id)
+        .collect())
+}
+
+fn accepting_evidence_score(
+    state: &EpiphanyThreadState,
+    observation: &EpiphanyObservation,
+) -> Option<usize> {
+    if observation.evidence_ids.is_empty() {
+        return None;
+    }
+    let mut score = 0usize;
+    for evidence_id in &observation.evidence_ids {
+        let evidence = state
+            .recent_evidence
+            .iter()
+            .find(|evidence| evidence.id == *evidence_id)?;
+        if !is_verified_status(&evidence.status) {
+            return None;
+        }
+        score += evidence_priority_score(evidence);
+    }
+    Some(score)
+}
+
+fn proposal_focus(state: &EpiphanyThreadState) -> ProposalFocus {
+    let mut focus = ProposalFocus::default();
+    if let Some(frontier) = state.graph_frontier.as_ref() {
+        for dirty_path in &frontier.dirty_paths {
+            focus.dirty_paths.insert(path_key(dirty_path));
+        }
+        for active_node_id in &frontier.active_node_ids {
+            collect_active_node_paths(&mut focus.active_paths, &state.graphs, active_node_id);
+        }
+    }
+
+    collect_mapped_paths(&mut focus.mapped_paths, &state.graphs.architecture.nodes);
+    collect_mapped_paths(&mut focus.mapped_paths, &state.graphs.dataflow.nodes);
+    for link in &state.graphs.links {
+        collect_code_ref_paths(&mut focus.mapped_paths, &link.code_refs);
+    }
+
+    focus
+}
+
+fn collect_active_node_paths(
+    target: &mut HashSet<String>,
+    graphs: &EpiphanyGraphs,
+    active_node_id: &str,
+) {
+    for node in graphs
+        .architecture
+        .nodes
+        .iter()
+        .chain(graphs.dataflow.nodes.iter())
+    {
+        if node.id == active_node_id {
+            collect_code_ref_paths(target, &node.code_refs);
+        }
+    }
+    for link in &graphs.links {
+        if link.architecture_node_id == active_node_id || link.dataflow_node_id == active_node_id {
+            collect_code_ref_paths(target, &link.code_refs);
+        }
+    }
+}
+
+fn collect_mapped_paths(target: &mut HashSet<String>, nodes: &[EpiphanyGraphNode]) {
+    for node in nodes {
+        collect_code_ref_paths(target, &node.code_refs);
+    }
+}
+
+fn collect_code_ref_paths(target: &mut HashSet<String>, code_refs: &[EpiphanyCodeRef]) {
+    for code_ref in code_refs {
+        target.insert(path_key(&code_ref.path));
+    }
+}
+
+fn observation_path_keys(observation: &EpiphanyObservation) -> Vec<String> {
+    let mut path_keys = Vec::new();
+    let mut seen = HashSet::new();
+    for code_ref in &observation.code_refs {
+        let key = path_key(&code_ref.path);
+        if seen.insert(key.clone()) {
+            path_keys.push(key);
+        }
+    }
+    path_keys
+}
+
+fn observation_focus_score(path_keys: &[String], focus: &ProposalFocus) -> usize {
+    let mut score = 0usize;
+    for path_key in path_keys {
+        if focus.dirty_paths.contains(path_key) {
+            score += 4;
+        }
+        if focus.active_paths.contains(path_key) {
+            score += 3;
+        }
+        if focus.mapped_paths.contains(path_key) {
+            score += 2;
+        }
+    }
+    score
 }
 
 fn select_observations<'a>(
@@ -662,11 +848,15 @@ fn fingerprint(
 fn code_ref_key(code_ref: &EpiphanyCodeRef) -> String {
     format!(
         "{}:{}:{}:{}",
-        code_ref.path.to_string_lossy(),
+        path_key(&code_ref.path),
         code_ref.start_line.unwrap_or_default(),
         code_ref.end_line.unwrap_or_default(),
         code_ref.symbol.as_deref().unwrap_or_default()
     )
+}
+
+fn path_key(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn push_code_ref_semantic_terms(
@@ -1082,6 +1272,128 @@ mod tests {
                 .observation
                 .summary
                 .contains("primary observation: obs-strong")
+        );
+    }
+
+    #[test]
+    fn propose_map_update_auto_selects_best_proposal_ready_observations_when_ids_are_omitted() {
+        let mut state = state_with_observation("ok");
+        state.observations[0].id = "obs-weak".to_string();
+        state.observations[0].source_kind = "observation".to_string();
+        state.observations[0].summary = "Prompt renderer might be involved".to_string();
+        state.observations[0].evidence_ids = vec!["ev-weak".to_string()];
+        state.recent_evidence[0].id = "ev-weak".to_string();
+        state.recent_evidence[0].kind = "observation".to_string();
+        state.recent_evidence[0].summary = "Manual note mentioned prompt renderer".to_string();
+        state.observations.push(EpiphanyObservation {
+            id: "obs-failed".to_string(),
+            summary: "Failed candidate should not be selected".to_string(),
+            source_kind: "verification".to_string(),
+            status: "failed".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            evidence_ids: vec!["ev-failed".to_string()],
+        });
+        state.recent_evidence.push(EpiphanyEvidenceRecord {
+            id: "ev-failed".to_string(),
+            kind: "verification".to_string(),
+            status: "failed".to_string(),
+            summary: "Verifier rejected the failed candidate".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+        });
+        state.observations.push(EpiphanyObservation {
+            id: "obs-strong".to_string(),
+            summary: "Live smoke verified prompt renderer Epiphany state injection".to_string(),
+            source_kind: "smoke".to_string(),
+            status: "ok".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            evidence_ids: vec!["ev-strong".to_string()],
+        });
+        state.recent_evidence.push(EpiphanyEvidenceRecord {
+            id: "ev-strong".to_string(),
+            kind: "verification".to_string(),
+            status: "ok".to_string(),
+            summary: "Verifier accepted prompt renderer state injection".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: Vec::new(),
+        })
+        .expect("auto-selected proposal");
+
+        assert!(
+            proposal
+                .observation
+                .summary
+                .contains("primary observation: obs-strong")
+        );
+        assert!(!proposal.observation.summary.contains("obs-failed"));
+    }
+
+    #[test]
+    fn propose_map_update_auto_selection_prefers_frontier_dirty_path_cluster() {
+        let mut state = state_with_observation("ok");
+        state.graph_frontier = Some(EpiphanyGraphFrontier {
+            dirty_paths: vec![PathBuf::from("epiphany-core/src/prompt.rs")],
+            ..Default::default()
+        });
+        state.observations.push(EpiphanyObservation {
+            id: "obs-other".to_string(),
+            summary: "Proposal engine update is verified but not current frontier focus"
+                .to_string(),
+            source_kind: "verification".to_string(),
+            status: "ok".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/proposal.rs")],
+            evidence_ids: vec!["ev-other".to_string()],
+        });
+        state.recent_evidence.push(EpiphanyEvidenceRecord {
+            id: "ev-other".to_string(),
+            kind: "verification".to_string(),
+            status: "ok".to_string(),
+            summary: "Verifier accepted proposal engine behavior".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/proposal.rs")],
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: Vec::new(),
+        })
+        .expect("auto-selected proposal");
+
+        assert!(
+            proposal.observation.summary.contains("obs-verified"),
+            "{}",
+            proposal.observation.summary
+        );
+        assert!(
+            proposal
+                .graph_frontier
+                .dirty_paths
+                .contains(&PathBuf::from("epiphany-core/src/prompt.rs"))
+        );
+        assert!(
+            !proposal
+                .graph_frontier
+                .dirty_paths
+                .contains(&PathBuf::from("epiphany-core/src/proposal.rs"))
+        );
+    }
+
+    #[test]
+    fn propose_map_update_auto_selection_rejects_when_no_candidate_is_ready() {
+        let mut state = state_with_observation("failed");
+        state.recent_evidence.clear();
+
+        let err = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: Vec::new(),
+        })
+        .expect_err("auto-selection needs proposal-ready observations");
+
+        assert!(
+            err.to_string()
+                .contains("no proposal-ready observations were found")
         );
     }
 
