@@ -3992,6 +3992,11 @@ pub struct ThreadEpiphanyPromoteParams {
 pub struct ThreadEpiphanyPromoteResponse {
     pub accepted: bool,
     pub reasons: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub revision: Option<u64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: Option<CoreEpiphanyThreadState>,
 }
 
@@ -4050,6 +4055,8 @@ pub struct ThreadEpiphanyUpdatePatch {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub struct ThreadEpiphanyUpdateResponse {
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: CoreEpiphanyThreadState,
 }
 

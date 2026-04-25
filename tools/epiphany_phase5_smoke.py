@@ -280,6 +280,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert update is not None
         require(update["epiphanyState"]["revision"] == 1, "update should advance revision to 1")
+        require(update["revision"] == 1, "update response should expose revision 1")
+        require(
+            update["changedFields"] == ["observations", "evidence"],
+            "update response should expose changed fields",
+        )
         update_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",
             start_index=update_notification_start,
@@ -338,6 +343,14 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(
             verifier_only_promote["epiphanyState"]["revision"] == 2,
             "verifier-only promotion should advance revision to 2",
+        )
+        require(
+            verifier_only_promote["revision"] == 2,
+            "verifier-only promote response should expose revision 2",
+        )
+        require(
+            verifier_only_promote["changedFields"] == ["observations", "evidence"],
+            "verifier-only promote response should expose changed fields",
         )
         verifier_only_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",
@@ -517,6 +530,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(accepted["accepted"], "strong verifier should accept risky churn with warning")
         final_state = accepted["epiphanyState"]
         require(final_state["revision"] == 3, "accepted promotion should advance revision to 3")
+        require(accepted["revision"] == 3, "accepted promote response should expose revision 3")
+        require(
+            accepted["changedFields"]
+            == ["graphs", "graphFrontier", "observations", "evidence", "churn"],
+            "accepted promote response should expose changed fields",
+        )
         promote_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",
             start_index=promote_notification_start,
@@ -563,8 +582,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "distillEvidenceKind": evidence["kind"],
             "distillSummary": evidence["summary"],
             "updateNotificationSource": update_notification["params"]["source"],
+            "updateResponseRevision": update["revision"],
+            "updateResponseChangedFields": update["changedFields"],
             "updateNotificationRevision": update_notification["params"]["revision"],
             "updateNotificationChangedFields": update_notification["params"]["changedFields"],
+            "verifierOnlyPromoteResponseRevision": verifier_only_promote["revision"],
+            "verifierOnlyPromoteResponseChangedFields": verifier_only_promote["changedFields"],
             "verifierOnlyPromoteRevision": verifier_only_notification["params"]["revision"],
             "verifierOnlyPromoteChangedFields": verifier_only_notification["params"][
                 "changedFields"
@@ -583,6 +606,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "substringVerifierReasons": reject_substring_verifier["reasons"],
             "accepted": accepted["accepted"],
             "finalRevision": final_state["revision"],
+            "promoteResponseRevision": accepted["revision"],
+            "promoteResponseChangedFields": accepted["changedFields"],
             "promoteNotificationSource": promote_notification["params"]["source"],
             "promoteNotificationRevision": promote_notification["params"]["revision"],
             "promoteNotificationChangedFields": promote_notification["params"][

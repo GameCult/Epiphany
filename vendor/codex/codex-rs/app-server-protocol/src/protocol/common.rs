@@ -1831,6 +1831,8 @@ mod tests {
             response: v2::ThreadEpiphanyPromoteResponse {
                 accepted: false,
                 reasons: vec!["verifierEvidence.status must be accepting".to_string()],
+                revision: None,
+                changed_fields: Vec::new(),
                 epiphany_state: None,
             },
         };
@@ -1857,6 +1859,8 @@ mod tests {
         let response = ClientResponse::ThreadEpiphanyUpdate {
             request_id: RequestId::Integer(12),
             response: v2::ThreadEpiphanyUpdateResponse {
+                revision: 2,
+                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::Objective],
                 epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
                     revision: 2,
                     objective: Some("Keep the map honest".to_string()),
@@ -1872,6 +1876,8 @@ mod tests {
                 "method": "thread/epiphany/update",
                 "id": 12,
                 "response": {
+                    "revision": 2,
+                    "changedFields": ["objective"],
                     "epiphanyState": {
                         "revision": 2,
                         "objective": "Keep the map honest"

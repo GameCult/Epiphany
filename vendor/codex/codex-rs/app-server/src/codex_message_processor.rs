@@ -4369,6 +4369,8 @@ impl CodexMessageProcessor {
                     ThreadEpiphanyPromoteResponse {
                         accepted: false,
                         reasons: decision.reasons,
+                        revision: None,
+                        changed_fields: Vec::new(),
                         epiphany_state: None,
                     },
                 )
@@ -4412,6 +4414,8 @@ impl CodexMessageProcessor {
         let response = ThreadEpiphanyPromoteResponse {
             accepted: true,
             reasons: Vec::new(),
+            revision: Some(epiphany_state.revision),
+            changed_fields: changed_fields.clone(),
             epiphany_state: Some(epiphany_state.clone()),
         };
 
@@ -4493,6 +4497,8 @@ impl CodexMessageProcessor {
             }
         };
         let response = ThreadEpiphanyUpdateResponse {
+            revision: epiphany_state.revision,
+            changed_fields: changed_fields.clone(),
             epiphany_state: epiphany_state.clone(),
         };
 
