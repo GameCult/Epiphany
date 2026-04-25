@@ -336,6 +336,11 @@ client_request_definitions! {
         params: v2::ThreadReadParams,
         response: v2::ThreadReadResponse,
     },
+    #[experimental("thread/epiphany/scene")]
+    ThreadEpiphanyScene => "thread/epiphany/scene" {
+        params: v2::ThreadEpiphanySceneParams,
+        response: v2::ThreadEpiphanySceneResponse,
+    },
     #[experimental("thread/epiphany/index")]
     ThreadEpiphanyIndex => "thread/epiphany/index" {
         params: v2::ThreadEpiphanyIndexParams,
@@ -1580,6 +1585,167 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_scene_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyScene {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanySceneResponse {
+                thread_id: "thr_123".to_string(),
+                scene: v2::ThreadEpiphanyScene {
+                    state_status: v2::ThreadEpiphanySceneStateStatus::Ready,
+                    source: v2::ThreadEpiphanySceneSource::Live,
+                    revision: Some(3),
+                    objective: Some("Keep the map visible".to_string()),
+                    active_subgoal: Some(v2::ThreadEpiphanySceneSubgoal {
+                        id: "phase-6".to_string(),
+                        title: "Reflect typed state".to_string(),
+                        status: "active".to_string(),
+                        summary: None,
+                        active: true,
+                    }),
+                    subgoals: Vec::new(),
+                    invariant_status_counts: vec![v2::ThreadEpiphanySceneStatusCount {
+                        status: "ok".to_string(),
+                        count: 2,
+                    }],
+                    graph: v2::ThreadEpiphanySceneGraph {
+                        architecture_node_count: 4,
+                        architecture_edge_count: 3,
+                        dataflow_node_count: 2,
+                        dataflow_edge_count: 1,
+                        link_count: 2,
+                        active_node_ids: vec!["state-spine".to_string()],
+                        active_edge_ids: Vec::new(),
+                        open_question_count: 1,
+                        open_gap_count: 0,
+                        dirty_paths: vec![PathBuf::from("notes/scene.md")],
+                        checkpoint_id: Some("ck-1".to_string()),
+                        checkpoint_summary: None,
+                    },
+                    retrieval: Some(v2::ThreadEpiphanySceneRetrieval {
+                        workspace_root: PathBuf::from("/workspace"),
+                        status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                        semantic_available: true,
+                        index_revision: Some("qdrant-v1".to_string()),
+                        indexed_file_count: Some(12),
+                        indexed_chunk_count: Some(34),
+                        shard_count: 1,
+                        dirty_path_count: 0,
+                    }),
+                    observations: v2::ThreadEpiphanySceneRecords {
+                        total_count: 1,
+                        latest: vec![v2::ThreadEpiphanySceneRecord {
+                            id: "obs-1".to_string(),
+                            kind: "smoke".to_string(),
+                            status: "ok".to_string(),
+                            summary: "Scene projected".to_string(),
+                            code_ref_count: 1,
+                        }],
+                    },
+                    evidence: v2::ThreadEpiphanySceneRecords::default(),
+                    churn: Some(v2::ThreadEpiphanySceneChurn {
+                        understanding_status: "ready".to_string(),
+                        diff_pressure: "low".to_string(),
+                        graph_freshness: Some("fresh".to_string()),
+                        warning: None,
+                        unexplained_writes: Some(0),
+                    }),
+                    available_actions: vec![
+                        v2::ThreadEpiphanySceneAction::Index,
+                        v2::ThreadEpiphanySceneAction::Retrieve,
+                        v2::ThreadEpiphanySceneAction::Distill,
+                        v2::ThreadEpiphanySceneAction::Update,
+                        v2::ThreadEpiphanySceneAction::Propose,
+                        v2::ThreadEpiphanySceneAction::Promote,
+                    ],
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/scene");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/scene",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "scene": {
+                        "stateStatus": "ready",
+                        "source": "live",
+                        "revision": 3,
+                        "objective": "Keep the map visible",
+                        "activeSubgoal": {
+                            "id": "phase-6",
+                            "title": "Reflect typed state",
+                            "status": "active",
+                            "active": true
+                        },
+                        "invariantStatusCounts": [
+                            {
+                                "status": "ok",
+                                "count": 2
+                            }
+                        ],
+                        "graph": {
+                            "architectureNodeCount": 4,
+                            "architectureEdgeCount": 3,
+                            "dataflowNodeCount": 2,
+                            "dataflowEdgeCount": 1,
+                            "linkCount": 2,
+                            "activeNodeIds": ["state-spine"],
+                            "openQuestionCount": 1,
+                            "openGapCount": 0,
+                            "dirtyPaths": ["notes/scene.md"],
+                            "checkpointId": "ck-1"
+                        },
+                        "retrieval": {
+                            "workspaceRoot": "/workspace",
+                            "status": "ready",
+                            "semanticAvailable": true,
+                            "indexRevision": "qdrant-v1",
+                            "indexedFileCount": 12,
+                            "indexedChunkCount": 34,
+                            "shardCount": 1,
+                            "dirtyPathCount": 0
+                        },
+                        "observations": {
+                            "totalCount": 1,
+                            "latest": [
+                                {
+                                    "id": "obs-1",
+                                    "kind": "smoke",
+                                    "status": "ok",
+                                    "summary": "Scene projected",
+                                    "codeRefCount": 1
+                                }
+                            ]
+                        },
+                        "evidence": {
+                            "totalCount": 0
+                        },
+                        "churn": {
+                            "understandingStatus": "ready",
+                            "diffPressure": "low",
+                            "graphFreshness": "fresh",
+                            "unexplainedWrites": 0
+                        },
+                        "availableActions": [
+                            "index",
+                            "retrieve",
+                            "distill",
+                            "update",
+                            "propose",
+                            "promote"
+                        ]
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_thread_epiphany_retrieve_response() -> Result<()> {
         let response = ClientResponse::ThreadEpiphanyRetrieve {
             request_id: RequestId::Integer(8),
@@ -2435,6 +2601,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/retrieve"));
+    }
+
+    #[test]
+    fn thread_epiphany_scene_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyScene {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanySceneParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/scene"));
     }
 
     #[test]

@@ -14966,6 +14966,381 @@
         ],
         "type": "object"
       },
+      "ThreadEpiphanyScene": {
+        "properties": {
+          "activeSubgoal": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanySceneSubgoal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "availableActions": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanySceneAction"
+            },
+            "type": "array"
+          },
+          "churn": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanySceneChurn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "$ref": "#/definitions/v2/ThreadEpiphanySceneRecords"
+          },
+          "graph": {
+            "$ref": "#/definitions/v2/ThreadEpiphanySceneGraph"
+          },
+          "invariantStatusCounts": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanySceneStatusCount"
+            },
+            "type": "array"
+          },
+          "objective": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observations": {
+            "$ref": "#/definitions/v2/ThreadEpiphanySceneRecords"
+          },
+          "retrieval": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanySceneRetrieval"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanySceneSource"
+          },
+          "stateStatus": {
+            "$ref": "#/definitions/v2/ThreadEpiphanySceneStateStatus"
+          },
+          "subgoals": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanySceneSubgoal"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "evidence",
+          "graph",
+          "observations",
+          "source",
+          "stateStatus"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanySceneAction": {
+        "enum": [
+          "index",
+          "retrieve",
+          "distill",
+          "propose",
+          "promote",
+          "update"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanySceneChurn": {
+        "properties": {
+          "diffPressure": {
+            "type": "string"
+          },
+          "graphFreshness": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "understandingStatus": {
+            "type": "string"
+          },
+          "unexplainedWrites": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "warning": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "diffPressure",
+          "understandingStatus"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanySceneGraph": {
+        "properties": {
+          "activeEdgeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "activeNodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "architectureEdgeCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "architectureNodeCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "checkpointId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkpointSummary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "dataflowEdgeCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "dataflowNodeCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "dirtyPaths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "openGapCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "openQuestionCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "architectureEdgeCount",
+          "architectureNodeCount",
+          "dataflowEdgeCount",
+          "dataflowNodeCount",
+          "linkCount",
+          "openGapCount",
+          "openQuestionCount"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanySceneRecord": {
+        "properties": {
+          "codeRefCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "codeRefCount",
+          "id",
+          "kind",
+          "status",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanySceneRecords": {
+        "properties": {
+          "latest": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanySceneRecord"
+            },
+            "type": "array"
+          },
+          "totalCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "totalCount"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanySceneRetrieval": {
+        "properties": {
+          "dirtyPathCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "indexRevision": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "indexedChunkCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "indexedFileCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "semanticAvailable": {
+            "type": "boolean"
+          },
+          "shardCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/definitions/v2/EpiphanyRetrievalStatus"
+          },
+          "workspaceRoot": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dirtyPathCount",
+          "semanticAvailable",
+          "shardCount",
+          "status",
+          "workspaceRoot"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanySceneSource": {
+        "enum": [
+          "stored",
+          "live"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanySceneStateStatus": {
+        "enum": [
+          "missing",
+          "ready"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanySceneStatusCount": {
+        "properties": {
+          "count": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanySceneSubgoal": {
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "active",
+          "id",
+          "status",
+          "title"
+        ],
+        "type": "object"
+      },
       "ThreadEpiphanyStateUpdatedField": {
         "enum": [
           "objective",

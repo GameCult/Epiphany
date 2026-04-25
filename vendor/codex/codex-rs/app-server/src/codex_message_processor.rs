@@ -160,6 +160,19 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
+use codex_app_server_protocol::ThreadEpiphanyScene;
+use codex_app_server_protocol::ThreadEpiphanySceneAction;
+use codex_app_server_protocol::ThreadEpiphanySceneChurn;
+use codex_app_server_protocol::ThreadEpiphanySceneGraph;
+use codex_app_server_protocol::ThreadEpiphanySceneParams;
+use codex_app_server_protocol::ThreadEpiphanySceneRecord;
+use codex_app_server_protocol::ThreadEpiphanySceneRecords;
+use codex_app_server_protocol::ThreadEpiphanySceneResponse;
+use codex_app_server_protocol::ThreadEpiphanySceneRetrieval;
+use codex_app_server_protocol::ThreadEpiphanySceneSource;
+use codex_app_server_protocol::ThreadEpiphanySceneStateStatus;
+use codex_app_server_protocol::ThreadEpiphanySceneStatusCount;
+use codex_app_server_protocol::ThreadEpiphanySceneSubgoal;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
@@ -390,6 +403,7 @@ use codex_thread_store::ThreadStoreError;
 use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataParams;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::Error as IoError;
@@ -982,6 +996,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadRead { request_id, params } => {
                 self.thread_read(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyScene { request_id, params } => {
+                self.thread_epiphany_scene(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4043,6 +4061,41 @@ impl CodexMessageProcessor {
             }
         };
         let response = ThreadReadResponse { thread };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_scene(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanySceneParams,
+    ) {
+        let ThreadEpiphanySceneParams { thread_id } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded = self.thread_manager.get_thread(thread_uuid).await.is_ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+        let response = ThreadEpiphanySceneResponse {
+            thread_id,
+            scene: map_epiphany_scene(thread.epiphany_state.as_ref(), loaded),
+        };
         self.outgoing.send_response(request_id, response).await;
     }
 
@@ -10444,6 +10497,181 @@ async fn client_visible_live_thread_epiphany_state(
     live_thread_epiphany_state(thread).await.unwrap_or(fallback)
 }
 
+fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> ThreadEpiphanyScene {
+    let source = if loaded {
+        ThreadEpiphanySceneSource::Live
+    } else {
+        ThreadEpiphanySceneSource::Stored
+    };
+    let available_actions = epiphany_scene_available_actions(loaded, state.is_some());
+    let Some(state) = state else {
+        return ThreadEpiphanyScene {
+            state_status: ThreadEpiphanySceneStateStatus::Missing,
+            source,
+            revision: None,
+            objective: None,
+            active_subgoal: None,
+            subgoals: Vec::new(),
+            invariant_status_counts: Vec::new(),
+            graph: ThreadEpiphanySceneGraph::default(),
+            retrieval: None,
+            observations: ThreadEpiphanySceneRecords::default(),
+            evidence: ThreadEpiphanySceneRecords::default(),
+            churn: None,
+            available_actions,
+        };
+    };
+
+    let subgoals = map_epiphany_scene_subgoals(state);
+    let active_subgoal = subgoals.iter().find(|subgoal| subgoal.active).cloned();
+
+    ThreadEpiphanyScene {
+        state_status: ThreadEpiphanySceneStateStatus::Ready,
+        source,
+        revision: Some(state.revision),
+        objective: state.objective.clone(),
+        active_subgoal,
+        subgoals,
+        invariant_status_counts: status_counts(
+            state.invariants.iter().map(|item| item.status.as_str()),
+        ),
+        graph: map_epiphany_scene_graph(state),
+        retrieval: state
+            .retrieval
+            .as_ref()
+            .map(|retrieval| ThreadEpiphanySceneRetrieval {
+                workspace_root: retrieval.workspace_root.clone(),
+                status: retrieval.status,
+                semantic_available: retrieval.semantic_available,
+                index_revision: retrieval.index_revision.clone(),
+                indexed_file_count: retrieval.indexed_file_count,
+                indexed_chunk_count: retrieval.indexed_chunk_count,
+                shard_count: retrieval.shards.len() as u32,
+                dirty_path_count: retrieval.dirty_paths.len() as u32,
+            }),
+        observations: ThreadEpiphanySceneRecords {
+            total_count: state.observations.len() as u32,
+            latest: state
+                .observations
+                .iter()
+                .rev()
+                .take(EPIPHANY_SCENE_RECORD_LIMIT)
+                .map(|observation| ThreadEpiphanySceneRecord {
+                    id: observation.id.clone(),
+                    kind: observation.source_kind.clone(),
+                    status: observation.status.clone(),
+                    summary: observation.summary.clone(),
+                    code_ref_count: observation.code_refs.len() as u32,
+                })
+                .collect(),
+        },
+        evidence: ThreadEpiphanySceneRecords {
+            total_count: state.recent_evidence.len() as u32,
+            latest: state
+                .recent_evidence
+                .iter()
+                .rev()
+                .take(EPIPHANY_SCENE_RECORD_LIMIT)
+                .map(|evidence| ThreadEpiphanySceneRecord {
+                    id: evidence.id.clone(),
+                    kind: evidence.kind.clone(),
+                    status: evidence.status.clone(),
+                    summary: evidence.summary.clone(),
+                    code_ref_count: evidence.code_refs.len() as u32,
+                })
+                .collect(),
+        },
+        churn: state.churn.as_ref().map(|churn| ThreadEpiphanySceneChurn {
+            understanding_status: churn.understanding_status.clone(),
+            diff_pressure: churn.diff_pressure.clone(),
+            graph_freshness: churn.graph_freshness.clone(),
+            warning: churn.warning.clone(),
+            unexplained_writes: churn.unexplained_writes,
+        }),
+        available_actions,
+    }
+}
+
+const EPIPHANY_SCENE_RECORD_LIMIT: usize = 5;
+
+fn epiphany_scene_available_actions(
+    loaded: bool,
+    state_present: bool,
+) -> Vec<ThreadEpiphanySceneAction> {
+    if !loaded {
+        return Vec::new();
+    }
+
+    let mut actions = vec![
+        ThreadEpiphanySceneAction::Index,
+        ThreadEpiphanySceneAction::Retrieve,
+        ThreadEpiphanySceneAction::Distill,
+        ThreadEpiphanySceneAction::Update,
+    ];
+    if state_present {
+        actions.push(ThreadEpiphanySceneAction::Propose);
+        actions.push(ThreadEpiphanySceneAction::Promote);
+    }
+    actions
+}
+
+fn map_epiphany_scene_subgoals(state: &EpiphanyThreadState) -> Vec<ThreadEpiphanySceneSubgoal> {
+    let active_id = state.active_subgoal_id.as_deref();
+    state
+        .subgoals
+        .iter()
+        .map(|subgoal| ThreadEpiphanySceneSubgoal {
+            id: subgoal.id.clone(),
+            title: subgoal.title.clone(),
+            status: subgoal.status.clone(),
+            summary: subgoal.summary.clone(),
+            active: active_id == Some(subgoal.id.as_str()),
+        })
+        .collect()
+}
+
+fn map_epiphany_scene_graph(state: &EpiphanyThreadState) -> ThreadEpiphanySceneGraph {
+    let frontier = state.graph_frontier.as_ref();
+    let checkpoint = state.graph_checkpoint.as_ref();
+    ThreadEpiphanySceneGraph {
+        architecture_node_count: state.graphs.architecture.nodes.len() as u32,
+        architecture_edge_count: state.graphs.architecture.edges.len() as u32,
+        dataflow_node_count: state.graphs.dataflow.nodes.len() as u32,
+        dataflow_edge_count: state.graphs.dataflow.edges.len() as u32,
+        link_count: state.graphs.links.len() as u32,
+        active_node_ids: frontier
+            .map(|frontier| frontier.active_node_ids.clone())
+            .unwrap_or_default(),
+        active_edge_ids: frontier
+            .map(|frontier| frontier.active_edge_ids.clone())
+            .unwrap_or_default(),
+        open_question_count: frontier
+            .map(|frontier| frontier.open_question_ids.len() as u32)
+            .unwrap_or_default(),
+        open_gap_count: frontier
+            .map(|frontier| frontier.open_gap_ids.len() as u32)
+            .unwrap_or_default(),
+        dirty_paths: frontier
+            .map(|frontier| frontier.dirty_paths.clone())
+            .unwrap_or_default(),
+        checkpoint_id: checkpoint.map(|checkpoint| checkpoint.checkpoint_id.clone()),
+        checkpoint_summary: checkpoint.and_then(|checkpoint| checkpoint.summary.clone()),
+    }
+}
+
+fn status_counts<'a>(
+    statuses: impl Iterator<Item = &'a str>,
+) -> Vec<ThreadEpiphanySceneStatusCount> {
+    let mut counts = BTreeMap::<String, u32>::new();
+    for status in statuses {
+        *counts.entry(status.to_string()).or_default() += 1;
+    }
+    counts
+        .into_iter()
+        .map(|(status, count)| ThreadEpiphanySceneStatusCount { status, count })
+        .collect()
+}
+
 fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatch) -> bool {
     patch.objective.is_some()
         || patch.active_subgoal_id.is_some()
@@ -11829,6 +12057,175 @@ mod tests {
         assert_eq!(summary.indexed_file_count, Some(12));
         assert!(summary.dirty_paths.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn map_epiphany_scene_projects_client_reflection_without_mutation_shape() {
+        let scene = map_epiphany_scene(
+            Some(&codex_protocol::protocol::EpiphanyThreadState {
+                revision: 5,
+                objective: Some("Expose typed state without making a second brain".to_string()),
+                active_subgoal_id: Some("phase-6".to_string()),
+                subgoals: vec![
+                    codex_protocol::protocol::EpiphanySubgoal {
+                        id: "phase-5".to_string(),
+                        title: "Finish control plane".to_string(),
+                        status: "done".to_string(),
+                        summary: None,
+                    },
+                    codex_protocol::protocol::EpiphanySubgoal {
+                        id: "phase-6".to_string(),
+                        title: "Reflect typed state".to_string(),
+                        status: "active".to_string(),
+                        summary: Some("Thin client scene".to_string()),
+                    },
+                ],
+                invariants: vec![
+                    codex_protocol::protocol::EpiphanyInvariant {
+                        id: "inv-1".to_string(),
+                        description: "No GUI source of truth".to_string(),
+                        status: "ok".to_string(),
+                        rationale: None,
+                    },
+                    codex_protocol::protocol::EpiphanyInvariant {
+                        id: "inv-2".to_string(),
+                        description: "No hidden mutation".to_string(),
+                        status: "ok".to_string(),
+                        rationale: None,
+                    },
+                ],
+                graphs: codex_protocol::protocol::EpiphanyGraphs {
+                    architecture: codex_protocol::protocol::EpiphanyGraph {
+                        nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                            id: "scene".to_string(),
+                            title: "Scene projection".to_string(),
+                            purpose: "Reflect the typed state".to_string(),
+                            ..Default::default()
+                        }],
+                        edges: Vec::new(),
+                    },
+                    dataflow: codex_protocol::protocol::EpiphanyGraph {
+                        nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                            id: "state".to_string(),
+                            title: "State".to_string(),
+                            purpose: "Authoritative input".to_string(),
+                            ..Default::default()
+                        }],
+                        edges: Vec::new(),
+                    },
+                    links: vec![codex_protocol::protocol::EpiphanyGraphLink {
+                        dataflow_node_id: "state".to_string(),
+                        architecture_node_id: "scene".to_string(),
+                        relationship: Some("derived".to_string()),
+                        code_refs: Vec::new(),
+                    }],
+                },
+                graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                    active_node_ids: vec!["scene".to_string()],
+                    active_edge_ids: Vec::new(),
+                    open_question_ids: vec!["q-1".to_string()],
+                    open_gap_ids: Vec::new(),
+                    dirty_paths: vec![PathBuf::from("app-server/src/codex_message_processor.rs")],
+                }),
+                graph_checkpoint: Some(codex_protocol::protocol::EpiphanyGraphCheckpoint {
+                    checkpoint_id: "ck-5".to_string(),
+                    graph_revision: 5,
+                    summary: Some("Phase 6 start".to_string()),
+                    frontier_node_ids: Vec::new(),
+                    open_question_ids: Vec::new(),
+                    open_gap_ids: Vec::new(),
+                }),
+                retrieval: Some(codex_protocol::protocol::EpiphanyRetrievalState {
+                    workspace_root: test_path_buf("/repo"),
+                    status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                    semantic_available: true,
+                    indexed_file_count: Some(2),
+                    indexed_chunk_count: Some(8),
+                    shards: vec![codex_protocol::protocol::EpiphanyRetrievalShardSummary {
+                        shard_id: "workspace".to_string(),
+                        path_prefix: PathBuf::from("."),
+                        status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+                        exact_available: true,
+                        semantic_available: true,
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }),
+                observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                    id: "obs-scene".to_string(),
+                    summary: "Scene is derived".to_string(),
+                    source_kind: "test".to_string(),
+                    status: "ok".to_string(),
+                    code_refs: Vec::new(),
+                    evidence_ids: vec!["ev-scene".to_string()],
+                }],
+                recent_evidence: vec![codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    id: "ev-scene".to_string(),
+                    kind: "test".to_string(),
+                    status: "ok".to_string(),
+                    summary: "Projection test".to_string(),
+                    code_refs: Vec::new(),
+                }],
+                churn: Some(codex_protocol::protocol::EpiphanyChurnState {
+                    understanding_status: "ready".to_string(),
+                    diff_pressure: "low".to_string(),
+                    graph_freshness: Some("fresh".to_string()),
+                    warning: None,
+                    unexplained_writes: Some(0),
+                }),
+                ..Default::default()
+            }),
+            true,
+        );
+
+        assert_eq!(scene.state_status, ThreadEpiphanySceneStateStatus::Ready);
+        assert_eq!(scene.source, ThreadEpiphanySceneSource::Live);
+        assert_eq!(scene.revision, Some(5));
+        assert_eq!(
+            scene
+                .active_subgoal
+                .as_ref()
+                .map(|subgoal| subgoal.id.as_str()),
+            Some("phase-6")
+        );
+        assert_eq!(
+            scene.invariant_status_counts,
+            vec![ThreadEpiphanySceneStatusCount {
+                status: "ok".to_string(),
+                count: 2,
+            }]
+        );
+        assert_eq!(scene.graph.architecture_node_count, 1);
+        assert_eq!(scene.graph.dataflow_node_count, 1);
+        assert_eq!(scene.graph.link_count, 1);
+        assert_eq!(scene.graph.checkpoint_id.as_deref(), Some("ck-5"));
+        assert_eq!(
+            scene.retrieval.as_ref().and_then(|r| r.indexed_chunk_count),
+            Some(8)
+        );
+        assert_eq!(scene.observations.total_count, 1);
+        assert_eq!(scene.evidence.latest[0].id, "ev-scene");
+        assert_eq!(
+            scene.available_actions,
+            vec![
+                ThreadEpiphanySceneAction::Index,
+                ThreadEpiphanySceneAction::Retrieve,
+                ThreadEpiphanySceneAction::Distill,
+                ThreadEpiphanySceneAction::Update,
+                ThreadEpiphanySceneAction::Propose,
+                ThreadEpiphanySceneAction::Promote,
+            ]
+        );
+    }
+
+    #[test]
+    fn map_epiphany_scene_handles_missing_state_without_write_actions() {
+        let scene = map_epiphany_scene(None, false);
+
+        assert_eq!(scene.state_status, ThreadEpiphanySceneStateStatus::Missing);
+        assert_eq!(scene.source, ThreadEpiphanySceneSource::Stored);
+        assert!(scene.available_actions.is_empty());
+        assert_eq!(scene.graph, ThreadEpiphanySceneGraph::default());
     }
 
     #[test]

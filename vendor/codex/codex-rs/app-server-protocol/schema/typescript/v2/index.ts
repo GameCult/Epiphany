@@ -321,6 +321,17 @@ export type { ThreadEpiphanyRetrieveIndexSummary } from "./ThreadEpiphanyRetriev
 export type { ThreadEpiphanyRetrieveResult } from "./ThreadEpiphanyRetrieveResult";
 export type { ThreadEpiphanyRetrieveResultKind } from "./ThreadEpiphanyRetrieveResultKind";
 export type { ThreadEpiphanyRetrieveShardSummary } from "./ThreadEpiphanyRetrieveShardSummary";
+export type { ThreadEpiphanyScene } from "./ThreadEpiphanyScene";
+export type { ThreadEpiphanySceneAction } from "./ThreadEpiphanySceneAction";
+export type { ThreadEpiphanySceneChurn } from "./ThreadEpiphanySceneChurn";
+export type { ThreadEpiphanySceneGraph } from "./ThreadEpiphanySceneGraph";
+export type { ThreadEpiphanySceneRecord } from "./ThreadEpiphanySceneRecord";
+export type { ThreadEpiphanySceneRecords } from "./ThreadEpiphanySceneRecords";
+export type { ThreadEpiphanySceneRetrieval } from "./ThreadEpiphanySceneRetrieval";
+export type { ThreadEpiphanySceneSource } from "./ThreadEpiphanySceneSource";
+export type { ThreadEpiphanySceneStateStatus } from "./ThreadEpiphanySceneStateStatus";
+export type { ThreadEpiphanySceneStatusCount } from "./ThreadEpiphanySceneStatusCount";
+export type { ThreadEpiphanySceneSubgoal } from "./ThreadEpiphanySceneSubgoal";
 export type { ThreadEpiphanyStateUpdatedField } from "./ThreadEpiphanyStateUpdatedField";
 export type { ThreadEpiphanyStateUpdatedNotification } from "./ThreadEpiphanyStateUpdatedNotification";
 export type { ThreadEpiphanyStateUpdatedSource } from "./ThreadEpiphanyStateUpdatedSource";

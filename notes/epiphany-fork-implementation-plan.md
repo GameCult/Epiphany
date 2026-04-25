@@ -2,7 +2,7 @@
 
 ## Status
 
-Updated on 2026-04-25 after recognizing that Phase 5 is complete enough to stop feeding itself tiny safety slices. The update/distill/propose/promote/read/notification control plane is now the regression-guarded baseline, not an excuse to keep rearranging the furniture until everyone dies of responsible boredom.
+Updated on 2026-04-25 after landing the first Phase 6 reflection-boundary slice. Phase 5 remains the regression-guarded update/distill/propose/promote/read/notification baseline, not an excuse to keep rearranging the furniture until everyone dies of responsible boredom.
 
 This note tracks Epiphany as a fork of Codex with an opinionated modeling architecture. The point is not to offer Codex another collaboration preset. The point is to make the harness force the model to carry explicit structure about the codebase, the active subgoal, the evidence trail, and the machine it is modifying.
 
@@ -33,11 +33,12 @@ This note tracks Epiphany as a fork of Codex with an opinionated modeling archit
 - a rejected-promotion silence smoke hardening slice: the reusable Phase 5 app-server smoke now asserts rejected `thread/epiphany/promote` calls do not emit `thread/epiphany/stateUpdated`, preserving the "no mutation, no bell" contract
 - a direct-update integrity hardening slice: `thread/epiphany/update` now validates appended observation/evidence graph records and structural replacement fields before mutation, rejects empty/duplicate/reused append ids, missing evidence references, and invalid graph/frontier/checkpoint/subgoal/churn replacement shapes, and the reusable smoke asserts invalid direct updates leave revision unchanged with no `thread/epiphany/stateUpdated` notification
 - a write/read surface consistency hardening slice: successful direct update and accepted promote responses plus their `thread/epiphany/stateUpdated` notifications now reuse the same live Epiphany state projection as `thread/read`, so clients get retrieval-summary backfill consistently instead of receiving a raw just-written state in one surface and a richer read state in another
+- a first Phase 6 reflection-boundary slice: experimental read-only `thread/epiphany/scene` returns a client-shaped projection derived from authoritative Epiphany state, including objective, active subgoal, invariant counts, graph focus, retrieval status, observation/evidence summaries, churn, live/stored source, and available control-plane actions without mutating or persisting anything
 - current phase: Phase 6 reflection boundary / scene-surface precursor
 
 The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, ship the first read-only map/churn proposal surface, teach proposal to avoid duplicating already-mapped code surfaces, make proposal frontier focus follow existing graph links, make selected observations evidence-backed with non-haunted churn pressure, rescue unanchored graph nodes with strict semantic matching, let proposal choose a bounded ready observation set when ids are omitted, make proposal pressure understand match kinds, make the distiller summarize noisy source output, make source-output salience prefer final results over generic warnings, make promotion notice risky deltas, make expansion freshness resistant to low-pressure underreporting, prevent substring verifier-kind accidents, prove that richer chain over app-server by hand, add the first live state notification after successful writes, make that notification say which revision and state sections changed, reject malformed direct updates, or make write responses match `thread/read` projection. Those parts are landed or live-smoked.
 
-The next job is to move one layer outward: design and land a meaningful Phase 6 reflection/scene-surface or job-state precursor that lets a client inspect and steer the typed Epiphany machine without making the GUI/client the source of truth. Use `tools/epiphany_phase5_smoke.py` as a regression guardrail when touching the Phase 5 control plane, not as a ritual that justifies another tiny safety slice.
+The next job is to continue from the read-only scene baseline: live-smoke `thread/epiphany/scene` through app-server or move toward a minimal job-state/progress surface for indexing/remap/verification work. Use `tools/epiphany_phase5_smoke.py` as a regression guardrail when touching the Phase 5 control plane, not as a ritual that justifies another tiny safety slice.
 
 Workflow trap to avoid: do not leave handoff or plan notes that say only "continue the next smallest hardening slice" after a phase has reached a coherent baseline. Bounded slices are how work lands safely; they are not the project direction. A good handoff should name the next organ, not merely prescribe one more scrape of sandpaper on the same seam.
 
@@ -319,7 +320,7 @@ Treat the current retrieval baseline and explicit indexing follow-up as landed P
 5. declare Phase 5 complete enough unless a concrete bug, regression, or real-use gap appears
 6. use the Phase 5 smoke as a guardrail before modifying the existing control plane, not as a reason to keep sanding that same control plane forever
 7. choose the next meaningful Phase 6 precursor:
-   - a typed scene/read model for graph, invariants, evidence, intent, churn, and retrieval status, derived from existing Epiphany state
+   - extend the typed scene/read model for graph, invariants, evidence, intent, churn, and retrieval status, derived from existing Epiphany state
    - or a minimal typed job-state/progress surface for indexing/remap/verification work that a future GUI can render
 8. keep the source-of-truth rule intact: GUI/client surfaces reflect and steer typed state, but they do not manufacture canonical understanding
 

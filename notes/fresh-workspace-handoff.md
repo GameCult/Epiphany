@@ -39,6 +39,7 @@ Recent anchor commits:
 - current slice - hardened the reusable Phase 5 smoke so rejected promotions explicitly prove `thread/epiphany/stateUpdated` stays silent
 - current slice - hardened direct `thread/epiphany/update` so malformed appended observations/evidence and structurally invalid replacement fields are rejected before mutation, and the reusable smoke proves invalid direct updates stay silent
 - current slice - aligned successful update/promote response and notification state payloads with the same client-visible live-state projection used by `thread/read`, including retrieval-summary backfill
+- current slice - added the first Phase 6 reflection surface as read-only `thread/epiphany/scene`, projecting objective, subgoals, invariant counts, graph focus, retrieval status, observations, evidence, churn, live/stored source, and available control actions from existing Epiphany state
 
 Do not trust this note for the exact current HEAD; use `git log --oneline -1` if you need the live commit.
 
@@ -64,10 +65,11 @@ Rehydrate:
 
 Reorient:
 
-- current HEAD before this packet was written: `0dcdfab Mark Phase 5 complete enough`
-- branch is `main...origin/main [ahead 1]` after the Phase 5 completion docs commit unless a later slice pushes or commits more
-- current active lane is Phase 6 reflection boundary / scene-surface precursor
+- current HEAD before the Phase 6 scene slice was `e1e5c40 Persist compact reentry after Phase 5 exit`
+- branch was `main...origin/main [ahead 2]` before the Phase 6 scene slice; check `git log --oneline -5` for the live commit after this lands
+- current active lane is Phase 6 reflection boundary; the first read-only scene surface now exists
 - latest landed implementation slice: successful `thread/epiphany/update` and accepted `thread/epiphany/promote` responses/notifications now publish the same client-visible live-state projection as `thread/read`, including retrieval-summary backfill
+- latest landing slice: experimental `thread/epiphany/scene` derives a client-shaped reflection from `thread/read`-compatible Epiphany state without mutating or persisting anything
 - latest docs/memory slice: Phase 5 is marked complete enough; the plan, map, handoff, algorithmic map, AGENTS discipline, and evidence now warn against self-reinforcing "one more tiny hardening slice" handoffs
 - latest verification slice: richer Phase 5 smoke observed retrieval status `ready` on update/promote responses and notifications, with rejected promotions and invalid direct updates still silent/non-mutating; no new code changed after that smoke
 - `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` remain read-only
@@ -78,9 +80,9 @@ Continue:
 
 - do not restart Phase 5 just because the handoff says to be careful; the update/distill/propose/promote/read/notification seam is complete enough unless a concrete regression appears
 - use `tools/epiphany_phase5_smoke.py` as the app-server seam guardrail before changing proposal/promotion/write/read behavior, not as a ritual for generating more tiny safety work
-- pick a meaningful Phase 6 reflection/scene-surface or job-state precursor that exposes the existing typed Epiphany machine without making GUI/client state authoritative
+- continue from the first Phase 6 scene-surface baseline; either live-smoke `thread/epiphany/scene` through app-server or move toward a minimal job-state/progress surface
 - avoid handoff notes that only say "next smallest hardening slice"; they can trap the next agent in furniture-rearrangement mode
-- likely next move: source-ground the current app-server protocol/read surfaces and decide whether Phase 6 starts with a thin typed scene/read projection or a minimal job-state/progress surface; do not implement from vibes
+- likely next move: use the new scene surface as the thin typed read projection and decide whether to live-smoke it or add a minimal job-state/progress surface; do not implement from vibes
 - before natural-language algorithm-map edits, reread the exact source being described
 - if a regression or benchmark fix attempt does not move the target, immediately revert that attempt before trying the next hypothesis
 
@@ -132,6 +134,7 @@ Current verified typed state/promotion layer:
 - experimental `thread/epiphany/stateUpdated` notifications after successful direct updates and accepted promotions, with typed `source` values of `update` or `promote`, event-level `revision`, and typed `changedFields`
 - response-level `revision` and `changedFields` on successful `thread/epiphany/update` and accepted `thread/epiphany/promote`
 - successful update/promote response and notification state payloads now include the same non-durable retrieval-summary backfill that live `thread/read` exposes when durable Epiphany state lacks persisted retrieval metadata
+- experimental read-only `thread/epiphany/scene`, which turns existing authoritative Epiphany state into a compact client reflection without writing state or creating a GUI-owned brain
 - typed patch shape for observations, evidence, objective, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
 - direct `thread/epiphany/update` validation for appended observations/evidence and replacement fields: append records need nonempty identity fields, patch ids cannot duplicate or reuse durable ids, observations must cite existing or same-patch evidence ids, and graph/frontier/checkpoint/subgoal/churn replacement shapes must pass the shared `epiphany-core` structural validator before the durable writer mutates state
 - deterministic observation/evidence proposal generation in `epiphany-core`
@@ -520,7 +523,7 @@ Phase transition rule:
 3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
 4. run `tools/epiphany_phase5_smoke.py` before changing proposal, promotion, update, read, or notification behavior
 5. do not keep adding tiny Phase 5 hardening rules merely because the harness can; if there is no concrete bug or real-use gap, move outward
-6. start the next meaningful Phase 6 precursor: a typed reflection/scene surface or job-state/progress surface that lets clients inspect and steer existing Epiphany state without becoming the source of truth
+6. continue the Phase 6 reflection boundary from the new read-only `thread/epiphany/scene` baseline, or add a minimal job-state/progress surface that lets clients inspect long-running work without becoming the source of truth
 
 ## What Not To Do Next
 
@@ -560,4 +563,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the Phase 5 distill/propose/promote/update/read/notification control plane are landed and verified enough to move on. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Successful direct updates and accepted promotions now return response-level revision/changed-field metadata and emit experimental `thread/epiphany/stateUpdated` notifications carrying the updated client-visible typed state, source labels, event-level revision, and typed changed fields; accepted promotion responses/notifications include `evidence` whenever verifier evidence is appended, even when patch evidence was empty, and successful write response/notification states include the same retrieval-summary backfill exposed by live `thread/read`. Direct updates reject malformed appended observations/evidence and structurally invalid replacement fields before mutation. Read-only distillation summarizes noisy tool/model output into typed evidence, read-only proposal can auto-select a bounded evidence-backed observation cluster and report match-kind-aware map-delta pressure, and promotion rejects risky deltas without warning plus strong verifier evidence. The current Epiphany algorithmic map has been source-audited against the code flow it describes. The richer Phase 5 chain is live-smoked through app-server by `tools/epiphany_phase5_smoke.py`. The next clean move is no longer "one more tiny safety slice"; it is a meaningful Phase 6 reflection/scene-surface or job-state precursor over the existing typed machine. Pre-compaction persistence is now an explicit design rule, but persistence notes must name the next organ instead of trapping the agent in endless incremental hardening.
+Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the Phase 5 distill/propose/promote/update/read/notification control plane are landed and verified enough to move on. The first Phase 6 reflection-boundary slice is now present as read-only `thread/epiphany/scene`, a compact client projection over authoritative Epiphany state. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Successful direct updates and accepted promotions now return response-level revision/changed-field metadata and emit experimental `thread/epiphany/stateUpdated` notifications carrying the updated client-visible typed state, source labels, event-level revision, and typed changed fields; accepted promotion responses/notifications include `evidence` whenever verifier evidence is appended, even when patch evidence was empty, and successful write response/notification states include the same retrieval-summary backfill exposed by live `thread/read`. Direct updates reject malformed appended observations/evidence and structurally invalid replacement fields before mutation. Read-only distillation summarizes noisy tool/model output into typed evidence, read-only proposal can auto-select a bounded evidence-backed observation cluster and report match-kind-aware map-delta pressure, and promotion rejects risky deltas without warning plus strong verifier evidence. The current Epiphany algorithmic map has been source-audited against the code flow it describes. The richer Phase 5 chain is live-smoked through app-server by `tools/epiphany_phase5_smoke.py`. The next clean move is to use or extend the Phase 6 scene boundary, not to restart Phase 5 sanding unless a concrete regression appears. Pre-compaction persistence is now an explicit design rule, but persistence notes must name the next organ instead of trapping the agent in endless incremental hardening.
