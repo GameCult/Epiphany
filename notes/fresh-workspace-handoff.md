@@ -503,4 +503,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1, Phase 2, and a minimal Phase 3 typed read surface are landed and verified. `vendor/codex` is first-class in the parent repo now. The next clean move is repo-local hybrid retrieval, not GUI paint and not another architectural detour. Also: pre-compaction persistence is now an explicit design rule, not a lucky habit.
+Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. The next clean move is richer observation-set selection and map-delta judgment above the read-only proposal path, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
