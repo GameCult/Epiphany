@@ -65,13 +65,14 @@ Rehydrate:
 
 Reorient:
 
-- current HEAD before the Phase 6 scene slice was `e1e5c40 Persist compact reentry after Phase 5 exit`
-- branch was `main...origin/main [ahead 2]` before the Phase 6 scene slice; check `git log --oneline -5` for the live commit after this lands
+- current HEAD before this imminent-compaction packet was refreshed: `8507b3c Add Epiphany scene projection`
+- branch is `main...origin/main [ahead 3]` before this packet commit
 - current active lane is Phase 6 reflection boundary; the first read-only scene surface now exists
 - latest landed implementation slice: successful `thread/epiphany/update` and accepted `thread/epiphany/promote` responses/notifications now publish the same client-visible live-state projection as `thread/read`, including retrieval-summary backfill
-- latest landing slice: experimental `thread/epiphany/scene` derives a client-shaped reflection from `thread/read`-compatible Epiphany state without mutating or persisting anything
+- latest landed Phase 6 slice: experimental `thread/epiphany/scene` derives a client-shaped reflection from `thread/read`-compatible Epiphany state without mutating or persisting anything
 - latest docs/memory slice: Phase 5 is marked complete enough; the plan, map, handoff, algorithmic map, AGENTS discipline, and evidence now warn against self-reinforcing "one more tiny hardening slice" handoffs
-- latest verification slice: richer Phase 5 smoke observed retrieval status `ready` on update/promote responses and notifications, with rejected promotions and invalid direct updates still silent/non-mutating; no new code changed after that smoke
+- latest verification slice for the scene surface: `cargo fmt -p codex-app-server-protocol -p codex-app-server`; `cargo test -p codex-app-server-protocol --lib thread_epiphany_`; regenerated stable schema fixtures; `cargo test -p codex-app-server-protocol --test schema_fixtures`; `cargo test -p codex-app-server --lib map_epiphany_`; `cargo build -p codex-app-server`; `git diff --check`
+- richer Phase 5 smoke previously observed retrieval status `ready` on update/promote responses and notifications, with rejected promotions and invalid direct updates still silent/non-mutating
 - `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` remain read-only
 - accepted durable Epiphany writes must still route through `thread/epiphany/update` or verifier-backed `thread/epiphany/promote`
 - automatic runtime Compact-Rehydrate-Reorient-Continue coordination is not implemented; CRRC is currently enforced by repo-local state, handoff, evidence, and operating discipline
@@ -83,6 +84,7 @@ Continue:
 - continue from the first Phase 6 scene-surface baseline; either live-smoke `thread/epiphany/scene` through app-server or move toward a minimal job-state/progress surface
 - avoid handoff notes that only say "next smallest hardening slice"; they can trap the next agent in furniture-rearrangement mode
 - likely next move: use the new scene surface as the thin typed read projection and decide whether to live-smoke it or add a minimal job-state/progress surface; do not implement from vibes
+- if you touch only the scene read surface, use focused scene/protocol/schema checks; run the full Phase 5 smoke only before changing proposal, promotion, update, read-projection, or notification behavior
 - before natural-language algorithm-map edits, reread the exact source being described
 - if a regression or benchmark fix attempt does not move the target, immediately revert that attempt before trying the next hypothesis
 
