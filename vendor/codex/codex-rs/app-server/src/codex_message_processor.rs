@@ -4376,7 +4376,7 @@ impl CodexMessageProcessor {
             return;
         }
 
-        let changed_fields = epiphany_update_patch_changed_fields(&patch);
+        let changed_fields = epiphany_promote_changed_fields(&patch);
         let mut evidence = patch.evidence;
         evidence.push(verifier_evidence);
         let update = EpiphanyStateUpdate {
@@ -10549,6 +10549,16 @@ fn epiphany_update_patch_changed_fields(
     fields
 }
 
+fn epiphany_promote_changed_fields(
+    patch: &ThreadEpiphanyUpdatePatch,
+) -> Vec<ThreadEpiphanyStateUpdatedField> {
+    let mut fields = epiphany_update_patch_changed_fields(patch);
+    if !fields.contains(&ThreadEpiphanyStateUpdatedField::Evidence) {
+        fields.push(ThreadEpiphanyStateUpdatedField::Evidence);
+    }
+    fields
+}
+
 pub(crate) fn summary_to_thread(
     summary: ConversationSummary,
     fallback_cwd: &AbsolutePathBuf,
@@ -11825,6 +11835,22 @@ mod tests {
                 ThreadEpiphanyStateUpdatedField::Observations,
                 ThreadEpiphanyStateUpdatedField::Evidence,
                 ThreadEpiphanyStateUpdatedField::Churn,
+            ]
+        );
+    }
+
+    #[test]
+    fn epiphany_promote_changed_fields_reports_appended_verifier_evidence() {
+        let fields = epiphany_promote_changed_fields(&ThreadEpiphanyUpdatePatch {
+            observations: vec![Default::default()],
+            ..Default::default()
+        });
+
+        assert_eq!(
+            fields,
+            vec![
+                ThreadEpiphanyStateUpdatedField::Observations,
+                ThreadEpiphanyStateUpdatedField::Evidence,
             ]
         );
     }

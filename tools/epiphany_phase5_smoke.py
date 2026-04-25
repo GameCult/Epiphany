@@ -305,10 +305,58 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "update notification should identify appended observation/evidence fields",
         )
 
+        verifier_only_notification_start = len(client.notifications)
+        verifier_only_promote = client.send(
+            "thread/epiphany/promote",
+            {
+                "threadId": thread_id,
+                "expectedRevision": 1,
+                "patch": {
+                    "observations": [
+                        {
+                            "id": "obs-phase5-verifier-only",
+                            "summary": "Verifier-only promotion should still report evidence change",
+                            "source_kind": "smoke",
+                            "status": "ok",
+                            "evidence_ids": ["ev-phase5-verifier-only"],
+                        }
+                    ]
+                },
+                "verifierEvidence": {
+                    "id": "ev-phase5-verifier-only",
+                    "kind": "verification",
+                    "status": "ok",
+                    "summary": "Verifier evidence is appended even when patch evidence is empty",
+                },
+            },
+        )
+        assert verifier_only_promote is not None
+        require(
+            verifier_only_promote["accepted"],
+            "verifier-only observation promotion should accept",
+        )
+        require(
+            verifier_only_promote["epiphanyState"]["revision"] == 2,
+            "verifier-only promotion should advance revision to 2",
+        )
+        verifier_only_notification = client.wait_for_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=verifier_only_notification_start,
+        )
+        require(
+            verifier_only_notification["params"]["revision"] == 2,
+            "verifier-only promote notification should expose revision 2",
+        )
+        require(
+            verifier_only_notification["params"]["changedFields"]
+            == ["observations", "evidence"],
+            "verifier-only promote notification should include appended verifier evidence",
+        )
+
         propose = client.send("thread/epiphany/propose", {"threadId": thread_id})
         assert propose is not None
         proposal_patch = propose["patch"]
-        require(propose["expectedRevision"] == 1, "proposal should see revision 1")
+        require(propose["expectedRevision"] == 2, "proposal should see revision 2")
         require(bool(proposal_patch.get("graphs")), "proposal should include graph replacements")
         require(bool(proposal_patch.get("churn")), "proposal should include churn replacement")
         require(bool(proposal_patch["observations"]), "proposal should include a candidate observation")
@@ -318,7 +366,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert read_after_propose is not None
         state_after_propose = read_after_propose["thread"].get("epiphanyState", {})
-        require(state_after_propose.get("revision") == 1, "read-only propose should not mutate")
+        require(state_after_propose.get("revision") == 2, "read-only propose should not mutate")
         require("churn" not in state_after_propose, "propose should not persist churn before promotion")
 
         risky_missing_warning = copy.deepcopy(proposal_patch)
@@ -329,7 +377,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "thread/epiphany/promote",
             {
                 "threadId": thread_id,
-                "expectedRevision": 1,
+                "expectedRevision": 2,
                 "patch": risky_missing_warning,
                 "verifierEvidence": {
                     "id": "ev-phase5-risky-warning-verifier",
@@ -354,7 +402,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "thread/epiphany/promote",
             {
                 "threadId": thread_id,
-                "expectedRevision": 1,
+                "expectedRevision": 2,
                 "patch": risky_expansion_low_pressure,
                 "verifierEvidence": {
                     "id": "ev-phase5-expanded-low-pressure-verifier",
@@ -382,7 +430,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert read_after_warning_reject is not None
         require(
-            read_after_warning_reject["thread"].get("epiphanyState", {}).get("revision") == 1,
+            read_after_warning_reject["thread"].get("epiphanyState", {}).get("revision") == 2,
             "missing-warning rejection should not mutate state",
         )
 
@@ -396,7 +444,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "thread/epiphany/promote",
             {
                 "threadId": thread_id,
-                "expectedRevision": 1,
+                "expectedRevision": 2,
                 "patch": risky_weak_verifier,
                 "verifierEvidence": {
                     "id": "ev-phase5-risky-weak-verifier",
@@ -418,7 +466,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "thread/epiphany/promote",
             {
                 "threadId": thread_id,
-                "expectedRevision": 1,
+                "expectedRevision": 2,
                 "patch": risky_substring_verifier,
                 "verifierEvidence": {
                     "id": "ev-phase5-risky-substring-verifier",
@@ -446,7 +494,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert read_after_kind_reject is not None
         require(
-            read_after_kind_reject["thread"].get("epiphanyState", {}).get("revision") == 1,
+            read_after_kind_reject["thread"].get("epiphanyState", {}).get("revision") == 2,
             "weak-kind rejection should not mutate state",
         )
 
@@ -455,7 +503,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "thread/epiphany/promote",
             {
                 "threadId": thread_id,
-                "expectedRevision": 1,
+                "expectedRevision": 2,
                 "patch": risky_weak_verifier,
                 "verifierEvidence": {
                     "id": "ev-phase5-risky-strong-verifier",
@@ -468,7 +516,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         assert accepted is not None
         require(accepted["accepted"], "strong verifier should accept risky churn with warning")
         final_state = accepted["epiphanyState"]
-        require(final_state["revision"] == 2, "accepted promotion should advance revision to 2")
+        require(final_state["revision"] == 3, "accepted promotion should advance revision to 3")
         promote_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",
             start_index=promote_notification_start,
@@ -482,11 +530,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "promote notification should identify promote source",
         )
         require(
-            promote_notification["params"]["epiphanyState"]["revision"] == 2,
-            "promote notification should publish revision 2",
+            promote_notification["params"]["epiphanyState"]["revision"] == 3,
+            "promote notification should publish revision 3",
         )
         require(
-            promote_notification["params"]["revision"] == 2,
+            promote_notification["params"]["revision"] == 3,
             "promote notification should expose revision at the event level",
         )
         require(
@@ -502,8 +550,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
         require(
-            final_read["thread"]["epiphanyState"]["revision"] == 2,
-            "final read should return persisted revision 2",
+            final_read["thread"]["epiphanyState"]["revision"] == 3,
+            "final read should return persisted revision 3",
         )
 
         result = {
@@ -517,6 +565,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "updateNotificationSource": update_notification["params"]["source"],
             "updateNotificationRevision": update_notification["params"]["revision"],
             "updateNotificationChangedFields": update_notification["params"]["changedFields"],
+            "verifierOnlyPromoteRevision": verifier_only_notification["params"]["revision"],
+            "verifierOnlyPromoteChangedFields": verifier_only_notification["params"][
+                "changedFields"
+            ],
             "proposalExpectedRevision": propose["expectedRevision"],
             "proposalObservationId": proposal_patch["observations"][0]["id"],
             "proposalChurn": proposal_patch["churn"],
