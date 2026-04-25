@@ -14972,16 +14972,27 @@
           "epiphanyState": {
             "$ref": "#/definitions/v2/EpiphanyThreadState"
           },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyStateUpdatedSource"
+          },
           "threadId": {
             "type": "string"
           }
         },
         "required": [
           "epiphanyState",
+          "source",
           "threadId"
         ],
         "title": "ThreadEpiphanyStateUpdatedNotification",
         "type": "object"
+      },
+      "ThreadEpiphanyStateUpdatedSource": {
+        "enum": [
+          "update",
+          "promote"
+        ],
+        "type": "string"
       },
       "ThreadEpiphanyUpdatePatch": {
         "properties": {

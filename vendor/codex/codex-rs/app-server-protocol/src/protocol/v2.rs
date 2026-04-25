@@ -4058,7 +4058,16 @@ pub struct ThreadEpiphanyUpdateResponse {
 #[ts(export_to = "v2/")]
 pub struct ThreadEpiphanyStateUpdatedNotification {
     pub thread_id: String,
+    pub source: ThreadEpiphanyStateUpdatedSource,
     pub epiphany_state: CoreEpiphanyThreadState,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyStateUpdatedSource {
+    Update,
+    Promote,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

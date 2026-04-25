@@ -1888,6 +1888,7 @@ mod tests {
         let notification = ServerNotification::ThreadEpiphanyStateUpdated(
             v2::ThreadEpiphanyStateUpdatedNotification {
                 thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyStateUpdatedSource::Update,
                 epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
                     revision: 7,
                     objective: Some("Keep the map live".to_string()),
@@ -1900,6 +1901,7 @@ mod tests {
                 "method": "thread/epiphany/stateUpdated",
                 "params": {
                     "threadId": "thr_123",
+                    "source": "update",
                     "epiphanyState": {
                         "revision": 7,
                         "objective": "Keep the map live"
@@ -2512,6 +2514,7 @@ mod tests {
         let notification = ServerNotification::ThreadEpiphanyStateUpdated(
             v2::ThreadEpiphanyStateUpdatedNotification {
                 thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyStateUpdatedSource::Promote,
                 epiphany_state: codex_protocol::protocol::EpiphanyThreadState::default(),
             },
         );

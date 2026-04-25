@@ -704,11 +704,21 @@
         "default"
       ],
       "type": "string"
+    },
+    "ThreadEpiphanyStateUpdatedSource": {
+      "enum": [
+        "update",
+        "promote"
+      ],
+      "type": "string"
     }
   },
   "properties": {
     "epiphanyState": {
       "$ref": "#/definitions/EpiphanyThreadState"
+    },
+    "source": {
+      "$ref": "#/definitions/ThreadEpiphanyStateUpdatedSource"
     },
     "threadId": {
       "type": "string"
@@ -716,6 +726,7 @@
   },
   "required": [
     "epiphanyState",
+    "source",
     "threadId"
   ],
   "title": "ThreadEpiphanyStateUpdatedNotification",

@@ -289,6 +289,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "update notification should identify the thread",
         )
         require(
+            update_notification["params"]["source"] == "update",
+            "update notification should identify update source",
+        )
+        require(
             update_notification["params"]["epiphanyState"]["revision"] == 1,
             "update notification should publish revision 1",
         )
@@ -466,6 +470,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "promote notification should identify the thread",
         )
         require(
+            promote_notification["params"]["source"] == "promote",
+            "promote notification should identify promote source",
+        )
+        require(
             promote_notification["params"]["epiphanyState"]["revision"] == 2,
             "promote notification should publish revision 2",
         )
@@ -489,6 +497,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "distillEvidenceId": evidence["id"],
             "distillEvidenceKind": evidence["kind"],
             "distillSummary": evidence["summary"],
+            "updateNotificationSource": update_notification["params"]["source"],
             "updateNotificationRevision": update_notification["params"]["epiphanyState"][
                 "revision"
             ],
@@ -506,6 +515,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "substringVerifierReasons": reject_substring_verifier["reasons"],
             "accepted": accepted["accepted"],
             "finalRevision": final_state["revision"],
+            "promoteNotificationSource": promote_notification["params"]["source"],
             "promoteNotificationRevision": promote_notification["params"]["epiphanyState"][
                 "revision"
             ],

@@ -161,6 +161,7 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdateParams;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyUpdateResponse;
@@ -4417,6 +4418,7 @@ impl CodexMessageProcessor {
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
                 ThreadEpiphanyStateUpdatedNotification {
                     thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::Promote,
                     epiphany_state,
                 },
             ))
@@ -4494,6 +4496,7 @@ impl CodexMessageProcessor {
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
                 ThreadEpiphanyStateUpdatedNotification {
                     thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::Update,
                     epiphany_state,
                 },
             ))
