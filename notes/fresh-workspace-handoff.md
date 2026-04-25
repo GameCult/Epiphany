@@ -357,6 +357,7 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - structural map/churn promotion validation is landed in `epiphany-core`
   - proposal selection now rejects observations without accepting `recent_evidence`, and churn pressure now reflects map-delta shape
   - proposal can now omit `observationIds` and let `epiphany-core` choose a bounded coherent path cluster from existing verified, evidence-backed observations using source/evidence quality plus graph-frontier focus
+  - the Epiphany algorithmic map has been semantically audited flow-by-flow against the cited code; stale line anchors were fixed, and the current typed spine still describes a coherent machine
   - the next bounded follow-up is richer map-delta judgment beyond the current evidence/path/link/semantic-unanchored/auto-selected path-cluster matching, not proving the retriever exists again
 - There is still no live `thread/epiphany/*` notification stream.
 - The next phase is **not** GUI work.
@@ -504,4 +505,4 @@ cmd /c "\"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxi
 
 The repo is in a good state.
 
-Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Read-only proposal can now auto-select a bounded evidence-backed observation cluster when ids are omitted. The next clean move is richer map-delta judgment above the read-only proposal path, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
+Phase 1, Phase 2, the minimal Phase 3 typed read surface, Phase 4 retrieval/indexing/core-extraction, and the current Phase 5 distill/propose/promote/update baseline are landed and verified. `vendor/codex` is first-class in the parent repo now, with the heavier Epiphany organs living in `epiphany-core`. Read-only proposal can now auto-select a bounded evidence-backed observation cluster when ids are omitted, and the current Epiphany algorithmic map has been source-audited against the code flow it describes. The next clean move is richer map-delta judgment above the read-only proposal path, not GUI paint, watcher magic, or re-proving retrieval. Pre-compaction persistence is now an explicit design rule, not a lucky habit.
