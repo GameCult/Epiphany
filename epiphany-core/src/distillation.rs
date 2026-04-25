@@ -112,15 +112,22 @@ fn summarize_source_output(text: &str) -> Option<String> {
         return None;
     }
 
-    let mut selected = Vec::new();
+    let mut high_signal = Vec::new();
+    let mut warnings = Vec::new();
     for line in &lines {
-        if is_salient_output_line(line) {
-            selected.push(line.clone());
-        }
-        if selected.len() >= 3 {
-            break;
+        if is_high_signal_output_line(line) {
+            high_signal.push(line.clone());
+        } else if is_warning_output_line(line) {
+            warnings.push(line.clone());
         }
     }
+
+    let mut selected = if high_signal.is_empty() {
+        warnings
+    } else {
+        high_signal
+    };
+    selected.truncate(3);
 
     if selected.is_empty() {
         selected.extend(lines.into_iter().take(2));
@@ -136,7 +143,7 @@ fn normalized_lines(text: &str) -> Vec<String> {
         .collect()
 }
 
-fn is_salient_output_line(line: &str) -> bool {
+fn is_high_signal_output_line(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
     lower.contains("exit code")
         || lower.contains("test result")
@@ -144,7 +151,10 @@ fn is_salient_output_line(line: &str) -> bool {
         || lower.contains("passed")
         || lower.contains("failed")
         || lower.contains("error")
-        || lower.contains("warning")
+}
+
+fn is_warning_output_line(line: &str) -> bool {
+    line.to_ascii_lowercase().contains("warning")
 }
 
 fn fingerprint(source_kind: &str, status: &str, subject: Option<&str>, text: &str) -> String {
@@ -259,6 +269,51 @@ mod tests {
         assert_eq!(
             proposal.observation.summary,
             "cargo test: test result: ok. 36 passed; 0 failed; 0 ignored | Finished `test` profile"
+        );
+    }
+
+    #[test]
+    fn distill_observation_prioritizes_results_over_generic_warnings() {
+        let proposal = distill_observation(EpiphanyDistillInput {
+            source_kind: "shell-tool".to_string(),
+            status: "ok".to_string(),
+            subject: Some("cargo test".to_string()),
+            text: r#"
+                warning: unused variable in unrelated fixture
+                running 3 tests
+                test result: ok. 3 passed; 0 failed; 0 ignored; finished in 0.02s
+                Finished `test` profile
+            "#
+            .to_string(),
+            ..Default::default()
+        })
+        .expect("distill noisy tool output");
+
+        assert_eq!(
+            proposal.observation.summary,
+            "cargo test: test result: ok. 3 passed; 0 failed; 0 ignored; finished in 0.02s | Finished `test` profile"
+        );
+    }
+
+    #[test]
+    fn distill_observation_keeps_warning_when_it_is_the_only_signal() {
+        let proposal = distill_observation(EpiphanyDistillInput {
+            source_kind: "shell-tool".to_string(),
+            status: "ok".to_string(),
+            subject: Some("cargo check".to_string()),
+            text: r#"
+                compiling fixture
+                warning: suspicious configuration
+                generated intermediate files
+            "#
+            .to_string(),
+            ..Default::default()
+        })
+        .expect("distill warning-only tool output");
+
+        assert_eq!(
+            proposal.observation.summary,
+            "cargo check: warning: suspicious configuration"
         );
     }
 

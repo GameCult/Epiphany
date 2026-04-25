@@ -245,6 +245,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "test result: ok" in summary or "finished test profile" in summary,
             "distill summary should preserve salient tool output",
         )
+        require(
+            "unrelated smoke warning" not in summary,
+            "distill summary should prioritize final results over generic warnings",
+        )
 
         update = client.send(
             "thread/epiphany/update",
