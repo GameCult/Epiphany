@@ -28,6 +28,7 @@ pub struct EpiphanyDistillProposal {
 pub fn distill_observation(input: EpiphanyDistillInput) -> Result<EpiphanyDistillProposal> {
     let source_kind = normalize_required("sourceKind", &input.source_kind)?;
     let status = normalize_required("status", &input.status)?;
+    let raw_text = input.text.as_str();
     let text = normalize_required("text", &input.text)?;
     let subject = input
         .subject
@@ -40,7 +41,7 @@ pub fn distill_observation(input: EpiphanyDistillInput) -> Result<EpiphanyDistil
         .map(normalize_text)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| default_evidence_kind(&source_kind).to_string());
-    let summary = summarize(subject.as_deref(), &text);
+    let summary = summarize(&source_kind, subject.as_deref(), raw_text, &text);
     let fingerprint = fingerprint(&source_kind, &status, subject.as_deref(), &text);
     let evidence_id = format!("ev-{fingerprint}");
     let observation = EpiphanyObservation {
@@ -78,12 +79,72 @@ fn normalize_text(value: &str) -> String {
     value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-fn summarize(subject: Option<&str>, text: &str) -> String {
+fn summarize(
+    source_kind: &str,
+    subject: Option<&str>,
+    raw_text: &str,
+    normalized_text: &str,
+) -> String {
+    let distilled = if should_distill_source_output(source_kind) {
+        summarize_source_output(raw_text).unwrap_or_else(|| normalized_text.to_string())
+    } else {
+        normalized_text.to_string()
+    };
     let summary = match subject {
-        Some(subject) if !subject.is_empty() => format!("{subject}: {text}"),
-        _ => text.to_string(),
+        Some(subject) if !subject.is_empty() => format!("{subject}: {distilled}"),
+        _ => distilled,
     };
     truncate_chars(&summary, SUMMARY_LIMIT)
+}
+
+fn should_distill_source_output(source_kind: &str) -> bool {
+    let lower = source_kind.to_ascii_lowercase();
+    lower.contains("tool")
+        || lower.contains("command")
+        || lower.contains("shell")
+        || lower.contains("model")
+        || lower.contains("assistant")
+}
+
+fn summarize_source_output(text: &str) -> Option<String> {
+    let lines = normalized_lines(text);
+    if lines.is_empty() {
+        return None;
+    }
+
+    let mut selected = Vec::new();
+    for line in &lines {
+        if is_salient_output_line(line) {
+            selected.push(line.clone());
+        }
+        if selected.len() >= 3 {
+            break;
+        }
+    }
+
+    if selected.is_empty() {
+        selected.extend(lines.into_iter().take(2));
+    }
+
+    Some(selected.join(" | "))
+}
+
+fn normalized_lines(text: &str) -> Vec<String> {
+    text.lines()
+        .map(normalize_text)
+        .filter(|line| !line.is_empty())
+        .collect()
+}
+
+fn is_salient_output_line(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.contains("exit code")
+        || lower.contains("test result")
+        || lower.contains("finished")
+        || lower.contains("passed")
+        || lower.contains("failed")
+        || lower.contains("error")
+        || lower.contains("warning")
 }
 
 fn fingerprint(source_kind: &str, status: &str, subject: Option<&str>, text: &str) -> String {
@@ -116,6 +177,10 @@ fn default_evidence_kind(source_kind: &str) -> &'static str {
     let lower = source_kind.to_ascii_lowercase();
     if lower.contains("test") || lower.contains("smoke") || lower.contains("verification") {
         "verification"
+    } else if lower.contains("tool") || lower.contains("command") || lower.contains("shell") {
+        "tool-output"
+    } else if lower.contains("model") || lower.contains("assistant") {
+        "model-output"
     } else {
         "observation"
     }
@@ -170,5 +235,47 @@ mod tests {
         .expect_err("empty text should fail");
 
         assert!(err.to_string().contains("text must not be empty"));
+    }
+
+    #[test]
+    fn distill_observation_summarizes_noisy_tool_output() {
+        let proposal = distill_observation(EpiphanyDistillInput {
+            source_kind: "shell-tool".to_string(),
+            status: "ok".to_string(),
+            subject: Some("cargo test".to_string()),
+            text: r#"
+                Compiling epiphany-core v0.1.0
+                running 36 tests
+                lots of harmless output
+                test result: ok. 36 passed; 0 failed; 0 ignored
+                Finished `test` profile
+            "#
+            .to_string(),
+            ..Default::default()
+        })
+        .expect("distill noisy tool output");
+
+        assert_eq!(proposal.evidence.kind, "tool-output");
+        assert_eq!(
+            proposal.observation.summary,
+            "cargo test: test result: ok. 36 passed; 0 failed; 0 ignored | Finished `test` profile"
+        );
+    }
+
+    #[test]
+    fn distill_observation_types_model_output_as_model_evidence() {
+        let proposal = distill_observation(EpiphanyDistillInput {
+            source_kind: "model-output".to_string(),
+            status: "accepted".to_string(),
+            text: "The candidate map delta is coherent.".to_string(),
+            ..Default::default()
+        })
+        .expect("distill model output");
+
+        assert_eq!(proposal.evidence.kind, "model-output");
+        assert_eq!(
+            proposal.observation.summary,
+            "The candidate map delta is coherent."
+        );
     }
 }
