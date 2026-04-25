@@ -50,7 +50,7 @@ Canonical project state still lives in:
 
 ## Imminent Compact-Rehydrate-Reorient Packet
 
-If this thread compacts now, resume from this packet before doing implementation work.
+If this thread compacts now, resume from this packet before doing implementation work. This packet supersedes older "post-Phase-5 hardening" guidance.
 
 Rehydrate:
 
@@ -64,11 +64,12 @@ Rehydrate:
 
 Reorient:
 
-- current pushed HEAD before this packet was written: `10465e1 Persist imminent CRRC reentry packet`
-- branch should be `main...origin/main` and clean unless a later slice changed it
-- current active lane has moved from indefinite post-Phase-5 hardening to the Phase 6 reflection boundary
+- current HEAD before this packet was written: `0dcdfab Mark Phase 5 complete enough`
+- branch is `main...origin/main [ahead 1]` after the Phase 5 completion docs commit unless a later slice pushes or commits more
+- current active lane is Phase 6 reflection boundary / scene-surface precursor
 - latest landed implementation slice: successful `thread/epiphany/update` and accepted `thread/epiphany/promote` responses/notifications now publish the same client-visible live-state projection as `thread/read`, including retrieval-summary backfill
-- latest verification slice: richer Phase 5 smoke observed retrieval status `ready` on update/promote responses and notifications, with rejected promotions and invalid direct updates still silent/non-mutating
+- latest docs/memory slice: Phase 5 is marked complete enough; the plan, map, handoff, algorithmic map, AGENTS discipline, and evidence now warn against self-reinforcing "one more tiny hardening slice" handoffs
+- latest verification slice: richer Phase 5 smoke observed retrieval status `ready` on update/promote responses and notifications, with rejected promotions and invalid direct updates still silent/non-mutating; no new code changed after that smoke
 - `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` remain read-only
 - accepted durable Epiphany writes must still route through `thread/epiphany/update` or verifier-backed `thread/epiphany/promote`
 - automatic runtime Compact-Rehydrate-Reorient-Continue coordination is not implemented; CRRC is currently enforced by repo-local state, handoff, evidence, and operating discipline
@@ -79,6 +80,7 @@ Continue:
 - use `tools/epiphany_phase5_smoke.py` as the app-server seam guardrail before changing proposal/promotion/write/read behavior, not as a ritual for generating more tiny safety work
 - pick a meaningful Phase 6 reflection/scene-surface or job-state precursor that exposes the existing typed Epiphany machine without making GUI/client state authoritative
 - avoid handoff notes that only say "next smallest hardening slice"; they can trap the next agent in furniture-rearrangement mode
+- likely next move: source-ground the current app-server protocol/read surfaces and decide whether Phase 6 starts with a thin typed scene/read projection or a minimal job-state/progress surface; do not implement from vibes
 - before natural-language algorithm-map edits, reread the exact source being described
 - if a regression or benchmark fix attempt does not move the target, immediately revert that attempt before trying the next hypothesis
 
