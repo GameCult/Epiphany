@@ -2,7 +2,7 @@
 
 ## Status
 
-Updated on 2026-04-25 after landing automatic bounded observation selection inside the Phase 5 read-only proposal path on `main`.
+Updated on 2026-04-25 after landing match-kind-aware map-delta judgment inside the Phase 5 read-only proposal path.
 
 This note tracks Epiphany as a fork of Codex with an opinionated modeling architecture. The point is not to offer Codex another collaboration preset. The point is to make the harness force the model to carry explicit structure about the codebase, the active subgoal, the evidence trail, and the machine it is modifying.
 
@@ -21,9 +21,10 @@ This note tracks Epiphany as a fork of Codex with an opinionated modeling archit
 - an evidence-selection/churn hardening slice that requires selected proposal observations to cite accepting `recent_evidence` and derives proposal `diff_pressure` from the candidate map delta, touched paths, selected observation count, and unresolved write risk
 - a graph-semantic proposal hardening slice that scores selected observations/evidence, uses the strongest selected signal for proposal wording, and can reuse unanchored architecture graph nodes through strict unique semantic overlap while refusing ambiguous matches and leaving code-anchored nodes under concrete ref/path/id matching
 - an automatic observation-selection slice that lets read-only `thread/epiphany/propose` omit `observationIds`; `epiphany-core` then chooses a bounded coherent path cluster from existing verified, evidence-backed observations using source/evidence quality and current graph-frontier focus
+- a map-delta judgment slice that distinguishes exact-ref refinement, same-path broadening, deterministic-node reuse, semantic unanchored-node reuse, and new candidate surfaces before setting graph freshness and `diff_pressure`
 - current phase: Phase 5 semantic distillation/promotion/proposal machinery
 
-The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, ship the first read-only map/churn proposal surface, teach proposal to avoid duplicating already-mapped code surfaces, make proposal frontier focus follow existing graph links, make selected observations evidence-backed with non-haunted churn pressure, rescue unanchored graph nodes with strict semantic matching, or let proposal choose a bounded ready observation set when ids are omitted. Those parts are landed. The next job is to keep the landing zone honest: do not casually turn `thread/epiphany/retrieve`, `thread/epiphany/distill`, or `thread/epiphany/propose` into durable Epiphany-state writers, and do not widen the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
+The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, ship the first read-only map/churn proposal surface, teach proposal to avoid duplicating already-mapped code surfaces, make proposal frontier focus follow existing graph links, make selected observations evidence-backed with non-haunted churn pressure, rescue unanchored graph nodes with strict semantic matching, let proposal choose a bounded ready observation set when ids are omitted, or make proposal pressure understand match kinds. Those parts are landed. The next job is to keep the landing zone honest: improve typed observation distillation from real tool/model outputs and promotion policy over richer deltas without casually turning `thread/epiphany/retrieve`, `thread/epiphany/distill`, or `thread/epiphany/propose` into durable Epiphany-state writers, and without widening the explicit indexing/update paths into watcher-driven or GUI-shaped machinery before they earn it.
 
 ## Summary
 
@@ -273,7 +274,7 @@ Add tests for:
 
 ## Immediate Next Step
 
-Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, read-only map/churn proposal path, verifier-backed promotion gate, structural map/churn promotion validation, graph-node reuse, linked frontier focus, evidence-backed selection, map-delta churn pressure, selected-observation prioritization, strict unanchored-node semantic reuse, and automatic bounded observation-set selection as the active Phase 5 baseline. The next machine gap is no longer "can Epiphany retrieve code?", "can it propose one durable observation patch?", "can it draft one bounded map/churn candidate?", "can it avoid duplicating an existing graph node when an observation points at already-mapped code?", "can it focus linked graph context?", "can it reject selected observations that are not backed by accepting recent evidence?", "can it use graph language when no concrete refs exist yet?", or "can it choose a proposal-ready observation set when ids are omitted?" It can. The next gap is "can Epiphany make richer map-delta judgments from tool/model output without silently promoting them?"
+Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, read-only map/churn proposal path, verifier-backed promotion gate, structural map/churn promotion validation, graph-node reuse, linked frontier focus, evidence-backed selection, map-delta churn pressure, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation-set selection, and match-kind-aware map-delta judgment as the active Phase 5 baseline. The next machine gap is no longer "can Epiphany retrieve code?", "can it propose one durable observation patch?", "can it draft one bounded map/churn candidate?", "can it avoid duplicating an existing graph node when an observation points at already-mapped code?", "can it focus linked graph context?", "can it reject selected observations that are not backed by accepting recent evidence?", "can it use graph language when no concrete refs exist yet?", "can it choose a proposal-ready observation set when ids are omitted?", or "can it distinguish exact refinement from same-path broadening or semantic anchoring?" It can. The next gap is "can Epiphany distill richer tool/model outputs and promote richer deltas without silently writing them?"
 
 1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
 2. treat the verified and live-smoked `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
@@ -281,8 +282,8 @@ Treat the current retrieval baseline and explicit indexing follow-up as landed P
 4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
 5. continue Phase 5 by hardening the layer above the landed distill/propose/promote/update surfaces:
    - richer typed observation distillation from tool/model outputs
-   - better proposal heuristics beyond the current exact-code-ref, same-path, deterministic-id, graph-link, accepting-evidence, semantic-unanchored-node, selected-priority, auto-selection, and map-delta-pressure checks
-   - richer map-delta judgment beyond the current bounded path-cluster proposal heuristic
+   - better proposal heuristics beyond the current exact-code-ref, same-path, deterministic-id, graph-link, accepting-evidence, semantic-unanchored-node, selected-priority, auto-selection, and match-kind-aware map-delta-pressure checks
+   - promotion policy that can reason over richer delta classes without becoming a second writer
    - promotion policy beyond structural validation, but only when it can stay evidence-backed
    - verifier-backed acceptance/rejection evidence
    - no hidden retrieval writes

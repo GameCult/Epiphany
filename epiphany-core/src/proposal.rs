@@ -44,6 +44,44 @@ struct ArchitectureMatch {
     kind: ArchitectureMatchKind,
 }
 
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+struct MapDeltaJudgment {
+    exact_ref_reuses: usize,
+    same_path_reuses: usize,
+    deterministic_id_reuses: usize,
+    semantic_reuses: usize,
+    created_nodes: usize,
+    touched_paths: usize,
+    selected_observations: usize,
+    existing_unexplained_writes: bool,
+}
+
+impl MapDeltaJudgment {
+    fn reused_nodes(&self) -> usize {
+        self.exact_ref_reuses
+            + self.same_path_reuses
+            + self.deterministic_id_reuses
+            + self.semantic_reuses
+    }
+
+    fn record_match(&mut self, kind: ArchitectureMatchKind) {
+        match kind {
+            ArchitectureMatchKind::ExactCodeRef => self.exact_ref_reuses += 1,
+            ArchitectureMatchKind::SamePath => self.same_path_reuses += 1,
+            ArchitectureMatchKind::DeterministicId => self.deterministic_id_reuses += 1,
+            ArchitectureMatchKind::Semantic => self.semantic_reuses += 1,
+        }
+    }
+
+    fn has_broadening_reuse(&self) -> bool {
+        self.same_path_reuses > 0 || self.semantic_reuses > 0
+    }
+
+    fn has_mixed_delta(&self) -> bool {
+        self.reused_nodes() > 0 && self.created_nodes > 0
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct ObservationSelectionCandidate {
     observation_id: String,
@@ -83,9 +121,17 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     let fingerprint = fingerprint(&input.state.revision, &observation_ids, &code_refs);
     let mut graphs = input.state.graphs.clone();
     let mut active_node_ids = Vec::new();
-    let mut reused_nodes = 0usize;
-    let mut created_nodes = 0usize;
-    let mut semantic_reused_nodes = 0usize;
+    let mut delta = MapDeltaJudgment {
+        touched_paths: code_ref_paths.len(),
+        selected_observations: selection_quality.observation_count,
+        existing_unexplained_writes: input
+            .state
+            .churn
+            .as_ref()
+            .and_then(|churn| churn.unexplained_writes)
+            .is_some_and(|unexplained_writes| unexplained_writes > 0),
+        ..Default::default()
+    };
 
     for path in &code_ref_paths {
         let path_code_refs = code_refs_for_path(&code_refs, &path);
@@ -100,10 +146,7 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
             let node = &mut graphs.architecture.nodes[node_match.index];
             active_node_ids.push(node.id.clone());
             merge_code_refs(&mut node.code_refs, path_code_refs);
-            reused_nodes += 1;
-            if node_match.kind == ArchitectureMatchKind::Semantic {
-                semantic_reused_nodes += 1;
-            }
+            delta.record_match(node_match.kind);
         } else {
             let node_id = candidate_node_id;
             active_node_ids.push(node_id.clone());
@@ -126,7 +169,7 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
                 status: Some("candidate".to_string()),
                 code_refs: path_code_refs,
             });
-            created_nodes += 1;
+            delta.created_nodes += 1;
         }
     }
 
@@ -163,26 +206,24 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
                 "Proposed graph frontier and churn update from {}: {}; reused {reused_nodes} existing node(s), {semantic_reused_nodes} by semantic graph signal, created {created_nodes} new node(s)",
                 selection_summary,
                 observation_ids.join(", "),
+                reused_nodes = delta.reused_nodes(),
+                semantic_reused_nodes = delta.semantic_reuses,
+                created_nodes = delta.created_nodes,
             ),
             SUMMARY_LIMIT,
         ),
         code_refs,
     };
-    let understanding_status = proposal_understanding_status(reused_nodes, created_nodes);
-    let graph_freshness = proposal_graph_freshness(reused_nodes, created_nodes);
-    let diff_pressure = proposal_diff_pressure(
-        reused_nodes,
-        created_nodes,
-        code_ref_paths.len(),
-        selection_quality.observation_count,
-        input.state.churn.as_ref(),
-    );
+    let understanding_status = proposal_understanding_status(&delta);
+    let graph_freshness = proposal_graph_freshness(&delta);
+    let diff_pressure = proposal_diff_pressure(&delta, input.state.churn.as_ref());
     let churn = EpiphanyChurnState {
         understanding_status,
         diff_pressure,
         graph_freshness: Some(graph_freshness),
         warning: Some(format!(
-            "Map/churn proposal derived from {selection_summary}; reused {reused_nodes} existing node(s), {semantic_reused_nodes} by semantic graph signal, created {created_nodes} new node(s); promote only after verifier acceptance."
+            "Map/churn proposal derived from {selection_summary}; {}; promote only after verifier acceptance.",
+            proposal_delta_summary(&delta)
         )),
         unexplained_writes: input
             .state
@@ -937,8 +978,8 @@ fn truncate_chars(value: &str, limit: usize) -> String {
     truncated
 }
 
-fn proposal_understanding_status(reused_nodes: usize, created_nodes: usize) -> String {
-    match (reused_nodes > 0, created_nodes > 0) {
+fn proposal_understanding_status(delta: &MapDeltaJudgment) -> String {
+    match (delta.reused_nodes() > 0, delta.created_nodes > 0) {
         (true, false) => "proposal_refines_map",
         (false, true) => "proposal_expands_map",
         (true, true) => "proposal_updates_map",
@@ -947,33 +988,39 @@ fn proposal_understanding_status(reused_nodes: usize, created_nodes: usize) -> S
     .to_string()
 }
 
-fn proposal_graph_freshness(reused_nodes: usize, created_nodes: usize) -> String {
-    match (reused_nodes > 0, created_nodes > 0) {
-        (true, false) => "proposal-refined",
-        (false, true) => "proposal-expanded",
-        (true, true) => "proposal-updated",
-        (false, false) => "proposal",
+fn proposal_graph_freshness(delta: &MapDeltaJudgment) -> String {
+    if delta.has_mixed_delta() {
+        "proposal-updated"
+    } else if delta.created_nodes > 0 {
+        "proposal-expanded"
+    } else if delta.semantic_reuses > 0 {
+        "proposal-semantically-anchored"
+    } else if delta.same_path_reuses > 0 {
+        "proposal-broadened"
+    } else if delta.reused_nodes() > 0 {
+        "proposal-refined"
+    } else {
+        "proposal"
     }
     .to_string()
 }
 
 fn proposal_diff_pressure(
-    reused_nodes: usize,
-    created_nodes: usize,
-    path_count: usize,
-    observation_count: usize,
+    delta: &MapDeltaJudgment,
     existing_churn: Option<&EpiphanyChurnState>,
 ) -> String {
-    let proposal_pressure = if created_nodes > 1
-        || (reused_nodes > 0 && created_nodes > 0)
-        || path_count > 2
-        || observation_count > 3
-        || existing_churn
-            .and_then(|churn| churn.unexplained_writes)
-            .is_some_and(|unexplained_writes| unexplained_writes > 0)
+    let proposal_pressure = if delta.created_nodes > 1
+        || delta.has_mixed_delta()
+        || delta.touched_paths > 2
+        || delta.selected_observations > 3
+        || delta.existing_unexplained_writes
     {
         "high"
-    } else if created_nodes > 0 || path_count > 1 || observation_count > 1 {
+    } else if delta.created_nodes > 0
+        || delta.has_broadening_reuse()
+        || delta.touched_paths > 1
+        || delta.selected_observations > 1
+    {
         "medium"
     } else {
         "low"
@@ -985,6 +1032,46 @@ fn proposal_diff_pressure(
         .unwrap_or("low");
 
     max_pressure(existing_pressure, proposal_pressure).to_string()
+}
+
+fn proposal_delta_summary(delta: &MapDeltaJudgment) -> String {
+    let mut parts = Vec::new();
+    if delta.exact_ref_reuses > 0 {
+        parts.push(format!(
+            "{} exact-ref refinement(s)",
+            delta.exact_ref_reuses
+        ));
+    }
+    if delta.same_path_reuses > 0 {
+        parts.push(format!(
+            "{} same-path broadening reuse(s)",
+            delta.same_path_reuses
+        ));
+    }
+    if delta.deterministic_id_reuses > 0 {
+        parts.push(format!(
+            "{} deterministic-node reuse(s)",
+            delta.deterministic_id_reuses
+        ));
+    }
+    if delta.semantic_reuses > 0 {
+        parts.push(format!(
+            "{} semantic unanchored-node reuse(s)",
+            delta.semantic_reuses
+        ));
+    }
+    if delta.created_nodes > 0 {
+        parts.push(format!("{} new candidate node(s)", delta.created_nodes));
+    }
+    if parts.is_empty() {
+        parts.push("no graph node delta".to_string());
+    }
+    format!(
+        "delta judgment: {}; {} touched path(s), {} selected observation(s)",
+        parts.join(", "),
+        delta.touched_paths,
+        delta.selected_observations
+    )
 }
 
 fn max_pressure<'a>(left: &'a str, right: &'a str) -> &'a str {
@@ -1196,7 +1283,87 @@ mod tests {
                 .warning
                 .as_deref()
                 .unwrap_or_default()
-                .contains("1 by semantic graph signal")
+                .contains("1 semantic unanchored-node reuse")
+        );
+    }
+
+    #[test]
+    fn propose_map_update_judges_exact_ref_reuse_as_low_pressure_refinement() {
+        let mut state = state_with_observation("verified");
+        state.churn = Some(EpiphanyChurnState {
+            understanding_status: "grounded".to_string(),
+            diff_pressure: "low".to_string(),
+            ..Default::default()
+        });
+        state.graphs.architecture.nodes.push(EpiphanyGraphNode {
+            id: "prompt-renderer".to_string(),
+            title: "Prompt renderer".to_string(),
+            purpose: "Render Epiphany state into developer context".to_string(),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            ..Default::default()
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(proposal.churn.diff_pressure, "low");
+        assert_eq!(
+            proposal.churn.graph_freshness.as_deref(),
+            Some("proposal-refined")
+        );
+        assert!(
+            proposal
+                .churn
+                .warning
+                .as_deref()
+                .unwrap_or_default()
+                .contains("1 exact-ref refinement")
+        );
+    }
+
+    #[test]
+    fn propose_map_update_judges_same_path_reuse_as_broadening_pressure() {
+        let mut state = state_with_observation("verified");
+        state.churn = Some(EpiphanyChurnState {
+            understanding_status: "grounded".to_string(),
+            diff_pressure: "low".to_string(),
+            ..Default::default()
+        });
+        state.graphs.architecture.nodes.push(EpiphanyGraphNode {
+            id: "prompt-renderer".to_string(),
+            title: "Prompt renderer".to_string(),
+            purpose: "Render Epiphany state into developer context".to_string(),
+            code_refs: vec![EpiphanyCodeRef {
+                path: PathBuf::from("epiphany-core/src/prompt.rs"),
+                start_line: Some(100),
+                end_line: Some(120),
+                symbol: Some("render_graphs".to_string()),
+                note: None,
+            }],
+            ..Default::default()
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(proposal.churn.diff_pressure, "medium");
+        assert_eq!(
+            proposal.churn.graph_freshness.as_deref(),
+            Some("proposal-broadened")
+        );
+        assert!(
+            proposal
+                .churn
+                .warning
+                .as_deref()
+                .unwrap_or_default()
+                .contains("1 same-path broadening reuse")
         );
     }
 
