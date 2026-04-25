@@ -365,6 +365,34 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "weak-kind rejection should name verifierEvidence.kind",
         )
 
+        risky_substring_verifier = copy.deepcopy(risky_weak_verifier)
+        reject_substring_verifier = client.send(
+            "thread/epiphany/promote",
+            {
+                "threadId": thread_id,
+                "expectedRevision": 1,
+                "patch": risky_substring_verifier,
+                "verifierEvidence": {
+                    "id": "ev-phase5-risky-substring-verifier",
+                    "kind": "contest",
+                    "status": "ok",
+                    "summary": "Intentional substring verifier-kind rejection check",
+                },
+            },
+        )
+        assert reject_substring_verifier is not None
+        require(
+            not reject_substring_verifier["accepted"],
+            "substring verifier kind should not satisfy risky churn policy",
+        )
+        require(
+            any(
+                "verifierEvidence.kind" in reason
+                for reason in reject_substring_verifier["reasons"]
+            ),
+            "substring-kind rejection should name verifierEvidence.kind",
+        )
+
         read_after_kind_reject = client.send(
             "thread/read", {"threadId": thread_id, "includeTurns": False}
         )
@@ -422,6 +450,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "expandedLowPressureReasons": reject_expansion_low_pressure["reasons"],
             "weakVerifierAccepted": reject_weak_verifier["accepted"],
             "weakVerifierReasons": reject_weak_verifier["reasons"],
+            "substringVerifierAccepted": reject_substring_verifier["accepted"],
+            "substringVerifierReasons": reject_substring_verifier["reasons"],
             "accepted": accepted["accepted"],
             "finalRevision": final_state["revision"],
             "finalChurn": final_state["churn"],

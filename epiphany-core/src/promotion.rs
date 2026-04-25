@@ -490,12 +490,14 @@ fn pressure_rank(value: &str) -> u8 {
 }
 
 fn is_strong_verifier_kind(kind: &str) -> bool {
-    let kind = kind.trim().to_ascii_lowercase();
-    kind.contains("verification")
-        || kind.contains("verifier")
-        || kind.contains("test")
-        || kind.contains("smoke")
-        || kind.contains("review")
+    kind.split(|ch: char| !ch.is_ascii_alphanumeric())
+        .filter(|token| !token.is_empty())
+        .any(|token| {
+            matches!(
+                token.to_ascii_lowercase().as_str(),
+                "verification" | "verifier" | "test" | "tests" | "smoke" | "review"
+            )
+        })
 }
 
 #[cfg(test)]
@@ -751,6 +753,29 @@ mod tests {
             ..Default::default()
         });
         input.verifier_evidence.kind = "observation".to_string();
+
+        let decision = evaluate_promotion(input);
+
+        assert!(!decision.accepted);
+        assert!(
+            decision
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("verifierEvidence.kind"))
+        );
+    }
+
+    #[test]
+    fn evaluate_promotion_rejects_substring_verifier_kind_match() {
+        let mut input = promotion_input(true, vec![observation()], vec![evidence()], "ok");
+        input.churn = Some(EpiphanyChurnState {
+            understanding_status: "proposal_refines_map".to_string(),
+            diff_pressure: "medium".to_string(),
+            graph_freshness: Some("proposal-expanded".to_string()),
+            warning: Some("Expansion requires a real verifier kind.".to_string()),
+            ..Default::default()
+        });
+        input.verifier_evidence.kind = "contest".to_string();
 
         let decision = evaluate_promotion(input);
 
