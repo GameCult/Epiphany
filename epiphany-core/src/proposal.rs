@@ -3,6 +3,7 @@ use anyhow::anyhow;
 use codex_protocol::protocol::EpiphanyChurnState;
 use codex_protocol::protocol::EpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
+use codex_protocol::protocol::EpiphanyGraphEdge;
 use codex_protocol::protocol::EpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphNode;
 use codex_protocol::protocol::EpiphanyGraphs;
@@ -77,7 +78,10 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     }
 
     let mut frontier = input.state.graph_frontier.clone().unwrap_or_default();
-    merge_unique(&mut frontier.active_node_ids, active_node_ids);
+    let frontier_node_ids = linked_frontier_node_ids(&graphs, active_node_ids);
+    let frontier_edge_ids = incident_edge_ids(&graphs, &frontier_node_ids);
+    merge_unique(&mut frontier.active_node_ids, frontier_node_ids);
+    merge_unique(&mut frontier.active_edge_ids, frontier_edge_ids);
     merge_unique(
         &mut frontier.dirty_paths,
         unique_code_ref_paths(&code_refs).into_iter().collect(),
@@ -274,6 +278,57 @@ fn merge_code_refs(target: &mut Vec<EpiphanyCodeRef>, additions: Vec<EpiphanyCod
     }
 }
 
+fn linked_frontier_node_ids(graphs: &EpiphanyGraphs, direct_node_ids: Vec<String>) -> Vec<String> {
+    let mut linked_node_ids = direct_node_ids;
+    let mut seen = linked_node_ids.iter().cloned().collect::<HashSet<_>>();
+    let mut changed = true;
+
+    while changed {
+        changed = false;
+        for link in &graphs.links {
+            if seen.contains(&link.architecture_node_id)
+                && seen.insert(link.dataflow_node_id.clone())
+            {
+                linked_node_ids.push(link.dataflow_node_id.clone());
+                changed = true;
+            }
+            if seen.contains(&link.dataflow_node_id)
+                && seen.insert(link.architecture_node_id.clone())
+            {
+                linked_node_ids.push(link.architecture_node_id.clone());
+                changed = true;
+            }
+        }
+    }
+
+    linked_node_ids
+}
+
+fn incident_edge_ids(graphs: &EpiphanyGraphs, node_ids: &[String]) -> Vec<String> {
+    let node_ids = node_ids.iter().map(String::as_str).collect::<HashSet<_>>();
+    let mut edge_ids = Vec::new();
+    let mut seen = HashSet::new();
+    for edge in graphs
+        .architecture
+        .edges
+        .iter()
+        .chain(graphs.dataflow.edges.iter())
+    {
+        if is_incident_to_any_node(edge, &node_ids)
+            && let Some(edge_id) = edge.id.as_deref().map(str::trim)
+            && !edge_id.is_empty()
+            && seen.insert(edge_id.to_string())
+        {
+            edge_ids.push(edge_id.to_string());
+        }
+    }
+    edge_ids
+}
+
+fn is_incident_to_any_node(edge: &EpiphanyGraphEdge, node_ids: &HashSet<&str>) -> bool {
+    node_ids.contains(edge.source_id.as_str()) || node_ids.contains(edge.target_id.as_str())
+}
+
 fn merge_unique<T>(target: &mut Vec<T>, additions: Vec<T>)
 where
     T: Clone + Eq + std::hash::Hash,
@@ -379,6 +434,9 @@ mod tests {
     use super::*;
     use crate::promotion::EpiphanyPromotionInput;
     use crate::promotion::evaluate_promotion;
+    use codex_protocol::protocol::EpiphanyGraph;
+    use codex_protocol::protocol::EpiphanyGraphEdge;
+    use codex_protocol::protocol::EpiphanyGraphLink;
 
     fn code_ref(path: &str) -> EpiphanyCodeRef {
         EpiphanyCodeRef {
@@ -499,6 +557,87 @@ mod tests {
         assert_eq!(proposal.graphs.architecture.nodes[0].id, node_id);
         assert_eq!(proposal.graphs.architecture.nodes[0].code_refs.len(), 1);
         assert_eq!(proposal.churn.understanding_status, "proposal_refines_map");
+    }
+
+    #[test]
+    fn propose_map_update_focuses_linked_nodes_and_incident_edges() {
+        let mut state = state_with_observation("verified");
+        state.graphs = EpiphanyGraphs {
+            architecture: EpiphanyGraph {
+                nodes: vec![
+                    EpiphanyGraphNode {
+                        id: "session".to_string(),
+                        title: "Session".to_string(),
+                        purpose: "Build turn context".to_string(),
+                        ..Default::default()
+                    },
+                    EpiphanyGraphNode {
+                        id: "prompt-renderer".to_string(),
+                        title: "Prompt renderer".to_string(),
+                        purpose: "Render Epiphany state".to_string(),
+                        code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+                        ..Default::default()
+                    },
+                ],
+                edges: vec![EpiphanyGraphEdge {
+                    id: Some("edge-session-prompt".to_string()),
+                    source_id: "session".to_string(),
+                    target_id: "prompt-renderer".to_string(),
+                    kind: "calls".to_string(),
+                    ..Default::default()
+                }],
+            },
+            dataflow: EpiphanyGraph {
+                nodes: vec![
+                    EpiphanyGraphNode {
+                        id: "developer-context".to_string(),
+                        title: "Developer context".to_string(),
+                        purpose: "Carry rendered instructions".to_string(),
+                        ..Default::default()
+                    },
+                    EpiphanyGraphNode {
+                        id: "epiphany-state-fragment".to_string(),
+                        title: "Epiphany state fragment".to_string(),
+                        purpose: "Expose typed state to the model".to_string(),
+                        ..Default::default()
+                    },
+                ],
+                edges: vec![EpiphanyGraphEdge {
+                    id: Some("edge-fragment-context".to_string()),
+                    source_id: "epiphany-state-fragment".to_string(),
+                    target_id: "developer-context".to_string(),
+                    kind: "feeds".to_string(),
+                    ..Default::default()
+                }],
+            },
+            links: vec![EpiphanyGraphLink {
+                dataflow_node_id: "epiphany-state-fragment".to_string(),
+                architecture_node_id: "prompt-renderer".to_string(),
+                relationship: Some("rendered by".to_string()),
+                code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            }],
+        };
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(
+            proposal.graph_frontier.active_node_ids,
+            vec![
+                "prompt-renderer".to_string(),
+                "epiphany-state-fragment".to_string()
+            ]
+        );
+        assert_eq!(
+            proposal.graph_frontier.active_edge_ids,
+            vec![
+                "edge-session-prompt".to_string(),
+                "edge-fragment-context".to_string()
+            ]
+        );
     }
 
     #[test]
