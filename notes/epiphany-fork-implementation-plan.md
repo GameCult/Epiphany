@@ -1,327 +1,176 @@
 # Epiphany Fork Implementation Plan
 
-## Status
-
-Updated on 2026-04-25 after landing the first Phase 6 reflection-boundary slice. Phase 5 remains the regression-guarded update/distill/propose/promote/read/notification baseline, not an excuse to keep rearranging the furniture until everyone dies of responsible boredom.
+This is the current implementation plan for Epiphany as an opinionated fork of
+Codex.
 
-This note tracks Epiphany as a fork of Codex with an opinionated modeling architecture. The point is not to offer Codex another collaboration preset. The point is to make the harness force the model to carry explicit structure about the codebase, the active subgoal, the evidence trail, and the machine it is modifying.
+It is not a changelog. Git and `state/evidence.jsonl` already do that job
+without turning this file into a hay bale.
 
-- Phase 1 durable Epiphany thread state
-- Phase 2 prompt integration
-- a minimal Phase 3 typed client read surface via `Thread.epiphanyState`
-- a verified Phase 4 slice 1 query-time hybrid retriever across protocol, core, app-server protocol, and app-server
-- a verified Phase 4 slice 2 follow-up that adds explicit persistent semantic indexing through `thread/epiphany/index` while keeping `thread/epiphany/retrieve` read-only
-- the heavy Epiphany-owned prompt/replay/retrieval implementation has now been extracted into the repo-owned `epiphany-core` crate, leaving vendored Codex with thin host adapters plus the typed integration seam
-- a first typed state-update slice that adds explicit loaded-thread-only `thread/epiphany/update`, appends observations/evidence, replaces bounded map/scratch/churn fields, bumps the state revision, and persists an immediate rollout `EpiphanyState` snapshot
-- a first typed distillation/proposal slice that adds read-only loaded-thread-only `thread/epiphany/distill`, producing deterministic observation/evidence patches for explicit promotion through `thread/epiphany/update`
-- a first richer promotion-policy slice that treats map/churn/frontier/checkpoint replacements as higher-risk state edits: accepted promotions must be tied to explicit observations and patch evidence, and structural graph/churn mistakes are rejected before the durable update path
-- a first typed map/churn proposal slice that adds read-only loaded-thread-only `thread/epiphany/propose`, producing candidate graph frontier/churn patches from verified observations with code refs for explicit promotion through `thread/epiphany/promote`
-- a first proposal-quality hardening slice that reuses existing architecture graph nodes by exact code-ref, same-path overlap, or deterministic path-node id before creating new candidate nodes, and records whether a proposal refines, expands, or updates the map in churn
-- a frontier-focus hardening slice that expands proposal frontier focus through existing graph links and marks named incident graph edges active, so prompt rendering gets the relevant architecture/dataflow context instead of one lonely node with a tiny hat
-- an evidence-selection/churn hardening slice that requires selected proposal observations to cite accepting `recent_evidence` and derives proposal `diff_pressure` from the candidate map delta, touched paths, selected observation count, and unresolved write risk
-- a graph-semantic proposal hardening slice that scores selected observations/evidence, uses the strongest selected signal for proposal wording, and can reuse unanchored architecture graph nodes through strict unique semantic overlap while refusing ambiguous matches and leaving code-anchored nodes under concrete ref/path/id matching
-- an automatic observation-selection slice that lets read-only `thread/epiphany/propose` omit `observationIds`; `epiphany-core` then chooses a bounded coherent path cluster from existing verified, evidence-backed observations using source/evidence quality and current graph-frontier focus
-- a map-delta judgment slice that distinguishes exact-ref refinement, same-path broadening, deterministic-node reuse, semantic unanchored-node reuse, and new candidate surfaces before setting graph freshness and `diff_pressure`
-- a source-output distillation slice that keeps `thread/epiphany/distill` read-only while summarizing noisy tool/command/shell/model output into salient lines and defaulting evidence kind to `tool-output` or `model-output`
-- a source-output salience-ranking slice that ranks final test result, failure, error, exit-code, passed, and finished lines above generic warnings, while still preserving warnings when warnings are the only useful signal
-- a risky-delta promotion policy slice that keeps `thread/epiphany/promote` as the only gate but requires medium/high/expanded/broadening/semantic/update churn deltas to carry explicit warning rationale plus strong verifier evidence kind
-- an expansion-freshness promotion hardening slice that prevents a graph-expansion patch from bypassing warning requirements by falsely claiming low `diff_pressure`
-- a token-aware verifier-kind promotion hardening slice that prevents substring accidents such as `contest` from satisfying the risky-delta `test` verifier-kind requirement
-- a reusable richer Phase 5 app-server smoke harness at `tools/epiphany_phase5_smoke.py` that verifies source-output distillation, read-only proposal, verifier-only promotion notification evidence changes, risky-delta rejection, expanded-low-pressure rejection, substring verifier-kind rejection, and accepted graph/churn promotion through the loaded-thread seam
-- a first live typed-state notification slice: experimental `thread/epiphany/stateUpdated` fires after successful direct `thread/epiphany/update` and accepted `thread/epiphany/promote`, carrying the updated `epiphanyState`, typed `source`, event-level `revision`, and typed `changedFields` while rejected promotions remain silent and non-mutating; accepted promotions always report `evidence` when verifier evidence is appended
-- a direct write-response hardening slice: successful `thread/epiphany/update` and accepted `thread/epiphany/promote` responses now include response-level `revision` and `changedFields`, matching the notification metadata without forcing the initiating caller to wait for or diff the live event
-- a rejected-promotion silence smoke hardening slice: the reusable Phase 5 app-server smoke now asserts rejected `thread/epiphany/promote` calls do not emit `thread/epiphany/stateUpdated`, preserving the "no mutation, no bell" contract
-- a direct-update integrity hardening slice: `thread/epiphany/update` now validates appended observation/evidence graph records and structural replacement fields before mutation, rejects empty/duplicate/reused append ids, missing evidence references, and invalid graph/frontier/checkpoint/subgoal/churn replacement shapes, and the reusable smoke asserts invalid direct updates leave revision unchanged with no `thread/epiphany/stateUpdated` notification
-- a write/read surface consistency hardening slice: successful direct update and accepted promote responses plus their `thread/epiphany/stateUpdated` notifications now reuse the same live Epiphany state projection as `thread/read`, so clients get retrieval-summary backfill consistently instead of receiving a raw just-written state in one surface and a richer read state in another
-- a first Phase 6 reflection-boundary slice: experimental read-only `thread/epiphany/scene` returns a client-shaped projection derived from authoritative Epiphany state, including objective, active subgoal, invariant counts, graph focus, retrieval status, observation/evidence summaries, churn, live/stored source, and available control-plane actions without mutating or persisting anything
-- current phase: Phase 6 reflection boundary / scene-surface precursor
-
-The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, ship the first read-only map/churn proposal surface, teach proposal to avoid duplicating already-mapped code surfaces, make proposal frontier focus follow existing graph links, make selected observations evidence-backed with non-haunted churn pressure, rescue unanchored graph nodes with strict semantic matching, let proposal choose a bounded ready observation set when ids are omitted, make proposal pressure understand match kinds, make the distiller summarize noisy source output, make source-output salience prefer final results over generic warnings, make promotion notice risky deltas, make expansion freshness resistant to low-pressure underreporting, prevent substring verifier-kind accidents, prove that richer chain over app-server by hand, add the first live state notification after successful writes, make that notification say which revision and state sections changed, reject malformed direct updates, or make write responses match `thread/read` projection. Those parts are landed or live-smoked.
-
-The next job is to continue from the read-only scene baseline: live-smoke `thread/epiphany/scene` through app-server or move toward a minimal job-state/progress surface for indexing/remap/verification work. Use `tools/epiphany_phase5_smoke.py` as a regression guardrail when touching the Phase 5 control plane, not as a ritual that justifies another tiny safety slice.
-
-Workflow trap to avoid: do not leave handoff or plan notes that say only "continue the next smallest hardening slice" after a phase has reached a coherent baseline. Bounded slices are how work lands safely; they are not the project direction. A good handoff should name the next organ, not merely prescribe one more scrape of sandpaper on the same seam.
-
-## Summary
-
-Phase 4 lands as a **bounded internal retrieval/indexing slice**:
-
-- add typed retrieval state and shard/index summaries to Epiphany state
-- add one additive app-server retrieval query surface for loaded threads
-- add one explicit semantic indexing surface for loaded threads
-- support hybrid retrieval from day one:
-  - exact/path/symbol/lexical results
-  - semantic chunk results
-- keep the slice internal/dev-usable first while the fork architecture hardens
-
-After this slice:
-
-- Epiphany can ask structured repo questions through one typed surface
-- GUI work has a real data source later
-- retrieval can evolve without making prompt text or shell transcripts the canonical knowledge path
-
-This slice should still avoid:
-
-- watcher-driven invalidation
-- automatic observation promotion
-- GUI implementation
-- specialist-agent scheduling
-- user-facing activation flows
-
-## Phase 4 Principle
-
-Do not build "vector search" as a separate novelty organ off to the side.
+The purpose of this note is to answer four questions:
 
-Build a **hybrid repo retrieval subsystem** with one typed query shape and one typed result shape. Exact lookup and semantic lookup should be different modes of the same machine, not rival religions.
+- what exists now
+- what boundaries must not be blurred
+- what we have learned
+- what the next real implementation organs are
 
-## Recovered bounded decision
+## Lineage
 
-After rehydrating from the repo state, the first bounded Phase 4 slice was:
+This note started as `notes/codex-epiphany-mode-plan.md` in commit `e64eee9`.
+It described Phase 1: add a durable Epiphany thread-state seam to vendored
+Codex without changing normal Codex behavior.
 
-- query-time
-- loaded-thread-first
-- read-only
-- hybrid from day one
+The note was later renamed because Epiphany stopped being "a Codex mode" and
+became a fork-level modeling architecture. The rename was correct. The later
+append-only status drift was not. A plan that records every landed micro-slice
+forever becomes the documentation equivalent of the Jenga tower.
 
-Concrete choice for the first implementation:
+Historical detail belongs in:
 
-- reuse existing `codex_file_search` substrate for exact/path-ish lookup
-- use workspace-local BM25 chunk search as the initial semantic backend
-- defer embeddings, vector stores, persistent indexing, and watcher-driven invalidation
+- `git log`
+- `state/evidence.jsonl`
+- `notes/fresh-workspace-handoff.md`
+- `notes/epiphany-current-algorithmic-map.md`
 
-Updated follow-up direction after landing the verified slice:
+This file carries the distilled plan.
 
-- keep the BM25 implementation as the proven baseline/fallback
-- for the first persistent semantic backend, prefer Qdrant over JSON/blob/postgres-thrash designs, but do not make it a hard requirement for basic Epiphany use
-- do not turn retrieval into vector-only soup; exact/path lookup remains first-class and BM25 remains useful as bootstrap/control/fallback when Qdrant is unavailable
-- live app-server smoke verified the explicit Qdrant path against real local services using an ephemeral loaded thread rooted at `epiphany-core`; the smoke indexed 5 files into 198 chunks, created Qdrant collection `epiphany_workspace_fa24bab116f8d229`, and retrieved persistent semantic chunks from `src/prompt.rs`
-- env/default backend configuration is good enough for the current slice; defer a first-class backend config surface until a real operator pain proves it deserves to exist
+## Current Baseline
 
-Preflight note:
+Phase 1 through Phase 5 are complete enough.
 
-- use tracked source as the corpus estimate, not raw working-tree disk usage
-- at `vendor/codex` HEAD `d45ab10`, tracked `codex-rs` source is `3642` files / `31.09 MB`
-- raw working-tree size under `codex-rs` can be heavily inflated by build artifacts and will lie to the design
+The landed machine now has:
 
-Current landed implementation note:
+- durable Epiphany thread state in Codex protocol/core rollout state
+- prompt integration through a bounded `<epiphany_state>` developer fragment
+- typed client read exposure through `Thread.epiphanyState`
+- hybrid repo retrieval through `thread/epiphany/retrieve`
+- explicit persistent semantic indexing through `thread/epiphany/index`
+- repo-owned heavy implementation in `epiphany-core`
+- typed state mutation through `thread/epiphany/update`
+- read-only observation distillation through `thread/epiphany/distill`
+- read-only map/churn proposal through `thread/epiphany/propose`
+- verifier-backed promotion through `thread/epiphany/promote`
+- successful-write notification through `thread/epiphany/stateUpdated`
+- response-level and notification-level revision and changed-field metadata
+- direct-update validation for malformed appended records and structural replacements
+- proposal and promotion rules that reduce map/churn Jenga pressure
+- reusable Phase 5 app-server smoke coverage in `tools/epiphany_phase5_smoke.py`
+- a first Phase 6 read-only reflection surface through `thread/epiphany/scene`
 
-- the protocol scaffold still exists in `vendor/codex/codex-rs/protocol/src/protocol.rs`
-- the heavier Epiphany-owned implementation now lives in:
-  - `E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs`
-  - `E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs`
-  - `E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs`
-- the vendored host seam is now wired through:
-  - `core/src/epiphany_retrieval.rs`
-  - `core/src/epiphany_rollout.rs`
-  - `core/src/context/epiphany_state_instructions.rs`
-  - `core/src/codex_thread.rs`
-  - `core/src/session/tests.rs`
-  - `app-server-protocol/src/protocol/common.rs`
-  - `app-server-protocol/src/protocol/v2.rs`
-  - `app-server-protocol/src/export.rs`
-  - `app-server/src/codex_message_processor.rs`
-- the retrieval/indexing/core-extraction baseline is now formatted, verified, committed, and pushed on `main` at `80c29e0`:
-  - `cargo fmt --all` passed
-  - targeted no-run compile for `codex-core`, `codex-app-server-protocol`, and `codex-app-server` passed
-  - targeted Phase 4 tests passed in core, app-server protocol, and app-server
-  - full `cargo test -p codex-app-server-protocol` passed after regenerating stable schema fixtures
-- stable schema fixtures are the safe checked-in state for this slice; `write_schema_fixtures --experimental` rewrites the same tree and cannot be left behind as the repo state
+The current phase is Phase 6: reflection boundary and observable harness state.
 
-## Key Changes
+## Boundary Rules
 
-### 1. Extend Epiphany state with retrieval metadata
+These boundaries are more important than the individual method names:
 
-Touch:
+- `thread/epiphany/retrieve` is read-only.
+- `thread/epiphany/distill` is read-only.
+- `thread/epiphany/propose` is read-only.
+- Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
+- `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
+- `thread/epiphany/scene` is a client reflection, not a second source of truth.
+- The GUI may render and steer typed state, but it must not manufacture canonical understanding.
+- The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
+- Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
 
-- `vendor/codex/codex-rs/protocol/src/protocol.rs`
+If a new feature violates one of these rules, stop and redesign before writing
+more Rust-flavored archaeology.
 
-Add minimal retrieval metadata to `EpiphanyThreadState`, for example:
+## What We Learned
 
-- `retrieval`
-  - `workspace_root`
-  - `index_revision`
-  - `status`
-  - `semantic_available`
-  - `last_indexed_at`
-  - `shards`
-  - `dirty_paths`
+State can rot exactly like code.
 
-Keep this metadata summary-focused. Do not dump raw embeddings, giant posting lists, or per-file sludge into thread state.
+The failure mode is not only speculative implementation cruft. Persistent
+memory can also become a pile of locally true fragments that no longer help the
+next agent model the whole machine. That is the same Jenga problem with nicer
+headings.
 
-### 2. Add a core retrieval facade
+The current lessons:
 
-Touch:
+- Keep the algorithmic map as the source-audited control-flow description.
+- Keep the implementation plan as a distilled forward plan, not a trophy wall.
+- Keep the harness-surfaces note as a surface contract, not a dump of every possible future type.
+- Keep `fresh-workspace-handoff.md` as a re-entry packet, not a substitute brain.
+- Keep `state/evidence.jsonl` as the durable event log.
+- Revert failed code hypotheses immediately.
+- Distill failed or obsolete state hypotheses just as aggressively.
 
-- `E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs`
-- `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs`
+The plan should get shorter after a phase completes, not longer by default.
 
-Responsibilities:
+## What We Need To Know Next
 
-- the repo-owned crate should accept a loaded-thread-derived workspace root plus query params
-- it should run exact retrieval and semantic retrieval behind one interface
-- it should return typed ranked results with file paths, line anchors, excerpts, and retrieval mode metadata
-- the vendored Codex file should stay a thin adapter or re-export layer, not the place where the heavy organ grows back out of spite
+The next unknown is not whether Epiphany can preserve, read, propose, promote,
+and notify typed state. It can.
 
-Result types should be explicit and bounded:
+The next unknowns are:
 
-- exact hits
-- semantic hits
-- optional graph-linked ids later
+- whether `thread/epiphany/scene` is sufficient as the first client-facing reflection shape
+- what minimal job/progress surface is needed for indexing, remap, verification, and future specialist work
+- how to expose long-running work without making the GUI authoritative
+- when watcher-driven invalidation becomes necessary instead of merely tempting
+- how much automatic CRRC coordination belongs in runtime before it becomes ceremony machinery
+- what Phase 6 should prove before specialist scheduling begins
 
-Do not make the first cut depend on prompt parsing or transcript scraping.
+## Phase 6 Direction
 
-### 3. Keep the first semantic backend small and local
+Phase 6 should grow observable harness state outward from the typed spine.
 
-The first semantic backend should be workspace-local BM25 chunk retrieval built at query time over the tracked source corpus.
+Useful candidates:
 
-Requirements:
+1. Live-smoke `thread/epiphany/scene` through app-server.
+2. Add a minimal read-only job/progress surface for indexing, remap, and verification work.
+3. Add targeted scene fields only when a client or smoke exposes a real gap.
+4. Keep the scene derived from authoritative Epiphany state.
+5. Keep long-running work observable through typed state or notifications, not transcript inference.
 
-- keep chunk text line-anchored and path-aware
-- keep the implementation bounded enough to understand in one sitting
-- track retrieval/index freshness metadata explicitly in typed state
-- do not introduce a monolithic persistent blob just to feel sophisticated
+Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
+is a regression guardrail, not a ritual drum circle for summoning more tiny
+hardening slices.
 
-If the first semantic backend needs to be intentionally narrow, that is fine. A small honest subsystem beats a magical blob with terrible write behavior.
+## Later Phases
 
-### 4. Add one additive app-server query surface
+These remain later work:
 
-Touch:
+- watcher-driven semantic invalidation
+- automatic observation promotion from tool output
+- richer evidence and graph-shard inspection surfaces
+- role-scoped specialist-agent registry and scheduling
+- mutation gates that warn or block broad writes when map freshness is stale
+- automatic CRRC runtime coordination
+- GUI workflows for graph, evidence, job, invariant, and frontier steering
 
-- `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
-- `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
-- `vendor/codex/codex-rs/app-server/README.md`
+Do not start these from vibes. Each one needs a source-grounded slice plan and a
+clear invariant that says what it must not break.
 
-Add one typed method for retrieval, tentatively:
+## Verification Guardrails
 
-- `thread/epiphany/retrieve`
+Use focused checks for the surface being changed.
 
-Suggested request fields:
+Before modifying Phase 5 control-plane behavior, run:
 
-- `threadId`
-- `query`
-- optional `cwd`
-- optional `modes` or `preferSemantic`
-- optional `limit`
-- optional `pathPrefixes`
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
+```
 
-Suggested response fields:
+For app-server protocol changes, expect to run the relevant protocol tests,
+regenerate stable schema fixtures when needed, and verify the generated tree is
+intentional.
 
-- `query`
-- `indexSummary`
-- `results`
+On this Windows machine, use:
 
-Keep it additive and read-only. That part is now landed.
+```powershell
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
+```
 
-Follow-up addition that is now verified and pushed:
+Do not parallelize cargo builds or tests against the same target directory.
 
-- `thread/epiphany/index`
+## Planning Rule
 
-Current bounded shape of that follow-up:
+When this file changes, prefer replacement and distillation over accretion.
 
-- it is the explicit write path for persistent semantic indexing
-- it persists manifest metadata under `codex_home`
-- it targets Qdrant as the preferred persistent semantic backend
-- it uses local Ollama embeddings by default
-- it leaves exact/path lookup first-class
-- it keeps BM25 alive as the fallback/control path when the persistent backend is stale, missing, or unavailable
-- it now runs through the sibling `epiphany-core` crate so modified Codex alone is not quietly the whole product
+A good update should usually:
 
-Follow-up addition now landed in the working tree:
-
-- `thread/epiphany/update`
-
-Current bounded shape of that follow-up:
-
-- it is the explicit write path for durable Epiphany state, not a retrieval side effect
-- it requires a loaded thread
-- it optionally checks `expectedRevision`
-- it can append observations and evidence
-- it can replace bounded typed fields: objective, active subgoal, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
-- it increments the Epiphany revision, updates `lastUpdatedTurnId` when a reference turn exists, writes live `SessionState`, persists `RolloutItem::EpiphanyState`, and flushes the rollout
-- rollout replay now accepts an out-of-band Epiphany snapshot before the first real user turn so pre-turn seed updates survive resume
-
-Follow-up addition now landed after the update/promote surfaces:
-
-- `thread/epiphany/stateUpdated`
-
-Current bounded shape of that follow-up:
-
-- it is an experimental server notification, not another write path
-- it carries `threadId` plus the full updated `epiphanyState`
-- it carries `source: "update"` after successful direct `thread/epiphany/update`
-- it carries `source: "promote"` after accepted `thread/epiphany/promote`
-- it carries event-level `revision` so clients can sequence updates without cracking open the full state first
-- it carries typed `changedFields` derived from the accepted patch surface so clients can react to top-level state-section changes without diffing the entire `epiphanyState`
-- successful update/promote responses and notifications publish the same client-visible live state projection as `thread/read`; if the durable state has no persisted retrieval metadata yet, the non-durable retrieval summary backfill is present in those response/notification states too
-- accepted promotion notifications include `evidence` even when the patch evidence list was empty, because verifier evidence is appended to durable state after policy acceptance
-- it does not fire for rejected promotions, because rejection still does not mutate state
-- successful `thread/epiphany/update` responses now also carry response-level `revision` and `changedFields`
-- accepted `thread/epiphany/promote` responses now also carry response-level `revision` and `changedFields`; rejected promotion responses omit revision/change metadata and still carry reasons plus no state
-- the richer app-server smoke now asserts direct update responses/notifications publish revision/changed-fields `1`/`observations,evidence`, verifier-only accepted promotion responses/notifications publish `2`/`observations,evidence`, accepted graph/churn promotion responses/notifications publish `3`/`graphs,graphFrontier,observations,evidence,churn`, and all successful write response/notification states include the same retrieval-summary backfill exposed by `thread/read`
-- the richer app-server smoke also asserts rejected promotion attempts leave `rejectedPromotionNotificationCount` at `0`
-- the richer app-server smoke now also asserts malformed direct `thread/epiphany/update` observation/evidence appends and structural replacement patches return invalid-request errors, leave revision at `2`, and leave `invalidDirectUpdateNotificationCount` / `invalidReplacementUpdateNotificationCount` at `0`
-
-Follow-up addition now landed after the update surface:
-
-- `thread/epiphany/distill`
-
-Current bounded shape of that follow-up:
-
-- it is a read-only proposal path, not a second state writer
-- it requires a loaded thread so the response can include the current `expectedRevision`
-- it normalizes one explicit source/status/text observation plus optional subject, evidence kind, and code refs
-- it returns deterministic observation/evidence records inside a `ThreadEpiphanyUpdatePatch`
-- callers must pass the patch to `thread/epiphany/update` to make it durable
-
-Follow-up addition now landed after the promotion gate:
-
-- richer `thread/epiphany/promote` policy for state replacement patches
-
-Current bounded shape of that follow-up:
-
-- it keeps the wire protocol stable
-- it still rejects failed verifier evidence without mutation
-- it now passes replacement fields into `epiphany-core` policy evaluation instead of reducing them to a generic boolean
-- map/churn/frontier/checkpoint replacements must include explicit observations and patch evidence, so state edits are tied to a verified observation trail
-- subgoals, invariants, graphs, graph links, frontier ids, checkpoint ids, and churn fields get lightweight structural validation before accepted patches are sent to `thread/epiphany/update`
-- it still does not infer graph edits automatically; callers must submit explicit typed replacements
-
-### 5. Reuse existing exact-search substrate where practical
-
-Codex already has fuzzy/exact-ish repo search substrate. Reuse what is useful instead of building a second exact-search toy from scratch.
-
-But do not confuse that with the whole answer. Phase 4 exists because exact file search alone is not enough.
-
-### 6. Test the machine, not just the types
-
-Add tests for:
-
-1. protocol serde for the new retrieval request/response shapes
-2. core ranking/merging behavior for mixed exact + semantic results
-3. app-server handling for the new request
-4. retrieval metadata inclusion in `EpiphanyThreadState`
-5. a smoke test that proves semantic retrieval can find a concept that exact-name search would miss
-
-## Assumptions
-
-- Phase 4 is still internal/dev-usable only.
-- Retrieval should be thread/workspace aware, not a global cross-repo soup.
-- The first retrieval slice can be read-only.
-- Watcher-driven invalidation belongs later; this slice only needs enough metadata to admit freshness honestly.
-
-## Immediate Next Step
-
-Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, read-only map/churn proposal path, verifier-backed promotion gate, structural map/churn promotion validation, direct-update append/replacement integrity validation, graph-node reuse, linked frontier focus, evidence-backed selection, map-delta churn pressure, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation-set selection, match-kind-aware map-delta judgment, source-output-aware observation distillation, source-output salience ranking, risky-delta promotion policy, expansion-freshness promotion hardening, token-aware verifier-kind promotion hardening, reusable richer app-server smoke harness, and sourced/revisioned/changed-field `thread/epiphany/stateUpdated` notification seam with write/read retrieval-summary projection consistency as the active baseline. The next machine gap is no longer "can Epiphany retrieve code?", "can it propose one durable observation patch?", "can it draft one bounded map/churn candidate?", "can it avoid duplicating an existing graph node when an observation points at already-mapped code?", "can it focus linked graph context?", "can it reject selected observations that are not backed by accepting recent evidence?", "can it use graph language when no concrete refs exist yet?", "can it choose a proposal-ready observation set when ids are omitted?", "can it distinguish exact refinement from same-path broadening or semantic anchoring?", "can it summarize noisy tool/model output as typed evidence?", "can it rank final result/error/finished lines above generic warnings?", "can promotion policy reason over richer deltas without silently writing them?", "can direct update reject malformed append and replacement patches before writing?", "can expansion freshness resist low-pressure underreporting?", "can verifier kind matching avoid substring accidents?", "does the richer Phase 5 chain behave through the app-server seam?", "can successful writes notify a client what changed state and why?", or "do successful write responses/notifications expose the same retrieval-summary-backed state projection as `thread/read`?" It can.
-
-1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
-2. treat the verified and live-smoked `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
-3. keep the new `epiphany-core` boundary honest instead of letting vendored Codex re-accumulate the heavy implementation
-4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
-5. declare Phase 5 complete enough unless a concrete bug, regression, or real-use gap appears
-6. use the Phase 5 smoke as a guardrail before modifying the existing control plane, not as a reason to keep sanding that same control plane forever
-7. choose the next meaningful Phase 6 precursor:
-   - extend the typed scene/read model for graph, invariants, evidence, intent, churn, and retrieval status, derived from existing Epiphany state
-   - or a minimal typed job-state/progress surface for indexing/remap/verification work that a future GUI can render
-8. keep the source-of-truth rule intact: GUI/client surfaces reflect and steer typed state, but they do not manufacture canonical understanding
-
-Do not start with automatic graph invalidation or specialist-agent scheduling. Do not pretend shell transcripts are a retrieval strategy. GUI reflection is no longer forbidden as a category, but it must start as a thin reflection over the engine, not as a pretty parallel brain.
+- remove obsolete phase prose
+- preserve the current boundary rules
+- name the next larger organ
+- move historical proof into evidence or git
+- leave the next agent with less to carry, not more
