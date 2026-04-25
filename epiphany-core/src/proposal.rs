@@ -38,16 +38,22 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     let fingerprint = fingerprint(&input.state.revision, &observation_ids, &code_refs);
     let mut graphs = input.state.graphs.clone();
     let mut active_node_ids = Vec::new();
+    let mut reused_nodes = 0usize;
+    let mut created_nodes = 0usize;
 
     for path in unique_code_ref_paths(&code_refs) {
-        let node_id = graph_node_id(&path);
-        active_node_ids.push(node_id.clone());
-        if !graphs
-            .architecture
-            .nodes
-            .iter()
-            .any(|node| node.id == node_id)
+        let path_code_refs = code_refs_for_path(&code_refs, &path);
+        let candidate_node_id = graph_node_id(&path);
+        if let Some(node_index) =
+            find_architecture_node_for_path(&graphs, &path_code_refs, &path, &candidate_node_id)
         {
+            let node = &mut graphs.architecture.nodes[node_index];
+            active_node_ids.push(node.id.clone());
+            merge_code_refs(&mut node.code_refs, path_code_refs);
+            reused_nodes += 1;
+        } else {
+            let node_id = candidate_node_id;
+            active_node_ids.push(node_id.clone());
             graphs.architecture.nodes.push(EpiphanyGraphNode {
                 id: node_id,
                 title: title_from_path(&path),
@@ -64,8 +70,9 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
                 )),
                 metaphor: None,
                 status: Some("candidate".to_string()),
-                code_refs: code_refs_for_path(&code_refs, &path),
+                code_refs: path_code_refs,
             });
+            created_nodes += 1;
         }
     }
 
@@ -97,15 +104,17 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
         status: "candidate".to_string(),
         summary: truncate_chars(
             &format!(
-                "Proposed graph frontier and churn update from verified observations: {}",
-                observation_ids.join(", ")
+                "Proposed graph frontier and churn update from verified observations: {}; reused {reused_nodes} existing node(s), created {created_nodes} new node(s)",
+                observation_ids.join(", "),
             ),
             SUMMARY_LIMIT,
         ),
         code_refs,
     };
+    let understanding_status = proposal_understanding_status(reused_nodes, created_nodes);
+    let graph_freshness = proposal_graph_freshness(reused_nodes, created_nodes);
     let churn = EpiphanyChurnState {
-        understanding_status: "proposal_ready".to_string(),
+        understanding_status,
         diff_pressure: input
             .state
             .churn
@@ -114,11 +123,10 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
             .filter(|value| !value.is_empty())
             .unwrap_or("low")
             .to_string(),
-        graph_freshness: Some("proposal".to_string()),
-        warning: Some(
-            "Map/churn proposal derived from verified observations; promote only after verifier acceptance."
-                .to_string(),
-        ),
+        graph_freshness: Some(graph_freshness),
+        warning: Some(format!(
+            "Map/churn proposal derived from verified observations; reused {reused_nodes} existing node(s), created {created_nodes} new node(s); promote only after verifier acceptance."
+        )),
         unexplained_writes: input
             .state
             .churn
@@ -216,6 +224,56 @@ fn code_refs_for_path(code_refs: &[EpiphanyCodeRef], path: &Path) -> Vec<Epiphan
         .collect()
 }
 
+fn find_architecture_node_for_path(
+    graphs: &EpiphanyGraphs,
+    path_code_refs: &[EpiphanyCodeRef],
+    path: &Path,
+    candidate_node_id: &str,
+) -> Option<usize> {
+    graphs
+        .architecture
+        .nodes
+        .iter()
+        .position(|node| has_exact_code_ref_overlap(&node.code_refs, path_code_refs))
+        .or_else(|| {
+            graphs
+                .architecture
+                .nodes
+                .iter()
+                .position(|node| node.code_refs.iter().any(|code_ref| code_ref.path == path))
+        })
+        .or_else(|| {
+            graphs
+                .architecture
+                .nodes
+                .iter()
+                .position(|node| node.id == candidate_node_id)
+        })
+}
+
+fn has_exact_code_ref_overlap(
+    existing_code_refs: &[EpiphanyCodeRef],
+    proposed_code_refs: &[EpiphanyCodeRef],
+) -> bool {
+    let existing_keys = existing_code_refs
+        .iter()
+        .map(code_ref_key)
+        .collect::<HashSet<_>>();
+    proposed_code_refs
+        .iter()
+        .map(code_ref_key)
+        .any(|key| existing_keys.contains(&key))
+}
+
+fn merge_code_refs(target: &mut Vec<EpiphanyCodeRef>, additions: Vec<EpiphanyCodeRef>) {
+    let mut seen = target.iter().map(code_ref_key).collect::<HashSet<_>>();
+    for addition in additions {
+        if seen.insert(code_ref_key(&addition)) {
+            target.push(addition);
+        }
+    }
+}
+
 fn merge_unique<T>(target: &mut Vec<T>, additions: Vec<T>)
 where
     T: Clone + Eq + std::hash::Hash,
@@ -289,6 +347,26 @@ fn truncate_chars(value: &str, limit: usize) -> String {
     truncated
 }
 
+fn proposal_understanding_status(reused_nodes: usize, created_nodes: usize) -> String {
+    match (reused_nodes > 0, created_nodes > 0) {
+        (true, false) => "proposal_refines_map",
+        (false, true) => "proposal_expands_map",
+        (true, true) => "proposal_updates_map",
+        (false, false) => "proposal_ready",
+    }
+    .to_string()
+}
+
+fn proposal_graph_freshness(reused_nodes: usize, created_nodes: usize) -> String {
+    match (reused_nodes > 0, created_nodes > 0) {
+        (true, false) => "proposal-refined",
+        (false, true) => "proposal-expanded",
+        (true, true) => "proposal-updated",
+        (false, false) => "proposal",
+    }
+    .to_string()
+}
+
 fn is_verified_status(status: &str) -> bool {
     matches!(
         status.trim().to_ascii_lowercase().as_str(),
@@ -355,8 +433,72 @@ mod tests {
         assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
         assert_eq!(proposal.graphs.architecture.nodes[0].title, "prompt.rs");
         assert_eq!(proposal.graph_frontier.active_node_ids.len(), 1);
-        assert_eq!(proposal.churn.understanding_status, "proposal_ready");
+        assert_eq!(proposal.churn.understanding_status, "proposal_expands_map");
         assert_eq!(proposal.churn.diff_pressure, "medium");
+    }
+
+    #[test]
+    fn propose_map_update_reuses_existing_architecture_node_for_matching_code_ref() {
+        let mut state = state_with_observation("verified");
+        state.graphs.architecture.nodes.push(EpiphanyGraphNode {
+            id: "prompt-renderer".to_string(),
+            title: "Prompt renderer".to_string(),
+            purpose: "Render Epiphany state into developer context".to_string(),
+            status: Some("grounded".to_string()),
+            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            ..Default::default()
+        });
+        state.observations[0].code_refs.push(EpiphanyCodeRef {
+            path: PathBuf::from("epiphany-core/src/prompt.rs"),
+            start_line: Some(30),
+            end_line: Some(40),
+            symbol: Some("render_epiphany_state".to_string()),
+            note: Some("newly verified line span".to_string()),
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
+        let node = &proposal.graphs.architecture.nodes[0];
+        assert_eq!(node.id, "prompt-renderer");
+        assert_eq!(node.status.as_deref(), Some("grounded"));
+        assert_eq!(node.code_refs.len(), 2);
+        assert_eq!(
+            proposal.graph_frontier.active_node_ids,
+            vec!["prompt-renderer".to_string()]
+        );
+        assert_eq!(proposal.churn.understanding_status, "proposal_refines_map");
+        assert_eq!(
+            proposal.churn.graph_freshness.as_deref(),
+            Some("proposal-refined")
+        );
+    }
+
+    #[test]
+    fn propose_map_update_reuses_existing_deterministic_path_node_without_refs() {
+        let mut state = state_with_observation("verified");
+        let node_id = graph_node_id(Path::new("epiphany-core/src/prompt.rs"));
+        state.graphs.architecture.nodes.push(EpiphanyGraphNode {
+            id: node_id.clone(),
+            title: "Prompt path".to_string(),
+            purpose: "Existing path-derived proposal node".to_string(),
+            ..Default::default()
+        });
+
+        let proposal = propose_map_update(EpiphanyMapProposalInput {
+            state,
+            observation_ids: vec!["obs-verified".to_string()],
+        })
+        .expect("proposal");
+
+        assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
+        assert_eq!(proposal.graphs.architecture.nodes[0].id, node_id);
+        assert_eq!(proposal.graphs.architecture.nodes[0].code_refs.len(), 1);
+        assert_eq!(proposal.churn.understanding_status, "proposal_refines_map");
     }
 
     #[test]

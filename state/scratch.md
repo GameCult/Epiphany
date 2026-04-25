@@ -4,7 +4,7 @@ This file is intentionally disposable.
 
 ## Current Subgoal
 
-- Continue Phase 5 by hardening the landed read-only map/churn proposal machinery without hidden writes.
+- Continue Phase 5 proposal-quality hardening beyond the first graph-node reuse slice, without hidden writes.
 
 ## Working Notes
 
@@ -12,7 +12,9 @@ This file is intentionally disposable.
 - First read-only `thread/epiphany/propose` slice is landed in the working tree:
   - `epiphany-core/src/proposal.rs` owns deterministic `propose_map_update`
   - selected observations must already exist in thread state, have accepting status, and carry code refs
-  - proposal appends/focuses architecture graph nodes for observed code-ref paths, merges frontier focus, emits proposal observation/evidence, and marks churn `proposal_ready`
+  - proposal now tries exact code-ref overlap, same-path overlap, and deterministic path-node id fallback against existing architecture graph nodes before creating new candidate path nodes
+  - matching nodes are focused and enriched with newly observed refs without overwriting their existing title, purpose, or status
+  - proposal merges frontier focus, emits proposal observation/evidence with reused/created node counts, and marks churn as `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map`
   - app-server exposes experimental loaded-thread-only `thread/epiphany/propose`
   - live stdio smoke proved propose is read-only, and propose -> promote persists graph/churn only after verifier evidence
 - The Phase 4 retrieval/indexing/core-extraction anchor is `80c29e0` on `main`. The older `360dfea` commit is only the first hybrid retrieval anchor, and later `main` also includes the typed update/distill/promote surfaces, promotion safety layer, and app-server stack-pressure fix.
