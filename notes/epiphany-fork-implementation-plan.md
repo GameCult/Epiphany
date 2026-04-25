@@ -25,6 +25,7 @@ This note tracks Epiphany as a fork of Codex with an opinionated modeling archit
 - a source-output distillation slice that keeps `thread/epiphany/distill` read-only while summarizing noisy tool/command/shell/model output into salient lines and defaulting evidence kind to `tool-output` or `model-output`
 - a risky-delta promotion policy slice that keeps `thread/epiphany/promote` as the only gate but requires medium/high/broadening/semantic/update churn deltas to carry explicit warning rationale plus strong verifier evidence kind
 - a reusable richer Phase 5 app-server smoke harness at `tools/epiphany_phase5_smoke.py` that verifies source-output distillation, read-only proposal, risky-delta rejection, and accepted promotion through the loaded-thread seam
+- known future refinement from that smoke: source-output distillation should rank final test results, failures, errors, and finish lines above generic warnings unless the warning is itself the important evidence
 - current phase: Phase 5 semantic distillation/promotion/proposal machinery
 
 The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, ship the first read-only map/churn proposal surface, teach proposal to avoid duplicating already-mapped code surfaces, make proposal frontier focus follow existing graph links, make selected observations evidence-backed with non-haunted churn pressure, rescue unanchored graph nodes with strict semantic matching, let proposal choose a bounded ready observation set when ids are omitted, make proposal pressure understand match kinds, make the distiller summarize noisy source output, make promotion notice risky deltas, or prove that richer chain over app-server by hand. Those parts are landed or live-smoked. The next job is to use the reusable smoke harness as a guardrail before adding the next smallest source-grounded proposal/promotion rule, and to keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` out of the durable-writer business.
@@ -285,6 +286,7 @@ Treat the current retrieval baseline and explicit indexing follow-up as landed P
 4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
 5. continue Phase 5 by hardening the layer above the landed distill/propose/promote/update surfaces:
    - better proposal heuristics beyond the current exact-code-ref, same-path, deterministic-id, graph-link, accepting-evidence, semantic-unanchored-node, selected-priority, auto-selection, and match-kind-aware map-delta-pressure checks
+   - possible distillation refinement: improve source-output salience ranking so generic warnings do not crowd out final test/failure/finished lines
    - run `tools/epiphany_phase5_smoke.py` as a preflight before changing proposal or promotion policy
    - add the next smallest promotion/proposal rule only after a source-grounded gap appears in real use or smoke output
    - verifier-backed acceptance/rejection evidence

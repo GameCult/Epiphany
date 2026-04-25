@@ -362,6 +362,7 @@ If a future session wakes up from compaction and starts bluffing, this is the pa
   - distillation now summarizes noisy tool/command/shell/model output into salient typed evidence rather than preserving raw output sludge as the summary
   - promotion now rejects medium/high/broadening/semantic/update churn deltas that lack a warning or only carry weak generic verifier evidence
   - richer Phase 5 app-server smoke is now reproducible through `tools/epiphany_phase5_smoke.py`; it verifies `shell-tool` distillation to `tool-output`, read-only proposal, risky-churn rejection without warning, risky-churn rejection with weak verifier kind, and accepted promotion only with warning plus strong verifier evidence
+  - the richer smoke exposed one non-urgent distillation smell: source-output salience currently keeps generic warning lines too readily; future refinement should rank final test result, failure, error, and finished lines above generic warnings unless the warning is the central signal
   - the Epiphany algorithmic map has been semantically audited flow-by-flow against the cited code; stale line anchors were fixed, and the current typed spine still describes a coherent machine
   - the next bounded follow-up should use the richer smoke harness as a guardrail before the next source-grounded proposal/promotion hardening slice
 - There is still no live `thread/epiphany/*` notification stream.
@@ -469,6 +470,7 @@ Current Phase 5 implementation move:
 3. keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` read-only
 4. continue Phase 5 by hardening the next layer above the distill/propose/promote/update surfaces:
    - run `tools/epiphany_phase5_smoke.py` before changing proposal or promotion policy
+   - consider source-output salience ranking as a bounded distillation hardening slice if it becomes the next real pain
    - add the next smallest promotion/proposal rule only after a source-grounded gap appears in real use or smoke output
    - verifier-backed acceptance/rejection evidence
    - no GUI, watcher, or specialist-agent machinery yet

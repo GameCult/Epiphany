@@ -107,6 +107,7 @@ accepted_design:
   - harden observation distillation incrementally: read-only `thread/epiphany/distill` should summarize noisy tool/command/shell/model output into salient bounded evidence and default evidence kind to `tool-output` or `model-output` when appropriate
   - harden promotion policy incrementally: `thread/epiphany/promote` should reject risky churn deltas unless they carry explicit warning rationale and strong verifier evidence kind, while still applying accepted candidates only through the durable update path
   - live-smoke the richer Phase 5 app-server chain with a reusable repo-local harness: source-output distillation produced `tool-output`, proposal stayed read-only, risky churn rejected without warning, risky churn rejected with weak verifier evidence, and accepted risky churn persisted only with warning plus strong verifier evidence
+  - keep source-output distillation salience ranking as a future refinement: final test result, failure, error, and finished lines should outrank generic warnings when compressing noisy tool output unless the warning itself is the central signal
 
 rejected_paths:
   - name: pinned_map_only
