@@ -1,168 +1,27 @@
 # Scratch
 
-This file is intentionally disposable.
+This file is disposable working memory for the current bounded subgoal.
 
 ## Current Subgoal
 
-- Continue Phase 5 proposal-quality hardening beyond graph-node reuse, linked frontier focus, evidence-backed selection, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation selection, and map-delta churn pressure, without hidden writes.
+Audit and cut persistent state so Epiphany rehydrates into a sharper machine,
+not a larger one.
 
 ## Working Notes
 
-- Phase 4 is landed retrieval/indexing/core-extraction. Phase 5 is the current semantic distillation/promotion/proposal phase.
-- First read-only `thread/epiphany/propose` slice is landed in the working tree:
-  - `epiphany-core/src/proposal.rs` owns deterministic `propose_map_update`
-  - selected observations must already exist in thread state, have accepting status, and carry code refs
-  - selected observations must cite accepting `recent_evidence`; missing or failed backing evidence now rejects proposal before graph/churn drafting
-  - proposal now tries exact code-ref overlap, same-path overlap, and deterministic path-node id fallback against existing architecture graph nodes before creating new candidate path nodes
-  - matching nodes are focused and enriched with newly observed refs without overwriting their existing title, purpose, or status
-  - proposal expands frontier focus through existing graph links, marks named incident architecture/dataflow edges active, emits proposal observation/evidence with evidence-backed selection counts plus reused/created node counts, and marks churn as `proposal_refines_map`, `proposal_expands_map`, or `proposal_updates_map`
-  - proposal now scores selected observations/evidence so candidate wording uses the strongest selected verifier/test/smoke-backed signal instead of raw id order
-  - proposal can reuse an unanchored architecture graph node through strict unique semantic overlap, but refuses tied semantic matches and leaves code-anchored nodes under concrete exact/path/deterministic-id matching
-  - proposal can now omit `observationIds`; in that case `epiphany-core` ranks existing verified, code-ref-bearing observations with accepting evidence, scores them by source/evidence quality plus graph-frontier focus, and selects up to four observations from the strongest coherent path cluster
-  - churn `diff_pressure` now comes from the candidate map delta, touched path count, selected observation count, and existing unexplained write risk, with existing pressure kept as a floor
-  - app-server exposes experimental loaded-thread-only `thread/epiphany/propose`
-  - live stdio smoke proved propose is read-only, and propose -> promote persists graph/churn only after verifier evidence
-- The Phase 4 retrieval/indexing/core-extraction anchor is `80c29e0` on `main`. The older `360dfea` commit is only the first hybrid retrieval anchor, and later `main` also includes the typed update/distill/promote surfaces, promotion safety layer, and app-server stack-pressure fix.
-- The extraction boundary is now the important truth:
-  - `epiphany-core/src/retrieval.rs` owns the heavy hybrid retrieval/indexing engine
-  - `epiphany-core/src/prompt.rs` owns the Epiphany prompt-state renderer
-  - `epiphany-core/src/rollout.rs` owns the latest-Epiphany-state replay helper used for Phase 3 stored-thread hydration
-  - `epiphany-core/src/lib.rs` re-exports the stable surface used by vendored Codex
-  - `vendor/codex/codex-rs/core/src/epiphany_retrieval.rs` is now a thin re-export wrapper
-  - `vendor/codex/codex-rs/core/src/epiphany_rollout.rs` is now a thin wrapper that supplies the Codex-specific user-turn-boundary predicate
-  - `vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs` is now a thin `ContextualUserFragment` adapter around `epiphany_core::render_epiphany_state(...)`
-  - `vendor/codex/codex-rs/core/Cargo.toml` now depends on the sibling crate by path
-- What still must live in vendored Codex because that is where the typed host seam exists:
-  - protocol types in `vendor/codex/codex-rs/protocol/src/protocol.rs`
-  - `CodexThread` bridge methods in `vendor/codex/codex-rs/core/src/codex_thread.rs`
-  - the user-turn-boundary rule in `vendor/codex/codex-rs/core/src/context_manager/history.rs`
-  - app-server protocol surfaces in `vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs` and `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
-  - request routing in `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`
-- Why this shape is worth keeping:
-  - it shrinks the Apache-mixed surface
-  - it makes modified Codex alone less useful as a standalone Epiphany rebuild kit
-  - it preserves first-class typed integration instead of hiding the machine behind an opaque plugin blob
-- Retrieval/indexing behavior is still the bounded machine we wanted:
-  - exact/path-ish lookup via `codex_file_search`
-  - semantic lookup via BM25 chunk search when persistent semantic state is unavailable or stale
-  - explicit `thread/epiphany/index` for Qdrant-backed semantic persistence
-  - read-only `thread/epiphany/retrieve`
-  - manifest metadata under `codex_home`
-  - local Ollama embeddings defaulting to `qwen3-embedding:0.6b`
-- Corpus preflight for the tracked `vendor/codex/codex-rs` source at `vendor/codex` HEAD `d45ab10`: `3642` tracked files / `31.09 MB`.
-- Do not use raw working-tree size as the retrieval denominator here; build artifacts and other sludge lie.
-- Verification is now split cleanly across the repo-owned crate and the vendored host:
-  - `cargo fmt --manifest-path .\\epiphany-core\\Cargo.toml`
-  - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml`
-  - `cargo fmt --all`
-  - `cargo test -p codex-core --lib epiphany`
-  - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
-  - `cargo test -p codex-app-server --lib map_epiphany_`
-  - `cargo test -p codex-core -p codex-app-server-protocol -p codex-app-server --lib --no-run` with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
-- Current repo sanity task:
-  - keep docs from describing the already-landed Qdrant/indexing/core-extraction work as a dirty working-tree follow-up
-  - keep README, map, plan, handoff, and Epiphany algorithmic map in agreement about the current landing zone
-  - keep `notes/epiphany-current-algorithmic-map.md` focused on exact current control flow, not general fork-positioning prose
-- Local dependency sanity:
-  - Qdrant at `http://127.0.0.1:6333` responds and currently has VoidBot collections
-  - Ollama at `http://127.0.0.1:11434` exposes the default `qwen3-embedding:0.6b` model
-- Mechanical honesty still matters:
-  - do not widen `thread/epiphany/retrieve` into a durable Epiphany-state write without a clean out-of-band rollout/update semantic
-  - do not let `epiphany-core` sprawl into GUI or watcher machinery just because it now owns the bigger organ
-  - do not add metaphors or natural-language modeling prose to an algorithmic map until the relevant source is in context and the prose is anchored to concrete refs
-  - meticulous workflow discipline is not ceremony for its own sake; the useful loop is rehydrate, bound the slice, read the code being described, make the smallest coherent change, verify the seam that matters, and persist the learned state before charging onward
-  - for regression or benchmark work, failed hypotheses are not souvenirs: if a change does not fix the regression or move the benchmark, revert it immediately before trying the next hypothesis
-  - the anti-Jenga rule is now rendered by `epiphany-core/src/prompt.rs` in the Epiphany developer-state block, which is closer to behavior than more AGENTS repetition
-- Source-grounded Epiphany map audit on 2026-04-24 reread the cited protocol/session/rollout/prompt/thread/app-server/retrieval code before editing:
-  - sharpened the distinction between full core resume reconstruction and the narrower `epiphany-core` stored-thread replay helper
-  - removed unsupported broad wording around thread hydration surfaces and anchored the actual live/reconstructed paths
-  - made the retrieval branch explicit: exact search always runs, Qdrant is used only with a fresh compatible manifest/collection and working Ollama query embedding, otherwise query-time BM25 supplies semantic chunks
-  - corrected indexing wording so the explicit index path returns ready state on successful writes or an error, not a casual stale state
-- Live app-server smoke on 2026-04-24:
-  - built `codex-app-server.exe` with `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex`
-  - used an isolated `CODEX_HOME` under `.epiphany-smoke/codex-home`
-  - started an ephemeral loaded app-server thread rooted at `E:\Projects\EpiphanyAgent\epiphany-core`
-  - preflighted the bounded smoke corpus as 5 tracked files / 106,748 bytes
-  - `thread/epiphany/index` with real Qdrant/Ollama returned ready state: 5 files, 198 chunks, `qdrant-ollama-v1:qwen3-embedding:0.6b`
-  - Qdrant collection `epiphany_workspace_fa24bab116f8d229` was created and the manifest landed under the isolated Codex home
-  - `thread/epiphany/retrieve` returned persistent semantic chunks from `src/prompt.rs`, proving the fresh Qdrant path is used after explicit indexing
-  - env/default backend config is sufficient for this slice; do not add a first-class config surface yet
-  - unrelated app-server startup noise remains: project trust warning, plugin sync 403, and unauthenticated OpenAI websocket warning
-- Typed state-update implementation on 2026-04-24:
-  - added experimental loaded-thread-only `thread/epiphany/update`
-  - protocol patch accepts optional `expectedRevision`, append-only observations/evidence, and bounded replacements for objective, active subgoal, subgoals, invariants, graphs, graph frontier/checkpoint, scratch, churn, and mode
-  - `CodexThread.epiphany_update_state(...)` rejects empty patches, checks revision when supplied, applies the patch to live `SessionState`, increments revision, sets `last_updated_turn_id` from the current reference turn when available, persists `RolloutItem::EpiphanyState`, and flushes rollout
-  - replay helpers now accept an out-of-band Epiphany snapshot before the first user turn so seed updates survive resume
-  - stable app-server schema fixtures were regenerated; the export test now treats Epiphany DTOs as sparse durable state, not conventional response envelopes
-  - verification passed:
-    - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml rollout`
-    - `cargo test -p codex-core --lib epiphany`
-    - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
-    - `cargo test -p codex-app-server --lib map_epiphany_`
-    - `cargo test -p codex-app-server-protocol`
-  - live app-server stdio smoke passed after rebuilding `codex-app-server.exe`:
-    - started ephemeral loaded thread `019dbffc-c19a-75e0-bf35-c780bee59a68`
-    - called `thread/epiphany/update` with `expectedRevision: 0`
-    - response revision was `1`
-    - `thread/read` returned `epiphanyState.revision == 1`, objective `Smoke-test explicit Epiphany update persistence`, observation `obs-update-smoke`, and evidence `ev-update-smoke`
-    - smoke result: `.epiphany-smoke/update-smoke-result.json`
-    - wire footgun: app-server envelope fields are camelCase, but nested reused Epiphany core DTO fields such as `source_kind`, `understanding_status`, and `recent_evidence` are snake_case
-- Typed distillation/proposal implementation on 2026-04-24:
-  - added repo-owned `epiphany-core/src/distillation.rs`
-  - added thin vendored core re-export at `vendor/codex/codex-rs/core/src/epiphany_distillation.rs`
-  - added experimental loaded-thread-only `thread/epiphany/distill`
-  - distill is read-only: it returns `expectedRevision` plus a `ThreadEpiphanyUpdatePatch`, and callers must pass that patch to `thread/epiphany/update` to make it durable
-  - `distill_observation(...)` normalizes required `sourceKind`, `status`, and `text`; rejects empty required fields; builds a bounded summary; fingerprints source/status/subject/text into stable observation/evidence ids; defaults test/smoke/verification sources to evidence kind `verification`; and carries code refs into both records
-  - first smoke exposed that returning `expectedRevision: null` for brand-new threads was too loose, so the handler now defaults absent Epiphany state to revision `0`
-  - verification passed:
-    - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml distill`
-    - `cargo test -p codex-core --lib distill`
-    - `cargo test -p codex-app-server-protocol --lib thread_epiphany_`
-    - `cargo test -p codex-app-server --lib thread_epiphany`
-    - `cargo test -p codex-app-server-protocol`
-    - `cargo build -p codex-app-server --bin codex-app-server`
-  - live app-server stdio smoke passed after rebuilding `codex-app-server.exe`:
-    - started ephemeral loaded thread `019dc028-99ce-7b03-8f89-65b072cc2cca`
-    - called `thread/epiphany/distill` with smoke input and a code ref to `src/distillation.rs`
-    - distill returned `expectedRevision: 0`, observation `obs-c9bfcac23d66`, and evidence `ev-c9bfcac23d66`
-    - passing the patch to `thread/epiphany/update` advanced state to revision `1`
-    - `thread/read` returned the generated observation/evidence ids
-    - smoke result: `.epiphany-smoke/distill-smoke-result.json`
-- Typed promotion gate implementation on 2026-04-24:
-  - added repo-owned `epiphany-core/src/promotion.rs`
-  - added thin vendored core re-export at `vendor/codex/codex-rs/core/src/epiphany_promotion.rs`
-  - added experimental loaded-thread-only `thread/epiphany/promote`
-  - promotion evaluates a patch plus required verifier evidence; failed policy returns `accepted: false` with reasons and no state mutation
-  - accepted policy appends verifier evidence and applies the patch through `CodexThread.epiphany_update_state(...)`, preserving the durable update path as the only state writer
-  - initial policy requires an actual mutation, nonempty verifier evidence, accepting verifier status (`ok`, `accepted`, `verified`, `pass`, `passed`), valid evidence records, unique ids, and evidence-linked observations
-  - live app-server stdio smoke passed:
-    - started ephemeral loaded thread `019dc087-6d3d-7323-9a2f-2487a591ef7a`
-    - distilled a promotion smoke patch
-    - `thread/epiphany/promote` rejected failed verifier evidence with no `epiphanyState`
-    - accepted verifier evidence promoted through update to revision `1`
-    - `thread/read` returned observation `obs-77248505f492`, distill evidence `ev-77248505f492`, and verifier evidence `ev-promote-smoke-verifier`
-    - smoke result: `.epiphany-smoke/promote-smoke-result.json`
-- Richer promotion safety layer on 2026-04-24:
-  - `epiphany-core/src/promotion.rs` now receives the actual replacement fields instead of only a `has_state_replacements` boolean
-  - state replacement promotions must include explicit observations and patch evidence before verifier evidence can stamp them into the durable update path
-  - subgoal, invariant, graph, graph link, frontier, checkpoint, and churn replacements get lightweight structural validation
-  - `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs` still keeps the host seam thin: it passes the patch fields into `evaluate_promotion`, then accepted promotions go through `CodexThread.epiphany_update_state(...)`
-  - verification passed:
-    - `cargo test --manifest-path .\\epiphany-core\\Cargo.toml`
-    - `cargo test -p codex-core --lib epiphany`
-    - `cargo test -p codex-app-server --lib epiphany`
-  - attempted full `cargo test -p codex-app-server --lib` compiled but hit a pre-existing-looking stack overflow in `in_process_start_uses_requested_session_source_for_thread_start`; Epiphany-scoped app-server tests passed
-- Stack-overflow trace/fix on 2026-04-24:
-  - the original `in_process_start_uses_requested_session_source_for_thread_start` failure reproduced without `RUST_MIN_STACK`
-  - breadcrumbs showed `thread/start` completed in the processor and the overflow happened before response routing, pointing at app-server request/future stack pressure rather than Epiphany promotion semantics
-  - `RUST_MIN_STACK=67108864` made exact failures pass; later exact failures in guardian lifecycle and thread-start tracing tests confirmed the app-server test binary had crossed a Windows stack threshold
-  - `vendor/codex/codex-rs/.cargo/config.toml` now sets `RUST_MIN_STACK=67108864` so Cargo-driven tests get the required stack without shell folklore
-  - boxed-future experiments in app-server request dispatch were removed after exact repros and the full app-server suite passed with the Cargo stack config alone
-  - full `cargo test -p codex-app-server --lib` now passes 232/232 with no shell `RUST_MIN_STACK` set and no new boxed request-dispatch futures
+- `notes/epiphany-fork-implementation-plan.md` has already been distilled into a forward plan.
+- `notes/epiphany-core-harness-surfaces.md` has already been distilled into a surface contract.
+- `state/map.yaml` should be canonical current truth, not a landed-slice trophy wall.
+- `notes/fresh-workspace-handoff.md` should be a re-entry packet, not a full historical reconstruction.
+- `state/evidence.jsonl` remains the durable history channel.
+- `notes/epiphany-current-algorithmic-map.md` may stay long because its job is source-grounded control-flow audit, not compact re-entry.
 
-## Open Questions
+## Decision
 
-- How much more can move into `epiphany-core` without sacrificing the typed Codex host seam that makes the integration first-class?
-- How should Epiphany choose the observation set automatically without turning proposal into automatic graph fanfic?
+Cut stale Phase 5 scratch after this audit lands.
 
-Do not promote anything from here into the map unless it survives verification or repeated reuse without contradiction.
+The next implementation move is still Phase 6: either live-smoke
+`thread/epiphany/scene` or design a minimal job/progress reflection surface.
+
+Do not promote anything from this scratch into the map unless it survives
+verification or repeated reuse without contradiction.

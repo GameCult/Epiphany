@@ -9,7 +9,7 @@
         "state/scratch.md",
         "state/evidence.jsonl"
       ],
-      "notes": "Initial scaffold plus tiny CLI. No evaluated task yet."
+      "notes": "Active mainline. Phase 1-5 are complete enough; Phase 6 reflection has begun. Persistent state is now intentionally distilled rather than append-only."
     }
   ]
 }
