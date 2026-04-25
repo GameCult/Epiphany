@@ -4508,6 +4508,26 @@
           "properties": {
             "method": {
               "enum": [
+                "thread/epiphany/stateUpdated"
+              ],
+              "title": "Thread/epiphany/stateUpdatedNotificationMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ThreadEpiphanyStateUpdatedNotification"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "title": "Thread/epiphany/stateUpdatedNotification",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "enum": [
                 "fuzzyFileSearch/sessionUpdated"
               ],
               "title": "FuzzyFileSearch/sessionUpdatedNotificationMethod",
@@ -14944,6 +14964,23 @@
           "shardId",
           "status"
         ],
+        "type": "object"
+      },
+      "ThreadEpiphanyStateUpdatedNotification": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "epiphanyState": {
+            "$ref": "#/definitions/v2/EpiphanyThreadState"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "epiphanyState",
+          "threadId"
+        ],
+        "title": "ThreadEpiphanyStateUpdatedNotification",
         "type": "object"
       },
       "ThreadEpiphanyUpdatePatch": {

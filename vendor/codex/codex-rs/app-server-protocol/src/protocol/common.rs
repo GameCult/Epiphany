@@ -1094,6 +1094,8 @@ server_notification_definitions! {
     GuardianWarning => "guardianWarning" (v2::GuardianWarningNotification),
     DeprecationNotice => "deprecationNotice" (v2::DeprecationNoticeNotification),
     ConfigWarning => "configWarning" (v2::ConfigWarningNotification),
+    #[experimental("thread/epiphany/stateUpdated")]
+    ThreadEpiphanyStateUpdated => "thread/epiphany/stateUpdated" (v2::ThreadEpiphanyStateUpdatedNotification),
     FuzzyFileSearchSessionUpdated => "fuzzyFileSearch/sessionUpdated" (FuzzyFileSearchSessionUpdatedNotification),
     FuzzyFileSearchSessionCompleted => "fuzzyFileSearch/sessionCompleted" (FuzzyFileSearchSessionCompletedNotification),
     #[experimental("thread/realtime/started")]
@@ -1882,6 +1884,34 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_state_updated_notification() -> Result<()> {
+        let notification = ServerNotification::ThreadEpiphanyStateUpdated(
+            v2::ThreadEpiphanyStateUpdatedNotification {
+                thread_id: "thr_123".to_string(),
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 7,
+                    objective: Some("Keep the map live".to_string()),
+                    ..Default::default()
+                },
+            },
+        );
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/stateUpdated",
+                "params": {
+                    "threadId": "thr_123",
+                    "epiphanyState": {
+                        "revision": 7,
+                        "objective": "Keep the map live"
+                    }
+                }
+            }),
+            serde_json::to_value(&notification)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_config_requirements_read() -> Result<()> {
         let request = ClientRequest::ConfigRequirementsRead {
             request_id: RequestId::Integer(1),
@@ -2475,6 +2505,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/update"));
+    }
+
+    #[test]
+    fn thread_epiphany_state_updated_notification_is_marked_experimental() {
+        let notification = ServerNotification::ThreadEpiphanyStateUpdated(
+            v2::ThreadEpiphanyStateUpdatedNotification {
+                thread_id: "thr_123".to_string(),
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState::default(),
+            },
+        );
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&notification);
+        assert_eq!(reason, Some("thread/epiphany/stateUpdated"));
     }
 
     #[test]

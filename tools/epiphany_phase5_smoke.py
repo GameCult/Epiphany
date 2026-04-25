@@ -34,6 +34,7 @@ class AppServerClient:
         self.transcript_path = transcript_path
         self.stderr_path = stderr_path
         self.messages: queue.Queue[dict[str, Any]] = queue.Queue()
+        self.notifications: list[dict[str, Any]] = []
         self.next_id = 1
         self.proc: subprocess.Popen[str] | None = None
         self.transcript = None
@@ -129,6 +130,26 @@ class AppServerClient:
             return result
         raise TimeoutError(f"timed out waiting for response {request_id}")
 
+    def wait_for_notification(
+        self,
+        method: str,
+        *,
+        start_index: int = 0,
+        timeout: float = 10.0,
+    ) -> dict[str, Any]:
+        assert self.proc is not None
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                raise RuntimeError(
+                    f"app-server exited with {self.proc.returncode} before notification {method}"
+                )
+            for msg in self.notifications[start_index:]:
+                if msg.get("method") == method:
+                    return msg
+            time.sleep(0.1)
+        raise TimeoutError(f"timed out waiting for notification {method}")
+
     def _read_stdout(self) -> None:
         assert self.proc is not None and self.proc.stdout is not None
         for line in self.proc.stdout:
@@ -140,6 +161,8 @@ class AppServerClient:
             except json.JSONDecodeError as exc:
                 msg = {"_decode_error": str(exc), "raw": line}
             self._record("received", msg)
+            if "method" in msg and "id" not in msg:
+                self.notifications.append(msg)
             self.messages.put(msg)
 
     def _read_stderr(self) -> None:
@@ -250,12 +273,25 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "distill summary should prioritize final results over generic warnings",
         )
 
+        update_notification_start = len(client.notifications)
         update = client.send(
             "thread/epiphany/update",
             {"threadId": thread_id, "expectedRevision": 0, "patch": distill_patch},
         )
         assert update is not None
         require(update["epiphanyState"]["revision"] == 1, "update should advance revision to 1")
+        update_notification = client.wait_for_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=update_notification_start,
+        )
+        require(
+            update_notification["params"]["threadId"] == thread_id,
+            "update notification should identify the thread",
+        )
+        require(
+            update_notification["params"]["epiphanyState"]["revision"] == 1,
+            "update notification should publish revision 1",
+        )
 
         propose = client.send("thread/epiphany/propose", {"threadId": thread_id})
         assert propose is not None
@@ -402,6 +438,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "weak-kind rejection should not mutate state",
         )
 
+        promote_notification_start = len(client.notifications)
         accepted = client.send(
             "thread/epiphany/promote",
             {
@@ -420,6 +457,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(accepted["accepted"], "strong verifier should accept risky churn with warning")
         final_state = accepted["epiphanyState"]
         require(final_state["revision"] == 2, "accepted promotion should advance revision to 2")
+        promote_notification = client.wait_for_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=promote_notification_start,
+        )
+        require(
+            promote_notification["params"]["threadId"] == thread_id,
+            "promote notification should identify the thread",
+        )
+        require(
+            promote_notification["params"]["epiphanyState"]["revision"] == 2,
+            "promote notification should publish revision 2",
+        )
         require(
             final_state["churn"]["diff_pressure"] == "medium",
             "accepted state should preserve risky churn pressure",
@@ -440,6 +489,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "distillEvidenceId": evidence["id"],
             "distillEvidenceKind": evidence["kind"],
             "distillSummary": evidence["summary"],
+            "updateNotificationRevision": update_notification["params"]["epiphanyState"][
+                "revision"
+            ],
             "proposalExpectedRevision": propose["expectedRevision"],
             "proposalObservationId": proposal_patch["observations"][0]["id"],
             "proposalChurn": proposal_patch["churn"],
@@ -454,6 +506,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "substringVerifierReasons": reject_substring_verifier["reasons"],
             "accepted": accepted["accepted"],
             "finalRevision": final_state["revision"],
+            "promoteNotificationRevision": promote_notification["params"]["epiphanyState"][
+                "revision"
+            ],
             "finalChurn": final_state["churn"],
             "graphNodeCount": len(
                 final_state.get("graphs", {}).get("architecture", {}).get("nodes", [])

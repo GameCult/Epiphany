@@ -2,7 +2,7 @@
 
 ## Status
 
-Updated on 2026-04-25 after live-smoking the richer Phase 5 app-server chain and adding a reusable smoke harness.
+Updated on 2026-04-25 after adding the first live typed Epiphany state notification seam on top of the richer Phase 5 app-server chain.
 
 This note tracks Epiphany as a fork of Codex with an opinionated modeling architecture. The point is not to offer Codex another collaboration preset. The point is to make the harness force the model to carry explicit structure about the codebase, the active subgoal, the evidence trail, and the machine it is modifying.
 
@@ -28,9 +28,10 @@ This note tracks Epiphany as a fork of Codex with an opinionated modeling archit
 - an expansion-freshness promotion hardening slice that prevents a graph-expansion patch from bypassing warning requirements by falsely claiming low `diff_pressure`
 - a token-aware verifier-kind promotion hardening slice that prevents substring accidents such as `contest` from satisfying the risky-delta `test` verifier-kind requirement
 - a reusable richer Phase 5 app-server smoke harness at `tools/epiphany_phase5_smoke.py` that verifies source-output distillation, read-only proposal, risky-delta rejection, expanded-low-pressure rejection, substring verifier-kind rejection, and accepted promotion through the loaded-thread seam
-- current phase: Phase 5 semantic distillation/promotion/proposal machinery
+- a first live typed-state notification slice: experimental `thread/epiphany/stateUpdated` fires after successful direct `thread/epiphany/update` and accepted `thread/epiphany/promote`, carrying the updated `epiphanyState` while rejected promotions remain silent and non-mutating
+- current phase: post-Phase-5 live typed state/read-surface hardening
 
-The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, ship the first read-only map/churn proposal surface, teach proposal to avoid duplicating already-mapped code surfaces, make proposal frontier focus follow existing graph links, make selected observations evidence-backed with non-haunted churn pressure, rescue unanchored graph nodes with strict semantic matching, let proposal choose a bounded ready observation set when ids are omitted, make proposal pressure understand match kinds, make the distiller summarize noisy source output, make source-output salience prefer final results over generic warnings, make promotion notice risky deltas, make expansion freshness resistant to low-pressure underreporting, prevent substring verifier-kind accidents, or prove that richer chain over app-server by hand. Those parts are landed or live-smoked. The next job is to use the reusable smoke harness as a guardrail before adding the next smallest source-grounded proposal/promotion rule, and to keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` out of the durable-writer business.
+The next job is no longer to prove the retriever exists, sketch the persistent follow-up in prose, invent the first red-pen path, build the first observation proposal surface, make promotion notice broken map/churn replacements, ship the first read-only map/churn proposal surface, teach proposal to avoid duplicating already-mapped code surfaces, make proposal frontier focus follow existing graph links, make selected observations evidence-backed with non-haunted churn pressure, rescue unanchored graph nodes with strict semantic matching, let proposal choose a bounded ready observation set when ids are omitted, make proposal pressure understand match kinds, make the distiller summarize noisy source output, make source-output salience prefer final results over generic warnings, make promotion notice risky deltas, make expansion freshness resistant to low-pressure underreporting, prevent substring verifier-kind accidents, prove that richer chain over app-server by hand, or add the first live state notification after successful writes. Those parts are landed or live-smoked. The next job is to use the reusable smoke harness as a guardrail before adding the next smallest source-grounded notification/read/proposal/promotion rule, and to keep `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` out of the durable-writer business.
 
 ## Summary
 
@@ -230,6 +231,19 @@ Current bounded shape of that follow-up:
 - it increments the Epiphany revision, updates `lastUpdatedTurnId` when a reference turn exists, writes live `SessionState`, persists `RolloutItem::EpiphanyState`, and flushes the rollout
 - rollout replay now accepts an out-of-band Epiphany snapshot before the first real user turn so pre-turn seed updates survive resume
 
+Follow-up addition now landed after the update/promote surfaces:
+
+- `thread/epiphany/stateUpdated`
+
+Current bounded shape of that follow-up:
+
+- it is an experimental server notification, not another write path
+- it carries `threadId` plus the full updated `epiphanyState`
+- it fires after successful direct `thread/epiphany/update`
+- it fires after accepted `thread/epiphany/promote`
+- it does not fire for rejected promotions, because rejection still does not mutate state
+- the richer app-server smoke now asserts direct update publishes revision `1` and accepted promotion publishes revision `2`
+
 Follow-up addition now landed after the update surface:
 
 - `thread/epiphany/distill`
@@ -280,16 +294,16 @@ Add tests for:
 
 ## Immediate Next Step
 
-Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, read-only map/churn proposal path, verifier-backed promotion gate, structural map/churn promotion validation, graph-node reuse, linked frontier focus, evidence-backed selection, map-delta churn pressure, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation-set selection, match-kind-aware map-delta judgment, source-output-aware observation distillation, source-output salience ranking, risky-delta promotion policy, expansion-freshness promotion hardening, token-aware verifier-kind promotion hardening, and reusable richer app-server smoke harness as the active Phase 5 baseline. The next machine gap is no longer "can Epiphany retrieve code?", "can it propose one durable observation patch?", "can it draft one bounded map/churn candidate?", "can it avoid duplicating an existing graph node when an observation points at already-mapped code?", "can it focus linked graph context?", "can it reject selected observations that are not backed by accepting recent evidence?", "can it use graph language when no concrete refs exist yet?", "can it choose a proposal-ready observation set when ids are omitted?", "can it distinguish exact refinement from same-path broadening or semantic anchoring?", "can it summarize noisy tool/model output as typed evidence?", "can it rank final result/error/finished lines above generic warnings?", "can promotion policy reason over richer deltas without silently writing them?", "can expansion freshness resist low-pressure underreporting?", "can verifier kind matching avoid substring accidents?", or "does the richer Phase 5 chain behave through the app-server seam?" It can.
+Treat the current retrieval baseline and explicit indexing follow-up as landed Phase 4. Treat the explicit update path, distillation proposal path, read-only map/churn proposal path, verifier-backed promotion gate, structural map/churn promotion validation, graph-node reuse, linked frontier focus, evidence-backed selection, map-delta churn pressure, selected-observation prioritization, strict unanchored-node semantic reuse, automatic bounded observation-set selection, match-kind-aware map-delta judgment, source-output-aware observation distillation, source-output salience ranking, risky-delta promotion policy, expansion-freshness promotion hardening, token-aware verifier-kind promotion hardening, reusable richer app-server smoke harness, and first `thread/epiphany/stateUpdated` notification seam as the active baseline. The next machine gap is no longer "can Epiphany retrieve code?", "can it propose one durable observation patch?", "can it draft one bounded map/churn candidate?", "can it avoid duplicating an existing graph node when an observation points at already-mapped code?", "can it focus linked graph context?", "can it reject selected observations that are not backed by accepting recent evidence?", "can it use graph language when no concrete refs exist yet?", "can it choose a proposal-ready observation set when ids are omitted?", "can it distinguish exact refinement from same-path broadening or semantic anchoring?", "can it summarize noisy tool/model output as typed evidence?", "can it rank final result/error/finished lines above generic warnings?", "can promotion policy reason over richer deltas without silently writing them?", "can expansion freshness resist low-pressure underreporting?", "can verifier kind matching avoid substring accidents?", "does the richer Phase 5 chain behave through the app-server seam?", or "can successful writes notify a client that typed state changed?" It can.
 
 1. treat the current verified-and-landed query-time hybrid retriever as the Phase 4 slice 1 baseline
 2. treat the verified and live-smoked `thread/epiphany/index` slice as the bounded persistent-semantic follow-up
 3. keep the new `epiphany-core` boundary honest instead of letting vendored Codex re-accumulate the heavy implementation
 4. do not add durable retrieval-summary writes from `thread/epiphany/retrieve` without a clean out-of-band rollout/update semantic
-5. continue Phase 5 by hardening the layer above the landed distill/propose/promote/update surfaces:
+5. continue post-Phase-5 live typed state/read-surface hardening above the landed distill/propose/promote/update surfaces:
    - better proposal heuristics beyond the current exact-code-ref, same-path, deterministic-id, graph-link, accepting-evidence, semantic-unanchored-node, selected-priority, auto-selection, and match-kind-aware map-delta-pressure checks
    - run `tools/epiphany_phase5_smoke.py` as a preflight before changing proposal or promotion policy
-   - add the next smallest promotion/proposal rule only after a source-grounded gap appears in real use or smoke output
+   - add the next smallest notification/read/proposal/promotion rule only after a source-grounded gap appears in real use or smoke output
    - verifier-backed acceptance/rejection evidence
    - no hidden retrieval writes
    - not GUI work

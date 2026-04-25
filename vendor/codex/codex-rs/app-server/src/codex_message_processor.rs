@@ -160,6 +160,7 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyUpdateParams;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyUpdateResponse;
@@ -4390,12 +4391,8 @@ impl CodexMessageProcessor {
             churn: patch.churn,
             mode: patch.mode,
         };
-        let response = match thread.epiphany_update_state(update).await {
-            Ok(epiphany_state) => ThreadEpiphanyPromoteResponse {
-                accepted: true,
-                reasons: Vec::new(),
-                epiphany_state: Some(epiphany_state),
-            },
+        let epiphany_state = match thread.epiphany_update_state(update).await {
+            Ok(epiphany_state) => epiphany_state,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -4409,8 +4406,21 @@ impl CodexMessageProcessor {
                 return;
             }
         };
+        let response = ThreadEpiphanyPromoteResponse {
+            accepted: true,
+            reasons: Vec::new(),
+            epiphany_state: Some(epiphany_state.clone()),
+        };
 
         self.outgoing.send_response(request_id, response).await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    epiphany_state,
+                },
+            ))
+            .await;
     }
 
     async fn thread_epiphany_update(
@@ -4460,8 +4470,8 @@ impl CodexMessageProcessor {
             churn: patch.churn,
             mode: patch.mode,
         };
-        let response = match thread.epiphany_update_state(update).await {
-            Ok(epiphany_state) => ThreadEpiphanyUpdateResponse { epiphany_state },
+        let epiphany_state = match thread.epiphany_update_state(update).await {
+            Ok(epiphany_state) => epiphany_state,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -4475,8 +4485,19 @@ impl CodexMessageProcessor {
                 return;
             }
         };
+        let response = ThreadEpiphanyUpdateResponse {
+            epiphany_state: epiphany_state.clone(),
+        };
 
         self.outgoing.send_response(request_id, response).await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    epiphany_state,
+                },
+            ))
+            .await;
     }
 
     /// Builds the API view for `thread/read` from persisted metadata plus optional live state.

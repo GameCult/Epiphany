@@ -3712,6 +3712,21 @@
       ],
       "type": "object"
     },
+    "ThreadEpiphanyStateUpdatedNotification": {
+      "properties": {
+        "epiphanyState": {
+          "$ref": "#/definitions/EpiphanyThreadState"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "epiphanyState",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadId": {
       "type": "string"
     },
@@ -6132,6 +6147,26 @@
         "params"
       ],
       "title": "ConfigWarningNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "thread/epiphany/stateUpdated"
+          ],
+          "title": "Thread/epiphany/stateUpdatedNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadEpiphanyStateUpdatedNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Thread/epiphany/stateUpdatedNotification",
       "type": "object"
     },
     {
