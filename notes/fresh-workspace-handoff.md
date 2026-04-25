@@ -48,6 +48,39 @@ Canonical project state still lives in:
 - `state/scratch.md`
 - `state/evidence.jsonl`
 
+## Imminent Compact-Rehydrate-Reorient Packet
+
+If this thread compacts now, resume from this packet before doing implementation work.
+
+Rehydrate:
+
+- run `tools/epiphany_state.py status`
+- read `state/map.yaml`
+- read this handoff
+- read `notes/epiphany-current-algorithmic-map.md`
+- read `notes/epiphany-fork-implementation-plan.md`
+- check `git status --short --branch` and `git log --oneline -5`
+- read the tail of `state/evidence.jsonl`
+
+Reorient:
+
+- current pushed HEAD before this packet was written: `37457d6 Record compact continuity after state projection`
+- branch should be `main...origin/main` and clean unless a later slice changed it
+- current active lane is still post-Phase-5 live typed-state/read-surface hardening
+- latest landed implementation slice: successful `thread/epiphany/update` and accepted `thread/epiphany/promote` responses/notifications now publish the same client-visible live-state projection as `thread/read`, including retrieval-summary backfill
+- latest verification slice: richer Phase 5 smoke observed retrieval status `ready` on update/promote responses and notifications, with rejected promotions and invalid direct updates still silent/non-mutating
+- `thread/epiphany/retrieve`, `thread/epiphany/distill`, and `thread/epiphany/propose` remain read-only
+- accepted durable Epiphany writes must still route through `thread/epiphany/update` or verifier-backed `thread/epiphany/promote`
+- automatic runtime Compact-Rehydrate-Reorient-Continue coordination is not implemented; CRRC is currently enforced by repo-local state, handoff, evidence, and operating discipline
+
+Continue:
+
+- do not start GUI, watcher invalidation, specialist-agent scheduling, or broad event-stream work
+- use `tools/epiphany_phase5_smoke.py` as the app-server seam guardrail before changing proposal/promotion/write/read behavior
+- choose the next smallest source-grounded live typed-state/read-surface hardening slice above the landed update/promote/read seam
+- before natural-language algorithm-map edits, reread the exact source being described
+- if a regression or benchmark fix attempt does not move the target, immediately revert that attempt before trying the next hypothesis
+
 ## Licensing State
 
 - the repo now has a top-level `LICENSE` file that acts as an operative
