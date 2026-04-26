@@ -58,6 +58,7 @@ On fresh session load, do this before wandering off into implementation:
 2. run:
    - `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status`
 3. restate the current next action from the persisted state before starting edits
+4. if the user only asked to rehydrate or reorient, stop after orientation and wait for an explicit continue instruction instead of treating the persisted next action as permission to start coding
 
 After compaction, resume, or any suspicious loss of continuity:
 
@@ -91,5 +92,13 @@ When the user says to prepare for imminent compaction:
 - If the diff grows while understanding shrinks, stop implementation and switch to diagnosis.
 - Keep maps and prose together; do not replace useful maps with prose-only explanations.
 - Before adding natural-language explanations or metaphors to an algorithmic map, first read the relevant source paths and anchor the explanation to concrete code references. Metaphor is compression after source grounding, not a substitute for it.
+- Commit completed work before it rots in the worktree unless the task is deliberately mid-surgery or the user asked to leave changes uncommitted.
 - Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, add distilled evidence when the lesson changes future belief, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.
 - Do not write handoff notes that trap the next session in indefinite tiny hardening work. Bounded slices are a landing discipline, not a roadmap; when a phase is complete enough, name the next larger organ to build.
+
+## Verification Guardrails
+
+- Use focused checks for the surface being changed instead of defaulting to a whole-repo ritual.
+- For Phase 5 control-plane behavior changes, run `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'`.
+- For Codex Rust work on this Windows machine, set `$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'`.
+- Do not parallelize cargo builds or tests against the same target directory.
