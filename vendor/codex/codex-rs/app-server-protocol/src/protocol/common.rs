@@ -1126,6 +1126,8 @@ server_notification_definitions! {
     ConfigWarning => "configWarning" (v2::ConfigWarningNotification),
     #[experimental("thread/epiphany/stateUpdated")]
     ThreadEpiphanyStateUpdated => "thread/epiphany/stateUpdated" (v2::ThreadEpiphanyStateUpdatedNotification),
+    #[experimental("thread/epiphany/jobsUpdated")]
+    ThreadEpiphanyJobsUpdated => "thread/epiphany/jobsUpdated" (v2::ThreadEpiphanyJobsUpdatedNotification),
     FuzzyFileSearchSessionUpdated => "fuzzyFileSearch/sessionUpdated" (FuzzyFileSearchSessionUpdatedNotification),
     FuzzyFileSearchSessionCompleted => "fuzzyFileSearch/sessionCompleted" (FuzzyFileSearchSessionCompletedNotification),
     #[experimental("thread/realtime/started")]
@@ -2553,6 +2555,60 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_jobs_updated_notification() -> Result<()> {
+        let notification = ServerNotification::ThreadEpiphanyJobsUpdated(
+            v2::ThreadEpiphanyJobsUpdatedNotification {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyJobsUpdatedSource::RuntimeProgress,
+                state_revision: Some(7),
+                jobs: vec![v2::ThreadEpiphanyJob {
+                    id: "specialist-work".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "runtime-bound specialist work".to_string(),
+                    owner_role: "epiphany-harness".to_string(),
+                    status: v2::ThreadEpiphanyJobStatus::Running,
+                    runtime_agent_job_id: Some("job-123".to_string()),
+                    items_processed: Some(1),
+                    items_total: Some(3),
+                    progress_note: Some("Runtime agent job is running.".to_string()),
+                    last_checkpoint_at_unix_seconds: Some(1_744_500_123),
+                    blocking_reason: None,
+                    active_thread_ids: vec!["worker-thread".to_string()],
+                    linked_subgoal_ids: vec!["phase6".to_string()],
+                    linked_graph_node_ids: vec!["job-surface".to_string()],
+                }],
+            },
+        );
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/jobsUpdated",
+                "params": {
+                    "threadId": "thr_123",
+                    "source": "runtimeProgress",
+                    "stateRevision": 7,
+                    "jobs": [{
+                        "id": "specialist-work",
+                        "kind": "specialist",
+                        "scope": "runtime-bound specialist work",
+                        "ownerRole": "epiphany-harness",
+                        "status": "running",
+                        "runtimeAgentJobId": "job-123",
+                        "itemsProcessed": 1,
+                        "itemsTotal": 3,
+                        "progressNote": "Runtime agent job is running.",
+                        "lastCheckpointAtUnixSeconds": 1744500123,
+                        "activeThreadIds": ["worker-thread"],
+                        "linkedSubgoalIds": ["phase6"],
+                        "linkedGraphNodeIds": ["job-surface"]
+                    }]
+                }
+            }),
+            serde_json::to_value(&notification)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_config_requirements_read() -> Result<()> {
         let request = ClientRequest::ConfigRequirementsRead {
             request_id: RequestId::Integer(1),
@@ -3239,6 +3295,35 @@ mod tests {
         );
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&notification);
         assert_eq!(reason, Some("thread/epiphany/stateUpdated"));
+    }
+
+    #[test]
+    fn thread_epiphany_jobs_updated_notification_is_marked_experimental() {
+        let notification = ServerNotification::ThreadEpiphanyJobsUpdated(
+            v2::ThreadEpiphanyJobsUpdatedNotification {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyJobsUpdatedSource::RuntimeProgress,
+                state_revision: Some(1),
+                jobs: vec![v2::ThreadEpiphanyJob {
+                    id: "specialist-work".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "runtime-bound specialist work".to_string(),
+                    owner_role: "epiphany-harness".to_string(),
+                    status: v2::ThreadEpiphanyJobStatus::Running,
+                    runtime_agent_job_id: Some("job-123".to_string()),
+                    items_processed: Some(1),
+                    items_total: Some(3),
+                    progress_note: Some("Runtime agent job is running.".to_string()),
+                    last_checkpoint_at_unix_seconds: Some(1_744_500_123),
+                    blocking_reason: None,
+                    active_thread_ids: vec!["worker-thread".to_string()],
+                    linked_subgoal_ids: vec!["phase6".to_string()],
+                    linked_graph_node_ids: vec!["job-surface".to_string()],
+                }],
+            },
+        );
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&notification);
+        assert_eq!(reason, Some("thread/epiphany/jobsUpdated"));
     }
 
     #[test]

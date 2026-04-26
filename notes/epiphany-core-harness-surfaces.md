@@ -46,6 +46,7 @@ The rule is:
 | `thread/epiphany/propose` | read-only proposal | landed | Drafts graph/frontier/churn candidates from verified evidence-backed observations. |
 | `thread/epiphany/promote` | verifier gate | landed | Rejects or applies candidates through the durable update path. |
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
+| `thread/epiphany/jobsUpdated` | notification | landed | Emits changed bound-job snapshots for real runtime progress events when the mapped job payload actually changes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable `jobBindings` plus live runtime `agent_jobs` overlay when a real owner exists. |
 | `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state, with watcher-backed invalidation inputs for loaded threads. |
@@ -130,7 +131,6 @@ Metaphor is compression after source context. It is not decoration for guesses.
 
 These are not landed yet:
 
-- `thread/epiphany/jobsUpdated` or equivalent progress notifications
 - an Epiphany-owned long-running job launcher beyond binding to existing runtime `agent_jobs`
 - richer evidence-range and graph-shard inspection beyond the landed context shard
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
@@ -151,7 +151,13 @@ verification, and specialist work, and can overlay durable `jobBindings` onto
 live runtime `agent_jobs` snapshots. It does not start, schedule, create, or
 notify jobs.
 
-The next missing organ is live progress notification for bound runtime work.
+The first live bound-runtime progress notification is also landed as
+`thread/epiphany/jobsUpdated`. It rides existing `agent_job_progress:{json}`
+background events from the runtime job runner, resolves matching durable
+bindings against live `agent_jobs` snapshots, and only emits when the mapped
+bound-job payload actually changes. It does not poll state runtime in a loop,
+start work, schedule follow-up work, or turn the jobs read surface into a
+writer.
 
 Future live job state should describe work like:
 

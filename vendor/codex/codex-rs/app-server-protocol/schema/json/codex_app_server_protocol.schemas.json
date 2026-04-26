@@ -4528,6 +4528,26 @@
           "properties": {
             "method": {
               "enum": [
+                "thread/epiphany/jobsUpdated"
+              ],
+              "title": "Thread/epiphany/jobsUpdatedNotificationMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/v2/ThreadEpiphanyJobsUpdatedNotification"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "title": "Thread/epiphany/jobsUpdatedNotification",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "enum": [
                 "fuzzyFileSearch/sessionUpdated"
               ],
               "title": "FuzzyFileSearch/sessionUpdatedNotificationMethod",
@@ -15325,6 +15345,43 @@
         "enum": [
           "stored",
           "live"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyJobsUpdatedNotification": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "jobs": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanyJob"
+            },
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyJobsUpdatedSource"
+          },
+          "stateRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "threadId"
+        ],
+        "title": "ThreadEpiphanyJobsUpdatedNotification",
+        "type": "object"
+      },
+      "ThreadEpiphanyJobsUpdatedSource": {
+        "enum": [
+          "runtimeProgress"
         ],
         "type": "string"
       },

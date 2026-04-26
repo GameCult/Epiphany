@@ -302,6 +302,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "thread/epiphany/stateUpdated",
             start_index=missing_notification_start,
         )
+        client.require_no_notification(
+            "thread/epiphany/jobsUpdated",
+            start_index=missing_notification_start,
+        )
 
         update_notification_start = len(client.notifications)
         update = client.send(
@@ -325,6 +329,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         assert_ready_jobs(ready_response)
         client.require_no_notification(
             "thread/epiphany/stateUpdated",
+            start_index=jobs_notification_start,
+        )
+        client.require_no_notification(
+            "thread/epiphany/jobsUpdated",
             start_index=jobs_notification_start,
         )
 
@@ -358,6 +366,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             )["activeThreadIds"],
             "jobsNotificationCount": client.count_notifications(
                 "thread/epiphany/stateUpdated",
+                start_index=jobs_notification_start,
+            ),
+            "jobsUpdatedNotificationCount": client.count_notifications(
+                "thread/epiphany/jobsUpdated",
                 start_index=jobs_notification_start,
             ),
             "finalReadRevision": final_read["thread"]["epiphanyState"]["revision"],

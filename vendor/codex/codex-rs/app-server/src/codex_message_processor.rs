@@ -172,6 +172,8 @@ use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyJobsParams;
 use codex_app_server_protocol::ThreadEpiphanyJobsResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobsSource;
+use codex_app_server_protocol::ThreadEpiphanyJobsUpdatedNotification;
+use codex_app_server_protocol::ThreadEpiphanyJobsUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
@@ -11932,6 +11934,46 @@ struct EpiphanyAgentJobSnapshot {
     updated_at_unix_seconds: i64,
     last_error: Option<String>,
     active_thread_ids: Vec<String>,
+}
+
+pub(crate) async fn thread_epiphany_jobs_updated_notification_for_runtime_job(
+    thread_id: ThreadId,
+    thread: &CodexThread,
+    runtime_agent_job_id: &str,
+) -> Option<ThreadEpiphanyJobsUpdatedNotification> {
+    let state = thread.epiphany_state().await?;
+    let binding_ids = state
+        .job_bindings
+        .iter()
+        .filter(|binding| binding.runtime_agent_job_id.as_deref() == Some(runtime_agent_job_id))
+        .map(|binding| binding.id.clone())
+        .collect::<HashSet<_>>();
+    if binding_ids.is_empty() {
+        return None;
+    }
+
+    let state_db_ctx = thread.state_db()?;
+    let retrieval_override = if state.retrieval.is_none() && binding_ids.contains("retrieval-index")
+    {
+        Some(thread.epiphany_retrieval_state().await)
+    } else {
+        None
+    };
+    let job_resolution = load_epiphany_agent_job_snapshots(Some(&state_db_ctx), Some(&state)).await;
+    let jobs = map_epiphany_jobs(Some(&state), retrieval_override.as_ref(), &job_resolution)
+        .into_iter()
+        .filter(|job| binding_ids.contains(job.id.as_str()))
+        .collect::<Vec<_>>();
+    if jobs.is_empty() {
+        return None;
+    }
+
+    Some(ThreadEpiphanyJobsUpdatedNotification {
+        thread_id: thread_id.to_string(),
+        source: ThreadEpiphanyJobsUpdatedSource::RuntimeProgress,
+        state_revision: Some(state.revision),
+        jobs,
+    })
 }
 
 async fn load_epiphany_agent_job_snapshots(

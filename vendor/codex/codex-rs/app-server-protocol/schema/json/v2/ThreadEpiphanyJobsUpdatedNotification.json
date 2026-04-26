@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ThreadEpiphanyJob": {
+      "properties": {
+        "activeThreadIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "blockingReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "itemsProcessed": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "itemsTotal": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/ThreadEpiphanyJobKind"
+        },
+        "lastCheckpointAtUnixSeconds": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "linkedGraphNodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "linkedSubgoalIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ownerRole": {
+          "type": "string"
+        },
+        "progressNote": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtimeAgentJobId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/ThreadEpiphanyJobStatus"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "ownerRole",
+        "scope",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyJobKind": {
+      "enum": [
+        "indexing",
+        "remap",
+        "verification",
+        "specialist"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyJobStatus": {
+      "enum": [
+        "idle",
+        "needed",
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "cancelled",
+        "blocked",
+        "unavailable"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyJobsUpdatedSource": {
+      "enum": [
+        "runtimeProgress"
+      ],
+      "type": "string"
+    }
+  },
+  "properties": {
+    "jobs": {
+      "items": {
+        "$ref": "#/definitions/ThreadEpiphanyJob"
+      },
+      "type": "array"
+    },
+    "source": {
+      "$ref": "#/definitions/ThreadEpiphanyJobsUpdatedSource"
+    },
+    "stateRevision": {
+      "format": "uint64",
+      "minimum": 0.0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "source",
+    "threadId"
+  ],
+  "title": "ThreadEpiphanyJobsUpdatedNotification",
+  "type": "object"
+}
