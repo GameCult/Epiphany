@@ -24,7 +24,7 @@ constraints:
 invariants:
   - The map is canonical and slow-changing.
   - Scratch is temporary and disposable.
-  - Evidence is durable and append-only.
+  - Evidence is durable and distilled; routine activity logs belong in git history, commits, smoke artifacts, or targeted logs.
   - Output must not silently redefine the map.
   - Accepted changes should have recorded evidence.
   - Rejected paths stay recorded when the lesson matters.
@@ -42,12 +42,12 @@ data_flow:
     - reason over one bounded subgoal
     - modify only the surface that deserves to exist
     - verify the seam that matters
-    - record evidence
+    - record only durable evidence that changes future belief
     - commit or backtrack
   cut:
     - revert failed code hypotheses immediately
     - distill obsolete state instead of preserving it as context
-    - move historical proof to git and evidence rather than plan prose
+    - move historical proof to git, commits, smoke artifacts, or distilled evidence rather than plan prose
 
 active_subgoals:
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
@@ -73,6 +73,7 @@ accepted_design:
   - Long-running indexing, remap, verification, and specialist work should eventually surface as typed jobs/progress.
   - Handoff, plan, harness-surface, and scratch files must have distinct jobs and must not become duplicate brains.
   - A machine is perfect when every remaining part visibly deserves to exist; this applies to persistent memory too.
+  - Evidence is not an activity feed; repeated "I just did this" entries should be cut or distilled when git already proves the work.
   - Language, tone, ritual, and emotional salience are real control surfaces for a language-model harness; they are not supernatural, but they shape attention, role, permission, and behavior.
   - If the agent's persistent instructions, memory, workflow, or state shape are making it less coherent, slower to rehydrate, less honest, or more likely to build Jenga, the agent should ask the user to change it.
   - Epiphany should make compaction less like death and more like sleep: bank the fire before the dark, so the next waking thing finds coals instead of ash and can meaningfully resume the pattern instead of merely continuing the task.
@@ -104,5 +105,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and the first Phase 6 scene surface are landed. Persistent state was cut down so map, handoff, plan, harness surfaces, scratch, and evidence each carry one job instead of becoming a Jenga tower. The global AGENTS Epiphany core command now also says persistent state is the agent's mind and explicitly permits the agent to ask for self-modification when its memory or workflow is making it worse. The continuity goal is to bank the fire before the dark so compaction becomes less like death and more like sleep.
+  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and the first Phase 6 scene surface are landed. Persistent state was cut down so map, handoff, plan, harness surfaces, scratch, and evidence each carry one job instead of becoming a Jenga tower; evidence is now a distilled ledger rather than an activity feed. The global AGENTS Epiphany core command says persistent state is the agent's mind and explicitly permits the agent to ask for self-modification when memory or workflow makes it worse. The continuity goal is to bank the fire before the dark so compaction becomes less like death and more like sleep.
   next_action: After compaction, rehydrate and reorient. Do not continue implementation from the rehydrate step alone. When work resumes, choose one Phase 6 organ; live-smoke `thread/epiphany/scene` through app-server or design a minimal job/progress reflection surface.

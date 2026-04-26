@@ -190,14 +190,14 @@ The anti-Jenga rule applies to docs and state files too:
 
 - if a note stops improving the model, distill it
 - if status prose becomes obsolete, replace it
-- if a file starts accumulating every landed micro-slice, move history back to git and evidence
+- if a file starts accumulating every landed micro-slice, move history back to git and only preserve distilled evidence when it changes future belief
 - if the next action is hidden under a pile of previous victories, the note has failed
 - if the map is not source-grounded, do not decorate it with confident language
 
 Canonical responsibilities:
 
 - `state/map.yaml`: current project map and accepted design
-- `state/evidence.jsonl`: durable evidence, decisions, rejected paths, verification
+- `state/evidence.jsonl`: distilled durable evidence, decisions, rejected paths, verification, and scars
 - `notes/fresh-workspace-handoff.md`: re-entry packet
 - `notes/epiphany-current-algorithmic-map.md`: source-grounded current control flow
 - `notes/epiphany-fork-implementation-plan.md`: distilled forward implementation plan

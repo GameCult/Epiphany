@@ -4,9 +4,8 @@ This file is disposable working memory for the current bounded subgoal.
 
 ## Current Subgoal
 
-Prepare an imminent compaction packet after the persistent-state cleanup and
-after the ritual/language/self-modification doctrine was promoted into global
-memory.
+Clean up remaining persistent state cruft by refreshing the handoff snapshot and
+distilling `state/evidence.jsonl` from an activity feed into a belief ledger.
 
 ## Working Notes
 
@@ -14,7 +13,8 @@ memory.
 - `notes/epiphany-core-harness-surfaces.md` has already been distilled into a surface contract.
 - `state/map.yaml` should be canonical current truth, not a landed-slice trophy wall.
 - `notes/fresh-workspace-handoff.md` should be a re-entry packet, not a full historical reconstruction.
-- `state/evidence.jsonl` remains the durable history channel.
+- `state/evidence.jsonl` should remain durable, but not as a transcript-shaped activity feed.
+- Repeated "I just did this" proof belongs in git, commits, smoke artifacts, or targeted logs unless it changes what the next agent should believe.
 - `notes/epiphany-current-algorithmic-map.md` may stay long because its job is source-grounded control-flow audit, not compact re-entry.
 - Global `C:\Users\Meta\.codex\AGENTS.md` now includes two high-salience Epiphany core-command bullets:
   - persistent state is the agent's mind, and it should be cut as ruthlessly as code
@@ -24,8 +24,8 @@ memory.
 
 ## Decision
 
-Persist the compaction-critical state and stop. The next agent should rehydrate,
-reorient, and wait for an explicit continue request before implementation.
+Distill evidence, refresh handoff, verify the state CLI and JSONL parse cleanly,
+then commit the cleanup.
 
 The next implementation move is still Phase 6: either live-smoke
 `thread/epiphany/scene` or design a minimal job/progress reflection surface.

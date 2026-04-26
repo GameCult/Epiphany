@@ -10,10 +10,10 @@ The motivating failure mode is that an agent can make many plausible local edits
 
 - Treat `state/map.yaml` as the canonical project map.
 - Treat `state/scratch.md` as disposable working memory for one bounded subgoal.
-- Treat `state/evidence.jsonl` as the durable log of what was learned, verified, rejected, or accepted.
+- Treat `state/evidence.jsonl` as the distilled durable ledger of what was learned, verified, rejected, or accepted.
 - Treat `notes/epiphany-fork-implementation-plan.md` as the current implementation plan for the Epiphany fork architecture.
 - Update `state/map.yaml` when project understanding changes.
-- Append evidence after meaningful research, implementation, verification, or rejected paths.
+- Add evidence after meaningful research, implementation, verification, or rejected paths, but keep it distilled. Routine "I just did this" proof belongs in git history, commit messages, smoke artifacts, or targeted logs unless it changes what the next agent should believe.
 - Do not store volatile current phase/status blocks in this file; keep current status in `state/map.yaml`, `state/evidence.jsonl`, and `notes/fresh-workspace-handoff.md`.
 
 ## Important Paths
@@ -79,5 +79,5 @@ Do not wait for the blackout and then act surprised.
 - If the diff grows while understanding shrinks, stop implementation and switch to diagnosis.
 - Keep maps and prose together; do not replace useful maps with prose-only explanations.
 - Before adding natural-language explanations or metaphors to an algorithmic map, first read the relevant source paths and anchor the explanation to concrete code references. Metaphor is compression after source grounding, not a substitute for it.
-- Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, append `state/evidence.jsonl`, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.
+- Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, add distilled evidence when the lesson changes future belief, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.
 - Do not write handoff notes that trap the next session in indefinite tiny hardening work. Bounded slices are a landing discipline, not a roadmap; when a phase is complete enough, name the next larger organ to build.

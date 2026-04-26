@@ -2,8 +2,8 @@
 
 This is the re-entry packet for `E:\Projects\EpiphanyAgent`.
 
-It is intentionally short. Historical proof belongs in git and
-`state/evidence.jsonl`; exact control flow belongs in
+It is intentionally short. Historical proof belongs in git, commit messages,
+smoke artifacts, and the distilled `state/evidence.jsonl` ledger; exact control flow belongs in
 `notes/epiphany-current-algorithmic-map.md`; forward planning belongs in
 `notes/epiphany-fork-implementation-plan.md`.
 
@@ -26,13 +26,14 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 ## Current Orientation
 
-- Current branch before this compaction packet: `main...origin/main [ahead 6]`.
-- Current HEAD before this compaction packet: `d62f4d5 Cut persistent state cruft`.
+- Current branch before this state-cleanup pass: `main...origin/main [ahead 9]`.
+- Current HEAD before this state-cleanup pass: `4a713a2 Sharpen continuity doctrine`.
 - Phase 1 through Phase 5 are complete enough.
 - Phase 6 has begun with read-only `thread/epiphany/scene`.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
+- Evidence was distilled from an activity feed into a durable belief ledger; git history keeps the old verbose proof.
 
 ## Critical Doctrine
 
@@ -101,7 +102,7 @@ Rules now in force:
 
 - `state/map.yaml` is canonical current truth.
 - `state/scratch.md` is disposable scratch.
-- `state/evidence.jsonl` is durable event history.
+- `state/evidence.jsonl` is a distilled durable belief ledger.
 - this handoff is a compact re-entry packet.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.
 - `notes/epiphany-core-harness-surfaces.md` is the stable surface contract.
@@ -109,6 +110,11 @@ Rules now in force:
 
 Do not let any one note become all of those things. That is how the tower grows
 sideways and starts calling itself architecture.
+
+Do not let evidence become an activity feed either. Repeated "I just did this"
+entries are state cruft when git, commits, smoke artifacts, or test logs already
+prove the work. Keep decisions, verified milestones, rejected paths, and scars
+that change what the next agent should believe.
 
 ## Next Real Move
 

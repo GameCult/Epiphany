@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.set_defaults(func=cmd_status)
 
     evidence_parser = subparsers.add_parser(
-        "add-evidence", help="Append one JSONL evidence record."
+        "add-evidence", help="Append one distilled JSONL evidence record."
     )
     evidence_parser.add_argument("--type", required=True)
     evidence_parser.add_argument("--status", required=True)

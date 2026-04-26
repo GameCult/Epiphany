@@ -69,7 +69,7 @@ Instead:
 1. Externalize state in files.
 2. Use a controller protocol with a small action space.
 3. Make the model choose one action at a time.
-4. Record evidence after meaningful steps.
+4. Record distilled evidence after meaningful belief-changing steps.
 5. Compare against plain prompting.
 
 Current state files:

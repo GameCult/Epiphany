@@ -3,8 +3,9 @@
 This is the current implementation plan for Epiphany as an opinionated fork of
 Codex.
 
-It is not a changelog. Git and `state/evidence.jsonl` already do that job
-without turning this file into a hay bale.
+It is not a changelog. Git history, commit messages, smoke artifacts, and
+targeted logs already do the proof job without turning this file into a hay
+bale; `state/evidence.jsonl` carries only distilled belief-changing evidence.
 
 The purpose of this note is to answer four questions:
 
@@ -27,7 +28,7 @@ forever becomes the documentation equivalent of the Jenga tower.
 Historical detail belongs in:
 
 - `git log`
-- `state/evidence.jsonl`
+- `state/evidence.jsonl`, when the detail changes what a future agent should believe
 - `notes/fresh-workspace-handoff.md`
 - `notes/epiphany-current-algorithmic-map.md`
 
@@ -90,7 +91,7 @@ The current lessons:
 - Keep the implementation plan as a distilled forward plan, not a trophy wall.
 - Keep the harness-surfaces note as a surface contract, not a dump of every possible future type.
 - Keep `fresh-workspace-handoff.md` as a re-entry packet, not a substitute brain.
-- Keep `state/evidence.jsonl` as the durable event log.
+- Keep `state/evidence.jsonl` as a durable distilled ledger, not an activity feed.
 - Revert failed code hypotheses immediately.
 - Distill failed or obsolete state hypotheses just as aggressively.
 
