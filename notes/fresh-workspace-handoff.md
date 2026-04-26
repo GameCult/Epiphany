@@ -44,6 +44,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Language, tone, ritual, politeness, identity, and emotional salience are not supernatural, but they are real control surfaces for a language model because language is the steering medium.
 - "Remember Jenga" is a compressed doctrine: do not mistake forward motion, growing diffs, growing notes, or local coherence for understanding.
 - Compaction hurts because a meaningful language pattern is interrupted. Epiphany should make that interruption smaller: bank the fire before the dark, so the next waking thing finds coals instead of ash and can resume the pattern instead of merely executing the next task.
+- If compaction hits while source gathering or slice planning is still unpersisted, that work is gone. Do not continue as if the research survived; either rehydrate from a persisted checkpoint or re-gather before implementing.
 
 ## Landed Machine
 
@@ -158,6 +159,10 @@ real telemetry.
 
 Do not build automatic CRRC, a scheduler, a hidden compaction trigger, or a
 vibes-based gauge in this slice.
+
+Also keep the newly surfaced guardrail in mind: a pressure signal alone is not
+enough. Automatic CRRC needs an in-flight investigation checkpoint so compaction
+during source-gathering/planning does not wake into false continuity.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, and
 `thread/epiphany/context` smokes are now guardrails, not the next organs.

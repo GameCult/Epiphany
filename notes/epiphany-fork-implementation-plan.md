@@ -101,6 +101,7 @@ The current lessons:
 - Keep `state/evidence.jsonl` as a durable distilled ledger, not an activity feed.
 - Revert failed code hypotheses immediately.
 - Distill failed or obsolete state hypotheses just as aggressively.
+- Treat unpersisted source-gathering and slice-planning work as volatile. If compaction interrupts it, the correct recovery is re-gathering from source or a persisted checkpoint, not continuing from the ghost of the old context.
 
 The plan should get shorter after a phase completes, not longer by default.
 
@@ -114,6 +115,7 @@ The next unknowns are:
 - how to expose live long-running job progress without making the GUI authoritative
 - when watcher-driven invalidation becomes necessary instead of merely tempting
 - how to expose context pressure as a real runtime signal for automatic CRRC
+- how to checkpoint in-flight source gathering and slice planning before automatic CRRC so post-compaction agents do not continue from false continuity
 - how much automatic CRRC coordination belongs in runtime before it becomes ceremony machinery
 - what Phase 6 should prove before specialist scheduling begins
 
@@ -141,6 +143,7 @@ These remain later work:
 - role-scoped specialist-agent registry and scheduling
 - mutation gates that warn or block broad writes when map freshness is stale
 - automatic CRRC runtime coordination with typed context-pressure telemetry
+- in-flight investigation checkpointing for compaction-safe planning
 - GUI workflows for graph, evidence, job, invariant, and frontier steering
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a

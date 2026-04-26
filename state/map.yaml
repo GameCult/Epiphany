@@ -30,6 +30,7 @@ invariants:
   - Rejected paths stay recorded when the lesson matters.
   - Algorithmic-map prose and metaphor must be grounded in freshly read source context and concrete code references.
   - Persistent state cruft is the same failure class as code cruft.
+  - If compaction interrupts source gathering or slice planning before the findings are persisted, the next agent must treat that work as lost and re-gather instead of continuing from imagined continuity.
 
 data_flow:
   observe:
@@ -69,6 +70,7 @@ accepted_design:
   - The current algorithmic map is the source-grounded description of live control flow.
   - Compact-Rehydrate-Reorient-Continue is an architecture primitive; automatic runtime coordination is not landed yet.
   - Context pressure must become an explicit runtime signal for automatic CRRC; inference from transcript vibes, user warnings, or shrinking safe scope is useful only as a temporary human/agent heuristic.
+  - Automatic CRRC also needs an in-flight investigation checkpoint: the harness must know whether source-gathering/planning was banked, or force reorientation and re-gathering after compaction.
   - GUI/client work must reflect or steer typed state rather than manufacture a second source of truth.
   - `thread/epiphany/jobs` is the first read-only job/progress reflection: it derives indexing, remap, verification, and specialist slots from existing state; it is not a scheduler or durable job store.
   - `thread/epiphany/context` is the first targeted read-only state-shard surface: it selects graph nodes/edges, active frontier, checkpoint, observations, and evidence from authoritative typed state without mutating or notifying.
