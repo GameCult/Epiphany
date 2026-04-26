@@ -89,6 +89,7 @@ landed_baseline:
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
     - Use focused scene/protocol/schema checks for scene-only changes.
+    - Use `tools/epiphany_prepare_compaction.py` before and after imminent-compaction persistence passes.
     - Use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for Codex Rust work on this Windows machine.
     - Do not parallelize cargo builds/tests against the same target directory.
 

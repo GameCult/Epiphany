@@ -24,6 +24,7 @@ The motivating failure mode is that an agent can make many plausible local edits
 - Handoff summary: `E:\Projects\EpiphanyAgent\notes\fresh-workspace-handoff.md`
 - Epiphany algorithmic map: `E:\Projects\EpiphanyAgent\notes\epiphany-current-algorithmic-map.md`
 - State CLI: `E:\Projects\EpiphanyAgent\tools\epiphany_state.py`
+- Pre-compaction helper: `E:\Projects\EpiphanyAgent\tools\epiphany_prepare_compaction.py`
 
 ## Useful Commands
 
@@ -32,6 +33,7 @@ Use the bundled Python runtime if `python` is not on PATH:
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' add-evidence --type research --status ok --note '...'
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_prepare_compaction.py'
 ```
 
 Useful Codex repo searches:
@@ -68,6 +70,14 @@ When context pressure is clearly rising:
 3. persist map/handoff updates, plus distilled evidence only when the lesson changes future belief, before forced compaction hits
 
 Do not wait for the blackout and then act surprised.
+
+When the user says to prepare for imminent compaction:
+
+1. run `tools/epiphany_prepare_compaction.py` before editing persistence surfaces
+2. use its warnings as the checklist for map, handoff, scratch, evidence, and git hygiene
+3. update only the state that actually needs to change
+4. run `tools/epiphany_prepare_compaction.py` again after edits
+5. fix errors, address warnings, and commit the completed persistence pass unless the work is deliberately mid-surgery
 
 ## Operating Discipline
 

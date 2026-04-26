@@ -103,6 +103,7 @@ Rules now in force:
 - `state/map.yaml` is canonical current truth.
 - `state/scratch.md` is disposable scratch.
 - `state/evidence.jsonl` is a distilled durable belief ledger.
+- `tools/epiphany_prepare_compaction.py` is the pre-compaction persistence check; run it before and after imminent-compaction persistence passes.
 - this handoff is a compact re-entry packet.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.
 - `notes/epiphany-core-harness-surfaces.md` is the stable surface contract.
