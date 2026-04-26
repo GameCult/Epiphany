@@ -78,6 +78,7 @@ accepted_design:
   - `thread/epiphany/context` is the first targeted read-only state-shard surface: it selects graph nodes/edges, active frontier, checkpoint, observations, and evidence from authoritative typed state without mutating or notifying.
   - `thread/epiphany/pressure` is the first read-only context-pressure surface: it derives pressure from token telemetry and auto-compact/context limits without compacting, scheduling, mutating, or notifying.
   - Epiphany safety doctrine is to separate cognition from actuation, keep authority explicit, make interruption sacred, stage capability release, and treat operator misuse as a normal design input rather than a rude hypothetical.
+  - Epiphany is built in the open, but publication mode is not one-size-fits-all: use FOSS where viable, source-available licensing where economics or capability risk demand it, and commercial terms where organizations extract real enterprise value.
   - Live long-running job execution, progress notifications, and specialist scheduling are still future work.
   - Handoff, plan, harness-surface, and scratch files must have distinct jobs and must not become duplicate brains.
   - A machine is perfect when every remaining part visibly deserves to exist; this applies to persistent memory too.

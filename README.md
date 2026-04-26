@@ -132,3 +132,18 @@ commercial terms by written agreement.
 
 External contributions require `CONTRIBUTOR_LICENSE_AGREEMENT.md` or a separate
 written agreement accepted by the Project Steward.
+
+This repo is built in the open. That is the value. It is not a blood oath to
+donate every useful organ to any company that wants cheaper leverage.
+
+The publishing stance is:
+
+- FOSS where that is viable and does not sabotage the project.
+- Source-available where the economics or capability profile make full
+  unrestricted release irresponsible or simply stupid.
+- Commercial terms where an organization is extracting real enterprise value
+  from the work.
+
+If that sounds less romantic than "just open everything," good. Romance does
+not pay for infrastructure, steward a hard project, or answer the question of
+whether a capability should diffuse before its governance exists.
