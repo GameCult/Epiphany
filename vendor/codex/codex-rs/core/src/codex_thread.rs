@@ -10,6 +10,7 @@ use crate::session::Codex;
 use crate::session::SessionSettingsUpdate;
 use crate::session::SteerInputError;
 use codex_features::Feature;
+use codex_protocol::ThreadId;
 use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::Personality;
@@ -34,6 +35,7 @@ use codex_protocol::protocol::EpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyJobBackendKind;
 use codex_protocol::protocol::EpiphanyJobBinding;
+use codex_protocol::protocol::EpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalState;
@@ -61,6 +63,8 @@ use tokio::sync::Mutex;
 use tokio::sync::watch;
 
 use codex_rollout::state_db::StateDbHandle;
+use serde_json::Value;
+use uuid::Uuid;
 
 #[derive(Clone, Debug)]
 pub struct ThreadConfigSnapshot {
@@ -119,6 +123,45 @@ pub struct EpiphanyStateUpdate {
     pub evidence: Vec<EpiphanyEvidenceRecord>,
     pub churn: Option<EpiphanyChurnState>,
     pub mode: Option<EpiphanyModeState>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyJobLaunchRequest {
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    pub kind: EpiphanyJobKind,
+    pub scope: String,
+    pub owner_role: String,
+    pub authority_scope: String,
+    pub linked_subgoal_ids: Vec<String>,
+    pub linked_graph_node_ids: Vec<String>,
+    pub instruction: String,
+    pub input_json: Value,
+    pub output_schema_json: Option<Value>,
+    pub max_runtime_seconds: Option<u64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyJobLaunchResult {
+    pub epiphany_state: EpiphanyThreadState,
+    pub binding_id: String,
+    pub launcher_job_id: String,
+    pub backend_job_id: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyJobInterruptRequest {
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyJobInterruptResult {
+    pub epiphany_state: EpiphanyThreadState,
+    pub binding_id: String,
+    pub cancel_requested: bool,
+    pub interrupted_thread_ids: Vec<String>,
 }
 
 impl EpiphanyStateUpdate {
@@ -372,6 +415,18 @@ impl CodexThread {
         self.codex.state_db()
     }
 
+    pub async fn epiphany_state_runtime(&self) -> Option<StateDbHandle> {
+        if let Some(state_db) = self.state_db() {
+            return Some(state_db);
+        }
+
+        let codex_home = self.codex.session.codex_home().await;
+        let config = self.codex.thread_config_snapshot().await;
+        codex_state::StateRuntime::init(codex_home.to_path_buf(), config.model_provider_id)
+            .await
+            .ok()
+    }
+
     pub async fn config_snapshot(&self) -> ThreadConfigSnapshot {
         self.codex.thread_config_snapshot().await
     }
@@ -433,6 +488,290 @@ impl CodexThread {
             .await;
         self.codex.session.flush_rollout().await?;
         Ok(next_state)
+    }
+
+    pub async fn epiphany_launch_job(
+        &self,
+        request: EpiphanyJobLaunchRequest,
+    ) -> CodexResult<EpiphanyJobLaunchResult> {
+        validate_epiphany_job_launch_request(&request)?;
+
+        let session = self.codex.session.clone();
+        let state_db = self.epiphany_state_runtime().await.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "sqlite state db is unavailable for Epiphany job launch".to_string(),
+            )
+        })?;
+        let launch_turn = session.new_default_turn().await;
+        let launch_options = crate::tools::handlers::agent_jobs::build_runner_options(
+            &session,
+            &launch_turn,
+            Some(1),
+        )
+        .await
+        .map_err(|err| {
+            CodexErr::InvalidRequest(format!(
+                "failed to prepare Epiphany agent job runner: {err}"
+            ))
+        })?;
+
+        let current_state = self
+            .codex
+            .session
+            .epiphany_state()
+            .await
+            .unwrap_or_default();
+        if let Some(expected_revision) = request.expected_revision
+            && current_state.revision != expected_revision
+        {
+            return Err(CodexErr::InvalidRequest(format!(
+                "epiphany state revision mismatch: expected {expected_revision}, found {}",
+                current_state.revision
+            )));
+        }
+        validate_epiphany_job_launch_target(&current_state, &state_db, &request).await?;
+
+        let launcher_job_id = format!("epiphany-launch-{}", Uuid::new_v4());
+        let backend_job_id = Uuid::new_v4().to_string();
+        let replacement_binding = build_epiphany_job_launch_binding(
+            &request,
+            launcher_job_id.as_str(),
+            backend_job_id.as_str(),
+        );
+        let next_job_bindings = replace_or_append_epiphany_job_binding(
+            current_state.job_bindings.clone(),
+            replacement_binding,
+        );
+
+        let validation_errors = epiphany_state_update_validation_errors(
+            &current_state,
+            &EpiphanyStateUpdate {
+                job_bindings: Some(next_job_bindings.clone()),
+                ..Default::default()
+            },
+        );
+        if !validation_errors.is_empty() {
+            return Err(CodexErr::InvalidRequest(format!(
+                "invalid Epiphany job launch patch: {}",
+                validation_errors.join("; ")
+            )));
+        }
+
+        let output_csv_path = epiphany_agent_job_output_csv_path(
+            self.codex.session.codex_home().await.as_path(),
+            backend_job_id.as_str(),
+        );
+        let row_object = request.input_json.as_object().cloned().ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "epiphany job launch input_json must be a JSON object".to_string(),
+            )
+        })?;
+        let input_headers = sorted_json_object_keys(&row_object);
+        let job_items = vec![codex_state::AgentJobItemCreateParams {
+            item_id: request.binding_id.clone(),
+            row_index: 0,
+            source_id: Some(request.binding_id.clone()),
+            row_json: Value::Object(row_object),
+        }];
+
+        state_db
+            .create_agent_job(
+                &codex_state::AgentJobCreateParams {
+                    id: backend_job_id.clone(),
+                    name: epiphany_agent_job_name(request.binding_id.as_str()),
+                    instruction: request.instruction.clone(),
+                    auto_export: false,
+                    max_runtime_seconds: request.max_runtime_seconds,
+                    output_schema_json: request.output_schema_json.clone(),
+                    input_headers,
+                    input_csv_path: output_csv_path.display().to_string(),
+                    output_csv_path: output_csv_path.display().to_string(),
+                },
+                job_items.as_slice(),
+            )
+            .await
+            .map_err(|err| {
+                CodexErr::Fatal(format!("failed to create Epiphany backend job: {err}"))
+            })?;
+
+        let epiphany_state = match self
+            .epiphany_update_state(EpiphanyStateUpdate {
+                expected_revision: request.expected_revision,
+                job_bindings: Some(next_job_bindings),
+                ..Default::default()
+            })
+            .await
+        {
+            Ok(epiphany_state) => epiphany_state,
+            Err(err) => {
+                let _ = state_db
+                    .mark_agent_job_cancelled(
+                        backend_job_id.as_str(),
+                        "Epiphany launch state update failed before the binding could persist.",
+                    )
+                    .await;
+                return Err(err);
+            }
+        };
+
+        let runner_session = session.clone();
+        let runner_state_db = state_db.clone();
+        let runner_job_id = backend_job_id.clone();
+        tokio::spawn(async move {
+            if let Err(err) = runner_state_db
+                .mark_agent_job_running(runner_job_id.as_str())
+                .await
+            {
+                let error_message =
+                    format!("failed to transition Epiphany backend job to running: {err}");
+                let _ = runner_state_db
+                    .mark_agent_job_failed(runner_job_id.as_str(), error_message.as_str())
+                    .await;
+                return;
+            }
+
+            if let Err(err) = crate::tools::handlers::agent_jobs::run_agent_job_loop(
+                runner_session,
+                launch_turn,
+                runner_state_db.clone(),
+                runner_job_id.clone(),
+                launch_options,
+            )
+            .await
+            {
+                let error_message = format!("Epiphany backend job runner failed: {err}");
+                let _ = runner_state_db
+                    .mark_agent_job_failed(runner_job_id.as_str(), error_message.as_str())
+                    .await;
+            }
+        });
+
+        Ok(EpiphanyJobLaunchResult {
+            epiphany_state,
+            binding_id: request.binding_id,
+            launcher_job_id,
+            backend_job_id,
+        })
+    }
+
+    pub async fn epiphany_interrupt_job(
+        &self,
+        request: EpiphanyJobInterruptRequest,
+    ) -> CodexResult<EpiphanyJobInterruptResult> {
+        if request.binding_id.trim().is_empty() {
+            return Err(CodexErr::InvalidRequest(
+                "epiphany job interrupt binding_id must be non-empty".to_string(),
+            ));
+        }
+
+        let state_db = self.epiphany_state_runtime().await.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "sqlite state db is unavailable for Epiphany job interrupt".to_string(),
+            )
+        })?;
+        let current_state = self
+            .codex
+            .session
+            .epiphany_state()
+            .await
+            .unwrap_or_default();
+        if let Some(expected_revision) = request.expected_revision
+            && current_state.revision != expected_revision
+        {
+            return Err(CodexErr::InvalidRequest(format!(
+                "epiphany state revision mismatch: expected {expected_revision}, found {}",
+                current_state.revision
+            )));
+        }
+
+        let Some(binding_index) = current_state
+            .job_bindings
+            .iter()
+            .position(|binding| binding.id == request.binding_id)
+        else {
+            return Err(CodexErr::InvalidRequest(format!(
+                "epiphany job binding {:?} was not found",
+                request.binding_id
+            )));
+        };
+        let binding = current_state.job_bindings[binding_index].clone();
+        let agent_job_id = binding_agent_jobs_job_id_core(&binding).ok_or_else(|| {
+            CodexErr::InvalidRequest(format!(
+                "epiphany job binding {:?} is not currently backed by the agent_jobs runtime",
+                request.binding_id
+            ))
+        })?;
+
+        let mut interrupted_thread_ids = Vec::new();
+        let running_items = state_db
+            .list_agent_job_items(
+                agent_job_id,
+                Some(codex_state::AgentJobItemStatus::Running),
+                Some(64),
+            )
+            .await
+            .map_err(|err| {
+                CodexErr::Fatal(format!(
+                    "failed to inspect running Epiphany backend job items: {err}"
+                ))
+            })?;
+        for running_item in running_items {
+            let Some(assigned_thread_id) = running_item.assigned_thread_id else {
+                continue;
+            };
+            let Ok(thread_id) = ThreadId::from_string(assigned_thread_id.as_str()) else {
+                continue;
+            };
+            match self
+                .codex
+                .session
+                .services
+                .agent_control
+                .shutdown_live_agent(thread_id)
+                .await
+            {
+                Ok(_) | Err(CodexErr::ThreadNotFound(_)) | Err(CodexErr::InternalAgentDied) => {
+                    interrupted_thread_ids.push(assigned_thread_id);
+                }
+                Err(err) => {
+                    return Err(CodexErr::Fatal(format!(
+                        "failed to interrupt Epiphany worker thread {assigned_thread_id}: {err}"
+                    )));
+                }
+            }
+        }
+
+        let cancel_requested = state_db
+            .mark_agent_job_cancelled(
+                agent_job_id,
+                request.reason.as_deref().unwrap_or(
+                    "Epiphany launch authority requested an interrupt for the bound backend job.",
+                ),
+            )
+            .await
+            .map_err(|err| {
+                CodexErr::Fatal(format!("failed to cancel Epiphany backend job: {err}"))
+            })?;
+
+        let next_job_bindings = clear_epiphany_job_binding_backend(
+            current_state.job_bindings.clone(),
+            binding_index,
+            "No active runtime backend is currently bound; launch explicitly to resume specialist work.",
+        );
+        let epiphany_state = self
+            .epiphany_update_state(EpiphanyStateUpdate {
+                expected_revision: request.expected_revision,
+                job_bindings: Some(next_job_bindings),
+                ..Default::default()
+            })
+            .await?;
+
+        Ok(EpiphanyJobInterruptResult {
+            epiphany_state,
+            binding_id: request.binding_id,
+            cancel_requested,
+            interrupted_thread_ids,
+        })
     }
 
     pub async fn epiphany_retrieval_state(&self) -> EpiphanyRetrievalState {
@@ -556,6 +895,194 @@ impl CodexThread {
 
         Ok(*guard)
     }
+}
+
+fn validate_epiphany_job_launch_request(request: &EpiphanyJobLaunchRequest) -> CodexResult<()> {
+    if request.binding_id.trim().is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch binding_id must be non-empty".to_string(),
+        ));
+    }
+    if matches!(
+        request.binding_id.as_str(),
+        "retrieval-index" | "graph-remap" | "verification"
+    ) {
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany job launch binding_id {:?} is reserved for a derived built-in slot",
+            request.binding_id
+        )));
+    }
+    if request.kind != EpiphanyJobKind::Specialist {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch currently supports only specialist jobs on the agent_jobs backend"
+                .to_string(),
+        ));
+    }
+    if request.scope.trim().is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch scope must be non-empty".to_string(),
+        ));
+    }
+    if request.owner_role.trim().is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch owner_role must be non-empty".to_string(),
+        ));
+    }
+    if request.authority_scope.trim().is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch authority_scope must be non-empty".to_string(),
+        ));
+    }
+    if request.instruction.trim().is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch instruction must be non-empty".to_string(),
+        ));
+    }
+    if !request.input_json.is_object() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch input_json must be a JSON object".to_string(),
+        ));
+    }
+    if let Some(max_runtime_seconds) = request.max_runtime_seconds
+        && max_runtime_seconds == 0
+    {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch max_runtime_seconds must be >= 1".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+async fn validate_epiphany_job_launch_target(
+    state: &EpiphanyThreadState,
+    state_db: &StateDbHandle,
+    request: &EpiphanyJobLaunchRequest,
+) -> CodexResult<()> {
+    let Some(existing_binding) = state
+        .job_bindings
+        .iter()
+        .find(|binding| binding.id == request.binding_id)
+    else {
+        return Ok(());
+    };
+    let Some(agent_job_id) = binding_agent_jobs_job_id_core(existing_binding) else {
+        return Ok(());
+    };
+    let existing_job = state_db.get_agent_job(agent_job_id).await.map_err(|err| {
+        CodexErr::Fatal(format!(
+            "failed to inspect existing Epiphany backend job {:?}: {err}",
+            agent_job_id
+        ))
+    })?;
+    if existing_job.as_ref().is_some_and(|job| {
+        matches!(
+            job.status,
+            codex_state::AgentJobStatus::Pending | codex_state::AgentJobStatus::Running
+        )
+    }) {
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany job binding {:?} is already bound to active backend job {:?}; interrupt it before launching a replacement",
+            request.binding_id, agent_job_id
+        )));
+    }
+    Ok(())
+}
+
+fn build_epiphany_job_launch_binding(
+    request: &EpiphanyJobLaunchRequest,
+    launcher_job_id: &str,
+    backend_job_id: &str,
+) -> EpiphanyJobBinding {
+    EpiphanyJobBinding {
+        id: request.binding_id.clone(),
+        kind: request.kind,
+        scope: request.scope.clone(),
+        owner_role: request.owner_role.clone(),
+        launcher_job_id: Some(launcher_job_id.to_string()),
+        authority_scope: Some(request.authority_scope.clone()),
+        backend_kind: Some(EpiphanyJobBackendKind::AgentJobs),
+        backend_job_id: Some(backend_job_id.to_string()),
+        runtime_agent_job_id: Some(backend_job_id.to_string()),
+        linked_subgoal_ids: request.linked_subgoal_ids.clone(),
+        linked_graph_node_ids: request.linked_graph_node_ids.clone(),
+        progress_note: Some(
+            "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                .to_string(),
+        ),
+        blocking_reason: None,
+    }
+}
+
+fn replace_or_append_epiphany_job_binding(
+    mut bindings: Vec<EpiphanyJobBinding>,
+    replacement: EpiphanyJobBinding,
+) -> Vec<EpiphanyJobBinding> {
+    if let Some(existing) = bindings
+        .iter_mut()
+        .find(|binding| binding.id == replacement.id)
+    {
+        *existing = replacement;
+        return bindings;
+    }
+    bindings.push(replacement);
+    bindings
+}
+
+fn clear_epiphany_job_binding_backend(
+    mut bindings: Vec<EpiphanyJobBinding>,
+    binding_index: usize,
+    blocking_reason: &str,
+) -> Vec<EpiphanyJobBinding> {
+    let binding = &mut bindings[binding_index];
+    binding.launcher_job_id = None;
+    binding.backend_kind = None;
+    binding.backend_job_id = None;
+    binding.runtime_agent_job_id = None;
+    binding.progress_note = None;
+    binding.blocking_reason = Some(blocking_reason.to_string());
+    bindings
+}
+
+fn binding_backend_kind_core(binding: &EpiphanyJobBinding) -> Option<EpiphanyJobBackendKind> {
+    binding.backend_kind.or_else(|| {
+        if binding.runtime_agent_job_id.is_some() {
+            Some(EpiphanyJobBackendKind::AgentJobs)
+        } else {
+            None
+        }
+    })
+}
+
+fn binding_backend_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
+    binding
+        .backend_job_id
+        .as_deref()
+        .or(binding.runtime_agent_job_id.as_deref())
+}
+
+fn binding_agent_jobs_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
+    match binding_backend_kind_core(binding) {
+        Some(EpiphanyJobBackendKind::AgentJobs) => binding_backend_job_id_core(binding),
+        None => None,
+    }
+}
+
+fn epiphany_agent_job_name(binding_id: &str) -> String {
+    let suffix = Uuid::new_v4().simple().to_string();
+    let short_suffix = &suffix[..8];
+    format!("epiphany-{binding_id}-{short_suffix}")
+}
+
+fn epiphany_agent_job_output_csv_path(codex_home: &std::path::Path, job_id: &str) -> PathBuf {
+    codex_home
+        .join("epiphany-agent-jobs")
+        .join(format!("{job_id}.csv"))
+}
+
+fn sorted_json_object_keys(row_object: &serde_json::Map<String, Value>) -> Vec<String> {
+    let mut keys = row_object.keys().cloned().collect::<Vec<_>>();
+    keys.sort();
+    keys
 }
 
 fn epiphany_state_update_validation_errors(

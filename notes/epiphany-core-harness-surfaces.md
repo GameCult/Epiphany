@@ -46,6 +46,8 @@ The rule is:
 | `thread/epiphany/propose` | read-only proposal | landed | Drafts graph/frontier/churn candidates from verified evidence-backed observations. |
 | `thread/epiphany/promote` | verifier gate | landed | Rejects or applies candidates through the durable update path. |
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
+| `thread/epiphany/jobLaunch` | bounded authority write | landed, live-smoked | Creates a launcher-owned durable `jobBinding`, launches the current backend adapter, and emits `stateUpdated` with source `jobLaunch`. |
+| `thread/epiphany/jobInterrupt` | bounded authority write | landed, live-smoked | Interrupts the current backend adapter for a bound launcher job, clears backend identity from the durable `jobBinding`, and emits `stateUpdated` with source `jobInterrupt`. |
 | `thread/epiphany/jobsUpdated` | notification | landed | Emits changed launcher-bound job snapshots for real runtime progress events when the mapped payload actually changes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable launcher metadata plus live backend overlay when a real owner exists. |
@@ -62,6 +64,8 @@ Durable Epiphany state may change through:
 
 - `thread/epiphany/update`
 - accepted `thread/epiphany/promote`
+- `thread/epiphany/jobLaunch`
+- `thread/epiphany/jobInterrupt`
 - normal rollout persistence of the current live `EpiphanyThreadState`
 
 The following must stay read-only:
@@ -131,7 +135,6 @@ Metaphor is compression after source context. It is not decoration for guesses.
 
 These are not landed yet:
 
-- an explicit launch/interrupt surface over the landed thin launcher seam
 - richer evidence-range and graph-shard inspection beyond the landed context shard
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
@@ -152,6 +155,13 @@ Epiphany-owned launcher seam: they can carry launcher identity, authority
 scope, backend kind, and backend job id, and the current adapter can overlay
 that launcher metadata onto live runtime `agent_jobs` snapshots. The surface
 does not start, schedule, create, or notify jobs.
+
+The first explicit bounded authority surfaces are also landed as
+`thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`. They are
+allowed to mutate durable `jobBindings` and talk to the current backend
+adapter, but only to create or interrupt explicit launcher-owned work. They
+are not a queue, a second scheduler, or permission to smuggle runtime policy
+into the reflection surfaces.
 
 The first live bound-runtime progress notification is also landed as
 `thread/epiphany/jobsUpdated`. It rides existing `agent_job_progress:{json}`
@@ -271,11 +281,12 @@ The pressure signal now exists as `thread/epiphany/pressure`, the freshness
 signal now exists as `thread/epiphany/freshness`, live watcher-backed
 invalidation telemetry now exists inside that freshness surface for loaded
 threads, durable investigation packets now exist in typed state plus
-prompt/scene/context reflection, and the first bounded policy verdict now
-exists as `thread/epiphany/reorient`. What does not exist yet is the runtime
-coordinator that acts on that verdict. Automatic CRRC still needs launch and
-interrupt authority over the thin job seam, job owners that can be stopped
-cleanly, and explicit runtime policy instead of vibes with a clipboard.
+prompt/scene/context reflection, the first bounded policy verdict now exists as
+`thread/epiphany/reorient`, and explicit launch/interrupt authority now exists
+over the thin job seam. What does not exist yet is the runtime coordinator that
+acts on that verdict. Automatic CRRC still needs explicit runtime policy,
+bounded job ownership, and clean stopping rules instead of vibes with a
+clipboard.
 
 Compaction should squeeze scratch, not the map.
 

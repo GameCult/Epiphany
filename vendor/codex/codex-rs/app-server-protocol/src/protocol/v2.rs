@@ -70,6 +70,7 @@ use codex_protocol::protocol::EpiphanyInvariant as CoreEpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint as CoreEpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition as CoreEpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobBinding as CoreEpiphanyJobBinding;
+use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalStatus as CoreEpiphanyRetrievalStatus;
@@ -3996,6 +3997,8 @@ pub enum ThreadEpiphanySceneAction {
     Distill,
     Context,
     Jobs,
+    JobLaunch,
+    JobInterrupt,
     Freshness,
     Pressure,
     Reorient,
@@ -4797,6 +4800,8 @@ pub struct ThreadEpiphanyStateUpdatedNotification {
 pub enum ThreadEpiphanyStateUpdatedSource {
     Update,
     Promote,
+    JobLaunch,
+    JobInterrupt,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
@@ -4837,6 +4842,71 @@ pub struct ThreadEpiphanyJobsUpdatedNotification {
 #[ts(export_to = "v2/")]
 pub enum ThreadEpiphanyJobsUpdatedSource {
     RuntimeProgress,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyJobLaunchParams {
+    pub thread_id: String,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    pub kind: CoreEpiphanyJobKind,
+    pub scope: String,
+    pub owner_role: String,
+    pub authority_scope: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub linked_subgoal_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub linked_graph_node_ids: Vec<String>,
+    pub instruction: String,
+    #[ts(type = "unknown")]
+    pub input_json: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable, type = "unknown | null")]
+    pub output_schema_json: Option<serde_json::Value>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub max_runtime_seconds: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyJobLaunchResponse {
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: CoreEpiphanyThreadState,
+    pub job: ThreadEpiphanyJob,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyJobInterruptParams {
+    pub thread_id: String,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub reason: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyJobInterruptResponse {
+    pub cancel_requested: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub interrupted_thread_ids: Vec<String>,
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: CoreEpiphanyThreadState,
+    pub job: ThreadEpiphanyJob,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

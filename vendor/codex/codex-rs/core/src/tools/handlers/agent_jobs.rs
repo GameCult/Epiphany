@@ -98,7 +98,7 @@ struct ReportAgentJobResultToolResult {
 }
 
 #[derive(Debug, Clone)]
-struct JobRunnerOptions {
+pub(crate) struct JobRunnerOptions {
     max_concurrency: usize,
     spawn_config: Config,
 }
@@ -519,7 +519,7 @@ fn required_state_db(
     })
 }
 
-async fn build_runner_options(
+pub(crate) async fn build_runner_options(
     session: &Arc<Session>,
     turn: &Arc<TurnContext>,
     requested_concurrency: Option<usize>,
@@ -564,7 +564,7 @@ fn normalize_max_runtime_seconds(requested: Option<u64>) -> Result<Option<u64>, 
     Ok(Some(requested))
 }
 
-async fn run_agent_job_loop(
+pub(crate) async fn run_agent_job_loop(
     session: Arc<Session>,
     turn: Arc<TurnContext>,
     db: Arc<codex_state::StateRuntime>,

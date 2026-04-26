@@ -51,6 +51,7 @@ The landed machine now has:
 - read-only map/churn proposal through `thread/epiphany/propose`
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
+- explicit launch/interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`, still backed by runtime `agent_jobs`
 - thin Epiphany-owned launcher metadata in durable `jobBindings`, with launcher id, authority scope, and backend kind/job id
 - live bound-runtime progress notification through `thread/epiphany/jobsUpdated`
 - response-level and notification-level revision and changed-field metadata
@@ -71,6 +72,7 @@ The landed machine now has:
 - durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
 - read-only Phase 6 CRRC reorientation policy through `thread/epiphany/reorient`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
+- live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 
@@ -81,11 +83,12 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/retrieve` is read-only.
 - `thread/epiphany/distill` is read-only.
 - `thread/epiphany/propose` is read-only.
-- Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
+- Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, or the bounded `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt` authority surfaces when they mutate `jobBindings`.
 - `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
 - `thread/epiphany/jobs` is a derived reflection over retrieval summaries plus typed launcher bindings and optional backend snapshots, not a scheduler or durable runtime job store.
 - `thread/epiphany/jobsUpdated` is a live notification derived from runtime progress events and launcher-bound job snapshots, not a scheduler, polling daemon, or durable runtime job store.
+- `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt` are bounded authority surfaces over durable `jobBindings` plus the current backend adapter, not a hidden scheduler, queue, or second runtime.
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
@@ -127,9 +130,10 @@ and notify typed state. It can.
 The next unknowns are:
 
 - how the landed thin launcher seam should expose explicit launch and interrupt authority without becoming a secret scheduler
+- how the landed read-only reorientation verdict should be consumed by runtime without turning CRRC into ceremony machinery
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
-- how the landed reorientation verdict should be consumed by future automatic CRRC without becoming ceremony machinery
 - how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
+- whether the first bounded CRRC runtime move should reuse the landed `agent_jobs` backend through the explicit job-control seam or wait for a second backend
 - what Phase 6 should prove before specialist scheduling begins
 
 ## Phase 6 Direction
@@ -138,8 +142,8 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add an explicit launch/interrupt authority surface over the landed thin launcher seam while keeping `agent_jobs` as the first backend adapter.
-2. Decide how the landed reorientation verdict should be consumed by future automatic CRRC without becoming ceremony machinery.
+1. Decide how the landed read-only reorientation verdict should be consumed by runtime without turning CRRC into ceremony machinery.
+2. Decide how much automatic CRRC coordination belongs now that pressure, freshness, watcher, checkpoint, reorient, and explicit job control all exist.
 3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness

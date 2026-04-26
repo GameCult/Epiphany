@@ -28,6 +28,7 @@ The current spine is real, not aspirational:
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notifications through `thread/epiphany/stateUpdated`
 - durable `jobBindings` as a thin Epiphany-owned launcher seam over runtime job backends
+- explicit launch and interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`, still backed by runtime `agent_jobs`
 - live bound-job progress notifications through `thread/epiphany/jobsUpdated`
 - read-only reflection surfaces through `thread/epiphany/scene`, `jobs`, `freshness`, `context`, and `pressure`
 - durable investigation checkpointing for compaction-safe planning

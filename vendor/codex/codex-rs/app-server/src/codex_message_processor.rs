@@ -168,7 +168,11 @@ use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobBackendKind;
+use codex_app_server_protocol::ThreadEpiphanyJobInterruptParams;
+use codex_app_server_protocol::ThreadEpiphanyJobInterruptResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
+use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
+use codex_app_server_protocol::ThreadEpiphanyJobLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyJobsParams;
 use codex_app_server_protocol::ThreadEpiphanyJobsResponse;
@@ -299,6 +303,8 @@ use codex_core::CodexThreadTurnContextOverrides;
 use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
 use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
 use codex_core::EpiphanyDistillInput;
+use codex_core::EpiphanyJobInterruptRequest;
+use codex_core::EpiphanyJobLaunchRequest;
 use codex_core::EpiphanyMapProposalInput;
 use codex_core::EpiphanyPromotionInput;
 use codex_core::EpiphanyRetrieveQuery;
@@ -1093,6 +1099,14 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyPromote { request_id, params } => {
                 self.thread_epiphany_promote(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyJobLaunch { request_id, params } => {
+                self.thread_epiphany_job_launch(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyJobInterrupt { request_id, params } => {
+                self.thread_epiphany_job_interrupt(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyUpdate { request_id, params } => {
@@ -4967,6 +4981,229 @@ impl CodexMessageProcessor {
                 ThreadEpiphanyStateUpdatedNotification {
                     thread_id: thread_uuid.to_string(),
                     source: ThreadEpiphanyStateUpdatedSource::Update,
+                    revision: epiphany_state.revision,
+                    changed_fields,
+                    epiphany_state,
+                },
+            ))
+            .await;
+    }
+
+    async fn thread_epiphany_job_launch(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyJobLaunchParams,
+    ) {
+        let ThreadEpiphanyJobLaunchParams {
+            thread_id,
+            expected_revision,
+            binding_id,
+            kind,
+            scope,
+            owner_role,
+            authority_scope,
+            linked_subgoal_ids,
+            linked_graph_node_ids,
+            instruction,
+            input_json,
+            output_schema_json,
+            max_runtime_seconds,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+        let launched = match thread
+            .epiphany_launch_job(EpiphanyJobLaunchRequest {
+                expected_revision,
+                binding_id: binding_id.clone(),
+                kind,
+                scope,
+                owner_role,
+                authority_scope,
+                linked_subgoal_ids,
+                linked_graph_node_ids,
+                instruction,
+                input_json,
+                output_schema_json,
+                max_runtime_seconds,
+            })
+            .await
+        {
+            Ok(launched) => launched,
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to launch Epiphany job for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let epiphany_state =
+            client_visible_live_thread_epiphany_state(thread.as_ref(), launched.epiphany_state)
+                .await;
+        let state_db_ctx = thread.epiphany_state_runtime().await;
+        let job_resolution =
+            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
+                .await;
+        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+            .into_iter()
+            .find(|job| job.id == binding_id)
+            .unwrap_or_else(|| ThreadEpiphanyJob {
+                id: launched.binding_id.clone(),
+                kind: map_core_epiphany_job_kind(kind),
+                scope: "missing launched job projection".to_string(),
+                owner_role: "epiphany-harness".to_string(),
+                launcher_job_id: Some(launched.launcher_job_id.clone()),
+                authority_scope: None,
+                backend_kind: Some(ThreadEpiphanyJobBackendKind::AgentJobs),
+                backend_job_id: Some(launched.backend_job_id.clone()),
+                status: ThreadEpiphanyJobStatus::Pending,
+                runtime_agent_job_id: Some(launched.backend_job_id.clone()),
+                items_processed: None,
+                items_total: None,
+                progress_note: None,
+                last_checkpoint_at_unix_seconds: None,
+                blocking_reason: None,
+                active_thread_ids: Vec::new(),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+            });
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyJobLaunchResponse {
+                    revision: epiphany_state.revision,
+                    changed_fields: changed_fields.clone(),
+                    epiphany_state: epiphany_state.clone(),
+                    job,
+                },
+            )
+            .await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                    revision: epiphany_state.revision,
+                    changed_fields,
+                    epiphany_state,
+                },
+            ))
+            .await;
+    }
+
+    async fn thread_epiphany_job_interrupt(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyJobInterruptParams,
+    ) {
+        let ThreadEpiphanyJobInterruptParams {
+            thread_id,
+            expected_revision,
+            binding_id,
+            reason,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+        let interrupted = match thread
+            .epiphany_interrupt_job(EpiphanyJobInterruptRequest {
+                expected_revision,
+                binding_id: binding_id.clone(),
+                reason,
+            })
+            .await
+        {
+            Ok(interrupted) => interrupted,
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to interrupt Epiphany job for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let epiphany_state =
+            client_visible_live_thread_epiphany_state(thread.as_ref(), interrupted.epiphany_state)
+                .await;
+        let state_db_ctx = thread.epiphany_state_runtime().await;
+        let job_resolution =
+            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
+                .await;
+        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+            .into_iter()
+            .find(|job| job.id == binding_id)
+            .unwrap_or_else(|| map_epiphany_specialist_job());
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyJobInterruptResponse {
+                    cancel_requested: interrupted.cancel_requested,
+                    interrupted_thread_ids: interrupted.interrupted_thread_ids.clone(),
+                    revision: epiphany_state.revision,
+                    changed_fields: changed_fields.clone(),
+                    epiphany_state: epiphany_state.clone(),
+                    job,
+                },
+            )
+            .await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::JobInterrupt,
                     revision: epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
@@ -11040,12 +11277,14 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Distill,
         ThreadEpiphanySceneAction::Context,
         ThreadEpiphanySceneAction::Jobs,
+        ThreadEpiphanySceneAction::JobLaunch,
         ThreadEpiphanySceneAction::Freshness,
         ThreadEpiphanySceneAction::Pressure,
         ThreadEpiphanySceneAction::Reorient,
         ThreadEpiphanySceneAction::Update,
     ];
     if state_present {
+        actions.push(ThreadEpiphanySceneAction::JobInterrupt);
         actions.push(ThreadEpiphanySceneAction::Propose);
         actions.push(ThreadEpiphanySceneAction::Promote);
     }
@@ -11982,7 +12221,7 @@ pub(crate) async fn thread_epiphany_jobs_updated_notification_for_agent_job_prog
         return None;
     }
 
-    let state_db_ctx = thread.state_db()?;
+    let state_db_ctx = thread.epiphany_state_runtime().await?;
     let retrieval_override = if state.retrieval.is_none() && binding_ids.contains("retrieval-index")
     {
         Some(thread.epiphany_retrieval_state().await)
@@ -12162,6 +12401,10 @@ fn overlay_epiphany_job_binding(
     }
     if let Some(blocking_reason) = binding.blocking_reason.clone() {
         job.blocking_reason = Some(blocking_reason);
+    }
+    if binding.blocking_reason.is_some() && binding_backend_job_id(binding).is_none() {
+        job.status = ThreadEpiphanyJobStatus::Blocked;
+        return job;
     }
 
     if let Some(snapshot) = snapshot {
@@ -14131,10 +14374,12 @@ mod tests {
                 ThreadEpiphanySceneAction::Distill,
                 ThreadEpiphanySceneAction::Context,
                 ThreadEpiphanySceneAction::Jobs,
+                ThreadEpiphanySceneAction::JobLaunch,
                 ThreadEpiphanySceneAction::Freshness,
                 ThreadEpiphanySceneAction::Pressure,
                 ThreadEpiphanySceneAction::Reorient,
                 ThreadEpiphanySceneAction::Update,
+                ThreadEpiphanySceneAction::JobInterrupt,
                 ThreadEpiphanySceneAction::Propose,
                 ThreadEpiphanySceneAction::Promote,
             ]
@@ -15061,6 +15306,62 @@ mod tests {
                 .blocking_reason
                 .as_deref()
                 .is_some_and(|reason| reason.contains("not found in state runtime"))
+        );
+    }
+
+    #[test]
+    fn map_epiphany_jobs_blocks_binding_after_interrupt_clears_backend() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                id: "specialist-work".to_string(),
+                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                scope: "role-scoped specialist work".to_string(),
+                owner_role: "epiphany-harness".to_string(),
+                launcher_job_id: None,
+                authority_scope: Some("epiphany.specialist".to_string()),
+                backend_kind: None,
+                backend_job_id: None,
+                runtime_agent_job_id: None,
+                linked_subgoal_ids: vec!["phase-6".to_string()],
+                linked_graph_node_ids: vec!["job-control".to_string()],
+                progress_note: None,
+                blocking_reason: Some(
+                    "No active runtime backend is currently bound; launch explicitly to resume specialist work."
+                        .to_string(),
+                ),
+            }],
+            ..Default::default()
+        };
+
+        let jobs = map_epiphany_jobs(
+            Some(&state),
+            None,
+            &EpiphanyJobLauncherResolution::default(),
+        );
+        let specialist = jobs
+            .iter()
+            .find(|job| job.id == "specialist-work")
+            .expect("specialist slot should exist");
+
+        assert_eq!(specialist.status, ThreadEpiphanyJobStatus::Blocked);
+        assert_eq!(
+            specialist.authority_scope.as_deref(),
+            Some("epiphany.specialist")
+        );
+        assert_eq!(specialist.launcher_job_id, None);
+        assert_eq!(specialist.backend_kind, None);
+        assert_eq!(specialist.backend_job_id, None);
+        assert_eq!(specialist.runtime_agent_job_id, None);
+        assert_eq!(specialist.linked_subgoal_ids, vec!["phase-6".to_string()]);
+        assert_eq!(
+            specialist.linked_graph_node_ids,
+            vec!["job-control".to_string()]
+        );
+        assert!(
+            specialist
+                .blocking_reason
+                .as_deref()
+                .is_some_and(|reason| reason.contains("launch explicitly"))
         );
     }
 

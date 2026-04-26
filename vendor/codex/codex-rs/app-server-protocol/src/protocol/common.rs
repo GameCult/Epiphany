@@ -386,6 +386,16 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyPromoteParams,
         response: v2::ThreadEpiphanyPromoteResponse,
     },
+    #[experimental("thread/epiphany/jobLaunch")]
+    ThreadEpiphanyJobLaunch => "thread/epiphany/jobLaunch" {
+        params: v2::ThreadEpiphanyJobLaunchParams,
+        response: v2::ThreadEpiphanyJobLaunchResponse,
+    },
+    #[experimental("thread/epiphany/jobInterrupt")]
+    ThreadEpiphanyJobInterrupt => "thread/epiphany/jobInterrupt" {
+        params: v2::ThreadEpiphanyJobInterruptParams,
+        response: v2::ThreadEpiphanyJobInterruptResponse,
+    },
     #[experimental("thread/epiphany/update")]
     ThreadEpiphanyUpdate => "thread/epiphany/update" {
         params: v2::ThreadEpiphanyUpdateParams,
@@ -1696,10 +1706,12 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Distill,
                         v2::ThreadEpiphanySceneAction::Context,
                         v2::ThreadEpiphanySceneAction::Jobs,
+                        v2::ThreadEpiphanySceneAction::JobLaunch,
                         v2::ThreadEpiphanySceneAction::Freshness,
                         v2::ThreadEpiphanySceneAction::Pressure,
                         v2::ThreadEpiphanySceneAction::Reorient,
                         v2::ThreadEpiphanySceneAction::Update,
+                        v2::ThreadEpiphanySceneAction::JobInterrupt,
                         v2::ThreadEpiphanySceneAction::Propose,
                         v2::ThreadEpiphanySceneAction::Promote,
                     ],
@@ -1793,10 +1805,12 @@ mod tests {
                             "distill",
                             "context",
                             "jobs",
+                            "jobLaunch",
                             "freshness",
                             "pressure",
                             "reorient",
                             "update",
+                            "jobInterrupt",
                             "propose",
                             "promote"
                         ]
@@ -2487,6 +2501,194 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_job_launch_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyJobLaunch {
+            request_id: RequestId::Integer(12),
+            response: v2::ThreadEpiphanyJobLaunchResponse {
+                revision: 3,
+                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 3,
+                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                        id: "specialist-work".to_string(),
+                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        scope: "role-scoped specialist work".to_string(),
+                        owner_role: "epiphany-harness".to_string(),
+                        launcher_job_id: Some("launcher-specialist".to_string()),
+                        authority_scope: Some("epiphany.specialist".to_string()),
+                        backend_kind: Some(
+                            codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs,
+                        ),
+                        backend_job_id: Some("job-123".to_string()),
+                        runtime_agent_job_id: Some("job-123".to_string()),
+                        linked_subgoal_ids: Vec::new(),
+                        linked_graph_node_ids: Vec::new(),
+                        progress_note: Some("Launched explicitly.".to_string()),
+                        blocking_reason: None,
+                    }],
+                    ..Default::default()
+                },
+                job: v2::ThreadEpiphanyJob {
+                    id: "specialist-work".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "role-scoped specialist work".to_string(),
+                    owner_role: "epiphany-harness".to_string(),
+                    launcher_job_id: Some("launcher-specialist".to_string()),
+                    authority_scope: Some("epiphany.specialist".to_string()),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_job_id: Some("job-123".to_string()),
+                    status: v2::ThreadEpiphanyJobStatus::Pending,
+                    runtime_agent_job_id: Some("job-123".to_string()),
+                    items_processed: None,
+                    items_total: None,
+                    progress_note: Some("Runtime agent job is pending.".to_string()),
+                    last_checkpoint_at_unix_seconds: None,
+                    blocking_reason: None,
+                    active_thread_ids: Vec::new(),
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(12));
+        assert_eq!(response.method(), "thread/epiphany/jobLaunch");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/jobLaunch",
+                "id": 12,
+                "response": {
+                    "revision": 3,
+                    "changedFields": ["jobBindings"],
+                    "epiphanyState": {
+                        "revision": 3,
+                        "job_bindings": [{
+                            "id": "specialist-work",
+                            "kind": "specialist",
+                            "scope": "role-scoped specialist work",
+                            "owner_role": "epiphany-harness",
+                            "launcher_job_id": "launcher-specialist",
+                            "authority_scope": "epiphany.specialist",
+                            "backend_kind": "agent_jobs",
+                            "backend_job_id": "job-123",
+                            "runtime_agent_job_id": "job-123",
+                            "progress_note": "Launched explicitly."
+                        }]
+                    },
+                    "job": {
+                        "id": "specialist-work",
+                        "kind": "specialist",
+                        "scope": "role-scoped specialist work",
+                        "ownerRole": "epiphany-harness",
+                        "launcherJobId": "launcher-specialist",
+                        "authorityScope": "epiphany.specialist",
+                        "backendKind": "agentJobs",
+                        "backendJobId": "job-123",
+                        "status": "pending",
+                        "runtimeAgentJobId": "job-123",
+                        "progressNote": "Runtime agent job is pending."
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_job_interrupt_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyJobInterrupt {
+            request_id: RequestId::Integer(13),
+            response: v2::ThreadEpiphanyJobInterruptResponse {
+                cancel_requested: true,
+                interrupted_thread_ids: vec!["worker-thread-1".to_string()],
+                revision: 4,
+                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 4,
+                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                        id: "specialist-work".to_string(),
+                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        scope: "role-scoped specialist work".to_string(),
+                        owner_role: "epiphany-harness".to_string(),
+                        launcher_job_id: None,
+                        authority_scope: Some("epiphany.specialist".to_string()),
+                        backend_kind: None,
+                        backend_job_id: None,
+                        runtime_agent_job_id: None,
+                        linked_subgoal_ids: Vec::new(),
+                        linked_graph_node_ids: Vec::new(),
+                        progress_note: None,
+                        blocking_reason: Some(
+                            "Launch explicitly to resume specialist work.".to_string(),
+                        ),
+                    }],
+                    ..Default::default()
+                },
+                job: v2::ThreadEpiphanyJob {
+                    id: "specialist-work".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "role-scoped specialist work".to_string(),
+                    owner_role: "epiphany-harness".to_string(),
+                    launcher_job_id: None,
+                    authority_scope: Some("epiphany.specialist".to_string()),
+                    backend_kind: None,
+                    backend_job_id: None,
+                    status: v2::ThreadEpiphanyJobStatus::Blocked,
+                    runtime_agent_job_id: None,
+                    items_processed: None,
+                    items_total: None,
+                    progress_note: None,
+                    last_checkpoint_at_unix_seconds: None,
+                    blocking_reason: Some(
+                        "Launch explicitly to resume specialist work.".to_string(),
+                    ),
+                    active_thread_ids: Vec::new(),
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(13));
+        assert_eq!(response.method(), "thread/epiphany/jobInterrupt");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/jobInterrupt",
+                "id": 13,
+                "response": {
+                    "cancelRequested": true,
+                    "interruptedThreadIds": ["worker-thread-1"],
+                    "revision": 4,
+                    "changedFields": ["jobBindings"],
+                    "epiphanyState": {
+                        "revision": 4,
+                        "job_bindings": [{
+                            "id": "specialist-work",
+                            "kind": "specialist",
+                            "scope": "role-scoped specialist work",
+                            "owner_role": "epiphany-harness",
+                            "authority_scope": "epiphany.specialist",
+                            "blocking_reason": "Launch explicitly to resume specialist work."
+                        }]
+                    },
+                    "job": {
+                        "id": "specialist-work",
+                        "kind": "specialist",
+                        "scope": "role-scoped specialist work",
+                        "ownerRole": "epiphany-harness",
+                        "authorityScope": "epiphany.specialist",
+                        "status": "blocked",
+                        "blockingReason": "Launch explicitly to resume specialist work."
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_thread_epiphany_update_response() -> Result<()> {
         let response = ClientResponse::ThreadEpiphanyUpdate {
             request_id: RequestId::Integer(12),
@@ -2550,6 +2752,38 @@ mod tests {
                     "epiphanyState": {
                         "revision": 7,
                         "objective": "Keep the map live"
+                    }
+                }
+            }),
+            serde_json::to_value(&notification)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_state_updated_job_launch_notification() -> Result<()> {
+        let notification = ServerNotification::ThreadEpiphanyStateUpdated(
+            v2::ThreadEpiphanyStateUpdatedNotification {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                revision: 8,
+                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 8,
+                    ..Default::default()
+                },
+            },
+        );
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/stateUpdated",
+                "params": {
+                    "threadId": "thr_123",
+                    "source": "jobLaunch",
+                    "revision": 8,
+                    "changedFields": ["jobBindings"],
+                    "epiphanyState": {
+                        "revision": 8
                     }
                 }
             }),
@@ -3275,6 +3509,45 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/promote"));
+    }
+
+    #[test]
+    fn thread_epiphany_job_launch_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyJobLaunch {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyJobLaunchParams {
+                thread_id: "thr_123".to_string(),
+                expected_revision: Some(2),
+                binding_id: "specialist-work".to_string(),
+                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                scope: "role-scoped specialist work".to_string(),
+                owner_role: "epiphany-harness".to_string(),
+                authority_scope: "epiphany.specialist".to_string(),
+                linked_subgoal_ids: vec!["phase6".to_string()],
+                linked_graph_node_ids: vec!["job-surface".to_string()],
+                instruction: "Summarize the bound specialist task.".to_string(),
+                input_json: json!({"task": "smoke"}),
+                output_schema_json: None,
+                max_runtime_seconds: Some(30),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/jobLaunch"));
+    }
+
+    #[test]
+    fn thread_epiphany_job_interrupt_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyJobInterrupt {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyJobInterruptParams {
+                thread_id: "thr_123".to_string(),
+                expected_revision: Some(3),
+                binding_id: "specialist-work".to_string(),
+                reason: Some("Stop the specialist smoke job.".to_string()),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/jobInterrupt"));
     }
 
     #[test]

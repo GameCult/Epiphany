@@ -15980,6 +15980,8 @@
           "distill",
           "context",
           "jobs",
+          "jobLaunch",
+          "jobInterrupt",
           "freshness",
           "pressure",
           "reorient",
@@ -16379,7 +16381,9 @@
       "ThreadEpiphanyStateUpdatedSource": {
         "enum": [
           "update",
-          "promote"
+          "promote",
+          "jobLaunch",
+          "jobInterrupt"
         ],
         "type": "string"
       },

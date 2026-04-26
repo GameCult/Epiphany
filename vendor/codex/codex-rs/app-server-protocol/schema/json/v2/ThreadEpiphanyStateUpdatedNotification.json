@@ -905,7 +905,9 @@
     "ThreadEpiphanyStateUpdatedSource": {
       "enum": [
         "update",
-        "promote"
+        "promote",
+        "jobLaunch",
+        "jobInterrupt"
       ],
       "type": "string"
     }
