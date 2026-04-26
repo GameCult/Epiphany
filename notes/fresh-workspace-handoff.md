@@ -29,6 +29,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
 - Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/context`, and `thread/epiphany/pressure`; all four have live app-server smoke coverage.
+- Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -64,6 +65,7 @@ The current spine:
 - read-only job/progress reflection through `thread/epiphany/jobs`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only context-pressure reflection through `thread/epiphany/pressure`
+- durable investigation checkpoint packet through typed state, prompt, scene, and context
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
@@ -161,14 +163,18 @@ The Phase 6 context-pressure slice is landed. It exposes read-only
 auto-compact/context limits. It does not build automatic CRRC, a scheduler, a
 hidden compaction trigger, or a vibes-based gauge.
 
-When the user asks to continue, choose the next Phase 6 slice from the current
-map: likely in-flight investigation checkpointing for compaction-safe planning,
-watcher/freshness inputs, or live progress notifications once real job owners
-exist.
+The Phase 6 investigation-checkpoint slice is also landed. It banks an
+authoritative planning/source-gathering packet in typed state, validates linked
+evidence, and reflects the packet into prompt/scene/context so post-compaction
+wakeups can tell whether they have a real ember or only ash.
 
-Also keep the newly surfaced guardrail in mind: a pressure signal alone is not
-enough. Automatic CRRC needs an in-flight investigation checkpoint so compaction
-during source-gathering/planning does not wake into false continuity.
+When the user asks to continue, choose the next Phase 6 slice from the current
+map: watcher/freshness inputs are the most likely next organ, with live
+progress notifications waiting until real job owners exist.
+
+Also keep the guardrail in mind: pressure plus a checkpoint packet is still not
+automatic CRRC. Runtime coordination, reorientation policy, and next-action
+selection are still future work.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
 `thread/epiphany/context`, and `thread/epiphany/pressure` smokes are now
@@ -180,7 +186,7 @@ guardrails, not the next organs.
 - automatic observation promotion
 - specialist-agent scheduling
 - GUI-as-source-of-truth
-- automatic runtime CRRC coordinator using the landed context-pressure telemetry
+- automatic runtime CRRC coordinator using the landed context-pressure telemetry and investigation checkpoints
 - live long-running job execution or `thread/epiphany/jobsUpdated`
 - broad event stream beyond the landed state update notification
 

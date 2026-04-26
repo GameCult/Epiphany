@@ -5,6 +5,7 @@ use codex_protocol::protocol::EpiphanyGraphCheckpoint;
 use codex_protocol::protocol::EpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant;
+use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanySubgoal;
 use std::collections::HashSet;
@@ -18,6 +19,7 @@ pub struct EpiphanyPromotionInput {
     pub graphs: Option<EpiphanyGraphs>,
     pub graph_frontier: Option<EpiphanyGraphFrontier>,
     pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
+    pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub churn: Option<EpiphanyChurnState>,
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
@@ -38,6 +40,8 @@ pub struct EpiphanyStateReplacementValidationInput<'a> {
     pub graphs: Option<&'a EpiphanyGraphs>,
     pub graph_frontier: Option<&'a EpiphanyGraphFrontier>,
     pub graph_checkpoint: Option<&'a EpiphanyGraphCheckpoint>,
+    pub investigation_checkpoint: Option<&'a EpiphanyInvestigationCheckpoint>,
+    pub available_evidence_ids: Option<&'a HashSet<&'a str>>,
     pub churn: Option<&'a EpiphanyChurnState>,
 }
 
@@ -101,6 +105,8 @@ pub fn evaluate_promotion(input: EpiphanyPromotionInput) -> EpiphanyPromotionDec
             graphs: input.graphs.as_ref(),
             graph_frontier: input.graph_frontier.as_ref(),
             graph_checkpoint: input.graph_checkpoint.as_ref(),
+            investigation_checkpoint: input.investigation_checkpoint.as_ref(),
+            available_evidence_ids: Some(&evidence_ids),
             churn: input.churn.as_ref(),
         },
         &mut reasons,
@@ -181,6 +187,9 @@ fn validate_state_replacements(
         if let Some(checkpoint) = input.graph_checkpoint {
             validate_checkpoint_shape(checkpoint, reasons);
         }
+    }
+    if let Some(checkpoint) = input.investigation_checkpoint {
+        validate_investigation_checkpoint(checkpoint, input.available_evidence_ids, reasons);
     }
     if let Some(churn) = input.churn {
         validate_churn(churn, reasons);
@@ -450,6 +459,67 @@ fn validate_churn(churn: &EpiphanyChurnState, reasons: &mut Vec<String>) {
     require_nonempty(&churn.diff_pressure, "patch.churn.diff_pressure", reasons);
 }
 
+fn validate_investigation_checkpoint(
+    checkpoint: &EpiphanyInvestigationCheckpoint,
+    available_evidence_ids: Option<&HashSet<&str>>,
+    reasons: &mut Vec<String>,
+) {
+    require_nonempty(
+        &checkpoint.checkpoint_id,
+        "patch.investigation_checkpoint.checkpoint_id",
+        reasons,
+    );
+    require_nonempty(
+        &checkpoint.kind,
+        "patch.investigation_checkpoint.kind",
+        reasons,
+    );
+    require_nonempty(
+        &checkpoint.focus,
+        "patch.investigation_checkpoint.focus",
+        reasons,
+    );
+    if let Some(summary) = checkpoint.summary.as_deref() {
+        require_nonempty(summary, "patch.investigation_checkpoint.summary", reasons);
+    }
+    if let Some(next_action) = checkpoint.next_action.as_deref() {
+        require_nonempty(
+            next_action,
+            "patch.investigation_checkpoint.next_action",
+            reasons,
+        );
+    } else {
+        reasons.push("patch.investigation_checkpoint.next_action must not be empty".to_string());
+    }
+    if let Some(turn_id) = checkpoint.captured_at_turn_id.as_deref() {
+        require_nonempty(
+            turn_id,
+            "patch.investigation_checkpoint.captured_at_turn_id",
+            reasons,
+        );
+    }
+    require_unique_nonempty(
+        "patch.investigation_checkpoint.open_questions",
+        checkpoint.open_questions.iter().map(String::as_str),
+        reasons,
+    );
+    require_unique_nonempty(
+        "patch.investigation_checkpoint.evidence_ids",
+        checkpoint.evidence_ids.iter().map(String::as_str),
+        reasons,
+    );
+    if let Some(available_evidence_ids) = available_evidence_ids {
+        for evidence_id in &checkpoint.evidence_ids {
+            if !available_evidence_ids.contains(evidence_id.as_str()) {
+                reasons.push(format!(
+                    "investigation checkpoint cites missing evidence id {:?}",
+                    evidence_id
+                ));
+            }
+        }
+    }
+}
+
 fn graph_node_ids(graphs: &EpiphanyGraphs) -> HashSet<&str> {
     graphs
         .architecture
@@ -584,6 +654,7 @@ mod tests {
             graphs: None,
             graph_frontier: None,
             graph_checkpoint: None,
+            investigation_checkpoint: None,
             churn: None,
             observations,
             evidence,
@@ -627,6 +698,7 @@ mod tests {
             graphs: None,
             graph_frontier: None,
             graph_checkpoint: None,
+            investigation_checkpoint: None,
             churn: None,
             observations: vec![EpiphanyObservation {
                 id: "obs-1".to_string(),
@@ -728,6 +800,8 @@ mod tests {
             graphs: Some(&graphs),
             graph_frontier: Some(&frontier),
             graph_checkpoint: None,
+            investigation_checkpoint: None,
+            available_evidence_ids: None,
             churn: None,
         });
 
@@ -735,6 +809,37 @@ mod tests {
             reasons
                 .iter()
                 .any(|reason| reason.contains("graph frontier references missing node"))
+        );
+    }
+
+    #[test]
+    fn validate_state_replacement_patch_rejects_investigation_checkpoint_with_missing_evidence() {
+        let checkpoint = EpiphanyInvestigationCheckpoint {
+            checkpoint_id: "ix-1".to_string(),
+            kind: "source_gathering".to_string(),
+            focus: "Trace the compaction seam.".to_string(),
+            next_action: Some("Re-gather source before editing.".to_string()),
+            evidence_ids: vec!["ev-missing".to_string()],
+            ..Default::default()
+        };
+
+        let available_evidence_ids = HashSet::from(["ev-present"]);
+        let reasons = validate_state_replacement_patch(EpiphanyStateReplacementValidationInput {
+            active_subgoal_id: None,
+            subgoals: None,
+            invariants: None,
+            graphs: None,
+            graph_frontier: None,
+            graph_checkpoint: None,
+            investigation_checkpoint: Some(&checkpoint),
+            available_evidence_ids: Some(&available_evidence_ids),
+            churn: None,
+        });
+
+        assert!(
+            reasons
+                .iter()
+                .any(|reason| reason.contains("missing evidence id"))
         );
     }
 
@@ -761,6 +866,23 @@ mod tests {
                 understanding_status: "grounded".to_string(),
                 diff_pressure: "low".to_string(),
                 graph_freshness: Some("fresh".to_string()),
+                ..Default::default()
+            }),
+            ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
+        });
+
+        assert!(decision.accepted, "{:?}", decision.reasons);
+    }
+
+    #[test]
+    fn evaluate_promotion_accepts_investigation_checkpoint_when_backed_by_evidence() {
+        let decision = evaluate_promotion(EpiphanyPromotionInput {
+            investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
+                checkpoint_id: "ix-2".to_string(),
+                kind: "slice_planning".to_string(),
+                focus: "Map the next bounded edit before compaction.".to_string(),
+                next_action: Some("Resume from this packet if pressure stays stable.".to_string()),
+                evidence_ids: vec!["ev-1".to_string()],
                 ..Default::default()
             }),
             ..promotion_input(true, vec![observation()], vec![evidence()], "ok")

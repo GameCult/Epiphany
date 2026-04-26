@@ -67,6 +67,8 @@ use codex_protocol::protocol::EpiphanyGraphLink as CoreEpiphanyGraphLink;
 use codex_protocol::protocol::EpiphanyGraphNode as CoreEpiphanyGraphNode;
 use codex_protocol::protocol::EpiphanyGraphs as CoreEpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant as CoreEpiphanyInvariant;
+use codex_protocol::protocol::EpiphanyInvestigationCheckpoint as CoreEpiphanyInvestigationCheckpoint;
+use codex_protocol::protocol::EpiphanyInvestigationDisposition as CoreEpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalStatus as CoreEpiphanyRetrievalStatus;
@@ -3956,6 +3958,9 @@ pub struct ThreadEpiphanyScene {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub retrieval: Option<ThreadEpiphanySceneRetrieval>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub investigation_checkpoint: Option<ThreadEpiphanySceneInvestigationCheckpoint>,
     pub observations: ThreadEpiphanySceneRecords,
     pub evidence: ThreadEpiphanySceneRecords,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -4060,6 +4065,28 @@ pub struct ThreadEpiphanySceneRetrieval {
     pub indexed_chunk_count: Option<u32>,
     pub shard_count: u32,
     pub dirty_path_count: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanySceneInvestigationCheckpoint {
+    pub checkpoint_id: String,
+    pub kind: String,
+    pub disposition: CoreEpiphanyInvestigationDisposition,
+    pub focus: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub next_action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub captured_at_turn_id: Option<String>,
+    pub open_question_count: u32,
+    pub code_ref_count: u32,
+    pub evidence_count: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS, Default)]
@@ -4242,6 +4269,9 @@ pub struct ThreadEpiphanyContext {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub checkpoint: Option<CoreEpiphanyGraphCheckpoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub investigation_checkpoint: Option<CoreEpiphanyInvestigationCheckpoint>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observations: Vec<CoreEpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -4480,6 +4510,9 @@ pub struct ThreadEpiphanyUpdatePatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub scratch: Option<CoreEpiphanyScratchPad>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub investigation_checkpoint: Option<CoreEpiphanyInvestigationCheckpoint>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observations: Vec<CoreEpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -4532,6 +4565,7 @@ pub enum ThreadEpiphanyStateUpdatedField {
     GraphFrontier,
     GraphCheckpoint,
     Scratch,
+    InvestigationCheckpoint,
     Observations,
     Evidence,
     Churn,

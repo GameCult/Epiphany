@@ -29,6 +29,18 @@ def context_patch() -> dict[str, Any]:
     return {
         "objective": "Expose a read-only Epiphany context shard without returning the full state.",
         "activeSubgoalId": "phase6-context-smoke",
+        "investigationCheckpoint": {
+            "checkpoint_id": "phase6-context-investigation",
+            "kind": "source_gathering",
+            "disposition": "regather_required",
+            "focus": "Make stale planning obvious when context is re-read after compaction.",
+            "summary": "Context reflection should expose the full durable checkpoint packet.",
+            "next_action": "Re-gather source before editing if the packet no longer matches reality.",
+            "captured_at_turn_id": "turn-phase6-context",
+            "open_questions": ["How much checkpoint detail belongs in scene versus context?"],
+            "code_refs": [CONTEXT_CODE_REF],
+            "evidence_ids": ["ev-context-linked"],
+        },
         "subgoals": [
             {
                 "id": "phase6-context-smoke",
@@ -154,6 +166,15 @@ def assert_ready_context(response: dict[str, Any]) -> None:
         "context should expose the current graph checkpoint",
     )
     require(
+        response["context"]["investigationCheckpoint"]["checkpoint_id"]
+        == "phase6-context-investigation",
+        "context should expose the investigation checkpoint id",
+    )
+    require(
+        response["context"]["investigationCheckpoint"]["disposition"] == "regather_required",
+        "context should expose the checkpoint disposition",
+    )
+    require(
         [record["id"] for record in response["context"]["observations"]] == ["obs-context"],
         "context should include requested observation",
     )
@@ -265,6 +286,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "readyRevision": ready_response["stateRevision"],
             "architectureNodeIds": [
                 node["id"] for node in ready_response["context"]["graph"]["architectureNodes"]
+            ],
+            "investigationCheckpointId": ready_response["context"]["investigationCheckpoint"][
+                "checkpoint_id"
+            ],
+            "investigationDisposition": ready_response["context"]["investigationCheckpoint"][
+                "disposition"
             ],
             "evidenceIds": [record["id"] for record in ready_response["context"]["evidence"]],
             "contextNotificationCount": client.count_notifications(

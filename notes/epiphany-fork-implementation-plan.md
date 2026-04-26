@@ -63,6 +63,7 @@ The landed machine now has:
 - live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
 - live Phase 6 pressure app-server smoke coverage in `tools/epiphany_phase6_pressure_smoke.py`
+- durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 
@@ -117,8 +118,8 @@ The next unknowns are:
 
 - how to expose live long-running job progress without making the GUI authoritative
 - when watcher-driven invalidation becomes necessary instead of merely tempting
-- how to checkpoint in-flight source gathering and slice planning before automatic CRRC so post-compaction agents do not continue from false continuity
-- how much automatic CRRC coordination belongs in runtime before it becomes ceremony machinery
+- how the landed investigation checkpoint should be consumed by future automatic CRRC without becoming ceremony machinery
+- how much automatic CRRC coordination belongs in runtime once pressure and checkpoint signals both exist
 - what Phase 6 should prove before specialist scheduling begins
 
 ## Phase 6 Direction
@@ -129,7 +130,7 @@ Useful candidates:
 
 1. Add watcher/freshness inputs when stale graph or retrieval state needs earlier warning.
 2. Add live job progress notifications only after there is a real long-running owner to report.
-3. Add targeted scene/jobs/context/pressure fields only when a client or smoke exposes a real gap.
+3. Add targeted scene/jobs/context/pressure/checkpoint fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -145,7 +146,6 @@ These remain later work:
 - role-scoped specialist-agent registry and scheduling
 - mutation gates that warn or block broad writes when map freshness is stale
 - automatic CRRC runtime coordination on top of the landed typed context-pressure telemetry
-- in-flight investigation checkpointing for compaction-safe planning
 - GUI workflows for graph, evidence, job, invariant, and frontier steering
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a

@@ -35,9 +35,9 @@ The rule is:
 
 | Surface | Kind | Status | Role |
 | --- | --- | --- | --- |
-| `EpiphanyThreadState` | protocol/core state | landed | Authoritative typed model of objective, subgoals, invariants, graphs, retrieval, evidence, scratch, churn, and mode. |
+| `EpiphanyThreadState` | protocol/core state | landed | Authoritative typed model of objective, subgoals, invariants, graphs, retrieval, investigation checkpoint, evidence, scratch, churn, and mode. |
 | `RolloutItem::EpiphanyState` | persistence | landed | Durable snapshot for resume, fork, rollback, and compaction-safe reconstruction. |
-| `<epiphany_state>` prompt fragment | prompt input | landed | Bounded developer-context summary rendered from typed state. |
+| `<epiphany_state>` prompt fragment | prompt input | landed | Bounded developer-context summary rendered from typed state, including the durable investigation packet when present. |
 | `Thread.epiphanyState` | client read | landed | Typed state on hydrated thread payloads. |
 | `thread/epiphany/retrieve` | read-only query | landed | Hybrid repo retrieval; exact/path plus semantic BM25/Qdrant when available. |
 | `thread/epiphany/index` | retrieval catalog write | landed | Explicit semantic indexing path; updates retrieval catalog, not durable Epiphany understanding. |
@@ -46,9 +46,10 @@ The rule is:
 | `thread/epiphany/propose` | read-only proposal | landed | Drafts graph/frontier/churn candidates from verified evidence-backed observations. |
 | `thread/epiphany/promote` | verifier gate | landed | Rejects or applies candidates through the durable update path. |
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
-| `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state. |
+| `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries. |
-| `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, checkpoint, observations, and evidence. |
+| `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
+| `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
 
 ## Write Authority
 
@@ -68,6 +69,7 @@ The following must stay read-only:
 - `thread/epiphany/scene`
 - `thread/epiphany/jobs`
 - `thread/epiphany/context`
+- `thread/epiphany/pressure`
 
 `thread/epiphany/index` is a write to the retrieval catalog. It is not a
 license to mutate map/evidence/churn state as a side effect.
@@ -100,6 +102,7 @@ The important categories are:
 - architecture/dataflow graphs
 - graph frontier and checkpoint
 - retrieval summary
+- investigation checkpoint
 - scratch
 - observations
 - recent evidence
@@ -179,6 +182,7 @@ It selects from existing typed state only:
 - graph edges by id plus incident edges for selected nodes
 - graph links touching selected nodes
 - active frontier and current graph checkpoint
+- full durable investigation checkpoint packet when present
 - observations by id
 - evidence by id plus evidence linked from selected observations by default
 - missing requested or active-frontier ids, so clients do not have to guess whether a shard was empty or stale
@@ -207,10 +211,12 @@ Future runtime behavior should:
 - distinguish what survived from what was discarded
 - make compaction visible instead of pretending continuity is magic
 
-Until that signal exists, agents can only infer pressure from indirect cues:
-long transcripts, compaction warnings, quota pressure, and a shrinking safe
-landing zone. That is a scar, not a sensor. Automatic CRRC needs typed
-pressure/freshness telemetry instead of vibes with a clipboard.
+The pressure signal now exists as `thread/epiphany/pressure`, and durable
+investigation packets now exist in typed state plus prompt/scene/context
+reflection. What does not exist yet is the runtime coordinator that consumes
+those signals. Automatic CRRC still needs typed freshness/invalidity telemetry
+and an explicit policy for when a checkpoint means "resume" versus "re-gather"
+instead of vibes with a clipboard.
 
 Compaction should squeeze scratch, not the map.
 

@@ -50,6 +50,20 @@ def initial_scene_patch() -> dict[str, Any]:
     return {
         "objective": "Expose live Epiphany scene reflection without creating a second source of truth.",
         "activeSubgoalId": "phase6-scene-smoke",
+        "investigationCheckpoint": {
+            "checkpoint_id": "phase6-scene-investigation",
+            "kind": "slice_planning",
+            "disposition": "resume_ready",
+            "focus": "Bank the active scene-smoke packet before the lights go out.",
+            "summary": "Scene reflection should surface the durable investigation packet.",
+            "next_action": "Patch the remaining smoke coverage and rerun the focused verifier pass.",
+            "captured_at_turn_id": "turn-phase6-scene",
+            "open_questions": [
+                "Should scene reflection compress checkpoint counts or expose full detail?"
+            ],
+            "code_refs": [MAPPER_CODE_REF],
+            "evidence_ids": ["ev-phase6-scene-1"],
+        },
         "subgoals": [
             {
                 "id": "phase6-scene-smoke",
@@ -166,6 +180,14 @@ def assert_ready_scene(scene: dict[str, Any], expected_revision: int) -> None:
     require(
         scene["graph"]["checkpointId"] == "phase6-scene-smoke",
         "scene should expose graph checkpoint",
+    )
+    require(
+        scene["investigationCheckpoint"]["checkpointId"] == "phase6-scene-investigation",
+        "scene should expose the investigation checkpoint id",
+    )
+    require(
+        scene["investigationCheckpoint"]["disposition"] == "resume_ready",
+        "scene should expose the checkpoint disposition",
     )
     require(
         scene["retrieval"]["workspaceRoot"].endswith("epiphany-core"),
@@ -320,6 +342,12 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "readySource": ready_response["scene"]["source"],
             "readyRevision": ready_response["scene"]["revision"],
             "readyAvailableActions": ready_response["scene"]["availableActions"],
+            "investigationCheckpointId": ready_response["scene"]["investigationCheckpoint"][
+                "checkpointId"
+            ],
+            "investigationDisposition": ready_response["scene"]["investigationCheckpoint"][
+                "disposition"
+            ],
             "latestObservationIds": [
                 record["id"] for record in ready_response["scene"]["observations"]["latest"]
             ],

@@ -3017,6 +3017,9 @@ pub struct EpiphanyThreadState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "EpiphanyScratchPad | null")]
     pub scratch: Option<EpiphanyScratchPad>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "EpiphanyInvestigationCheckpoint | null")]
+    pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyObservation>")]
     pub observations: Vec<EpiphanyObservation>,
@@ -3256,6 +3259,41 @@ pub struct EpiphanyScratchPad {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub notes: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum EpiphanyInvestigationDisposition {
+    #[default]
+    ResumeReady,
+    RegatherRequired,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyInvestigationCheckpoint {
+    pub checkpoint_id: String,
+    pub kind: String,
+    pub disposition: EpiphanyInvestigationDisposition,
+    pub focus: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub next_action: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub captured_at_turn_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub open_questions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyCodeRef>")]
+    pub code_refs: Vec<EpiphanyCodeRef>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub evidence_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]

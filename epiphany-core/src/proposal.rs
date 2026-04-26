@@ -1661,6 +1661,7 @@ mod tests {
             graphs: Some(proposal.graphs),
             graph_frontier: Some(proposal.graph_frontier),
             graph_checkpoint: None,
+            investigation_checkpoint: None,
             churn: Some(proposal.churn),
             observations: vec![proposal.observation],
             evidence: vec![proposal.evidence],

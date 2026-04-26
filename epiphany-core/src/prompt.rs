@@ -7,6 +7,8 @@ use codex_protocol::protocol::EpiphanyGraphEdge;
 use codex_protocol::protocol::EpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphLink;
 use codex_protocol::protocol::EpiphanyGraphNode;
+use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
+use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyScratchPad;
@@ -50,6 +52,11 @@ pub fn render_epiphany_state(state: &EpiphanyThreadState) -> String {
     }
     if let Some(graphs) = render_graphs(state) {
         sections.push(graphs);
+    }
+    if let Some(checkpoint) =
+        render_investigation_checkpoint(state.investigation_checkpoint.as_ref())
+    {
+        sections.push(checkpoint);
     }
     if let Some(scratch) = render_scratch(state.scratch.as_ref()) {
         sections.push(scratch);
@@ -393,6 +400,56 @@ fn render_scratch(scratch: Option<&EpiphanyScratchPad>) -> Option<String> {
     }
 }
 
+fn render_investigation_checkpoint(
+    checkpoint: Option<&EpiphanyInvestigationCheckpoint>,
+) -> Option<String> {
+    let checkpoint = checkpoint?;
+    let mut lines = vec![
+        format!("- Id: `{}`", checkpoint.checkpoint_id),
+        format!("- Kind: {}", compact_text(&checkpoint.kind)),
+        format!(
+            "- Disposition: {}",
+            match checkpoint.disposition {
+                EpiphanyInvestigationDisposition::ResumeReady => "resume_ready",
+                EpiphanyInvestigationDisposition::RegatherRequired => "regather_required",
+            }
+        ),
+        format!("- Focus: {}", compact_text(&checkpoint.focus)),
+    ];
+    if let Some(summary) = checkpoint.summary.as_deref() {
+        lines.push(format!("- Summary: {}", compact_text(summary)));
+    }
+    if let Some(next_action) = checkpoint.next_action.as_deref() {
+        lines.push(format!("- Next action: {}", compact_text(next_action)));
+    }
+    if let Some(turn_id) = checkpoint.captured_at_turn_id.as_deref() {
+        lines.push(format!("- Captured at turn: `{turn_id}`"));
+    }
+    if !checkpoint.open_questions.is_empty() {
+        lines.push(format!(
+            "- Open questions: {}",
+            checkpoint
+                .open_questions
+                .iter()
+                .map(|question| compact_text(question))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        ));
+    }
+    if !checkpoint.evidence_ids.is_empty() {
+        lines.push(format!(
+            "- Evidence ids: {}",
+            render_inline_ids(&checkpoint.evidence_ids)
+        ));
+    }
+    let code_refs = render_code_refs(&checkpoint.code_refs);
+    if !code_refs.is_empty() {
+        lines.push(format!("- Code refs: {}", code_refs.join(", ")));
+    }
+
+    Some(format!("## Investigation Checkpoint\n{}", lines.join("\n")))
+}
+
 fn render_observations(observations: &[EpiphanyObservation]) -> Option<String> {
     if observations.is_empty() {
         return None;
@@ -675,6 +732,8 @@ mod tests {
     use codex_protocol::protocol::EpiphanyGraphFrontier;
     use codex_protocol::protocol::EpiphanyGraphNode;
     use codex_protocol::protocol::EpiphanyGraphs;
+    use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
+    use codex_protocol::protocol::EpiphanyInvestigationDisposition;
     use codex_protocol::protocol::EpiphanyModeState;
     use codex_protocol::protocol::EpiphanyThreadState;
     use std::path::PathBuf;
@@ -754,6 +813,27 @@ mod tests {
                 frontier_node_ids: vec!["arch-session".to_string()],
                 ..Default::default()
             }),
+            investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
+                checkpoint_id: "ix-1".to_string(),
+                kind: "slice_planning".to_string(),
+                disposition: EpiphanyInvestigationDisposition::ResumeReady,
+                focus: "Map the state update seam before broad edits.".to_string(),
+                next_action: Some(
+                    "Re-read the write path, then patch one bounded field.".to_string(),
+                ),
+                open_questions: vec![
+                    "Do scene and context both need the resume packet?".to_string(),
+                ],
+                code_refs: vec![EpiphanyCodeRef {
+                    path: PathBuf::from("core/src/codex_thread.rs"),
+                    start_line: Some(376),
+                    end_line: Some(424),
+                    symbol: Some("epiphany_update_state".to_string()),
+                    note: Some("Checkpoint writes must use the same red pen.".to_string()),
+                }],
+                evidence_ids: vec!["ev-1".to_string()],
+                ..Default::default()
+            }),
             churn: Some(EpiphanyChurnState {
                 understanding_status: "stable".to_string(),
                 diff_pressure: "low".to_string(),
@@ -774,6 +854,9 @@ mod tests {
         assert!(rendered.contains("`flow-build-context`"));
         assert!(rendered.contains("Do not build the Jenga tower"));
         assert!(rendered.contains("revert it before trying the next hypothesis"));
+        assert!(rendered.contains("## Investigation Checkpoint"));
+        assert!(rendered.contains("resume_ready"));
+        assert!(rendered.contains("Map the state update seam before broad edits."));
         assert!(!rendered.contains("## Scratch"));
         assert!(!rendered.contains("## Invariants"));
         assert!(rendered.contains("`core/src/session/mod.rs:2433-2617`"));

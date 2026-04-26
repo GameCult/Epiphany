@@ -184,6 +184,7 @@ use codex_app_server_protocol::ThreadEpiphanyScene;
 use codex_app_server_protocol::ThreadEpiphanySceneAction;
 use codex_app_server_protocol::ThreadEpiphanySceneChurn;
 use codex_app_server_protocol::ThreadEpiphanySceneGraph;
+use codex_app_server_protocol::ThreadEpiphanySceneInvestigationCheckpoint;
 use codex_app_server_protocol::ThreadEpiphanySceneParams;
 use codex_app_server_protocol::ThreadEpiphanySceneRecord;
 use codex_app_server_protocol::ThreadEpiphanySceneRecords;
@@ -4602,6 +4603,7 @@ impl CodexMessageProcessor {
             graphs: patch.graphs.clone(),
             graph_frontier: patch.graph_frontier.clone(),
             graph_checkpoint: patch.graph_checkpoint.clone(),
+            investigation_checkpoint: patch.investigation_checkpoint.clone(),
             churn: patch.churn.clone(),
             observations: patch.observations.clone(),
             evidence: patch.evidence.clone(),
@@ -4636,6 +4638,7 @@ impl CodexMessageProcessor {
             graph_frontier: patch.graph_frontier,
             graph_checkpoint: patch.graph_checkpoint,
             scratch: patch.scratch,
+            investigation_checkpoint: patch.investigation_checkpoint,
             observations: patch.observations,
             evidence,
             churn: patch.churn,
@@ -4723,6 +4726,7 @@ impl CodexMessageProcessor {
             graph_frontier: patch.graph_frontier,
             graph_checkpoint: patch.graph_checkpoint,
             scratch: patch.scratch,
+            investigation_checkpoint: patch.investigation_checkpoint,
             observations: patch.observations,
             evidence: patch.evidence,
             churn: patch.churn,
@@ -10707,6 +10711,7 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
             invariant_status_counts: Vec::new(),
             graph: ThreadEpiphanySceneGraph::default(),
             retrieval: None,
+            investigation_checkpoint: None,
             observations: ThreadEpiphanySceneRecords::default(),
             evidence: ThreadEpiphanySceneRecords::default(),
             churn: None,
@@ -10741,6 +10746,20 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
                 shard_count: retrieval.shards.len() as u32,
                 dirty_path_count: retrieval.dirty_paths.len() as u32,
             }),
+        investigation_checkpoint: state.investigation_checkpoint.as_ref().map(|checkpoint| {
+            ThreadEpiphanySceneInvestigationCheckpoint {
+                checkpoint_id: checkpoint.checkpoint_id.clone(),
+                kind: checkpoint.kind.clone(),
+                disposition: checkpoint.disposition,
+                focus: checkpoint.focus.clone(),
+                summary: checkpoint.summary.clone(),
+                next_action: checkpoint.next_action.clone(),
+                captured_at_turn_id: checkpoint.captured_at_turn_id.clone(),
+                open_question_count: checkpoint.open_questions.len() as u32,
+                code_ref_count: checkpoint.code_refs.len() as u32,
+                evidence_count: checkpoint.evidence_ids.len() as u32,
+            }
+        }),
         observations: ThreadEpiphanySceneRecords {
             total_count: state.observations.len() as u32,
             latest: state
@@ -11073,6 +11092,7 @@ fn map_epiphany_context(
                 .then(|| state.graph_frontier.clone())
                 .flatten(),
             checkpoint: state.graph_checkpoint.clone(),
+            investigation_checkpoint: state.investigation_checkpoint.clone(),
             observations,
             evidence,
         },
@@ -11398,6 +11418,7 @@ fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatc
         || patch.graph_frontier.is_some()
         || patch.graph_checkpoint.is_some()
         || patch.scratch.is_some()
+        || patch.investigation_checkpoint.is_some()
         || patch.churn.is_some()
         || patch.mode.is_some()
 }
@@ -11495,6 +11516,9 @@ fn epiphany_update_patch_changed_fields(
     }
     if patch.scratch.is_some() {
         fields.push(ThreadEpiphanyStateUpdatedField::Scratch);
+    }
+    if patch.investigation_checkpoint.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint);
     }
     if !patch.observations.is_empty() {
         fields.push(ThreadEpiphanyStateUpdatedField::Observations);
@@ -12868,6 +12892,29 @@ mod tests {
                     }],
                     ..Default::default()
                 }),
+                investigation_checkpoint: Some(
+                    codex_protocol::protocol::EpiphanyInvestigationCheckpoint {
+                        checkpoint_id: "ix-5".to_string(),
+                        kind: "slice_planning".to_string(),
+                        disposition:
+                            codex_protocol::protocol::EpiphanyInvestigationDisposition::ResumeReady,
+                        focus: "Keep the durable planning packet visible.".to_string(),
+                        summary: Some("Checkpointed the next bounded slice.".to_string()),
+                        next_action: Some("Patch the typed state writer next.".to_string()),
+                        captured_at_turn_id: Some("turn-5".to_string()),
+                        open_questions: vec![
+                            "Should scene and context both surface this?".to_string(),
+                        ],
+                        evidence_ids: vec!["ev-scene".to_string()],
+                        code_refs: vec![codex_protocol::protocol::EpiphanyCodeRef {
+                            path: test_path_buf("/repo/app-server/src/codex_message_processor.rs"),
+                            start_line: Some(10692),
+                            end_line: Some(10811),
+                            symbol: Some("map_epiphany_scene".to_string()),
+                            note: None,
+                        }],
+                    },
+                ),
                 observations: vec![codex_protocol::protocol::EpiphanyObservation {
                     id: "obs-scene".to_string(),
                     summary: "Scene is derived".to_string(),
@@ -12919,6 +12966,13 @@ mod tests {
         assert_eq!(
             scene.retrieval.as_ref().and_then(|r| r.indexed_chunk_count),
             Some(8)
+        );
+        assert_eq!(
+            scene
+                .investigation_checkpoint
+                .as_ref()
+                .map(|checkpoint| checkpoint.checkpoint_id.as_str()),
+            Some("ix-5")
         );
         assert_eq!(scene.observations.total_count, 1);
         assert_eq!(scene.evidence.latest[0].id, "ev-scene");
@@ -13121,6 +13175,18 @@ mod tests {
                 summary: Some("Context shard checkpoint".to_string()),
                 ..Default::default()
             }),
+            investigation_checkpoint: Some(
+                codex_protocol::protocol::EpiphanyInvestigationCheckpoint {
+                    checkpoint_id: "ix-context".to_string(),
+                    kind: "source_gathering".to_string(),
+                    focus: "Trace the exact reflection seam.".to_string(),
+                    next_action: Some(
+                        "Re-gather source before editing if this goes stale.".to_string(),
+                    ),
+                    evidence_ids: vec!["ev-linked".to_string()],
+                    ..Default::default()
+                },
+            ),
             observations: vec![codex_protocol::protocol::EpiphanyObservation {
                 id: "obs-1".to_string(),
                 summary: "Observation carries linked evidence.".to_string(),
@@ -13195,6 +13261,13 @@ mod tests {
                 .as_ref()
                 .map(|checkpoint| checkpoint.checkpoint_id.as_str()),
             Some("ck-context")
+        );
+        assert_eq!(
+            context
+                .investigation_checkpoint
+                .as_ref()
+                .map(|checkpoint| checkpoint.checkpoint_id.as_str()),
+            Some("ix-context")
         );
         assert_eq!(
             context
@@ -13331,6 +13404,7 @@ mod tests {
             objective: Some("Keep the event readable".to_string()),
             graphs: Some(Default::default()),
             graph_frontier: Some(Default::default()),
+            investigation_checkpoint: Some(Default::default()),
             observations: vec![Default::default()],
             evidence: vec![Default::default()],
             churn: Some(Default::default()),
@@ -13343,6 +13417,7 @@ mod tests {
                 ThreadEpiphanyStateUpdatedField::Objective,
                 ThreadEpiphanyStateUpdatedField::Graphs,
                 ThreadEpiphanyStateUpdatedField::GraphFrontier,
+                ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint,
                 ThreadEpiphanyStateUpdatedField::Observations,
                 ThreadEpiphanyStateUpdatedField::Evidence,
                 ThreadEpiphanyStateUpdatedField::Churn,

@@ -1646,6 +1646,20 @@ mod tests {
                         shard_count: 1,
                         dirty_path_count: 0,
                     }),
+                    investigation_checkpoint: Some(
+                        v2::ThreadEpiphanySceneInvestigationCheckpoint {
+                            checkpoint_id: "ix-1".to_string(),
+                            kind: "slice_planning".to_string(),
+                            disposition: codex_protocol::protocol::EpiphanyInvestigationDisposition::ResumeReady,
+                            focus: "Keep the durable resume packet visible.".to_string(),
+                            summary: Some("Checkpointed the bounded planning slice.".to_string()),
+                            next_action: Some("Patch one typed field next.".to_string()),
+                            captured_at_turn_id: Some("turn-7".to_string()),
+                            open_question_count: 1,
+                            code_ref_count: 2,
+                            evidence_count: 1,
+                        },
+                    ),
                     observations: v2::ThreadEpiphanySceneRecords {
                         total_count: 1,
                         latest: vec![v2::ThreadEpiphanySceneRecord {
@@ -1723,6 +1737,18 @@ mod tests {
                             "indexedChunkCount": 34,
                             "shardCount": 1,
                             "dirtyPathCount": 0
+                        },
+                        "investigationCheckpoint": {
+                            "checkpointId": "ix-1",
+                            "kind": "slice_planning",
+                            "disposition": "resume_ready",
+                            "focus": "Keep the durable resume packet visible.",
+                            "summary": "Checkpointed the bounded planning slice.",
+                            "nextAction": "Patch one typed field next.",
+                            "capturedAtTurnId": "turn-7",
+                            "openQuestionCount": 1,
+                            "codeRefCount": 2,
+                            "evidenceCount": 1
                         },
                         "observations": {
                             "totalCount": 1,
@@ -1851,6 +1877,17 @@ mod tests {
                         ..Default::default()
                     }),
                     checkpoint: None,
+                    investigation_checkpoint: Some(
+                        codex_protocol::protocol::EpiphanyInvestigationCheckpoint {
+                            checkpoint_id: "ix-1".to_string(),
+                            kind: "source_gathering".to_string(),
+                            focus: "Audit the compaction seam.".to_string(),
+                            next_action: Some(
+                                "Re-gather source if this packet is stale.".to_string(),
+                            ),
+                            ..Default::default()
+                        },
+                    ),
                     observations: vec![codex_protocol::protocol::EpiphanyObservation {
                         id: "obs-1".to_string(),
                         summary: "Context shard is read-only.".to_string(),
@@ -1905,6 +1942,13 @@ mod tests {
                         },
                         "frontier": {
                             "active_node_ids": ["state-spine"]
+                        },
+                        "investigationCheckpoint": {
+                            "checkpoint_id": "ix-1",
+                            "kind": "source_gathering",
+                            "disposition": "resume_ready",
+                            "focus": "Audit the compaction seam.",
+                            "next_action": "Re-gather source if this packet is stale."
                         },
                         "observations": [
                             {

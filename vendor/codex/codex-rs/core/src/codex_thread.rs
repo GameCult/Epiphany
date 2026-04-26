@@ -31,6 +31,7 @@ use codex_protocol::protocol::EpiphanyGraphCheckpoint;
 use codex_protocol::protocol::EpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant;
+use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalState;
@@ -110,6 +111,7 @@ pub struct EpiphanyStateUpdate {
     pub graph_frontier: Option<EpiphanyGraphFrontier>,
     pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
     pub scratch: Option<EpiphanyScratchPad>,
+    pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
     pub churn: Option<EpiphanyChurnState>,
@@ -126,6 +128,7 @@ impl EpiphanyStateUpdate {
             && self.graph_frontier.is_none()
             && self.graph_checkpoint.is_none()
             && self.scratch.is_none()
+            && self.investigation_checkpoint.is_none()
             && self.observations.is_empty()
             && self.evidence.is_empty()
             && self.churn.is_none()
@@ -631,6 +634,17 @@ fn epiphany_state_update_validation_errors(
         }
     }
 
+    if let Some(checkpoint) = update.investigation_checkpoint.as_ref() {
+        for evidence_id in &checkpoint.evidence_ids {
+            if !known_evidence_ids.contains(evidence_id.as_str()) {
+                errors.push(format!(
+                    "investigation checkpoint cites missing evidence id {:?}",
+                    evidence_id
+                ));
+            }
+        }
+    }
+
     errors.extend(epiphany_state_replacement_validation_errors(state, update));
     errors
 }
@@ -643,6 +657,16 @@ fn epiphany_state_replacement_validation_errors(
     let validates_graph_target = update.graphs.is_some()
         || update.graph_frontier.is_some()
         || update.graph_checkpoint.is_some();
+    let mut known_evidence_ids: HashSet<&str> = state
+        .recent_evidence
+        .iter()
+        .filter_map(|evidence| nonempty_id(&evidence.id))
+        .collect();
+    for evidence in &update.evidence {
+        if let Some(id) = nonempty_id(&evidence.id) {
+            known_evidence_ids.insert(id);
+        }
+    }
 
     validate_state_replacement_patch(EpiphanyStateReplacementValidationInput {
         active_subgoal_id: update.active_subgoal_id.as_deref(),
@@ -662,6 +686,8 @@ fn epiphany_state_replacement_validation_errors(
         },
         graph_frontier: update.graph_frontier.as_ref(),
         graph_checkpoint: update.graph_checkpoint.as_ref(),
+        investigation_checkpoint: update.investigation_checkpoint.as_ref(),
+        available_evidence_ids: Some(&known_evidence_ids),
         churn: update.churn.as_ref(),
     })
 }
@@ -704,6 +730,9 @@ fn apply_epiphany_state_update(
     }
     if let Some(scratch) = update.scratch {
         state.scratch = Some(scratch);
+    }
+    if let Some(checkpoint) = update.investigation_checkpoint {
+        state.investigation_checkpoint = Some(checkpoint);
     }
     if let Some(churn) = update.churn {
         state.churn = Some(churn);
@@ -771,6 +800,15 @@ mod epiphany_update_tests {
             &mut state,
             EpiphanyStateUpdate {
                 objective: Some("Keep the map honest".to_string()),
+                investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
+                    checkpoint_id: "ix-1".to_string(),
+                    kind: "slice_planning".to_string(),
+                    focus: "Keep the durable packet small and explicit.".to_string(),
+                    next_action: Some(
+                        "Resume from the packet instead of the ghost transcript.".to_string(),
+                    ),
+                    ..Default::default()
+                }),
                 evidence: vec![EpiphanyEvidenceRecord {
                     id: "new-evidence".to_string(),
                     kind: "verification".to_string(),
@@ -791,6 +829,13 @@ mod epiphany_update_tests {
         assert_eq!(state.revision, 4);
         assert_eq!(state.objective.as_deref(), Some("Keep the map honest"));
         assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-1"));
+        assert_eq!(
+            state
+                .investigation_checkpoint
+                .as_ref()
+                .map(|checkpoint| checkpoint.checkpoint_id.as_str()),
+            Some("ix-1")
+        );
         assert_eq!(state.recent_evidence[0].id, "new-evidence");
         assert_eq!(state.recent_evidence[1].id, "old-evidence");
         assert_eq!(
@@ -927,6 +972,30 @@ mod epiphany_update_tests {
             errors
                 .iter()
                 .any(|error| error.contains("graph frontier references missing node"))
+        );
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_rejects_investigation_checkpoint_with_missing_evidence() {
+        let update = EpiphanyStateUpdate {
+            investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
+                checkpoint_id: "ix-missing".to_string(),
+                kind: "source_gathering".to_string(),
+                focus: "Trace the compaction seam.".to_string(),
+                next_action: Some("Re-gather source before implementation.".to_string()),
+                evidence_ids: vec!["ev-missing".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let errors =
+            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &update);
+
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("investigation checkpoint cites missing evidence id"))
         );
     }
 }
