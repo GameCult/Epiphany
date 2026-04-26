@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has begun with read-only `thread/epiphany/scene`.
+- Phase 6 has begun with read-only `thread/epiphany/scene`, and that scene surface now has live app-server smoke coverage.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -60,6 +60,7 @@ The current spine:
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
+- live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -81,6 +82,12 @@ For Phase 5 control-plane behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
+```
+
+For scene projection behavior changes, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_scene_smoke.py'
 ```
 
 For Codex Rust work on this Windows machine:
@@ -121,13 +128,10 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
-When the user asks to continue, choose one Phase 6 organ:
+When the user asks to continue, design and land a minimal read-only job/progress
+reflection surface for indexing, remap, and verification work.
 
-1. Live-smoke `thread/epiphany/scene` through app-server.
-2. Design and land a minimal read-only job/progress reflection surface for indexing, remap, and verification work.
-
-The scene-smoke path is the tighter next step. The job/progress path is the
-larger missing organ.
+Live `thread/epiphany/scene` smoke is now a guardrail, not the next organ.
 
 ## Not Yet
 

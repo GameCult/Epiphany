@@ -46,7 +46,7 @@ The rule is:
 | `thread/epiphany/propose` | read-only proposal | landed | Drafts graph/frontier/churn candidates from verified evidence-backed observations. |
 | `thread/epiphany/promote` | verifier gate | landed | Rejects or applies candidates through the durable update path. |
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
-| `thread/epiphany/scene` | read-only reflection | landed | Compact client scene derived from authoritative Epiphany state. |
+| `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state. |
 
 ## Write Authority
 

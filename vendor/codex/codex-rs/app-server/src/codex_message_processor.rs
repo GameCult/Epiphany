@@ -10554,7 +10554,6 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
             latest: state
                 .observations
                 .iter()
-                .rev()
                 .take(EPIPHANY_SCENE_RECORD_LIMIT)
                 .map(|observation| ThreadEpiphanySceneRecord {
                     id: observation.id.clone(),
@@ -10570,7 +10569,6 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
             latest: state
                 .recent_evidence
                 .iter()
-                .rev()
                 .take(EPIPHANY_SCENE_RECORD_LIMIT)
                 .map(|evidence| ThreadEpiphanySceneRecord {
                     id: evidence.id.clone(),
@@ -12226,6 +12224,54 @@ mod tests {
         assert_eq!(scene.source, ThreadEpiphanySceneSource::Stored);
         assert!(scene.available_actions.is_empty());
         assert_eq!(scene.graph, ThreadEpiphanySceneGraph::default());
+    }
+
+    #[test]
+    fn map_epiphany_scene_latest_records_preserve_newest_first_order() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            observations: (1..=6)
+                .rev()
+                .map(|index| codex_protocol::protocol::EpiphanyObservation {
+                    id: format!("obs-{index}"),
+                    summary: format!("Observation {index}"),
+                    source_kind: "test".to_string(),
+                    status: "ok".to_string(),
+                    evidence_ids: vec![format!("ev-{index}")],
+                    ..Default::default()
+                })
+                .collect(),
+            recent_evidence: (1..=6)
+                .rev()
+                .map(|index| codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    id: format!("ev-{index}"),
+                    kind: "test".to_string(),
+                    status: "ok".to_string(),
+                    summary: format!("Evidence {index}"),
+                    ..Default::default()
+                })
+                .collect(),
+            ..Default::default()
+        };
+
+        let scene = map_epiphany_scene(Some(&state), true);
+        let observation_ids: Vec<_> = scene
+            .observations
+            .latest
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect();
+        let evidence_ids: Vec<_> = scene
+            .evidence
+            .latest
+            .iter()
+            .map(|record| record.id.as_str())
+            .collect();
+
+        assert_eq!(
+            observation_ids,
+            vec!["obs-6", "obs-5", "obs-4", "obs-3", "obs-2"]
+        );
+        assert_eq!(evidence_ids, vec!["ev-6", "ev-5", "ev-4", "ev-3", "ev-2"]);
     }
 
     #[test]

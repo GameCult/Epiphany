@@ -56,6 +56,7 @@ The landed machine now has:
 - proposal and promotion rules that reduce map/churn Jenga pressure
 - reusable Phase 5 app-server smoke coverage in `tools/epiphany_phase5_smoke.py`
 - a first Phase 6 read-only reflection surface through `thread/epiphany/scene`
+- live Phase 6 scene app-server smoke coverage in `tools/epiphany_phase6_scene_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 
@@ -104,7 +105,6 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- whether `thread/epiphany/scene` is sufficient as the first client-facing reflection shape
 - what minimal job/progress surface is needed for indexing, remap, verification, and future specialist work
 - how to expose long-running work without making the GUI authoritative
 - when watcher-driven invalidation becomes necessary instead of merely tempting
@@ -117,11 +117,10 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Live-smoke `thread/epiphany/scene` through app-server.
-2. Add a minimal read-only job/progress surface for indexing, remap, and verification work.
-3. Add targeted scene fields only when a client or smoke exposes a real gap.
-4. Keep the scene derived from authoritative Epiphany state.
-5. Keep long-running work observable through typed state or notifications, not transcript inference.
+1. Add a minimal read-only job/progress surface for indexing, remap, and verification work.
+2. Add targeted scene fields only when a client or smoke exposes a real gap.
+3. Keep the scene derived from authoritative Epiphany state.
+4. Keep long-running work observable through typed state or notifications, not transcript inference.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -150,6 +149,12 @@ Before modifying Phase 5 control-plane behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
+```
+
+Before modifying scene projection behavior, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_scene_smoke.py'
 ```
 
 For app-server protocol changes, expect to run the relevant protocol tests,

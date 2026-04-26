@@ -8,19 +8,19 @@ No active scratch subgoal.
 
 ## Last Completed Audit
 
-- `README.md` was stale and still pointed at a Phase 5 next step.
-- `notes/architecture-rationale.md` still described the early cheap prototype as if it were live state.
-- `protocol/controller-actions.md` needed distilled-evidence wording.
-- `notes/fresh-workspace-handoff.md` had exact branch/HEAD snapshot rot.
-- `state/branches.json` carried volatile phase status in branch notes.
+- `thread/epiphany/scene` had protocol and mapper coverage but no live app-server smoke.
+- Scene latest-record mapping reversed the durable newest-first record order.
+- Async update notifications had to be drained before asserting that scene emits no state update notification.
 
 ## Decision
 
-Cut stale status from handoff/branch notes, rewrite README/rationale around the
-current fork spine, and keep evidence as a belief ledger.
+Add `tools/epiphany_phase6_scene_smoke.py`, fix scene latest records to preserve
+newest-first order, and make the smoke prove missing/ready state, live source,
+retrieval backfill, action availability, bounded latest records, and no
+scene-triggered `thread/epiphany/stateUpdated`.
 
-Next implementation move remains Phase 6: either live-smoke
-`thread/epiphany/scene` or design a minimal job/progress reflection surface.
+Next implementation move is Phase 6 job/progress reflection: design the minimal
+read-only surface for indexing, remap, verification, and future specialist work.
 
 Do not promote anything from this scratch into the map unless it survives
 verification or repeated reuse without contradiction.
