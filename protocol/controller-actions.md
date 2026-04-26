@@ -1,5 +1,9 @@
 # Controller Actions
 
+This is the legacy/manual controller discipline from the first external-state
+prototype. The live fork now has typed Codex/app-server surfaces, but these
+rules are still useful when maintaining repo-local state files by hand.
+
 The controller chooses exactly one primary action per step. This is meant to reduce the classic failure mode where the model is "thinking", rewriting the plan, editing files, and rationalizing the edits all at once.
 
 ## Actions
@@ -58,7 +62,7 @@ Purpose:
 Check whether the proposed change actually improved the thing we care about.
 
 Allowed writes:
-- `state/evidence.jsonl`
+- distilled records in `state/evidence.jsonl`
 - `state/branches.json`
 
 Checks may include:
@@ -76,7 +80,7 @@ Choose between competing changes or kill all of them.
 
 Allowed writes:
 - `state/branches.json`
-- `state/evidence.jsonl`
+- distilled records in `state/evidence.jsonl`
 
 Rules:
 - Prefer the smallest branch that clearly satisfies the objective.
@@ -89,12 +93,13 @@ Abandon a bad line of attack instead of decorating it further.
 
 Allowed writes:
 - `state/branches.json`
-- `state/evidence.jsonl`
+- distilled records in `state/evidence.jsonl`
 - `state/map.yaml`
 
 Rules:
 - Record why the branch was rejected.
 - Preserve lessons that belong in the map.
+- Do not record routine command inventories or "I just did this" proof as live evidence.
 - Do not keep dead machinery out of sentiment.
 
 ### `speak`

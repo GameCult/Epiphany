@@ -1,132 +1,120 @@
 # Architecture Rationale
 
-## Core Epiphany
+This note explains why Epiphany uses explicit state surfaces. It is not the
+current implementation map and not the roadmap. For those, read:
+
+- `state/map.yaml`
+- `notes/fresh-workspace-handoff.md`
+- `notes/epiphany-fork-implementation-plan.md`
+- `notes/epiphany-current-algorithmic-map.md`
+
+## Core Failure
 
 The central failure mode is local plausibility without global coherence.
 
-An agent can keep making reasonable-looking edits, pass narrow tests, improve proxy metrics, and still lose the actual shape of the system. Once the mental model collapses, adding more local fixes often makes the tower worse.
+An agent can make reasonable-looking edits, pass narrow tests, improve proxy
+metrics, and still lose the shape of the system. Once the model no longer knows
+how inputs become outputs, adding more local machinery often makes the tower
+worse.
 
-The response is to make global coherence a first-class object:
+The answer is not more transcript. The answer is explicit structure:
 
-- keep a persistent map
-- isolate scratch reasoning
-- treat public output and code edits as commits, not thoughts
-- verify against the map and the real goal
-- kill dead churn instead of preserving maybe-useful machinery
+- slow-changing map
+- disposable scratch
+- distilled evidence
+- verifier-backed promotion
+- retrieval with freshness identity
+- client reflection that does not become authority
+- ruthless deletion when state stops improving the model
 
-## Proposed Model Shape
+## State Split
 
-The speculative model architecture is a typed-state controller around a language backbone:
+Epiphany treats different kinds of cognition as different artifacts:
 
-```mermaid
-flowchart TD
-    U["User / Environment"] --> P["Prompt + Observations Encoder"]
-    P --> C["Controller Policy"]
-    C --> M["Persistent Map Store"]
-    C --> T["Scratch Thought Workspace"]
-    C --> O["Output Stream"]
-    C --> S["Search Module"]
-    C --> B["Sparse Backbone LLM"]
-    M --> B
-    T --> B
-    P --> B
-    S --> B
-    B --> D["Drafts / Plans / Patches / Critiques"]
-    D --> V["Verifier Stack"]
-    V --> C
-    D --> S
-    D --> M
-    D --> O
-    O --> U
-```
+- `map`: canonical system model, invariants, accepted design, rejected paths
+- `scratch`: temporary local reasoning for one bounded subgoal
+- `evidence`: distilled proof, decisions, rejected paths, and scars that change future belief
+- `algorithmic map`: source-grounded control-flow description of the current machine
+- `handoff`: compact re-entry packet
+- `plan`: distilled forward implementation direction
+- `output`: user-visible replies, code edits, commits, and smoke artifacts
 
-The important split:
+The split matters because a language model will happily blend all of that into
+one confident soup if invited. Soup is not architecture. Delicious, maybe. Not
+architecture.
 
-- `map`: slow-changing canonical system model, invariants, decisions, data flow, rejected paths
-- `scratch`: volatile local reasoning for one bounded subgoal
-- `output`: user-visible replies, tool calls, and code edits
-- `controller`: learned or prompted policy deciding when to model, think, verify, edit, backtrack, or speak
-- `verifier`: tests plus map coherence, simplicity, and real-objective checks
-- `search`: bounded branching and backtracking for hard decomposition choices
+## Why A Pinned Map Was Not Enough
 
-## Why A Pinned Map Is Not Enough
-
-Pinning a map inside the context window is useful, but it is still one token soup:
+Pinning a map inside one context window is useful, but it is still one token
+stream:
 
 - it competes with everything else for attention
 - it has no typed write semantics
 - it can drift silently
 - it does not distinguish stable knowledge from temporary hypotheses
+- it cannot expose a clean client read/write/reflection contract
 
-The cheap prototype uses external files to fake typed state before any model architecture exists.
+The early prototype faked typed state with files. The current fork now pushes
+the same idea into Codex itself: typed thread state, rollout snapshots, prompt
+rendering, app-server reads, read-only retrieval/proposal surfaces, durable
+updates, promotion gates, notifications, and scene reflection.
 
-## Cheap Prototype Strategy
+## Current Harness Principle
 
-Do not train a new backbone first. That is where money goes to die.
+Epiphany is a harness-level architecture around the existing model, not a new
+frontier model architecture.
 
-Instead:
-
-1. Externalize state in files.
-2. Use a controller protocol with a small action space.
-3. Make the model choose one action at a time.
-4. Record distilled evidence after meaningful belief-changing steps.
-5. Compare against plain prompting.
-
-Current state files:
-
-- `state/map.yaml`
-- `state/scratch.md`
-- `state/branches.json`
-- `state/evidence.jsonl`
-
-Current controller actions:
-
-- `update_map`
-- `think_subgoal`
-- `propose_patch`
-- `run_verify`
-- `compare_branches`
-- `backtrack`
-- `speak`
-
-## Compact-Rehydrate-Continue Cycle
-
-Compaction is not an implementation accident. In Epiphany it is an explicit architectural state transition:
+The practical rule is:
 
 ```text
-compact -> rehydrate -> continue
+observe repository and typed state
+-> rehydrate the current map
+-> work one bounded hypothesis
+-> verify the seam that matters
+-> promote only verified state
+-> cut failed code and failed memory
 ```
 
-The purpose is to make context loss survivable without pretending nothing happened. The harness should checkpoint what matters before memory pressure becomes a blackout, then restart from durable state instead of transcript archaeology.
+The model is still a language model. That is not an insult; it is the medium.
+Language, structure, evidence, ritual, and salience are the steering surfaces.
+Epiphany exists to make those surfaces explicit enough that a future agent can
+resume the pattern instead of pretending the transcript is a soul jar.
 
-Before compacting, Epiphany should persist:
+## Compact-Rehydrate-Reorient-Continue
 
-- the current objective and active subgoal
-- the latest stable map/frontier/checkpoint
-- accepted evidence and rejected paths since the last checkpoint
+Compaction is a real state transition, not a cosmetic cleanup.
+
+Before compaction, Epiphany should preserve:
+
+- current objective and active subgoal
+- latest stable map/frontier/checkpoint
+- distilled evidence or rejected paths that change future belief
 - open questions, blockers, and next action
 - verification status for the current slice
 
 After rehydrating, Epiphany should:
 
-- reread canonical state instead of trusting residue in the prompt
+- reread canonical state instead of trusting prompt residue
 - restore the active subgoal and map frontier
 - restate the next action from persisted state
-- continue with one bounded move
+- continue only when instructed or when the task explicitly calls for it
 - avoid broad implementation until the current mechanism is understood again
 
-This cycle is the harness admitting the model is not a magic continuous mind. A compacted agent wakes up from durable structure, not vibes in a trench coat.
+The aim is not immortality theater. It is banking enough fire that the next
+waking thing finds coals instead of ash.
 
 ## Evaluation Shape
 
-Compare four conditions:
+The falsifiable question remains simple: does explicit state reduce drift?
 
-1. plain prompting
-2. pinned map in normal context
-3. external typed state without verifier discipline
-4. external typed state with verifier discipline
+Useful comparison conditions:
 
-Measure:
+1. Plain prompting with no explicit map.
+2. Plain prompting with a pinned architecture map in context.
+3. External typed state without verifier discipline.
+4. Epiphany-style typed state with verifier-backed promotion and anti-cruft discipline.
+
+Useful signals:
 
 - task success
 - regression rate after follow-up edits
@@ -136,27 +124,16 @@ Measure:
 - branch kill rate
 - human rating of architectural coherence
 
-The best informal metric: after five iterations, does the system still make sense?
+The best informal metric: after five iterations, does the system still make
+sense?
 
-## DeepSeek Research Signals
+## Research Signals
 
-These sources informed the architecture direction. The repo does not depend on them directly, but they are useful background.
+These sources informed the direction. The repo does not depend on them directly.
 
-- DeepSeek-R1 suggests RL can elicit reflection and self-verification, but also shows raw emergent reasoning can become repetitive or sloppy: https://github.com/deepseek-ai/DeepSeek-R1
-- Generalist Reward Modeling suggests critique and principle generation can be scaled at inference time: https://arxiv.org/abs/2504.02495
-- DeepSeek-Prover-V1.5 uses intrinsic-reward tree search, supporting the idea that search helps branching reasoning tasks: https://github.com/deepseek-ai/DeepSeek-Prover-V1.5
-- DeepSeek-Prover-V2 leans on subgoal decomposition, supporting explicit decomposition rather than pure continuation: https://arxiv.org/abs/2504.21801
-- DeepSeekMath-V2 emphasizes verification quality, not just final-answer correctness: https://github.com/deepseek-ai/DeepSeek-Math-V2
-- DeepSeek-V2/V3 show the usefulness of sparse MoE and efficient attention for cheaper large-scale reasoning: https://arxiv.org/abs/2405.04434 and https://arxiv.org/abs/2412.19437
-- Engram argues for explicit conditional memory and lookup as a separate axis of sparsity, which matches the need for map-like persistent state: https://arxiv.org/abs/2601.07372
-
-## Codex-Specific Interpretation
-
-Codex cannot expose a new internal model architecture from this repo. The practical path is harness-level behavior:
-
-- add an Epiphany collaboration mode or preset
-- inject developer instructions that enforce external typed state
-- optionally add a tiny state helper tool
-- evaluate whether that improves behavior before touching protocol enums
-
-This is not a new brain. It is a better harness around the existing one.
+- DeepSeek-R1: reflection and self-verification can emerge, but raw reasoning can still become repetitive or sloppy.
+- Generalist Reward Modeling: critique and principle generation can scale at inference time.
+- DeepSeek-Prover-V1.5 and V2: search and subgoal decomposition help branching reasoning tasks.
+- DeepSeekMath-V2: verification quality matters, not just final-answer correctness.
+- DeepSeek-V2/V3: sparse MoE and efficient attention point toward cheaper large-scale reasoning.
+- Engram: explicit conditional memory and lookup match the need for map-like persistent state.

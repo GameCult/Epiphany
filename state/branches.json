@@ -9,7 +9,7 @@
         "state/scratch.md",
         "state/evidence.jsonl"
       ],
-      "notes": "Active mainline. Phase 1-5 are complete enough; Phase 6 reflection has begun. Persistent state is now intentionally distilled rather than append-only."
+      "notes": "Active mainline. See state/map.yaml and notes/fresh-workspace-handoff.md for current phase and next action. Persistent state is intentionally distilled rather than append-only."
     }
   ]
 }

@@ -1,166 +1,133 @@
 # EpiphanyAgent
 
-A cheap prototype for testing whether typed external state makes a strong model less likely to build an impressive pile of locally plausible nonsense.
+Epiphany is an opinionated fork of Codex built around one demand: the model must
+model the thing it is changing.
 
-## Premise
+The failure mode this repo is hunting is not "the model cannot write code." It
+can. Annoyingly well. The failure mode is local plausibility after global
+coherence has already wandered into traffic wearing headphones.
 
-Most coding agents are one token stream pretending to be a planner, scratchpad, architect, and release engineer at the same time. This workspace separates those roles outside the model first.
+Epiphany answers that by moving important state out of transcript fog and into
+typed, inspectable surfaces: maps, scratch, evidence, retrieval state,
+observations, graph/frontier state, churn pressure, and client reflections.
 
-The goal is not to prove a new frontier architecture in a weekend. The goal is to find out whether explicit state channels and bounded controller actions reduce drift enough to matter.
+## Current Shape
+
+This is no longer just an external-file prompting experiment.
+
+The landed spine now includes:
+
+- durable `EpiphanyThreadState` in vendored Codex protocol/core session state
+- rollout snapshots and replay reconstruction for resume, rollback, fork, and compaction
+- bounded `<epiphany_state>` prompt injection
+- typed client reads through `Thread.epiphanyState`
+- read-only hybrid retrieval through `thread/epiphany/retrieve`
+- explicit semantic indexing through `thread/epiphany/index`
+- durable typed writes through `thread/epiphany/update`
+- read-only observation distillation through `thread/epiphany/distill`
+- read-only map/churn proposal through `thread/epiphany/propose`
+- verifier-backed promotion through `thread/epiphany/promote`
+- successful-write notifications through `thread/epiphany/stateUpdated`
+- first Phase 6 reflection through read-only `thread/epiphany/scene`
+- repo-owned heavy organs in `epiphany-core/`, with vendored Codex kept as the host seam where practical
+
+Phase 1 through Phase 5 are complete enough. Phase 6 is about reflection and
+observable harness state, not more anxious polishing of the Phase 5 control
+plane.
+
+For exact current status, trust:
+
+- `state/map.yaml`
+- `notes/fresh-workspace-handoff.md`
+- `notes/epiphany-fork-implementation-plan.md`
+- `notes/epiphany-current-algorithmic-map.md`
+
+Git history and smoke artifacts carry proof. `state/evidence.jsonl` carries only
+distilled belief-changing evidence, not every little victory lap with a timestamp.
 
 ## Core Artifacts
 
-- `AGENTS.md`: project-specific instructions for future Codex sessions
-- `state/map.yaml`: canonical, slow-changing model of the task or system
-- `state/scratch.md`: temporary reasoning for one subgoal
-- `state/branches.json`: branch hypotheses and branch outcomes
-- `state/evidence.jsonl`: verifier outputs, acceptance reasons, and reversions
-- `protocol/controller-actions.md`: allowed actions and write rules
-- `notes/fresh-workspace-handoff.md`: concise summary for a fresh workspace
-- `notes/epiphany-fork-implementation-plan.md`: current implementation plan for the Epiphany fork architecture
-- `notes/codex-repository-algorithmic-map.md`: current machine map of vendored Codex
-- `notes/epiphany-current-algorithmic-map.md`: current machine map of the Epiphany fork itself
-- `notes/epiphany-core-harness-surfaces.md`: where Epiphany should patch into that machine
+- `AGENTS.md`: project-specific operating discipline for future Codex sessions
+- `state/map.yaml`: canonical current project map and accepted design
+- `state/scratch.md`: disposable working memory for one bounded subgoal
+- `state/branches.json`: branch hypotheses and outcomes, not volatile phase status
+- `state/evidence.jsonl`: distilled durable evidence, decisions, rejected paths, and scars
+- `notes/fresh-workspace-handoff.md`: compact re-entry packet
+- `notes/epiphany-fork-implementation-plan.md`: distilled forward implementation plan
+- `notes/epiphany-current-algorithmic-map.md`: source-grounded live control-flow map
+- `notes/epiphany-core-harness-surfaces.md`: stable surface contract
 - `notes/architecture-rationale.md`: why the map/scratch/evidence architecture exists
-- `tools/epiphany_state.py`: tiny CLI for inspecting and updating branch/evidence state
-- `eval-plan.md`: how to compare this protocol against plain prompting
+- `notes/codex-repository-algorithmic-map.md`: background map of the vendored Codex substrate
+- `protocol/controller-actions.md`: legacy/manual controller discipline for local state maintenance
+- `tools/epiphany_state.py`: compact state inspection and distilled evidence helper
+- `eval-plan.md`: evaluation sketch for comparing Epiphany discipline against plain prompting
 
-## Current Direction
+## Next Move
 
-This repo is no longer pretending the solution is "just prompt harder."
+When implementation resumes, choose one Phase 6 organ:
 
-The working design now is:
+1. Live-smoke `thread/epiphany/scene` through app-server.
+2. Design and land a minimal read-only job/progress reflection surface for indexing, remap, verification, and future specialist work.
 
-- fork Codex into Epiphany, an opinionated harness that makes models keep an explicit model of the thing they are changing
-- treat typed thread state as the primary artifact and the UI as a reflection/steering layer
-- keep the machine map as two linked graphs: architecture and dataflow
-- preserve rich natural-language explanations alongside code refs, because language is still the model's least embarrassing organ
-- use specialist agents with shared typed state and private scratch, not one heroic context trying to cosplay a whole team
-- add repo-local hybrid retrieval instead of making every role rediscover the repo with `rg` and raw stubbornness
-- use an explicit typed state-update surface for durable observations, evidence, map/frontier edits, and churn state instead of letting retrieval or transcript drift mutate the map sideways
-- treat compaction as a role-specific state transition with safe points and explicit checkpoints, not hidden brain damage
-- bake an explicit pre-compaction persistence workflow into the process, because forgetting to write down what matters and then acting surprised is not a serious engineering method
-- make Epiphany an opinionated software development agent, not a generic assistant with some extra tags bolted on
+The scene-smoke path is tighter. The job/progress path is the larger missing
+organ.
 
-## Current Repository State
+## Working Loop
 
-- `vendor/codex` is the real target and is tracked directly in the parent repo
-- `epiphany-core/` is the repo-owned crate that now holds the thicker Epiphany prompt, rollout replay, and retrieval/indexing organs
-- third-party OpenCodex forks were audited and removed
-- the Codex machine map and Epiphany harness spec have both been written and iterated enough to stop hand-waving
-- Phase 1 durable Epiphany state, Phase 2 prompt integration, a minimal Phase 3 typed client read surface, the Phase 4 hybrid retrieval/indexing slice, the first typed Epiphany state-update surface, the first typed distillation/proposal surface, and the first explicit promotion gate are all landed and verified
-- the next concrete step is richer map/churn promotion on top of the explicit distill/promote/update surfaces, not more retrieval plumbing and not GUI paint
+1. Rehydrate from canonical state before touching code.
+2. Restate the current mechanism and intended change before substantial edits.
+3. Keep one bounded hypothesis per iteration.
+4. Verify the seam that matters.
+5. Revert failed regression or benchmark fixes immediately.
+6. Record only distilled evidence that changes future belief.
+7. Commit completed work before it rots in the worktree.
 
-## Current Slice Status
+Do not confuse a growing diff, growing notes, or a local green check with
+understanding. That is how the tower learns to smirk.
 
-Phase 1 landed:
+## Re-entry
 
-- add minimal Epiphany protocol types
-- store Epiphany state in Codex `SessionState`
-- persist one Epiphany rollout snapshot per real user turn
-- restore it through rollout reconstruction
-- patch exhaustive `RolloutItem` matches
-- add persistence/replay compatibility tests
-
-Phase 2 landed:
-
-- add a dedicated `EpiphanyStateInstructions` developer fragment
-- render a bounded `<epiphany_state>` summary from `SessionState.epiphany_state`
-- inject it during `Session::build_initial_context`
-- verify inclusion, omission, resume, and snapshot behavior
-
-Phase 3 landed:
-
-- add optional typed `epiphanyState` to hydrated app-server `Thread` payloads
-- hydrate it from live loaded-thread state when available
-- fall back to rollout reconstruction with rollback/compaction semantics for stored thread reads
-- keep dedicated Epiphany update RPCs and live notifications deferred for now
-
-Phase 4 landed:
-
-- add a repo-local hybrid retrieval subsystem
-- expose typed retrieval state and typed `thread/epiphany/retrieve`
-- keep retrieval read-only
-- add explicit `thread/epiphany/index` for Qdrant-backed persistent semantic indexing
-- preserve exact/path lookup and BM25 fallback when the persistent semantic backend is stale, missing, or unavailable
-- move the heavy Epiphany-owned implementation into `epiphany-core/`, leaving vendored Codex with thin adapters plus the typed protocol/thread/app-server seam
-
-State-update slice landed:
-
-- add experimental loaded-thread-only `thread/epiphany/update`
-- append observations and evidence through typed state patches
-- replace bounded typed fields such as objective, subgoals, graph frontier/checkpoint, scratch, churn, and mode
-- bump Epiphany state revision and persist an immediate rollout snapshot
-- keep retrieval read-only and indexing explicit instead of mixing query and mutation paths
-
-Distillation slice landed:
-
-- add experimental loaded-thread-only `thread/epiphany/distill`
-- turn one explicit source/status/text observation into deterministic observation/evidence records
-- return a patch plus `expectedRevision` for explicit promotion through `thread/epiphany/update`
-- keep distillation read-only so proposals do not become durable facts without a promotion step
-
-Promotion slice landed:
-
-- add experimental loaded-thread-only `thread/epiphany/promote`
-- require verifier evidence before promotion
-- reject failed promotion candidates with structured reasons and no state mutation
-- accepted candidates flow through the existing durable update path
-
-## Basic Loop
-
-1. Observe the task, repo state, and current verifier outputs.
-2. Update `state/map.yaml` only when understanding stabilizes.
-3. Use `state/scratch.md` for one bounded subgoal at a time.
-4. Propose one change or one answer.
-5. Verify against task success, map consistency, and simplicity.
-6. Record evidence.
-7. Commit, compare branches, or backtrack.
-
-## Pre-Compaction Discipline
-
-This part is not optional if the work is nontrivial.
-
-Before compaction, handoff, or a deliberate phase boundary:
-
-1. sync `state/map.yaml`
-2. append `state/evidence.jsonl`
-3. refresh `notes/fresh-workspace-handoff.md`
-4. state the next action plainly
-
-If context pressure is clearly rising, do this **before** the hard compaction hits. A harness that only remembers to save itself after the blackout is still acting like a chat transcript with a superiority complex.
-
-Epiphany should eventually make this automatic. Until then, we do it on purpose.
-
-## Why This Exists
-
-Pinned notes inside one giant prompt are better than nothing, but they are still one token soup. This workspace treats map, scratch, and output as different artifacts with different write rules.
-
-That may still turn out to be elaborate prompt theater. Fine. At least it will be falsifiable prompt theater.
-
-## Tiny CLI
-
-Examples:
+From the repo root:
 
 ```powershell
-python .\tools\epiphany_state.py status
-python .\tools\epiphany_state.py add-evidence --type verify --status ok --note "Map and patch still agree"
-python .\tools\epiphany_state.py add-branch --id b1 --hypothesis "Smaller verifier beats elaborate verifier"
-python .\tools\epiphany_state.py close-branch --id b1 --status rejected --note "More ceremony, no better signal"
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status
+Get-Content '.\state\map.yaml'
+Get-Content '.\notes\fresh-workspace-handoff.md'
+Get-Content '.\notes\epiphany-current-algorithmic-map.md'
+Get-Content '.\notes\epiphany-fork-implementation-plan.md'
+git status --short --branch
+git log --oneline -5
+Get-Content '.\state\evidence.jsonl' -Tail 8
 ```
+
+After compaction or resume, rehydrate and reorient first. Do not continue
+implementation just because a note names a next move.
+
+## Verification
+
+Use focused checks for the surface being changed.
+
+For Phase 5 control-plane behavior changes:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
+```
+
+For Codex Rust work on this Windows machine:
+
+```powershell
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'
+```
+
+Do not parallelize cargo builds or tests against the same target directory.
 
 ## Licensing
 
-The root `LICENSE` file is now an operative repository license notice, not just
-a throat-clearing draft. In short: `vendor/codex/**` and other third-party
-material keep their upstream licenses, while Project-Authored Material outside
-`vendor/codex/**` is publicly available under PolyForm Noncommercial 1.0.0 and
-is also intended to be available under separate commercial terms by written
-agreement. That makes the repo source-available and dual-licensed, not OSI open
-source as a whole.
+The root `LICENSE` is the operative repository notice. In short:
+`vendor/codex/**` and other third-party material keep their upstream licenses;
+Project-Authored Material outside `vendor/codex/**` is publicly available under
+PolyForm Noncommercial 1.0.0 and is intended to be available under separate
+commercial terms by written agreement.
 
-External contributions require the EpiphanyAgent Contributor License Agreement
-in `CONTRIBUTOR_LICENSE_AGREEMENT.md`, or a separate written agreement accepted
-by the Project Steward. The point is simple: contributors keep ownership, but
-the project gets the right to sublicense and relicense contributions without
-future archaeology through old pull requests.
+External contributions require `CONTRIBUTOR_LICENSE_AGREEMENT.md` or a separate
+written agreement accepted by the Project Steward.

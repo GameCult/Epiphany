@@ -26,14 +26,14 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 ## Current Orientation
 
-- Current branch before this state-cleanup pass: `main...origin/main [ahead 9]`.
-- Current HEAD before this state-cleanup pass: `4a713a2 Sharpen continuity doctrine`.
+- Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
 - Phase 6 has begun with read-only `thread/epiphany/scene`.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
 - Evidence was distilled from an activity feed into a durable belief ledger; git history keeps the old verbose proof.
+- README and architecture rationale were cut back to current truth after they were found pointing at old prototype/Phase 5 state.
 
 ## Critical Doctrine
 
