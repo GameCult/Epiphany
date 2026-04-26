@@ -35,6 +35,22 @@ Phase 1 through Phase 6 are landed enough for the current experiment. The open
 questions are now about observability, invalidation, coordination, authority,
 and safe capability growth, not whether typed state can exist at all.
 
+## Where This Leads
+
+The architectural goal is not one giant agent that does archaeology, design,
+patching, and self-grading in a single token fog. The goal is a maintained
+control system:
+
+- graph and source-modeling agents keep the machine map current
+- freshness, watcher input, pressure, and reorientation signals decide whether that map still deserves trust
+- verifier agents check claims, diffs, and outcomes against reality
+- coding agents work from bounded packets of graph context, evidence, code refs, and local source reads instead of re-spelunking the repo from scratch every turn
+
+That still leaves direct source reading where it belongs: at the last mile,
+when a patch has to be grounded in the real files. The difference is that broad
+exploration, coherence maintenance, and verification stop living in the same
+overworked skull.
+
 ## Repo Tour
 
 If you want the human-readable map of the project, start here:
