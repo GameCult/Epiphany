@@ -350,6 +350,9 @@ fn server_notification_thread_target(
         ServerNotification::ThreadTokenUsageUpdated(notification) => {
             Some(notification.thread_id.as_str())
         }
+        ServerNotification::ThreadEpiphanyStateUpdated(notification) => {
+            Some(notification.thread_id.as_str())
+        }
         ServerNotification::TurnStarted(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::HookStarted(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::TurnCompleted(notification) => Some(notification.thread_id.as_str()),
@@ -497,6 +500,9 @@ fn server_notification_thread_events(
                             notification.token_usage.last,
                         ),
                         model_context_window: notification.token_usage.model_context_window,
+                        model_auto_compact_token_limit: notification
+                            .token_usage
+                            .model_auto_compact_token_limit,
                     }),
                     rate_limits: None,
                 }),

@@ -100,6 +100,10 @@ impl TurnContext {
             })
     }
 
+    pub(crate) fn model_auto_compact_token_limit(&self) -> Option<i64> {
+        self.model_info.auto_compact_token_limit()
+    }
+
     pub(crate) fn apps_enabled(&self) -> bool {
         let is_chatgpt_auth = self
             .auth_manager

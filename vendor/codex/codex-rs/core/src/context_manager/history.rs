@@ -65,6 +65,7 @@ impl ContextManager {
             history_version: 0,
             token_info: TokenUsageInfo::new_or_append(
                 &None, &None, /*model_context_window*/ None,
+                /*model_auto_compact_token_limit*/ None,
             ),
             reference_context_item: None,
         }
@@ -86,11 +87,20 @@ impl ContextManager {
         self.reference_context_item.clone()
     }
 
-    pub(crate) fn set_token_usage_full(&mut self, context_window: i64) {
+    pub(crate) fn set_token_usage_full(
+        &mut self,
+        context_window: i64,
+        model_auto_compact_token_limit: Option<i64>,
+    ) {
         match &mut self.token_info {
-            Some(info) => info.fill_to_context_window(context_window),
+            Some(info) => {
+                info.fill_to_context_window(context_window, model_auto_compact_token_limit)
+            }
             None => {
-                self.token_info = Some(TokenUsageInfo::full_context_window(context_window));
+                self.token_info = Some(TokenUsageInfo::full_context_window(
+                    context_window,
+                    model_auto_compact_token_limit,
+                ));
             }
         }
     }
@@ -266,11 +276,13 @@ impl ContextManager {
         &mut self,
         usage: &TokenUsage,
         model_context_window: Option<i64>,
+        model_auto_compact_token_limit: Option<i64>,
     ) {
         self.token_info = TokenUsageInfo::new_or_append(
             &self.token_info,
             &Some(usage.clone()),
             model_context_window,
+            model_auto_compact_token_limit,
         );
     }
 

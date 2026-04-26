@@ -61,6 +61,8 @@ The landed machine now has:
 - live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
 - live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
+- read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
+- live Phase 6 pressure app-server smoke coverage in `tools/epiphany_phase6_pressure_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 
@@ -76,6 +78,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
 - `thread/epiphany/jobs` is a derived reflection, not a scheduler or durable job store.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
+- `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -114,7 +117,6 @@ The next unknowns are:
 
 - how to expose live long-running job progress without making the GUI authoritative
 - when watcher-driven invalidation becomes necessary instead of merely tempting
-- how to expose context pressure as a real runtime signal for automatic CRRC
 - how to checkpoint in-flight source gathering and slice planning before automatic CRRC so post-compaction agents do not continue from false continuity
 - how much automatic CRRC coordination belongs in runtime before it becomes ceremony machinery
 - what Phase 6 should prove before specialist scheduling begins
@@ -127,7 +129,7 @@ Useful candidates:
 
 1. Add watcher/freshness inputs when stale graph or retrieval state needs earlier warning.
 2. Add live job progress notifications only after there is a real long-running owner to report.
-3. Add targeted scene/jobs/context fields only when a client or smoke exposes a real gap.
+3. Add targeted scene/jobs/context/pressure fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -142,7 +144,7 @@ These remain later work:
 - richer evidence and graph-shard inspection beyond the landed targeted context read
 - role-scoped specialist-agent registry and scheduling
 - mutation gates that warn or block broad writes when map freshness is stale
-- automatic CRRC runtime coordination with typed context-pressure telemetry
+- automatic CRRC runtime coordination on top of the landed typed context-pressure telemetry
 - in-flight investigation checkpointing for compaction-safe planning
 - GUI workflows for graph, evidence, job, invariant, and frontier steering
 

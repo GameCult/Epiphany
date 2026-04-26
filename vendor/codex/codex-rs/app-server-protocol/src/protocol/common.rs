@@ -351,6 +351,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyContextParams,
         response: v2::ThreadEpiphanyContextResponse,
     },
+    #[experimental("thread/epiphany/pressure")]
+    ThreadEpiphanyPressure => "thread/epiphany/pressure" {
+        params: v2::ThreadEpiphanyPressureParams,
+        response: v2::ThreadEpiphanyPressureResponse,
+    },
     #[experimental("thread/epiphany/index")]
     ThreadEpiphanyIndex => "thread/epiphany/index" {
         params: v2::ThreadEpiphanyIndexParams,
@@ -1663,6 +1668,7 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Index,
                         v2::ThreadEpiphanySceneAction::Retrieve,
                         v2::ThreadEpiphanySceneAction::Distill,
+                        v2::ThreadEpiphanySceneAction::Pressure,
                         v2::ThreadEpiphanySceneAction::Update,
                         v2::ThreadEpiphanySceneAction::Propose,
                         v2::ThreadEpiphanySceneAction::Promote,
@@ -1743,6 +1749,7 @@ mod tests {
                             "index",
                             "retrieve",
                             "distill",
+                            "pressure",
                             "update",
                             "propose",
                             "promote"
@@ -1919,6 +1926,57 @@ mod tests {
                     },
                     "missing": {
                         "graphNodeIds": ["missing-node"]
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_pressure_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyPressure {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyPressureResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyPressureSource::Live,
+                pressure: v2::ThreadEpiphanyPressure {
+                    status: v2::ThreadEpiphanyPressureStatus::Ready,
+                    level: v2::ThreadEpiphanyPressureLevel::High,
+                    basis: v2::ThreadEpiphanyPressureBasis::AutoCompactLimit,
+                    used_tokens: Some(92_000),
+                    model_context_window: Some(128_000),
+                    model_auto_compact_token_limit: Some(100_000),
+                    remaining_tokens: Some(8_000),
+                    ratio_per_mille: Some(920),
+                    should_prepare_compaction: true,
+                    note: "Pressure is derived from the model auto-compact token limit."
+                        .to_string(),
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/pressure");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/pressure",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "pressure": {
+                        "status": "ready",
+                        "level": "high",
+                        "basis": "autoCompactLimit",
+                        "usedTokens": 92000,
+                        "modelContextWindow": 128000,
+                        "modelAutoCompactTokenLimit": 100000,
+                        "remainingTokens": 8000,
+                        "ratioPerMille": 920,
+                        "shouldPrepareCompaction": true,
+                        "note": "Pressure is derived from the model auto-compact token limit."
                     }
                 }
             }),
@@ -2825,6 +2883,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/context"));
+    }
+
+    #[test]
+    fn thread_epiphany_pressure_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyPressure {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyPressureParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/pressure"));
     }
 
     #[test]

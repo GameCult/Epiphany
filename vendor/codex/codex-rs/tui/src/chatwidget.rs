@@ -1724,6 +1724,7 @@ fn token_usage_info_from_app_server(token_usage: ThreadTokenUsage) -> TokenUsage
             reasoning_output_tokens: token_usage.last.reasoning_output_tokens,
         },
         model_context_window: token_usage.model_context_window,
+        model_auto_compact_token_limit: token_usage.model_auto_compact_token_limit,
     }
 }
 
@@ -2847,6 +2848,7 @@ impl ChatWidget {
                     total_token_usage: TokenUsage::default(),
                     last_token_usage: TokenUsage::default(),
                     model_context_window: Some(model_context_window),
+                    model_auto_compact_token_limit: None,
                 }
             }
         };
@@ -6687,6 +6689,7 @@ impl ChatWidget {
             | ServerNotification::FuzzyFileSearchSessionCompleted(_)
             | ServerNotification::ThreadRealtimeTranscriptDelta(_)
             | ServerNotification::ThreadRealtimeTranscriptDone(_)
+            | ServerNotification::ThreadEpiphanyStateUpdated(_)
             | ServerNotification::WindowsWorldWritableWarning(_)
             | ServerNotification::WindowsSandboxSetupCompleted(_)
             | ServerNotification::AccountLoginCompleted(_) => {}

@@ -22,6 +22,7 @@ use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::RolloutItem;
+use codex_protocol::protocol::TokenUsageInfo;
 
 use crate::codex_message_processor::read_rollout_items_from_rollout;
 use crate::outgoing_message::ConnectionId;
@@ -69,6 +70,22 @@ pub(super) async fn latest_token_usage_turn_id_from_rollout_path(
 ) -> Option<String> {
     let rollout_items = read_rollout_items_from_rollout(rollout_path).await.ok()?;
     latest_token_usage_turn_id_from_rollout_items(&rollout_items, thread)
+}
+
+pub(super) async fn latest_token_usage_info_from_rollout_path(
+    rollout_path: &Path,
+) -> Option<TokenUsageInfo> {
+    let rollout_items = read_rollout_items_from_rollout(rollout_path).await.ok()?;
+    latest_token_usage_info_from_rollout_items(&rollout_items)
+}
+
+pub(super) fn latest_token_usage_info_from_rollout_items(
+    rollout_items: &[RolloutItem],
+) -> Option<TokenUsageInfo> {
+    rollout_items.iter().rev().find_map(|item| match item {
+        RolloutItem::EventMsg(EventMsg::TokenCount(event)) => event.info.clone(),
+        _ => None,
+    })
 }
 
 /// Identifies the turn that was active when a `TokenCount` record appeared.

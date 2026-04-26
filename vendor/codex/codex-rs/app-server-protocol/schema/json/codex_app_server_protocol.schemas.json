@@ -15032,6 +15032,101 @@
         ],
         "type": "string"
       },
+      "ThreadEpiphanyPressure": {
+        "properties": {
+          "basis": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyPressureBasis"
+          },
+          "level": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyPressureLevel"
+          },
+          "modelAutoCompactTokenLimit": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "modelContextWindow": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "ratioPerMille": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "remainingTokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "shouldPrepareCompaction": {
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyPressureStatus"
+          },
+          "usedTokens": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "basis",
+          "level",
+          "note",
+          "shouldPrepareCompaction",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanyPressureBasis": {
+        "enum": [
+          "unknown",
+          "autoCompactLimit",
+          "modelContextWindow"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyPressureLevel": {
+        "enum": [
+          "unknown",
+          "low",
+          "elevated",
+          "high",
+          "critical"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyPressureSource": {
+        "enum": [
+          "stored",
+          "live"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyPressureStatus": {
+        "enum": [
+          "unknown",
+          "ready"
+        ],
+        "type": "string"
+      },
       "ThreadEpiphanyRetrieveIndexSummary": {
         "properties": {
           "dirtyPaths": {
@@ -15283,6 +15378,7 @@
           "distill",
           "context",
           "jobs",
+          "pressure",
           "propose",
           "promote",
           "update"
@@ -17812,6 +17908,13 @@
         "properties": {
           "last": {
             "$ref": "#/definitions/v2/TokenUsageBreakdown"
+          },
+          "modelAutoCompactTokenLimit": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "modelContextWindow": {
             "format": "int64",

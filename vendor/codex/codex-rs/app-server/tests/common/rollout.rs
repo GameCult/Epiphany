@@ -92,6 +92,7 @@ pub fn create_fake_rollout_with_token_usage(
                 total_tokens: 90,
             },
             model_context_window: Some(200_000),
+            model_auto_compact_token_limit: Some(180_000),
         }),
         rate_limits: None,
     }))?;

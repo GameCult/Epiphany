@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/context`; all three have live app-server smoke coverage.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/context`, and `thread/epiphany/pressure`; all four have live app-server smoke coverage.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -63,9 +63,11 @@ The current spine:
 - read-only compact reflection through `thread/epiphany/scene`
 - read-only job/progress reflection through `thread/epiphany/jobs`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
+- read-only context-pressure reflection through `thread/epiphany/pressure`
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
+- live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -78,6 +80,7 @@ The exact current control flow is documented in
 - `thread/epiphany/scene` is read-only.
 - `thread/epiphany/jobs` is read-only.
 - `thread/epiphany/context` is read-only.
+- `thread/epiphany/pressure` is read-only.
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
 - GUI/client surfaces reflect and steer typed state; they do not become the source of truth.
@@ -107,6 +110,12 @@ For targeted context-shard behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
+```
+
+For context-pressure reflection behavior changes, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_pressure_smoke.py'
 ```
 
 For Codex Rust work on this Windows machine:
@@ -147,25 +156,23 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
-When the user asks to continue, resume the Phase 6 context-pressure slice now
-captured in `state/scratch.md`.
+The Phase 6 context-pressure slice is landed. It exposes read-only
+`thread/epiphany/pressure` from real token telemetry and the recorded
+auto-compact/context limits. It does not build automatic CRRC, a scheduler, a
+hidden compaction trigger, or a vibes-based gauge.
 
-Source trace found the honest seam: core already tracks `TokenUsageInfo` with
-`model_context_window`, core compaction already uses
-`ModelInfo::auto_compact_token_limit()`, and app-server already emits/replays
-`thread/tokenUsage/updated`. The next implementation should expose a read-only
-typed pressure reflection, likely `thread/epiphany/pressure`, derived from that
-real telemetry.
-
-Do not build automatic CRRC, a scheduler, a hidden compaction trigger, or a
-vibes-based gauge in this slice.
+When the user asks to continue, choose the next Phase 6 slice from the current
+map: likely in-flight investigation checkpointing for compaction-safe planning,
+watcher/freshness inputs, or live progress notifications once real job owners
+exist.
 
 Also keep the newly surfaced guardrail in mind: a pressure signal alone is not
 enough. Automatic CRRC needs an in-flight investigation checkpoint so compaction
 during source-gathering/planning does not wake into false continuity.
 
-Live `thread/epiphany/scene`, `thread/epiphany/jobs`, and
-`thread/epiphany/context` smokes are now guardrails, not the next organs.
+Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
+`thread/epiphany/context`, and `thread/epiphany/pressure` smokes are now
+guardrails, not the next organs.
 
 ## Not Yet
 
@@ -173,7 +180,7 @@ Live `thread/epiphany/scene`, `thread/epiphany/jobs`, and
 - automatic observation promotion
 - specialist-agent scheduling
 - GUI-as-source-of-truth
-- automatic runtime CRRC coordinator with real context-pressure telemetry
+- automatic runtime CRRC coordinator using the landed context-pressure telemetry
 - live long-running job execution or `thread/epiphany/jobsUpdated`
 - broad event stream beyond the landed state update notification
 

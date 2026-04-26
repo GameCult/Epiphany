@@ -163,6 +163,13 @@ use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyJobsParams;
 use codex_app_server_protocol::ThreadEpiphanyJobsResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobsSource;
+use codex_app_server_protocol::ThreadEpiphanyPressure;
+use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
+use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
+use codex_app_server_protocol::ThreadEpiphanyPressureParams;
+use codex_app_server_protocol::ThreadEpiphanyPressureResponse;
+use codex_app_server_protocol::ThreadEpiphanyPressureSource;
+use codex_app_server_protocol::ThreadEpiphanyPressureStatus;
 use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyProposeParams;
@@ -391,6 +398,7 @@ use codex_protocol::protocol::ReviewTarget as CoreReviewTarget;
 use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::SessionConfiguredEvent;
 use codex_protocol::protocol::SessionMetaLine;
+use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use codex_protocol::protocol::TurnEnvironmentSelection;
 use codex_protocol::protocol::USER_MESSAGE_BEGIN;
 use codex_protocol::protocol::W3cTraceContext;
@@ -456,6 +464,7 @@ use crate::filters::source_kind_matches;
 use crate::thread_state::ThreadListenerCommand;
 use crate::thread_state::ThreadState;
 use crate::thread_state::ThreadStateManager;
+use token_usage_replay::latest_token_usage_info_from_rollout_path;
 use token_usage_replay::latest_token_usage_turn_id_for_thread_path;
 use token_usage_replay::latest_token_usage_turn_id_from_rollout_items;
 use token_usage_replay::latest_token_usage_turn_id_from_rollout_path;
@@ -1023,6 +1032,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyContext { request_id, params } => {
                 self.thread_epiphany_context(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyPressure { request_id, params } => {
+                self.thread_epiphany_pressure(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4224,6 +4237,56 @@ impl CodexMessageProcessor {
             state_revision,
             context,
             missing,
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_pressure(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyPressureParams,
+    ) {
+        let ThreadEpiphanyPressureParams { thread_id } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let (source, token_usage_info) = if let Some(loaded_thread) = loaded_thread {
+            (
+                ThreadEpiphanyPressureSource::Live,
+                loaded_thread.token_usage_info().await,
+            )
+        } else {
+            let token_usage_info = match thread.path.as_deref() {
+                Some(path) => latest_token_usage_info_from_rollout_path(path).await,
+                None => None,
+            };
+            (ThreadEpiphanyPressureSource::Stored, token_usage_info)
+        };
+
+        let response = ThreadEpiphanyPressureResponse {
+            thread_id,
+            source,
+            pressure: map_epiphany_pressure(token_usage_info.as_ref()),
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -10735,6 +10798,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Distill,
         ThreadEpiphanySceneAction::Context,
         ThreadEpiphanySceneAction::Jobs,
+        ThreadEpiphanySceneAction::Pressure,
         ThreadEpiphanySceneAction::Update,
     ];
     if state_present {
@@ -10742,6 +10806,86 @@ fn epiphany_scene_available_actions(
         actions.push(ThreadEpiphanySceneAction::Promote);
     }
     actions
+}
+
+fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
+    let Some(info) = info else {
+        return ThreadEpiphanyPressure {
+            status: ThreadEpiphanyPressureStatus::Unknown,
+            level: ThreadEpiphanyPressureLevel::Unknown,
+            basis: ThreadEpiphanyPressureBasis::Unknown,
+            used_tokens: None,
+            model_context_window: None,
+            model_auto_compact_token_limit: None,
+            remaining_tokens: None,
+            ratio_per_mille: None,
+            should_prepare_compaction: false,
+            note: "No token usage telemetry has been recorded for this thread yet.".to_string(),
+        };
+    };
+
+    let used_tokens = info.total_token_usage.total_tokens.max(0);
+    let model_context_window = info.model_context_window.filter(|value| *value > 0);
+    let model_auto_compact_token_limit = info
+        .model_auto_compact_token_limit
+        .filter(|value| *value > 0);
+    let (basis, limit) = if let Some(limit) = model_auto_compact_token_limit {
+        (ThreadEpiphanyPressureBasis::AutoCompactLimit, Some(limit))
+    } else if let Some(limit) = model_context_window {
+        (ThreadEpiphanyPressureBasis::ModelContextWindow, Some(limit))
+    } else {
+        (ThreadEpiphanyPressureBasis::Unknown, None)
+    };
+
+    let Some(limit) = limit else {
+        return ThreadEpiphanyPressure {
+            status: ThreadEpiphanyPressureStatus::Unknown,
+            level: ThreadEpiphanyPressureLevel::Unknown,
+            basis,
+            used_tokens: Some(used_tokens),
+            model_context_window: info.model_context_window,
+            model_auto_compact_token_limit: info.model_auto_compact_token_limit,
+            remaining_tokens: None,
+            ratio_per_mille: None,
+            should_prepare_compaction: false,
+            note: "Token usage is known, but no context window or auto-compact threshold is available."
+                .to_string(),
+        };
+    };
+
+    let ratio_per_mille = ((used_tokens.saturating_mul(1000)) / limit).max(0) as u32;
+    let remaining_tokens = limit.saturating_sub(used_tokens);
+    let level = match ratio_per_mille {
+        ratio if ratio >= 1000 => ThreadEpiphanyPressureLevel::Critical,
+        ratio if ratio >= 900 => ThreadEpiphanyPressureLevel::High,
+        ratio if ratio >= 750 => ThreadEpiphanyPressureLevel::Elevated,
+        _ => ThreadEpiphanyPressureLevel::Low,
+    };
+    let should_prepare_compaction = ratio_per_mille >= 900;
+    let note = match basis {
+        ThreadEpiphanyPressureBasis::AutoCompactLimit => {
+            "Pressure is derived from the model auto-compact token limit.".to_string()
+        }
+        ThreadEpiphanyPressureBasis::ModelContextWindow => {
+            "Pressure is derived from the model context window because no auto-compact threshold was recorded.".to_string()
+        }
+        ThreadEpiphanyPressureBasis::Unknown => {
+            "Token usage is known, but no usable pressure limit was recorded.".to_string()
+        }
+    };
+
+    ThreadEpiphanyPressure {
+        status: ThreadEpiphanyPressureStatus::Ready,
+        level,
+        basis,
+        used_tokens: Some(used_tokens),
+        model_context_window: info.model_context_window,
+        model_auto_compact_token_limit: info.model_auto_compact_token_limit,
+        remaining_tokens: Some(remaining_tokens),
+        ratio_per_mille: Some(ratio_per_mille),
+        should_prepare_compaction,
+        note,
+    }
 }
 
 fn map_epiphany_scene_subgoals(state: &EpiphanyThreadState) -> Vec<ThreadEpiphanySceneSubgoal> {
@@ -12786,6 +12930,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Distill,
                 ThreadEpiphanySceneAction::Context,
                 ThreadEpiphanySceneAction::Jobs,
+                ThreadEpiphanySceneAction::Pressure,
                 ThreadEpiphanySceneAction::Update,
                 ThreadEpiphanySceneAction::Propose,
                 ThreadEpiphanySceneAction::Promote,
@@ -12801,6 +12946,61 @@ mod tests {
         assert_eq!(scene.source, ThreadEpiphanySceneSource::Stored);
         assert!(scene.available_actions.is_empty());
         assert_eq!(scene.graph, ThreadEpiphanySceneGraph::default());
+    }
+
+    #[test]
+    fn map_epiphany_pressure_reports_unknown_without_telemetry() {
+        let pressure = map_epiphany_pressure(None);
+
+        assert_eq!(pressure.status, ThreadEpiphanyPressureStatus::Unknown);
+        assert_eq!(pressure.level, ThreadEpiphanyPressureLevel::Unknown);
+        assert_eq!(pressure.basis, ThreadEpiphanyPressureBasis::Unknown);
+        assert!(!pressure.should_prepare_compaction);
+    }
+
+    #[test]
+    fn map_epiphany_pressure_prefers_auto_compact_limit() {
+        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: 92,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
+            model_context_window: Some(200),
+            model_auto_compact_token_limit: Some(100),
+        }));
+
+        assert_eq!(pressure.status, ThreadEpiphanyPressureStatus::Ready);
+        assert_eq!(pressure.level, ThreadEpiphanyPressureLevel::High);
+        assert_eq!(
+            pressure.basis,
+            ThreadEpiphanyPressureBasis::AutoCompactLimit
+        );
+        assert_eq!(pressure.ratio_per_mille, Some(920));
+        assert_eq!(pressure.remaining_tokens, Some(8));
+        assert!(pressure.should_prepare_compaction);
+    }
+
+    #[test]
+    fn map_epiphany_pressure_falls_back_to_context_window() {
+        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: 150,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
+            model_context_window: Some(200),
+            model_auto_compact_token_limit: None,
+        }));
+
+        assert_eq!(pressure.status, ThreadEpiphanyPressureStatus::Ready);
+        assert_eq!(pressure.level, ThreadEpiphanyPressureLevel::Elevated);
+        assert_eq!(
+            pressure.basis,
+            ThreadEpiphanyPressureBasis::ModelContextWindow
+        );
+        assert_eq!(pressure.ratio_per_mille, Some(750));
+        assert!(!pressure.should_prepare_compaction);
     }
 
     #[test]

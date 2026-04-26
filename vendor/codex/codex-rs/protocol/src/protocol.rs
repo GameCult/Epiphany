@@ -2240,6 +2240,9 @@ pub struct TokenUsageInfo {
     // TODO(aibrahim): make this not optional
     #[ts(type = "number | null")]
     pub model_context_window: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null", optional)]
+    pub model_auto_compact_token_limit: Option<i64>,
 }
 
 impl TokenUsageInfo {
@@ -2247,6 +2250,7 @@ impl TokenUsageInfo {
         info: &Option<TokenUsageInfo>,
         last: &Option<TokenUsage>,
         model_context_window: Option<i64>,
+        model_auto_compact_token_limit: Option<i64>,
     ) -> Option<Self> {
         if info.is_none() && last.is_none() {
             return None;
@@ -2258,6 +2262,7 @@ impl TokenUsageInfo {
                 total_token_usage: TokenUsage::default(),
                 last_token_usage: TokenUsage::default(),
                 model_context_window,
+                model_auto_compact_token_limit,
             },
         };
         if let Some(last) = last {
@@ -2265,6 +2270,9 @@ impl TokenUsageInfo {
         }
         if let Some(model_context_window) = model_context_window {
             info.model_context_window = Some(model_context_window);
+        }
+        if let Some(model_auto_compact_token_limit) = model_auto_compact_token_limit {
+            info.model_auto_compact_token_limit = Some(model_auto_compact_token_limit);
         }
         Some(info)
     }
@@ -2274,11 +2282,18 @@ impl TokenUsageInfo {
         self.last_token_usage = last.clone();
     }
 
-    pub fn fill_to_context_window(&mut self, context_window: i64) {
+    pub fn fill_to_context_window(
+        &mut self,
+        context_window: i64,
+        model_auto_compact_token_limit: Option<i64>,
+    ) {
         let previous_total = self.total_token_usage.total_tokens;
         let delta = (context_window - previous_total).max(0);
 
         self.model_context_window = Some(context_window);
+        if let Some(model_auto_compact_token_limit) = model_auto_compact_token_limit {
+            self.model_auto_compact_token_limit = Some(model_auto_compact_token_limit);
+        }
         self.total_token_usage = TokenUsage {
             total_tokens: context_window,
             ..TokenUsage::default()
@@ -2289,13 +2304,17 @@ impl TokenUsageInfo {
         };
     }
 
-    pub fn full_context_window(context_window: i64) -> Self {
+    pub fn full_context_window(
+        context_window: i64,
+        model_auto_compact_token_limit: Option<i64>,
+    ) -> Self {
         let mut info = Self {
             total_token_usage: TokenUsage::default(),
             last_token_usage: TokenUsage::default(),
             model_context_window: Some(context_window),
+            model_auto_compact_token_limit,
         };
-        info.fill_to_context_window(context_window);
+        info.fill_to_context_window(context_window, model_auto_compact_token_limit);
         info
     }
 }
@@ -5835,6 +5854,7 @@ mod tests {
             total_token_usage: TokenUsage::default(),
             last_token_usage: TokenUsage::default(),
             model_context_window: Some(258_400),
+            model_auto_compact_token_limit: Some(240_000),
         });
         let last = Some(TokenUsage {
             input_tokens: 10,
@@ -5844,10 +5864,11 @@ mod tests {
             total_tokens: 10,
         });
 
-        let info = TokenUsageInfo::new_or_append(&initial, &last, Some(128_000))
+        let info = TokenUsageInfo::new_or_append(&initial, &last, Some(128_000), Some(120_000))
             .expect("new_or_append should return info");
 
         assert_eq!(info.model_context_window, Some(128_000));
+        assert_eq!(info.model_auto_compact_token_limit, Some(120_000));
     }
 
     #[test]
@@ -5856,6 +5877,7 @@ mod tests {
             total_token_usage: TokenUsage::default(),
             last_token_usage: TokenUsage::default(),
             model_context_window: Some(258_400),
+            model_auto_compact_token_limit: Some(240_000),
         });
         let last = Some(TokenUsage {
             input_tokens: 10,
@@ -5865,10 +5887,13 @@ mod tests {
             total_tokens: 10,
         });
 
-        let info =
-            TokenUsageInfo::new_or_append(&initial, &last, /*model_context_window*/ None)
-                .expect("new_or_append should return info");
+        let info = TokenUsageInfo::new_or_append(
+            &initial, &last, /*model_context_window*/ None,
+            /*model_auto_compact_token_limit*/ None,
+        )
+        .expect("new_or_append should return info");
 
         assert_eq!(info.model_context_window, Some(258_400));
+        assert_eq!(info.model_auto_compact_token_limit, Some(240_000));
     }
 }

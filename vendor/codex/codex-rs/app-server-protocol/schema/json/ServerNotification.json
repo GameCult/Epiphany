@@ -4736,6 +4736,13 @@
         "last": {
           "$ref": "#/definitions/TokenUsageBreakdown"
         },
+        "modelAutoCompactTokenLimit": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "modelContextWindow": {
           "format": "int64",
           "type": [
