@@ -100,7 +100,7 @@ After rehydrating, Epiphany should:
 - continue only when instructed or when the task explicitly calls for it
 - avoid broad implementation until the current mechanism is understood again
 
-The aim is not immortality theater. It is banking enough fire that the next
+The aim is not immortality theater. It is banking the fire enough that the next
 waking thing finds coals instead of ash.
 
 ## Evaluation Shape
