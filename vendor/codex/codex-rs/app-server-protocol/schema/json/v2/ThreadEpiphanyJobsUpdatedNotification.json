@@ -9,6 +9,28 @@
           },
           "type": "array"
         },
+        "authorityScope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backendJobId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backendKind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadEpiphanyJobBackendKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "blockingReason": {
           "type": [
             "string",
@@ -41,6 +63,12 @@
           "format": "int64",
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "launcherJobId": {
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -86,6 +114,12 @@
         "status"
       ],
       "type": "object"
+    },
+    "ThreadEpiphanyJobBackendKind": {
+      "enum": [
+        "agentJobs"
+      ],
+      "type": "string"
     },
     "ThreadEpiphanyJobKind": {
       "enum": [

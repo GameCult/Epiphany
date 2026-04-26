@@ -1159,8 +1159,36 @@
       ],
       "type": "string"
     },
+    "EpiphanyJobBackendKind": {
+      "enum": [
+        "agent_jobs"
+      ],
+      "type": "string"
+    },
     "EpiphanyJobBinding": {
       "properties": {
+        "authority_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend_job_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyJobBackendKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "blocking_reason": {
           "type": [
             "string",
@@ -1172,6 +1200,12 @@
         },
         "kind": {
           "$ref": "#/definitions/EpiphanyJobKind"
+        },
+        "launcher_job_id": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "linked_graph_node_ids": {
           "items": {

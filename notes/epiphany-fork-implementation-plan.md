@@ -51,6 +51,7 @@ The landed machine now has:
 - read-only map/churn proposal through `thread/epiphany/propose`
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
+- thin Epiphany-owned launcher metadata in durable `jobBindings`, with launcher id, authority scope, and backend kind/job id
 - live bound-runtime progress notification through `thread/epiphany/jobsUpdated`
 - response-level and notification-level revision and changed-field metadata
 - direct-update validation for malformed appended records and structural replacements
@@ -83,8 +84,8 @@ These boundaries are more important than the individual method names:
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
 - `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
-- `thread/epiphany/jobs` is a derived reflection over retrieval summaries, typed `jobBindings`, and optional runtime `agent_jobs` snapshots, not a scheduler or durable runtime job store.
-- `thread/epiphany/jobsUpdated` is a live notification derived from runtime progress events and bound-job snapshots, not a scheduler, polling daemon, or durable runtime job store.
+- `thread/epiphany/jobs` is a derived reflection over retrieval summaries plus typed launcher bindings and optional backend snapshots, not a scheduler or durable runtime job store.
+- `thread/epiphany/jobsUpdated` is a live notification derived from runtime progress events and launcher-bound job snapshots, not a scheduler, polling daemon, or durable runtime job store.
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
@@ -125,7 +126,7 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- whether future Epiphany-owned long-running work should keep parasitizing runtime `agent_jobs` now that `thread/epiphany/jobsUpdated` exists, or whether the fork needs a stricter launcher seam
+- how the landed thin launcher seam should expose explicit launch and interrupt authority without becoming a secret scheduler
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how the landed reorientation verdict should be consumed by future automatic CRRC without becoming ceremony machinery
 - how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
@@ -137,7 +138,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Decide whether future Epiphany-owned long-running work should keep parasitizing runtime `agent_jobs` or needs a stricter fork-owned launcher seam.
+1. Add an explicit launch/interrupt authority surface over the landed thin launcher seam while keeping `agent_jobs` as the first backend adapter.
 2. Decide how the landed reorientation verdict should be consumed by future automatic CRRC without becoming ceremony machinery.
 3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 

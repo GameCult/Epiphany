@@ -184,6 +184,10 @@ def job_surface_patch(runtime_agent_job_id: str) -> dict[str, Any]:
                 "kind": "specialist",
                 "scope": "role-scoped specialist work",
                 "owner_role": "epiphany-harness",
+                "launcher_job_id": "launcher-specialist-smoke",
+                "authority_scope": "epiphany.specialist",
+                "backend_kind": "agent_jobs",
+                "backend_job_id": runtime_agent_job_id,
                 "runtime_agent_job_id": runtime_agent_job_id,
                 "linked_subgoal_ids": ["phase6-jobs-smoke"],
                 "linked_graph_node_ids": ["job-surface"],
@@ -249,6 +253,22 @@ def assert_ready_jobs(response: dict[str, Any]) -> None:
 
     specialist = job_by_id(response["jobs"], "specialist-work")
     require(specialist["status"] == "running", "bound specialist job should report real runtime progress")
+    require(
+        specialist["launcherJobId"] == "launcher-specialist-smoke",
+        "specialist launcher job id should surface through jobs reflection",
+    )
+    require(
+        specialist["authorityScope"] == "epiphany.specialist",
+        "specialist authority scope should surface through jobs reflection",
+    )
+    require(
+        specialist["backendKind"] == "agentJobs",
+        "specialist backend kind should surface through jobs reflection",
+    )
+    require(
+        specialist["backendJobId"] == "job-specialist-smoke",
+        "specialist backend job id should surface through jobs reflection",
+    )
     require(
         specialist["runtimeAgentJobId"] == "job-specialist-smoke",
         "specialist runtime job id should surface through jobs reflection",
@@ -358,6 +378,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 ready_response["jobs"], "verification"
             )["itemsTotal"],
             "specialistStatus": job_by_id(ready_response["jobs"], "specialist-work")["status"],
+            "specialistLauncherJobId": job_by_id(
+                ready_response["jobs"], "specialist-work"
+            )["launcherJobId"],
+            "specialistAuthorityScope": job_by_id(
+                ready_response["jobs"], "specialist-work"
+            )["authorityScope"],
+            "specialistBackendKind": job_by_id(
+                ready_response["jobs"], "specialist-work"
+            )["backendKind"],
+            "specialistBackendJobId": job_by_id(
+                ready_response["jobs"], "specialist-work"
+            )["backendJobId"],
             "specialistRuntimeAgentJobId": job_by_id(
                 ready_response["jobs"], "specialist-work"
             )["runtimeAgentJobId"],

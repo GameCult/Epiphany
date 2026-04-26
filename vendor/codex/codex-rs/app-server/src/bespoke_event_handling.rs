@@ -2,7 +2,7 @@ use crate::codex_message_processor::ApiVersion;
 use crate::codex_message_processor::read_rollout_items_from_rollout;
 use crate::codex_message_processor::read_summary_from_rollout;
 use crate::codex_message_processor::summary_to_thread;
-use crate::codex_message_processor::thread_epiphany_jobs_updated_notification_for_runtime_job;
+use crate::codex_message_processor::thread_epiphany_jobs_updated_notification_for_agent_job_progress;
 use crate::error_code::INTERNAL_ERROR_CODE;
 use crate::error_code::INVALID_REQUEST_ERROR_CODE;
 use crate::outgoing_message::ClientRequestResult;
@@ -2028,7 +2028,7 @@ async fn maybe_emit_thread_epiphany_jobs_updated(
         }
     };
 
-    let Some(notification) = thread_epiphany_jobs_updated_notification_for_runtime_job(
+    let Some(notification) = thread_epiphany_jobs_updated_notification_for_agent_job_progress(
         conversation_id,
         conversation.as_ref(),
         progress.job_id.as_str(),
@@ -4656,6 +4656,10 @@ mod tests {
                     kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                     scope: "runtime-bound specialist work".to_string(),
                     owner_role: "epiphany-harness".to_string(),
+                    launcher_job_id: Some("launcher-specialist".to_string()),
+                    authority_scope: Some("epiphany.specialist".to_string()),
+                    backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs),
+                    backend_job_id: Some("job-specialist".to_string()),
                     runtime_agent_job_id: Some("job-specialist".to_string()),
                     linked_subgoal_ids: vec!["phase6-jobs".to_string()],
                     linked_graph_node_ids: vec!["job-surface".to_string()],
@@ -4726,6 +4730,13 @@ mod tests {
                     job.status,
                     codex_app_server_protocol::ThreadEpiphanyJobStatus::Running
                 );
+                assert_eq!(job.launcher_job_id.as_deref(), Some("launcher-specialist"));
+                assert_eq!(job.authority_scope.as_deref(), Some("epiphany.specialist"));
+                assert_eq!(
+                    job.backend_kind,
+                    Some(codex_app_server_protocol::ThreadEpiphanyJobBackendKind::AgentJobs)
+                );
+                assert_eq!(job.backend_job_id.as_deref(), Some("job-specialist"));
                 assert_eq!(job.runtime_agent_job_id.as_deref(), Some("job-specialist"));
                 assert_eq!(job.items_processed, Some(1));
                 assert_eq!(job.items_total, Some(3));

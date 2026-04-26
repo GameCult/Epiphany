@@ -4828,8 +4828,36 @@
       ],
       "type": "string"
     },
+    "EpiphanyJobBackendKind": {
+      "enum": [
+        "agent_jobs"
+      ],
+      "type": "string"
+    },
     "EpiphanyJobBinding": {
       "properties": {
+        "authority_scope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend_job_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backend_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyJobBackendKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "blocking_reason": {
           "type": [
             "string",
@@ -4841,6 +4869,12 @@
         },
         "kind": {
           "$ref": "#/definitions/EpiphanyJobKind"
+        },
+        "launcher_job_id": {
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "linked_graph_node_ids": {
           "items": {
@@ -13127,6 +13161,28 @@
           },
           "type": "array"
         },
+        "authorityScope": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backendJobId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "backendKind": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadEpiphanyJobBackendKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "blockingReason": {
           "type": [
             "string",
@@ -13159,6 +13215,12 @@
           "format": "int64",
           "type": [
             "integer",
+            "null"
+          ]
+        },
+        "launcherJobId": {
+          "type": [
+            "string",
             "null"
           ]
         },
@@ -13204,6 +13266,12 @@
         "status"
       ],
       "type": "object"
+    },
+    "ThreadEpiphanyJobBackendKind": {
+      "enum": [
+        "agentJobs"
+      ],
+      "type": "string"
     },
     "ThreadEpiphanyJobKind": {
       "enum": [

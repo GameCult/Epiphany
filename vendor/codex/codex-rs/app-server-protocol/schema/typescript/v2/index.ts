@@ -328,6 +328,7 @@ export type { ThreadEpiphanyGraphFreshnessStatus } from "./ThreadEpiphanyGraphFr
 export type { ThreadEpiphanyInvalidationInput } from "./ThreadEpiphanyInvalidationInput";
 export type { ThreadEpiphanyInvalidationStatus } from "./ThreadEpiphanyInvalidationStatus";
 export type { ThreadEpiphanyJob } from "./ThreadEpiphanyJob";
+export type { ThreadEpiphanyJobBackendKind } from "./ThreadEpiphanyJobBackendKind";
 export type { ThreadEpiphanyJobKind } from "./ThreadEpiphanyJobKind";
 export type { ThreadEpiphanyJobStatus } from "./ThreadEpiphanyJobStatus";
 export type { ThreadEpiphanyJobsSource } from "./ThreadEpiphanyJobsSource";

@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient`; jobs can now overlay durable `jobBindings` onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed bound-job notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, and reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, jobs can overlay that seam onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, and reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -62,9 +62,10 @@ The current spine:
 - read-only map/churn proposal through `thread/epiphany/propose`
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
+- thin launcher metadata in durable `jobBindings`
 - live bound-job progress notification through `thread/epiphany/jobsUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
-- read-only job/progress reflection through `thread/epiphany/jobs`, with durable `jobBindings` plus live runtime `agent_jobs` overlay
+- read-only job/progress reflection through `thread/epiphany/jobs`, with durable launcher metadata plus live runtime `agent_jobs` overlay
 - read-only retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only context-pressure reflection through `thread/epiphany/pressure`
@@ -211,12 +212,11 @@ still deserves `resume` or has to admit `regather`.
 Also keep the guardrail in mind: a read-only reorientation verdict is still not
 automatic CRRC. Runtime coordination and next-action execution are still future
 work even though read-only job ownership/progress reflection now has a real
-runtime seam.
+runtime seam and a thin launcher boundary.
 
-When the user asks to continue, the next likely organ is deciding whether
-future Epiphany-owned long-running work should keep parasitizing runtime
-`agent_jobs` now that `thread/epiphany/jobsUpdated` exists, or whether the
-fork needs a stricter launcher seam before specialist ownership grows teeth.
+When the user asks to continue, the next likely organ is an explicit
+launch/interrupt authority surface over the landed thin launcher seam, still
+backed by runtime `agent_jobs` until a second backend deserves to exist.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
@@ -230,6 +230,7 @@ guardrails, not the next organs.
 - specialist-agent scheduling
 - GUI-as-source-of-truth
 - automatic runtime CRRC coordinator acting on the landed reorientation verdict
+- explicit launch/interrupt authority surface over the landed thin launcher seam
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam
 - broad event stream beyond the landed state update notification
 

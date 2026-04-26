@@ -4289,6 +4289,13 @@ pub enum ThreadEpiphanyJobKind {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyJobBackendKind {
+    AgentJobs,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
 pub enum ThreadEpiphanyJobStatus {
     Idle,
     Needed,
@@ -4309,6 +4316,18 @@ pub struct ThreadEpiphanyJob {
     pub kind: ThreadEpiphanyJobKind,
     pub scope: String,
     pub owner_role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub launcher_job_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub authority_scope: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub backend_kind: Option<ThreadEpiphanyJobBackendKind>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub backend_job_id: Option<String>,
     pub status: ThreadEpiphanyJobStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]

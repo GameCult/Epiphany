@@ -46,9 +46,9 @@ The rule is:
 | `thread/epiphany/propose` | read-only proposal | landed | Drafts graph/frontier/churn candidates from verified evidence-backed observations. |
 | `thread/epiphany/promote` | verifier gate | landed | Rejects or applies candidates through the durable update path. |
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
-| `thread/epiphany/jobsUpdated` | notification | landed | Emits changed bound-job snapshots for real runtime progress events when the mapped job payload actually changes. |
+| `thread/epiphany/jobsUpdated` | notification | landed | Emits changed launcher-bound job snapshots for real runtime progress events when the mapped payload actually changes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
-| `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable `jobBindings` plus live runtime `agent_jobs` overlay when a real owner exists. |
+| `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable launcher metadata plus live backend overlay when a real owner exists. |
 | `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state, with watcher-backed invalidation inputs for loaded threads. |
 | `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
@@ -131,7 +131,7 @@ Metaphor is compression after source context. It is not decoration for guesses.
 
 These are not landed yet:
 
-- an Epiphany-owned long-running job launcher beyond binding to existing runtime `agent_jobs`
+- an explicit launch/interrupt surface over the landed thin launcher seam
 - richer evidence-range and graph-shard inspection beyond the landed context shard
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
@@ -147,17 +147,19 @@ and a verification story.
 
 The first read-only job/progress reflection is landed as `thread/epiphany/jobs`.
 It reports derived slots for retrieval indexing, graph remap, invariant
-verification, and specialist work, and can overlay durable `jobBindings` onto
-live runtime `agent_jobs` snapshots. It does not start, schedule, create, or
-notify jobs.
+verification, and specialist work. Durable `jobBindings` now act as a thin
+Epiphany-owned launcher seam: they can carry launcher identity, authority
+scope, backend kind, and backend job id, and the current adapter can overlay
+that launcher metadata onto live runtime `agent_jobs` snapshots. The surface
+does not start, schedule, create, or notify jobs.
 
 The first live bound-runtime progress notification is also landed as
 `thread/epiphany/jobsUpdated`. It rides existing `agent_job_progress:{json}`
-background events from the runtime job runner, resolves matching durable
-bindings against live `agent_jobs` snapshots, and only emits when the mapped
-bound-job payload actually changes. It does not poll state runtime in a loop,
-start work, schedule follow-up work, or turn the jobs read surface into a
-writer.
+background events from the runtime job runner, resolves matching launcher
+bindings against live `agent_jobs` snapshots through the current backend
+adapter, and only emits when the mapped bound-job payload actually changes. It
+does not poll state runtime in a loop, start work, schedule follow-up work, or
+turn the jobs read surface into a writer.
 
 Future live job state should describe work like:
 
@@ -173,6 +175,10 @@ Minimum useful fields:
 - `kind`
 - `scope`
 - `ownerRole`
+- `launcherJobId`
+- `authorityScope`
+- `backendKind`
+- `backendJobId`
 - `status`
 - `runtimeAgentJobId`
 - `itemsProcessed`
@@ -267,9 +273,9 @@ invalidation telemetry now exists inside that freshness surface for loaded
 threads, durable investigation packets now exist in typed state plus
 prompt/scene/context reflection, and the first bounded policy verdict now
 exists as `thread/epiphany/reorient`. What does not exist yet is the runtime
-coordinator that acts on that verdict. Automatic CRRC still needs job owners,
-interruption-safe ownership, and explicit runtime policy instead of vibes with a
-clipboard.
+coordinator that acts on that verdict. Automatic CRRC still needs launch and
+interrupt authority over the thin job seam, job owners that can be stopped
+cleanly, and explicit runtime policy instead of vibes with a clipboard.
 
 Compaction should squeeze scratch, not the map.
 
