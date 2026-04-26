@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/context`, and `thread/epiphany/pressure`; all four have live app-server smoke coverage.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, and `thread/epiphany/pressure`; all five have live app-server smoke coverage.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -63,11 +63,13 @@ The current spine:
 - successful-write notification through `thread/epiphany/stateUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
 - read-only job/progress reflection through `thread/epiphany/jobs`
+- read-only retrieval/graph freshness reflection through `thread/epiphany/freshness`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only context-pressure reflection through `thread/epiphany/pressure`
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
+- live freshness app-server smoke through `tools/epiphany_phase6_freshness_smoke.py`
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
 - live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
 
@@ -81,6 +83,7 @@ The exact current control flow is documented in
 - `thread/epiphany/propose` is read-only.
 - `thread/epiphany/scene` is read-only.
 - `thread/epiphany/jobs` is read-only.
+- `thread/epiphany/freshness` is read-only.
 - `thread/epiphany/context` is read-only.
 - `thread/epiphany/pressure` is read-only.
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
@@ -106,6 +109,12 @@ For jobs reflection behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
+```
+
+For freshness reflection behavior changes, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_freshness_smoke.py'
 ```
 
 For targeted context-shard behavior changes, run:
@@ -158,7 +167,13 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
-The Phase 6 context-pressure slice is landed. It exposes read-only
+The Phase 6 freshness slice is landed. It exposes read-only
+`thread/epiphany/freshness` from live retrieval summaries plus graph
+frontier/churn state. It reports exact dirty-path pressure and revision/source
+identity, but it does not mutate state, schedule refresh work, or pretend
+watcher-driven invalidation already exists.
+
+The Phase 6 context-pressure slice is also landed. It exposes read-only
 `thread/epiphany/pressure` from real token telemetry and the recorded
 auto-compact/context limits. It does not build automatic CRRC, a scheduler, a
 hidden compaction trigger, or a vibes-based gauge.
@@ -169,16 +184,17 @@ evidence, and reflects the packet into prompt/scene/context so post-compaction
 wakeups can tell whether they have a real ember or only ash.
 
 When the user asks to continue, choose the next Phase 6 slice from the current
-map: watcher/freshness inputs are the most likely next organ, with live
-progress notifications waiting until real job owners exist.
+map: watcher-backed invalidation inputs are the most likely next organ now that
+the read-only freshness lens exists, with live progress notifications waiting
+until real job owners exist.
 
 Also keep the guardrail in mind: pressure plus a checkpoint packet is still not
 automatic CRRC. Runtime coordination, reorientation policy, and next-action
 selection are still future work.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
-`thread/epiphany/context`, and `thread/epiphany/pressure` smokes are now
-guardrails, not the next organs.
+`thread/epiphany/freshness`, `thread/epiphany/context`, and
+`thread/epiphany/pressure` smokes are now guardrails, not the next organs.
 
 ## Not Yet
 

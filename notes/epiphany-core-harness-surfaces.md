@@ -48,6 +48,7 @@ The rule is:
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries. |
+| `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state. |
 | `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
 
@@ -68,6 +69,7 @@ The following must stay read-only:
 - `thread/epiphany/propose`
 - `thread/epiphany/scene`
 - `thread/epiphany/jobs`
+- `thread/epiphany/freshness`
 - `thread/epiphany/context`
 - `thread/epiphany/pressure`
 
@@ -76,7 +78,7 @@ license to mutate map/evidence/churn state as a side effect.
 
 ## Reflection Authority
 
-Scene, jobs, context, and GUI surfaces may compress state for humans and
+Scene, jobs, freshness, context, and GUI surfaces may compress state for humans and
 clients. They may not invent canonical understanding.
 
 Reflection surfaces should:
@@ -128,7 +130,7 @@ These are not landed yet:
 - live typed job/progress state for running indexing, remap, verification, and specialist work
 - `thread/epiphany/jobsUpdated` or equivalent progress notifications
 - richer evidence-range and graph-shard inspection beyond the landed context shard
-- watcher-driven graph/retrieval/invariant invalidation
+- watcher-driven graph/retrieval/invariant invalidation on top of the landed freshness reflection
 - automatic tool-output observation promotion
 - typed turn intent before broad mutation
 - hard mutation gates for stale map or violated invariants
@@ -172,6 +174,22 @@ Minimum useful fields:
 The landed reflection surface keeps this read-only. Future live job state must
 keep the same rule: do not make job state a hidden second planner.
 
+## Freshness Surface Direction
+
+The first retrieval/graph freshness read is landed as `thread/epiphany/freshness`.
+
+It reflects from existing sources only:
+
+- live retrieval summaries for loaded threads, or stored retrieval summaries when that is all that survived
+- graph frontier dirty paths and open-question/open-gap pressure
+- graph checkpoint identity
+- churn freshness hints such as `fresh` or `stale`
+- state revision and live/stored source identity
+
+It does not mutate `SessionState`, refresh retrieval, remap graphs, emit
+`thread/epiphany/stateUpdated`, or pretend watcher-driven invalidation is
+already built. It is a pressure lens, not the crew with the crowbar.
+
 ## Context Shard Surface Direction
 
 The first targeted context read is landed as `thread/epiphany/context`.
@@ -211,12 +229,13 @@ Future runtime behavior should:
 - distinguish what survived from what was discarded
 - make compaction visible instead of pretending continuity is magic
 
-The pressure signal now exists as `thread/epiphany/pressure`, and durable
+The pressure signal now exists as `thread/epiphany/pressure`, the first
+freshness signal now exists as `thread/epiphany/freshness`, and durable
 investigation packets now exist in typed state plus prompt/scene/context
 reflection. What does not exist yet is the runtime coordinator that consumes
-those signals. Automatic CRRC still needs typed freshness/invalidity telemetry
-and an explicit policy for when a checkpoint means "resume" versus "re-gather"
-instead of vibes with a clipboard.
+those signals. Automatic CRRC still needs live watcher-backed invalidity
+telemetry and an explicit policy for when a checkpoint means "resume" versus
+"re-gather" instead of vibes with a clipboard.
 
 Compaction should squeeze scratch, not the map.
 

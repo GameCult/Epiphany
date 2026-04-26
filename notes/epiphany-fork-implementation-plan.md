@@ -59,6 +59,8 @@ The landed machine now has:
 - live Phase 6 scene app-server smoke coverage in `tools/epiphany_phase6_scene_smoke.py`
 - read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`
 - live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
+- read-only Phase 6 retrieval/graph freshness reflection through `thread/epiphany/freshness`
+- live Phase 6 freshness app-server smoke coverage in `tools/epiphany_phase6_freshness_smoke.py`
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
 - live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
@@ -78,6 +80,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
 - `thread/epiphany/jobs` is a derived reflection, not a scheduler or durable job store.
+- `thread/epiphany/freshness` is a derived reflection, not watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
@@ -128,7 +131,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add watcher/freshness inputs when stale graph or retrieval state needs earlier warning.
+1. Add live watcher-backed invalidation inputs on top of the landed freshness lens when stale graph or retrieval state needs earlier warning.
 2. Add live job progress notifications only after there is a real long-running owner to report.
 3. Add targeted scene/jobs/context/pressure/checkpoint fields only when a client or smoke exposes a real gap.
 
@@ -171,6 +174,12 @@ Before modifying jobs reflection behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
+```
+
+Before modifying freshness reflection behavior, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_freshness_smoke.py'
 ```
 
 Before modifying targeted context-shard behavior, run:

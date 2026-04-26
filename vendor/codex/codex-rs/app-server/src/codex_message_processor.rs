@@ -154,7 +154,12 @@ use codex_app_server_protocol::ThreadEpiphanyContextSource;
 use codex_app_server_protocol::ThreadEpiphanyContextStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyDistillParams;
 use codex_app_server_protocol::ThreadEpiphanyDistillResponse;
+use codex_app_server_protocol::ThreadEpiphanyFreshnessParams;
+use codex_app_server_protocol::ThreadEpiphanyFreshnessResponse;
+use codex_app_server_protocol::ThreadEpiphanyFreshnessSource;
 use codex_app_server_protocol::ThreadEpiphanyGraphContext;
+use codex_app_server_protocol::ThreadEpiphanyGraphFreshness;
+use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyIndexParams;
 use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
 use codex_app_server_protocol::ThreadEpiphanyJob;
@@ -174,6 +179,8 @@ use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyProposeParams;
 use codex_app_server_protocol::ThreadEpiphanyProposeResponse;
+use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
+use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveParams;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
@@ -1029,6 +1036,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyJobs { request_id, params } => {
                 self.thread_epiphany_jobs(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyFreshness { request_id, params } => {
+                self.thread_epiphany_freshness(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyContext { request_id, params } => {
@@ -4193,6 +4204,56 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .map(|epiphany_state| epiphany_state.revision),
             jobs: map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref()),
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_freshness(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyFreshnessParams,
+    ) {
+        let ThreadEpiphanyFreshnessParams { thread_id } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let retrieval_override = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_retrieval_state().await)
+        } else {
+            None
+        };
+        let (state_revision, retrieval, graph) =
+            map_epiphany_freshness(thread.epiphany_state.as_ref(), retrieval_override.as_ref());
+        let response = ThreadEpiphanyFreshnessResponse {
+            thread_id,
+            source: if loaded_thread.is_some() {
+                ThreadEpiphanyFreshnessSource::Live
+            } else {
+                ThreadEpiphanyFreshnessSource::Stored
+            },
+            state_revision,
+            retrieval,
+            graph,
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -10817,6 +10878,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Distill,
         ThreadEpiphanySceneAction::Context,
         ThreadEpiphanySceneAction::Jobs,
+        ThreadEpiphanySceneAction::Freshness,
         ThreadEpiphanySceneAction::Pressure,
         ThreadEpiphanySceneAction::Update,
     ];
@@ -10825,6 +10887,142 @@ fn epiphany_scene_available_actions(
         actions.push(ThreadEpiphanySceneAction::Promote);
     }
     actions
+}
+
+fn map_epiphany_freshness(
+    state: Option<&EpiphanyThreadState>,
+    retrieval_override: Option<&EpiphanyRetrievalState>,
+) -> (
+    Option<u64>,
+    ThreadEpiphanyRetrievalFreshness,
+    ThreadEpiphanyGraphFreshness,
+) {
+    let retrieval = epiphany_retrieval_state_for_reflection(state, retrieval_override);
+    (
+        state.map(|state| state.revision),
+        map_epiphany_retrieval_freshness(retrieval),
+        map_epiphany_graph_freshness(state),
+    )
+}
+
+fn epiphany_retrieval_state_for_reflection<'a>(
+    state: Option<&'a EpiphanyThreadState>,
+    retrieval_override: Option<&'a EpiphanyRetrievalState>,
+) -> Option<&'a EpiphanyRetrievalState> {
+    retrieval_override.or_else(|| state.and_then(|state| state.retrieval.as_ref()))
+}
+
+fn map_epiphany_retrieval_freshness(
+    retrieval: Option<&EpiphanyRetrievalState>,
+) -> ThreadEpiphanyRetrievalFreshness {
+    let Some(retrieval) = retrieval else {
+        return ThreadEpiphanyRetrievalFreshness {
+            status: ThreadEpiphanyRetrievalFreshnessStatus::Missing,
+            semantic_available: None,
+            last_indexed_at_unix_seconds: None,
+            indexed_file_count: None,
+            indexed_chunk_count: None,
+            dirty_paths: Vec::new(),
+            note: "No retrieval freshness is available for this thread view.".to_string(),
+        };
+    };
+
+    let dirty_path_count = retrieval.dirty_paths.len();
+    let note = match retrieval.status {
+        EpiphanyRetrievalStatus::Ready if dirty_path_count == 0 => {
+            "Retrieval catalog is ready.".to_string()
+        }
+        EpiphanyRetrievalStatus::Ready => {
+            format!("Retrieval catalog is ready with {dirty_path_count} dirty path(s) noted.")
+        }
+        EpiphanyRetrievalStatus::Stale => {
+            format!("Retrieval catalog is stale; {dirty_path_count} dirty path(s) need refresh.")
+        }
+        EpiphanyRetrievalStatus::Indexing => "Retrieval catalog is indexing.".to_string(),
+        EpiphanyRetrievalStatus::Unavailable => "Retrieval catalog is unavailable.".to_string(),
+    };
+
+    ThreadEpiphanyRetrievalFreshness {
+        status: match retrieval.status {
+            EpiphanyRetrievalStatus::Ready => ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            EpiphanyRetrievalStatus::Stale => ThreadEpiphanyRetrievalFreshnessStatus::Stale,
+            EpiphanyRetrievalStatus::Indexing => ThreadEpiphanyRetrievalFreshnessStatus::Indexing,
+            EpiphanyRetrievalStatus::Unavailable => {
+                ThreadEpiphanyRetrievalFreshnessStatus::Unavailable
+            }
+        },
+        semantic_available: Some(retrieval.semantic_available),
+        last_indexed_at_unix_seconds: retrieval.last_indexed_at_unix_seconds,
+        indexed_file_count: retrieval.indexed_file_count,
+        indexed_chunk_count: retrieval.indexed_chunk_count,
+        dirty_paths: retrieval.dirty_paths.clone(),
+        note,
+    }
+}
+
+fn map_epiphany_graph_freshness(
+    state: Option<&EpiphanyThreadState>,
+) -> ThreadEpiphanyGraphFreshness {
+    let Some(state) = state else {
+        return ThreadEpiphanyGraphFreshness {
+            status: ThreadEpiphanyGraphFreshnessStatus::Missing,
+            graph_freshness: None,
+            checkpoint_id: None,
+            dirty_path_count: 0,
+            dirty_paths: Vec::new(),
+            open_question_count: 0,
+            open_gap_count: 0,
+            note: "Epiphany state is missing, so graph freshness cannot be assessed.".to_string(),
+        };
+    };
+
+    let frontier = state.graph_frontier.as_ref();
+    let dirty_paths = frontier
+        .map(|frontier| frontier.dirty_paths.clone())
+        .unwrap_or_default();
+    let dirty_path_count = dirty_paths.len() as u32;
+    let open_question_count = frontier
+        .map(|frontier| frontier.open_question_ids.len() as u32)
+        .unwrap_or_default();
+    let open_gap_count = frontier
+        .map(|frontier| frontier.open_gap_ids.len() as u32)
+        .unwrap_or_default();
+    let graph_freshness = state
+        .churn
+        .as_ref()
+        .and_then(|churn| churn.graph_freshness.clone());
+    let freshness_hint_stale = graph_freshness
+        .as_deref()
+        .is_some_and(|freshness| !matches!(freshness, "fresh" | "ready" | "current" | "ok"));
+    let is_stale = dirty_path_count > 0
+        || open_question_count > 0
+        || open_gap_count > 0
+        || freshness_hint_stale;
+    let note = if is_stale {
+        format!(
+            "Graph freshness is stale; frontier has {dirty_path_count} dirty path(s), {open_question_count} open question id(s), and {open_gap_count} open gap id(s)."
+        )
+    } else {
+        "Graph freshness is ready.".to_string()
+    };
+
+    ThreadEpiphanyGraphFreshness {
+        status: if is_stale {
+            ThreadEpiphanyGraphFreshnessStatus::Stale
+        } else {
+            ThreadEpiphanyGraphFreshnessStatus::Ready
+        },
+        graph_freshness,
+        checkpoint_id: state
+            .graph_checkpoint
+            .as_ref()
+            .map(|checkpoint| checkpoint.checkpoint_id.clone()),
+        dirty_path_count,
+        dirty_paths,
+        open_question_count,
+        open_gap_count,
+        note,
+    }
 }
 
 fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
@@ -12984,6 +13182,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Distill,
                 ThreadEpiphanySceneAction::Context,
                 ThreadEpiphanySceneAction::Jobs,
+                ThreadEpiphanySceneAction::Freshness,
                 ThreadEpiphanySceneAction::Pressure,
                 ThreadEpiphanySceneAction::Update,
                 ThreadEpiphanySceneAction::Propose,
@@ -13000,6 +13199,77 @@ mod tests {
         assert_eq!(scene.source, ThreadEpiphanySceneSource::Stored);
         assert!(scene.available_actions.is_empty());
         assert_eq!(scene.graph, ThreadEpiphanySceneGraph::default());
+    }
+
+    #[test]
+    fn map_epiphany_freshness_can_reflect_live_retrieval_without_state() {
+        let retrieval = EpiphanyRetrievalState {
+            workspace_root: PathBuf::from("/workspace"),
+            status: EpiphanyRetrievalStatus::Ready,
+            semantic_available: true,
+            ..Default::default()
+        };
+
+        let (state_revision, retrieval, graph) = map_epiphany_freshness(None, Some(&retrieval));
+
+        assert_eq!(state_revision, None);
+        assert_eq!(
+            retrieval.status,
+            ThreadEpiphanyRetrievalFreshnessStatus::Ready
+        );
+        assert_eq!(retrieval.semantic_available, Some(true));
+        assert_eq!(graph.status, ThreadEpiphanyGraphFreshnessStatus::Missing);
+        assert_eq!(graph.dirty_path_count, 0);
+    }
+
+    #[test]
+    fn map_epiphany_freshness_marks_graph_and_retrieval_stale() {
+        let state = EpiphanyThreadState {
+            revision: 7,
+            graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                active_node_ids: vec!["state-spine".to_string()],
+                dirty_paths: vec![PathBuf::from("src/router.rs")],
+                open_question_ids: vec!["q-stale".to_string()],
+                ..Default::default()
+            }),
+            graph_checkpoint: Some(codex_protocol::protocol::EpiphanyGraphCheckpoint {
+                checkpoint_id: "ck-7".to_string(),
+                graph_revision: 7,
+                ..Default::default()
+            }),
+            churn: Some(codex_protocol::protocol::EpiphanyChurnState {
+                understanding_status: "ready".to_string(),
+                diff_pressure: "low".to_string(),
+                graph_freshness: Some("stale".to_string()),
+                warning: None,
+                unexplained_writes: Some(0),
+            }),
+            ..Default::default()
+        };
+        let retrieval = EpiphanyRetrievalState {
+            workspace_root: PathBuf::from("/workspace"),
+            status: EpiphanyRetrievalStatus::Stale,
+            semantic_available: true,
+            indexed_file_count: Some(12),
+            indexed_chunk_count: Some(48),
+            dirty_paths: vec![PathBuf::from("src/router.rs")],
+            ..Default::default()
+        };
+
+        let (state_revision, retrieval, graph) =
+            map_epiphany_freshness(Some(&state), Some(&retrieval));
+
+        assert_eq!(state_revision, Some(7));
+        assert_eq!(
+            retrieval.status,
+            ThreadEpiphanyRetrievalFreshnessStatus::Stale
+        );
+        assert_eq!(retrieval.dirty_paths, vec![PathBuf::from("src/router.rs")]);
+        assert_eq!(graph.status, ThreadEpiphanyGraphFreshnessStatus::Stale);
+        assert_eq!(graph.checkpoint_id.as_deref(), Some("ck-7"));
+        assert_eq!(graph.dirty_path_count, 1);
+        assert_eq!(graph.open_question_count, 1);
+        assert_eq!(graph.open_gap_count, 0);
     }
 
     #[test]

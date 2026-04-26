@@ -346,6 +346,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyJobsParams,
         response: v2::ThreadEpiphanyJobsResponse,
     },
+    #[experimental("thread/epiphany/freshness")]
+    ThreadEpiphanyFreshness => "thread/epiphany/freshness" {
+        params: v2::ThreadEpiphanyFreshnessParams,
+        response: v2::ThreadEpiphanyFreshnessResponse,
+    },
     #[experimental("thread/epiphany/context")]
     ThreadEpiphanyContext => "thread/epiphany/context" {
         params: v2::ThreadEpiphanyContextParams,
@@ -1682,6 +1687,9 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Index,
                         v2::ThreadEpiphanySceneAction::Retrieve,
                         v2::ThreadEpiphanySceneAction::Distill,
+                        v2::ThreadEpiphanySceneAction::Context,
+                        v2::ThreadEpiphanySceneAction::Jobs,
+                        v2::ThreadEpiphanySceneAction::Freshness,
                         v2::ThreadEpiphanySceneAction::Pressure,
                         v2::ThreadEpiphanySceneAction::Update,
                         v2::ThreadEpiphanySceneAction::Propose,
@@ -1775,6 +1783,9 @@ mod tests {
                             "index",
                             "retrieve",
                             "distill",
+                            "context",
+                            "jobs",
+                            "freshness",
                             "pressure",
                             "update",
                             "propose",
@@ -1839,6 +1850,74 @@ mod tests {
                             "linkedGraphNodeIds": ["retrieval"]
                         }
                     ]
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_freshness_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyFreshness {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyFreshnessResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyFreshnessSource::Live,
+                state_revision: Some(3),
+                retrieval: v2::ThreadEpiphanyRetrievalFreshness {
+                    status: v2::ThreadEpiphanyRetrievalFreshnessStatus::Stale,
+                    semantic_available: Some(true),
+                    last_indexed_at_unix_seconds: Some(1_744_500_000),
+                    indexed_file_count: Some(12),
+                    indexed_chunk_count: Some(48),
+                    dirty_paths: vec![PathBuf::from("src/router.rs")],
+                    note: "Retrieval catalog is stale; 1 dirty path(s) need refresh."
+                        .to_string(),
+                },
+                graph: v2::ThreadEpiphanyGraphFreshness {
+                    status: v2::ThreadEpiphanyGraphFreshnessStatus::Stale,
+                    graph_freshness: Some("stale".to_string()),
+                    checkpoint_id: Some("ck-5".to_string()),
+                    dirty_path_count: 1,
+                    dirty_paths: vec![PathBuf::from("src/router.rs")],
+                    open_question_count: 1,
+                    open_gap_count: 0,
+                    note: "Graph freshness is stale; frontier has 1 dirty path(s), 1 open question id(s), and 0 open gap id(s)."
+                        .to_string(),
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/freshness");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/freshness",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateRevision": 3,
+                    "retrieval": {
+                        "status": "stale",
+                        "semanticAvailable": true,
+                        "lastIndexedAtUnixSeconds": 1744500000,
+                        "indexedFileCount": 12,
+                        "indexedChunkCount": 48,
+                        "dirtyPaths": ["src/router.rs"],
+                        "note": "Retrieval catalog is stale; 1 dirty path(s) need refresh."
+                    },
+                    "graph": {
+                        "status": "stale",
+                        "graphFreshness": "stale",
+                        "checkpointId": "ck-5",
+                        "dirtyPathCount": 1,
+                        "dirtyPaths": ["src/router.rs"],
+                        "openQuestionCount": 1,
+                        "openGapCount": 0,
+                        "note": "Graph freshness is stale; frontier has 1 dirty path(s), 1 open question id(s), and 0 open gap id(s)."
+                    }
                 }
             }),
             serde_json::to_value(&response)?,
@@ -2909,6 +2988,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/jobs"));
+    }
+
+    #[test]
+    fn thread_epiphany_freshness_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyFreshness {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyFreshnessParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/freshness"));
     }
 
     #[test]

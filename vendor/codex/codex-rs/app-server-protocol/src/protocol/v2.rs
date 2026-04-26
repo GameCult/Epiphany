@@ -3995,6 +3995,7 @@ pub enum ThreadEpiphanySceneAction {
     Distill,
     Context,
     Jobs,
+    Freshness,
     Pressure,
     Propose,
     Promote,
@@ -4151,6 +4152,95 @@ pub struct ThreadEpiphanyJobsResponse {
 pub enum ThreadEpiphanyJobsSource {
     Stored,
     Live,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyFreshnessParams {
+    pub thread_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyFreshnessResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyFreshnessSource,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub retrieval: ThreadEpiphanyRetrievalFreshness,
+    pub graph: ThreadEpiphanyGraphFreshness,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyFreshnessSource {
+    Stored,
+    Live,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyRetrievalFreshnessStatus {
+    Missing,
+    Ready,
+    Stale,
+    Indexing,
+    Unavailable,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRetrievalFreshness {
+    pub status: ThreadEpiphanyRetrievalFreshnessStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub semantic_available: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub last_indexed_at_unix_seconds: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub indexed_file_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub indexed_chunk_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dirty_paths: Vec<PathBuf>,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyGraphFreshnessStatus {
+    Missing,
+    Ready,
+    Stale,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyGraphFreshness {
+    pub status: ThreadEpiphanyGraphFreshnessStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graph_freshness: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checkpoint_id: Option<String>,
+    pub dirty_path_count: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dirty_paths: Vec<PathBuf>,
+    pub open_question_count: u32,
+    pub open_gap_count: u32,
+    pub note: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]

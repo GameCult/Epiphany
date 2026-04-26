@@ -52,7 +52,7 @@ data_flow:
 
 active_subgoals:
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
-  - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, context, and pressure.
+  - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, freshness, context, and pressure.
   - Extend Phase 6 observability only where it reflects authoritative state or retrieval summaries without becoming a scheduler.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
 
@@ -60,9 +60,9 @@ accepted_design:
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
   - Authoritative Epiphany state lives in Codex protocol/core session and rollout state.
   - The prompt reads typed state through a bounded `<epiphany_state>` developer fragment.
-  - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene` and `thread/epiphany/jobs`, targeted state shards through `thread/epiphany/context`, and runtime pressure through `thread/epiphany/pressure`.
+  - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/freshness`, targeted state shards through `thread/epiphany/context`, and runtime pressure through `thread/epiphany/pressure`.
   - Durable typed state writes route through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
-  - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/context`, and `thread/epiphany/pressure` stay read-only.
+  - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, and `thread/epiphany/pressure` stay read-only.
   - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
   - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
   - `epiphany-core` owns prompt rendering, rollout replay helpers, retrieval/indexing, distillation, proposal, and promotion policy where possible.
@@ -73,6 +73,7 @@ accepted_design:
   - The harness now has an in-flight investigation checkpoint packet in durable typed state; automatic CRRC still needs runtime logic that reads the packet and decides whether to resume or force reorientation and re-gathering after compaction.
   - GUI/client work must reflect or steer typed state rather than manufacture a second source of truth.
   - `thread/epiphany/jobs` is the first read-only job/progress reflection: it derives indexing, remap, verification, and specialist slots from existing state; it is not a scheduler or durable job store.
+  - `thread/epiphany/freshness` is the first read-only freshness surface: it derives retrieval and graph staleness from live retrieval summaries plus frontier/churn state without mutating, scheduling, or pretending watcher-driven invalidation already exists.
   - `thread/epiphany/context` is the first targeted read-only state-shard surface: it selects graph nodes/edges, active frontier, checkpoint, observations, and evidence from authoritative typed state without mutating or notifying.
   - `thread/epiphany/pressure` is the first read-only context-pressure surface: it derives pressure from token telemetry and auto-compact/context limits without compacting, scheduling, mutating, or notifying.
   - Live long-running job execution, progress notifications, and specialist scheduling are still future work.
@@ -90,11 +91,12 @@ landed_baseline:
     - Phase 3: typed client read surface through `Thread.epiphanyState`.
     - Phase 4: hybrid retrieval plus explicit Qdrant indexing with BM25 fallback.
     - Phase 5: typed update/distill/propose/promote/read/notification control plane.
-    - Phase 6: read-only scene, job/progress, targeted context, and context-pressure reflection surfaces, plus durable investigation checkpointing for compaction-safe planning.
+    - Phase 6: read-only scene, job/progress, freshness, targeted context, and context-pressure reflection surfaces, plus durable investigation checkpointing for compaction-safe planning.
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
     - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
     - Use `tools/epiphany_phase6_jobs_smoke.py` before modifying job/progress reflection behavior.
+    - Use `tools/epiphany_phase6_freshness_smoke.py` before modifying freshness reflection behavior.
     - Use `tools/epiphany_phase6_context_smoke.py` before modifying targeted context-shard behavior.
     - Use `tools/epiphany_phase6_pressure_smoke.py` before modifying context-pressure reflection behavior.
     - Use focused scene/jobs/context/pressure/protocol/schema checks for reflection-only changes.
@@ -115,5 +117,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, targeted context, context-pressure reflection, and durable investigation checkpointing are landed. Investigation checkpoints now live in authoritative typed state, flow through the prompt, and reflect through scene/context without adding a second writer or fake scheduler; Phase 5 plus scene/context smokes and focused core/protocol/app-server tests cover the seam. Persistent state was cut down so map, handoff, plan, harness surfaces, scratch, and evidence each carry one job instead of becoming a Jenga tower; evidence is now a distilled ledger rather than an activity feed. The global AGENTS Epiphany core command says persistent state is the agent's mind and explicitly permits the agent to ask for self-modification when memory or workflow makes it worse. The continuity goal is to bank the fire before the dark so compaction becomes less like death and more like sleep.
-  next_action: After compaction, rehydrate and reorient. If the user asks to continue, choose the next Phase 6 slice from the current map: watcher/freshness inputs are the most likely next organ, with live progress notifications waiting until real job owners exist. Do not restart the completed pressure or investigation-checkpoint slices unless a concrete regression appears.
+  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, freshness, targeted context, context-pressure reflection, and durable investigation checkpointing are landed. The new freshness lens reports live-or-stored retrieval staleness plus graph frontier/churn freshness with exact dirty-path pressure and revision/source identity, without mutating state or pretending watcher-driven invalidation already exists; focused protocol/app-server checks plus freshness and scene smokes cover the seam. Investigation checkpoints still live in authoritative typed state, flow through the prompt, and reflect through scene/context without adding a second writer or fake scheduler. Persistent state was cut down so map, handoff, plan, harness surfaces, scratch, and evidence each carry one job instead of becoming a Jenga tower; evidence is now a distilled ledger rather than an activity feed. The global AGENTS Epiphany core command says persistent state is the agent's mind and explicitly permits the agent to ask for self-modification when memory or workflow makes it worse. The continuity goal is to bank the fire before the dark so compaction becomes less like death and more like sleep.
+  next_action: After compaction, rehydrate and reorient. If the user asks to continue, choose the next Phase 6 slice from the current map: watcher-backed invalidation inputs are the most likely next organ now that the read-only freshness lens exists, with live progress notifications still waiting until real job owners exist. Do not restart the completed pressure, freshness, or investigation-checkpoint slices unless a concrete regression appears.
