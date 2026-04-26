@@ -14811,6 +14811,127 @@
         "title": "ThreadCompactStartResponse",
         "type": "object"
       },
+      "ThreadEpiphanyContext": {
+        "properties": {
+          "checkpoint": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyGraphCheckpoint"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyEvidenceRecord"
+            },
+            "type": "array"
+          },
+          "frontier": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyGraphFrontier"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "graph": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyGraphContext"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyObservation"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "graph"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanyContextMissing": {
+        "properties": {
+          "evidenceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "graphEdgeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "graphNodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "observationIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ThreadEpiphanyContextSource": {
+        "enum": [
+          "stored",
+          "live"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyContextStateStatus": {
+        "enum": [
+          "missing",
+          "ready"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyGraphContext": {
+        "properties": {
+          "architectureEdges": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyGraphEdge"
+            },
+            "type": "array"
+          },
+          "architectureNodes": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyGraphNode"
+            },
+            "type": "array"
+          },
+          "dataflowEdges": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyGraphEdge"
+            },
+            "type": "array"
+          },
+          "dataflowNodes": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyGraphNode"
+            },
+            "type": "array"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyGraphLink"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "ThreadEpiphanyJob": {
         "properties": {
           "blockingReason": {
@@ -15160,6 +15281,7 @@
           "index",
           "retrieve",
           "distill",
+          "context",
           "jobs",
           "propose",
           "promote",

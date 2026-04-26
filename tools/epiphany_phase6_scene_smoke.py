@@ -129,7 +129,7 @@ def assert_missing_scene(scene: dict[str, Any]) -> None:
     require(scene["stateStatus"] == "missing", "initial scene should report missing state")
     require(scene["source"] == "live", "loaded missing scene should report live source")
     require(
-        scene["availableActions"] == ["index", "retrieve", "distill", "jobs", "update"],
+        scene["availableActions"] == ["index", "retrieve", "distill", "context", "jobs", "update"],
         "missing live scene should expose only bootstrap actions",
     )
     require(
@@ -200,7 +200,7 @@ def assert_ready_scene(scene: dict[str, Any], expected_revision: int) -> None:
     )
     require(
         scene["availableActions"]
-        == ["index", "retrieve", "distill", "jobs", "update", "propose", "promote"],
+        == ["index", "retrieve", "distill", "context", "jobs", "update", "propose", "promote"],
         "ready live scene should expose full loaded-state actions",
     )
 

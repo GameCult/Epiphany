@@ -61,7 +61,10 @@ use codex_protocol::protocol::EpiphanyChurnState as CoreEpiphanyChurnState;
 use codex_protocol::protocol::EpiphanyCodeRef as CoreEpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyEvidenceRecord as CoreEpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyGraphCheckpoint as CoreEpiphanyGraphCheckpoint;
+use codex_protocol::protocol::EpiphanyGraphEdge as CoreEpiphanyGraphEdge;
 use codex_protocol::protocol::EpiphanyGraphFrontier as CoreEpiphanyGraphFrontier;
+use codex_protocol::protocol::EpiphanyGraphLink as CoreEpiphanyGraphLink;
+use codex_protocol::protocol::EpiphanyGraphNode as CoreEpiphanyGraphNode;
 use codex_protocol::protocol::EpiphanyGraphs as CoreEpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant as CoreEpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
@@ -3985,6 +3988,7 @@ pub enum ThreadEpiphanySceneAction {
     Index,
     Retrieve,
     Distill,
+    Context,
     Jobs,
     Propose,
     Promote,
@@ -4170,6 +4174,107 @@ pub struct ThreadEpiphanyJob {
     pub linked_subgoal_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub linked_graph_node_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyContextParams {
+    pub thread_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub graph_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub graph_edge_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observation_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence_ids: Vec<String>,
+    /// Defaults to true so clients can request the current working slice with
+    /// only a thread id.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub include_active_frontier: Option<bool>,
+    /// Defaults to true so selected observations bring their evidence anchors.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub include_linked_evidence: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyContextResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyContextSource,
+    pub state_status: ThreadEpiphanyContextStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub context: ThreadEpiphanyContext,
+    pub missing: ThreadEpiphanyContextMissing,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyContextSource {
+    Stored,
+    Live,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyContextStateStatus {
+    Missing,
+    Ready,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyContext {
+    pub graph: ThreadEpiphanyGraphContext,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub frontier: Option<CoreEpiphanyGraphFrontier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checkpoint: Option<CoreEpiphanyGraphCheckpoint>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observations: Vec<CoreEpiphanyObservation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence: Vec<CoreEpiphanyEvidenceRecord>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyGraphContext {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub architecture_nodes: Vec<CoreEpiphanyGraphNode>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub architecture_edges: Vec<CoreEpiphanyGraphEdge>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dataflow_nodes: Vec<CoreEpiphanyGraphNode>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub dataflow_edges: Vec<CoreEpiphanyGraphEdge>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<CoreEpiphanyGraphLink>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyContextMissing {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub graph_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub graph_edge_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub observation_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

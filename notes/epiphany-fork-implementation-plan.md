@@ -59,6 +59,8 @@ The landed machine now has:
 - live Phase 6 scene app-server smoke coverage in `tools/epiphany_phase6_scene_smoke.py`
 - read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`
 - live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
+- read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
+- live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 
@@ -73,6 +75,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
 - `thread/epiphany/jobs` is a derived reflection, not a scheduler or durable job store.
+- `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -119,10 +122,9 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add targeted graph/evidence shard reads when the full `EpiphanyThreadState` is too raw.
-2. Add watcher/freshness inputs when stale graph or retrieval state needs earlier warning.
-3. Add live job progress notifications only after there is a real long-running owner to report.
-4. Add targeted scene/jobs fields only when a client or smoke exposes a real gap.
+1. Add watcher/freshness inputs when stale graph or retrieval state needs earlier warning.
+2. Add live job progress notifications only after there is a real long-running owner to report.
+3. Add targeted scene/jobs/context fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -134,7 +136,7 @@ These remain later work:
 
 - watcher-driven semantic invalidation
 - automatic observation promotion from tool output
-- richer evidence and graph-shard inspection surfaces
+- richer evidence and graph-shard inspection beyond the landed targeted context read
 - role-scoped specialist-agent registry and scheduling
 - mutation gates that warn or block broad writes when map freshness is stale
 - automatic CRRC runtime coordination
@@ -163,6 +165,12 @@ Before modifying jobs reflection behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
+```
+
+Before modifying targeted context-shard behavior, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
 ```
 
 For app-server protocol changes, expect to run the relevant protocol tests,

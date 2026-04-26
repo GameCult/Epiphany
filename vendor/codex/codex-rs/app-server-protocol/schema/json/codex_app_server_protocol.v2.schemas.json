@@ -12698,6 +12698,127 @@
       "title": "ThreadCompactStartResponse",
       "type": "object"
     },
+    "ThreadEpiphanyContext": {
+      "properties": {
+        "checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyGraphCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyEvidenceRecord"
+          },
+          "type": "array"
+        },
+        "frontier": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyGraphFrontier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "graph": {
+          "$ref": "#/definitions/ThreadEpiphanyGraphContext"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyObservation"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "graph"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyContextMissing": {
+      "properties": {
+        "evidenceIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "graphEdgeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "graphNodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "observationIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "ThreadEpiphanyContextSource": {
+      "enum": [
+        "stored",
+        "live"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyContextStateStatus": {
+      "enum": [
+        "missing",
+        "ready"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyGraphContext": {
+      "properties": {
+        "architectureEdges": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphEdge"
+          },
+          "type": "array"
+        },
+        "architectureNodes": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphNode"
+          },
+          "type": "array"
+        },
+        "dataflowEdges": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphEdge"
+          },
+          "type": "array"
+        },
+        "dataflowNodes": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphNode"
+          },
+          "type": "array"
+        },
+        "links": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyGraphLink"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "ThreadEpiphanyJob": {
       "properties": {
         "blockingReason": {
@@ -13047,6 +13168,7 @@
         "index",
         "retrieve",
         "distill",
+        "context",
         "jobs",
         "propose",
         "promote",

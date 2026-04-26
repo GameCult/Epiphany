@@ -146,8 +146,15 @@ use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadCompactStartResponse;
 use codex_app_server_protocol::ThreadDecrementElicitationParams;
 use codex_app_server_protocol::ThreadDecrementElicitationResponse;
+use codex_app_server_protocol::ThreadEpiphanyContext;
+use codex_app_server_protocol::ThreadEpiphanyContextMissing;
+use codex_app_server_protocol::ThreadEpiphanyContextParams;
+use codex_app_server_protocol::ThreadEpiphanyContextResponse;
+use codex_app_server_protocol::ThreadEpiphanyContextSource;
+use codex_app_server_protocol::ThreadEpiphanyContextStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyDistillParams;
 use codex_app_server_protocol::ThreadEpiphanyDistillResponse;
+use codex_app_server_protocol::ThreadEpiphanyGraphContext;
 use codex_app_server_protocol::ThreadEpiphanyIndexParams;
 use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
 use codex_app_server_protocol::ThreadEpiphanyJob;
@@ -1012,6 +1019,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyJobs { request_id, params } => {
                 self.thread_epiphany_jobs(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyContext { request_id, params } => {
+                self.thread_epiphany_context(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4168,6 +4179,51 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .map(|epiphany_state| epiphany_state.revision),
             jobs: map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref()),
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_context(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyContextParams,
+    ) {
+        let thread_id = params.thread_id.clone();
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded = self.thread_manager.get_thread(thread_uuid).await.is_ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let (state_status, state_revision, context, missing) =
+            map_epiphany_context(thread.epiphany_state.as_ref(), &params);
+        let response = ThreadEpiphanyContextResponse {
+            thread_id,
+            source: if loaded {
+                ThreadEpiphanyContextSource::Live
+            } else {
+                ThreadEpiphanyContextSource::Stored
+            },
+            state_status,
+            state_revision,
+            context,
+            missing,
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -10677,6 +10733,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Index,
         ThreadEpiphanySceneAction::Retrieve,
         ThreadEpiphanySceneAction::Distill,
+        ThreadEpiphanySceneAction::Context,
         ThreadEpiphanySceneAction::Jobs,
         ThreadEpiphanySceneAction::Update,
     ];
@@ -10728,6 +10785,207 @@ fn map_epiphany_scene_graph(state: &EpiphanyThreadState) -> ThreadEpiphanySceneG
             .unwrap_or_default(),
         checkpoint_id: checkpoint.map(|checkpoint| checkpoint.checkpoint_id.clone()),
         checkpoint_summary: checkpoint.and_then(|checkpoint| checkpoint.summary.clone()),
+    }
+}
+
+fn map_epiphany_context(
+    state: Option<&EpiphanyThreadState>,
+    params: &ThreadEpiphanyContextParams,
+) -> (
+    ThreadEpiphanyContextStateStatus,
+    Option<u64>,
+    ThreadEpiphanyContext,
+    ThreadEpiphanyContextMissing,
+) {
+    let include_active_frontier = params.include_active_frontier.unwrap_or(true);
+    let include_linked_evidence = params.include_linked_evidence.unwrap_or(true);
+    let Some(state) = state else {
+        return (
+            ThreadEpiphanyContextStateStatus::Missing,
+            None,
+            ThreadEpiphanyContext::default(),
+            ThreadEpiphanyContextMissing {
+                graph_node_ids: unique_strings(params.graph_node_ids.iter().cloned()),
+                graph_edge_ids: unique_strings(params.graph_edge_ids.iter().cloned()),
+                observation_ids: unique_strings(params.observation_ids.iter().cloned()),
+                evidence_ids: unique_strings(params.evidence_ids.iter().cloned()),
+            },
+        );
+    };
+
+    let mut graph_node_ids = unique_strings(params.graph_node_ids.iter().cloned());
+    let mut graph_edge_ids = unique_strings(params.graph_edge_ids.iter().cloned());
+    if include_active_frontier {
+        if let Some(frontier) = state.graph_frontier.as_ref() {
+            extend_unique_strings(
+                &mut graph_node_ids,
+                frontier.active_node_ids.iter().cloned(),
+            );
+            extend_unique_strings(
+                &mut graph_edge_ids,
+                frontier.active_edge_ids.iter().cloned(),
+            );
+        }
+    }
+
+    let graph_node_id_set: HashSet<&str> = graph_node_ids.iter().map(String::as_str).collect();
+    let graph_edge_id_set: HashSet<&str> = graph_edge_ids.iter().map(String::as_str).collect();
+
+    let architecture_nodes = state
+        .graphs
+        .architecture
+        .nodes
+        .iter()
+        .filter(|node| graph_node_id_set.contains(node.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let dataflow_nodes = state
+        .graphs
+        .dataflow
+        .nodes
+        .iter()
+        .filter(|node| graph_node_id_set.contains(node.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let found_node_ids: HashSet<String> = architecture_nodes
+        .iter()
+        .chain(dataflow_nodes.iter())
+        .map(|node| node.id.clone())
+        .collect();
+
+    let architecture_edges = select_epiphany_graph_edges(
+        &state.graphs.architecture.edges,
+        &graph_node_id_set,
+        &graph_edge_id_set,
+    );
+    let dataflow_edges = select_epiphany_graph_edges(
+        &state.graphs.dataflow.edges,
+        &graph_node_id_set,
+        &graph_edge_id_set,
+    );
+
+    let found_edge_ids: HashSet<String> = architecture_edges
+        .iter()
+        .chain(dataflow_edges.iter())
+        .filter_map(|edge| edge.id.clone())
+        .filter(|id| graph_edge_id_set.contains(id.as_str()))
+        .collect();
+
+    let links = state
+        .graphs
+        .links
+        .iter()
+        .filter(|link| {
+            graph_node_id_set.contains(link.architecture_node_id.as_str())
+                || graph_node_id_set.contains(link.dataflow_node_id.as_str())
+        })
+        .cloned()
+        .collect();
+
+    let observation_ids = unique_strings(params.observation_ids.iter().cloned());
+    let observation_id_set: HashSet<&str> = observation_ids.iter().map(String::as_str).collect();
+    let observations = state
+        .observations
+        .iter()
+        .filter(|observation| observation_id_set.contains(observation.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let found_observation_ids: HashSet<String> = observations
+        .iter()
+        .map(|observation| observation.id.clone())
+        .collect();
+
+    let mut evidence_ids = unique_strings(params.evidence_ids.iter().cloned());
+    if include_linked_evidence {
+        for observation in &observations {
+            extend_unique_strings(&mut evidence_ids, observation.evidence_ids.iter().cloned());
+        }
+    }
+    let evidence_id_set: HashSet<&str> = evidence_ids.iter().map(String::as_str).collect();
+    let evidence = state
+        .recent_evidence
+        .iter()
+        .filter(|evidence| evidence_id_set.contains(evidence.id.as_str()))
+        .cloned()
+        .collect::<Vec<_>>();
+    let found_evidence_ids: HashSet<String> = evidence
+        .iter()
+        .map(|evidence| evidence.id.clone())
+        .collect();
+
+    (
+        ThreadEpiphanyContextStateStatus::Ready,
+        Some(state.revision),
+        ThreadEpiphanyContext {
+            graph: ThreadEpiphanyGraphContext {
+                architecture_nodes,
+                architecture_edges,
+                dataflow_nodes,
+                dataflow_edges,
+                links,
+            },
+            frontier: include_active_frontier
+                .then(|| state.graph_frontier.clone())
+                .flatten(),
+            checkpoint: state.graph_checkpoint.clone(),
+            observations,
+            evidence,
+        },
+        ThreadEpiphanyContextMissing {
+            graph_node_ids: graph_node_ids
+                .iter()
+                .filter(|id| !found_node_ids.contains(*id))
+                .cloned()
+                .collect(),
+            graph_edge_ids: graph_edge_ids
+                .iter()
+                .filter(|id| !found_edge_ids.contains(*id))
+                .cloned()
+                .collect(),
+            observation_ids: observation_ids
+                .iter()
+                .filter(|id| !found_observation_ids.contains(*id))
+                .cloned()
+                .collect(),
+            evidence_ids: evidence_ids
+                .iter()
+                .filter(|id| !found_evidence_ids.contains(*id))
+                .cloned()
+                .collect(),
+        },
+    )
+}
+
+fn select_epiphany_graph_edges(
+    edges: &[codex_protocol::protocol::EpiphanyGraphEdge],
+    graph_node_id_set: &HashSet<&str>,
+    graph_edge_id_set: &HashSet<&str>,
+) -> Vec<codex_protocol::protocol::EpiphanyGraphEdge> {
+    edges
+        .iter()
+        .filter(|edge| {
+            edge.id
+                .as_deref()
+                .is_some_and(|id| graph_edge_id_set.contains(id))
+                || graph_node_id_set.contains(edge.source_id.as_str())
+                || graph_node_id_set.contains(edge.target_id.as_str())
+        })
+        .cloned()
+        .collect()
+}
+
+fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {
+    let mut unique = Vec::new();
+    extend_unique_strings(&mut unique, values);
+    unique
+}
+
+fn extend_unique_strings(target: &mut Vec<String>, values: impl IntoIterator<Item = String>) {
+    for value in values {
+        if !target.iter().any(|existing| existing == &value) {
+            target.push(value);
+        }
     }
 }
 
@@ -12526,6 +12784,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Index,
                 ThreadEpiphanySceneAction::Retrieve,
                 ThreadEpiphanySceneAction::Distill,
+                ThreadEpiphanySceneAction::Context,
                 ThreadEpiphanySceneAction::Jobs,
                 ThreadEpiphanySceneAction::Update,
                 ThreadEpiphanySceneAction::Propose,
@@ -12590,6 +12849,194 @@ mod tests {
             vec!["obs-6", "obs-5", "obs-4", "obs-3", "obs-2"]
         );
         assert_eq!(evidence_ids, vec!["ev-6", "ev-5", "ev-4", "ev-3", "ev-2"]);
+    }
+
+    #[test]
+    fn map_epiphany_context_projects_targeted_shard_without_mutation() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            revision: 7,
+            graphs: codex_protocol::protocol::EpiphanyGraphs {
+                architecture: codex_protocol::protocol::EpiphanyGraph {
+                    nodes: vec![
+                        codex_protocol::protocol::EpiphanyGraphNode {
+                            id: "active-node".to_string(),
+                            title: "Active node".to_string(),
+                            purpose: "Current frontier focus".to_string(),
+                            ..Default::default()
+                        },
+                        codex_protocol::protocol::EpiphanyGraphNode {
+                            id: "manual-node".to_string(),
+                            title: "Manual node".to_string(),
+                            purpose: "Explicit context selector".to_string(),
+                            ..Default::default()
+                        },
+                        codex_protocol::protocol::EpiphanyGraphNode {
+                            id: "ignored-node".to_string(),
+                            title: "Ignored node".to_string(),
+                            purpose: "Outside the requested shard".to_string(),
+                            ..Default::default()
+                        },
+                    ],
+                    edges: vec![
+                        codex_protocol::protocol::EpiphanyGraphEdge {
+                            id: Some("edge-active".to_string()),
+                            source_id: "active-node".to_string(),
+                            target_id: "ignored-node".to_string(),
+                            kind: "frontier".to_string(),
+                            ..Default::default()
+                        },
+                        codex_protocol::protocol::EpiphanyGraphEdge {
+                            id: Some("edge-manual".to_string()),
+                            source_id: "manual-node".to_string(),
+                            target_id: "active-node".to_string(),
+                            kind: "selected".to_string(),
+                            ..Default::default()
+                        },
+                    ],
+                },
+                dataflow: codex_protocol::protocol::EpiphanyGraph {
+                    nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                        id: "data-node".to_string(),
+                        title: "Data node".to_string(),
+                        purpose: "Linked dataflow context".to_string(),
+                        ..Default::default()
+                    }],
+                    edges: Vec::new(),
+                },
+                links: vec![codex_protocol::protocol::EpiphanyGraphLink {
+                    dataflow_node_id: "data-node".to_string(),
+                    architecture_node_id: "active-node".to_string(),
+                    relationship: Some("supports".to_string()),
+                    code_refs: Vec::new(),
+                }],
+            },
+            graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                active_node_ids: vec!["active-node".to_string()],
+                active_edge_ids: vec!["edge-active".to_string()],
+                ..Default::default()
+            }),
+            graph_checkpoint: Some(codex_protocol::protocol::EpiphanyGraphCheckpoint {
+                checkpoint_id: "ck-context".to_string(),
+                graph_revision: 7,
+                summary: Some("Context shard checkpoint".to_string()),
+                ..Default::default()
+            }),
+            observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                id: "obs-1".to_string(),
+                summary: "Observation carries linked evidence.".to_string(),
+                source_kind: "test".to_string(),
+                status: "ok".to_string(),
+                evidence_ids: vec!["ev-linked".to_string()],
+                ..Default::default()
+            }],
+            recent_evidence: vec![
+                codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    id: "ev-linked".to_string(),
+                    kind: "test".to_string(),
+                    status: "ok".to_string(),
+                    summary: "Linked from observation.".to_string(),
+                    ..Default::default()
+                },
+                codex_protocol::protocol::EpiphanyEvidenceRecord {
+                    id: "ev-extra".to_string(),
+                    kind: "review".to_string(),
+                    status: "ok".to_string(),
+                    summary: "Requested directly.".to_string(),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        let params = ThreadEpiphanyContextParams {
+            thread_id: "thr_123".to_string(),
+            graph_node_ids: vec!["manual-node".to_string(), "missing-node".to_string()],
+            graph_edge_ids: vec!["edge-manual".to_string(), "missing-edge".to_string()],
+            observation_ids: vec!["obs-1".to_string(), "obs-missing".to_string()],
+            evidence_ids: vec!["ev-extra".to_string(), "ev-missing".to_string()],
+            include_active_frontier: None,
+            include_linked_evidence: None,
+        };
+
+        let (state_status, state_revision, context, missing) =
+            map_epiphany_context(Some(&state), &params);
+
+        assert_eq!(state_status, ThreadEpiphanyContextStateStatus::Ready);
+        assert_eq!(state_revision, Some(7));
+        assert_eq!(
+            context
+                .graph
+                .architecture_nodes
+                .iter()
+                .map(|node| node.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["active-node", "manual-node"]
+        );
+        assert_eq!(
+            context
+                .graph
+                .architecture_edges
+                .iter()
+                .filter_map(|edge| edge.id.as_deref())
+                .collect::<Vec<_>>(),
+            vec!["edge-active", "edge-manual"]
+        );
+        assert_eq!(context.graph.links.len(), 1);
+        assert_eq!(
+            context
+                .frontier
+                .as_ref()
+                .map(|frontier| frontier.active_node_ids.as_slice()),
+            Some(&["active-node".to_string()][..])
+        );
+        assert_eq!(
+            context
+                .checkpoint
+                .as_ref()
+                .map(|checkpoint| checkpoint.checkpoint_id.as_str()),
+            Some("ck-context")
+        );
+        assert_eq!(
+            context
+                .observations
+                .iter()
+                .map(|observation| observation.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["obs-1"]
+        );
+        assert_eq!(
+            context
+                .evidence
+                .iter()
+                .map(|evidence| evidence.id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ev-linked", "ev-extra"]
+        );
+        assert_eq!(missing.graph_node_ids, vec!["missing-node".to_string()]);
+        assert_eq!(missing.graph_edge_ids, vec!["missing-edge".to_string()]);
+        assert_eq!(missing.observation_ids, vec!["obs-missing".to_string()]);
+        assert_eq!(missing.evidence_ids, vec!["ev-missing".to_string()]);
+    }
+
+    #[test]
+    fn map_epiphany_context_reports_missing_state_without_inventing_context() {
+        let params = ThreadEpiphanyContextParams {
+            thread_id: "thr_123".to_string(),
+            graph_node_ids: vec!["node-1".to_string()],
+            graph_edge_ids: Vec::new(),
+            observation_ids: vec!["obs-1".to_string()],
+            evidence_ids: Vec::new(),
+            include_active_frontier: None,
+            include_linked_evidence: None,
+        };
+
+        let (state_status, state_revision, context, missing) = map_epiphany_context(None, &params);
+
+        assert_eq!(state_status, ThreadEpiphanyContextStateStatus::Missing);
+        assert_eq!(state_revision, None);
+        assert_eq!(context, ThreadEpiphanyContext::default());
+        assert_eq!(missing.graph_node_ids, vec!["node-1".to_string()]);
+        assert_eq!(missing.observation_ids, vec!["obs-1".to_string()]);
     }
 
     #[test]

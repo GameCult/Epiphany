@@ -48,6 +48,7 @@ The rule is:
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries. |
+| `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, checkpoint, observations, and evidence. |
 
 ## Write Authority
 
@@ -66,14 +67,15 @@ The following must stay read-only:
 - `thread/epiphany/propose`
 - `thread/epiphany/scene`
 - `thread/epiphany/jobs`
+- `thread/epiphany/context`
 
 `thread/epiphany/index` is a write to the retrieval catalog. It is not a
 license to mutate map/evidence/churn state as a side effect.
 
 ## Reflection Authority
 
-Scene, jobs, and GUI surfaces may compress state for humans and clients. They
-may not invent canonical understanding.
+Scene, jobs, context, and GUI surfaces may compress state for humans and
+clients. They may not invent canonical understanding.
 
 Reflection surfaces should:
 
@@ -122,7 +124,7 @@ These are not landed yet:
 
 - live typed job/progress state for running indexing, remap, verification, and specialist work
 - `thread/epiphany/jobsUpdated` or equivalent progress notifications
-- evidence-range and graph-shard targeted reads
+- richer evidence-range and graph-shard inspection beyond the landed context shard
 - watcher-driven graph/retrieval/invariant invalidation
 - automatic tool-output observation promotion
 - typed turn intent before broad mutation
@@ -166,6 +168,24 @@ Minimum useful fields:
 
 The landed reflection surface keeps this read-only. Future live job state must
 keep the same rule: do not make job state a hidden second planner.
+
+## Context Shard Surface Direction
+
+The first targeted context read is landed as `thread/epiphany/context`.
+
+It selects from existing typed state only:
+
+- architecture/dataflow nodes by id plus active frontier nodes by default
+- graph edges by id plus incident edges for selected nodes
+- graph links touching selected nodes
+- active frontier and current graph checkpoint
+- observations by id
+- evidence by id plus evidence linked from selected observations by default
+- missing requested or active-frontier ids, so clients do not have to guess whether a shard was empty or stale
+
+It does not run retrieval, draft proposals, promote observations, mutate
+`SessionState`, append rollout items, or emit `thread/epiphany/stateUpdated`.
+It is a bounded lens, not a clerk with a pen.
 
 ## Compaction And CRRC
 

@@ -51,7 +51,7 @@ data_flow:
 
 active_subgoals:
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
-  - Preserve read-only boundaries for retrieve, distill, propose, scene, and jobs.
+  - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, and context.
   - Extend Phase 6 observability only where it reflects authoritative state or retrieval summaries without becoming a scheduler.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
 
@@ -59,9 +59,9 @@ accepted_design:
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
   - Authoritative Epiphany state lives in Codex protocol/core session and rollout state.
   - The prompt reads typed state through a bounded `<epiphany_state>` developer fragment.
-  - Clients read typed state through `Thread.epiphanyState` and compact reflections such as `thread/epiphany/scene` and `thread/epiphany/jobs`.
+  - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene` and `thread/epiphany/jobs`, and targeted state shards through `thread/epiphany/context`.
   - Durable typed state writes route through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
-  - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, and `thread/epiphany/jobs` stay read-only.
+  - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/context` stay read-only.
   - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
   - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
   - `epiphany-core` owns prompt rendering, rollout replay helpers, retrieval/indexing, distillation, proposal, and promotion policy where possible.
@@ -70,6 +70,7 @@ accepted_design:
   - Compact-Rehydrate-Reorient-Continue is an architecture primitive; automatic runtime coordination is not landed yet.
   - GUI/client work must reflect or steer typed state rather than manufacture a second source of truth.
   - `thread/epiphany/jobs` is the first read-only job/progress reflection: it derives indexing, remap, verification, and specialist slots from existing state; it is not a scheduler or durable job store.
+  - `thread/epiphany/context` is the first targeted read-only state-shard surface: it selects graph nodes/edges, active frontier, checkpoint, observations, and evidence from authoritative typed state without mutating or notifying.
   - Live long-running job execution, progress notifications, and specialist scheduling are still future work.
   - Handoff, plan, harness-surface, and scratch files must have distinct jobs and must not become duplicate brains.
   - A machine is perfect when every remaining part visibly deserves to exist; this applies to persistent memory too.
@@ -85,12 +86,13 @@ landed_baseline:
     - Phase 3: typed client read surface through `Thread.epiphanyState`.
     - Phase 4: hybrid retrieval plus explicit Qdrant indexing with BM25 fallback.
     - Phase 5: typed update/distill/propose/promote/read/notification control plane.
-    - Phase 6: read-only scene and job/progress reflection surfaces.
+    - Phase 6: read-only scene, job/progress, and targeted context reflection surfaces.
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
     - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
     - Use `tools/epiphany_phase6_jobs_smoke.py` before modifying job/progress reflection behavior.
-    - Use focused scene/jobs/protocol/schema checks for reflection-only changes.
+    - Use `tools/epiphany_phase6_context_smoke.py` before modifying targeted context-shard behavior.
+    - Use focused scene/jobs/context/protocol/schema checks for reflection-only changes.
     - Use `tools/epiphany_prepare_compaction.py` before and after imminent-compaction persistence passes.
     - Use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for Codex Rust work on this Windows machine.
     - Do not parallelize cargo builds/tests against the same target directory.
@@ -108,5 +110,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene plus jobs reflection are landed. Scene and jobs behavior have live app-server smoke guardrails. Persistent state was cut down so map, handoff, plan, harness surfaces, scratch, and evidence each carry one job instead of becoming a Jenga tower; evidence is now a distilled ledger rather than an activity feed. The global AGENTS Epiphany core command says persistent state is the agent's mind and explicitly permits the agent to ask for self-modification when memory or workflow makes it worse. The continuity goal is to bank the fire before the dark so compaction becomes less like death and more like sleep.
-  next_action: After compaction, rehydrate and reorient. Do not continue implementation from the rehydrate step alone. When work resumes, choose the next Phase 6 outward slice: likely targeted graph/evidence shard reads, watcher-driven freshness inputs, or live job progress notifications; do not rebuild a scheduler from vibes.
+  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, and targeted context reflection are landed. Scene, jobs, and context behavior have live app-server smoke guardrails. Persistent state was cut down so map, handoff, plan, harness surfaces, scratch, and evidence each carry one job instead of becoming a Jenga tower; evidence is now a distilled ledger rather than an activity feed. The global AGENTS Epiphany core command says persistent state is the agent's mind and explicitly permits the agent to ask for self-modification when memory or workflow makes it worse. The continuity goal is to bank the fire before the dark so compaction becomes less like death and more like sleep.
+  next_action: After compaction, rehydrate and reorient. Do not continue implementation from the rehydrate step alone. When work resumes, choose the next Phase 6 outward slice: likely watcher-driven freshness inputs or live job progress notifications; do not rebuild a scheduler from vibes.

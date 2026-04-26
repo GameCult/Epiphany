@@ -346,6 +346,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyJobsParams,
         response: v2::ThreadEpiphanyJobsResponse,
     },
+    #[experimental("thread/epiphany/context")]
+    ThreadEpiphanyContext => "thread/epiphany/context" {
+        params: v2::ThreadEpiphanyContextParams,
+        response: v2::ThreadEpiphanyContextResponse,
+    },
     #[experimental("thread/epiphany/index")]
     ThreadEpiphanyIndex => "thread/epiphany/index" {
         params: v2::ThreadEpiphanyIndexParams,
@@ -1809,6 +1814,120 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_context_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyContext {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyContextResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyContextSource::Live,
+                state_status: v2::ThreadEpiphanyContextStateStatus::Ready,
+                state_revision: Some(3),
+                context: v2::ThreadEpiphanyContext {
+                    graph: v2::ThreadEpiphanyGraphContext {
+                        architecture_nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                            id: "state-spine".to_string(),
+                            title: "State spine".to_string(),
+                            purpose: "Keep understanding typed".to_string(),
+                            ..Default::default()
+                        }],
+                        architecture_edges: vec![codex_protocol::protocol::EpiphanyGraphEdge {
+                            id: Some("edge-state-read".to_string()),
+                            source_id: "state-spine".to_string(),
+                            target_id: "client-read".to_string(),
+                            kind: "projects".to_string(),
+                            ..Default::default()
+                        }],
+                        ..Default::default()
+                    },
+                    frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                        active_node_ids: vec!["state-spine".to_string()],
+                        ..Default::default()
+                    }),
+                    checkpoint: None,
+                    observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                        id: "obs-1".to_string(),
+                        summary: "Context shard is read-only.".to_string(),
+                        source_kind: "smoke".to_string(),
+                        status: "ok".to_string(),
+                        evidence_ids: vec!["ev-1".to_string()],
+                        ..Default::default()
+                    }],
+                    evidence: vec![codex_protocol::protocol::EpiphanyEvidenceRecord {
+                        id: "ev-1".to_string(),
+                        kind: "test".to_string(),
+                        status: "ok".to_string(),
+                        summary: "Context shard serialized.".to_string(),
+                        ..Default::default()
+                    }],
+                },
+                missing: v2::ThreadEpiphanyContextMissing {
+                    graph_node_ids: vec!["missing-node".to_string()],
+                    ..Default::default()
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/context");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/context",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 3,
+                    "context": {
+                        "graph": {
+                            "architectureNodes": [
+                                {
+                                    "id": "state-spine",
+                                    "title": "State spine",
+                                    "purpose": "Keep understanding typed"
+                                }
+                            ],
+                            "architectureEdges": [
+                                {
+                                    "source_id": "state-spine",
+                                    "target_id": "client-read",
+                                    "kind": "projects",
+                                    "id": "edge-state-read"
+                                }
+                            ]
+                        },
+                        "frontier": {
+                            "active_node_ids": ["state-spine"]
+                        },
+                        "observations": [
+                            {
+                                "id": "obs-1",
+                                "summary": "Context shard is read-only.",
+                                "source_kind": "smoke",
+                                "status": "ok",
+                                "evidence_ids": ["ev-1"]
+                            }
+                        ],
+                        "evidence": [
+                            {
+                                "id": "ev-1",
+                                "kind": "test",
+                                "status": "ok",
+                                "summary": "Context shard serialized."
+                            }
+                        ]
+                    },
+                    "missing": {
+                        "graphNodeIds": ["missing-node"]
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_thread_epiphany_retrieve_response() -> Result<()> {
         let response = ClientResponse::ThreadEpiphanyRetrieve {
             request_id: RequestId::Integer(8),
@@ -2688,6 +2807,24 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/jobs"));
+    }
+
+    #[test]
+    fn thread_epiphany_context_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyContext {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyContextParams {
+                thread_id: "thr_123".to_string(),
+                graph_node_ids: vec!["state-spine".to_string()],
+                graph_edge_ids: Vec::new(),
+                observation_ids: Vec::new(),
+                evidence_ids: Vec::new(),
+                include_active_frontier: Some(true),
+                include_linked_evidence: Some(true),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/context"));
     }
 
     #[test]

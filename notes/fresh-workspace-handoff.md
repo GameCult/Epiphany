@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene` and `thread/epiphany/jobs`; both have live app-server smoke coverage.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/context`; all three have live app-server smoke coverage.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -61,8 +61,10 @@ The current spine:
 - successful-write notification through `thread/epiphany/stateUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
 - read-only job/progress reflection through `thread/epiphany/jobs`
+- read-only targeted state-shard reflection through `thread/epiphany/context`
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
+- live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -74,6 +76,7 @@ The exact current control flow is documented in
 - `thread/epiphany/propose` is read-only.
 - `thread/epiphany/scene` is read-only.
 - `thread/epiphany/jobs` is read-only.
+- `thread/epiphany/context` is read-only.
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
 - GUI/client surfaces reflect and steer typed state; they do not become the source of truth.
@@ -97,6 +100,12 @@ For jobs reflection behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
+```
+
+For targeted context-shard behavior changes, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
 ```
 
 For Codex Rust work on this Windows machine:
@@ -138,11 +147,11 @@ that change what the next agent should believe.
 Do not continue implementation automatically from a rehydrate-only request.
 
 When the user asks to continue, choose the next Phase 6 outward slice. Good
-candidates are targeted graph/evidence shard reads, watcher/freshness inputs,
-or live job progress notifications. Do not build a scheduler from vibes.
+candidates are watcher/freshness inputs or live job progress notifications. Do
+not build a scheduler from vibes.
 
-Live `thread/epiphany/scene` and `thread/epiphany/jobs` smokes are now
-guardrails, not the next organs.
+Live `thread/epiphany/scene`, `thread/epiphany/jobs`, and
+`thread/epiphany/context` smokes are now guardrails, not the next organs.
 
 ## Not Yet
 
