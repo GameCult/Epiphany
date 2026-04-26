@@ -1820,6 +1820,7 @@ mod tests {
                     scope: "/workspace".to_string(),
                     owner_role: "epiphany-core".to_string(),
                     status: v2::ThreadEpiphanyJobStatus::Needed,
+                    runtime_agent_job_id: None,
                     items_processed: Some(12),
                     items_total: None,
                     progress_note: Some(
@@ -1827,6 +1828,7 @@ mod tests {
                     ),
                     last_checkpoint_at_unix_seconds: Some(1_744_500_000),
                     blocking_reason: None,
+                    active_thread_ids: Vec::new(),
                     linked_subgoal_ids: vec!["phase-6".to_string()],
                     linked_graph_node_ids: vec!["retrieval".to_string()],
                 }],

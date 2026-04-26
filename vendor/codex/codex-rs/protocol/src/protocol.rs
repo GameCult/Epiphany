@@ -3021,6 +3021,9 @@ pub struct EpiphanyThreadState {
     #[ts(type = "EpiphanyInvestigationCheckpoint | null")]
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyJobBinding>")]
+    pub job_bindings: Vec<EpiphanyJobBinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyObservation>")]
     pub observations: Vec<EpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -3294,6 +3297,39 @@ pub struct EpiphanyInvestigationCheckpoint {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub evidence_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum EpiphanyJobKind {
+    Indexing,
+    Remap,
+    Verification,
+    Specialist,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
+pub struct EpiphanyJobBinding {
+    pub id: String,
+    pub kind: EpiphanyJobKind,
+    pub scope: String,
+    pub owner_role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub runtime_agent_job_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub linked_subgoal_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub linked_graph_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub progress_note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub blocking_reason: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
@@ -5722,6 +5758,7 @@ mod tests {
                 next_probe: Some("Replay after rollback and compaction".to_string()),
                 notes: vec!["Do not touch prompts yet".to_string()],
             }),
+            job_bindings: Vec::new(),
             observations: vec![EpiphanyObservation {
                 id: "obs-1".to_string(),
                 summary: "TurnContext already gives us the persistence seam".to_string(),

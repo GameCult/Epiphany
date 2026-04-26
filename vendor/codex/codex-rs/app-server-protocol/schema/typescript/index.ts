@@ -25,6 +25,8 @@ export type { EpiphanyGraphs } from "./EpiphanyGraphs";
 export type { EpiphanyInvariant } from "./EpiphanyInvariant";
 export type { EpiphanyInvestigationCheckpoint } from "./EpiphanyInvestigationCheckpoint";
 export type { EpiphanyInvestigationDisposition } from "./EpiphanyInvestigationDisposition";
+export type { EpiphanyJobBinding } from "./EpiphanyJobBinding";
+export type { EpiphanyJobKind } from "./EpiphanyJobKind";
 export type { EpiphanyModeState } from "./EpiphanyModeState";
 export type { EpiphanyObservation } from "./EpiphanyObservation";
 export type { EpiphanyRetrievalStatus } from "./EpiphanyRetrievalStatus";

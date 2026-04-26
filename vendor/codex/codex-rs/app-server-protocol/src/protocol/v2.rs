@@ -69,6 +69,7 @@ use codex_protocol::protocol::EpiphanyGraphs as CoreEpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant as CoreEpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint as CoreEpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition as CoreEpiphanyInvestigationDisposition;
+use codex_protocol::protocol::EpiphanyJobBinding as CoreEpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalStatus as CoreEpiphanyRetrievalStatus;
@@ -4291,7 +4292,11 @@ pub enum ThreadEpiphanyJobKind {
 pub enum ThreadEpiphanyJobStatus {
     Idle,
     Needed,
+    Pending,
     Running,
+    Completed,
+    Failed,
+    Cancelled,
     Blocked,
     Unavailable,
 }
@@ -4307,6 +4312,9 @@ pub struct ThreadEpiphanyJob {
     pub status: ThreadEpiphanyJobStatus,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
+    pub runtime_agent_job_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
     pub items_processed: Option<u32>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
@@ -4320,6 +4328,8 @@ pub struct ThreadEpiphanyJob {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub blocking_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_thread_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub linked_subgoal_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -4727,6 +4737,9 @@ pub struct ThreadEpiphanyUpdatePatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub investigation_checkpoint: Option<CoreEpiphanyInvestigationCheckpoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub job_bindings: Option<Vec<CoreEpiphanyJobBinding>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observations: Vec<CoreEpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -4780,6 +4793,7 @@ pub enum ThreadEpiphanyStateUpdatedField {
     GraphCheckpoint,
     Scratch,
     InvestigationCheckpoint,
+    JobBindings,
     Observations,
     Evidence,
     Churn,

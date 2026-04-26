@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sqlite3
+import time
 from typing import Any
 
 from epiphany_phase5_smoke import AppServerClient
@@ -25,7 +27,115 @@ JOBS_CODE_REF = {
 }
 
 
-def job_surface_patch() -> dict[str, Any]:
+def locate_state_db(codex_home: Path) -> Path:
+    candidates = sorted(codex_home.glob("state_*.sqlite"))
+    if candidates:
+        return candidates[-1]
+    fallback = sorted(
+        path
+        for path in codex_home.glob("*.sqlite")
+        if "logs" not in path.name.lower()
+    )
+    if fallback:
+        return fallback[-1]
+    raise FileNotFoundError(f"no state db found under {codex_home}")
+
+
+def seed_agent_job(codex_home: Path, job_id: str, running_thread_id: str) -> None:
+    db_path = locate_state_db(codex_home)
+    now = int(time.time())
+    connection = sqlite3.connect(db_path)
+    try:
+        with connection:
+            connection.execute(
+                """
+                INSERT INTO agent_jobs (
+                    id, name, status, instruction, output_schema_json, input_headers_json,
+                    input_csv_path, output_csv_path, auto_export, created_at, updated_at,
+                    started_at, completed_at, last_error
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    job_id,
+                    "epiphany-specialist-smoke",
+                    "running",
+                    "Smoke-seeded runtime job for Epiphany jobs reflection.",
+                    None,
+                    "[]",
+                    str(codex_home / "input.csv"),
+                    str(codex_home / "output.csv"),
+                    0,
+                    now - 120,
+                    now,
+                    now - 90,
+                    None,
+                    None,
+                ),
+            )
+            connection.executemany(
+                """
+                INSERT INTO agent_job_items (
+                    job_id, item_id, row_index, source_id, row_json, status, assigned_thread_id,
+                    attempt_count, result_json, last_error, created_at, updated_at, completed_at,
+                    reported_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        job_id,
+                        "item-completed",
+                        0,
+                        "row-0",
+                        '{"row":0}',
+                        "completed",
+                        None,
+                        1,
+                        '{"accepted":true}',
+                        None,
+                        now - 120,
+                        now - 30,
+                        now - 30,
+                        now - 30,
+                    ),
+                    (
+                        job_id,
+                        "item-running",
+                        1,
+                        "row-1",
+                        '{"row":1}',
+                        "running",
+                        running_thread_id,
+                        1,
+                        None,
+                        None,
+                        now - 120,
+                        now,
+                        None,
+                        None,
+                    ),
+                    (
+                        job_id,
+                        "item-pending",
+                        2,
+                        "row-2",
+                        '{"row":2}',
+                        "pending",
+                        None,
+                        0,
+                        None,
+                        None,
+                        now - 120,
+                        now - 10,
+                        None,
+                        None,
+                    ),
+                ],
+            )
+    finally:
+        connection.close()
+
+
+def job_surface_patch(runtime_agent_job_id: str) -> dict[str, Any]:
     return {
         "objective": "Expose read-only Epiphany job/progress reflection without creating a scheduler.",
         "activeSubgoalId": "phase6-jobs-smoke",
@@ -68,6 +178,18 @@ def job_surface_patch() -> dict[str, Any]:
             "dirty_paths": ["app-server/src/codex_message_processor.rs"],
             "open_question_ids": ["q-live-progress"],
         },
+        "jobBindings": [
+            {
+                "id": "specialist-work",
+                "kind": "specialist",
+                "scope": "role-scoped specialist work",
+                "owner_role": "epiphany-harness",
+                "runtime_agent_job_id": runtime_agent_job_id,
+                "linked_subgoal_ids": ["phase6-jobs-smoke"],
+                "linked_graph_node_ids": ["job-surface"],
+                "progress_note": "Bound to a real runtime specialist job.",
+            }
+        ],
         "churn": {
             "understanding_status": "ready",
             "diff_pressure": "low",
@@ -126,8 +248,17 @@ def assert_ready_jobs(response: dict[str, Any]) -> None:
     require(verification["itemsTotal"] == 2, "verification should count total invariants")
 
     specialist = job_by_id(response["jobs"], "specialist-work")
-    require(specialist["status"] == "unavailable", "specialist scheduler should remain explicit non-flow")
-    require("blockingReason" in specialist, "specialist non-flow should explain itself")
+    require(specialist["status"] == "running", "bound specialist job should report real runtime progress")
+    require(
+        specialist["runtimeAgentJobId"] == "job-specialist-smoke",
+        "specialist runtime job id should surface through jobs reflection",
+    )
+    require(specialist["itemsProcessed"] == 1, "specialist job should count completed+failed items")
+    require(specialist["itemsTotal"] == 3, "specialist job should count total runtime items")
+    require(
+        specialist["activeThreadIds"] == ["worker-thread-specialist"],
+        "specialist job should expose active worker thread ids",
+    )
 
 
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
@@ -160,6 +291,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert started is not None
         thread_id = started["thread"]["id"]
+        seed_agent_job(codex_home, "job-specialist-smoke", "worker-thread-specialist")
 
         missing_notification_start = len(client.notifications)
         missing_response = client.send("thread/epiphany/jobs", {"threadId": thread_id})
@@ -174,7 +306,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         update_notification_start = len(client.notifications)
         update = client.send(
             "thread/epiphany/update",
-            {"threadId": thread_id, "expectedRevision": 0, "patch": job_surface_patch()},
+            {
+                "threadId": thread_id,
+                "expectedRevision": 0,
+                "patch": job_surface_patch("job-specialist-smoke"),
+            },
         )
         assert update is not None
         require(update["revision"] == 1, "job smoke patch should advance revision to 1")
@@ -213,6 +349,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "verificationItemsTotal": job_by_id(
                 ready_response["jobs"], "verification"
             )["itemsTotal"],
+            "specialistStatus": job_by_id(ready_response["jobs"], "specialist-work")["status"],
+            "specialistRuntimeAgentJobId": job_by_id(
+                ready_response["jobs"], "specialist-work"
+            )["runtimeAgentJobId"],
+            "specialistActiveThreadIds": job_by_id(
+                ready_response["jobs"], "specialist-work"
+            )["activeThreadIds"],
             "jobsNotificationCount": client.count_notifications(
                 "thread/epiphany/stateUpdated",
                 start_index=jobs_notification_start,

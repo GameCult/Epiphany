@@ -4828,6 +4828,68 @@
       ],
       "type": "string"
     },
+    "EpiphanyJobBinding": {
+      "properties": {
+        "blocking_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/EpiphanyJobKind"
+        },
+        "linked_graph_node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "linked_subgoal_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "owner_role": {
+          "type": "string"
+        },
+        "progress_note": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runtime_agent_job_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "owner_role",
+        "scope"
+      ],
+      "type": "object"
+    },
+    "EpiphanyJobKind": {
+      "enum": [
+        "indexing",
+        "remap",
+        "verification",
+        "specialist"
+      ],
+      "type": "string"
+    },
     "EpiphanyModeState": {
       "properties": {
         "kind": {
@@ -5111,6 +5173,12 @@
               "type": "null"
             }
           ]
+        },
+        "job_bindings": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyJobBinding"
+          },
+          "type": "array"
         },
         "last_updated_turn_id": {
           "type": [
@@ -13033,6 +13101,12 @@
     },
     "ThreadEpiphanyJob": {
       "properties": {
+        "activeThreadIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
         "blockingReason": {
           "type": [
             "string",
@@ -13089,6 +13163,12 @@
             "null"
           ]
         },
+        "runtimeAgentJobId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "scope": {
           "type": "string"
         },
@@ -13118,7 +13198,11 @@
       "enum": [
         "idle",
         "needed",
+        "pending",
         "running",
+        "completed",
+        "failed",
+        "cancelled",
         "blocked",
         "unavailable"
       ],
@@ -14012,6 +14096,7 @@
         "graphCheckpoint",
         "scratch",
         "investigationCheckpoint",
+        "jobBindings",
         "observations",
         "evidence",
         "churn",
@@ -14131,6 +14216,15 @@
             {
               "type": "null"
             }
+          ]
+        },
+        "jobBindings": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyJobBinding"
+          },
+          "type": [
+            "array",
+            "null"
           ]
         },
         "mode": {

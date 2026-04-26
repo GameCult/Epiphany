@@ -337,6 +337,7 @@ fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {
             open_gap_ids: vec!["gap-resume-proof".to_string()],
         }),
         investigation_checkpoint: None,
+        job_bindings: Vec::new(),
         scratch: Some(EpiphanyScratchPad {
             summary: Some("Inject the state as a developer fragment, not as a user message.".to_string()),
             hypothesis: Some("Keeping the block bounded will help resume without making prompt sludge.".to_string()),

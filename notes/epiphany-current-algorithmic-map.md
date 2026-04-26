@@ -23,7 +23,7 @@ The spine exists in seventeen live paths:
 - explicit state updates: app-server routes `thread/epiphany/update` through a loaded `CodexThread` update method that rejects malformed appended observation/evidence graph records and structurally invalid replacement fields, including investigation checkpoints that cite missing evidence, mutates live `SessionState` only after validation, bumps the revision, and persists an immediate `RolloutItem::EpiphanyState` snapshot in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4620), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:376), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:552), and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:44).
 - live state notifications and write responses: app-server declares experimental `thread/epiphany/stateUpdated` and emits it with the updated typed state, typed `source`, event-level `revision`, and typed `changedFields` after successful direct updates and accepted promotions, but not after rejected promotions; direct `thread/epiphany/update` and accepted `thread/epiphany/promote` responses expose the same revision/change metadata, accepted promotions always report `Evidence` because verifier evidence is appended even when the patch evidence list is empty, and successful write response/notification states now use the same client-visible live projection as `thread/read`, including retrieval-summary backfill when durable state has no persisted retrieval metadata, in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:1113), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4354), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4419), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4428), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4555), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4608), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4652), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4693), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11327), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11370).
 - scene projection: app-server declares experimental read-only `thread/epiphany/scene`, reads the same live/stored Epiphany state view used by `thread/read`, and derives a compact client scene with objective, active subgoal, invariant status counts, graph focus/counts, retrieval status, investigation-checkpoint summary counts, observation/evidence summaries, churn, live/stored source, and available control-plane actions without mutating or persisting state in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:340), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:3924), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4115), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10757).
-- job/progress reflection: app-server declares experimental read-only `thread/epiphany/jobs`, reads the same thread view as scene, optionally fills retrieval state for loaded threads with no Epiphany state, and derives four non-authoritative progress slots for retrieval indexing, graph remap, invariant verification, and future specialist work without scheduling, notifying, mutating, or persisting jobs in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:345), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4132), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4150), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11354).
+- job/progress reflection: app-server declares experimental read-only `thread/epiphany/jobs`, reads the same thread view as scene, optionally fills retrieval state for loaded threads with no Epiphany state, and derives four non-authoritative progress slots for retrieval indexing, graph remap, invariant verification, and specialist work. Durable `job_bindings` can now overlay those slots onto live runtime `agent_jobs` snapshots so the surface can show real owner/progress/thread information without scheduling, notifying, mutating, or persisting runtime jobs in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:347), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4142), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4176), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11998).
 - freshness reflection: app-server declares experimental read-only `thread/epiphany/freshness`, reads the same live/stored thread view used by scene/jobs/context, fills live retrieval state for loaded threads, and derives one bounded retrieval/graph freshness lens plus, for loaded threads, watcher-backed invalidation inputs with watched root, changed paths, mapped graph-node hits, active-frontier hits, and revision/source identity without mutating, scheduling, notifying, or performing automatic semantic invalidation in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4167), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4259), [epiphany_invalidation.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/epiphany_invalidation.rs:19), [epiphany_invalidation.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/epiphany_invalidation.rs:67), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4219), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11073).
 - targeted context reflection: app-server declares experimental read-only `thread/epiphany/context`, reads the same live/stored Epiphany state view used by scene/jobs, and derives a bounded state shard containing selected graph nodes/edges, links, active frontier, checkpoint, the full durable investigation-checkpoint packet, observations, direct evidence, linked evidence, and missing requested ids without retrieval, proposal, promotion, notification, mutation, or persistence in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:355), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4253), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4261), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11152).
 - context-pressure reflection: core token telemetry carries `model_auto_compact_token_limit` beside total/last usage and `model_context_window`; app-server declares experimental read-only `thread/epiphany/pressure`, reads live token usage or the latest stored rollout `TokenCount`, and derives `unknown`/`low`/`elevated`/`high`/`critical` pressure plus a non-acting compaction-prep recommendation without mutating Epiphany state or scheduling compaction in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:2237), [turn_context.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/turn_context.rs:103), [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2716), [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:360), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4361), [token_usage_replay.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor/token_usage_replay.rs:75), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4306), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11028).
@@ -996,16 +996,16 @@ A client sends experimental `thread/epiphany/jobs` with:
 
 ### Plain-language role
 
-Job projection is the second Phase 6 reflection boundary. It gives clients a typed answer to "what Epiphany work is visible from here?" without creating a background scheduler, durable job table, or GUI-owned progress model.
+Job projection is the second Phase 6 reflection boundary. It gives clients a typed answer to "what Epiphany work is visible from here?" without creating a background scheduler, GUI-owned progress model, or a second durable runtime job table.
 
-The surface currently reports four derived slots:
+The surface currently reports four base slots:
 
 - retrieval indexing
 - graph remap
 - invariant/evidence verification
-- future specialist work
+- specialist work
 
-The important boundary is that these are reflections over existing state. Retrieval status comes from the same retrieval summary machinery used by scene/thread reads. Remap pressure comes from graph frontier dirty paths, open questions/gaps, and churn freshness. Verification pressure comes from invariant status counts. Specialist work is explicitly `unavailable` until a scheduler exists, which is intentionally better than making clients invent one in the upholstery.
+The important boundary is that these are reflections over existing state. Retrieval status comes from the same retrieval summary machinery used by scene/thread reads. Remap pressure comes from graph frontier dirty paths, open questions/gaps, and churn freshness. Verification pressure comes from invariant status counts. Durable `jobBindings` in authoritative Epiphany state can then attach owner/scope/linkage metadata and, when they point at a real runtime `agent_jobs` record, overlay live status, progress counts, runtime job id, and active worker thread ids. If the runtime seam is missing or the referenced job is gone, the slot blocks honestly instead of improvising a secret scheduler.
 
 Protocol shape:
 
@@ -1027,15 +1027,17 @@ Response shape:
   - optional `progressNote`
   - optional `lastCheckpointAtUnixSeconds`
   - optional `blockingReason`
+  - optional `runtimeAgentJobId`
+  - `activeThreadIds`
   - `linkedSubgoalIds`
   - `linkedGraphNodeIds`
 
 Code refs:
 
-- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:344)
-- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4100)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4114)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10734)
+- [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:347)
+- [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4142)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4176)
+- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11998)
 
 ### Mechanism
 
@@ -1046,23 +1048,24 @@ The app-server handler:
 3. calls `read_thread_view(..., include_turns: false)` to reuse the live/stored Epiphany projection path.
 4. if the thread is loaded and no Epiphany retrieval summary is present, asks the loaded thread for retrieval state so the index slot can still be honest before typed Epiphany state exists.
 5. returns `stateRevision` only when authoritative Epiphany state exists.
-6. passes the optional state and optional retrieval override into `map_epiphany_jobs`.
+6. opens a live runtime state-db seam from the loaded thread when possible and falls back to direct state-runtime lookup for read-only agent-job resolution.
+7. passes the optional state, optional retrieval override, and optional runtime job snapshots into `map_epiphany_jobs`.
 
 `map_epiphany_jobs`:
 
-1. returns a `retrieval-index` slot from retrieval status: ready becomes idle, stale becomes needed, indexing becomes running, unavailable stays unavailable.
-2. returns a `graph-remap` slot that is blocked without Epiphany state and needed when frontier dirty paths, open questions/gaps, or stale graph freshness are visible.
-3. returns a `verification` slot that is blocked without Epiphany state and needed when any invariant status is not accepting.
-4. returns a `specialist-work` slot as unavailable with an explicit blocking reason because specialist scheduling is not landed.
-5. copies active subgoal and graph-node ids into relevant slots so clients can link progress pressure back to the visible model.
+1. returns base `retrieval-index`, `graph-remap`, `verification`, and `specialist-work` slots from retrieval state, frontier/churn state, invariant counts, and the no-scheduler boundary.
+2. copies active subgoal and graph-node ids into relevant slots so clients can link progress pressure back to the visible model.
+3. if authoritative typed state carries `jobBindings`, matches those bindings onto the base slots by id/kind.
+4. when a binding carries `runtime_agent_job_id` and the state runtime can resolve it, overlays live runtime `agent_jobs` status, progress counts, progress note, runtime job id, and active worker thread ids onto the slot.
+5. when the state runtime is unavailable or the referenced runtime job is missing, blocks the bound slot with an explicit reason instead of pretending the work is running.
 
 ### Output
 
-The response is a typed progress board derived from the current Epiphany machine. The Phase 6 jobs smoke proved that missing-state jobs can still reflect retrieval while graph/remap and verification stay blocked, ready-state jobs expose revision identity and needed remap/verification pressure, no `thread/epiphany/stateUpdated` notification is emitted by the read, and final thread state revision does not change.
+The response is a typed progress board derived from the current Epiphany machine. The Phase 6 jobs smoke proved that missing-state jobs can still reflect retrieval while graph/remap and verification stay blocked, ready-state jobs expose revision identity and needed remap/verification pressure, a bound specialist runtime job surfaces `running` plus its runtime job id and active worker thread id, no `thread/epiphany/stateUpdated` notification is emitted by the read, and final thread state revision does not change.
 
 ### Invariant
 
-Job projection is read-only. It does not start indexing, remap graphs, verify invariants, schedule specialists, mutate `SessionState`, append rollout items, or emit progress notifications. It is a board on the wall, not a payroll department with a fake mustache.
+Job projection is read-only. It does not start indexing, create runtime jobs, remap graphs, verify invariants, schedule specialists, mutate `SessionState`, append rollout items, or emit progress notifications. It is a board on the wall, not a payroll department with a fake mustache.
 
 ## Flow 15: Targeted Context Shard Control Flow
 
@@ -1275,7 +1278,7 @@ These are deliberately not shipped yet:
 - no automatic watcher-driven graph or semantic invalidation.
 - no code-intelligence graph.
 - no specialist-agent scheduler.
-- no live long-running job execution or `thread/epiphany/jobsUpdated` progress notification.
+- no `thread/epiphany/jobsUpdated` progress notification or Epiphany-owned long-running job executor.
 - no GUI implementation beyond the read-only scene, jobs, freshness, context, and pressure projection surfaces.
 - no durable retrieval-summary write from `thread/epiphany/retrieve`.
 

@@ -47,7 +47,7 @@ The rule is:
 | `thread/epiphany/promote` | verifier gate | landed | Rejects or applies candidates through the durable update path. |
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
-| `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries. |
+| `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable `jobBindings` plus live runtime `agent_jobs` overlay when a real owner exists. |
 | `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state, with watcher-backed invalidation inputs for loaded threads. |
 | `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
@@ -107,6 +107,7 @@ The important categories are:
 - graph frontier and checkpoint
 - retrieval summary
 - investigation checkpoint
+- job bindings
 - scratch
 - observations
 - recent evidence
@@ -129,8 +130,8 @@ Metaphor is compression after source context. It is not decoration for guesses.
 
 These are not landed yet:
 
-- live typed job/progress state for running indexing, remap, verification, and specialist work
 - `thread/epiphany/jobsUpdated` or equivalent progress notifications
+- an Epiphany-owned long-running job launcher beyond binding to existing runtime `agent_jobs`
 - richer evidence-range and graph-shard inspection beyond the landed context shard
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
@@ -146,10 +147,11 @@ and a verification story.
 
 The first read-only job/progress reflection is landed as `thread/epiphany/jobs`.
 It reports derived slots for retrieval indexing, graph remap, invariant
-verification, and future specialist work. It does not start, schedule, persist,
-or notify jobs.
+verification, and specialist work, and can overlay durable `jobBindings` onto
+live runtime `agent_jobs` snapshots. It does not start, schedule, create, or
+notify jobs.
 
-The next missing organ is live observable long-running work.
+The next missing organ is live progress notification for bound runtime work.
 
 Future live job state should describe work like:
 
@@ -166,8 +168,10 @@ Minimum useful fields:
 - `scope`
 - `ownerRole`
 - `status`
+- `runtimeAgentJobId`
 - `itemsProcessed`
 - `itemsTotal`
+- `activeThreadIds`
 - `progressNote`
 - `lastCheckpointAt`
 - `blockingReason`

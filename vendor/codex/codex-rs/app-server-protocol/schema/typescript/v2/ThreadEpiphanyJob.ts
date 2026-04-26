@@ -4,4 +4,4 @@
 import type { ThreadEpiphanyJobKind } from "./ThreadEpiphanyJobKind";
 import type { ThreadEpiphanyJobStatus } from "./ThreadEpiphanyJobStatus";
 
-export type ThreadEpiphanyJob = { id: string, kind: ThreadEpiphanyJobKind, scope: string, ownerRole: string, status: ThreadEpiphanyJobStatus, itemsProcessed?: number | null, itemsTotal?: number | null, progressNote?: string | null, lastCheckpointAtUnixSeconds?: bigint | null, blockingReason?: string | null, linkedSubgoalIds?: Array<string>, linkedGraphNodeIds?: Array<string>, };
+export type ThreadEpiphanyJob = { id: string, kind: ThreadEpiphanyJobKind, scope: string, ownerRole: string, status: ThreadEpiphanyJobStatus, runtimeAgentJobId?: string | null, itemsProcessed?: number | null, itemsTotal?: number | null, progressNote?: string | null, lastCheckpointAtUnixSeconds?: bigint | null, blockingReason?: string | null, activeThreadIds?: Array<string>, linkedSubgoalIds?: Array<string>, linkedGraphNodeIds?: Array<string>, };

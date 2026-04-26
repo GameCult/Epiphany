@@ -402,6 +402,8 @@ use codex_protocol::protocol::ConversationStartParams;
 use codex_protocol::protocol::ConversationStartTransport;
 use codex_protocol::protocol::ConversationTextParams;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
+use codex_protocol::protocol::EpiphanyJobBinding;
+use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyThreadState;
@@ -429,6 +431,9 @@ use codex_rmcp_client::perform_oauth_login_return_url;
 use codex_rollout::state_db::StateDbHandle;
 use codex_rollout::state_db::get_state_db;
 use codex_rollout::state_db::reconcile_rollout;
+use codex_state::AgentJobItemStatus;
+use codex_state::AgentJobProgress;
+use codex_state::AgentJobStatus;
 use codex_state::StateRuntime;
 use codex_state::ThreadMetadata;
 use codex_state::ThreadMetadataBuilder;
@@ -3398,7 +3403,7 @@ impl CodexMessageProcessor {
         let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
         let mut state_db_ctx = loaded_thread.as_ref().and_then(|thread| thread.state_db());
         if state_db_ctx.is_none() {
-            state_db_ctx = get_state_db(&self.config).await;
+            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
         }
         let Some(state_db_ctx) = state_db_ctx else {
             self.send_internal_error(
@@ -4212,6 +4217,15 @@ impl CodexMessageProcessor {
         } else {
             None
         };
+        let mut state_db_ctx = loaded_thread.as_ref().and_then(|thread| thread.state_db());
+        if state_db_ctx.is_none() {
+            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
+        }
+        let job_resolution = load_epiphany_agent_job_snapshots(
+            state_db_ctx.as_ref(),
+            thread.epiphany_state.as_ref(),
+        )
+        .await;
 
         let response = ThreadEpiphanyJobsResponse {
             thread_id,
@@ -4224,7 +4238,11 @@ impl CodexMessageProcessor {
                 .epiphany_state
                 .as_ref()
                 .map(|epiphany_state| epiphany_state.revision),
-            jobs: map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref()),
+            jobs: map_epiphany_jobs(
+                thread.epiphany_state.as_ref(),
+                retrieval_override.as_ref(),
+                &job_resolution,
+            ),
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -4821,6 +4839,7 @@ impl CodexMessageProcessor {
             graph_checkpoint: patch.graph_checkpoint,
             scratch: patch.scratch,
             investigation_checkpoint: patch.investigation_checkpoint,
+            job_bindings: patch.job_bindings,
             observations: patch.observations,
             evidence,
             churn: patch.churn,
@@ -4909,6 +4928,7 @@ impl CodexMessageProcessor {
             graph_checkpoint: patch.graph_checkpoint,
             scratch: patch.scratch,
             investigation_checkpoint: patch.investigation_checkpoint,
+            job_bindings: patch.job_bindings,
             observations: patch.observations,
             evidence: patch.evidence,
             churn: patch.churn,
@@ -11899,16 +11919,271 @@ fn extend_unique_strings(target: &mut Vec<String>, values: impl IntoIterator<Ite
     }
 }
 
+#[derive(Debug, Default, Clone)]
+struct EpiphanyAgentJobResolution {
+    available: bool,
+    snapshots_by_binding_id: HashMap<String, EpiphanyAgentJobSnapshot>,
+}
+
+#[derive(Debug, Clone)]
+struct EpiphanyAgentJobSnapshot {
+    status: AgentJobStatus,
+    progress: AgentJobProgress,
+    updated_at_unix_seconds: i64,
+    last_error: Option<String>,
+    active_thread_ids: Vec<String>,
+}
+
+async fn load_epiphany_agent_job_snapshots(
+    state_db_ctx: Option<&StateDbHandle>,
+    state: Option<&EpiphanyThreadState>,
+) -> EpiphanyAgentJobResolution {
+    let Some(state) = state else {
+        return EpiphanyAgentJobResolution::default();
+    };
+
+    let Some(state_db_ctx) = state_db_ctx else {
+        return EpiphanyAgentJobResolution {
+            available: false,
+            snapshots_by_binding_id: HashMap::new(),
+        };
+    };
+
+    let mut resolution = EpiphanyAgentJobResolution {
+        available: true,
+        snapshots_by_binding_id: HashMap::new(),
+    };
+
+    for binding in &state.job_bindings {
+        let Some(runtime_agent_job_id) = binding.runtime_agent_job_id.as_deref() else {
+            continue;
+        };
+
+        let Ok(Some(job)) = state_db_ctx.get_agent_job(runtime_agent_job_id).await else {
+            continue;
+        };
+        let Ok(progress) = state_db_ctx
+            .get_agent_job_progress(runtime_agent_job_id)
+            .await
+        else {
+            continue;
+        };
+        let active_thread_ids = state_db_ctx
+            .list_agent_job_items(
+                runtime_agent_job_id,
+                Some(AgentJobItemStatus::Running),
+                /*limit*/ Some(64),
+            )
+            .await
+            .map(|items| {
+                unique_strings(items.into_iter().filter_map(|item| item.assigned_thread_id))
+            })
+            .unwrap_or_default();
+
+        resolution.snapshots_by_binding_id.insert(
+            binding.id.clone(),
+            EpiphanyAgentJobSnapshot {
+                status: job.status,
+                progress,
+                updated_at_unix_seconds: job.updated_at.timestamp(),
+                last_error: job.last_error,
+                active_thread_ids,
+            },
+        );
+    }
+
+    resolution
+}
+
 fn map_epiphany_jobs(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
+    job_resolution: &EpiphanyAgentJobResolution,
 ) -> Vec<ThreadEpiphanyJob> {
-    vec![
+    let mut jobs = vec![
         map_epiphany_index_job(state, retrieval_override),
         map_epiphany_remap_job(state),
         map_epiphany_verification_job(state),
         map_epiphany_specialist_job(),
-    ]
+    ];
+
+    let Some(state) = state else {
+        return jobs;
+    };
+
+    for binding in &state.job_bindings {
+        let snapshot = job_resolution
+            .snapshots_by_binding_id
+            .get(binding.id.as_str());
+        let replacement = if let Some(existing) = jobs.iter().find(|job| job.id == binding.id) {
+            overlay_epiphany_job_binding(existing.clone(), binding, snapshot, job_resolution)
+        } else {
+            map_epiphany_bound_job(binding, snapshot, job_resolution)
+        };
+
+        if let Some(existing) = jobs.iter_mut().find(|job| job.id == binding.id) {
+            *existing = replacement;
+        } else {
+            jobs.push(replacement);
+        }
+    }
+
+    jobs
+}
+
+fn map_epiphany_bound_job(
+    binding: &EpiphanyJobBinding,
+    snapshot: Option<&EpiphanyAgentJobSnapshot>,
+    job_resolution: &EpiphanyAgentJobResolution,
+) -> ThreadEpiphanyJob {
+    overlay_epiphany_job_binding(
+        ThreadEpiphanyJob {
+            id: binding.id.clone(),
+            kind: map_core_epiphany_job_kind(binding.kind),
+            scope: binding.scope.clone(),
+            owner_role: binding.owner_role.clone(),
+            status: if binding.blocking_reason.is_some() {
+                ThreadEpiphanyJobStatus::Blocked
+            } else {
+                ThreadEpiphanyJobStatus::Idle
+            },
+            runtime_agent_job_id: binding.runtime_agent_job_id.clone(),
+            items_processed: None,
+            items_total: None,
+            progress_note: None,
+            last_checkpoint_at_unix_seconds: None,
+            blocking_reason: None,
+            active_thread_ids: Vec::new(),
+            linked_subgoal_ids: binding.linked_subgoal_ids.clone(),
+            linked_graph_node_ids: binding.linked_graph_node_ids.clone(),
+        },
+        binding,
+        snapshot,
+        job_resolution,
+    )
+}
+
+fn overlay_epiphany_job_binding(
+    mut job: ThreadEpiphanyJob,
+    binding: &EpiphanyJobBinding,
+    snapshot: Option<&EpiphanyAgentJobSnapshot>,
+    job_resolution: &EpiphanyAgentJobResolution,
+) -> ThreadEpiphanyJob {
+    job.kind = map_core_epiphany_job_kind(binding.kind);
+    job.scope = binding.scope.clone();
+    job.owner_role = binding.owner_role.clone();
+    job.runtime_agent_job_id = binding.runtime_agent_job_id.clone();
+    if !binding.linked_subgoal_ids.is_empty() {
+        job.linked_subgoal_ids = binding.linked_subgoal_ids.clone();
+    }
+    if !binding.linked_graph_node_ids.is_empty() {
+        job.linked_graph_node_ids = binding.linked_graph_node_ids.clone();
+    }
+    if let Some(progress_note) = binding.progress_note.clone() {
+        job.progress_note = Some(progress_note);
+    }
+    if let Some(blocking_reason) = binding.blocking_reason.clone() {
+        job.blocking_reason = Some(blocking_reason);
+    }
+
+    if let Some(snapshot) = snapshot {
+        job.status = map_thread_epiphany_job_status(snapshot.status);
+        job.items_processed = Some(progress_processed_items(&snapshot.progress));
+        job.items_total = Some(progress_total_items(&snapshot.progress));
+        job.progress_note = Some(render_agent_job_progress_note(snapshot));
+        job.last_checkpoint_at_unix_seconds = Some(snapshot.updated_at_unix_seconds);
+        job.active_thread_ids = snapshot.active_thread_ids.clone();
+        job.blocking_reason = match snapshot.status {
+            AgentJobStatus::Failed => snapshot.last_error.clone().or(job.blocking_reason),
+            AgentJobStatus::Cancelled => Some(
+                snapshot
+                    .last_error
+                    .clone()
+                    .unwrap_or_else(|| "Bound runtime agent job was cancelled.".to_string()),
+            ),
+            _ => None,
+        };
+        return job;
+    }
+
+    if let Some(runtime_agent_job_id) = binding.runtime_agent_job_id.as_deref() {
+        job.status = ThreadEpiphanyJobStatus::Blocked;
+        job.blocking_reason = Some(if job_resolution.available {
+            format!(
+                "Bound runtime agent job {:?} was not found in state runtime.",
+                runtime_agent_job_id
+            )
+        } else {
+            "State runtime is unavailable, so bound runtime agent jobs cannot be resolved."
+                .to_string()
+        });
+    }
+
+    job
+}
+
+fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJobKind {
+    match kind {
+        CoreEpiphanyJobKind::Indexing => ThreadEpiphanyJobKind::Indexing,
+        CoreEpiphanyJobKind::Remap => ThreadEpiphanyJobKind::Remap,
+        CoreEpiphanyJobKind::Verification => ThreadEpiphanyJobKind::Verification,
+        CoreEpiphanyJobKind::Specialist => ThreadEpiphanyJobKind::Specialist,
+    }
+}
+
+fn map_thread_epiphany_job_status(status: AgentJobStatus) -> ThreadEpiphanyJobStatus {
+    match status {
+        AgentJobStatus::Pending => ThreadEpiphanyJobStatus::Pending,
+        AgentJobStatus::Running => ThreadEpiphanyJobStatus::Running,
+        AgentJobStatus::Completed => ThreadEpiphanyJobStatus::Completed,
+        AgentJobStatus::Failed => ThreadEpiphanyJobStatus::Failed,
+        AgentJobStatus::Cancelled => ThreadEpiphanyJobStatus::Cancelled,
+    }
+}
+
+fn progress_total_items(progress: &AgentJobProgress) -> u32 {
+    u32::try_from(progress.total_items).unwrap_or(u32::MAX)
+}
+
+fn progress_processed_items(progress: &AgentJobProgress) -> u32 {
+    u32::try_from(
+        progress
+            .completed_items
+            .saturating_add(progress.failed_items),
+    )
+    .unwrap_or(u32::MAX)
+}
+
+fn render_agent_job_progress_note(snapshot: &EpiphanyAgentJobSnapshot) -> String {
+    let progress = &snapshot.progress;
+    match snapshot.status {
+        AgentJobStatus::Pending => format!(
+            "Runtime agent job is pending with {} pending, {} running, {} completed, and {} failed item(s).",
+            progress.pending_items,
+            progress.running_items,
+            progress.completed_items,
+            progress.failed_items
+        ),
+        AgentJobStatus::Running => format!(
+            "Runtime agent job is running with {} pending, {} running, {} completed, and {} failed item(s).",
+            progress.pending_items,
+            progress.running_items,
+            progress.completed_items,
+            progress.failed_items
+        ),
+        AgentJobStatus::Completed => format!(
+            "Runtime agent job completed all {} item(s).",
+            progress.total_items
+        ),
+        AgentJobStatus::Failed => format!(
+            "Runtime agent job failed with {} completed and {} failed item(s).",
+            progress.completed_items, progress.failed_items
+        ),
+        AgentJobStatus::Cancelled => format!(
+            "Runtime agent job was cancelled with {} pending, {} completed, and {} failed item(s).",
+            progress.pending_items, progress.completed_items, progress.failed_items
+        ),
+    }
 }
 
 fn map_epiphany_index_job(
@@ -11928,11 +12203,13 @@ fn map_epiphany_index_job(
             scope: "workspace".to_string(),
             owner_role: "epiphany-core".to_string(),
             status: ThreadEpiphanyJobStatus::Unavailable,
+            runtime_agent_job_id: None,
             items_processed: None,
             items_total: None,
             progress_note: None,
             last_checkpoint_at_unix_seconds: None,
             blocking_reason: Some("Retrieval state is unavailable for this thread.".to_string()),
+            active_thread_ids: Vec::new(),
             linked_subgoal_ids,
             linked_graph_node_ids,
         };
@@ -11959,6 +12236,7 @@ fn map_epiphany_index_job(
         scope: retrieval.workspace_root.display().to_string(),
         owner_role: "epiphany-core".to_string(),
         status: epiphany_job_status_from_retrieval_status(retrieval.status),
+        runtime_agent_job_id: None,
         items_processed: retrieval.indexed_file_count,
         items_total: None,
         progress_note: Some(progress_note),
@@ -11966,6 +12244,7 @@ fn map_epiphany_index_job(
         blocking_reason: (retrieval.status == EpiphanyRetrievalStatus::Unavailable).then(|| {
             "Indexing requires a readable workspace and configured retrieval backend.".to_string()
         }),
+        active_thread_ids: Vec::new(),
         linked_subgoal_ids,
         linked_graph_node_ids,
     }
@@ -12024,11 +12303,13 @@ fn map_epiphany_remap_job(state: Option<&EpiphanyThreadState>) -> ThreadEpiphany
         } else {
             ThreadEpiphanyJobStatus::Idle
         },
+        runtime_agent_job_id: None,
         items_processed: None,
         items_total: None,
         progress_note: Some(progress_note),
         last_checkpoint_at_unix_seconds: None,
         blocking_reason: None,
+        active_thread_ids: Vec::new(),
         linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
         linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
     }
@@ -12069,11 +12350,13 @@ fn map_epiphany_verification_job(state: Option<&EpiphanyThreadState>) -> ThreadE
         scope: "invariants/evidence".to_string(),
         owner_role: "epiphany-harness".to_string(),
         status,
+        runtime_agent_job_id: None,
         items_processed: Some(verified),
         items_total: Some(total),
         progress_note: Some(progress_note),
         last_checkpoint_at_unix_seconds: None,
         blocking_reason: None,
+        active_thread_ids: Vec::new(),
         linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
         linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
     }
@@ -12086,6 +12369,7 @@ fn map_epiphany_specialist_job() -> ThreadEpiphanyJob {
         scope: "role-scoped specialist work".to_string(),
         owner_role: "epiphany-harness".to_string(),
         status: ThreadEpiphanyJobStatus::Unavailable,
+        runtime_agent_job_id: None,
         items_processed: None,
         items_total: None,
         progress_note: None,
@@ -12094,6 +12378,7 @@ fn map_epiphany_specialist_job() -> ThreadEpiphanyJob {
             "Specialist scheduling is not landed; this slot prevents clients from inventing private scheduler state."
                 .to_string(),
         ),
+        active_thread_ids: Vec::new(),
         linked_subgoal_ids: Vec::new(),
         linked_graph_node_ids: Vec::new(),
     }
@@ -12111,11 +12396,13 @@ fn epiphany_blocked_state_job(
         scope: scope.to_string(),
         owner_role: "epiphany-harness".to_string(),
         status: ThreadEpiphanyJobStatus::Blocked,
+        runtime_agent_job_id: None,
         items_processed: None,
         items_total: None,
         progress_note: None,
         last_checkpoint_at_unix_seconds: None,
         blocking_reason: Some(blocking_reason.to_string()),
+        active_thread_ids: Vec::new(),
         linked_subgoal_ids: Vec::new(),
         linked_graph_node_ids: Vec::new(),
     }
@@ -12165,6 +12452,7 @@ fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatc
         || patch.graph_checkpoint.is_some()
         || patch.scratch.is_some()
         || patch.investigation_checkpoint.is_some()
+        || patch.job_bindings.is_some()
         || patch.churn.is_some()
         || patch.mode.is_some()
 }
@@ -12265,6 +12553,9 @@ fn epiphany_update_patch_changed_fields(
     }
     if patch.investigation_checkpoint.is_some() {
         fields.push(ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint);
+    }
+    if patch.job_bindings.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::JobBindings);
     }
     if !patch.observations.is_empty() {
         fields.push(ThreadEpiphanyStateUpdatedField::Observations);
@@ -14490,7 +14781,7 @@ mod tests {
             ..Default::default()
         };
 
-        let jobs = map_epiphany_jobs(Some(&state), None);
+        let jobs = map_epiphany_jobs(Some(&state), None, &EpiphanyAgentJobResolution::default());
 
         assert_eq!(jobs.len(), 4);
         assert_eq!(jobs[0].id, "retrieval-index");
@@ -14527,12 +14818,112 @@ mod tests {
             ..Default::default()
         };
 
-        let jobs = map_epiphany_jobs(None, Some(&retrieval));
+        let jobs = map_epiphany_jobs(
+            None,
+            Some(&retrieval),
+            &EpiphanyAgentJobResolution::default(),
+        );
 
         assert_eq!(jobs[0].status, ThreadEpiphanyJobStatus::Idle);
         assert_eq!(jobs[0].items_processed, Some(7));
         assert_eq!(jobs[1].status, ThreadEpiphanyJobStatus::Blocked);
         assert_eq!(jobs[2].status, ThreadEpiphanyJobStatus::Blocked);
+    }
+
+    #[test]
+    fn map_epiphany_jobs_overlays_bound_runtime_agent_job_progress() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                id: "specialist-work".to_string(),
+                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                scope: "role-scoped specialist work".to_string(),
+                owner_role: "epiphany-harness".to_string(),
+                runtime_agent_job_id: Some("job-specialist-1".to_string()),
+                linked_subgoal_ids: vec!["phase-6".to_string()],
+                linked_graph_node_ids: vec!["job-surface".to_string()],
+                progress_note: Some("Bound to a real runtime job.".to_string()),
+                blocking_reason: None,
+            }],
+            ..Default::default()
+        };
+        let resolution = EpiphanyAgentJobResolution {
+            available: true,
+            snapshots_by_binding_id: HashMap::from([(
+                "specialist-work".to_string(),
+                EpiphanyAgentJobSnapshot {
+                    status: AgentJobStatus::Running,
+                    progress: AgentJobProgress {
+                        total_items: 3,
+                        pending_items: 1,
+                        running_items: 1,
+                        completed_items: 1,
+                        failed_items: 0,
+                    },
+                    updated_at_unix_seconds: 1_744_600_000,
+                    last_error: None,
+                    active_thread_ids: vec!["worker-thread-1".to_string()],
+                },
+            )]),
+        };
+
+        let jobs = map_epiphany_jobs(Some(&state), None, &resolution);
+        let specialist = jobs
+            .iter()
+            .find(|job| job.id == "specialist-work")
+            .expect("specialist slot should exist");
+
+        assert_eq!(specialist.status, ThreadEpiphanyJobStatus::Running);
+        assert_eq!(
+            specialist.runtime_agent_job_id.as_deref(),
+            Some("job-specialist-1")
+        );
+        assert_eq!(specialist.items_processed, Some(1));
+        assert_eq!(specialist.items_total, Some(3));
+        assert_eq!(
+            specialist.active_thread_ids,
+            vec!["worker-thread-1".to_string()]
+        );
+        assert_eq!(specialist.linked_subgoal_ids, vec!["phase-6".to_string()]);
+        assert_eq!(
+            specialist.linked_graph_node_ids,
+            vec!["job-surface".to_string()]
+        );
+    }
+
+    #[test]
+    fn map_epiphany_jobs_blocks_missing_bound_runtime_agent_job() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                id: "specialist-work".to_string(),
+                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                scope: "role-scoped specialist work".to_string(),
+                owner_role: "epiphany-harness".to_string(),
+                runtime_agent_job_id: Some("job-missing".to_string()),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+                progress_note: None,
+                blocking_reason: None,
+            }],
+            ..Default::default()
+        };
+        let resolution = EpiphanyAgentJobResolution {
+            available: true,
+            snapshots_by_binding_id: HashMap::new(),
+        };
+
+        let jobs = map_epiphany_jobs(Some(&state), None, &resolution);
+        let specialist = jobs
+            .iter()
+            .find(|job| job.id == "specialist-work")
+            .expect("specialist slot should exist");
+
+        assert_eq!(specialist.status, ThreadEpiphanyJobStatus::Blocked);
+        assert!(
+            specialist
+                .blocking_reason
+                .as_deref()
+                .is_some_and(|reason| reason.contains("not found in state runtime"))
+        );
     }
 
     #[test]
@@ -14542,6 +14933,7 @@ mod tests {
             graphs: Some(Default::default()),
             graph_frontier: Some(Default::default()),
             investigation_checkpoint: Some(Default::default()),
+            job_bindings: Some(Vec::new()),
             observations: vec![Default::default()],
             evidence: vec![Default::default()],
             churn: Some(Default::default()),
@@ -14555,6 +14947,7 @@ mod tests {
                 ThreadEpiphanyStateUpdatedField::Graphs,
                 ThreadEpiphanyStateUpdatedField::GraphFrontier,
                 ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint,
+                ThreadEpiphanyStateUpdatedField::JobBindings,
                 ThreadEpiphanyStateUpdatedField::Observations,
                 ThreadEpiphanyStateUpdatedField::Evidence,
                 ThreadEpiphanyStateUpdatedField::Churn,

@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient`; freshness carries watcher-backed invalidation inputs for loaded threads, and reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient`; jobs can now overlay durable `jobBindings` onto live runtime `agent_jobs` progress for loaded threads, freshness carries watcher-backed invalidation inputs, and reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -63,7 +63,7 @@ The current spine:
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
-- read-only job/progress reflection through `thread/epiphany/jobs`
+- read-only job/progress reflection through `thread/epiphany/jobs`, with durable `jobBindings` plus live runtime `agent_jobs` overlay
 - read-only retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only context-pressure reflection through `thread/epiphany/pressure`
@@ -208,12 +208,14 @@ watcher, and investigation-checkpoint signals to decide whether a checkpoint
 still deserves `resume` or has to admit `regather`.
 
 Also keep the guardrail in mind: a read-only reorientation verdict is still not
-automatic CRRC. Runtime coordination, next-action execution, and long-running
-job ownership are still future work.
+automatic CRRC. Runtime coordination and next-action execution are still future
+work even though read-only job ownership/progress reflection now has a real
+runtime seam.
 
-When the user asks to continue, the next likely organ is real long-running job
-ownership/progress state so `thread/epiphany/jobs` and future notifications can
-reflect something real, with automatic runtime CRRC still waiting beyond that
+When the user asks to continue, the next likely organ is live
+`thread/epiphany/jobsUpdated` or equivalent progress notification now that
+durable `jobBindings` can point at real runtime owners through
+`thread/epiphany/jobs`, with automatic runtime CRRC still waiting beyond that
 boundary.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
@@ -228,7 +230,7 @@ guardrails, not the next organs.
 - specialist-agent scheduling
 - GUI-as-source-of-truth
 - automatic runtime CRRC coordinator acting on the landed reorientation verdict
-- live long-running job execution or `thread/epiphany/jobsUpdated`
+- Epiphany-owned long-running job execution or `thread/epiphany/jobsUpdated`
 - broad event stream beyond the landed state update notification
 
 The machine is good enough to move outward. Do not sand the same edge until the

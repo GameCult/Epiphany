@@ -32,6 +32,7 @@ use codex_protocol::protocol::EpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
+use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalState;
@@ -112,6 +113,7 @@ pub struct EpiphanyStateUpdate {
     pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
     pub scratch: Option<EpiphanyScratchPad>,
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
+    pub job_bindings: Option<Vec<EpiphanyJobBinding>>,
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
     pub churn: Option<EpiphanyChurnState>,
@@ -129,6 +131,7 @@ impl EpiphanyStateUpdate {
             && self.graph_checkpoint.is_none()
             && self.scratch.is_none()
             && self.investigation_checkpoint.is_none()
+            && self.job_bindings.is_none()
             && self.observations.is_empty()
             && self.evidence.is_empty()
             && self.churn.is_none()
@@ -645,7 +648,41 @@ fn epiphany_state_update_validation_errors(
         }
     }
 
+    if let Some(job_bindings) = update.job_bindings.as_ref() {
+        errors.extend(validate_epiphany_job_bindings(job_bindings));
+    }
+
     errors.extend(epiphany_state_replacement_validation_errors(state, update));
+    errors
+}
+
+fn validate_epiphany_job_bindings(job_bindings: &[EpiphanyJobBinding]) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut seen_ids = HashSet::<&str>::new();
+
+    for binding in job_bindings {
+        require_nonempty_update(&binding.id, "job_binding.id", &mut errors);
+        require_nonempty_update(&binding.scope, "job_binding.scope", &mut errors);
+        require_nonempty_update(&binding.owner_role, "job_binding.owner_role", &mut errors);
+
+        if let Some(runtime_agent_job_id) = binding.runtime_agent_job_id.as_deref() {
+            require_nonempty_update(
+                runtime_agent_job_id,
+                "job_binding.runtime_agent_job_id",
+                &mut errors,
+            );
+        }
+        if let Some(progress_note) = binding.progress_note.as_deref() {
+            require_nonempty_update(progress_note, "job_binding.progress_note", &mut errors);
+        }
+        if let Some(blocking_reason) = binding.blocking_reason.as_deref() {
+            require_nonempty_update(blocking_reason, "job_binding.blocking_reason", &mut errors);
+        }
+        if !binding.id.is_empty() && !seen_ids.insert(binding.id.as_str()) {
+            errors.push(format!("duplicate job binding id {:?}", binding.id));
+        }
+    }
+
     errors
 }
 
@@ -734,6 +771,9 @@ fn apply_epiphany_state_update(
     if let Some(checkpoint) = update.investigation_checkpoint {
         state.investigation_checkpoint = Some(checkpoint);
     }
+    if let Some(job_bindings) = update.job_bindings {
+        state.job_bindings = job_bindings;
+    }
     if let Some(churn) = update.churn {
         state.churn = Some(churn);
     }
@@ -760,6 +800,7 @@ mod epiphany_update_tests {
     use super::*;
     use codex_protocol::protocol::EpiphanyGraph;
     use codex_protocol::protocol::EpiphanyGraphNode;
+    use codex_protocol::protocol::EpiphanyJobKind;
 
     fn evidence(id: &str) -> EpiphanyEvidenceRecord {
         EpiphanyEvidenceRecord {
@@ -779,6 +820,20 @@ mod epiphany_update_tests {
             status: "ok".to_string(),
             code_refs: Vec::new(),
             evidence_ids: evidence_ids.into_iter().map(str::to_string).collect(),
+        }
+    }
+
+    fn job_binding(id: &str) -> EpiphanyJobBinding {
+        EpiphanyJobBinding {
+            id: id.to_string(),
+            kind: EpiphanyJobKind::Specialist,
+            scope: "role-scoped specialist work".to_string(),
+            owner_role: "epiphany-harness".to_string(),
+            runtime_agent_job_id: Some(format!("agent-job-{id}")),
+            linked_subgoal_ids: vec!["phase-6".to_string()],
+            linked_graph_node_ids: vec!["job-surface".to_string()],
+            progress_note: Some("Bound to a real runtime agent job.".to_string()),
+            blocking_reason: None,
         }
     }
 
@@ -845,6 +900,33 @@ mod epiphany_update_tests {
                 .map(|churn| churn.diff_pressure.as_str()),
             Some("low")
         );
+    }
+
+    #[test]
+    fn apply_epiphany_state_update_replaces_job_bindings() {
+        let mut state = EpiphanyThreadState {
+            revision: 2,
+            job_bindings: vec![job_binding("old")],
+            ..Default::default()
+        };
+
+        apply_epiphany_state_update(
+            &mut state,
+            EpiphanyStateUpdate {
+                job_bindings: Some(vec![job_binding("new")]),
+                ..Default::default()
+            },
+            Some("turn-jobs".to_string()),
+        );
+
+        assert_eq!(state.revision, 3);
+        assert_eq!(state.job_bindings.len(), 1);
+        assert_eq!(state.job_bindings[0].id, "new");
+        assert_eq!(
+            state.job_bindings[0].runtime_agent_job_id.as_deref(),
+            Some("agent-job-new")
+        );
+        assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-jobs"));
     }
 
     #[test]
@@ -996,6 +1078,67 @@ mod epiphany_update_tests {
             errors
                 .iter()
                 .any(|error| error.contains("investigation checkpoint cites missing evidence id"))
+        );
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_rejects_invalid_job_bindings() {
+        let update = EpiphanyStateUpdate {
+            job_bindings: Some(vec![
+                job_binding("dup"),
+                job_binding("dup"),
+                EpiphanyJobBinding {
+                    id: String::new(),
+                    kind: EpiphanyJobKind::Verification,
+                    scope: String::new(),
+                    owner_role: String::new(),
+                    runtime_agent_job_id: Some(String::new()),
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                    progress_note: Some(String::new()),
+                    blocking_reason: Some(String::new()),
+                },
+            ]),
+            ..Default::default()
+        };
+
+        let errors =
+            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &update);
+
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("duplicate job binding id"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.id must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.scope must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.owner_role must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.runtime_agent_job_id must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.progress_note must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.blocking_reason must not be empty"))
         );
     }
 }

@@ -57,7 +57,7 @@ The landed machine now has:
 - reusable Phase 5 app-server smoke coverage in `tools/epiphany_phase5_smoke.py`
 - a first Phase 6 read-only reflection surface through `thread/epiphany/scene`
 - live Phase 6 scene app-server smoke coverage in `tools/epiphany_phase6_scene_smoke.py`
-- read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`
+- read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`, with durable `jobBindings` plus live runtime `agent_jobs` overlay
 - live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
 - read-only Phase 6 retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - live Phase 6 freshness app-server smoke coverage in `tools/epiphany_phase6_freshness_smoke.py`
@@ -82,7 +82,7 @@ These boundaries are more important than the individual method names:
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
 - `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
-- `thread/epiphany/jobs` is a derived reflection, not a scheduler or durable job store.
+- `thread/epiphany/jobs` is a derived reflection over retrieval summaries, typed `jobBindings`, and optional runtime `agent_jobs` snapshots, not a scheduler or durable runtime job store.
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
@@ -123,7 +123,7 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- how to expose live long-running job progress without making the GUI authoritative
+- how live job progress notifications should work now that `thread/epiphany/jobs` can bind to real runtime owners without making the GUI authoritative
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how the landed reorientation verdict should be consumed by future automatic CRRC without becoming ceremony machinery
 - how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
@@ -135,8 +135,8 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add real long-running job ownership/progress state so `thread/epiphany/jobs` and future notifications can reflect something real.
-2. Add live job progress notifications only after there is a real long-running owner to report.
+1. Add live job progress notifications now that durable `jobBindings` can point at real runtime owners.
+2. Decide whether future Epiphany-owned long-running work should keep parasitizing runtime `agent_jobs` or needs a stricter fork-owned launcher seam.
 3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
