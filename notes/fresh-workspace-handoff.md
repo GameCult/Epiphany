@@ -33,6 +33,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
+- `notes/epiphany-safety-architecture.md` is the standing doctrine for capability growth, authority boundaries, interruption, misuse, and anti-cage design.
 - Evidence was distilled from an activity feed into a durable belief ledger; git history keeps the old verbose proof.
 - README and architecture rationale were cut back to current truth after they were found pointing at old prototype/Phase 5 state.
 

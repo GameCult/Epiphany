@@ -20,6 +20,7 @@ constraints:
   - Prefer evidence over vibes.
   - Keep Codex as the host seam and `epiphany-core` as the repo-owned heavy organ where practical.
   - Keep persistent state small enough to rehydrate from without drowning the next agent.
+  - Grow cognition more quickly than authority: capability increases must preserve explicit permissions, interruption, legibility, and resistance to paternal "safety" cages.
 
 invariants:
   - The map is canonical and slow-changing.
@@ -76,6 +77,7 @@ accepted_design:
   - `thread/epiphany/freshness` is the first read-only freshness surface: it derives retrieval and graph staleness from live retrieval summaries plus frontier/churn state without mutating, scheduling, or pretending watcher-driven invalidation already exists.
   - `thread/epiphany/context` is the first targeted read-only state-shard surface: it selects graph nodes/edges, active frontier, checkpoint, observations, and evidence from authoritative typed state without mutating or notifying.
   - `thread/epiphany/pressure` is the first read-only context-pressure surface: it derives pressure from token telemetry and auto-compact/context limits without compacting, scheduling, mutating, or notifying.
+  - Epiphany safety doctrine is to separate cognition from actuation, keep authority explicit, make interruption sacred, stage capability release, and treat operator misuse as a normal design input rather than a rude hypothetical.
   - Live long-running job execution, progress notifications, and specialist scheduling are still future work.
   - Handoff, plan, harness-surface, and scratch files must have distinct jobs and must not become duplicate brains.
   - A machine is perfect when every remaining part visibly deserves to exist; this applies to persistent memory too.

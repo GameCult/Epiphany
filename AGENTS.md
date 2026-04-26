@@ -23,6 +23,7 @@ The motivating failure mode is that an agent can make many plausible local edits
 - Fork implementation plan: `E:\Projects\EpiphanyAgent\notes\epiphany-fork-implementation-plan.md`
 - Handoff summary: `E:\Projects\EpiphanyAgent\notes\fresh-workspace-handoff.md`
 - Epiphany algorithmic map: `E:\Projects\EpiphanyAgent\notes\epiphany-current-algorithmic-map.md`
+- Epiphany safety architecture: `E:\Projects\EpiphanyAgent\notes\epiphany-safety-architecture.md`
 - State CLI: `E:\Projects\EpiphanyAgent\tools\epiphany_state.py`
 - Pre-compaction helper: `E:\Projects\EpiphanyAgent\tools\epiphany_prepare_compaction.py`
 
@@ -53,6 +54,7 @@ On fresh session load, do this before wandering off into implementation:
    - `notes/fresh-workspace-handoff.md`
    - `notes/epiphany-current-algorithmic-map.md`
    - `notes/epiphany-fork-implementation-plan.md`
+   - `notes/epiphany-safety-architecture.md` when the task touches capability growth, autonomy, permissions, governance, or deployment authority
 2. run:
    - `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status`
 3. restate the current next action from the persisted state before starting edits

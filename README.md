@@ -57,6 +57,7 @@ distilled belief-changing evidence, not every little victory lap with a timestam
 - `notes/epiphany-current-algorithmic-map.md`: source-grounded live control-flow map
 - `notes/epiphany-core-harness-surfaces.md`: stable surface contract
 - `notes/architecture-rationale.md`: why the map/scratch/evidence architecture exists
+- `notes/epiphany-safety-architecture.md`: capability, authority, and anti-cage design doctrine
 - `notes/codex-repository-algorithmic-map.md`: background map of the vendored Codex substrate
 - `protocol/controller-actions.md`: legacy/manual controller discipline for local state maintenance
 - `tools/epiphany_state.py`: compact state inspection and distilled evidence helper
