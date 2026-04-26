@@ -4,7 +4,7 @@ This file is disposable working memory for the current bounded subgoal.
 
 ## Current Subgoal
 
-No active scratch subgoal. The next prepared slice is below.
+No active scratch subgoal.
 
 ## Source-Grounded Findings
 
