@@ -57,6 +57,8 @@ The landed machine now has:
 - reusable Phase 5 app-server smoke coverage in `tools/epiphany_phase5_smoke.py`
 - a first Phase 6 read-only reflection surface through `thread/epiphany/scene`
 - live Phase 6 scene app-server smoke coverage in `tools/epiphany_phase6_scene_smoke.py`
+- read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`
+- live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 
@@ -70,6 +72,7 @@ These boundaries are more important than the individual method names:
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
 - `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
+- `thread/epiphany/jobs` is a derived reflection, not a scheduler or durable job store.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -105,8 +108,7 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- what minimal job/progress surface is needed for indexing, remap, verification, and future specialist work
-- how to expose long-running work without making the GUI authoritative
+- how to expose live long-running job progress without making the GUI authoritative
 - when watcher-driven invalidation becomes necessary instead of merely tempting
 - how much automatic CRRC coordination belongs in runtime before it becomes ceremony machinery
 - what Phase 6 should prove before specialist scheduling begins
@@ -117,10 +119,10 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add a minimal read-only job/progress surface for indexing, remap, and verification work.
-2. Add targeted scene fields only when a client or smoke exposes a real gap.
-3. Keep the scene derived from authoritative Epiphany state.
-4. Keep long-running work observable through typed state or notifications, not transcript inference.
+1. Add targeted graph/evidence shard reads when the full `EpiphanyThreadState` is too raw.
+2. Add watcher/freshness inputs when stale graph or retrieval state needs earlier warning.
+3. Add live job progress notifications only after there is a real long-running owner to report.
+4. Add targeted scene/jobs fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -155,6 +157,12 @@ Before modifying scene projection behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_scene_smoke.py'
+```
+
+Before modifying jobs reflection behavior, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
 ```
 
 For app-server protocol changes, expect to run the relevant protocol tests,

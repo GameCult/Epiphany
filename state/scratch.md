@@ -8,19 +8,18 @@ No active scratch subgoal.
 
 ## Last Completed Audit
 
-- `thread/epiphany/scene` had protocol and mapper coverage but no live app-server smoke.
-- Scene latest-record mapping reversed the durable newest-first record order.
-- Async update notifications had to be drained before asserting that scene emits no state update notification.
+- `thread/epiphany/jobs` now provides the first read-only job/progress reflection.
+- The surface derives retrieval-index, graph-remap, verification, and specialist slots from live/stored thread state and retrieval summaries.
+- It does not schedule, persist, notify, or mutate jobs.
 
 ## Decision
 
-Add `tools/epiphany_phase6_scene_smoke.py`, fix scene latest records to preserve
-newest-first order, and make the smoke prove missing/ready state, live source,
-retrieval backfill, action availability, bounded latest records, and no
-scene-triggered `thread/epiphany/stateUpdated`.
+Keep jobs as a reflection board, not a scheduler. The next outward Phase 6 move
+should add a missing sense only when there is a real consumer: targeted
+graph/evidence reads, watcher/freshness inputs, or live job progress
+notifications once actual long-running owners exist.
 
-Next implementation move is Phase 6 job/progress reflection: design the minimal
-read-only surface for indexing, remap, verification, and future specialist work.
+Scene and jobs smokes are guardrails now, not the next organs.
 
 Do not promote anything from this scratch into the map unless it survives
 verification or repeated reuse without contradiction.

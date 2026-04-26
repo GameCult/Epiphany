@@ -341,6 +341,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanySceneParams,
         response: v2::ThreadEpiphanySceneResponse,
     },
+    #[experimental("thread/epiphany/jobs")]
+    ThreadEpiphanyJobs => "thread/epiphany/jobs" {
+        params: v2::ThreadEpiphanyJobsParams,
+        response: v2::ThreadEpiphanyJobsResponse,
+    },
     #[experimental("thread/epiphany/index")]
     ThreadEpiphanyIndex => "thread/epiphany/index" {
         params: v2::ThreadEpiphanyIndexParams,
@@ -1746,6 +1751,64 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_jobs_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyJobs {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyJobsResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyJobsSource::Live,
+                state_revision: Some(3),
+                jobs: vec![v2::ThreadEpiphanyJob {
+                    id: "retrieval-index".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Indexing,
+                    scope: "/workspace".to_string(),
+                    owner_role: "epiphany-core".to_string(),
+                    status: v2::ThreadEpiphanyJobStatus::Needed,
+                    items_processed: Some(12),
+                    items_total: None,
+                    progress_note: Some(
+                        "Retrieval catalog is stale; refresh is available.".to_string(),
+                    ),
+                    last_checkpoint_at_unix_seconds: Some(1_744_500_000),
+                    blocking_reason: None,
+                    linked_subgoal_ids: vec!["phase-6".to_string()],
+                    linked_graph_node_ids: vec!["retrieval".to_string()],
+                }],
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/jobs");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/jobs",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateRevision": 3,
+                    "jobs": [
+                        {
+                            "id": "retrieval-index",
+                            "kind": "indexing",
+                            "scope": "/workspace",
+                            "ownerRole": "epiphany-core",
+                            "status": "needed",
+                            "itemsProcessed": 12,
+                            "progressNote": "Retrieval catalog is stale; refresh is available.",
+                            "lastCheckpointAtUnixSeconds": 1744500000,
+                            "linkedSubgoalIds": ["phase-6"],
+                            "linkedGraphNodeIds": ["retrieval"]
+                        }
+                    ]
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_thread_epiphany_retrieve_response() -> Result<()> {
         let response = ClientResponse::ThreadEpiphanyRetrieve {
             request_id: RequestId::Integer(8),
@@ -2613,6 +2676,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/scene"));
+    }
+
+    #[test]
+    fn thread_epiphany_jobs_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyJobs {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyJobsParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/jobs"));
     }
 
     #[test]

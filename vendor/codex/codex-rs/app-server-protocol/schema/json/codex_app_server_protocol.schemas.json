@@ -14811,6 +14811,106 @@
         "title": "ThreadCompactStartResponse",
         "type": "object"
       },
+      "ThreadEpiphanyJob": {
+        "properties": {
+          "blockingReason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "itemsProcessed": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "itemsTotal": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "kind": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyJobKind"
+          },
+          "lastCheckpointAtUnixSeconds": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "linkedGraphNodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linkedSubgoalIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "ownerRole": {
+            "type": "string"
+          },
+          "progressNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scope": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyJobStatus"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "ownerRole",
+          "scope",
+          "status"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanyJobKind": {
+        "enum": [
+          "indexing",
+          "remap",
+          "verification",
+          "specialist"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyJobStatus": {
+        "enum": [
+          "idle",
+          "needed",
+          "running",
+          "blocked",
+          "unavailable"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyJobsSource": {
+        "enum": [
+          "stored",
+          "live"
+        ],
+        "type": "string"
+      },
       "ThreadEpiphanyRetrieveIndexSummary": {
         "properties": {
           "dirtyPaths": {
@@ -15060,6 +15160,7 @@
           "index",
           "retrieve",
           "distill",
+          "jobs",
           "propose",
           "promote",
           "update"

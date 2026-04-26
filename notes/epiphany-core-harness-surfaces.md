@@ -47,6 +47,7 @@ The rule is:
 | `thread/epiphany/promote` | verifier gate | landed | Rejects or applies candidates through the durable update path. |
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state. |
+| `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries. |
 
 ## Write Authority
 
@@ -64,14 +65,15 @@ The following must stay read-only:
 - `thread/epiphany/distill`
 - `thread/epiphany/propose`
 - `thread/epiphany/scene`
+- `thread/epiphany/jobs`
 
 `thread/epiphany/index` is a write to the retrieval catalog. It is not a
 license to mutate map/evidence/churn state as a side effect.
 
 ## Reflection Authority
 
-Scene and GUI surfaces may compress state for humans and clients. They may not
-invent canonical understanding.
+Scene, jobs, and GUI surfaces may compress state for humans and clients. They
+may not invent canonical understanding.
 
 Reflection surfaces should:
 
@@ -118,7 +120,7 @@ Metaphor is compression after source context. It is not decoration for guesses.
 
 These are not landed yet:
 
-- typed job/progress state for indexing, remap, verification, and specialist work
+- live typed job/progress state for running indexing, remap, verification, and specialist work
 - `thread/epiphany/jobsUpdated` or equivalent progress notifications
 - evidence-range and graph-shard targeted reads
 - watcher-driven graph/retrieval/invariant invalidation
@@ -133,9 +135,14 @@ and a verification story.
 
 ## Job And Progress Surface Direction
 
-The next likely missing organ is observable long-running work.
+The first read-only job/progress reflection is landed as `thread/epiphany/jobs`.
+It reports derived slots for retrieval indexing, graph remap, invariant
+verification, and future specialist work. It does not start, schedule, persist,
+or notify jobs.
 
-Future job state should describe work like:
+The next missing organ is live observable long-running work.
+
+Future live job state should describe work like:
 
 - retrieval refresh
 - graph remap
@@ -157,8 +164,8 @@ Minimum useful fields:
 - `blockingReason`
 - linked subgoal or graph node ids
 
-This should be read/reflection first. Do not make job state a hidden second
-planner.
+The landed reflection surface keeps this read-only. Future live job state must
+keep the same rule: do not make job state a hidden second planner.
 
 ## Compaction And CRRC
 

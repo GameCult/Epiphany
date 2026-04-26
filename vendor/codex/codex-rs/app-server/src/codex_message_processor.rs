@@ -150,6 +150,12 @@ use codex_app_server_protocol::ThreadEpiphanyDistillParams;
 use codex_app_server_protocol::ThreadEpiphanyDistillResponse;
 use codex_app_server_protocol::ThreadEpiphanyIndexParams;
 use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
+use codex_app_server_protocol::ThreadEpiphanyJob;
+use codex_app_server_protocol::ThreadEpiphanyJobKind;
+use codex_app_server_protocol::ThreadEpiphanyJobStatus;
+use codex_app_server_protocol::ThreadEpiphanyJobsParams;
+use codex_app_server_protocol::ThreadEpiphanyJobsResponse;
+use codex_app_server_protocol::ThreadEpiphanyJobsSource;
 use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyProposeParams;
@@ -361,6 +367,8 @@ use codex_protocol::protocol::ConversationAudioParams;
 use codex_protocol::protocol::ConversationStartParams;
 use codex_protocol::protocol::ConversationStartTransport;
 use codex_protocol::protocol::ConversationTextParams;
+use codex_protocol::protocol::EpiphanyRetrievalState;
+use codex_protocol::protocol::EpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::GitInfo as CoreGitInfo;
@@ -1000,6 +1008,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyScene { request_id, params } => {
                 self.thread_epiphany_scene(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyJobs { request_id, params } => {
+                self.thread_epiphany_jobs(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4095,6 +4107,67 @@ impl CodexMessageProcessor {
         let response = ThreadEpiphanySceneResponse {
             thread_id,
             scene: map_epiphany_scene(thread.epiphany_state.as_ref(), loaded),
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_jobs(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyJobsParams,
+    ) {
+        let ThreadEpiphanyJobsParams { thread_id } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let loaded = loaded_thread.is_some();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let retrieval_override = if thread
+            .epiphany_state
+            .as_ref()
+            .and_then(|state| state.retrieval.as_ref())
+            .is_none()
+        {
+            if let Some(loaded_thread) = loaded_thread.as_ref() {
+                Some(loaded_thread.epiphany_retrieval_state().await)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let response = ThreadEpiphanyJobsResponse {
+            thread_id,
+            source: if loaded {
+                ThreadEpiphanyJobsSource::Live
+            } else {
+                ThreadEpiphanyJobsSource::Stored
+            },
+            state_revision: thread
+                .epiphany_state
+                .as_ref()
+                .map(|epiphany_state| epiphany_state.revision),
+            jobs: map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref()),
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -10604,6 +10677,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Index,
         ThreadEpiphanySceneAction::Retrieve,
         ThreadEpiphanySceneAction::Distill,
+        ThreadEpiphanySceneAction::Jobs,
         ThreadEpiphanySceneAction::Update,
     ];
     if state_present {
@@ -10655,6 +10729,249 @@ fn map_epiphany_scene_graph(state: &EpiphanyThreadState) -> ThreadEpiphanySceneG
         checkpoint_id: checkpoint.map(|checkpoint| checkpoint.checkpoint_id.clone()),
         checkpoint_summary: checkpoint.and_then(|checkpoint| checkpoint.summary.clone()),
     }
+}
+
+fn map_epiphany_jobs(
+    state: Option<&EpiphanyThreadState>,
+    retrieval_override: Option<&EpiphanyRetrievalState>,
+) -> Vec<ThreadEpiphanyJob> {
+    vec![
+        map_epiphany_index_job(state, retrieval_override),
+        map_epiphany_remap_job(state),
+        map_epiphany_verification_job(state),
+        map_epiphany_specialist_job(),
+    ]
+}
+
+fn map_epiphany_index_job(
+    state: Option<&EpiphanyThreadState>,
+    retrieval_override: Option<&EpiphanyRetrievalState>,
+) -> ThreadEpiphanyJob {
+    let retrieval = state
+        .and_then(|state| state.retrieval.as_ref())
+        .or(retrieval_override);
+    let linked_subgoal_ids = epiphany_active_subgoal_ids(state);
+    let linked_graph_node_ids = epiphany_active_graph_node_ids(state);
+
+    let Some(retrieval) = retrieval else {
+        return ThreadEpiphanyJob {
+            id: "retrieval-index".to_string(),
+            kind: ThreadEpiphanyJobKind::Indexing,
+            scope: "workspace".to_string(),
+            owner_role: "epiphany-core".to_string(),
+            status: ThreadEpiphanyJobStatus::Unavailable,
+            items_processed: None,
+            items_total: None,
+            progress_note: None,
+            last_checkpoint_at_unix_seconds: None,
+            blocking_reason: Some("Retrieval state is unavailable for this thread.".to_string()),
+            linked_subgoal_ids,
+            linked_graph_node_ids,
+        };
+    };
+
+    let dirty_path_count = retrieval.dirty_paths.len();
+    let progress_note = match retrieval.status {
+        EpiphanyRetrievalStatus::Ready if dirty_path_count == 0 => {
+            "Retrieval catalog is ready.".to_string()
+        }
+        EpiphanyRetrievalStatus::Ready => {
+            format!("Retrieval catalog is ready with {dirty_path_count} dirty path(s) noted.")
+        }
+        EpiphanyRetrievalStatus::Stale => {
+            format!("Retrieval catalog is stale; {dirty_path_count} dirty path(s) need refresh.")
+        }
+        EpiphanyRetrievalStatus::Indexing => "Retrieval catalog is indexing.".to_string(),
+        EpiphanyRetrievalStatus::Unavailable => "Retrieval catalog is unavailable.".to_string(),
+    };
+
+    ThreadEpiphanyJob {
+        id: "retrieval-index".to_string(),
+        kind: ThreadEpiphanyJobKind::Indexing,
+        scope: retrieval.workspace_root.display().to_string(),
+        owner_role: "epiphany-core".to_string(),
+        status: epiphany_job_status_from_retrieval_status(retrieval.status),
+        items_processed: retrieval.indexed_file_count,
+        items_total: None,
+        progress_note: Some(progress_note),
+        last_checkpoint_at_unix_seconds: retrieval.last_indexed_at_unix_seconds,
+        blocking_reason: (retrieval.status == EpiphanyRetrievalStatus::Unavailable).then(|| {
+            "Indexing requires a readable workspace and configured retrieval backend.".to_string()
+        }),
+        linked_subgoal_ids,
+        linked_graph_node_ids,
+    }
+}
+
+fn epiphany_job_status_from_retrieval_status(
+    status: EpiphanyRetrievalStatus,
+) -> ThreadEpiphanyJobStatus {
+    match status {
+        EpiphanyRetrievalStatus::Ready => ThreadEpiphanyJobStatus::Idle,
+        EpiphanyRetrievalStatus::Stale => ThreadEpiphanyJobStatus::Needed,
+        EpiphanyRetrievalStatus::Indexing => ThreadEpiphanyJobStatus::Running,
+        EpiphanyRetrievalStatus::Unavailable => ThreadEpiphanyJobStatus::Unavailable,
+    }
+}
+
+fn map_epiphany_remap_job(state: Option<&EpiphanyThreadState>) -> ThreadEpiphanyJob {
+    let Some(state) = state else {
+        return epiphany_blocked_state_job(
+            "graph-remap",
+            ThreadEpiphanyJobKind::Remap,
+            "architecture/dataflow graphs",
+            "Epiphany state is missing, so there is no graph to remap.",
+        );
+    };
+
+    let frontier = state.graph_frontier.as_ref();
+    let dirty_path_count = frontier
+        .map(|frontier| frontier.dirty_paths.len())
+        .unwrap_or_default();
+    let open_count = frontier
+        .map(|frontier| frontier.open_question_ids.len() + frontier.open_gap_ids.len())
+        .unwrap_or_default();
+    let graph_freshness = state
+        .churn
+        .as_ref()
+        .and_then(|churn| churn.graph_freshness.as_deref());
+    let freshness_needs_work = graph_freshness
+        .is_some_and(|freshness| !matches!(freshness, "fresh" | "ready" | "current" | "ok"));
+    let needs_work = dirty_path_count > 0 || open_count > 0 || freshness_needs_work;
+    let progress_note = if needs_work {
+        format!(
+            "Graph frontier has {dirty_path_count} dirty path(s) and {open_count} open question/gap id(s)."
+        )
+    } else {
+        "Graph frontier has no reflected remap pressure.".to_string()
+    };
+
+    ThreadEpiphanyJob {
+        id: "graph-remap".to_string(),
+        kind: ThreadEpiphanyJobKind::Remap,
+        scope: "architecture/dataflow graphs".to_string(),
+        owner_role: "epiphany-core".to_string(),
+        status: if needs_work {
+            ThreadEpiphanyJobStatus::Needed
+        } else {
+            ThreadEpiphanyJobStatus::Idle
+        },
+        items_processed: None,
+        items_total: None,
+        progress_note: Some(progress_note),
+        last_checkpoint_at_unix_seconds: None,
+        blocking_reason: None,
+        linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
+        linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
+    }
+}
+
+fn map_epiphany_verification_job(state: Option<&EpiphanyThreadState>) -> ThreadEpiphanyJob {
+    let Some(state) = state else {
+        return epiphany_blocked_state_job(
+            "verification",
+            ThreadEpiphanyJobKind::Verification,
+            "invariants/evidence",
+            "Epiphany state is missing, so there are no invariants to verify.",
+        );
+    };
+
+    let total = state.invariants.len() as u32;
+    let verified = state
+        .invariants
+        .iter()
+        .filter(|invariant| epiphany_invariant_status_is_accepting(&invariant.status))
+        .count() as u32;
+    let status = if total > 0 && verified < total {
+        ThreadEpiphanyJobStatus::Needed
+    } else {
+        ThreadEpiphanyJobStatus::Idle
+    };
+    let progress_note = if total == 0 {
+        "No invariants are recorded yet.".to_string()
+    } else if verified == total {
+        format!("All {total} invariant(s) are currently accepting.")
+    } else {
+        format!("{verified} of {total} invariant(s) are currently accepting.")
+    };
+
+    ThreadEpiphanyJob {
+        id: "verification".to_string(),
+        kind: ThreadEpiphanyJobKind::Verification,
+        scope: "invariants/evidence".to_string(),
+        owner_role: "epiphany-harness".to_string(),
+        status,
+        items_processed: Some(verified),
+        items_total: Some(total),
+        progress_note: Some(progress_note),
+        last_checkpoint_at_unix_seconds: None,
+        blocking_reason: None,
+        linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
+        linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
+    }
+}
+
+fn map_epiphany_specialist_job() -> ThreadEpiphanyJob {
+    ThreadEpiphanyJob {
+        id: "specialist-work".to_string(),
+        kind: ThreadEpiphanyJobKind::Specialist,
+        scope: "role-scoped specialist work".to_string(),
+        owner_role: "epiphany-harness".to_string(),
+        status: ThreadEpiphanyJobStatus::Unavailable,
+        items_processed: None,
+        items_total: None,
+        progress_note: None,
+        last_checkpoint_at_unix_seconds: None,
+        blocking_reason: Some(
+            "Specialist scheduling is not landed; this slot prevents clients from inventing private scheduler state."
+                .to_string(),
+        ),
+        linked_subgoal_ids: Vec::new(),
+        linked_graph_node_ids: Vec::new(),
+    }
+}
+
+fn epiphany_blocked_state_job(
+    id: &str,
+    kind: ThreadEpiphanyJobKind,
+    scope: &str,
+    blocking_reason: &str,
+) -> ThreadEpiphanyJob {
+    ThreadEpiphanyJob {
+        id: id.to_string(),
+        kind,
+        scope: scope.to_string(),
+        owner_role: "epiphany-harness".to_string(),
+        status: ThreadEpiphanyJobStatus::Blocked,
+        items_processed: None,
+        items_total: None,
+        progress_note: None,
+        last_checkpoint_at_unix_seconds: None,
+        blocking_reason: Some(blocking_reason.to_string()),
+        linked_subgoal_ids: Vec::new(),
+        linked_graph_node_ids: Vec::new(),
+    }
+}
+
+fn epiphany_active_subgoal_ids(state: Option<&EpiphanyThreadState>) -> Vec<String> {
+    state
+        .and_then(|state| state.active_subgoal_id.clone())
+        .map(|id| vec![id])
+        .unwrap_or_default()
+}
+
+fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<String> {
+    state
+        .and_then(|state| state.graph_frontier.as_ref())
+        .map(|frontier| frontier.active_node_ids.clone())
+        .unwrap_or_default()
+}
+
+fn epiphany_invariant_status_is_accepting(status: &str) -> bool {
+    matches!(
+        status,
+        "ok" | "ready" | "accepted" | "verified" | "pass" | "passed"
+    )
 }
 
 fn status_counts<'a>(
@@ -12209,6 +12526,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Index,
                 ThreadEpiphanySceneAction::Retrieve,
                 ThreadEpiphanySceneAction::Distill,
+                ThreadEpiphanySceneAction::Jobs,
                 ThreadEpiphanySceneAction::Update,
                 ThreadEpiphanySceneAction::Propose,
                 ThreadEpiphanySceneAction::Promote,
@@ -12272,6 +12590,92 @@ mod tests {
             vec!["obs-6", "obs-5", "obs-4", "obs-3", "obs-2"]
         );
         assert_eq!(evidence_ids, vec!["ev-6", "ev-5", "ev-4", "ev-3", "ev-2"]);
+    }
+
+    #[test]
+    fn map_epiphany_jobs_reflects_current_progress_without_scheduling_work() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            active_subgoal_id: Some("phase-6".to_string()),
+            invariants: vec![
+                codex_protocol::protocol::EpiphanyInvariant {
+                    id: "inv-ready".to_string(),
+                    description: "State reads are read-only".to_string(),
+                    status: "ok".to_string(),
+                    rationale: None,
+                },
+                codex_protocol::protocol::EpiphanyInvariant {
+                    id: "inv-review".to_string(),
+                    description: "Job state needs review".to_string(),
+                    status: "needs_review".to_string(),
+                    rationale: None,
+                },
+            ],
+            graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                active_node_ids: vec!["retrieval".to_string()],
+                active_edge_ids: Vec::new(),
+                open_question_ids: vec!["q-jobs".to_string()],
+                open_gap_ids: Vec::new(),
+                dirty_paths: vec![PathBuf::from("notes/jobs.md")],
+            }),
+            retrieval: Some(codex_protocol::protocol::EpiphanyRetrievalState {
+                workspace_root: test_path_buf("/repo"),
+                status: codex_protocol::protocol::EpiphanyRetrievalStatus::Stale,
+                indexed_file_count: Some(12),
+                indexed_chunk_count: Some(34),
+                last_indexed_at_unix_seconds: Some(1_744_500_100),
+                dirty_paths: vec![PathBuf::from("src/lib.rs")],
+                ..Default::default()
+            }),
+            churn: Some(codex_protocol::protocol::EpiphanyChurnState {
+                graph_freshness: Some("stale".to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let jobs = map_epiphany_jobs(Some(&state), None);
+
+        assert_eq!(jobs.len(), 4);
+        assert_eq!(jobs[0].id, "retrieval-index");
+        assert_eq!(jobs[0].kind, ThreadEpiphanyJobKind::Indexing);
+        assert_eq!(jobs[0].status, ThreadEpiphanyJobStatus::Needed);
+        assert_eq!(jobs[0].items_processed, Some(12));
+        assert_eq!(jobs[0].last_checkpoint_at_unix_seconds, Some(1_744_500_100));
+        assert_eq!(jobs[0].linked_subgoal_ids, vec!["phase-6".to_string()]);
+        assert_eq!(jobs[0].linked_graph_node_ids, vec!["retrieval".to_string()]);
+
+        assert_eq!(jobs[1].id, "graph-remap");
+        assert_eq!(jobs[1].kind, ThreadEpiphanyJobKind::Remap);
+        assert_eq!(jobs[1].status, ThreadEpiphanyJobStatus::Needed);
+        assert_eq!(jobs[1].linked_graph_node_ids, vec!["retrieval".to_string()]);
+
+        assert_eq!(jobs[2].id, "verification");
+        assert_eq!(jobs[2].kind, ThreadEpiphanyJobKind::Verification);
+        assert_eq!(jobs[2].status, ThreadEpiphanyJobStatus::Needed);
+        assert_eq!(jobs[2].items_processed, Some(1));
+        assert_eq!(jobs[2].items_total, Some(2));
+
+        assert_eq!(jobs[3].id, "specialist-work");
+        assert_eq!(jobs[3].kind, ThreadEpiphanyJobKind::Specialist);
+        assert_eq!(jobs[3].status, ThreadEpiphanyJobStatus::Unavailable);
+        assert!(jobs[3].blocking_reason.is_some());
+    }
+
+    #[test]
+    fn map_epiphany_jobs_can_reflect_retrieval_without_epiphany_state() {
+        let retrieval = codex_protocol::protocol::EpiphanyRetrievalState {
+            workspace_root: test_path_buf("/repo"),
+            status: codex_protocol::protocol::EpiphanyRetrievalStatus::Ready,
+            indexed_file_count: Some(7),
+            ..Default::default()
+        };
+
+        let jobs = map_epiphany_jobs(None, Some(&retrieval));
+
+        assert_eq!(jobs[0].status, ThreadEpiphanyJobStatus::Idle);
+        assert_eq!(jobs[0].items_processed, Some(7));
+        assert_eq!(jobs[1].status, ThreadEpiphanyJobStatus::Blocked);
+        assert_eq!(jobs[2].status, ThreadEpiphanyJobStatus::Blocked);
     }
 
     #[test]

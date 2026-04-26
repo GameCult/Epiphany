@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has begun with read-only `thread/epiphany/scene`, and that scene surface now has live app-server smoke coverage.
+- Phase 6 has read-only `thread/epiphany/scene` and `thread/epiphany/jobs`; both have live app-server smoke coverage.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -60,7 +60,9 @@ The current spine:
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
+- read-only job/progress reflection through `thread/epiphany/jobs`
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
+- live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -71,6 +73,7 @@ The exact current control flow is documented in
 - `thread/epiphany/distill` is read-only.
 - `thread/epiphany/propose` is read-only.
 - `thread/epiphany/scene` is read-only.
+- `thread/epiphany/jobs` is read-only.
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
 - GUI/client surfaces reflect and steer typed state; they do not become the source of truth.
@@ -88,6 +91,12 @@ For scene projection behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_scene_smoke.py'
+```
+
+For jobs reflection behavior changes, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
 ```
 
 For Codex Rust work on this Windows machine:
@@ -128,10 +137,12 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
-When the user asks to continue, design and land a minimal read-only job/progress
-reflection surface for indexing, remap, and verification work.
+When the user asks to continue, choose the next Phase 6 outward slice. Good
+candidates are targeted graph/evidence shard reads, watcher/freshness inputs,
+or live job progress notifications. Do not build a scheduler from vibes.
 
-Live `thread/epiphany/scene` smoke is now a guardrail, not the next organ.
+Live `thread/epiphany/scene` and `thread/epiphany/jobs` smokes are now
+guardrails, not the next organs.
 
 ## Not Yet
 
@@ -140,6 +151,7 @@ Live `thread/epiphany/scene` smoke is now a guardrail, not the next organ.
 - specialist-agent scheduling
 - GUI-as-source-of-truth
 - automatic runtime CRRC coordinator
+- live long-running job execution or `thread/epiphany/jobsUpdated`
 - broad event stream beyond the landed state update notification
 
 The machine is good enough to move outward. Do not sand the same edge until the

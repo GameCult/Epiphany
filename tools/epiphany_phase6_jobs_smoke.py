@@ -1,0 +1,247 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+from epiphany_phase5_smoke import AppServerClient
+from epiphany_phase5_smoke import DEFAULT_APP_SERVER
+from epiphany_phase5_smoke import ROOT
+from epiphany_phase5_smoke import require
+from epiphany_phase5_smoke import reset_smoke_paths
+
+
+DEFAULT_CODEX_HOME = ROOT / ".epiphany-smoke" / "phase6-jobs-codex-home"
+DEFAULT_RESULT = ROOT / ".epiphany-smoke" / "phase6-jobs-smoke-result.json"
+DEFAULT_TRANSCRIPT = ROOT / ".epiphany-smoke" / "phase6-jobs-smoke-transcript.jsonl"
+DEFAULT_STDERR = ROOT / ".epiphany-smoke" / "phase6-jobs-smoke-server.stderr.log"
+
+JOBS_CODE_REF = {
+    "path": "app-server/src/codex_message_processor.rs",
+    "start_line": 10734,
+    "end_line": 10982,
+    "symbol": "map_epiphany_jobs",
+}
+
+
+def job_surface_patch() -> dict[str, Any]:
+    return {
+        "objective": "Expose read-only Epiphany job/progress reflection without creating a scheduler.",
+        "activeSubgoalId": "phase6-jobs-smoke",
+        "subgoals": [
+            {
+                "id": "phase6-jobs-smoke",
+                "title": "Live-smoke job reflection",
+                "status": "active",
+                "summary": "The app-server jobs surface should reflect typed state and retrieval progress.",
+            }
+        ],
+        "invariants": [
+            {
+                "id": "inv-jobs-read-only",
+                "description": "thread/epiphany/jobs must not mutate Epiphany state.",
+                "status": "ok",
+            },
+            {
+                "id": "inv-jobs-needs-review",
+                "description": "The first job surface should stay reflection-only until live scheduling lands.",
+                "status": "needs_review",
+            },
+        ],
+        "graphs": {
+            "architecture": {
+                "nodes": [
+                    {
+                        "id": "job-surface",
+                        "title": "Job reflection surface",
+                        "purpose": "Expose derived progress slots without becoming canonical job state.",
+                        "code_refs": [JOBS_CODE_REF],
+                    }
+                ]
+            },
+            "dataflow": {"nodes": []},
+            "links": [],
+        },
+        "graphFrontier": {
+            "active_node_ids": ["job-surface"],
+            "dirty_paths": ["app-server/src/codex_message_processor.rs"],
+            "open_question_ids": ["q-live-progress"],
+        },
+        "churn": {
+            "understanding_status": "ready",
+            "diff_pressure": "low",
+            "graph_freshness": "stale",
+            "unexplained_writes": 0,
+        },
+    }
+
+
+def job_by_id(jobs: list[dict[str, Any]], job_id: str) -> dict[str, Any]:
+    for job in jobs:
+        if job["id"] == job_id:
+            return job
+    raise AssertionError(f"missing job {job_id!r}: {jobs!r}")
+
+
+def assert_missing_state_jobs(response: dict[str, Any]) -> None:
+    require(response["source"] == "live", "jobs should report live source for loaded thread")
+    require("stateRevision" not in response, "missing-state jobs should not invent a revision")
+    require(len(response["jobs"]) == 4, "jobs surface should expose the four known slots")
+
+    index = job_by_id(response["jobs"], "retrieval-index")
+    require(index["kind"] == "indexing", "retrieval slot should be indexing kind")
+    require(index["status"] in {"idle", "needed", "running", "unavailable"}, "index status should be typed")
+
+    remap = job_by_id(response["jobs"], "graph-remap")
+    require(remap["status"] == "blocked", "missing state should block graph remap")
+
+    verification = job_by_id(response["jobs"], "verification")
+    require(verification["status"] == "blocked", "missing state should block verification")
+
+    specialist = job_by_id(response["jobs"], "specialist-work")
+    require(specialist["status"] == "unavailable", "specialist slot should report not landed")
+
+
+def assert_ready_jobs(response: dict[str, Any]) -> None:
+    require(response["source"] == "live", "ready jobs should report live source")
+    require(response["stateRevision"] == 1, "jobs should preserve state revision identity")
+    require(len(response["jobs"]) == 4, "ready jobs should still expose the four known slots")
+
+    index = job_by_id(response["jobs"], "retrieval-index")
+    require(index["kind"] == "indexing", "retrieval slot should remain indexing kind")
+    require(index["ownerRole"] == "epiphany-core", "retrieval job should name epiphany-core owner")
+    require(index["linkedSubgoalIds"] == ["phase6-jobs-smoke"], "index job should link active subgoal")
+    require(index["linkedGraphNodeIds"] == ["job-surface"], "index job should link active graph node")
+
+    remap = job_by_id(response["jobs"], "graph-remap")
+    require(remap["kind"] == "remap", "graph job should be remap kind")
+    require(remap["status"] == "needed", "dirty/stale graph frontier should need remap")
+    require(remap["linkedGraphNodeIds"] == ["job-surface"], "remap should expose active graph node")
+
+    verification = job_by_id(response["jobs"], "verification")
+    require(verification["kind"] == "verification", "verification slot should be typed")
+    require(verification["status"] == "needed", "non-accepting invariant should need verification")
+    require(verification["itemsProcessed"] == 1, "verification should count accepting invariants")
+    require(verification["itemsTotal"] == 2, "verification should count total invariants")
+
+    specialist = job_by_id(response["jobs"], "specialist-work")
+    require(specialist["status"] == "unavailable", "specialist scheduler should remain explicit non-flow")
+    require("blockingReason" in specialist, "specialist non-flow should explain itself")
+
+
+def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
+    app_server = args.app_server.resolve()
+    if not app_server.exists():
+        raise FileNotFoundError(f"codex app-server binary not found: {app_server}")
+
+    codex_home = args.codex_home.resolve()
+    result_path = args.result.resolve()
+    transcript_path = args.transcript.resolve()
+    stderr_path = args.stderr.resolve()
+    reset_smoke_paths(codex_home, result_path, transcript_path, stderr_path)
+
+    with AppServerClient(app_server, codex_home, transcript_path, stderr_path) as client:
+        client.send(
+            "initialize",
+            {
+                "clientInfo": {
+                    "name": "epiphany-phase6-jobs-smoke",
+                    "title": "Epiphany Phase 6 Jobs Smoke",
+                    "version": "0.1.0",
+                },
+                "capabilities": {"experimentalApi": True},
+            },
+        )
+        client.send("initialized", expect_response=False)
+        started = client.send(
+            "thread/start",
+            {"cwd": str(ROOT / "epiphany-core"), "ephemeral": True},
+        )
+        assert started is not None
+        thread_id = started["thread"]["id"]
+
+        missing_notification_start = len(client.notifications)
+        missing_response = client.send("thread/epiphany/jobs", {"threadId": thread_id})
+        assert missing_response is not None
+        require(missing_response["threadId"] == thread_id, "jobs response should echo thread id")
+        assert_missing_state_jobs(missing_response)
+        client.require_no_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=missing_notification_start,
+        )
+
+        update_notification_start = len(client.notifications)
+        update = client.send(
+            "thread/epiphany/update",
+            {"threadId": thread_id, "expectedRevision": 0, "patch": job_surface_patch()},
+        )
+        assert update is not None
+        require(update["revision"] == 1, "job smoke patch should advance revision to 1")
+        client.wait_for_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=update_notification_start,
+        )
+
+        jobs_notification_start = len(client.notifications)
+        ready_response = client.send("thread/epiphany/jobs", {"threadId": thread_id})
+        assert ready_response is not None
+        assert_ready_jobs(ready_response)
+        client.require_no_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=jobs_notification_start,
+        )
+
+        final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
+        assert final_read is not None
+        require(
+            final_read["thread"]["epiphanyState"]["revision"] == 1,
+            "jobs reflection should not mutate state revision",
+        )
+
+        result = {
+            "threadId": thread_id,
+            "codexHome": str(codex_home),
+            "missingJobStatuses": {
+                job["id"]: job["status"] for job in missing_response["jobs"]
+            },
+            "readyRevision": ready_response["stateRevision"],
+            "readyJobStatuses": {job["id"]: job["status"] for job in ready_response["jobs"]},
+            "verificationItemsProcessed": job_by_id(
+                ready_response["jobs"], "verification"
+            )["itemsProcessed"],
+            "verificationItemsTotal": job_by_id(
+                ready_response["jobs"], "verification"
+            )["itemsTotal"],
+            "jobsNotificationCount": client.count_notifications(
+                "thread/epiphany/stateUpdated",
+                start_index=jobs_notification_start,
+            ),
+            "finalReadRevision": final_read["thread"]["epiphanyState"]["revision"],
+        }
+
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    result_path.write_text(
+        json.dumps(result, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Live-smoke the Phase 6 Epiphany job/progress reflection surface."
+    )
+    parser.add_argument("--app-server", type=Path, default=DEFAULT_APP_SERVER)
+    parser.add_argument("--codex-home", type=Path, default=DEFAULT_CODEX_HOME)
+    parser.add_argument("--result", type=Path, default=DEFAULT_RESULT)
+    parser.add_argument("--transcript", type=Path, default=DEFAULT_TRANSCRIPT)
+    parser.add_argument("--stderr", type=Path, default=DEFAULT_STDERR)
+    args = parser.parse_args()
+    result = run_smoke(args)
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

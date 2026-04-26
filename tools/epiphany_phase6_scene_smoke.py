@@ -19,8 +19,8 @@ DEFAULT_STDERR = ROOT / ".epiphany-smoke" / "phase6-scene-smoke-server.stderr.lo
 
 MAPPER_CODE_REF = {
     "path": "app-server/src/codex_message_processor.rs",
-    "start_line": 10500,
-    "end_line": 10680,
+    "start_line": 10573,
+    "end_line": 10689,
     "symbol": "map_epiphany_scene",
 }
 
@@ -129,7 +129,7 @@ def assert_missing_scene(scene: dict[str, Any]) -> None:
     require(scene["stateStatus"] == "missing", "initial scene should report missing state")
     require(scene["source"] == "live", "loaded missing scene should report live source")
     require(
-        scene["availableActions"] == ["index", "retrieve", "distill", "update"],
+        scene["availableActions"] == ["index", "retrieve", "distill", "jobs", "update"],
         "missing live scene should expose only bootstrap actions",
     )
     require(
@@ -200,7 +200,7 @@ def assert_ready_scene(scene: dict[str, Any], expected_revision: int) -> None:
     )
     require(
         scene["availableActions"]
-        == ["index", "retrieve", "distill", "update", "propose", "promote"],
+        == ["index", "retrieve", "distill", "jobs", "update", "propose", "promote"],
         "ready live scene should expose full loaded-state actions",
     )
 
