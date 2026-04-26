@@ -67,6 +67,8 @@ The landed machine now has:
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
 - live Phase 6 pressure app-server smoke coverage in `tools/epiphany_phase6_pressure_smoke.py`
 - durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
+- read-only Phase 6 CRRC reorientation policy through `thread/epiphany/reorient`
+- live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 
@@ -84,6 +86,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
+- `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -122,8 +125,8 @@ The next unknowns are:
 
 - how to expose live long-running job progress without making the GUI authoritative
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
-- how the landed investigation checkpoint should be consumed by future automatic CRRC without becoming ceremony machinery
-- how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, and checkpoint signals all exist
+- how the landed reorientation verdict should be consumed by future automatic CRRC without becoming ceremony machinery
+- how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
 - what Phase 6 should prove before specialist scheduling begins
 
 ## Phase 6 Direction
@@ -132,9 +135,9 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add a bounded CRRC coordination/policy slice that consumes pressure, freshness, watcher telemetry, and the durable investigation checkpoint to decide whether a wakeup should resume or re-gather.
+1. Add real long-running job ownership/progress state so `thread/epiphany/jobs` and future notifications can reflect something real.
 2. Add live job progress notifications only after there is a real long-running owner to report.
-3. Add targeted scene/jobs/context/pressure/checkpoint fields only when a client or smoke exposes a real gap.
+3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny

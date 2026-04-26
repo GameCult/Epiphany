@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, and `thread/epiphany/pressure`; freshness now also carries watcher-backed invalidation inputs for loaded threads, and the reflection seam has live app-server smoke coverage.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient`; freshness carries watcher-backed invalidation inputs for loaded threads, and reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -67,6 +67,7 @@ The current spine:
 - read-only retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only context-pressure reflection through `thread/epiphany/pressure`
+- read-only CRRC reorientation policy through `thread/epiphany/reorient`
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
@@ -74,6 +75,7 @@ The current spine:
 - live watcher-backed invalidation smoke through `tools/epiphany_phase6_invalidation_smoke.py`
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
 - live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
+- live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -88,6 +90,7 @@ The exact current control flow is documented in
 - `thread/epiphany/freshness` is read-only.
 - `thread/epiphany/context` is read-only.
 - `thread/epiphany/pressure` is read-only.
+- `thread/epiphany/reorient` is read-only.
 - Durable typed state writes go through `thread/epiphany/update` or accepted `thread/epiphany/promote`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
 - GUI/client surfaces reflect and steer typed state; they do not become the source of truth.
@@ -135,6 +138,12 @@ For context-pressure reflection behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_pressure_smoke.py'
+```
+
+For reorientation policy behavior changes, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
 ```
 
 For Codex Rust work on this Windows machine:
@@ -193,19 +202,24 @@ authoritative planning/source-gathering packet in typed state, validates linked
 evidence, and reflects the packet into prompt/scene/context so post-compaction
 wakeups can tell whether they have a real ember or only ash.
 
-When the user asks to continue, choose the next Phase 6 slice from the current
-map: the most likely next organ is a bounded CRRC coordination/policy layer
-that consumes the landed pressure, freshness, watcher, and investigation-
-checkpoint signals to decide whether a checkpoint means resume or re-gather,
-with live progress notifications still waiting until real job owners exist.
+The bounded CRRC coordination/policy layer is now also landed as read-only
+`thread/epiphany/reorient`. It consumes the landed pressure, freshness,
+watcher, and investigation-checkpoint signals to decide whether a checkpoint
+still deserves `resume` or has to admit `regather`.
 
-Also keep the guardrail in mind: pressure plus a checkpoint packet is still not
-automatic CRRC. Runtime coordination, reorientation policy, and next-action
-selection are still future work.
+Also keep the guardrail in mind: a read-only reorientation verdict is still not
+automatic CRRC. Runtime coordination, next-action execution, and long-running
+job ownership are still future work.
+
+When the user asks to continue, the next likely organ is real long-running job
+ownership/progress state so `thread/epiphany/jobs` and future notifications can
+reflect something real, with automatic runtime CRRC still waiting beyond that
+boundary.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
-`thread/epiphany/freshness`, `thread/epiphany/context`, and
-`thread/epiphany/pressure` smokes are now guardrails, not the next organs.
+`thread/epiphany/freshness`, `thread/epiphany/context`,
+`thread/epiphany/pressure`, and `thread/epiphany/reorient` smokes are now
+guardrails, not the next organs.
 
 ## Not Yet
 
@@ -213,7 +227,7 @@ Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
 - automatic observation promotion
 - specialist-agent scheduling
 - GUI-as-source-of-truth
-- automatic runtime CRRC coordinator using the landed context-pressure telemetry and investigation checkpoints
+- automatic runtime CRRC coordinator acting on the landed reorientation verdict
 - live long-running job execution or `thread/epiphany/jobsUpdated`
 - broad event stream beyond the landed state update notification
 

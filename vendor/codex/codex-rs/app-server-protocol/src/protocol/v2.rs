@@ -3997,6 +3997,7 @@ pub enum ThreadEpiphanySceneAction {
     Jobs,
     Freshness,
     Pressure,
+    Reorient,
     Propose,
     Promote,
     Update,
@@ -4505,6 +4506,98 @@ pub enum ThreadEpiphanyPressureBasis {
     Unknown,
     AutoCompactLimit,
     ModelContextWindow,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientParams {
+    pub thread_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyReorientSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub decision: ThreadEpiphanyReorientDecision,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyReorientSource {
+    Stored,
+    Live,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyReorientStateStatus {
+    Missing,
+    Ready,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyReorientAction {
+    Resume,
+    Regather,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyReorientCheckpointStatus {
+    Missing,
+    ResumeReady,
+    RegatherRequired,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyReorientReason {
+    MissingState,
+    MissingCheckpoint,
+    CheckpointRequestedRegather,
+    CheckpointPathsDirty,
+    CheckpointPathsChanged,
+    FrontierChanged,
+    UnanchoredCheckpointWhileStateStale,
+    CheckpointReady,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientDecision {
+    pub action: ThreadEpiphanyReorientAction,
+    pub checkpoint_status: ThreadEpiphanyReorientCheckpointStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checkpoint_id: Option<String>,
+    pub pressure_level: ThreadEpiphanyPressureLevel,
+    pub retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus,
+    pub graph_status: ThreadEpiphanyGraphFreshnessStatus,
+    pub watcher_status: ThreadEpiphanyInvalidationStatus,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reasons: Vec<ThreadEpiphanyReorientReason>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoint_dirty_paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoint_changed_paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_frontier_node_ids: Vec<String>,
+    pub next_action: String,
+    pub note: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

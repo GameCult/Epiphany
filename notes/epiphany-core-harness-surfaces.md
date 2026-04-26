@@ -51,6 +51,7 @@ The rule is:
 | `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state, with watcher-backed invalidation inputs for loaded threads. |
 | `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
+| `thread/epiphany/reorient` | read-only policy reflection | landed, live-smoked | Bounded CRRC reorientation verdict derived from checkpoint, freshness, watcher, and pressure signals; returns resume vs regather without acting on the decision. |
 
 ## Write Authority
 
@@ -72,13 +73,14 @@ The following must stay read-only:
 - `thread/epiphany/freshness`
 - `thread/epiphany/context`
 - `thread/epiphany/pressure`
+- `thread/epiphany/reorient`
 
 `thread/epiphany/index` is a write to the retrieval catalog. It is not a
 license to mutate map/evidence/churn state as a side effect.
 
 ## Reflection Authority
 
-Scene, jobs, freshness, context, and GUI surfaces may compress state for humans and
+Scene, jobs, freshness, context, reorient, and GUI surfaces may compress state for humans and
 clients. They may not invent canonical understanding.
 
 Reflection surfaces should:
@@ -211,6 +213,24 @@ It does not run retrieval, draft proposals, promote observations, mutate
 `SessionState`, append rollout items, or emit `thread/epiphany/stateUpdated`.
 It is a bounded lens, not a clerk with a pen.
 
+## Reorientation Policy
+
+The first bounded CRRC policy surface is landed as `thread/epiphany/reorient`.
+
+It consumes existing signals only:
+
+- durable investigation checkpoint packet from authoritative typed state
+- retrieval and graph freshness reflection inputs
+- watcher-backed invalidation inputs for loaded threads
+- context-pressure telemetry that already exists in `thread/epiphany/pressure`
+
+It returns a read-only verdict:
+
+- `resume` when a `resume_ready` checkpoint is still aligned with current watcher/freshness pressure
+- `regather` when there is no state, no checkpoint, an explicit `regather_required` checkpoint, checkpoint-path drift, frontier drift, or an unanchored checkpoint under active staleness
+
+It does not mutate `SessionState`, compact, schedule, notify `thread/epiphany/stateUpdated`, auto-resume work, or auto-regather source. It is the wakeup verdict, not the hand reaching for the keyboard.
+
 ## Compaction And CRRC
 
 Compact-Rehydrate-Reorient-Continue is an architecture primitive, but automatic
@@ -234,11 +254,12 @@ Future runtime behavior should:
 The pressure signal now exists as `thread/epiphany/pressure`, the freshness
 signal now exists as `thread/epiphany/freshness`, live watcher-backed
 invalidation telemetry now exists inside that freshness surface for loaded
-threads, and durable investigation packets now exist in typed state plus
-prompt/scene/context reflection. What does not exist yet is the runtime
-coordinator that consumes those signals. Automatic CRRC still needs an explicit
-policy for when a checkpoint means "resume" versus "re-gather" instead of vibes
-with a clipboard.
+threads, durable investigation packets now exist in typed state plus
+prompt/scene/context reflection, and the first bounded policy verdict now
+exists as `thread/epiphany/reorient`. What does not exist yet is the runtime
+coordinator that acts on that verdict. Automatic CRRC still needs job owners,
+interruption-safe ownership, and explicit runtime policy instead of vibes with a
+clipboard.
 
 Compaction should squeeze scratch, not the map.
 

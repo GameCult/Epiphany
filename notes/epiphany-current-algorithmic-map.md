@@ -10,7 +10,7 @@ The important question for this file is not "what is Epiphany supposed to become
 
 Current Epiphany is a forked Codex harness with a typed modeling spine.
 
-The spine exists in sixteen live paths:
+The spine exists in seventeen live paths:
 
 - protocol state shape: `EpiphanyThreadState`, `RolloutItem::EpiphanyState`, retrieval summaries, and prompt tags live in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:103).
 - in-memory session state: `SessionState` stores an optional `EpiphanyThreadState`, and `Session` exposes thin async accessors over it in [state/session.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/state/session.rs:36) and [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:1240).
@@ -27,6 +27,7 @@ The spine exists in sixteen live paths:
 - freshness reflection: app-server declares experimental read-only `thread/epiphany/freshness`, reads the same live/stored thread view used by scene/jobs/context, fills live retrieval state for loaded threads, and derives one bounded retrieval/graph freshness lens plus, for loaded threads, watcher-backed invalidation inputs with watched root, changed paths, mapped graph-node hits, active-frontier hits, and revision/source identity without mutating, scheduling, notifying, or performing automatic semantic invalidation in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4167), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4259), [epiphany_invalidation.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/epiphany_invalidation.rs:19), [epiphany_invalidation.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/epiphany_invalidation.rs:67), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4219), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11073).
 - targeted context reflection: app-server declares experimental read-only `thread/epiphany/context`, reads the same live/stored Epiphany state view used by scene/jobs, and derives a bounded state shard containing selected graph nodes/edges, links, active frontier, checkpoint, the full durable investigation-checkpoint packet, observations, direct evidence, linked evidence, and missing requested ids without retrieval, proposal, promotion, notification, mutation, or persistence in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:355), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4253), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4261), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11152).
 - context-pressure reflection: core token telemetry carries `model_auto_compact_token_limit` beside total/last usage and `model_context_window`; app-server declares experimental read-only `thread/epiphany/pressure`, reads live token usage or the latest stored rollout `TokenCount`, and derives `unknown`/`low`/`elevated`/`high`/`critical` pressure plus a non-acting compaction-prep recommendation without mutating Epiphany state or scheduling compaction in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:2237), [turn_context.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/turn_context.rs:103), [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2716), [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:360), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4361), [token_usage_replay.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor/token_usage_replay.rs:75), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4306), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11028).
+- reorientation policy: app-server declares experimental read-only `thread/epiphany/reorient`, reuses the same live/stored thread view plus mapped pressure/freshness/watcher signals, and derives a bounded `resume`/`regather` verdict with checkpoint-path/frontier reasons without mutating, compacting, scheduling, notifying, or continuing work in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:365), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4514), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4394), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11424).
 - retrieval/indexing: app-server routes `thread/epiphany/retrieve` and `thread/epiphany/index` through loaded `CodexThread` host methods into `epiphany-core` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4356), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4432), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:467), and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:449).
 
 The thick Epiphany-owned implementation is mostly outside vendored Codex now:
@@ -73,6 +74,9 @@ flowchart TD
     A --> QP["TokenUsageInfo stores usage, context window, and auto-compact limit"]
     QP --> QQ["thread/epiphany/pressure derives read-only context pressure"]
     QQ --> Q
+    QF --> QR["thread/epiphany/reorient derives read-only resume/regather verdict"]
+    QQ --> QR
+    QR --> Q
     A --> R["thread/epiphany/retrieve requires loaded thread"]
     A --> S["thread/epiphany/index requires loaded thread"]
     A --> AA["thread/epiphany/distill requires loaded thread"]
@@ -133,7 +137,7 @@ The current landed machine is still coherent. The core shape is not ornamental: 
 
 Nothing in the current typed spine obviously deserves deletion right now. The parts that would turn this into Jenga are still correctly listed as non-flows: automatic tool-output ingestion, automatic watcher-driven invalidation, specialist scheduling, broad event streaming, and an automatic Compact-Rehydrate-Reorient-Continue coordinator. Thin GUI/client reflection is no longer forbidden as a category, provided it reflects and steers typed state rather than inventing a second source of truth.
 
-The next Perfect Machine move is not adding another writer, not re-hardening Phase 5, and no longer the first scene, job, freshness, targeted context, pressure, watcher, or investigation-checkpoint reflection. Those surfaces now let clients inspect the machine Epiphany already built at summary, progress, bounded-detail, freshness, context-pressure, file-movement, and durable-planning-packet levels. The next outward work should add a real coordinator, not another decorative sense organ: a bounded CRRC policy layer that consumes the landed pressure, freshness, watcher, and checkpoint signals, with live progress notifications waiting until real long-running job owners exist.
+The next Perfect Machine move is not adding another writer, not re-hardening Phase 5, and no longer the first scene, job, freshness, targeted context, pressure, watcher, investigation-checkpoint, or reorientation surface. Those organs now let clients inspect the machine Epiphany already built at summary, progress, bounded-detail, freshness, context-pressure, file-movement, durable-planning-packet, and wakeup-verdict levels. The next outward work should either give that verdict a real runtime consumer or land real long-running job owners, not invent yet another decorative sense organ.
 
 ## Natural Language Spine
 
@@ -1225,13 +1229,49 @@ The response is a read-only gauge. The Phase 6 pressure smoke proved that a fres
 
 Pressure projection is read-only. It does not start compaction, perform CRRC, checkpoint source gathering, mutate `SessionState`, append rollout items, or emit state notifications. It is a pressure gauge, not an emergency crew with a clipboard addiction.
 
+## Flow 17: Reorientation Policy Control Flow
+
+### Input
+
+A client sends experimental `thread/epiphany/reorient` with:
+
+- `threadId`
+
+### Plain-language role
+
+Reorientation policy is the fifth Phase 6 reflection boundary. It answers one narrow question after wakeup or during a continuity check: does the current durable checkpoint still deserve `resume`, or has enough relevant drift accumulated that the honest answer is `regather`?
+
+The useful distinction from automatic CRRC is that this surface only returns a verdict. It consumes the landed checkpoint, freshness, watcher, and pressure signals, but it does not compact, schedule, mutate, notify, or continue work by itself.
+
+### Mechanism
+
+The app-server handler:
+
+1. parses the thread id.
+2. reads the same live/stored thread view used by the other reflection surfaces.
+3. reuses live retrieval summary and watcher snapshots for loaded threads when available.
+4. reuses live token telemetry or the latest stored rollout `TokenCount`.
+5. maps freshness and pressure through the existing reflection helpers.
+6. evaluates one bounded verdict:
+   - `regather` when state is missing, the checkpoint is missing, the checkpoint explicitly requests re-gather, checkpoint code-ref paths are dirty or newly changed, active frontier watcher hits show live drift, or an unanchored checkpoint sits on top of stale signals.
+   - `resume` when a `resume_ready` checkpoint remains aligned with the current signals.
+7. returns typed reasons, relevant changed/dirty checkpoint paths, active frontier hits, next action text, and a human-readable note.
+
+### Output
+
+The response is a read-only wakeup verdict. The Phase 6 reorient smoke proved that a fresh live thread regathers when there is no ember, a clean checkpoint resumes, watcher-touched checkpoint paths flip the verdict back to regather, no `thread/epiphany/stateUpdated` notification is emitted, and final thread state revision does not change.
+
+### Invariant
+
+Reorientation policy is read-only. It does not compact, mutate `SessionState`, append rollout items, emit `thread/epiphany/stateUpdated`, schedule CRRC, or silently continue work. It is the verdict slip, not the bailiff.
+
 ## Current Non-Flows
 
 These are deliberately not shipped yet:
 
 - no broad live Epiphany event stream beyond `thread/epiphany/stateUpdated` for successful update/promote writes.
 - no automatic evidence promotion from tool output; the current distill/propose/promote path still requires explicit verifier-backed calls.
-- no automatic Compact-Rehydrate-Reorient-Continue coordinator; current code preserves and rehydrates valid Epiphany snapshots across resume/rollback/compaction, exposes context pressure, and now carries a durable investigation checkpoint packet, but runtime reorientation and next-action selection are still enforced by repo-local state, handoff notes, and operating discipline rather than a scheduler.
+- no automatic Compact-Rehydrate-Reorient-Continue coordinator; current code preserves and rehydrates valid Epiphany snapshots across resume/rollback/compaction, exposes context pressure, carries a durable investigation checkpoint packet, and now returns a read-only reorientation verdict, but runtime action and next-step execution are still enforced by repo-local state, handoff notes, and operating discipline rather than a scheduler.
 - no automatic watcher-driven graph or semantic invalidation.
 - no code-intelligence graph.
 - no specialist-agent scheduler.
@@ -1251,6 +1291,7 @@ stored Epiphany state
 -> reflected as a read-only freshness lens for clients
 -> reflected as targeted read-only graph/evidence context shards for clients
 -> reflected as read-only context pressure from token telemetry
+-> reflected as a read-only resume/regather verdict from checkpoint + freshness + watcher + pressure
 -> retrieval/indexing can inform future work
 -> explicit distillation can draft observation/evidence patches
 -> explicit proposal can draft map/churn patches from verified observations
@@ -1259,7 +1300,7 @@ stored Epiphany state
 -> successful writes emit thread/epiphany/stateUpdated
 ```
 
-The current remaining missing organ is not the red pen, not the first chewing motion, not the first state-change bell, not the first client-shaped scene, not the first job/progress reflection, not the first freshness lens, not the first watcher-backed invalidation read, not the first targeted graph/evidence context read, not the first context-pressure gauge, and no longer the first durable investigation checkpoint packet. Those exist. Proposal now has the first bits of map memory, focus, and selection hygiene: it can auto-select a bounded evidence-backed observation cluster when ids are omitted, requires accepting recent evidence behind selected observations, prioritizes stronger selected observations for proposal wording, reuses existing architecture nodes by concrete code-ref/path/id checks before creating new path nodes, can rescue unanchored graph nodes through strict unique semantic overlap, follows graph links and incident edges into the frontier, and reports match-kind-aware churn pressure from the actual proposal shape. Distillation now also has the first source-output-aware teeth for tool/model summaries. Promotion now notices risky deltas instead of just checking the shape of the envelope, treats graph expansion as risky even if the patch tries to mumble "low pressure" while dragging a new wall into the blueprint, token-matches strong verifier kinds so `contest` cannot sneak past as `test`, and validates investigation checkpoints against known evidence before the packet can be inked. Successful update/promote writes now emit `thread/epiphany/stateUpdated` with `source: "update"` or `source: "promote"`, event-level revision, and typed changed fields so clients no longer need to poll blindly, infer the cause from timing, or diff the whole state to know which top-level sections moved. The scene, jobs, freshness, context, and pressure surfaces give clients compact or bounded read-only views without making the GUI/client authoritative, scene/context surface the checkpoint packet back out without becoming writers, and freshness now surfaces watcher telemetry without becoming a hidden worker. The remaining missing organs are a bounded CRRC coordinator that decides whether the landed checkpoint means resume or re-gather, live job progress notifications once real long-running job owners exist, and eventually role-scoped specialist ownership without silently auto-promoting anything.
+The current remaining missing organ is not the red pen, not the first chewing motion, not the first state-change bell, not the first client-shaped scene, not the first job/progress reflection, not the first freshness lens, not the first watcher-backed invalidation read, not the first targeted graph/evidence context read, not the first context-pressure gauge, not the first durable investigation checkpoint packet, and no longer the first bounded reorientation verdict. Those exist. Proposal now has the first bits of map memory, focus, and selection hygiene: it can auto-select a bounded evidence-backed observation cluster when ids are omitted, requires accepting recent evidence behind selected observations, prioritizes stronger selected observations for proposal wording, reuses existing architecture nodes by concrete code-ref/path/id checks before creating new path nodes, can rescue unanchored graph nodes through strict unique semantic overlap, follows graph links and incident edges into the frontier, and reports match-kind-aware churn pressure from the actual proposal shape. Distillation now also has the first source-output-aware teeth for tool/model summaries. Promotion now notices risky deltas instead of just checking the shape of the envelope, treats graph expansion as risky even if the patch tries to mumble "low pressure" while dragging a new wall into the blueprint, token-matches strong verifier kinds so `contest` cannot sneak past as `test`, and validates investigation checkpoints against known evidence before the packet can be inked. Successful update/promote writes now emit `thread/epiphany/stateUpdated` with `source: "update"` or `source: "promote"`, event-level revision, and typed changed fields so clients no longer need to poll blindly, infer the cause from timing, or diff the whole state to know which top-level sections moved. The scene, jobs, freshness, context, pressure, and reorient surfaces give clients compact or bounded read-only views without making the GUI/client authoritative, scene/context surface the checkpoint packet back out without becoming writers, freshness surfaces watcher telemetry without becoming a hidden worker, and reorient now turns those signals into an explicit wakeup verdict. The remaining missing organs are a runtime consumer that can act on that verdict without becoming a hidden tyrant, live job progress notifications once real long-running job owners exist, and eventually role-scoped specialist ownership without silently auto-promoting anything.
 
 ```text
 model/tool observations
@@ -1273,7 +1314,7 @@ model/tool observations
 
 The typed write path exists, the first deterministic observation/evidence distillation path exists, source-output-aware distillation now summarizes noisy tool/model output into typed evidence with final result/error/finished lines ahead of generic warnings, the first deterministic map/churn proposal path exists, proposal-quality hardening now auto-selects bounded observation clusters when ids are omitted, requires accepting recent evidence, reuses existing graph nodes by observed code refs, prioritizes stronger selected observations, rescues unanchored graph nodes by strict semantic overlap, focuses linked frontier context, reports match-kind-aware map-delta pressure, and the first verifier-backed promotion gate exists. The first map/churn safety layer also exists: promotion can reject state replacement patches that are not tied to explicit observations/evidence, that contain structurally broken subgoal, invariant, graph, frontier, checkpoint, investigation-checkpoint, or churn fields, that try to promote risky churn without a warning and stronger verifier evidence, that claim a graph expansion is low-pressure to dodge the warning gate, or that rely on substring verifier-kind accidents. The first live state notification layer also exists: accepted writes publish updated typed state plus event-level revision and typed changed fields; rejected promotions stay quiet.
 
-In natural language: current Epiphany can preserve a map, show a map, project a compact scene from the map, project derived job/progress slots from the map and retrieval summary, project a read-only freshness lens over retrieval and graph staleness, layer watcher-backed invalidation telemetry onto that lens for loaded threads, project a targeted graph/evidence context shard from the map, project context pressure from token telemetry, bank an in-flight investigation packet in durable typed state, reflect that packet back into prompt/scene/context, retrieve evidence for the map, draft one explicit observation/evidence patch, derive a bounded graph/frontier/churn candidate from verified evidence-backed observations with code refs, choose a small coherent observation set when the caller does not provide one, favor the strongest selected observation when drafting that candidate, reject or accept a verified candidate, apply explicit map/evidence/churn edits, notify clients after successful writes, and sanity-check those edits before they hit the ledger. It still does not invalidate stale graph regions automatically, execute long-running Epiphany jobs as tracked background work, emit job progress notifications, or coordinate specialist ownership. Teeth are installed; chewing is supervised; the first bell rings; the first wall board exists; the first shift board exists; the first freshness clipboard exists; the first door sensor now exists too; the first binder lens exists; the first pressure gauge exists; the first ember packet exists; the next slices are about safe waking and coordination, not jawbones.
+In natural language: current Epiphany can preserve a map, show a map, project a compact scene from the map, project derived job/progress slots from the map and retrieval summary, project a read-only freshness lens over retrieval and graph staleness, layer watcher-backed invalidation telemetry onto that lens for loaded threads, project a targeted graph/evidence context shard from the map, project context pressure from token telemetry, bank an in-flight investigation packet in durable typed state, reflect that packet back into prompt/scene/context, turn those signals into a read-only resume-versus-regather verdict, retrieve evidence for the map, draft one explicit observation/evidence patch, derive a bounded graph/frontier/churn candidate from verified evidence-backed observations with code refs, choose a small coherent observation set when the caller does not provide one, favor the strongest selected observation when drafting that candidate, reject or accept a verified candidate, apply explicit map/evidence/churn edits, notify clients after successful writes, and sanity-check those edits before they hit the ledger. It still does not invalidate stale graph regions automatically, execute long-running Epiphany jobs as tracked background work, emit job progress notifications, or coordinate specialist ownership. Teeth are installed; chewing is supervised; the first bell rings; the first wall board exists; the first shift board exists; the first freshness clipboard exists; the first door sensor now exists too; the first binder lens exists; the first pressure gauge exists; the first ember packet exists; the first verdict slip now exists too; the next slices are about safe waking and real ownership, not jawbones.
 
 ## Verification Hooks
 
@@ -1297,6 +1338,7 @@ Current tests cover the landed flows at useful seams:
 - live app-server smoke for watcher-backed invalidation inputs inside the Phase 6 freshness boundary in `tools/epiphany_phase6_invalidation_smoke.py`.
 - live app-server smoke for the first Phase 6 context boundary in `tools/epiphany_phase6_context_smoke.py`.
 - live app-server smoke for the first Phase 6 pressure boundary in `tools/epiphany_phase6_pressure_smoke.py`.
+- live app-server smoke for the first Phase 6 reorientation policy boundary in `tools/epiphany_phase6_reorient_smoke.py`.
 
 Useful commands:
 
@@ -1312,4 +1354,5 @@ $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-a
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_pressure_smoke.py'
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
 ```

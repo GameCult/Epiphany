@@ -183,6 +183,14 @@ use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyProposeParams;
 use codex_app_server_protocol::ThreadEpiphanyProposeResponse;
+use codex_app_server_protocol::ThreadEpiphanyReorientAction;
+use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
+use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
+use codex_app_server_protocol::ThreadEpiphanyReorientParams;
+use codex_app_server_protocol::ThreadEpiphanyReorientReason;
+use codex_app_server_protocol::ThreadEpiphanyReorientResponse;
+use codex_app_server_protocol::ThreadEpiphanyReorientSource;
+use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
@@ -393,6 +401,7 @@ use codex_protocol::protocol::ConversationAudioParams;
 use codex_protocol::protocol::ConversationStartParams;
 use codex_protocol::protocol::ConversationStartTransport;
 use codex_protocol::protocol::ConversationTextParams;
+use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyThreadState;
@@ -1055,6 +1064,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyPressure { request_id, params } => {
                 self.thread_epiphany_pressure(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyReorient { request_id, params } => {
+                self.thread_epiphany_reorient(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4374,6 +4387,89 @@ impl CodexMessageProcessor {
             thread_id,
             source,
             pressure: map_epiphany_pressure(token_usage_info.as_ref()),
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_reorient(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyReorientParams,
+    ) {
+        let ThreadEpiphanyReorientParams { thread_id } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let retrieval_override = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_retrieval_state().await)
+        } else {
+            None
+        };
+        let watcher_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            let config_snapshot = loaded_thread.config_snapshot().await;
+            self.epiphany_invalidation_manager
+                .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
+                .await;
+            Some(
+                self.epiphany_invalidation_manager
+                    .snapshot(&thread_id)
+                    .await,
+            )
+        } else {
+            None
+        };
+        let (pressure_source, token_usage_info) = if let Some(loaded_thread) = loaded_thread {
+            (
+                ThreadEpiphanyReorientSource::Live,
+                loaded_thread.token_usage_info().await,
+            )
+        } else {
+            let token_usage_info = match thread.path.as_deref() {
+                Some(path) => latest_token_usage_info_from_rollout_path(path).await,
+                None => None,
+            };
+            (ThreadEpiphanyReorientSource::Stored, token_usage_info)
+        };
+
+        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+            thread.epiphany_state.as_ref(),
+            retrieval_override.as_ref(),
+            watcher_snapshot.as_ref(),
+        );
+        let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+        let (state_status, decision) = map_epiphany_reorient(
+            thread.epiphany_state.as_ref(),
+            &pressure,
+            &retrieval,
+            &graph,
+            &watcher,
+        );
+        let response = ThreadEpiphanyReorientResponse {
+            thread_id,
+            source: pressure_source,
+            state_status,
+            state_revision,
+            decision,
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -10922,6 +11018,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Jobs,
         ThreadEpiphanySceneAction::Freshness,
         ThreadEpiphanySceneAction::Pressure,
+        ThreadEpiphanySceneAction::Reorient,
         ThreadEpiphanySceneAction::Update,
     ];
     if state_present {
@@ -11322,6 +11419,238 @@ fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPre
         should_prepare_compaction,
         note,
     }
+}
+
+fn map_epiphany_reorient(
+    state: Option<&EpiphanyThreadState>,
+    pressure: &ThreadEpiphanyPressure,
+    retrieval: &ThreadEpiphanyRetrievalFreshness,
+    graph: &ThreadEpiphanyGraphFreshness,
+    watcher: &ThreadEpiphanyInvalidationInput,
+) -> (
+    ThreadEpiphanyReorientStateStatus,
+    ThreadEpiphanyReorientDecision,
+) {
+    let build_decision = |action: ThreadEpiphanyReorientAction,
+                          checkpoint_status: ThreadEpiphanyReorientCheckpointStatus,
+                          checkpoint_id: Option<String>,
+                          reasons: Vec<ThreadEpiphanyReorientReason>,
+                          checkpoint_dirty_paths: Vec<PathBuf>,
+                          checkpoint_changed_paths: Vec<PathBuf>,
+                          active_frontier_node_ids: Vec<String>,
+                          next_action: String,
+                          note: String| ThreadEpiphanyReorientDecision {
+        action,
+        checkpoint_status,
+        checkpoint_id,
+        pressure_level: pressure.level,
+        retrieval_status: retrieval.status,
+        graph_status: graph.status,
+        watcher_status: watcher.status,
+        reasons,
+        checkpoint_dirty_paths,
+        checkpoint_changed_paths,
+        active_frontier_node_ids,
+        next_action,
+        note,
+    };
+
+    let high_pressure = matches!(
+        pressure.level,
+        ThreadEpiphanyPressureLevel::High | ThreadEpiphanyPressureLevel::Critical
+    );
+
+    let Some(state) = state else {
+        let note = if high_pressure {
+            "No Epiphany state survived, and the last recorded context pressure was high; re-gather before editing."
+                .to_string()
+        } else {
+            "No Epiphany state survived, so there is no authoritative checkpoint to resume."
+                .to_string()
+        };
+        return (
+            ThreadEpiphanyReorientStateStatus::Missing,
+            build_decision(
+                ThreadEpiphanyReorientAction::Regather,
+                ThreadEpiphanyReorientCheckpointStatus::Missing,
+                None,
+                vec![
+                    ThreadEpiphanyReorientReason::MissingState,
+                    ThreadEpiphanyReorientReason::MissingCheckpoint,
+                ],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                "Re-gather source context before editing.".to_string(),
+                note,
+            ),
+        );
+    };
+
+    let Some(checkpoint) = state.investigation_checkpoint.as_ref() else {
+        let note = if high_pressure {
+            "Epiphany state survived, but no durable investigation checkpoint was banked before high context pressure; re-gather before editing."
+                .to_string()
+        } else {
+            "Epiphany state survived, but there is no durable investigation checkpoint to resume from."
+                .to_string()
+        };
+        return (
+            ThreadEpiphanyReorientStateStatus::Ready,
+            build_decision(
+                ThreadEpiphanyReorientAction::Regather,
+                ThreadEpiphanyReorientCheckpointStatus::Missing,
+                None,
+                vec![ThreadEpiphanyReorientReason::MissingCheckpoint],
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                "Re-gather source context before editing.".to_string(),
+                note,
+            ),
+        );
+    };
+
+    let checkpoint_status = match checkpoint.disposition {
+        EpiphanyInvestigationDisposition::ResumeReady => {
+            ThreadEpiphanyReorientCheckpointStatus::ResumeReady
+        }
+        EpiphanyInvestigationDisposition::RegatherRequired => {
+            ThreadEpiphanyReorientCheckpointStatus::RegatherRequired
+        }
+    };
+    let workspace_root = watcher.watched_root.as_deref();
+    let checkpoint_dirty_paths = overlapping_checkpoint_paths(
+        checkpoint,
+        retrieval.dirty_paths.iter().chain(graph.dirty_paths.iter()),
+        workspace_root,
+    );
+    let checkpoint_changed_paths =
+        overlapping_checkpoint_paths(checkpoint, watcher.changed_paths.iter(), workspace_root);
+    let frontier_changed = !watcher.active_frontier_node_ids.is_empty();
+    let unanchored_checkpoint_while_state_stale = checkpoint.code_refs.is_empty()
+        && (!retrieval.dirty_paths.is_empty()
+            || !graph.dirty_paths.is_empty()
+            || !watcher.graph_node_ids.is_empty()
+            || frontier_changed);
+
+    let mut reasons = Vec::new();
+    if checkpoint.disposition == EpiphanyInvestigationDisposition::RegatherRequired {
+        reasons.push(ThreadEpiphanyReorientReason::CheckpointRequestedRegather);
+    }
+    if !checkpoint_dirty_paths.is_empty() {
+        reasons.push(ThreadEpiphanyReorientReason::CheckpointPathsDirty);
+    }
+    if !checkpoint_changed_paths.is_empty() {
+        reasons.push(ThreadEpiphanyReorientReason::CheckpointPathsChanged);
+    }
+    if frontier_changed {
+        reasons.push(ThreadEpiphanyReorientReason::FrontierChanged);
+    }
+    if unanchored_checkpoint_while_state_stale {
+        reasons.push(ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale);
+    }
+
+    let should_regather = checkpoint.disposition
+        == EpiphanyInvestigationDisposition::RegatherRequired
+        || !checkpoint_dirty_paths.is_empty()
+        || !checkpoint_changed_paths.is_empty()
+        || frontier_changed
+        || unanchored_checkpoint_while_state_stale;
+
+    if !should_regather {
+        reasons.push(ThreadEpiphanyReorientReason::CheckpointReady);
+        return (
+            ThreadEpiphanyReorientStateStatus::Ready,
+            build_decision(
+                ThreadEpiphanyReorientAction::Resume,
+                checkpoint_status,
+                Some(checkpoint.checkpoint_id.clone()),
+                reasons,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+                checkpoint.next_action.clone().unwrap_or_else(|| {
+                    "Resume from the durable checkpoint focus and verify the seam before broad edits."
+                        .to_string()
+                }),
+                "Resume-ready checkpoint remains aligned with current freshness and watcher signals."
+                    .to_string(),
+            ),
+        );
+    }
+
+    let mut note_fragments = Vec::new();
+    if checkpoint.disposition == EpiphanyInvestigationDisposition::RegatherRequired {
+        note_fragments.push("the checkpoint explicitly requests re-gather".to_string());
+    }
+    if !checkpoint_dirty_paths.is_empty() {
+        note_fragments.push(format!(
+            "{} checkpoint path(s) are already marked dirty",
+            checkpoint_dirty_paths.len()
+        ));
+    }
+    if !checkpoint_changed_paths.is_empty() {
+        note_fragments.push(format!(
+            "watcher observed {} changed checkpoint path(s)",
+            checkpoint_changed_paths.len()
+        ));
+    }
+    if frontier_changed {
+        note_fragments.push(format!(
+            "watcher hit {} active frontier node(s)",
+            watcher.active_frontier_node_ids.len()
+        ));
+    }
+    if unanchored_checkpoint_while_state_stale {
+        note_fragments.push(
+            "the checkpoint has no code refs while freshness signals already show drift"
+                .to_string(),
+        );
+    }
+
+    (
+        ThreadEpiphanyReorientStateStatus::Ready,
+        build_decision(
+            ThreadEpiphanyReorientAction::Regather,
+            checkpoint_status,
+            Some(checkpoint.checkpoint_id.clone()),
+            reasons,
+            checkpoint_dirty_paths,
+            checkpoint_changed_paths,
+            watcher.active_frontier_node_ids.clone(),
+            checkpoint
+                .next_action
+                .clone()
+                .unwrap_or_else(|| "Re-gather source context before editing.".to_string()),
+            format!("Re-gather before editing: {}.", note_fragments.join("; ")),
+        ),
+    )
+}
+
+fn overlapping_checkpoint_paths<'a>(
+    checkpoint: &codex_protocol::protocol::EpiphanyInvestigationCheckpoint,
+    candidate_paths: impl IntoIterator<Item = &'a PathBuf>,
+    workspace_root: Option<&Path>,
+) -> Vec<PathBuf> {
+    let checkpoint_path_keys: HashSet<String> = checkpoint
+        .code_refs
+        .iter()
+        .map(|code_ref| code_ref_path_key(code_ref.path.as_path(), workspace_root))
+        .collect();
+    if checkpoint_path_keys.is_empty() {
+        return Vec::new();
+    }
+
+    let mut overlaps = Vec::new();
+    let mut seen = HashSet::new();
+    for path in candidate_paths {
+        let path_key = code_ref_path_key(path.as_path(), workspace_root);
+        if checkpoint_path_keys.contains(&path_key) && seen.insert(path_key) {
+            overlaps.push(path.clone());
+        }
+    }
+    overlaps
 }
 
 fn map_epiphany_scene_subgoals(state: &EpiphanyThreadState) -> Vec<ThreadEpiphanySceneSubgoal> {
@@ -13403,6 +13732,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Jobs,
                 ThreadEpiphanySceneAction::Freshness,
                 ThreadEpiphanySceneAction::Pressure,
+                ThreadEpiphanySceneAction::Reorient,
                 ThreadEpiphanySceneAction::Update,
                 ThreadEpiphanySceneAction::Propose,
                 ThreadEpiphanySceneAction::Promote,
@@ -13643,6 +13973,225 @@ mod tests {
         );
         assert_eq!(pressure.ratio_per_mille, Some(750));
         assert!(!pressure.should_prepare_compaction);
+    }
+
+    #[test]
+    fn map_epiphany_reorient_regathers_without_state() {
+        let pressure = map_epiphany_pressure(None);
+        let retrieval = ThreadEpiphanyRetrievalFreshness {
+            status: ThreadEpiphanyRetrievalFreshnessStatus::Missing,
+            semantic_available: None,
+            last_indexed_at_unix_seconds: None,
+            indexed_file_count: None,
+            indexed_chunk_count: None,
+            dirty_paths: Vec::new(),
+            note: "missing".to_string(),
+        };
+        let graph = ThreadEpiphanyGraphFreshness {
+            status: ThreadEpiphanyGraphFreshnessStatus::Missing,
+            graph_freshness: None,
+            checkpoint_id: None,
+            dirty_path_count: 0,
+            dirty_paths: Vec::new(),
+            open_question_count: 0,
+            open_gap_count: 0,
+            note: "missing".to_string(),
+        };
+        let watcher = ThreadEpiphanyInvalidationInput {
+            status: ThreadEpiphanyInvalidationStatus::Unavailable,
+            watched_root: None,
+            observed_at_unix_seconds: None,
+            changed_path_count: 0,
+            changed_paths: Vec::new(),
+            graph_node_ids: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            note: "missing".to_string(),
+        };
+
+        let (state_status, decision) =
+            map_epiphany_reorient(None, &pressure, &retrieval, &graph, &watcher);
+
+        assert_eq!(state_status, ThreadEpiphanyReorientStateStatus::Missing);
+        assert_eq!(decision.action, ThreadEpiphanyReorientAction::Regather);
+        assert_eq!(
+            decision.checkpoint_status,
+            ThreadEpiphanyReorientCheckpointStatus::Missing
+        );
+        assert_eq!(
+            decision.reasons,
+            vec![
+                ThreadEpiphanyReorientReason::MissingState,
+                ThreadEpiphanyReorientReason::MissingCheckpoint,
+            ]
+        );
+        assert!(decision.note.contains("No Epiphany state survived"));
+    }
+
+    #[test]
+    fn map_epiphany_reorient_resumes_when_checkpoint_is_still_aligned() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            revision: 7,
+            investigation_checkpoint: Some(
+                codex_protocol::protocol::EpiphanyInvestigationCheckpoint {
+                    checkpoint_id: "ix-resume".to_string(),
+                    kind: "source_gathering".to_string(),
+                    disposition:
+                        codex_protocol::protocol::EpiphanyInvestigationDisposition::ResumeReady,
+                    focus: "Keep the seam visible.".to_string(),
+                    next_action: Some("Resume from the durable checkpoint.".to_string()),
+                    code_refs: vec![codex_protocol::protocol::EpiphanyCodeRef {
+                        path: PathBuf::from("src/lib.rs"),
+                        start_line: Some(1),
+                        end_line: Some(10),
+                        symbol: Some("resume_target".to_string()),
+                        note: None,
+                    }],
+                    ..Default::default()
+                },
+            ),
+            ..Default::default()
+        };
+        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: 40,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
+            model_context_window: Some(200),
+            model_auto_compact_token_limit: Some(100),
+        }));
+        let retrieval = ThreadEpiphanyRetrievalFreshness {
+            status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            semantic_available: Some(true),
+            last_indexed_at_unix_seconds: Some(1_744_500_000),
+            indexed_file_count: Some(12),
+            indexed_chunk_count: Some(34),
+            dirty_paths: Vec::new(),
+            note: "ready".to_string(),
+        };
+        let graph = ThreadEpiphanyGraphFreshness {
+            status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            graph_freshness: Some("fresh".to_string()),
+            checkpoint_id: Some("ck-1".to_string()),
+            dirty_path_count: 0,
+            dirty_paths: Vec::new(),
+            open_question_count: 0,
+            open_gap_count: 0,
+            note: "ready".to_string(),
+        };
+        let watcher = ThreadEpiphanyInvalidationInput {
+            status: ThreadEpiphanyInvalidationStatus::Clean,
+            watched_root: Some(test_path_buf("/workspace")),
+            observed_at_unix_seconds: Some(1_744_600_000),
+            changed_path_count: 0,
+            changed_paths: Vec::new(),
+            graph_node_ids: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            note: "clean".to_string(),
+        };
+
+        let (state_status, decision) =
+            map_epiphany_reorient(Some(&state), &pressure, &retrieval, &graph, &watcher);
+
+        assert_eq!(state_status, ThreadEpiphanyReorientStateStatus::Ready);
+        assert_eq!(decision.action, ThreadEpiphanyReorientAction::Resume);
+        assert_eq!(
+            decision.checkpoint_status,
+            ThreadEpiphanyReorientCheckpointStatus::ResumeReady
+        );
+        assert_eq!(
+            decision.reasons,
+            vec![ThreadEpiphanyReorientReason::CheckpointReady]
+        );
+        assert_eq!(decision.checkpoint_id.as_deref(), Some("ix-resume"));
+        assert_eq!(
+            decision.next_action,
+            "Resume from the durable checkpoint.".to_string()
+        );
+        assert!(decision.checkpoint_dirty_paths.is_empty());
+        assert!(decision.checkpoint_changed_paths.is_empty());
+    }
+
+    #[test]
+    fn map_epiphany_reorient_regathers_when_checkpoint_paths_or_frontier_shift() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            revision: 9,
+            investigation_checkpoint: Some(
+                codex_protocol::protocol::EpiphanyInvestigationCheckpoint {
+                    checkpoint_id: "ix-shifted".to_string(),
+                    kind: "slice_planning".to_string(),
+                    disposition:
+                        codex_protocol::protocol::EpiphanyInvestigationDisposition::ResumeReady,
+                    focus: "Map the live seam.".to_string(),
+                    next_action: Some("Re-gather the touched source before editing.".to_string()),
+                    code_refs: vec![codex_protocol::protocol::EpiphanyCodeRef {
+                        path: PathBuf::from("src/lib.rs"),
+                        start_line: Some(1),
+                        end_line: Some(20),
+                        symbol: Some("shifted_target".to_string()),
+                        note: None,
+                    }],
+                    ..Default::default()
+                },
+            ),
+            ..Default::default()
+        };
+        let pressure = map_epiphany_pressure(None);
+        let retrieval = ThreadEpiphanyRetrievalFreshness {
+            status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            semantic_available: Some(true),
+            last_indexed_at_unix_seconds: Some(1_744_500_000),
+            indexed_file_count: Some(12),
+            indexed_chunk_count: Some(34),
+            dirty_paths: Vec::new(),
+            note: "ready".to_string(),
+        };
+        let graph = ThreadEpiphanyGraphFreshness {
+            status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            graph_freshness: Some("fresh".to_string()),
+            checkpoint_id: Some("ck-1".to_string()),
+            dirty_path_count: 0,
+            dirty_paths: Vec::new(),
+            open_question_count: 0,
+            open_gap_count: 0,
+            note: "ready".to_string(),
+        };
+        let watcher = ThreadEpiphanyInvalidationInput {
+            status: ThreadEpiphanyInvalidationStatus::Changed,
+            watched_root: Some(test_path_buf("/workspace")),
+            observed_at_unix_seconds: Some(1_744_600_001),
+            changed_path_count: 1,
+            changed_paths: vec![PathBuf::from("src/lib.rs")],
+            graph_node_ids: vec!["shifted-target".to_string()],
+            active_frontier_node_ids: vec!["shifted-target".to_string()],
+            note: "changed".to_string(),
+        };
+
+        let (state_status, decision) =
+            map_epiphany_reorient(Some(&state), &pressure, &retrieval, &graph, &watcher);
+
+        assert_eq!(state_status, ThreadEpiphanyReorientStateStatus::Ready);
+        assert_eq!(decision.action, ThreadEpiphanyReorientAction::Regather);
+        assert_eq!(
+            decision.checkpoint_status,
+            ThreadEpiphanyReorientCheckpointStatus::ResumeReady
+        );
+        assert_eq!(
+            decision.reasons,
+            vec![
+                ThreadEpiphanyReorientReason::CheckpointPathsChanged,
+                ThreadEpiphanyReorientReason::FrontierChanged,
+            ]
+        );
+        assert_eq!(
+            decision.checkpoint_changed_paths,
+            vec![PathBuf::from("src/lib.rs")]
+        );
+        assert_eq!(
+            decision.active_frontier_node_ids,
+            vec!["shifted-target".to_string()]
+        );
+        assert!(decision.note.contains("Re-gather before editing"));
     }
 
     #[test]

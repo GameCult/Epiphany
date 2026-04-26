@@ -13226,6 +13226,117 @@
       ],
       "type": "string"
     },
+    "ThreadEpiphanyReorientAction": {
+      "enum": [
+        "resume",
+        "regather"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyReorientCheckpointStatus": {
+      "enum": [
+        "missing",
+        "resumeReady",
+        "regatherRequired"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyReorientDecision": {
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/ThreadEpiphanyReorientAction"
+        },
+        "activeFrontierNodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "checkpointChangedPaths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "checkpointDirtyPaths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "checkpointId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checkpointStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyReorientCheckpointStatus"
+        },
+        "graphStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyGraphFreshnessStatus"
+        },
+        "nextAction": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "pressureLevel": {
+          "$ref": "#/definitions/ThreadEpiphanyPressureLevel"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/definitions/ThreadEpiphanyReorientReason"
+          },
+          "type": "array"
+        },
+        "retrievalStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyRetrievalFreshnessStatus"
+        },
+        "watcherStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyInvalidationStatus"
+        }
+      },
+      "required": [
+        "action",
+        "checkpointStatus",
+        "graphStatus",
+        "nextAction",
+        "note",
+        "pressureLevel",
+        "retrievalStatus",
+        "watcherStatus"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyReorientReason": {
+      "enum": [
+        "missingState",
+        "missingCheckpoint",
+        "checkpointRequestedRegather",
+        "checkpointPathsDirty",
+        "checkpointPathsChanged",
+        "frontierChanged",
+        "unanchoredCheckpointWhileStateStale",
+        "checkpointReady"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyReorientSource": {
+      "enum": [
+        "stored",
+        "live"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyReorientStateStatus": {
+      "enum": [
+        "missing",
+        "ready"
+      ],
+      "type": "string"
+    },
     "ThreadEpiphanyRetrievalFreshness": {
       "properties": {
         "dirtyPaths": {
@@ -13549,6 +13660,7 @@
         "jobs",
         "freshness",
         "pressure",
+        "reorient",
         "propose",
         "promote",
         "update"
