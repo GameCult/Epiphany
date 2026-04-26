@@ -48,6 +48,7 @@ The rule is:
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
 | `thread/epiphany/jobLaunch` | bounded authority write | landed, live-smoked | Creates a launcher-owned durable `jobBinding`, launches the current backend adapter, and emits `stateUpdated` with source `jobLaunch`. |
 | `thread/epiphany/jobInterrupt` | bounded authority write | landed, live-smoked | Interrupts the current backend adapter for a bound launcher job, clears backend identity from the durable `jobBinding`, and emits `stateUpdated` with source `jobInterrupt`. |
+| `thread/epiphany/reorientLaunch` | bounded authority write | landed, live-smoked | Consumes the read-only reorientation verdict and launches one fixed `reorient-specialist` worker with explicit resume/regather scope over the current backend adapter. |
 | `thread/epiphany/jobsUpdated` | notification | landed | Emits changed launcher-bound job snapshots for real runtime progress events when the mapped payload actually changes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable launcher metadata plus live backend overlay when a real owner exists. |
@@ -66,6 +67,7 @@ Durable Epiphany state may change through:
 - accepted `thread/epiphany/promote`
 - `thread/epiphany/jobLaunch`
 - `thread/epiphany/jobInterrupt`
+- `thread/epiphany/reorientLaunch`
 - normal rollout persistence of the current live `EpiphanyThreadState`
 
 The following must stay read-only:
@@ -163,6 +165,13 @@ adapter, but only to create or interrupt explicit launcher-owned work. They
 are not a queue, a second scheduler, or permission to smuggle runtime policy
 into the reflection surfaces.
 
+The first bounded runtime consumer over CRRC verdicts is also landed as
+`thread/epiphany/reorientLaunch`. It can only launch one fixed
+`reorient-specialist` binding through the same backend adapter, with explicit
+resume-versus-regather scope and checkpoint-derived payload. It is not
+automatic CRRC, not a background coordinator, and not a license to keep coding
+after drift without an explicit launch.
+
 The first live bound-runtime progress notification is also landed as
 `thread/epiphany/jobsUpdated`. It rides existing `agent_job_progress:{json}`
 background events from the runtime job runner, resolves matching launcher
@@ -257,6 +266,11 @@ It returns a read-only verdict:
 
 It does not mutate `SessionState`, compact, schedule, notify `thread/epiphany/stateUpdated`, auto-resume work, or auto-regather source. It is the wakeup verdict, not the hand reaching for the keyboard.
 
+The first explicit hand reaching for the keyboard is now
+`thread/epiphany/reorientLaunch`, and even that hand stays on a short leash:
+one fixed specialist role, one explicit launch call, one bounded checkpoint
+packet, and no ambient runtime coordination.
+
 ## Compaction And CRRC
 
 Compact-Rehydrate-Reorient-Continue is an architecture primitive, but automatic
@@ -282,11 +296,14 @@ signal now exists as `thread/epiphany/freshness`, live watcher-backed
 invalidation telemetry now exists inside that freshness surface for loaded
 threads, durable investigation packets now exist in typed state plus
 prompt/scene/context reflection, the first bounded policy verdict now exists as
-`thread/epiphany/reorient`, and explicit launch/interrupt authority now exists
-over the thin job seam. What does not exist yet is the runtime coordinator that
-acts on that verdict. Automatic CRRC still needs explicit runtime policy,
-bounded job ownership, and clean stopping rules instead of vibes with a
-clipboard.
+`thread/epiphany/reorient`, explicit launch/interrupt authority now exists over
+the thin job seam, and one explicit `thread/epiphany/reorientLaunch` consumer
+can now act on that verdict without becoming a hidden scheduler. What does not
+exist yet is the read-back path that brings that specialist's findings back
+into typed state or reflection, nor the automatic runtime coordinator that
+decides when to launch it. Automatic CRRC still needs explicit runtime policy,
+bounded job ownership, clean stopping rules, and honest result plumbing instead
+of vibes with a clipboard.
 
 Compaction should squeeze scratch, not the map.
 

@@ -13872,6 +13872,7 @@
         "freshness",
         "pressure",
         "reorient",
+        "reorientLaunch",
         "propose",
         "promote",
         "update"

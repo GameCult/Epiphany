@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, and reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, and `thread/epiphany/reorientLaunch` is now the first explicit runtime consumer over that verdict.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -63,6 +63,7 @@ The current spine:
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
 - explicit launch/interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`
+- bounded reorient-guided specialist launch through `thread/epiphany/reorientLaunch`
 - thin launcher metadata in durable `jobBindings`
 - live bound-job progress notification through `thread/epiphany/jobsUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
@@ -79,6 +80,7 @@ The current spine:
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
 - live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
 - live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
+- live reorient-guided specialist launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
 
 The exact current control flow is documented in
@@ -95,7 +97,7 @@ The exact current control flow is documented in
 - `thread/epiphany/context` is read-only.
 - `thread/epiphany/pressure` is read-only.
 - `thread/epiphany/reorient` is read-only.
-- Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, or the bounded `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt` authority surfaces when they mutate `jobBindings`.
+- Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, and `thread/epiphany/reorientLaunch` authority surfaces when they mutate `jobBindings`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
 - GUI/client surfaces reflect and steer typed state; they do not become the source of truth.
 - Do not restart Phase 5 hardening without a concrete regression.
@@ -154,6 +156,12 @@ For reorientation policy behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
+```
+
+For the bounded reorient-guided specialist launch surface, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'
 ```
 
 For Codex Rust work on this Windows machine:
@@ -220,12 +228,13 @@ still deserves `resume` or has to admit `regather`.
 Also keep the guardrail in mind: a read-only reorientation verdict is still not
 automatic CRRC. Runtime coordination and next-action execution are still future
 work even though read-only job ownership/progress reflection now has a real
-runtime seam and a thin launcher boundary.
+runtime seam, the thin launcher boundary is landed, and one explicit
+reorient-guided launch surface can now consume the verdict on purpose.
 
 When the user asks to continue, the next likely organ is the first bounded
-runtime consumer for the landed read-only `thread/epiphany/reorient` verdict,
-using the now-explicit job-control seam without turning CRRC into a hidden
-scheduler.
+read-back path for `thread/epiphany/reorientLaunch` output, so the launched
+resume-or-regather specialist does not leave its findings stranded in generic
+runtime job rows.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

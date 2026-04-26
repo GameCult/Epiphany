@@ -366,6 +366,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyReorientParams,
         response: v2::ThreadEpiphanyReorientResponse,
     },
+    #[experimental("thread/epiphany/reorientLaunch")]
+    ThreadEpiphanyReorientLaunch => "thread/epiphany/reorientLaunch" {
+        params: v2::ThreadEpiphanyReorientLaunchParams,
+        response: v2::ThreadEpiphanyReorientLaunchResponse,
+    },
     #[experimental("thread/epiphany/index")]
     ThreadEpiphanyIndex => "thread/epiphany/index" {
         params: v2::ThreadEpiphanyIndexParams,
@@ -1710,6 +1715,7 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Freshness,
                         v2::ThreadEpiphanySceneAction::Pressure,
                         v2::ThreadEpiphanySceneAction::Reorient,
+                        v2::ThreadEpiphanySceneAction::ReorientLaunch,
                         v2::ThreadEpiphanySceneAction::Update,
                         v2::ThreadEpiphanySceneAction::JobInterrupt,
                         v2::ThreadEpiphanySceneAction::Propose,
@@ -1809,6 +1815,7 @@ mod tests {
                             "freshness",
                             "pressure",
                             "reorient",
+                            "reorientLaunch",
                             "update",
                             "jobInterrupt",
                             "propose",
@@ -2217,6 +2224,156 @@ mod tests {
                         "activeFrontierNodeIds": ["state-spine"],
                         "nextAction": "Re-gather source before editing.",
                         "note": "Resume-ready checkpoint was invalidated by watcher/frontier drift."
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_reorient_launch_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyReorientLaunch {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyReorientLaunchResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyReorientSource::Live,
+                state_status: v2::ThreadEpiphanyReorientStateStatus::Ready,
+                state_revision: Some(4),
+                decision: v2::ThreadEpiphanyReorientDecision {
+                    action: v2::ThreadEpiphanyReorientAction::Regather,
+                    checkpoint_status: v2::ThreadEpiphanyReorientCheckpointStatus::ResumeReady,
+                    checkpoint_id: Some("ix-1".to_string()),
+                    pressure_level: v2::ThreadEpiphanyPressureLevel::High,
+                    retrieval_status: v2::ThreadEpiphanyRetrievalFreshnessStatus::Stale,
+                    graph_status: v2::ThreadEpiphanyGraphFreshnessStatus::Ready,
+                    watcher_status: v2::ThreadEpiphanyInvalidationStatus::Changed,
+                    reasons: vec![
+                        v2::ThreadEpiphanyReorientReason::CheckpointPathsChanged,
+                        v2::ThreadEpiphanyReorientReason::FrontierChanged,
+                    ],
+                    checkpoint_dirty_paths: vec![PathBuf::from("src/lib.rs")],
+                    checkpoint_changed_paths: vec![PathBuf::from("src/lib.rs")],
+                    active_frontier_node_ids: vec!["state-spine".to_string()],
+                    next_action: "Re-gather source before editing.".to_string(),
+                    note: "Resume-ready checkpoint was invalidated by watcher/frontier drift."
+                        .to_string(),
+                },
+                revision: 5,
+                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 5,
+                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                        id: "reorient-specialist".to_string(),
+                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        scope: "reorient-guided checkpoint regather".to_string(),
+                        owner_role: "epiphany-reorient".to_string(),
+                        launcher_job_id: Some("epiphany-launch-1".to_string()),
+                        authority_scope: Some("epiphany.reorient.regather".to_string()),
+                        backend_kind: Some(
+                            codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs,
+                        ),
+                        backend_job_id: Some("backend-1".to_string()),
+                        runtime_agent_job_id: Some("backend-1".to_string()),
+                        linked_subgoal_ids: vec!["phase-6".to_string()],
+                        linked_graph_node_ids: vec!["state-spine".to_string()],
+                        progress_note: Some(
+                            "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                                .to_string(),
+                        ),
+                        blocking_reason: None,
+                    }],
+                    ..Default::default()
+                },
+                job: v2::ThreadEpiphanyJob {
+                    id: "reorient-specialist".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "reorient-guided checkpoint regather".to_string(),
+                    owner_role: "epiphany-reorient".to_string(),
+                    launcher_job_id: Some("epiphany-launch-1".to_string()),
+                    authority_scope: Some("epiphany.reorient.regather".to_string()),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_job_id: Some("backend-1".to_string()),
+                    status: v2::ThreadEpiphanyJobStatus::Pending,
+                    runtime_agent_job_id: Some("backend-1".to_string()),
+                    items_processed: None,
+                    items_total: None,
+                    progress_note: Some(
+                        "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                            .to_string(),
+                    ),
+                    last_checkpoint_at_unix_seconds: None,
+                    blocking_reason: None,
+                    active_thread_ids: Vec::new(),
+                    linked_subgoal_ids: vec!["phase-6".to_string()],
+                    linked_graph_node_ids: vec!["state-spine".to_string()],
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/reorientLaunch");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/reorientLaunch",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 4,
+                    "decision": {
+                        "action": "regather",
+                        "checkpointStatus": "resumeReady",
+                        "checkpointId": "ix-1",
+                        "pressureLevel": "high",
+                        "retrievalStatus": "stale",
+                        "graphStatus": "ready",
+                        "watcherStatus": "changed",
+                        "reasons": [
+                            "checkpointPathsChanged",
+                            "frontierChanged"
+                        ],
+                        "checkpointDirtyPaths": ["src/lib.rs"],
+                        "checkpointChangedPaths": ["src/lib.rs"],
+                        "activeFrontierNodeIds": ["state-spine"],
+                        "nextAction": "Re-gather source before editing.",
+                        "note": "Resume-ready checkpoint was invalidated by watcher/frontier drift."
+                    },
+                    "revision": 5,
+                    "changedFields": ["jobBindings"],
+                    "epiphanyState": {
+                        "revision": 5,
+                        "job_bindings": [{
+                            "id": "reorient-specialist",
+                            "kind": "specialist",
+                            "scope": "reorient-guided checkpoint regather",
+                            "owner_role": "epiphany-reorient",
+                            "launcher_job_id": "epiphany-launch-1",
+                            "authority_scope": "epiphany.reorient.regather",
+                            "backend_kind": "agent_jobs",
+                            "backend_job_id": "backend-1",
+                            "runtime_agent_job_id": "backend-1",
+                            "linked_subgoal_ids": ["phase-6"],
+                            "linked_graph_node_ids": ["state-spine"],
+                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                        }]
+                    },
+                    "job": {
+                        "id": "reorient-specialist",
+                        "kind": "specialist",
+                        "scope": "reorient-guided checkpoint regather",
+                        "ownerRole": "epiphany-reorient",
+                        "launcherJobId": "epiphany-launch-1",
+                        "authorityScope": "epiphany.reorient.regather",
+                        "backendKind": "agentJobs",
+                        "backendJobId": "backend-1",
+                        "status": "pending",
+                        "runtimeAgentJobId": "backend-1",
+                        "progressNote": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend.",
+                        "linkedSubgoalIds": ["phase-6"],
+                        "linkedGraphNodeIds": ["state-spine"]
                     }
                 }
             }),
@@ -3441,6 +3598,20 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/reorient"));
+    }
+
+    #[test]
+    fn thread_epiphany_reorient_launch_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyReorientLaunch {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyReorientLaunchParams {
+                thread_id: "thr_123".to_string(),
+                expected_revision: Some(4),
+                max_runtime_seconds: Some(90),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/reorientLaunch"));
     }
 
     #[test]

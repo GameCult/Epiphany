@@ -4002,6 +4002,7 @@ pub enum ThreadEpiphanySceneAction {
     Freshness,
     Pressure,
     Reorient,
+    ReorientLaunch,
     Propose,
     Promote,
     Update,
@@ -4558,6 +4559,36 @@ pub struct ThreadEpiphanyReorientResponse {
     #[ts(optional = nullable)]
     pub state_revision: Option<u64>,
     pub decision: ThreadEpiphanyReorientDecision,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientLaunchParams {
+    pub thread_id: String,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub max_runtime_seconds: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientLaunchResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyReorientSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub decision: ThreadEpiphanyReorientDecision,
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: CoreEpiphanyThreadState,
+    pub job: ThreadEpiphanyJob,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]

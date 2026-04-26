@@ -193,6 +193,8 @@ use codex_app_server_protocol::ThreadEpiphanyProposeResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
+use codex_app_server_protocol::ThreadEpiphanyReorientLaunchParams;
+use codex_app_server_protocol::ThreadEpiphanyReorientLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientParams;
 use codex_app_server_protocol::ThreadEpiphanyReorientReason;
 use codex_app_server_protocol::ThreadEpiphanyReorientResponse;
@@ -1083,6 +1085,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyReorient { request_id, params } => {
                 self.thread_epiphany_reorient(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyReorientLaunch { request_id, params } => {
+                self.thread_epiphany_reorient_launch(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4508,6 +4514,166 @@ impl CodexMessageProcessor {
             decision,
         };
         self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_reorient_launch(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyReorientLaunchParams,
+    ) {
+        let ThreadEpiphanyReorientLaunchParams {
+            thread_id,
+            expected_revision,
+            max_runtime_seconds,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let retrieval_override = loaded_thread.epiphany_retrieval_state().await;
+        let config_snapshot = loaded_thread.config_snapshot().await;
+        self.epiphany_invalidation_manager
+            .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
+            .await;
+        let watcher_snapshot = self
+            .epiphany_invalidation_manager
+            .snapshot(&thread_id)
+            .await;
+        let token_usage_info = loaded_thread.token_usage_info().await;
+        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+            thread.epiphany_state.as_ref(),
+            Some(&retrieval_override),
+            Some(&watcher_snapshot),
+        );
+        let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+        let (state_status, decision) = map_epiphany_reorient(
+            thread.epiphany_state.as_ref(),
+            &pressure,
+            &retrieval,
+            &graph,
+            &watcher,
+        );
+
+        let Some(state) = thread.epiphany_state.as_ref() else {
+            self.send_invalid_request_error(
+                request_id,
+                format!(
+                    "cannot launch a reorientation specialist without authoritative Epiphany state: {}",
+                    decision.note
+                ),
+            )
+            .await;
+            return;
+        };
+        let Some(checkpoint) = state.investigation_checkpoint.as_ref() else {
+            self.send_invalid_request_error(
+                request_id,
+                format!(
+                    "cannot launch a reorientation specialist without a durable investigation checkpoint: {}",
+                    decision.note
+                ),
+            )
+            .await;
+            return;
+        };
+
+        let launch_request = build_epiphany_reorient_launch_request(
+            &thread_id,
+            expected_revision,
+            max_runtime_seconds,
+            state,
+            checkpoint,
+            &decision,
+        );
+        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+        let launched = match loaded_thread.epiphany_launch_job(launch_request).await {
+            Ok(launched) => launched,
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!(
+                        "failed to launch Epiphany reorientation specialist for {thread_uuid}: {err}"
+                    ),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let epiphany_state = client_visible_live_thread_epiphany_state(
+            loaded_thread.as_ref(),
+            launched.epiphany_state,
+        )
+        .await;
+        let state_db_ctx = loaded_thread.epiphany_state_runtime().await;
+        let job_resolution =
+            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
+                .await;
+        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+            .into_iter()
+            .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
+            .unwrap_or_else(map_epiphany_specialist_job);
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyReorientLaunchResponse {
+                    thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyReorientSource::Live,
+                    state_status,
+                    state_revision,
+                    decision,
+                    revision: epiphany_state.revision,
+                    changed_fields: changed_fields.clone(),
+                    epiphany_state: epiphany_state.clone(),
+                    job,
+                },
+            )
+            .await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                    revision: epiphany_state.revision,
+                    changed_fields,
+                    epiphany_state,
+                },
+            ))
+            .await;
     }
 
     async fn thread_epiphany_retrieve(
@@ -11159,7 +11325,13 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
     } else {
         ThreadEpiphanySceneSource::Stored
     };
-    let available_actions = epiphany_scene_available_actions(loaded, state.is_some());
+    let available_actions = epiphany_scene_available_actions(
+        loaded,
+        state.is_some(),
+        state
+            .and_then(|state| state.investigation_checkpoint.as_ref())
+            .is_some(),
+    );
     let Some(state) = state else {
         return ThreadEpiphanyScene {
             state_status: ThreadEpiphanySceneStateStatus::Missing,
@@ -11262,10 +11434,13 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
 }
 
 const EPIPHANY_SCENE_RECORD_LIMIT: usize = 5;
+const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-specialist";
+const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
 fn epiphany_scene_available_actions(
     loaded: bool,
     state_present: bool,
+    checkpoint_present: bool,
 ) -> Vec<ThreadEpiphanySceneAction> {
     if !loaded {
         return Vec::new();
@@ -11281,14 +11456,224 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Freshness,
         ThreadEpiphanySceneAction::Pressure,
         ThreadEpiphanySceneAction::Reorient,
-        ThreadEpiphanySceneAction::Update,
     ];
+    if checkpoint_present {
+        actions.push(ThreadEpiphanySceneAction::ReorientLaunch);
+    }
+    actions.push(ThreadEpiphanySceneAction::Update);
     if state_present {
         actions.push(ThreadEpiphanySceneAction::JobInterrupt);
         actions.push(ThreadEpiphanySceneAction::Propose);
         actions.push(ThreadEpiphanySceneAction::Promote);
     }
     actions
+}
+
+fn build_epiphany_reorient_launch_request(
+    thread_id: &str,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+    state: &EpiphanyThreadState,
+    checkpoint: &codex_protocol::protocol::EpiphanyInvestigationCheckpoint,
+    decision: &ThreadEpiphanyReorientDecision,
+) -> EpiphanyJobLaunchRequest {
+    let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
+    let linked_graph_node_ids = unique_strings(
+        epiphany_active_graph_node_ids(Some(state))
+            .into_iter()
+            .chain(decision.active_frontier_node_ids.iter().cloned()),
+    );
+    let checkpoint_next_action = checkpoint
+        .next_action
+        .clone()
+        .unwrap_or_else(|| decision.next_action.clone());
+    let authority_scope = match decision.action {
+        ThreadEpiphanyReorientAction::Resume => "epiphany.reorient.resume",
+        ThreadEpiphanyReorientAction::Regather => "epiphany.reorient.regather",
+    };
+    let scope = match decision.action {
+        ThreadEpiphanyReorientAction::Resume => "reorient-guided checkpoint resume",
+        ThreadEpiphanyReorientAction::Regather => "reorient-guided checkpoint regather",
+    };
+    let instruction = build_epiphany_reorient_launch_instruction(decision.action);
+    let input_json = serde_json::json!({
+        "threadId": thread_id,
+        "mode": reorient_action_label(decision.action),
+        "checkpointId": checkpoint.checkpoint_id.clone(),
+        "checkpointKind": checkpoint.kind.clone(),
+        "checkpointDisposition": investigation_disposition_label(checkpoint.disposition),
+        "checkpointFocus": checkpoint.focus.clone(),
+        "checkpointSummary": checkpoint.summary.clone(),
+        "checkpointNextAction": checkpoint_next_action,
+        "checkpointOpenQuestions": checkpoint.open_questions.clone(),
+        "checkpointEvidenceIds": checkpoint.evidence_ids.clone(),
+        "checkpointCodeRefs": checkpoint
+            .code_refs
+            .iter()
+            .map(epiphany_code_ref_json)
+            .collect::<Vec<_>>(),
+        "decisionReasons": decision
+            .reasons
+            .iter()
+            .map(|reason| reorient_reason_label(*reason))
+            .collect::<Vec<_>>(),
+        "decisionNote": decision.note.clone(),
+        "pressureLevel": pressure_level_label(decision.pressure_level),
+        "retrievalStatus": retrieval_freshness_status_label(decision.retrieval_status),
+        "graphStatus": graph_freshness_status_label(decision.graph_status),
+        "watcherStatus": invalidation_status_label(decision.watcher_status),
+        "checkpointDirtyPaths": decision
+            .checkpoint_dirty_paths
+            .iter()
+            .map(path_to_display_string)
+            .collect::<Vec<_>>(),
+        "checkpointChangedPaths": decision
+            .checkpoint_changed_paths
+            .iter()
+            .map(path_to_display_string)
+            .collect::<Vec<_>>(),
+        "activeFrontierNodeIds": decision.active_frontier_node_ids.clone(),
+        "linkedSubgoalIds": linked_subgoal_ids,
+        "linkedGraphNodeIds": linked_graph_node_ids,
+    });
+
+    EpiphanyJobLaunchRequest {
+        expected_revision,
+        binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
+        kind: CoreEpiphanyJobKind::Specialist,
+        scope: scope.to_string(),
+        owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
+        authority_scope: authority_scope.to_string(),
+        linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
+        linked_graph_node_ids: unique_strings(
+            epiphany_active_graph_node_ids(Some(state))
+                .into_iter()
+                .chain(decision.active_frontier_node_ids.iter().cloned()),
+        ),
+        instruction,
+        input_json,
+        output_schema_json: Some(epiphany_reorient_launch_output_schema()),
+        max_runtime_seconds,
+    }
+}
+
+fn build_epiphany_reorient_launch_instruction(action: ThreadEpiphanyReorientAction) -> String {
+    match action {
+        ThreadEpiphanyReorientAction::Resume => "Use the durable Epiphany investigation checkpoint to resume one bounded source-grounding pass. Verify that the checkpointed seam still makes sense, answer only the local open questions you can ground from source, and return a compact structured result. Keep scope tight. Do not drift into broad implementation or invent evidence you did not actually inspect.".to_string(),
+        ThreadEpiphanyReorientAction::Regather => "Treat the durable Epiphany investigation checkpoint as invalidated and re-gather the seam before any implementation. Inspect the changed checkpoint paths and frontier hits, explain what broke the old packet, and return a compact structured result with the next safe move. Do not continue broad implementation until the seam is re-grounded.".to_string(),
+    }
+}
+
+fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "mode": {
+                "type": "string",
+                "enum": ["resume", "regather"]
+            },
+            "summary": {"type": "string"},
+            "nextSafeMove": {"type": "string"},
+            "checkpointStillValid": {"type": "boolean"},
+            "filesInspected": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "frontierNodeIds": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "evidenceIds": {
+                "type": "array",
+                "items": {"type": "string"}
+            }
+        },
+        "required": ["mode", "summary", "nextSafeMove"],
+        "additionalProperties": true
+    })
+}
+
+fn epiphany_code_ref_json(
+    code_ref: &codex_protocol::protocol::EpiphanyCodeRef,
+) -> serde_json::Value {
+    serde_json::json!({
+        "path": path_to_display_string(code_ref.path.as_path()),
+        "startLine": code_ref.start_line,
+        "endLine": code_ref.end_line,
+        "symbol": code_ref.symbol,
+        "note": code_ref.note,
+    })
+}
+
+fn path_to_display_string(path: impl AsRef<Path>) -> String {
+    path.as_ref().to_string_lossy().into_owned()
+}
+
+fn reorient_action_label(action: ThreadEpiphanyReorientAction) -> &'static str {
+    match action {
+        ThreadEpiphanyReorientAction::Resume => "resume",
+        ThreadEpiphanyReorientAction::Regather => "regather",
+    }
+}
+
+fn investigation_disposition_label(disposition: EpiphanyInvestigationDisposition) -> &'static str {
+    match disposition {
+        EpiphanyInvestigationDisposition::ResumeReady => "resume_ready",
+        EpiphanyInvestigationDisposition::RegatherRequired => "regather_required",
+    }
+}
+
+fn reorient_reason_label(reason: ThreadEpiphanyReorientReason) -> &'static str {
+    match reason {
+        ThreadEpiphanyReorientReason::MissingState => "missingState",
+        ThreadEpiphanyReorientReason::MissingCheckpoint => "missingCheckpoint",
+        ThreadEpiphanyReorientReason::CheckpointRequestedRegather => "checkpointRequestedRegather",
+        ThreadEpiphanyReorientReason::CheckpointPathsDirty => "checkpointPathsDirty",
+        ThreadEpiphanyReorientReason::CheckpointPathsChanged => "checkpointPathsChanged",
+        ThreadEpiphanyReorientReason::FrontierChanged => "frontierChanged",
+        ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
+            "unanchoredCheckpointWhileStateStale"
+        }
+        ThreadEpiphanyReorientReason::CheckpointReady => "checkpointReady",
+    }
+}
+
+fn pressure_level_label(level: ThreadEpiphanyPressureLevel) -> &'static str {
+    match level {
+        ThreadEpiphanyPressureLevel::Unknown => "unknown",
+        ThreadEpiphanyPressureLevel::Low => "low",
+        ThreadEpiphanyPressureLevel::Elevated => "elevated",
+        ThreadEpiphanyPressureLevel::High => "high",
+        ThreadEpiphanyPressureLevel::Critical => "critical",
+    }
+}
+
+fn retrieval_freshness_status_label(
+    status: ThreadEpiphanyRetrievalFreshnessStatus,
+) -> &'static str {
+    match status {
+        ThreadEpiphanyRetrievalFreshnessStatus::Missing => "missing",
+        ThreadEpiphanyRetrievalFreshnessStatus::Ready => "ready",
+        ThreadEpiphanyRetrievalFreshnessStatus::Stale => "stale",
+        ThreadEpiphanyRetrievalFreshnessStatus::Indexing => "indexing",
+        ThreadEpiphanyRetrievalFreshnessStatus::Unavailable => "unavailable",
+    }
+}
+
+fn graph_freshness_status_label(status: ThreadEpiphanyGraphFreshnessStatus) -> &'static str {
+    match status {
+        ThreadEpiphanyGraphFreshnessStatus::Missing => "missing",
+        ThreadEpiphanyGraphFreshnessStatus::Ready => "ready",
+        ThreadEpiphanyGraphFreshnessStatus::Stale => "stale",
+    }
+}
+
+fn invalidation_status_label(status: ThreadEpiphanyInvalidationStatus) -> &'static str {
+    match status {
+        ThreadEpiphanyInvalidationStatus::Unavailable => "unavailable",
+        ThreadEpiphanyInvalidationStatus::Clean => "clean",
+        ThreadEpiphanyInvalidationStatus::Changed => "changed",
+    }
 }
 
 fn map_epiphany_freshness(
@@ -14378,6 +14763,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Freshness,
                 ThreadEpiphanySceneAction::Pressure,
                 ThreadEpiphanySceneAction::Reorient,
+                ThreadEpiphanySceneAction::ReorientLaunch,
                 ThreadEpiphanySceneAction::Update,
                 ThreadEpiphanySceneAction::JobInterrupt,
                 ThreadEpiphanySceneAction::Propose,

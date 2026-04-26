@@ -244,6 +244,7 @@ def assert_ready_scene(scene: dict[str, Any], expected_revision: int) -> None:
             "freshness",
             "pressure",
             "reorient",
+            "reorientLaunch",
             "update",
             "jobInterrupt",
             "propose",
