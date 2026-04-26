@@ -3,6 +3,8 @@ use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
 use crate::command_exec::CommandExecManager;
 use crate::command_exec::StartCommandExecParams;
 use crate::config_manager::ConfigManager;
+use crate::epiphany_invalidation::EpiphanyInvalidationManager;
+use crate::epiphany_invalidation::EpiphanyInvalidationSnapshot;
 use crate::error_code::INPUT_TOO_LARGE_ERROR_CODE;
 use crate::error_code::INTERNAL_ERROR_CODE;
 use crate::error_code::INVALID_PARAMS_ERROR_CODE;
@@ -162,6 +164,8 @@ use codex_app_server_protocol::ThreadEpiphanyGraphFreshness;
 use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyIndexParams;
 use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
+use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
+use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
@@ -569,6 +573,7 @@ pub(crate) struct CodexMessageProcessor {
     pending_thread_unloads: Arc<Mutex<HashSet<ThreadId>>>,
     thread_state_manager: ThreadStateManager,
     thread_watch_manager: ThreadWatchManager,
+    epiphany_invalidation_manager: EpiphanyInvalidationManager,
     command_exec_manager: CommandExecManager,
     pending_fuzzy_searches: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
     fuzzy_search_sessions: Arc<Mutex<HashMap<String, FuzzyFileSearchSession>>>,
@@ -594,6 +599,7 @@ struct ListenerTaskContext {
     analytics_events_client: AnalyticsEventsClient,
     general_analytics_enabled: bool,
     thread_watch_manager: ThreadWatchManager,
+    epiphany_invalidation_manager: EpiphanyInvalidationManager,
     fallback_model_provider: String,
     codex_home: PathBuf,
 }
@@ -826,6 +832,7 @@ impl CodexMessageProcessor {
             pending_thread_unloads: Arc::new(Mutex::new(HashSet::new())),
             thread_state_manager: ThreadStateManager::new(),
             thread_watch_manager: ThreadWatchManager::new_with_outgoing(outgoing),
+            epiphany_invalidation_manager: EpiphanyInvalidationManager::new(),
             command_exec_manager: CommandExecManager::default(),
             pending_fuzzy_searches: Arc::new(Mutex::new(HashMap::new())),
             fuzzy_search_sessions: Arc::new(Mutex::new(HashMap::new())),
@@ -2518,6 +2525,7 @@ impl CodexMessageProcessor {
             analytics_events_client: self.analytics_events_client.clone(),
             general_analytics_enabled: self.config.features.enabled(Feature::GeneralAnalytics),
             thread_watch_manager: self.thread_watch_manager.clone(),
+            epiphany_invalidation_manager: self.epiphany_invalidation_manager.clone(),
             fallback_model_provider: self.config.model_provider_id.clone(),
             codex_home: self.config.codex_home.to_path_buf(),
         };
@@ -4242,8 +4250,24 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let (state_revision, retrieval, graph) =
-            map_epiphany_freshness(thread.epiphany_state.as_ref(), retrieval_override.as_ref());
+        let watcher_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            let config_snapshot = loaded_thread.config_snapshot().await;
+            self.epiphany_invalidation_manager
+                .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
+                .await;
+            Some(
+                self.epiphany_invalidation_manager
+                    .snapshot(&thread_id)
+                    .await,
+            )
+        } else {
+            None
+        };
+        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+            thread.epiphany_state.as_ref(),
+            retrieval_override.as_ref(),
+            watcher_snapshot.as_ref(),
+        );
         let response = ThreadEpiphanyFreshnessResponse {
             thread_id,
             source: if loaded_thread.is_some() {
@@ -4254,6 +4278,7 @@ impl CodexMessageProcessor {
             state_revision,
             retrieval,
             graph,
+            watcher,
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -7046,6 +7071,9 @@ impl CodexMessageProcessor {
         self.thread_state_manager
             .remove_thread_state(thread_id)
             .await;
+        self.epiphany_invalidation_manager
+            .remove_thread(&thread_id.to_string())
+            .await;
         self.thread_watch_manager
             .remove_thread(&thread_id.to_string())
             .await;
@@ -7057,6 +7085,7 @@ impl CodexMessageProcessor {
         pending_thread_unloads: Arc<Mutex<HashSet<ThreadId>>>,
         thread_state_manager: ThreadStateManager,
         thread_watch_manager: ThreadWatchManager,
+        epiphany_invalidation_manager: EpiphanyInvalidationManager,
         thread_id: ThreadId,
         thread: Arc<CodexThread>,
     ) {
@@ -7068,18 +7097,27 @@ impl CodexMessageProcessor {
             .cancel_requests_for_thread(thread_id, /*error*/ None)
             .await;
         thread_state_manager.remove_thread_state(thread_id).await;
+        epiphany_invalidation_manager
+            .remove_thread(&thread_id.to_string())
+            .await;
 
         tokio::spawn(async move {
             match Self::wait_for_thread_shutdown(&thread).await {
                 ThreadShutdownResult::Complete => {
                     if thread_manager.remove_thread(&thread_id).await.is_none() {
                         info!("thread {thread_id} was already removed before teardown finalized");
+                        epiphany_invalidation_manager
+                            .remove_thread(&thread_id.to_string())
+                            .await;
                         thread_watch_manager
                             .remove_thread(&thread_id.to_string())
                             .await;
                         pending_thread_unloads.lock().await.remove(&thread_id);
                         return;
                     }
+                    epiphany_invalidation_manager
+                        .remove_thread(&thread_id.to_string())
+                        .await;
                     thread_watch_manager
                         .remove_thread(&thread_id.to_string())
                         .await;
@@ -8579,6 +8617,7 @@ impl CodexMessageProcessor {
                 analytics_events_client: self.analytics_events_client.clone(),
                 general_analytics_enabled: self.config.features.enabled(Feature::GeneralAnalytics),
                 thread_watch_manager: self.thread_watch_manager.clone(),
+                epiphany_invalidation_manager: self.epiphany_invalidation_manager.clone(),
                 fallback_model_provider: self.config.model_provider_id.clone(),
                 codex_home: self.config.codex_home.to_path_buf(),
             },
@@ -8697,6 +8736,7 @@ impl CodexMessageProcessor {
                 analytics_events_client: self.analytics_events_client.clone(),
                 general_analytics_enabled: self.config.features.enabled(Feature::GeneralAnalytics),
                 thread_watch_manager: self.thread_watch_manager.clone(),
+                epiphany_invalidation_manager: self.epiphany_invalidation_manager.clone(),
                 fallback_model_provider: self.config.model_provider_id.clone(),
                 codex_home: self.config.codex_home.to_path_buf(),
             },
@@ -8746,6 +8786,7 @@ impl CodexMessageProcessor {
             analytics_events_client: _,
             general_analytics_enabled: _,
             thread_watch_manager,
+            epiphany_invalidation_manager,
             fallback_model_provider,
             codex_home,
         } = listener_task_context;
@@ -8859,6 +8900,7 @@ impl CodexMessageProcessor {
                             pending_thread_unloads.clone(),
                             thread_state_manager.clone(),
                             thread_watch_manager.clone(),
+                            epiphany_invalidation_manager.clone(),
                             conversation_id,
                             conversation.clone(),
                         )
@@ -10892,16 +10934,19 @@ fn epiphany_scene_available_actions(
 fn map_epiphany_freshness(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
+    watcher_snapshot: Option<&EpiphanyInvalidationSnapshot>,
 ) -> (
     Option<u64>,
     ThreadEpiphanyRetrievalFreshness,
     ThreadEpiphanyGraphFreshness,
+    ThreadEpiphanyInvalidationInput,
 ) {
     let retrieval = epiphany_retrieval_state_for_reflection(state, retrieval_override);
     (
         state.map(|state| state.revision),
         map_epiphany_retrieval_freshness(retrieval),
         map_epiphany_graph_freshness(state),
+        map_epiphany_invalidation_input(state, watcher_snapshot),
     )
 }
 
@@ -11023,6 +11068,180 @@ fn map_epiphany_graph_freshness(
         open_gap_count,
         note,
     }
+}
+
+fn map_epiphany_invalidation_input(
+    state: Option<&EpiphanyThreadState>,
+    watcher_snapshot: Option<&EpiphanyInvalidationSnapshot>,
+) -> ThreadEpiphanyInvalidationInput {
+    let Some(watcher_snapshot) = watcher_snapshot else {
+        return ThreadEpiphanyInvalidationInput {
+            status: ThreadEpiphanyInvalidationStatus::Unavailable,
+            watched_root: None,
+            observed_at_unix_seconds: None,
+            changed_path_count: 0,
+            changed_paths: Vec::new(),
+            graph_node_ids: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            note: "Watcher-backed invalidation inputs are only available for loaded threads."
+                .to_string(),
+        };
+    };
+
+    if !watcher_snapshot.available {
+        return ThreadEpiphanyInvalidationInput {
+            status: ThreadEpiphanyInvalidationStatus::Unavailable,
+            watched_root: None,
+            observed_at_unix_seconds: None,
+            changed_path_count: 0,
+            changed_paths: Vec::new(),
+            graph_node_ids: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            note: "The workspace watcher is unavailable for this app-server process.".to_string(),
+        };
+    }
+
+    let changed_paths = watcher_snapshot.changed_paths.clone();
+    let changed_path_count = changed_paths.len() as u32;
+    let watched_root = watcher_snapshot
+        .workspace_root
+        .as_ref()
+        .map(|root| root.to_path_buf());
+
+    if changed_paths.is_empty() {
+        return ThreadEpiphanyInvalidationInput {
+            status: ThreadEpiphanyInvalidationStatus::Clean,
+            watched_root,
+            observed_at_unix_seconds: watcher_snapshot.observed_at_unix_seconds,
+            changed_path_count,
+            changed_paths,
+            graph_node_ids: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            note: "Watcher has not observed recent filesystem changes under the workspace root."
+                .to_string(),
+        };
+    }
+
+    let graph_node_ids = state
+        .map(|state| {
+            graph_node_ids_for_changed_paths(
+                state,
+                &changed_paths,
+                watcher_snapshot
+                    .workspace_root
+                    .as_ref()
+                    .map(|root| root.as_path()),
+            )
+        })
+        .unwrap_or_default();
+    let active_frontier_node_ids = state
+        .map(|state| {
+            active_frontier_node_ids_for_changed_paths(
+                state,
+                &changed_paths,
+                watcher_snapshot
+                    .workspace_root
+                    .as_ref()
+                    .map(|root| root.as_path()),
+            )
+        })
+        .unwrap_or_default();
+    let note = if graph_node_ids.is_empty() {
+        format!(
+            "Watcher observed {changed_path_count} recent changed path(s), but no mapped graph node code refs matched yet."
+        )
+    } else if active_frontier_node_ids.is_empty() {
+        format!(
+            "Watcher observed {changed_path_count} recent changed path(s) touching {} mapped graph node(s).",
+            graph_node_ids.len()
+        )
+    } else {
+        format!(
+            "Watcher observed {changed_path_count} recent changed path(s) touching {} mapped graph node(s), including {} active frontier node(s).",
+            graph_node_ids.len(),
+            active_frontier_node_ids.len()
+        )
+    };
+
+    ThreadEpiphanyInvalidationInput {
+        status: ThreadEpiphanyInvalidationStatus::Changed,
+        watched_root,
+        observed_at_unix_seconds: watcher_snapshot.observed_at_unix_seconds,
+        changed_path_count,
+        changed_paths,
+        graph_node_ids,
+        active_frontier_node_ids,
+        note,
+    }
+}
+
+fn graph_node_ids_for_changed_paths(
+    state: &EpiphanyThreadState,
+    changed_paths: &[PathBuf],
+    workspace_root: Option<&Path>,
+) -> Vec<String> {
+    let changed_path_keys: HashSet<String> = changed_paths
+        .iter()
+        .map(|path| epiphany_path_key(path.as_path()))
+        .collect();
+    let mut node_ids = Vec::new();
+    let mut seen = HashSet::new();
+
+    for node in state
+        .graphs
+        .architecture
+        .nodes
+        .iter()
+        .chain(state.graphs.dataflow.nodes.iter())
+    {
+        let matches_changed_path = node.code_refs.iter().any(|code_ref| {
+            changed_path_keys.contains(&code_ref_path_key(
+                Path::new(&code_ref.path),
+                workspace_root,
+            ))
+        });
+        if matches_changed_path && seen.insert(node.id.as_str()) {
+            node_ids.push(node.id.clone());
+        }
+    }
+
+    node_ids
+}
+
+fn active_frontier_node_ids_for_changed_paths(
+    state: &EpiphanyThreadState,
+    changed_paths: &[PathBuf],
+    workspace_root: Option<&Path>,
+) -> Vec<String> {
+    let graph_node_ids = graph_node_ids_for_changed_paths(state, changed_paths, workspace_root);
+    let frontier_node_ids = state
+        .graph_frontier
+        .as_ref()
+        .map(|frontier| frontier.active_node_ids.as_slice())
+        .unwrap_or_default();
+    let graph_node_ids: HashSet<&str> = graph_node_ids.iter().map(String::as_str).collect();
+
+    frontier_node_ids
+        .iter()
+        .filter(|node_id| graph_node_ids.contains(node_id.as_str()))
+        .cloned()
+        .collect()
+}
+
+fn epiphany_path_key(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .to_string()
+}
+
+fn code_ref_path_key(path: &Path, workspace_root: Option<&Path>) -> String {
+    if let Some(workspace_root) = workspace_root
+        && let Ok(relative_path) = path.strip_prefix(workspace_root)
+    {
+        return epiphany_path_key(relative_path);
+    }
+    epiphany_path_key(path)
 }
 
 fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
@@ -13210,7 +13429,8 @@ mod tests {
             ..Default::default()
         };
 
-        let (state_revision, retrieval, graph) = map_epiphany_freshness(None, Some(&retrieval));
+        let (state_revision, retrieval, graph, watcher) =
+            map_epiphany_freshness(None, Some(&retrieval), None);
 
         assert_eq!(state_revision, None);
         assert_eq!(
@@ -13220,12 +13440,35 @@ mod tests {
         assert_eq!(retrieval.semantic_available, Some(true));
         assert_eq!(graph.status, ThreadEpiphanyGraphFreshnessStatus::Missing);
         assert_eq!(graph.dirty_path_count, 0);
+        assert_eq!(
+            watcher.status,
+            ThreadEpiphanyInvalidationStatus::Unavailable
+        );
     }
 
     #[test]
     fn map_epiphany_freshness_marks_graph_and_retrieval_stale() {
         let state = EpiphanyThreadState {
             revision: 7,
+            graphs: codex_protocol::protocol::EpiphanyGraphs {
+                architecture: codex_protocol::protocol::EpiphanyGraph {
+                    nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                        id: "state-spine".to_string(),
+                        title: "State spine".to_string(),
+                        purpose: "Typed state".to_string(),
+                        code_refs: vec![codex_protocol::protocol::EpiphanyCodeRef {
+                            path: test_path_buf("/workspace/src/router.rs"),
+                            start_line: None,
+                            end_line: None,
+                            symbol: None,
+                            note: None,
+                        }],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
             graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
                 active_node_ids: vec!["state-spine".to_string()],
                 dirty_paths: vec![PathBuf::from("src/router.rs")],
@@ -13255,9 +13498,15 @@ mod tests {
             dirty_paths: vec![PathBuf::from("src/router.rs")],
             ..Default::default()
         };
+        let watcher_snapshot = EpiphanyInvalidationSnapshot {
+            available: true,
+            workspace_root: Some(test_path_buf("/workspace").abs()),
+            observed_at_unix_seconds: Some(1_744_600_000),
+            changed_paths: vec![PathBuf::from("src/router.rs")],
+        };
 
-        let (state_revision, retrieval, graph) =
-            map_epiphany_freshness(Some(&state), Some(&retrieval));
+        let (state_revision, retrieval, graph, watcher) =
+            map_epiphany_freshness(Some(&state), Some(&retrieval), Some(&watcher_snapshot));
 
         assert_eq!(state_revision, Some(7));
         assert_eq!(
@@ -13270,6 +13519,75 @@ mod tests {
         assert_eq!(graph.dirty_path_count, 1);
         assert_eq!(graph.open_question_count, 1);
         assert_eq!(graph.open_gap_count, 0);
+        assert_eq!(watcher.status, ThreadEpiphanyInvalidationStatus::Changed);
+        assert_eq!(
+            watcher.watched_root,
+            Some(test_path_buf("/workspace").abs().to_path_buf())
+        );
+        assert_eq!(watcher.changed_paths, vec![PathBuf::from("src/router.rs")]);
+        assert_eq!(watcher.graph_node_ids, vec!["state-spine".to_string()]);
+        assert_eq!(
+            watcher.active_frontier_node_ids,
+            vec!["state-spine".to_string()]
+        );
+    }
+
+    #[test]
+    fn map_epiphany_freshness_reports_clean_watcher_when_no_changes_were_seen() {
+        let watcher_snapshot = EpiphanyInvalidationSnapshot {
+            available: true,
+            workspace_root: Some(test_path_buf("/workspace").abs()),
+            observed_at_unix_seconds: None,
+            changed_paths: Vec::new(),
+        };
+
+        let (_, _, _, watcher) = map_epiphany_freshness(None, None, Some(&watcher_snapshot));
+
+        assert_eq!(watcher.status, ThreadEpiphanyInvalidationStatus::Clean);
+        assert_eq!(watcher.changed_path_count, 0);
+        assert_eq!(
+            watcher.watched_root,
+            Some(test_path_buf("/workspace").abs().to_path_buf())
+        );
+    }
+
+    #[test]
+    fn map_epiphany_freshness_reports_unmatched_changed_paths_without_inventing_nodes() {
+        let state = EpiphanyThreadState {
+            graphs: codex_protocol::protocol::EpiphanyGraphs {
+                architecture: codex_protocol::protocol::EpiphanyGraph {
+                    nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                        id: "scene".to_string(),
+                        title: "Scene".to_string(),
+                        purpose: "Reflection".to_string(),
+                        code_refs: vec![codex_protocol::protocol::EpiphanyCodeRef {
+                            path: test_path_buf("/workspace/src/scene.rs"),
+                            start_line: None,
+                            end_line: None,
+                            symbol: None,
+                            note: None,
+                        }],
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let watcher_snapshot = EpiphanyInvalidationSnapshot {
+            available: true,
+            workspace_root: Some(test_path_buf("/workspace").abs()),
+            observed_at_unix_seconds: Some(1_744_600_001),
+            changed_paths: vec![PathBuf::from("src/other.rs")],
+        };
+
+        let (_, _, _, watcher) =
+            map_epiphany_freshness(Some(&state), None, Some(&watcher_snapshot));
+
+        assert_eq!(watcher.status, ThreadEpiphanyInvalidationStatus::Changed);
+        assert!(watcher.graph_node_ids.is_empty());
+        assert!(watcher.active_frontier_node_ids.is_empty());
     }
 
     #[test]

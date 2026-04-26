@@ -4762,6 +4762,72 @@
       ],
       "type": "object"
     },
+    "EpiphanyInvestigationCheckpoint": {
+      "properties": {
+        "captured_at_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checkpoint_id": {
+          "type": "string"
+        },
+        "code_refs": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyCodeRef"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/definitions/EpiphanyInvestigationDisposition"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "focus": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "open_questions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "checkpoint_id",
+        "disposition",
+        "focus",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "EpiphanyInvestigationDisposition": {
+      "enum": [
+        "resume_ready",
+        "regather_required"
+      ],
+      "type": "string"
+    },
     "EpiphanyModeState": {
       "properties": {
         "kind": {
@@ -5035,6 +5101,16 @@
             "$ref": "#/definitions/EpiphanyInvariant"
           },
           "type": "array"
+        },
+        "investigation_checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyInvestigationCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "last_updated_turn_id": {
           "type": [
@@ -12729,6 +12805,16 @@
         "graph": {
           "$ref": "#/definitions/ThreadEpiphanyGraphContext"
         },
+        "investigationCheckpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyInvestigationCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "observations": {
           "items": {
             "$ref": "#/definitions/EpiphanyObservation"
@@ -12784,6 +12870,13 @@
       ],
       "type": "string"
     },
+    "ThreadEpiphanyFreshnessSource": {
+      "enum": [
+        "stored",
+        "live"
+      ],
+      "type": "string"
+    },
     "ThreadEpiphanyGraphContext": {
       "properties": {
         "architectureEdges": {
@@ -12818,6 +12911,125 @@
         }
       },
       "type": "object"
+    },
+    "ThreadEpiphanyGraphFreshness": {
+      "properties": {
+        "checkpointId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "dirtyPathCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "dirtyPaths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "graphFreshness": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "openGapCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "openQuestionCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "status": {
+          "$ref": "#/definitions/ThreadEpiphanyGraphFreshnessStatus"
+        }
+      },
+      "required": [
+        "dirtyPathCount",
+        "note",
+        "openGapCount",
+        "openQuestionCount",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyGraphFreshnessStatus": {
+      "enum": [
+        "missing",
+        "ready",
+        "stale"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyInvalidationInput": {
+      "properties": {
+        "activeFrontierNodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "changedPathCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "changedPaths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "graphNodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        },
+        "observedAtUnixSeconds": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/definitions/ThreadEpiphanyInvalidationStatus"
+        },
+        "watchedRoot": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "changedPathCount",
+        "note",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyInvalidationStatus": {
+      "enum": [
+        "unavailable",
+        "clean",
+        "changed"
+      ],
+      "type": "string"
     },
     "ThreadEpiphanyJob": {
       "properties": {
@@ -13011,6 +13223,66 @@
       "enum": [
         "unknown",
         "ready"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyRetrievalFreshness": {
+      "properties": {
+        "dirtyPaths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "indexedChunkCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "indexedFileCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "lastIndexedAtUnixSeconds": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "semanticAvailable": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/definitions/ThreadEpiphanyRetrievalFreshnessStatus"
+        }
+      },
+      "required": [
+        "note",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyRetrievalFreshnessStatus": {
+      "enum": [
+        "missing",
+        "ready",
+        "stale",
+        "indexing",
+        "unavailable"
       ],
       "type": "string"
     },
@@ -13209,6 +13481,16 @@
           },
           "type": "array"
         },
+        "investigationCheckpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadEpiphanySceneInvestigationCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "objective": {
           "type": [
             "string",
@@ -13265,6 +13547,7 @@
         "distill",
         "context",
         "jobs",
+        "freshness",
         "pressure",
         "propose",
         "promote",
@@ -13382,6 +13665,65 @@
         "dataflowNodeCount",
         "linkCount",
         "openGapCount",
+        "openQuestionCount"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanySceneInvestigationCheckpoint": {
+      "properties": {
+        "capturedAtTurnId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checkpointId": {
+          "type": "string"
+        },
+        "codeRefCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "disposition": {
+          "$ref": "#/definitions/EpiphanyInvestigationDisposition"
+        },
+        "evidenceCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "focus": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "nextAction": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "openQuestionCount": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "checkpointId",
+        "codeRefCount",
+        "disposition",
+        "evidenceCount",
+        "focus",
+        "kind",
         "openQuestionCount"
       ],
       "type": "object"
@@ -13557,6 +13899,7 @@
         "graphFrontier",
         "graphCheckpoint",
         "scratch",
+        "investigationCheckpoint",
         "observations",
         "evidence",
         "churn",
@@ -13666,6 +14009,16 @@
           "type": [
             "array",
             "null"
+          ]
+        },
+        "investigationCheckpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyInvestigationCheckpoint"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "mode": {

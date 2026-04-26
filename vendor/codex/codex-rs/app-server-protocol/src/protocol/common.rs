@@ -1886,6 +1886,17 @@ mod tests {
                     note: "Graph freshness is stale; frontier has 1 dirty path(s), 1 open question id(s), and 0 open gap id(s)."
                         .to_string(),
                 },
+                watcher: v2::ThreadEpiphanyInvalidationInput {
+                    status: v2::ThreadEpiphanyInvalidationStatus::Changed,
+                    watched_root: Some(PathBuf::from("/repo")),
+                    observed_at_unix_seconds: Some(1_744_500_123),
+                    changed_path_count: 1,
+                    changed_paths: vec![PathBuf::from("src/router.rs")],
+                    graph_node_ids: vec!["router-flow".to_string()],
+                    active_frontier_node_ids: vec!["router-flow".to_string()],
+                    note: "Watcher observed 1 recent changed path(s) touching 1 mapped graph node(s), including 1 active frontier node(s)."
+                        .to_string(),
+                },
             },
         };
 
@@ -1917,6 +1928,16 @@ mod tests {
                         "openQuestionCount": 1,
                         "openGapCount": 0,
                         "note": "Graph freshness is stale; frontier has 1 dirty path(s), 1 open question id(s), and 0 open gap id(s)."
+                    },
+                    "watcher": {
+                        "status": "changed",
+                        "watchedRoot": "/repo",
+                        "observedAtUnixSeconds": 1744500123,
+                        "changedPathCount": 1,
+                        "changedPaths": ["src/router.rs"],
+                        "graphNodeIds": ["router-flow"],
+                        "activeFrontierNodeIds": ["router-flow"],
+                        "note": "Watcher observed 1 recent changed path(s) touching 1 mapped graph node(s), including 1 active frontier node(s)."
                     }
                 }
             }),

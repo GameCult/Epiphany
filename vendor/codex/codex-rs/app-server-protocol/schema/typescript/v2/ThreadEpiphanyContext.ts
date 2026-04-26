@@ -4,7 +4,8 @@
 import type { EpiphanyEvidenceRecord } from "../EpiphanyEvidenceRecord";
 import type { EpiphanyGraphCheckpoint } from "../EpiphanyGraphCheckpoint";
 import type { EpiphanyGraphFrontier } from "../EpiphanyGraphFrontier";
+import type { EpiphanyInvestigationCheckpoint } from "../EpiphanyInvestigationCheckpoint";
 import type { EpiphanyObservation } from "../EpiphanyObservation";
 import type { ThreadEpiphanyGraphContext } from "./ThreadEpiphanyGraphContext";
 
-export type ThreadEpiphanyContext = { graph: ThreadEpiphanyGraphContext, frontier?: EpiphanyGraphFrontier | null, checkpoint?: EpiphanyGraphCheckpoint | null, observations?: Array<EpiphanyObservation>, evidence?: Array<EpiphanyEvidenceRecord>, };
+export type ThreadEpiphanyContext = { graph: ThreadEpiphanyGraphContext, frontier?: EpiphanyGraphFrontier | null, checkpoint?: EpiphanyGraphCheckpoint | null, investigationCheckpoint?: EpiphanyInvestigationCheckpoint | null, observations?: Array<EpiphanyObservation>, evidence?: Array<EpiphanyEvidenceRecord>, };

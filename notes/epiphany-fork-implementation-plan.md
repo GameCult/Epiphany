@@ -59,8 +59,9 @@ The landed machine now has:
 - live Phase 6 scene app-server smoke coverage in `tools/epiphany_phase6_scene_smoke.py`
 - read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`
 - live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
-- read-only Phase 6 retrieval/graph freshness reflection through `thread/epiphany/freshness`
+- read-only Phase 6 retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - live Phase 6 freshness app-server smoke coverage in `tools/epiphany_phase6_freshness_smoke.py`
+- live Phase 6 watcher-backed invalidation smoke coverage in `tools/epiphany_phase6_invalidation_smoke.py`
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
 - live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
@@ -80,7 +81,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/index` may update the semantic retrieval catalog, but it is not a hidden Epiphany-state writer.
 - `thread/epiphany/scene` is a client reflection, not a second source of truth.
 - `thread/epiphany/jobs` is a derived reflection, not a scheduler or durable job store.
-- `thread/epiphany/freshness` is a derived reflection, not watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
+- `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
@@ -120,9 +121,9 @@ and notify typed state. It can.
 The next unknowns are:
 
 - how to expose live long-running job progress without making the GUI authoritative
-- when watcher-driven invalidation becomes necessary instead of merely tempting
+- how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how the landed investigation checkpoint should be consumed by future automatic CRRC without becoming ceremony machinery
-- how much automatic CRRC coordination belongs in runtime once pressure and checkpoint signals both exist
+- how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, and checkpoint signals all exist
 - what Phase 6 should prove before specialist scheduling begins
 
 ## Phase 6 Direction
@@ -131,7 +132,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add live watcher-backed invalidation inputs on top of the landed freshness lens when stale graph or retrieval state needs earlier warning.
+1. Add a bounded CRRC coordination/policy slice that consumes pressure, freshness, watcher telemetry, and the durable investigation checkpoint to decide whether a wakeup should resume or re-gather.
 2. Add live job progress notifications only after there is a real long-running owner to report.
 3. Add targeted scene/jobs/context/pressure/checkpoint fields only when a client or smoke exposes a real gap.
 
@@ -180,6 +181,12 @@ Before modifying freshness reflection behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_freshness_smoke.py'
+```
+
+Before modifying watcher-backed invalidation behavior inside freshness reflection, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'
 ```
 
 Before modifying targeted context-shard behavior, run:

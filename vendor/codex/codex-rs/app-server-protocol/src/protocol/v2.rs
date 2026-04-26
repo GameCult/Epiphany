@@ -4172,6 +4172,7 @@ pub struct ThreadEpiphanyFreshnessResponse {
     pub state_revision: Option<u64>,
     pub retrieval: ThreadEpiphanyRetrievalFreshness,
     pub graph: ThreadEpiphanyGraphFreshness,
+    pub watcher: ThreadEpiphanyInvalidationInput,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
@@ -4240,6 +4241,36 @@ pub struct ThreadEpiphanyGraphFreshness {
     pub dirty_paths: Vec<PathBuf>,
     pub open_question_count: u32,
     pub open_gap_count: u32,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyInvalidationStatus {
+    Unavailable,
+    Clean,
+    Changed,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyInvalidationInput {
+    pub status: ThreadEpiphanyInvalidationStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub watched_root: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub observed_at_unix_seconds: Option<i64>,
+    pub changed_path_count: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed_paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub graph_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_frontier_node_ids: Vec<String>,
     pub note: String,
 }
 

@@ -4,6 +4,7 @@
 import type { ThreadEpiphanySceneAction } from "./ThreadEpiphanySceneAction";
 import type { ThreadEpiphanySceneChurn } from "./ThreadEpiphanySceneChurn";
 import type { ThreadEpiphanySceneGraph } from "./ThreadEpiphanySceneGraph";
+import type { ThreadEpiphanySceneInvestigationCheckpoint } from "./ThreadEpiphanySceneInvestigationCheckpoint";
 import type { ThreadEpiphanySceneRecords } from "./ThreadEpiphanySceneRecords";
 import type { ThreadEpiphanySceneRetrieval } from "./ThreadEpiphanySceneRetrieval";
 import type { ThreadEpiphanySceneSource } from "./ThreadEpiphanySceneSource";
@@ -11,4 +12,4 @@ import type { ThreadEpiphanySceneStateStatus } from "./ThreadEpiphanySceneStateS
 import type { ThreadEpiphanySceneStatusCount } from "./ThreadEpiphanySceneStatusCount";
 import type { ThreadEpiphanySceneSubgoal } from "./ThreadEpiphanySceneSubgoal";
 
-export type ThreadEpiphanyScene = { stateStatus: ThreadEpiphanySceneStateStatus, source: ThreadEpiphanySceneSource, revision?: bigint | null, objective?: string | null, activeSubgoal?: ThreadEpiphanySceneSubgoal | null, subgoals?: Array<ThreadEpiphanySceneSubgoal>, invariantStatusCounts?: Array<ThreadEpiphanySceneStatusCount>, graph: ThreadEpiphanySceneGraph, retrieval?: ThreadEpiphanySceneRetrieval | null, observations: ThreadEpiphanySceneRecords, evidence: ThreadEpiphanySceneRecords, churn?: ThreadEpiphanySceneChurn | null, availableActions?: Array<ThreadEpiphanySceneAction>, };
+export type ThreadEpiphanyScene = { stateStatus: ThreadEpiphanySceneStateStatus, source: ThreadEpiphanySceneSource, revision?: bigint | null, objective?: string | null, activeSubgoal?: ThreadEpiphanySceneSubgoal | null, subgoals?: Array<ThreadEpiphanySceneSubgoal>, invariantStatusCounts?: Array<ThreadEpiphanySceneStatusCount>, graph: ThreadEpiphanySceneGraph, retrieval?: ThreadEpiphanySceneRetrieval | null, investigationCheckpoint?: ThreadEpiphanySceneInvestigationCheckpoint | null, observations: ThreadEpiphanySceneRecords, evidence: ThreadEpiphanySceneRecords, churn?: ThreadEpiphanySceneChurn | null, availableActions?: Array<ThreadEpiphanySceneAction>, };

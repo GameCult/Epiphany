@@ -352,6 +352,72 @@
       ],
       "type": "object"
     },
+    "EpiphanyInvestigationCheckpoint": {
+      "properties": {
+        "captured_at_turn_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checkpoint_id": {
+          "type": "string"
+        },
+        "code_refs": {
+          "items": {
+            "$ref": "#/definitions/EpiphanyCodeRef"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/definitions/EpiphanyInvestigationDisposition"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "focus": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "next_action": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "open_questions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "summary": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "checkpoint_id",
+        "disposition",
+        "focus",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "EpiphanyInvestigationDisposition": {
+      "enum": [
+        "resume_ready",
+        "regather_required"
+      ],
+      "type": "string"
+    },
     "EpiphanyModeState": {
       "properties": {
         "kind": {
@@ -626,6 +692,16 @@
           },
           "type": "array"
         },
+        "investigation_checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/EpiphanyInvestigationCheckpoint"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "last_updated_turn_id": {
           "type": [
             "string",
@@ -715,6 +791,7 @@
         "graphFrontier",
         "graphCheckpoint",
         "scratch",
+        "investigationCheckpoint",
         "observations",
         "evidence",
         "churn",

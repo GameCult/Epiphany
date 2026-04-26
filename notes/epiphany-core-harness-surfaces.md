@@ -48,7 +48,7 @@ The rule is:
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries. |
-| `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state. |
+| `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state, with watcher-backed invalidation inputs for loaded threads. |
 | `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
 
@@ -130,7 +130,7 @@ These are not landed yet:
 - live typed job/progress state for running indexing, remap, verification, and specialist work
 - `thread/epiphany/jobsUpdated` or equivalent progress notifications
 - richer evidence-range and graph-shard inspection beyond the landed context shard
-- watcher-driven graph/retrieval/invariant invalidation on top of the landed freshness reflection
+- automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
 - typed turn intent before broad mutation
 - hard mutation gates for stale map or violated invariants
@@ -184,11 +184,13 @@ It reflects from existing sources only:
 - graph frontier dirty paths and open-question/open-gap pressure
 - graph checkpoint identity
 - churn freshness hints such as `fresh` or `stale`
+- live watcher-backed invalidation telemetry for loaded threads: watched root, recent changed paths, mapped graph-node hits, and active-frontier hits
 - state revision and live/stored source identity
 
 It does not mutate `SessionState`, refresh retrieval, remap graphs, emit
-`thread/epiphany/stateUpdated`, or pretend watcher-driven invalidation is
-already built. It is a pressure lens, not the crew with the crowbar.
+`thread/epiphany/stateUpdated`, schedule follow-up work, or perform automatic
+semantic invalidation. It is a pressure lens with eyes, not the crew with the
+crowbar.
 
 ## Context Shard Surface Direction
 
@@ -229,13 +231,14 @@ Future runtime behavior should:
 - distinguish what survived from what was discarded
 - make compaction visible instead of pretending continuity is magic
 
-The pressure signal now exists as `thread/epiphany/pressure`, the first
-freshness signal now exists as `thread/epiphany/freshness`, and durable
-investigation packets now exist in typed state plus prompt/scene/context
-reflection. What does not exist yet is the runtime coordinator that consumes
-those signals. Automatic CRRC still needs live watcher-backed invalidity
-telemetry and an explicit policy for when a checkpoint means "resume" versus
-"re-gather" instead of vibes with a clipboard.
+The pressure signal now exists as `thread/epiphany/pressure`, the freshness
+signal now exists as `thread/epiphany/freshness`, live watcher-backed
+invalidation telemetry now exists inside that freshness surface for loaded
+threads, and durable investigation packets now exist in typed state plus
+prompt/scene/context reflection. What does not exist yet is the runtime
+coordinator that consumes those signals. Automatic CRRC still needs an explicit
+policy for when a checkpoint means "resume" versus "re-gather" instead of vibes
+with a clipboard.
 
 Compaction should squeeze scratch, not the map.
 
