@@ -68,6 +68,7 @@ accepted_design:
   - Vendored Codex keeps the thin typed host seam: protocol types, thread bridges, app-server protocol, request routing, and rollout integration.
   - The current algorithmic map is the source-grounded description of live control flow.
   - Compact-Rehydrate-Reorient-Continue is an architecture primitive; automatic runtime coordination is not landed yet.
+  - Context pressure must become an explicit runtime signal for automatic CRRC; inference from transcript vibes, user warnings, or shrinking safe scope is useful only as a temporary human/agent heuristic.
   - GUI/client work must reflect or steer typed state rather than manufacture a second source of truth.
   - `thread/epiphany/jobs` is the first read-only job/progress reflection: it derives indexing, remap, verification, and specialist slots from existing state; it is not a scheduler or durable job store.
   - `thread/epiphany/context` is the first targeted read-only state-shard surface: it selects graph nodes/edges, active frontier, checkpoint, observations, and evidence from authoritative typed state without mutating or notifying.

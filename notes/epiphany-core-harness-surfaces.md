@@ -201,11 +201,16 @@ Current operating rule:
 
 Future runtime behavior should:
 
-- detect context pressure before the hard limit
+- expose context pressure as a real runtime signal before the hard limit
 - checkpoint at safe points when possible
 - preserve role-specific resume packets
 - distinguish what survived from what was discarded
 - make compaction visible instead of pretending continuity is magic
+
+Until that signal exists, agents can only infer pressure from indirect cues:
+long transcripts, compaction warnings, quota pressure, and a shrinking safe
+landing zone. That is a scar, not a sensor. Automatic CRRC needs typed
+pressure/freshness telemetry instead of vibes with a clipboard.
 
 Compaction should squeeze scratch, not the map.
 

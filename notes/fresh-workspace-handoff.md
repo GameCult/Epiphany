@@ -159,7 +159,7 @@ Live `thread/epiphany/scene`, `thread/epiphany/jobs`, and
 - automatic observation promotion
 - specialist-agent scheduling
 - GUI-as-source-of-truth
-- automatic runtime CRRC coordinator
+- automatic runtime CRRC coordinator with real context-pressure telemetry
 - live long-running job execution or `thread/epiphany/jobsUpdated`
 - broad event stream beyond the landed state update notification
 

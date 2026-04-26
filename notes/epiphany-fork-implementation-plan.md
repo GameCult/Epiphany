@@ -113,6 +113,7 @@ The next unknowns are:
 
 - how to expose live long-running job progress without making the GUI authoritative
 - when watcher-driven invalidation becomes necessary instead of merely tempting
+- how to expose context pressure as a real runtime signal for automatic CRRC
 - how much automatic CRRC coordination belongs in runtime before it becomes ceremony machinery
 - what Phase 6 should prove before specialist scheduling begins
 
@@ -139,7 +140,7 @@ These remain later work:
 - richer evidence and graph-shard inspection beyond the landed targeted context read
 - role-scoped specialist-agent registry and scheduling
 - mutation gates that warn or block broad writes when map freshness is stale
-- automatic CRRC runtime coordination
+- automatic CRRC runtime coordination with typed context-pressure telemetry
 - GUI workflows for graph, evidence, job, invariant, and frontier steering
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a
