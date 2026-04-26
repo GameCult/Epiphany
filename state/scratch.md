@@ -4,22 +4,44 @@ This file is disposable working memory for the current bounded subgoal.
 
 ## Current Subgoal
 
-No active scratch subgoal.
+No active scratch subgoal. The next prepared slice is below.
 
-## Last Completed Audit
+## Source-Grounded Findings
 
-- `thread/epiphany/context` now provides the first targeted read-only state-shard reflection.
-- The surface selects graph nodes/edges, active frontier, checkpoint, observations, direct evidence, and linked evidence from authoritative typed state.
-- It reports missing requested ids and does not retrieve, propose, promote, notify, persist, or mutate state.
+- Existing core telemetry already has the real pressure source: `TokenUsageInfo`
+  carries total usage, last usage, and `model_context_window` in
+  `vendor/codex/codex-rs/protocol/src/protocol.rs`.
+- Core updates that telemetry through `Session::update_token_usage_info`,
+  `Session::recompute_token_usage`, and `TokenCount` events in
+  `vendor/codex/codex-rs/core/src/session/mod.rs`.
+- Automatic compaction is currently triggered from
+  `ModelInfo::auto_compact_token_limit()` in
+  `vendor/codex/codex-rs/core/src/session/turn.rs`, including pre-turn context
+  limit and model-downshift paths.
+- App-server already translates/replays usage through
+  `thread/tokenUsage/updated` using
+  `vendor/codex/codex-rs/app-server/src/codex_message_processor/token_usage_replay.rs`.
+- The protocol surface `ThreadTokenUsage` in
+  `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs` exposes
+  `model_context_window` but not the auto-compact threshold, remaining budget,
+  ratio, or CRRC recommendation.
 
-## Decision
+## Next Implementation Move
 
-Keep context as a bounded lens, not a hidden proposal engine. The next outward
-Phase 6 move should add a missing sense only when there is a real consumer:
-watcher/freshness inputs or live job progress notifications once actual
-long-running owners exist.
+Implement the smallest honest read-only pressure surface:
 
-Scene, jobs, and context smokes are guardrails now, not the next organs.
+- add optional auto-compact threshold telemetry where token usage is created,
+  preserving backward compatibility.
+- add experimental `thread/epiphany/pressure` as a read-only projection over
+  latest token telemetry.
+- derive `unknown`, `low`, `elevated`, `high`, or `critical` pressure from real
+  token usage versus the auto-compact threshold/context window.
+- include a CRRC recommendation only as reflection, not action.
+- do not start compaction, mutate Epiphany state, emit `stateUpdated`, create a
+  scheduler, or implement automatic CRRC in this slice.
 
-Do not promote anything from this scratch into the map unless it survives
-verification or repeated reuse without contradiction.
+## Verification Target
+
+Add focused protocol/app-server tests and a live smoke analogous to scene/jobs/
+context that proves pressure reads live telemetry, reports `unknown` honestly
+when telemetry is absent, and does not mutate or notify.

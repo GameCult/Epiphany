@@ -146,9 +146,18 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
-When the user asks to continue, choose the next Phase 6 outward slice. Good
-candidates are watcher/freshness inputs or live job progress notifications. Do
-not build a scheduler from vibes.
+When the user asks to continue, resume the Phase 6 context-pressure slice now
+captured in `state/scratch.md`.
+
+Source trace found the honest seam: core already tracks `TokenUsageInfo` with
+`model_context_window`, core compaction already uses
+`ModelInfo::auto_compact_token_limit()`, and app-server already emits/replays
+`thread/tokenUsage/updated`. The next implementation should expose a read-only
+typed pressure reflection, likely `thread/epiphany/pressure`, derived from that
+real telemetry.
+
+Do not build automatic CRRC, a scheduler, a hidden compaction trigger, or a
+vibes-based gauge in this slice.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, and
 `thread/epiphany/context` smokes are now guardrails, not the next organs.
