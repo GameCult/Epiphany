@@ -2265,7 +2265,7 @@ mod tests {
                 epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
                     revision: 5,
                     job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
-                        id: "reorient-specialist".to_string(),
+                        id: "reorient-worker".to_string(),
                         kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                         scope: "reorient-guided checkpoint regather".to_string(),
                         owner_role: "epiphany-reorient".to_string(),
@@ -2287,7 +2287,7 @@ mod tests {
                     ..Default::default()
                 },
                 job: v2::ThreadEpiphanyJob {
-                    id: "reorient-specialist".to_string(),
+                    id: "reorient-worker".to_string(),
                     kind: v2::ThreadEpiphanyJobKind::Specialist,
                     scope: "reorient-guided checkpoint regather".to_string(),
                     owner_role: "epiphany-reorient".to_string(),
@@ -2346,7 +2346,7 @@ mod tests {
                     "epiphanyState": {
                         "revision": 5,
                         "job_bindings": [{
-                            "id": "reorient-specialist",
+                            "id": "reorient-worker",
                             "kind": "specialist",
                             "scope": "reorient-guided checkpoint regather",
                             "owner_role": "epiphany-reorient",
@@ -2361,7 +2361,7 @@ mod tests {
                         }]
                     },
                     "job": {
-                        "id": "reorient-specialist",
+                        "id": "reorient-worker",
                         "kind": "specialist",
                         "scope": "reorient-guided checkpoint regather",
                         "ownerRole": "epiphany-reorient",

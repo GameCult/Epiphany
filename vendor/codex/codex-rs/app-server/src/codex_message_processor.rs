@@ -4587,7 +4587,7 @@ impl CodexMessageProcessor {
             self.send_invalid_request_error(
                 request_id,
                 format!(
-                    "cannot launch a reorientation specialist without authoritative Epiphany state: {}",
+                    "cannot launch a reorientation worker without authoritative Epiphany state: {}",
                     decision.note
                 ),
             )
@@ -4598,7 +4598,7 @@ impl CodexMessageProcessor {
             self.send_invalid_request_error(
                 request_id,
                 format!(
-                    "cannot launch a reorientation specialist without a durable investigation checkpoint: {}",
+                    "cannot launch a reorientation worker without a durable investigation checkpoint: {}",
                     decision.note
                 ),
             )
@@ -4625,7 +4625,7 @@ impl CodexMessageProcessor {
                 self.send_internal_error(
                     request_id,
                     format!(
-                        "failed to launch Epiphany reorientation specialist for {thread_uuid}: {err}"
+                        "failed to launch Epiphany reorientation worker for {thread_uuid}: {err}"
                     ),
                 )
                 .await;
@@ -11434,7 +11434,7 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
 }
 
 const EPIPHANY_SCENE_RECORD_LIMIT: usize = 5;
-const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-specialist";
+const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
 fn epiphany_scene_available_actions(

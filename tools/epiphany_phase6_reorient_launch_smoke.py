@@ -23,7 +23,7 @@ DEFAULT_RESULT = ROOT / ".epiphany-smoke" / "phase6-reorient-launch-smoke-result
 DEFAULT_TRANSCRIPT = ROOT / ".epiphany-smoke" / "phase6-reorient-launch-smoke-transcript.jsonl"
 DEFAULT_STDERR = ROOT / ".epiphany-smoke" / "phase6-reorient-launch-smoke-server.stderr.log"
 
-BINDING_ID = "reorient-specialist"
+BINDING_ID = "reorient-worker"
 SUBGOAL_ID = "phase6-reorient-smoke"
 GRAPH_NODE_ID = "reorient-target"
 
@@ -329,7 +329,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Live-smoke the bounded Phase 6 reorient-guided specialist launch surface."
+        description="Live-smoke the bounded Phase 6 reorient-guided worker launch surface."
     )
     parser.add_argument("--app-server", type=Path, default=DEFAULT_APP_SERVER)
     parser.add_argument("--codex-home", type=Path, default=DEFAULT_CODEX_HOME)

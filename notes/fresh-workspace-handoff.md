@@ -63,7 +63,7 @@ The current spine:
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
 - explicit launch/interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`
-- bounded reorient-guided specialist launch through `thread/epiphany/reorientLaunch`
+- bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - thin launcher metadata in durable `jobBindings`
 - live bound-job progress notification through `thread/epiphany/jobsUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
@@ -80,7 +80,7 @@ The current spine:
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
 - live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
 - live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
-- live reorient-guided specialist launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
+- live reorient-guided worker launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
 
 The exact current control flow is documented in
@@ -158,7 +158,7 @@ For reorientation policy behavior changes, run:
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
 ```
 
-For the bounded reorient-guided specialist launch surface, run:
+For the bounded reorient-guided worker launch surface, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'

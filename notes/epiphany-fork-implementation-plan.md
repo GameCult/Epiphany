@@ -71,7 +71,7 @@ The landed machine now has:
 - live Phase 6 pressure app-server smoke coverage in `tools/epiphany_phase6_pressure_smoke.py`
 - durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
 - read-only Phase 6 CRRC reorientation policy through `thread/epiphany/reorient`
-- bounded Phase 6 reorient-guided specialist launch through `thread/epiphany/reorientLaunch`
+- bounded Phase 6 reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
@@ -132,7 +132,7 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- how the launched reorient-specialist results should flow back into typed state or reflection without hiding CRRC policy inside generic runtime job rows
+- how the launched reorient-worker results should flow back into typed state or reflection without hiding CRRC policy inside generic runtime job rows
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
 - whether future bounded CRRC consumers should keep reusing the landed `agent_jobs` backend through the explicit job-control seam or start defining a second backend contract
@@ -144,7 +144,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Decide how reorient-launched specialist output should be reflected or distilled back into the harness without auto-promoting or hiding policy inside the runtime backend.
+1. Decide how reorient-launched worker output should be reflected or distilled back into the harness without auto-promoting or hiding policy inside the runtime backend.
 2. Decide how much automatic CRRC coordination belongs now that pressure, freshness, watcher, checkpoint, reorient, explicit job control, and one explicit reorient-launch consumer all exist.
 3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 

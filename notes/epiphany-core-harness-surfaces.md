@@ -48,7 +48,7 @@ The rule is:
 | `thread/epiphany/stateUpdated` | notification | landed | Emits updated projected state, source, revision, and changed fields after successful update/promote writes. |
 | `thread/epiphany/jobLaunch` | bounded authority write | landed, live-smoked | Creates a launcher-owned durable `jobBinding`, launches the current backend adapter, and emits `stateUpdated` with source `jobLaunch`. |
 | `thread/epiphany/jobInterrupt` | bounded authority write | landed, live-smoked | Interrupts the current backend adapter for a bound launcher job, clears backend identity from the durable `jobBinding`, and emits `stateUpdated` with source `jobInterrupt`. |
-| `thread/epiphany/reorientLaunch` | bounded authority write | landed, live-smoked | Consumes the read-only reorientation verdict and launches one fixed `reorient-specialist` worker with explicit resume/regather scope over the current backend adapter. |
+| `thread/epiphany/reorientLaunch` | bounded authority write | landed, live-smoked | Consumes the read-only reorientation verdict and launches one fixed `reorient-worker` job with explicit resume/regather scope over the current backend adapter. |
 | `thread/epiphany/jobsUpdated` | notification | landed | Emits changed launcher-bound job snapshots for real runtime progress events when the mapped payload actually changes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable launcher metadata plus live backend overlay when a real owner exists. |
@@ -167,7 +167,7 @@ into the reflection surfaces.
 
 The first bounded runtime consumer over CRRC verdicts is also landed as
 `thread/epiphany/reorientLaunch`. It can only launch one fixed
-`reorient-specialist` binding through the same backend adapter, with explicit
+`reorient-worker` binding through the same backend adapter, with explicit
 resume-versus-regather scope and checkpoint-derived payload. It is not
 automatic CRRC, not a background coordinator, and not a license to keep coding
 after drift without an explicit launch.
