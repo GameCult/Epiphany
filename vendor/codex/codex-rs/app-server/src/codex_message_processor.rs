@@ -218,8 +218,14 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
+use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleLane;
+use codex_app_server_protocol::ThreadEpiphanyRoleLaunchParams;
+use codex_app_server_protocol::ThreadEpiphanyRoleLaunchResponse;
+use codex_app_server_protocol::ThreadEpiphanyRoleResultParams;
+use codex_app_server_protocol::ThreadEpiphanyRoleResultResponse;
+use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
 use codex_app_server_protocol::ThreadEpiphanyRolesParams;
 use codex_app_server_protocol::ThreadEpiphanyRolesResponse;
@@ -1094,6 +1100,14 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyRoles { request_id, params } => {
                 self.thread_epiphany_roles(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyRoleLaunch { request_id, params } => {
+                self.thread_epiphany_role_launch(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyRoleResult { request_id, params } => {
+                self.thread_epiphany_role_result(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyFreshness { request_id, params } => {
@@ -4446,6 +4460,251 @@ impl CodexMessageProcessor {
             note,
         };
         self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_role_launch(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyRoleLaunchParams,
+    ) {
+        let ThreadEpiphanyRoleLaunchParams {
+            thread_id,
+            role_id,
+            expected_revision,
+            max_runtime_seconds,
+        } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let state = match loaded_thread.epiphany_state().await {
+            Some(state) => state,
+            None => {
+                self.send_invalid_request_error(
+                    request_id,
+                    "cannot launch an Epiphany role specialist without authoritative Epiphany state"
+                        .to_string(),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let launch_request = match build_epiphany_role_launch_request(
+            &thread_id,
+            role_id,
+            expected_revision,
+            max_runtime_seconds,
+            &state,
+        ) {
+            Ok(request) => request,
+            Err(message) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+        };
+        let binding_id = launch_request.binding_id.clone();
+        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+        let launched = match loaded_thread.epiphany_launch_job(launch_request).await {
+            Ok(launched) => launched,
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to launch Epiphany role specialist for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let epiphany_state = client_visible_live_thread_epiphany_state(
+            loaded_thread.as_ref(),
+            launched.epiphany_state,
+        )
+        .await;
+        let state_db_ctx = loaded_thread.epiphany_state_runtime().await;
+        let job_resolution =
+            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
+                .await;
+        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+            .into_iter()
+            .find(|job| job.id == binding_id)
+            .unwrap_or_else(|| ThreadEpiphanyJob {
+                id: launched.binding_id.clone(),
+                kind: ThreadEpiphanyJobKind::Specialist,
+                scope: "missing launched role projection".to_string(),
+                owner_role: "epiphany-harness".to_string(),
+                launcher_job_id: Some(launched.launcher_job_id.clone()),
+                authority_scope: None,
+                backend_kind: Some(ThreadEpiphanyJobBackendKind::AgentJobs),
+                backend_job_id: Some(launched.backend_job_id.clone()),
+                status: ThreadEpiphanyJobStatus::Pending,
+                runtime_agent_job_id: Some(launched.backend_job_id.clone()),
+                items_processed: None,
+                items_total: None,
+                progress_note: None,
+                last_checkpoint_at_unix_seconds: None,
+                blocking_reason: None,
+                active_thread_ids: Vec::new(),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+            });
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyRoleLaunchResponse {
+                    thread_id: thread_uuid.to_string(),
+                    role_id,
+                    revision: epiphany_state.revision,
+                    changed_fields: changed_fields.clone(),
+                    epiphany_state: epiphany_state.clone(),
+                    job,
+                },
+            )
+            .await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                    revision: epiphany_state.revision,
+                    changed_fields,
+                    epiphany_state,
+                },
+            ))
+            .await;
+    }
+
+    async fn thread_epiphany_role_result(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyRoleResultParams,
+    ) {
+        let ThreadEpiphanyRoleResultParams {
+            thread_id,
+            role_id,
+            binding_id,
+        } = params;
+
+        let binding_id = match binding_id {
+            Some(binding_id) => binding_id,
+            None => match epiphany_role_binding_id(role_id) {
+                Ok(binding_id) => binding_id.to_string(),
+                Err(message) => {
+                    self.send_invalid_request_error(request_id, message).await;
+                    return;
+                }
+            },
+        };
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+        let source = if loaded_thread.is_some() {
+            ThreadEpiphanyRolesSource::Live
+        } else {
+            ThreadEpiphanyRolesSource::Stored
+        };
+        let Some(state) = thread.epiphany_state.as_ref() else {
+            self.outgoing
+                .send_response(
+                    request_id,
+                    ThreadEpiphanyRoleResultResponse {
+                        thread_id: thread_uuid.to_string(),
+                        role_id,
+                        source,
+                        state_status: ThreadEpiphanyReorientStateStatus::Missing,
+                        state_revision: None,
+                        binding_id,
+                        status: ThreadEpiphanyRoleResultStatus::MissingState,
+                        job: None,
+                        finding: None,
+                        note: "No authoritative Epiphany state exists for this thread.".to_string(),
+                    },
+                )
+                .await;
+            return;
+        };
+
+        if let Err(message) = epiphany_role_binding_id(role_id) {
+            self.send_invalid_request_error(request_id, message).await;
+            return;
+        }
+
+        let mut state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            loaded_thread.epiphany_state_runtime().await
+        } else {
+            None
+        };
+        if state_db_ctx.is_none() {
+            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
+        }
+        let job_resolution =
+            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(state)).await;
+        let job = map_epiphany_jobs(Some(state), None, &job_resolution)
+            .into_iter()
+            .find(|job| job.id == binding_id);
+        let (status, finding, note) =
+            load_epiphany_role_result_snapshot(state, state_db_ctx.as_ref(), role_id, &binding_id)
+                .await;
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyRoleResultResponse {
+                    thread_id: thread_uuid.to_string(),
+                    role_id,
+                    source,
+                    state_status: ThreadEpiphanyReorientStateStatus::Ready,
+                    state_revision: Some(state.revision),
+                    binding_id,
+                    status,
+                    job,
+                    finding,
+                    note,
+                },
+            )
+            .await;
     }
 
     async fn thread_epiphany_freshness(
@@ -12193,6 +12452,10 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
 }
 
 const EPIPHANY_SCENE_RECORD_LIMIT: usize = 5;
+const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker";
+const EPIPHANY_MODELING_OWNER_ROLE: &str = "epiphany-modeler";
+const EPIPHANY_VERIFICATION_ROLE_BINDING_ID: &str = "verification-review-worker";
+const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
 const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
@@ -12213,6 +12476,8 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Context,
         ThreadEpiphanySceneAction::Jobs,
         ThreadEpiphanySceneAction::Roles,
+        ThreadEpiphanySceneAction::RoleLaunch,
+        ThreadEpiphanySceneAction::RoleResult,
         ThreadEpiphanySceneAction::JobLaunch,
         ThreadEpiphanySceneAction::Freshness,
         ThreadEpiphanySceneAction::Pressure,
@@ -12233,6 +12498,162 @@ fn epiphany_scene_available_actions(
         actions.push(ThreadEpiphanySceneAction::Promote);
     }
     actions
+}
+
+fn epiphany_role_binding_id(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
+    match role_id {
+        ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
+        ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
+        ThreadEpiphanyRoleId::Implementation => Err(
+            "implementation is owned by the main coding agent; no role specialist launch template exists"
+                .to_string(),
+        ),
+        ThreadEpiphanyRoleId::Reorientation => Err(
+            "reorientation uses thread/epiphany/reorientLaunch and thread/epiphany/reorientResult"
+                .to_string(),
+        ),
+    }
+}
+
+fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
+    match role_id {
+        ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
+        ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
+        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+            Err(epiphany_role_binding_id(role_id).unwrap_err())
+        }
+    }
+}
+
+fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
+    match role_id {
+        ThreadEpiphanyRoleId::Implementation => "implementation",
+        ThreadEpiphanyRoleId::Modeling => "modeling",
+        ThreadEpiphanyRoleId::Verification => "verification",
+        ThreadEpiphanyRoleId::Reorientation => "reorientation",
+    }
+}
+
+fn build_epiphany_role_launch_request(
+    thread_id: &str,
+    role_id: ThreadEpiphanyRoleId,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+    state: &EpiphanyThreadState,
+) -> Result<EpiphanyJobLaunchRequest, String> {
+    let binding_id = epiphany_role_binding_id(role_id)?;
+    let owner_role = epiphany_role_owner(role_id)?;
+    let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
+    let linked_graph_node_ids = epiphany_active_graph_node_ids(Some(state));
+    let (scope, authority_scope, instruction, output_schema_json) = match role_id {
+        ThreadEpiphanyRoleId::Modeling => (
+            "role-scoped modeling/checkpoint maintenance",
+            "epiphany.role.modeling",
+            build_epiphany_role_launch_instruction(role_id),
+            epiphany_role_launch_output_schema(role_id),
+        ),
+        ThreadEpiphanyRoleId::Verification => (
+            "role-scoped verification/review",
+            "epiphany.role.verification",
+            build_epiphany_role_launch_instruction(role_id),
+            epiphany_role_launch_output_schema(role_id),
+        ),
+        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+            return Err(epiphany_role_binding_id(role_id).unwrap_err());
+        }
+    };
+    let input_json = serde_json::json!({
+        "threadId": thread_id,
+        "roleId": epiphany_role_label(role_id),
+        "stateRevision": state.revision,
+        "objective": &state.objective,
+        "activeSubgoalId": &state.active_subgoal_id,
+        "activeSubgoals": state
+            .subgoals
+            .iter()
+            .filter(|subgoal| Some(subgoal.id.as_str()) == state.active_subgoal_id.as_deref())
+            .collect::<Vec<_>>(),
+        "activeGraphNodeIds": linked_graph_node_ids,
+        "investigationCheckpoint": &state.investigation_checkpoint,
+        "scratch": &state.scratch,
+        "invariants": &state.invariants,
+        "recentEvidence": state.recent_evidence.iter().take(8).collect::<Vec<_>>(),
+        "graphFrontier": &state.graph_frontier,
+        "graphCheckpoint": &state.graph_checkpoint,
+        "churn": &state.churn,
+    });
+
+    Ok(EpiphanyJobLaunchRequest {
+        expected_revision,
+        binding_id: binding_id.to_string(),
+        kind: CoreEpiphanyJobKind::Specialist,
+        scope: scope.to_string(),
+        owner_role: owner_role.to_string(),
+        authority_scope: authority_scope.to_string(),
+        linked_subgoal_ids,
+        linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
+        instruction,
+        input_json,
+        output_schema_json: Some(output_schema_json),
+        max_runtime_seconds,
+    })
+}
+
+fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> String {
+    match role_id {
+        ThreadEpiphanyRoleId::Modeling => "Act as the Epiphany modeling/checkpoint specialist for one bounded pass. Inspect the supplied objective, scratch, frontier, map, evidence, and checkpoint. Return a compact structured result that says whether the checkpoint/map should be updated, what source files you inspected, and the next safe modeling move. Do not edit files, do not implement product code, and do not promote your own output.".to_string(),
+        ThreadEpiphanyRoleId::Verification => "Act as the Epiphany verification/review specialist for one bounded pass. Review the supplied objective, invariants, recent evidence, worker findings, and active frontier. Return a compact structured result with an honest verdict, missing coverage, inspected files, and the next safe review move. Do not edit files, do not accept or promote your own output, and do not expand scope beyond review.".to_string(),
+        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+            "Unsupported Epiphany role specialist template.".to_string()
+        }
+    }
+}
+
+fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_json::Value {
+    let verdict_enum = match role_id {
+        ThreadEpiphanyRoleId::Modeling => {
+            vec![
+                "checkpoint-ready",
+                "checkpoint-update-needed",
+                "regather-needed",
+            ]
+        }
+        ThreadEpiphanyRoleId::Verification => {
+            vec!["pass", "needs-review", "needs-evidence", "fail"]
+        }
+        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => vec![],
+    };
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "roleId": {
+                "type": "string",
+                "enum": [epiphany_role_label(role_id)]
+            },
+            "verdict": {
+                "type": "string",
+                "enum": verdict_enum
+            },
+            "summary": {"type": "string"},
+            "nextSafeMove": {"type": "string"},
+            "checkpointSummary": {"type": "string"},
+            "scratchSummary": {"type": "string"},
+            "filesInspected": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "frontierNodeIds": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "evidenceIds": {
+                "type": "array",
+                "items": {"type": "string"}
+            }
+        },
+        "required": ["summary", "nextSafeMove"],
+        "additionalProperties": true
+    })
 }
 
 fn build_epiphany_reorient_launch_request(
@@ -12376,6 +12797,23 @@ fn map_epiphany_reorient_result_status(
     }
 }
 
+fn map_epiphany_role_result_status(
+    job_status: AgentJobStatus,
+    item_status: AgentJobItemStatus,
+) -> ThreadEpiphanyRoleResultStatus {
+    match job_status {
+        AgentJobStatus::Cancelled => ThreadEpiphanyRoleResultStatus::Cancelled,
+        AgentJobStatus::Failed => ThreadEpiphanyRoleResultStatus::Failed,
+        AgentJobStatus::Pending => ThreadEpiphanyRoleResultStatus::Pending,
+        AgentJobStatus::Running | AgentJobStatus::Completed => match item_status {
+            AgentJobItemStatus::Pending => ThreadEpiphanyRoleResultStatus::Pending,
+            AgentJobItemStatus::Running => ThreadEpiphanyRoleResultStatus::Running,
+            AgentJobItemStatus::Completed => ThreadEpiphanyRoleResultStatus::Completed,
+            AgentJobItemStatus::Failed => ThreadEpiphanyRoleResultStatus::Failed,
+        },
+    }
+}
+
 fn map_epiphany_reorient_finding(
     raw_result: serde_json::Value,
     job_error: Option<String>,
@@ -12388,6 +12826,28 @@ fn map_epiphany_reorient_finding(
         checkpoint_still_valid: raw_result
             .get("checkpointStillValid")
             .and_then(serde_json::Value::as_bool),
+        files_inspected: json_string_array_field(&raw_result, "filesInspected"),
+        frontier_node_ids: json_string_array_field(&raw_result, "frontierNodeIds"),
+        evidence_ids: json_string_array_field(&raw_result, "evidenceIds"),
+        job_error,
+        item_error,
+        raw_result,
+    }
+}
+
+fn map_epiphany_role_finding(
+    role_id: ThreadEpiphanyRoleId,
+    raw_result: serde_json::Value,
+    job_error: Option<String>,
+    item_error: Option<String>,
+) -> ThreadEpiphanyRoleFinding {
+    ThreadEpiphanyRoleFinding {
+        role_id,
+        verdict: json_string_field(&raw_result, "verdict"),
+        summary: json_string_field(&raw_result, "summary"),
+        next_safe_move: json_string_field(&raw_result, "nextSafeMove"),
+        checkpoint_summary: json_string_field(&raw_result, "checkpointSummary"),
+        scratch_summary: json_string_field(&raw_result, "scratchSummary"),
         files_inspected: json_string_array_field(&raw_result, "filesInspected"),
         frontier_node_ids: json_string_array_field(&raw_result, "frontierNodeIds"),
         evidence_ids: json_string_array_field(&raw_result, "evidenceIds"),
@@ -12416,6 +12876,60 @@ fn json_string_array_field(value: &serde_json::Value, key: &str) -> Vec<String> 
                 .collect()
         })
         .unwrap_or_default()
+}
+
+fn render_epiphany_role_result_note(
+    role_id: ThreadEpiphanyRoleId,
+    status: ThreadEpiphanyRoleResultStatus,
+    finding: Option<&ThreadEpiphanyRoleFinding>,
+    item_error: Option<&str>,
+) -> String {
+    match status {
+        ThreadEpiphanyRoleResultStatus::Completed => {
+            if let Some(finding) = finding {
+                let next = finding.next_safe_move.as_deref().unwrap_or("not supplied");
+                format!(
+                    "{:?} role specialist completed. Next safe move: {next}",
+                    role_id
+                )
+            } else {
+                format!(
+                    "{:?} role specialist completed, but no structured result was recorded.",
+                    role_id
+                )
+            }
+        }
+        ThreadEpiphanyRoleResultStatus::Failed => item_error
+            .map(|error| format!("{:?} role specialist failed: {error}", role_id))
+            .unwrap_or_else(|| format!("{:?} role specialist failed.", role_id)),
+        ThreadEpiphanyRoleResultStatus::Cancelled => {
+            format!(
+                "{:?} role specialist was cancelled before producing a result.",
+                role_id
+            )
+        }
+        ThreadEpiphanyRoleResultStatus::Running => {
+            format!("{:?} role specialist is still running.", role_id)
+        }
+        ThreadEpiphanyRoleResultStatus::Pending => {
+            format!(
+                "{:?} role specialist has not produced a result yet.",
+                role_id
+            )
+        }
+        ThreadEpiphanyRoleResultStatus::MissingState => {
+            "No authoritative Epiphany state exists for this thread.".to_string()
+        }
+        ThreadEpiphanyRoleResultStatus::MissingBinding => {
+            "No matching Epiphany role specialist binding exists.".to_string()
+        }
+        ThreadEpiphanyRoleResultStatus::BackendUnavailable => {
+            "The bound runtime backend is unavailable.".to_string()
+        }
+        ThreadEpiphanyRoleResultStatus::BackendMissing => {
+            "The bound runtime backend job or item is missing.".to_string()
+        }
+    }
 }
 
 fn render_epiphany_reorient_result_note(
@@ -12457,6 +12971,100 @@ fn render_epiphany_reorient_result_note(
             "The bound runtime backend job or item is missing.".to_string()
         }
     }
+}
+
+async fn load_epiphany_role_result_snapshot(
+    state: &EpiphanyThreadState,
+    state_db_ctx: Option<&StateDbHandle>,
+    role_id: ThreadEpiphanyRoleId,
+    binding_id: &str,
+) -> (
+    ThreadEpiphanyRoleResultStatus,
+    Option<ThreadEpiphanyRoleFinding>,
+    String,
+) {
+    let Some(binding) = state
+        .job_bindings
+        .iter()
+        .find(|binding| binding.id == binding_id)
+    else {
+        return (
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            None,
+            "No matching Epiphany role specialist binding exists.".to_string(),
+        );
+    };
+    let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
+        return (
+            ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+            None,
+            "The matching binding is not currently backed by the agent_jobs backend.".to_string(),
+        );
+    };
+    let Some(state_db_ctx) = state_db_ctx else {
+        return (
+            ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+            None,
+            "State runtime is unavailable, so the bound agent_jobs result cannot be read."
+                .to_string(),
+        );
+    };
+    let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
+        Ok(Some(job)) => job,
+        Ok(None) => {
+            return (
+                ThreadEpiphanyRoleResultStatus::BackendMissing,
+                None,
+                format!(
+                    "Bound agent_jobs backend job {:?} was not found.",
+                    agent_job_id
+                ),
+            );
+        }
+        Err(err) => {
+            return (
+                ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+                None,
+                format!("Failed to read Epiphany role backend job: {err}"),
+            );
+        }
+    };
+    let item = match state_db_ctx
+        .get_agent_job_item(agent_job_id, binding_id)
+        .await
+    {
+        Ok(Some(item)) => item,
+        Ok(None) => {
+            return (
+                ThreadEpiphanyRoleResultStatus::BackendMissing,
+                None,
+                "Bound agent_jobs backend item was not found for this role specialist.".to_string(),
+            );
+        }
+        Err(err) => {
+            return (
+                ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+                None,
+                format!("Failed to read Epiphany role backend item: {err}"),
+            );
+        }
+    };
+    let status = map_epiphany_role_result_status(agent_job.status, item.status);
+    let finding = item.result_json.as_ref().map(|result| {
+        map_epiphany_role_finding(
+            role_id,
+            result.clone(),
+            agent_job.last_error.clone(),
+            item.last_error.clone(),
+        )
+    });
+    let note = render_epiphany_role_result_note(
+        role_id,
+        status,
+        finding.as_ref(),
+        item.last_error.as_deref(),
+    );
+    (status, finding, note)
 }
 
 async fn load_epiphany_reorient_result_snapshot(
@@ -12663,9 +13271,69 @@ fn map_epiphany_roles(
     result_status: ThreadEpiphanyReorientResultStatus,
     reorient_job: Option<&ThreadEpiphanyJob>,
 ) -> Vec<ThreadEpiphanyRoleLane> {
+    let state_present = state.is_some();
     let checkpoint = state.and_then(|state| state.investigation_checkpoint.as_ref());
-    let graph_remap_job = jobs.iter().find(|job| job.id == "graph-remap").cloned();
-    let verification_job = jobs.iter().find(|job| job.id == "verification").cloned();
+    let modeling_jobs = jobs
+        .iter()
+        .filter(|job| {
+            matches!(
+                job.id.as_str(),
+                EPIPHANY_MODELING_ROLE_BINDING_ID | "graph-remap"
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let modeling_bound_job = modeling_jobs
+        .iter()
+        .find(|job| job.id == EPIPHANY_MODELING_ROLE_BINDING_ID);
+    let modeling_has_bound_job = modeling_bound_job.is_some();
+    let modeling_status = map_epiphany_modeling_role_status(
+        checkpoint.is_some(),
+        modeling_bound_job.or_else(|| modeling_jobs.first()),
+    );
+    let modeling_recommended_action = if modeling_has_bound_job {
+        Some(ThreadEpiphanySceneAction::RoleResult)
+    } else if state_present {
+        Some(ThreadEpiphanySceneAction::RoleLaunch)
+    } else {
+        Some(ThreadEpiphanySceneAction::Update)
+    };
+    let verification_jobs = jobs
+        .iter()
+        .filter(|job| {
+            matches!(
+                job.id.as_str(),
+                EPIPHANY_VERIFICATION_ROLE_BINDING_ID | "verification"
+            )
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let verification_bound_job = verification_jobs
+        .iter()
+        .find(|job| job.id == EPIPHANY_VERIFICATION_ROLE_BINDING_ID);
+    let verification_has_bound_job = verification_bound_job.is_some();
+    let verification_primary_job = verification_bound_job.or_else(|| verification_jobs.first());
+    let verification_status = verification_primary_job
+        .as_ref()
+        .map(|job| map_epiphany_job_status_to_role_status(job.status))
+        .unwrap_or(ThreadEpiphanyRoleStatus::Unavailable);
+    let verification_note = verification_primary_job
+        .as_ref()
+        .and_then(|job| {
+            job.blocking_reason
+                .clone()
+                .or_else(|| job.progress_note.clone())
+        })
+        .unwrap_or_else(|| {
+            "Review evidence, worker findings, and verifier results before promotion.".to_string()
+        });
+    let verification_recommended_action = if verification_has_bound_job {
+        Some(ThreadEpiphanySceneAction::RoleResult)
+    } else if state_present {
+        Some(ThreadEpiphanySceneAction::RoleLaunch)
+    } else {
+        None
+    };
     let reorientation_jobs = reorient_job.cloned().into_iter().collect::<Vec<_>>();
 
     vec![
@@ -12704,45 +13372,31 @@ fn map_epiphany_roles(
             id: ThreadEpiphanyRoleId::Modeling,
             title: "Modeling / Checkpoint".to_string(),
             owner_role: "epiphany-modeler".to_string(),
-            status: map_epiphany_modeling_role_status(
-                checkpoint.is_some(),
-                graph_remap_job.as_ref(),
-            ),
+            status: modeling_status,
             note: render_epiphany_modeling_role_note(checkpoint, decision),
-            jobs: graph_remap_job.into_iter().collect(),
-            authority_scopes: vec!["thread/epiphany/update".to_string()],
-            recommended_action: if checkpoint.is_some() {
-                None
-            } else {
-                Some(ThreadEpiphanySceneAction::Update)
-            },
+            jobs: modeling_jobs,
+            authority_scopes: vec![
+                "thread/epiphany/roleLaunch".to_string(),
+                "thread/epiphany/roleResult".to_string(),
+                "thread/epiphany/update".to_string(),
+            ],
+            recommended_action: modeling_recommended_action,
         },
         ThreadEpiphanyRoleLane {
             id: ThreadEpiphanyRoleId::Verification,
             title: "Verification / Review".to_string(),
             owner_role: "epiphany-verifier".to_string(),
-            status: verification_job
-                .as_ref()
-                .map(|job| map_epiphany_job_status_to_role_status(job.status))
-                .unwrap_or(ThreadEpiphanyRoleStatus::Unavailable),
-            note: verification_job
-                .as_ref()
-                .and_then(|job| {
-                    job.blocking_reason
-                        .clone()
-                        .or_else(|| job.progress_note.clone())
-                })
-                .unwrap_or_else(|| {
-                    "Review evidence, worker findings, and verifier results before promotion."
-                        .to_string()
-                }),
-            jobs: verification_job.into_iter().collect(),
+            status: verification_status,
+            note: verification_note,
+            jobs: verification_jobs,
             authority_scopes: vec![
+                "thread/epiphany/roleLaunch".to_string(),
+                "thread/epiphany/roleResult".to_string(),
                 "thread/epiphany/distill".to_string(),
                 "thread/epiphany/propose".to_string(),
                 "thread/epiphany/promote".to_string(),
             ],
-            recommended_action: Some(ThreadEpiphanySceneAction::Promote),
+            recommended_action: verification_recommended_action,
         },
         ThreadEpiphanyRoleLane {
             id: ThreadEpiphanyRoleId::Reorientation,
@@ -16199,10 +16853,14 @@ mod tests {
                 ThreadEpiphanySceneAction::Distill,
                 ThreadEpiphanySceneAction::Context,
                 ThreadEpiphanySceneAction::Jobs,
+                ThreadEpiphanySceneAction::Roles,
+                ThreadEpiphanySceneAction::RoleLaunch,
+                ThreadEpiphanySceneAction::RoleResult,
                 ThreadEpiphanySceneAction::JobLaunch,
                 ThreadEpiphanySceneAction::Freshness,
                 ThreadEpiphanySceneAction::Pressure,
                 ThreadEpiphanySceneAction::Reorient,
+                ThreadEpiphanySceneAction::Crrc,
                 ThreadEpiphanySceneAction::ReorientLaunch,
                 ThreadEpiphanySceneAction::Update,
                 ThreadEpiphanySceneAction::JobInterrupt,
@@ -17001,6 +17659,119 @@ mod tests {
         assert_eq!(roles[2].status, ThreadEpiphanyRoleStatus::Needed);
         assert_eq!(roles[2].jobs[0].owner_role, "epiphany-verifier");
         assert_eq!(roles[3].status, ThreadEpiphanyRoleStatus::Ready);
+    }
+
+    #[test]
+    fn build_epiphany_role_launch_request_uses_fixed_mvp_templates() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            revision: 7,
+            objective: Some("Keep the MVP slice reviewable.".to_string()),
+            active_subgoal_id: Some("sg-1".to_string()),
+            subgoals: vec![codex_protocol::protocol::EpiphanySubgoal {
+                id: "sg-1".to_string(),
+                title: "Role launch".to_string(),
+                status: "active".to_string(),
+                summary: None,
+            }],
+            graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                active_node_ids: vec!["node-1".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let modeling = build_epiphany_role_launch_request(
+            "thr_123",
+            ThreadEpiphanyRoleId::Modeling,
+            Some(7),
+            Some(90),
+            &state,
+        )
+        .expect("modeling should have a fixed launch template");
+        assert_eq!(modeling.binding_id, EPIPHANY_MODELING_ROLE_BINDING_ID);
+        assert_eq!(modeling.owner_role, EPIPHANY_MODELING_OWNER_ROLE);
+        assert_eq!(modeling.authority_scope, "epiphany.role.modeling");
+        assert_eq!(modeling.linked_subgoal_ids, vec!["sg-1".to_string()]);
+        assert_eq!(modeling.linked_graph_node_ids, vec!["node-1".to_string()]);
+        assert_eq!(modeling.input_json["roleId"], "modeling");
+        assert_eq!(
+            modeling.output_schema_json.as_ref().unwrap()["required"][0],
+            "summary"
+        );
+
+        let verification = build_epiphany_role_launch_request(
+            "thr_123",
+            ThreadEpiphanyRoleId::Verification,
+            Some(7),
+            Some(90),
+            &state,
+        )
+        .expect("verification should have a fixed launch template");
+        assert_eq!(
+            verification.binding_id,
+            EPIPHANY_VERIFICATION_ROLE_BINDING_ID
+        );
+        assert_eq!(verification.owner_role, EPIPHANY_VERIFICATION_OWNER_ROLE);
+        assert_eq!(verification.authority_scope, "epiphany.role.verification");
+        assert_eq!(verification.input_json["roleId"], "verification");
+    }
+
+    #[test]
+    fn build_epiphany_role_launch_request_rejects_untemplated_roles() {
+        let state = codex_protocol::protocol::EpiphanyThreadState::default();
+
+        assert!(
+            build_epiphany_role_launch_request(
+                "thr_123",
+                ThreadEpiphanyRoleId::Implementation,
+                None,
+                None,
+                &state,
+            )
+            .unwrap_err()
+            .contains("main coding agent")
+        );
+        assert!(
+            build_epiphany_role_launch_request(
+                "thr_123",
+                ThreadEpiphanyRoleId::Reorientation,
+                None,
+                None,
+                &state,
+            )
+            .unwrap_err()
+            .contains("reorientLaunch")
+        );
+    }
+
+    #[test]
+    fn map_epiphany_role_finding_projects_structured_output() {
+        let raw_result = serde_json::json!({
+            "verdict": "pass",
+            "summary": "The evidence covers the bounded slice.",
+            "nextSafeMove": "Promote after human review.",
+            "filesInspected": ["src/lib.rs"],
+            "frontierNodeIds": ["node-1"],
+            "evidenceIds": ["ev-1"]
+        });
+
+        let finding = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Verification,
+            raw_result.clone(),
+            None,
+            None,
+        );
+
+        assert_eq!(finding.role_id, ThreadEpiphanyRoleId::Verification);
+        assert_eq!(finding.verdict.as_deref(), Some("pass"));
+        assert_eq!(
+            finding.next_safe_move.as_deref(),
+            Some("Promote after human review.")
+        );
+        assert_eq!(finding.files_inspected, vec!["src/lib.rs"]);
+        assert_eq!(finding.frontier_node_ids, vec!["node-1"]);
+        assert_eq!(finding.evidence_ids, vec!["ev-1"]);
+        assert_eq!(finding.raw_result, raw_result);
     }
 
     #[test]

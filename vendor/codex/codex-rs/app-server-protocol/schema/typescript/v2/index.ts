@@ -355,8 +355,10 @@ export type { ThreadEpiphanyRetrieveIndexSummary } from "./ThreadEpiphanyRetriev
 export type { ThreadEpiphanyRetrieveResult } from "./ThreadEpiphanyRetrieveResult";
 export type { ThreadEpiphanyRetrieveResultKind } from "./ThreadEpiphanyRetrieveResultKind";
 export type { ThreadEpiphanyRetrieveShardSummary } from "./ThreadEpiphanyRetrieveShardSummary";
+export type { ThreadEpiphanyRoleFinding } from "./ThreadEpiphanyRoleFinding";
 export type { ThreadEpiphanyRoleId } from "./ThreadEpiphanyRoleId";
 export type { ThreadEpiphanyRoleLane } from "./ThreadEpiphanyRoleLane";
+export type { ThreadEpiphanyRoleResultStatus } from "./ThreadEpiphanyRoleResultStatus";
 export type { ThreadEpiphanyRoleStatus } from "./ThreadEpiphanyRoleStatus";
 export type { ThreadEpiphanyRolesSource } from "./ThreadEpiphanyRolesSource";
 export type { ThreadEpiphanyScene } from "./ThreadEpiphanyScene";

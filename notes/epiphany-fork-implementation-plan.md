@@ -76,6 +76,7 @@ The landed machine now has:
 - explicit Phase 6 reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
 - read-only Phase 6 CRRC coordinator recommendation through `thread/epiphany/crrc`
 - read-only Phase 6 role ownership through `thread/epiphany/roles`, projecting implementation, modeling/checkpoint, verification/review, and reorientation lanes from typed state plus jobs/CRRC/result signals
+- explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
@@ -106,6 +107,8 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
 - `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
 - `thread/epiphany/roles` is a read-only role ownership projection, not a specialist scheduler, marketplace, launcher, acceptance gate, or second job backend.
+- `thread/epiphany/roleLaunch` is a bounded authority surface for fixed modeling/checkpoint and verification/review templates, not a broad scheduler or specialist marketplace.
+- `thread/epiphany/roleResult` is a read-only result projection, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -175,15 +178,18 @@ marketplace, broad ambient scheduling, automatic promotion of every tool
 observation, a GUI-first workflow, or a second job backend unless the current
 `agent_jobs` seam blocks the product loop.
 
-The read-back, acceptance, coordinator, first dogfood-view, and first
-harness-native role ownership blockers are now landed as
+The read-back, acceptance, coordinator, first dogfood-view, first
+harness-native role ownership, and first fixed role specialist launch/result
+blockers are now landed as
 `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
 `thread/epiphany/crrc`, `tools/epiphany_mvp_status.py`, and
-`thread/epiphany/roles`. A human can now ask the harness what it believes, what
-it recommends, and which role lane owns the next visible work without reading
-Rust. The next MVP blocker is making modeling/checkpoint and verification/review
-launch/read-back templates explicit over the landed job-control seam, while
-keeping scheduling manual and review-gated.
+`thread/epiphany/roles`, `thread/epiphany/roleLaunch`, and
+`thread/epiphany/roleResult`. A human can now ask the harness what it believes,
+what it recommends, which role lane owns the next visible work, explicitly
+launch modeling/checkpoint or verification/review workers, and read their
+findings back without reading Rust. The next MVP question is dogfood, not
+another imagined organ: use the landed loop on real bounded coding work and fix
+only concrete blockers.
 
 ## Phase 6 Direction
 
@@ -191,7 +197,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add the smallest explicit role-scoped specialist launch/read-back templates for modeling/checkpoint maintenance and verification/review over the landed job-control seam, without building a marketplace.
+1. Dogfood the landed MVP loop on real bounded coding work through state, status, roles, roleLaunch/roleResult, and CRRC.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 3. Add targeted operator-view fields only when dogfooding exposes a real gap.
 
@@ -257,6 +263,12 @@ Before modifying targeted context-shard behavior, run:
 For app-server protocol changes, expect to run the relevant protocol tests,
 regenerate stable schema fixtures when needed, and verify the generated tree is
 intentional.
+
+Before modifying explicit role launch/read-back behavior, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_role_smoke.py'
+```
 
 On this Windows machine, use:
 

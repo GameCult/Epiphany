@@ -3872,6 +3872,15 @@
       ],
       "type": "object"
     },
+    "ThreadEpiphanyRoleId": {
+      "enum": [
+        "implementation",
+        "modeling",
+        "verification",
+        "reorientation"
+      ],
+      "type": "string"
+    },
     "ThreadEpiphanyUpdatePatch": {
       "properties": {
         "activeSubgoalId": {

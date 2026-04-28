@@ -351,6 +351,16 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyRolesParams,
         response: v2::ThreadEpiphanyRolesResponse,
     },
+    #[experimental("thread/epiphany/roleLaunch")]
+    ThreadEpiphanyRoleLaunch => "thread/epiphany/roleLaunch" {
+        params: v2::ThreadEpiphanyRoleLaunchParams,
+        response: v2::ThreadEpiphanyRoleLaunchResponse,
+    },
+    #[experimental("thread/epiphany/roleResult")]
+    ThreadEpiphanyRoleResult => "thread/epiphany/roleResult" {
+        params: v2::ThreadEpiphanyRoleResultParams,
+        response: v2::ThreadEpiphanyRoleResultResponse,
+    },
     #[experimental("thread/epiphany/freshness")]
     ThreadEpiphanyFreshness => "thread/epiphany/freshness" {
         params: v2::ThreadEpiphanyFreshnessParams,
@@ -1732,6 +1742,8 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Context,
                         v2::ThreadEpiphanySceneAction::Jobs,
                         v2::ThreadEpiphanySceneAction::Roles,
+                        v2::ThreadEpiphanySceneAction::RoleLaunch,
+                        v2::ThreadEpiphanySceneAction::RoleResult,
                         v2::ThreadEpiphanySceneAction::JobLaunch,
                         v2::ThreadEpiphanySceneAction::Freshness,
                         v2::ThreadEpiphanySceneAction::Pressure,
@@ -1834,6 +1846,8 @@ mod tests {
                             "context",
                             "jobs",
                             "roles",
+                            "roleLaunch",
+                            "roleResult",
                             "jobLaunch",
                             "freshness",
                             "pressure",
@@ -1991,6 +2005,223 @@ mod tests {
                         }
                     ],
                     "note": "Role ownership is derived read-only."
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_role_launch_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyRoleLaunch {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyRoleLaunchResponse {
+                thread_id: "thr_123".to_string(),
+                role_id: v2::ThreadEpiphanyRoleId::Modeling,
+                revision: 4,
+                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 4,
+                    job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                        id: "modeling-checkpoint-worker".to_string(),
+                        kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                        scope: "role-scoped modeling/checkpoint maintenance".to_string(),
+                        owner_role: "epiphany-modeler".to_string(),
+                        launcher_job_id: Some("epiphany-launch-1".to_string()),
+                        authority_scope: Some("epiphany.role.modeling".to_string()),
+                        backend_kind: Some(
+                            codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs,
+                        ),
+                        backend_job_id: Some("backend-1".to_string()),
+                        runtime_agent_job_id: Some("backend-1".to_string()),
+                        linked_subgoal_ids: vec!["phase-6".to_string()],
+                        linked_graph_node_ids: vec!["state-spine".to_string()],
+                        progress_note: Some(
+                            "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                                .to_string(),
+                        ),
+                        blocking_reason: None,
+                    }],
+                    ..Default::default()
+                },
+                job: v2::ThreadEpiphanyJob {
+                    id: "modeling-checkpoint-worker".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "role-scoped modeling/checkpoint maintenance".to_string(),
+                    owner_role: "epiphany-modeler".to_string(),
+                    launcher_job_id: Some("epiphany-launch-1".to_string()),
+                    authority_scope: Some("epiphany.role.modeling".to_string()),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_job_id: Some("backend-1".to_string()),
+                    status: v2::ThreadEpiphanyJobStatus::Pending,
+                    runtime_agent_job_id: Some("backend-1".to_string()),
+                    items_processed: None,
+                    items_total: None,
+                    progress_note: Some(
+                        "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                            .to_string(),
+                    ),
+                    last_checkpoint_at_unix_seconds: None,
+                    blocking_reason: None,
+                    active_thread_ids: Vec::new(),
+                    linked_subgoal_ids: vec!["phase-6".to_string()],
+                    linked_graph_node_ids: vec!["state-spine".to_string()],
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/roleLaunch");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/roleLaunch",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "roleId": "modeling",
+                    "revision": 4,
+                    "changedFields": ["jobBindings"],
+                    "epiphanyState": {
+                        "revision": 4,
+                        "job_bindings": [{
+                            "id": "modeling-checkpoint-worker",
+                            "kind": "specialist",
+                            "scope": "role-scoped modeling/checkpoint maintenance",
+                            "owner_role": "epiphany-modeler",
+                            "launcher_job_id": "epiphany-launch-1",
+                            "authority_scope": "epiphany.role.modeling",
+                            "backend_kind": "agent_jobs",
+                            "backend_job_id": "backend-1",
+                            "runtime_agent_job_id": "backend-1",
+                            "linked_subgoal_ids": ["phase-6"],
+                            "linked_graph_node_ids": ["state-spine"],
+                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                        }]
+                    },
+                    "job": {
+                        "id": "modeling-checkpoint-worker",
+                        "kind": "specialist",
+                        "scope": "role-scoped modeling/checkpoint maintenance",
+                        "ownerRole": "epiphany-modeler",
+                        "launcherJobId": "epiphany-launch-1",
+                        "authorityScope": "epiphany.role.modeling",
+                        "backendKind": "agentJobs",
+                        "backendJobId": "backend-1",
+                        "status": "pending",
+                        "runtimeAgentJobId": "backend-1",
+                        "progressNote": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend.",
+                        "linkedSubgoalIds": ["phase-6"],
+                        "linkedGraphNodeIds": ["state-spine"]
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_role_result_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyRoleResult {
+            request_id: RequestId::Integer(9),
+            response: v2::ThreadEpiphanyRoleResultResponse {
+                thread_id: "thr_123".to_string(),
+                role_id: v2::ThreadEpiphanyRoleId::Verification,
+                source: v2::ThreadEpiphanyRolesSource::Live,
+                state_status: v2::ThreadEpiphanyReorientStateStatus::Ready,
+                state_revision: Some(4),
+                binding_id: "verification-review-worker".to_string(),
+                status: v2::ThreadEpiphanyRoleResultStatus::Completed,
+                job: Some(v2::ThreadEpiphanyJob {
+                    id: "verification-review-worker".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "role-scoped verification/review".to_string(),
+                    owner_role: "epiphany-verifier".to_string(),
+                    launcher_job_id: Some("epiphany-launch-2".to_string()),
+                    authority_scope: Some("epiphany.role.verification".to_string()),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_job_id: Some("backend-2".to_string()),
+                    status: v2::ThreadEpiphanyJobStatus::Completed,
+                    runtime_agent_job_id: Some("backend-2".to_string()),
+                    items_processed: Some(1),
+                    items_total: Some(1),
+                    progress_note: Some("1/1 items completed.".to_string()),
+                    last_checkpoint_at_unix_seconds: None,
+                    blocking_reason: None,
+                    active_thread_ids: Vec::new(),
+                    linked_subgoal_ids: vec!["phase-6".to_string()],
+                    linked_graph_node_ids: vec!["state-spine".to_string()],
+                }),
+                finding: Some(v2::ThreadEpiphanyRoleFinding {
+                    role_id: v2::ThreadEpiphanyRoleId::Verification,
+                    verdict: Some("pass".to_string()),
+                    summary: Some("Evidence covers the bounded change.".to_string()),
+                    next_safe_move: Some("Promote the verified patch.".to_string()),
+                    checkpoint_summary: None,
+                    scratch_summary: None,
+                    files_inspected: vec!["src/lib.rs".to_string()],
+                    frontier_node_ids: vec!["state-spine".to_string()],
+                    evidence_ids: vec!["ev-1".to_string()],
+                    job_error: None,
+                    item_error: None,
+                    raw_result: json!({
+                        "verdict": "pass",
+                        "summary": "Evidence covers the bounded change.",
+                        "nextSafeMove": "Promote the verified patch."
+                    }),
+                }),
+                note: "Verification role specialist completed. Next safe move: Promote the verified patch."
+                    .to_string(),
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(9));
+        assert_eq!(response.method(), "thread/epiphany/roleResult");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/roleResult",
+                "id": 9,
+                "response": {
+                    "threadId": "thr_123",
+                    "roleId": "verification",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 4,
+                    "bindingId": "verification-review-worker",
+                    "status": "completed",
+                    "job": {
+                        "id": "verification-review-worker",
+                        "kind": "specialist",
+                        "scope": "role-scoped verification/review",
+                        "ownerRole": "epiphany-verifier",
+                        "launcherJobId": "epiphany-launch-2",
+                        "authorityScope": "epiphany.role.verification",
+                        "backendKind": "agentJobs",
+                        "backendJobId": "backend-2",
+                        "status": "completed",
+                        "runtimeAgentJobId": "backend-2",
+                        "itemsProcessed": 1,
+                        "itemsTotal": 1,
+                        "progressNote": "1/1 items completed.",
+                        "linkedSubgoalIds": ["phase-6"],
+                        "linkedGraphNodeIds": ["state-spine"]
+                    },
+                    "finding": {
+                        "roleId": "verification",
+                        "verdict": "pass",
+                        "summary": "Evidence covers the bounded change.",
+                        "nextSafeMove": "Promote the verified patch.",
+                        "filesInspected": ["src/lib.rs"],
+                        "frontierNodeIds": ["state-spine"],
+                        "evidenceIds": ["ev-1"],
+                        "rawResult": {
+                            "verdict": "pass",
+                            "summary": "Evidence covers the bounded change.",
+                            "nextSafeMove": "Promote the verified patch."
+                        }
+                    },
+                    "note": "Verification role specialist completed. Next safe move: Promote the verified patch."
                 }
             }),
             serde_json::to_value(&response)?,
@@ -3978,6 +4209,35 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/roles"));
+    }
+
+    #[test]
+    fn thread_epiphany_role_launch_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyRoleLaunch {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyRoleLaunchParams {
+                thread_id: "thr_123".to_string(),
+                role_id: v2::ThreadEpiphanyRoleId::Modeling,
+                expected_revision: Some(1),
+                max_runtime_seconds: Some(60),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/roleLaunch"));
+    }
+
+    #[test]
+    fn thread_epiphany_role_result_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyRoleResult {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyRoleResultParams {
+                thread_id: "thr_123".to_string(),
+                role_id: v2::ThreadEpiphanyRoleId::Verification,
+                binding_id: None,
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/roleResult"));
     }
 
     #[test]

@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, and `thread/epiphany/reorientResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, roles project implementation/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the first explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state, and `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` / `thread/epiphany/roleLaunch` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, roles project implementation/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleLaunch` can launch only fixed modeling/checkpoint or verification/review specialists, `roleResult` reads those outputs back as reviewable findings without mutation, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state, and `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating.
 - `tools/epiphany_mvp_status.py` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, pressure, reorient, jobs, roles, reorient result, and CRRC recommendation as text or JSON.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
@@ -64,6 +64,8 @@ The current spine:
 - verifier-backed promotion through `thread/epiphany/promote`
 - successful-write notification through `thread/epiphany/stateUpdated`
 - explicit launch/interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`
+- explicit modeling/checkpoint and verification/review specialist launch through `thread/epiphany/roleLaunch`
+- read-only modeling/checkpoint and verification/review specialist result read-back through `thread/epiphany/roleResult`
 - bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - read-only reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
@@ -106,8 +108,9 @@ The exact current control flow is documented in
 - `thread/epiphany/reorient` is read-only.
 - `thread/epiphany/crrc` is read-only.
 - `thread/epiphany/roles` is read-only.
+- `thread/epiphany/roleResult` is read-only.
 - `thread/epiphany/reorientResult` is read-only.
-- Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, `thread/epiphany/reorientAccept`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, and `thread/epiphany/reorientLaunch` authority surfaces when they mutate `jobBindings`.
+- Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, `thread/epiphany/reorientAccept`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/reorientLaunch`, and `thread/epiphany/roleLaunch` authority surfaces when they mutate `jobBindings`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
 - GUI/client surfaces reflect and steer typed state; they do not become the source of truth.
 - Do not restart Phase 5 hardening without a concrete regression.
@@ -184,6 +187,13 @@ For the first MVP operator status view, run:
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_mvp_status_smoke.py'
 ```
 
+For explicit modeling/checkpoint and verification/review role launch/read-back,
+run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_role_smoke.py'
+```
+
 For Codex Rust work on this Windows machine:
 
 ```powershell
@@ -251,11 +261,10 @@ still explicit even though read-only job ownership/progress reflection now has a
 real runtime seam, the thin launcher boundary is landed, and one explicit
 reorient-guided launch surface can consume the verdict on purpose.
 
-When the user asks to continue, the next likely organ is the smallest explicit
-role-scoped specialist launch/read-back template layer for modeling/checkpoint
-maintenance and verification/review over the landed job-control seam. Keep it
-manual and review-gated; do not build a broad hidden scheduler, marketplace, or
-GUI-as-source-of-truth.
+When the user asks to continue, dogfood the landed MVP loop on real bounded
+coding work through the state, status, roles, roleLaunch/roleResult, and CRRC
+surfaces. Fix concrete blockers that prevent a human from testing that loop;
+do not build a broad hidden scheduler, marketplace, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

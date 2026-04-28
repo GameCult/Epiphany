@@ -15988,6 +15988,79 @@
         ],
         "type": "object"
       },
+      "ThreadEpiphanyRoleFinding": {
+        "properties": {
+          "checkpointSummary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidenceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "filesInspected": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "frontierNodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "itemError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextSafeMove": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rawResult": true,
+          "roleId": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyRoleId"
+          },
+          "scratchSummary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verdict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rawResult",
+          "roleId"
+        ],
+        "type": "object"
+      },
       "ThreadEpiphanyRoleId": {
         "enum": [
           "implementation",
@@ -16045,6 +16118,20 @@
           "title"
         ],
         "type": "object"
+      },
+      "ThreadEpiphanyRoleResultStatus": {
+        "enum": [
+          "missingState",
+          "missingBinding",
+          "backendUnavailable",
+          "backendMissing",
+          "pending",
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
+        ],
+        "type": "string"
       },
       "ThreadEpiphanyRoleStatus": {
         "enum": [
@@ -16173,6 +16260,8 @@
           "context",
           "jobs",
           "roles",
+          "roleLaunch",
+          "roleResult",
           "jobLaunch",
           "jobInterrupt",
           "freshness",

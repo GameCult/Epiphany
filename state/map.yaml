@@ -53,17 +53,17 @@ data_flow:
 
 active_subgoals:
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
-  - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, freshness, context, pressure, reorient, crrc, and reorientResult.
+  - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, roleResult, freshness, context, pressure, reorient, crrc, and reorientResult.
   - Extend Phase 6 observability only where it reflects authoritative state or retrieval summaries without becoming a scheduler.
-  - Build explicit role-scoped specialist launch/read-back templates over the landed roles and job-control seams instead of adding invisible organs.
+  - Dogfood the landed MVP loop on real bounded coding work before adding larger organs.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
 
 accepted_design:
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
   - Authoritative Epiphany state lives in Codex protocol/core session and rollout state.
   - The prompt reads typed state through a bounded `<epiphany_state>` developer fragment.
-  - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/freshness`, targeted state shards through `thread/epiphany/context`, runtime pressure through `thread/epiphany/pressure`, bounded CRRC reorientation verdicts through `thread/epiphany/reorient`, read-only CRRC next-action recommendations through `thread/epiphany/crrc`, and live bound-job progress through `thread/epiphany/jobsUpdated`.
-  - Durable typed state writes route through `thread/epiphany/update`, accepted `thread/epiphany/promote`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, and `thread/epiphany/reorientLaunch` authority surfaces when they mutate `job_bindings`.
+  - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/freshness`, targeted state shards through `thread/epiphany/context`, runtime pressure through `thread/epiphany/pressure`, bounded CRRC reorientation verdicts through `thread/epiphany/reorient`, read-only CRRC next-action recommendations through `thread/epiphany/crrc`, role ownership through `thread/epiphany/roles`, reviewable role output through `thread/epiphany/roleResult`, and live bound-job progress through `thread/epiphany/jobsUpdated`.
+  - Durable typed state writes route through `thread/epiphany/update`, accepted `thread/epiphany/promote`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/reorientLaunch`, and `thread/epiphany/roleLaunch` authority surfaces when they mutate `job_bindings`.
   - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, and `thread/epiphany/reorient` stay read-only.
   - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
   - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -84,6 +84,7 @@ accepted_design:
   - `thread/epiphany/crrc` is the first bounded CRRC coordinator recommendation surface: it composes pressure, the reorientation verdict, fixed reorient-worker binding/result status, finding read-back, and available actions into one read-only recommendation without launching, accepting, compacting, scheduling, or mutating state.
   - `tools/epiphany_mvp_status.py` is the first dogfood operator view: it starts or reads a thread through app-server and renders scene, pressure, reorient, jobs, reorient result, CRRC recommendation, and MVP role lanes as text or JSON without becoming a state store.
   - `thread/epiphany/roles` is the first harness-native role ownership surface: it projects implementation, modeling/checkpoint, verification/review, and reorientation lanes from authoritative typed state, bound jobs, pressure/reorient/CRRC, and worker result status without launching, scheduling, accepting, compacting, or mutating state.
+  - `thread/epiphany/roleLaunch` and `thread/epiphany/roleResult` are the first explicit role-scoped specialist templates: modeling/checkpoint and verification/review can be launched through fixed bindings over the existing job-control seam and read back as reviewable findings, while implementation stays owned by the main coding agent and reorientation stays on the CRRC-specific launch/result path.
   - `thread/epiphany/reorientLaunch` is the first bounded runtime consumer over the reorientation verdict: it launches one fixed `reorient-worker` job through the existing job-control seam with explicit resume-versus-regather scope, authority, and checkpoint-derived payload, without making `thread/epiphany/reorient` a writer or turning CRRC into an ambient scheduler.
   - `thread/epiphany/reorientResult` is the first bounded read-back surface for that worker: it reads the fixed or requested reorient-worker binding through the current `agent_jobs` backend and projects completed output as a reviewable finding without mutation, promotion, scheduling, or hidden continuation.
   - `thread/epiphany/reorientAccept` is the first explicit acceptance write for completed reorient-worker findings: it appends accepted observation/evidence records, can optionally update scratch and investigation checkpoint state, and emits `stateUpdated` with source `reorientAccept` without accepting pending work or launching follow-up work.
@@ -109,6 +110,7 @@ landed_baseline:
     - Phase 6 acceptance: explicit reorient-worker finding acceptance through `thread/epiphany/reorientAccept`.
     - Phase 6 dogfood view: first CLI operator status over scene/pressure/reorient/jobs/result/CRRC.
     - Phase 6 role ownership: read-only `thread/epiphany/roles` over implementation, modeling/checkpoint, verification/review, and reorientation lanes.
+    - Phase 6 role specialists: explicit `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult` templates for modeling/checkpoint and verification/review.
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
     - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
@@ -123,6 +125,7 @@ landed_baseline:
     - Use `tools/epiphany_phase6_reorient_launch_smoke.py` before modifying the bounded reorient-worker result read-back surface.
     - Use `tools/epiphany_phase6_reorient_launch_smoke.py` before modifying the read-only CRRC coordinator recommendation surface.
     - Use `tools/epiphany_mvp_status_smoke.py` before modifying the MVP operator status view.
+    - Use `tools/epiphany_phase6_role_smoke.py` before modifying explicit role launch/read-back behavior.
     - Use focused scene/jobs/context/pressure/reorient/protocol/schema checks for reflection-only changes.
     - Use `tools/epiphany_prepare_compaction.py` before and after imminent-compaction persistence passes.
     - Use `CARGO_TARGET_DIR=C:\Users\Meta\.cargo-target-codex` for Codex Rust work on this Windows machine.
@@ -141,5 +144,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, roles, freshness, targeted context, pressure, reorient, CRRC, reorient launch/result/accept, and first dogfood MVP status are landed. `thread/epiphany/roles` now projects implementation, modeling/checkpoint, verification/review, and reorientation lanes from authoritative typed state plus jobs/pressure/reorient/CRRC/result signals without launching, scheduling, accepting, compacting, or mutating state. The status tool consumes that harness-native roles surface instead of deriving lanes locally. The thin launcher seam, jobLaunch/jobInterrupt, jobsUpdated, reorientLaunch, reorientResult, reorientAccept, and crrc remain explicit and review-gated. Focused protocol/app-server tests, schema fixture regeneration/checks, app-server build, and MVP status smoke verify the role ownership/coordinator/operator seam. Persistent state remains distilled; evidence is a belief ledger, not an activity feed.
-  next_action: Continue toward the MVP by adding the smallest explicit role-scoped specialist launch/read-back templates for modeling/checkpoint and verification/review over the landed job-control seam, while keeping scheduling manual and review-gated. Automatic broad specialist scheduling remains future work; do not restart the completed pressure, freshness, watcher-invalidation, investigation-checkpoint, reorientation, crrc, mvp-status, roles, jobs-binding, jobsUpdated, thin-launcher-seam, job-control, reorient-launch, reorient-result, or reorient-accept slice unless a concrete regression appears.
+  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, roles, freshness, targeted context, pressure, reorient, CRRC, reorient launch/result/accept, explicit modeling/checkpoint and verification/review role launch/result templates, and first dogfood MVP status are landed. `thread/epiphany/roleLaunch` now launches only fixed modeling/checkpoint or verification/review specialists over the existing job-control seam, and `thread/epiphany/roleResult` reads their backend output back as reviewable findings without mutation. Implementation remains main-agent work; reorientation remains on the CRRC-specific launch/result path. Persistent state remains distilled; evidence is a belief ledger, not an activity feed.
+  next_action: Dogfood the MVP loop on a real bounded coding task using the landed state, status, roles, roleLaunch/roleResult, and CRRC surfaces; fix only concrete blockers that prevent a human from testing the product loop. Automatic broad specialist scheduling, GUI-as-source-of-truth, a specialist marketplace, and a second job backend remain future work.

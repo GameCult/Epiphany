@@ -3998,6 +3998,8 @@ pub enum ThreadEpiphanySceneAction {
     Context,
     Jobs,
     Roles,
+    RoleLaunch,
+    RoleResult,
     JobLaunch,
     JobInterrupt,
     Freshness,
@@ -4225,6 +4227,116 @@ pub struct ThreadEpiphanyRoleLane {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub recommended_action: Option<ThreadEpiphanySceneAction>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleLaunchParams {
+    pub thread_id: String,
+    pub role_id: ThreadEpiphanyRoleId,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub max_runtime_seconds: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleLaunchResponse {
+    pub thread_id: String,
+    pub role_id: ThreadEpiphanyRoleId,
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: CoreEpiphanyThreadState,
+    pub job: ThreadEpiphanyJob,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleResultParams {
+    pub thread_id: String,
+    pub role_id: ThreadEpiphanyRoleId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub binding_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleResultResponse {
+    pub thread_id: String,
+    pub role_id: ThreadEpiphanyRoleId,
+    pub source: ThreadEpiphanyRolesSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub binding_id: String,
+    pub status: ThreadEpiphanyRoleResultStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub job: Option<ThreadEpiphanyJob>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub finding: Option<ThreadEpiphanyRoleFinding>,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyRoleResultStatus {
+    MissingState,
+    MissingBinding,
+    BackendUnavailable,
+    BackendMissing,
+    Pending,
+    Running,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleFinding {
+    pub role_id: ThreadEpiphanyRoleId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub verdict: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub next_safe_move: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checkpoint_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub scratch_summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files_inspected: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub frontier_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub job_error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub item_error: Option<String>,
+    #[ts(type = "unknown")]
+    pub raw_result: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
