@@ -59,6 +59,7 @@ The rule is:
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
 | `thread/epiphany/reorient` | read-only policy reflection | landed, live-smoked | Bounded CRRC reorientation verdict derived from checkpoint, freshness, watcher, and pressure signals; returns resume vs regather without acting on the decision. |
 | `thread/epiphany/crrc` | read-only coordinator reflection | landed, live-smoked | Composes pressure, reorientation verdict, bound worker status/result, and available actions into one recommendation without launching, accepting, compacting, or mutating state. |
+| `tools/epiphany_mvp_status.py` | operator CLI | landed, live-smoked | Starts or reads a thread through app-server and renders scene, pressure, reorient, jobs, result, and CRRC recommendation as a compact dogfood view. |
 
 ## Write Authority
 
@@ -180,10 +181,10 @@ Out of scope for the MVP:
 - a second job backend unless the current `agent_jobs` adapter blocks read-back
   or interruption
 
-The first read-back, acceptance, and read-only coordinator blockers are landed.
-The current MVP blocker is dogfood visibility: exposing scene, pressure,
-reorient, jobs, result, and CRRC recommendation in a small operator-facing view
-that can be tested during real coding work without reading Rust.
+The first read-back, acceptance, read-only coordinator, and dogfood CLI blockers
+are landed. The current MVP blocker is role ownership: making implementation,
+modeling/checkpoint maintenance, and verification/review visible as distinct
+bounded work lanes without building an arbitrary specialist marketplace.
 
 ## Job And Progress Surface Direction
 
@@ -232,6 +233,12 @@ actions into one recommendation such as continue, prepare checkpoint, launch
 worker, wait for worker, review result, accept result, or regather manually. It
 is not a scheduler, a hidden launch, a hidden accept, a compactor, or a second
 source of truth. The little tyrant remains theoretical, for now.
+
+The first dogfood operator view is landed as `tools/epiphany_mvp_status.py`.
+It starts or reads one thread through the app-server and prints the scene,
+pressure, reorientation verdict, jobs, reorient result, and CRRC recommendation
+as a compact status report, with raw JSON available when needed. It is a window,
+not a source of truth.
 
 The first live bound-runtime progress notification is also landed as
 `thread/epiphany/jobsUpdated`. It rides existing `agent_job_progress:{json}`

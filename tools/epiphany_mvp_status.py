@@ -1,0 +1,215 @@
+from __future__ import annotations
+
+import argparse
+import json
+import os
+from pathlib import Path
+from typing import Any
+
+from epiphany_phase5_smoke import AppServerClient
+from epiphany_phase5_smoke import DEFAULT_APP_SERVER
+from epiphany_phase5_smoke import ROOT
+
+
+DEFAULT_CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+DEFAULT_TRANSCRIPT = ROOT / ".epiphany-status" / "epiphany-mvp-status-transcript.jsonl"
+DEFAULT_STDERR = ROOT / ".epiphany-status" / "epiphany-mvp-status-server.stderr.log"
+
+
+def maybe(value: Any, fallback: str = "none") -> str:
+    if value is None:
+        return fallback
+    if value == "":
+        return fallback
+    return str(value)
+
+
+def list_text(values: list[Any] | None, fallback: str = "none") -> str:
+    if not values:
+        return fallback
+    return ", ".join(str(value) for value in values)
+
+
+def job_summary(job: dict[str, Any]) -> str:
+    progress = ""
+    processed = job.get("itemsProcessed")
+    total = job.get("itemsTotal")
+    if processed is not None or total is not None:
+        progress = f" ({maybe(processed, '?')}/{maybe(total, '?')})"
+    backend = job.get("backendJobId") or job.get("runtimeAgentJobId")
+    backend_text = f", backend {backend}" if backend else ""
+    return (
+        f"- {job.get('id')}: {job.get('status')} {job.get('kind')}, "
+        f"{job.get('ownerRole')} [{job.get('scope')}]{progress}{backend_text}"
+    )
+
+
+def collect_status(
+    client: AppServerClient,
+    *,
+    thread_id: str | None,
+    cwd: Path,
+    ephemeral: bool,
+) -> dict[str, Any]:
+    if thread_id is None:
+        started = client.send(
+            "thread/start",
+            {"cwd": str(cwd), "ephemeral": ephemeral},
+        )
+        if started is None:
+            raise RuntimeError("thread/start returned no response")
+        thread_id = started["thread"]["id"]
+
+    read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
+    scene = client.send("thread/epiphany/scene", {"threadId": thread_id})
+    pressure = client.send("thread/epiphany/pressure", {"threadId": thread_id})
+    reorient = client.send("thread/epiphany/reorient", {"threadId": thread_id})
+    jobs = client.send("thread/epiphany/jobs", {"threadId": thread_id})
+    reorient_result = client.send("thread/epiphany/reorientResult", {"threadId": thread_id})
+    crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+
+    return {
+        "threadId": thread_id,
+        "read": read,
+        "scene": scene,
+        "pressure": pressure,
+        "reorient": reorient,
+        "jobs": jobs,
+        "reorientResult": reorient_result,
+        "crrc": crrc,
+    }
+
+
+def render_status(status: dict[str, Any]) -> str:
+    thread_id = status["threadId"]
+    scene = status["scene"]["scene"]
+    pressure = status["pressure"]["pressure"]
+    reorient = status["reorient"]["decision"]
+    jobs = status["jobs"]["jobs"]
+    result = status["reorientResult"]
+    crrc = status["crrc"]
+    recommendation = crrc["recommendation"]
+    checkpoint = scene.get("investigationCheckpoint") or {}
+
+    lines = [
+        "Epiphany MVP Status",
+        f"Thread: {thread_id}",
+        f"State: {scene['stateStatus']} rev {maybe(scene.get('revision'))} ({scene['source']})",
+        "",
+        "Recommendation",
+        f"- action: {recommendation['action']}",
+        f"- scene action: {maybe(recommendation.get('recommendedSceneAction'))}",
+        f"- reason: {recommendation['reason']}",
+        "",
+        "Continuity",
+        (
+            f"- pressure: {pressure['level']} ({pressure['status']}, "
+            f"prepare={str(pressure['shouldPrepareCompaction']).lower()})"
+        ),
+        f"- reorient: {reorient['action']} via {list_text(reorient.get('reasons'))}",
+        f"- next: {reorient['nextAction']}",
+        f"- result: {result['status']} for {result['bindingId']}",
+    ]
+
+    finding = result.get("finding")
+    if finding:
+        lines.extend(
+            [
+                f"- finding mode: {maybe(finding.get('mode'))}",
+                f"- finding next: {maybe(finding.get('nextSafeMove'))}",
+            ]
+        )
+
+    lines.extend(
+        [
+            "",
+            "Checkpoint",
+            f"- id: {maybe(checkpoint.get('checkpointId'))}",
+            f"- disposition: {maybe(checkpoint.get('disposition'))}",
+            f"- focus: {maybe(checkpoint.get('focus'))}",
+            f"- next: {maybe(checkpoint.get('nextAction'))}",
+            "",
+            "Jobs",
+        ]
+    )
+    if jobs:
+        lines.extend(job_summary(job) for job in jobs)
+    else:
+        lines.append("- none")
+
+    lines.extend(
+        [
+            "",
+            "Available Actions",
+            f"- {list_text(scene.get('availableActions'))}",
+        ]
+    )
+    return "\n".join(lines) + "\n"
+
+
+def run(args: argparse.Namespace) -> dict[str, Any]:
+    app_server = args.app_server.resolve()
+    if not app_server.exists():
+        raise FileNotFoundError(f"codex app-server binary not found: {app_server}")
+
+    codex_home = args.codex_home.resolve()
+    transcript_path = args.transcript.resolve()
+    stderr_path = args.stderr.resolve()
+    cwd = args.cwd.resolve()
+    codex_home.mkdir(parents=True, exist_ok=True)
+
+    with AppServerClient(app_server, codex_home, transcript_path, stderr_path) as client:
+        client.send(
+            "initialize",
+            {
+                "clientInfo": {
+                    "name": "epiphany-mvp-status",
+                    "title": "Epiphany MVP Status",
+                    "version": "0.1.0",
+                },
+                "capabilities": {"experimentalApi": True},
+            },
+        )
+        client.send("initialized", expect_response=False)
+        status = collect_status(
+            client,
+            thread_id=args.thread_id,
+            cwd=cwd,
+            ephemeral=args.ephemeral,
+        )
+
+    if args.result is not None:
+        result_path = args.result.resolve()
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            json.dumps(status, indent=2, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+    return status
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Print a compact Epiphany MVP operator view for one thread."
+    )
+    parser.add_argument("--app-server", type=Path, default=DEFAULT_APP_SERVER)
+    parser.add_argument("--codex-home", type=Path, default=DEFAULT_CODEX_HOME)
+    parser.add_argument("--thread-id")
+    parser.add_argument("--cwd", type=Path, default=ROOT)
+    parser.add_argument("--ephemeral", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--json", action="store_true", help="Print raw collected JSON.")
+    parser.add_argument("--result", type=Path)
+    parser.add_argument("--transcript", type=Path, default=DEFAULT_TRANSCRIPT)
+    parser.add_argument("--stderr", type=Path, default=DEFAULT_STDERR)
+    args = parser.parse_args()
+
+    status = run(args)
+    if args.json:
+        print(json.dumps(status, indent=2, ensure_ascii=False))
+    else:
+        print(render_status(status), end="")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

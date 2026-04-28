@@ -30,8 +30,10 @@ The current spine is real, not aspirational:
 - durable `jobBindings` as a thin Epiphany-owned launcher seam over runtime job backends
 - explicit launch and interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`, still backed by runtime `agent_jobs`
 - a bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
+- read-only CRRC next-action recommendations through `thread/epiphany/crrc`
 - live bound-job progress notifications through `thread/epiphany/jobsUpdated`
 - read-only reflection surfaces through `thread/epiphany/scene`, `jobs`, `freshness`, `context`, `pressure`, and `reorient`
+- a first dogfood CLI operator view through `tools/epiphany_mvp_status.py`
 - durable investigation checkpointing for compaction-safe planning
 - repo-owned heavy Epiphany organs in `epiphany-core/`, with vendored Codex kept as the host seam where practical
 

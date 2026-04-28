@@ -29,6 +29,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
 - Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, and `thread/epiphany/reorientResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the first explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state, and `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating.
+- `tools/epiphany_mvp_status.py` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, pressure, reorient, jobs, reorient result, and CRRC recommendation as text or JSON.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -85,6 +86,7 @@ The current spine:
 - live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
 - live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
 - live reorient-guided worker launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
+- live MVP operator status smoke through `tools/epiphany_mvp_status_smoke.py`
 - live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
 
 The exact current control flow is documented in
@@ -174,6 +176,12 @@ The same smoke now also covers the read-only `thread/epiphany/crrc`
 coordinator recommendation over continue, wait, accept, interrupt, and relaunch
 states.
 
+For the first MVP operator status view, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_mvp_status_smoke.py'
+```
+
 For Codex Rust work on this Windows machine:
 
 ```powershell
@@ -241,15 +249,17 @@ still explicit even though read-only job ownership/progress reflection now has a
 real runtime seam, the thin launcher boundary is landed, and one explicit
 reorient-guided launch surface can consume the verdict on purpose.
 
-When the user asks to continue, the next likely organ is a minimal dogfood-facing
-operator view over the landed scene, pressure, reorient, jobs, result, and CRRC
-recommendation loop. Keep it explicit and narrow; do not build a broad hidden
-scheduler or GUI-as-source-of-truth.
+When the user asks to continue, the next likely organ is the smallest
+role-scoped specialist ownership layer that makes implementation,
+modeling/checkpoint maintenance, and verification/review visible as distinct
+lanes. Keep it explicit and narrow; do not build a broad hidden scheduler,
+marketplace, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
-`thread/epiphany/pressure`, `thread/epiphany/reorient`, and
-`thread/epiphany/crrc` smokes are now guardrails, not the next organs.
+`thread/epiphany/pressure`, `thread/epiphany/reorient`,
+`thread/epiphany/crrc`, and `tools/epiphany_mvp_status.py` smokes are now
+guardrails, not the next organs.
 
 ## Not Yet
 

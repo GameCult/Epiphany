@@ -75,8 +75,10 @@ The landed machine now has:
 - read-only Phase 6 reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit Phase 6 reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
 - read-only Phase 6 CRRC coordinator recommendation through `thread/epiphany/crrc`
+- first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
+- live Phase 6 MVP status smoke coverage in `tools/epiphany_mvp_status_smoke.py`
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
@@ -171,12 +173,13 @@ marketplace, broad ambient scheduling, automatic promotion of every tool
 observation, a GUI-first workflow, or a second job backend unless the current
 `agent_jobs` seam blocks the product loop.
 
-The read-back, acceptance, and coordinator blockers are now landed as
-`thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`, and
-`thread/epiphany/crrc`. The next MVP blocker is product dogfooding: a human can
-now ask the harness what it believes and what it recommends, but the loop still
-needs a small non-Rust-facing surface that makes that answer easy to inspect
-and act on during real work.
+The read-back, acceptance, coordinator, and first dogfood-view blockers are now
+landed as `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
+`thread/epiphany/crrc`, and `tools/epiphany_mvp_status.py`. The next MVP
+blocker is richer role ownership: a human can now ask the harness what it
+believes and what it recommends without reading Rust, but implementation,
+modeling/checkpoint maintenance, and verification/review are still only narrow
+roles rather than a reusable specialist registry.
 
 ## Phase 6 Direction
 
@@ -184,9 +187,9 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Build a minimal dogfood-facing view over scene, pressure, reorient, jobs, reorient result, and CRRC recommendation so a non-Rust-speaking operator can test the product loop.
+1. Add the smallest role-scoped specialist ownership layer that makes implementation, modeling/checkpoint maintenance, and verification/review visible as distinct work lanes without building a marketplace.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
+3. Add targeted operator-view fields only when dogfooding exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
