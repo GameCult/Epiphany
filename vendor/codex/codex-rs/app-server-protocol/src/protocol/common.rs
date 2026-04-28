@@ -346,6 +346,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyJobsParams,
         response: v2::ThreadEpiphanyJobsResponse,
     },
+    #[experimental("thread/epiphany/roles")]
+    ThreadEpiphanyRoles => "thread/epiphany/roles" {
+        params: v2::ThreadEpiphanyRolesParams,
+        response: v2::ThreadEpiphanyRolesResponse,
+    },
     #[experimental("thread/epiphany/freshness")]
     ThreadEpiphanyFreshness => "thread/epiphany/freshness" {
         params: v2::ThreadEpiphanyFreshnessParams,
@@ -1726,6 +1731,7 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Distill,
                         v2::ThreadEpiphanySceneAction::Context,
                         v2::ThreadEpiphanySceneAction::Jobs,
+                        v2::ThreadEpiphanySceneAction::Roles,
                         v2::ThreadEpiphanySceneAction::JobLaunch,
                         v2::ThreadEpiphanySceneAction::Freshness,
                         v2::ThreadEpiphanySceneAction::Pressure,
@@ -1827,6 +1833,7 @@ mod tests {
                             "distill",
                             "context",
                             "jobs",
+                            "roles",
                             "jobLaunch",
                             "freshness",
                             "pressure",
@@ -1903,6 +1910,87 @@ mod tests {
                             "linkedGraphNodeIds": ["retrieval"]
                         }
                     ]
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_roles_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyRoles {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyRolesResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyRolesSource::Live,
+                state_status: v2::ThreadEpiphanyReorientStateStatus::Ready,
+                state_revision: Some(3),
+                roles: vec![v2::ThreadEpiphanyRoleLane {
+                    id: v2::ThreadEpiphanyRoleId::Verification,
+                    title: "Verification / Review".to_string(),
+                    owner_role: "epiphany-verifier".to_string(),
+                    status: v2::ThreadEpiphanyRoleStatus::Needed,
+                    note: "Review evidence before promotion.".to_string(),
+                    jobs: vec![v2::ThreadEpiphanyJob {
+                        id: "verification".to_string(),
+                        kind: v2::ThreadEpiphanyJobKind::Verification,
+                        scope: "invariant verification".to_string(),
+                        owner_role: "epiphany-verifier".to_string(),
+                        launcher_job_id: None,
+                        authority_scope: None,
+                        backend_kind: None,
+                        backend_job_id: None,
+                        status: v2::ThreadEpiphanyJobStatus::Needed,
+                        runtime_agent_job_id: None,
+                        items_processed: None,
+                        items_total: None,
+                        progress_note: None,
+                        last_checkpoint_at_unix_seconds: None,
+                        blocking_reason: None,
+                        active_thread_ids: Vec::new(),
+                        linked_subgoal_ids: Vec::new(),
+                        linked_graph_node_ids: Vec::new(),
+                    }],
+                    authority_scopes: vec!["thread/epiphany/promote".to_string()],
+                    recommended_action: Some(v2::ThreadEpiphanySceneAction::Promote),
+                }],
+                note: "Role ownership is derived read-only.".to_string(),
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/roles");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/roles",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 3,
+                    "roles": [
+                        {
+                            "id": "verification",
+                            "title": "Verification / Review",
+                            "ownerRole": "epiphany-verifier",
+                            "status": "needed",
+                            "note": "Review evidence before promotion.",
+                            "jobs": [
+                                {
+                                    "id": "verification",
+                                    "kind": "verification",
+                                    "scope": "invariant verification",
+                                    "ownerRole": "epiphany-verifier",
+                                    "status": "needed"
+                                }
+                            ],
+                            "authorityScopes": ["thread/epiphany/promote"],
+                            "recommendedAction": "promote"
+                        }
+                    ],
+                    "note": "Role ownership is derived read-only."
                 }
             }),
             serde_json::to_value(&response)?,
@@ -3878,6 +3966,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/jobs"));
+    }
+
+    #[test]
+    fn thread_epiphany_roles_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyRoles {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyRolesParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/roles"));
     }
 
     #[test]

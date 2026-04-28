@@ -3997,6 +3997,7 @@ pub enum ThreadEpiphanySceneAction {
     Distill,
     Context,
     Jobs,
+    Roles,
     JobLaunch,
     JobInterrupt,
     Freshness,
@@ -4153,6 +4154,77 @@ pub struct ThreadEpiphanyJobsResponse {
     #[ts(optional = nullable)]
     pub state_revision: Option<u64>,
     pub jobs: Vec<ThreadEpiphanyJob>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRolesParams {
+    pub thread_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRolesResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyRolesSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub roles: Vec<ThreadEpiphanyRoleLane>,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyRolesSource {
+    Stored,
+    Live,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyRoleId {
+    Implementation,
+    Modeling,
+    Verification,
+    Reorientation,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyRoleStatus {
+    Ready,
+    Needed,
+    Blocked,
+    Running,
+    Completed,
+    Waiting,
+    Review,
+    Unavailable,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleLane {
+    pub id: ThreadEpiphanyRoleId,
+    pub title: String,
+    pub owner_role: String,
+    pub status: ThreadEpiphanyRoleStatus,
+    pub note: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<ThreadEpiphanyJob>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub authority_scopes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub recommended_action: Option<ThreadEpiphanySceneAction>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]

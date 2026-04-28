@@ -75,6 +75,7 @@ The landed machine now has:
 - read-only Phase 6 reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit Phase 6 reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
 - read-only Phase 6 CRRC coordinator recommendation through `thread/epiphany/crrc`
+- read-only Phase 6 role ownership through `thread/epiphany/roles`, projecting implementation, modeling/checkpoint, verification/review, and reorientation lanes from typed state plus jobs/CRRC/result signals
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
@@ -104,6 +105,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
 - `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
 - `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
+- `thread/epiphany/roles` is a read-only role ownership projection, not a specialist scheduler, marketplace, launcher, acceptance gate, or second job backend.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -173,14 +175,15 @@ marketplace, broad ambient scheduling, automatic promotion of every tool
 observation, a GUI-first workflow, or a second job backend unless the current
 `agent_jobs` seam blocks the product loop.
 
-The read-back, acceptance, coordinator, and first dogfood-view blockers are now
-landed as `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
-`thread/epiphany/crrc`, and `tools/epiphany_mvp_status.py`. The next MVP
-blocker is richer role ownership: a human can now ask the harness what it
-believes and what it recommends without reading Rust, and the operator view now
-shows implementation, modeling/checkpoint maintenance, verification/review, and
-reorientation as distinct lanes. Those lanes are still derived views rather
-than a reusable specialist registry.
+The read-back, acceptance, coordinator, first dogfood-view, and first
+harness-native role ownership blockers are now landed as
+`thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
+`thread/epiphany/crrc`, `tools/epiphany_mvp_status.py`, and
+`thread/epiphany/roles`. A human can now ask the harness what it believes, what
+it recommends, and which role lane owns the next visible work without reading
+Rust. The next MVP blocker is making modeling/checkpoint and verification/review
+launch/read-back templates explicit over the landed job-control seam, while
+keeping scheduling manual and review-gated.
 
 ## Phase 6 Direction
 
@@ -188,7 +191,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Add the smallest role-scoped specialist ownership layer that makes implementation, modeling/checkpoint maintenance, and verification/review visible as distinct work lanes without building a marketplace.
+1. Add the smallest explicit role-scoped specialist launch/read-back templates for modeling/checkpoint maintenance and verification/review over the landed job-control seam, without building a marketplace.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 3. Add targeted operator-view fields only when dogfooding exposes a real gap.
 

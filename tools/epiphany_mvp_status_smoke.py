@@ -56,6 +56,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         "status view should expose the CRRC action in the scene",
     )
     require(
+        "roles" in status["scene"]["scene"]["availableActions"],
+        "status view should expose the role ownership action in the scene",
+    )
+    require(
         "Epiphany MVP Status" in rendered and "Recommendation" in rendered,
         "rendered status should include the operator view headings",
     )
@@ -63,10 +67,14 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         "regatherManually" in rendered,
         "rendered status should expose the CRRC recommendation",
     )
-    lane_ids = [lane["id"] for lane in status["roleLanes"]]
+    lane_ids = [lane["id"] for lane in status["roles"]["roles"]]
     require(
         lane_ids == ["implementation", "modeling", "verification", "reorientation"],
-        "status view should expose the four MVP role lanes",
+        "roles surface should expose the four MVP role lanes",
+    )
+    require(
+        status["roles"]["note"].startswith("Role ownership is derived read-only"),
+        "roles surface should declare read-only derived ownership",
     )
     require(
         "Role Lanes" in rendered and "Verification / Review" in rendered,
@@ -76,7 +84,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
     result = {
         "threadId": status["threadId"],
         "recommendation": status["crrc"]["recommendation"],
-        "roleLanes": status["roleLanes"],
+        "roles": status["roles"],
         "stateStatus": status["scene"]["scene"]["stateStatus"],
         "availableActions": status["scene"]["scene"]["availableActions"],
         "rendered": rendered,

@@ -51,76 +51,6 @@ def job_by_id(jobs: list[dict[str, Any]], job_id: str) -> dict[str, Any] | None:
     return None
 
 
-def derive_role_lanes(status: dict[str, Any]) -> list[dict[str, str]]:
-    scene = status["scene"]["scene"]
-    pressure = status["pressure"]["pressure"]
-    reorient = status["reorient"]["decision"]
-    jobs = status["jobs"]["jobs"]
-    result = status["reorientResult"]
-    recommendation = status["crrc"]["recommendation"]
-    checkpoint = scene.get("investigationCheckpoint") or {}
-    verification = job_by_id(jobs, "verification")
-
-    implementation_status = "ready"
-    implementation_note = "Continue the bounded coding task."
-    if recommendation["action"] != "continue":
-        implementation_status = "blocked"
-        implementation_note = f"Wait for CRRC action: {recommendation['action']}."
-
-    modeling_status = "ready" if checkpoint else "needed"
-    modeling_note = (
-        f"{checkpoint.get('disposition', 'checkpoint missing')}: "
-        f"{checkpoint.get('nextAction') or reorient['nextAction']}"
-    )
-
-    verification_status = verification.get("status", "unknown") if verification else "unknown"
-    if verification:
-        verification_note = (
-            verification.get("blockingReason")
-            or verification.get("progressNote")
-            or "Review evidence and accepted findings before promotion."
-        )
-    else:
-        verification_note = "Verification lane is unavailable."
-
-    reorientation_status = recommendation["action"]
-    reorientation_note = (
-        f"{reorient['action']} verdict, result {result['status']}, "
-        f"pressure {pressure['level']}."
-    )
-
-    return [
-        {
-            "id": "implementation",
-            "title": "Implementation",
-            "status": implementation_status,
-            "owner": "coding-agent",
-            "note": implementation_note,
-        },
-        {
-            "id": "modeling",
-            "title": "Modeling / Checkpoint",
-            "status": modeling_status,
-            "owner": "epiphany-modeler",
-            "note": modeling_note,
-        },
-        {
-            "id": "verification",
-            "title": "Verification / Review",
-            "status": verification_status,
-            "owner": "epiphany-verifier",
-            "note": verification_note,
-        },
-        {
-            "id": "reorientation",
-            "title": "Reorientation",
-            "status": reorientation_status,
-            "owner": "epiphany-reorient",
-            "note": reorientation_note,
-        },
-    ]
-
-
 def collect_status(
     client: AppServerClient,
     *,
@@ -142,6 +72,7 @@ def collect_status(
     pressure = client.send("thread/epiphany/pressure", {"threadId": thread_id})
     reorient = client.send("thread/epiphany/reorient", {"threadId": thread_id})
     jobs = client.send("thread/epiphany/jobs", {"threadId": thread_id})
+    roles = client.send("thread/epiphany/roles", {"threadId": thread_id})
     reorient_result = client.send("thread/epiphany/reorientResult", {"threadId": thread_id})
     crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
 
@@ -152,10 +83,10 @@ def collect_status(
         "pressure": pressure,
         "reorient": reorient,
         "jobs": jobs,
+        "roles": roles,
         "reorientResult": reorient_result,
         "crrc": crrc,
     }
-    status["roleLanes"] = derive_role_lanes(status)
     return status
 
 
@@ -167,6 +98,7 @@ def render_status(status: dict[str, Any]) -> str:
     jobs = status["jobs"]["jobs"]
     result = status["reorientResult"]
     crrc = status["crrc"]
+    roles = status["roles"]["roles"]
     recommendation = crrc["recommendation"]
     checkpoint = scene.get("investigationCheckpoint") or {}
 
@@ -205,9 +137,9 @@ def render_status(status: dict[str, Any]) -> str:
             "Role Lanes",
         ]
     )
-    for lane in status["roleLanes"]:
+    for lane in roles:
         lines.append(
-            f"- {lane['title']}: {lane['status']} ({lane['owner']}) - {lane['note']}"
+            f"- {lane['title']}: {lane['status']} ({lane['ownerRole']}) - {lane['note']}"
         )
 
     lines.extend(

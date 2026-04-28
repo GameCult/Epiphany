@@ -13875,6 +13875,84 @@
       ],
       "type": "object"
     },
+    "ThreadEpiphanyRoleId": {
+      "enum": [
+        "implementation",
+        "modeling",
+        "verification",
+        "reorientation"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyRoleLane": {
+      "properties": {
+        "authorityScopes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "$ref": "#/definitions/ThreadEpiphanyRoleId"
+        },
+        "jobs": {
+          "items": {
+            "$ref": "#/definitions/ThreadEpiphanyJob"
+          },
+          "type": "array"
+        },
+        "note": {
+          "type": "string"
+        },
+        "ownerRole": {
+          "type": "string"
+        },
+        "recommendedAction": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadEpiphanySceneAction"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/definitions/ThreadEpiphanyRoleStatus"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "note",
+        "ownerRole",
+        "status",
+        "title"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyRoleStatus": {
+      "enum": [
+        "ready",
+        "needed",
+        "blocked",
+        "running",
+        "completed",
+        "waiting",
+        "review",
+        "unavailable"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyRolesSource": {
+      "enum": [
+        "stored",
+        "live"
+      ],
+      "type": "string"
+    },
     "ThreadEpiphanyScene": {
       "properties": {
         "activeSubgoal": {
@@ -13981,6 +14059,7 @@
         "distill",
         "context",
         "jobs",
+        "roles",
         "jobLaunch",
         "jobInterrupt",
         "freshness",
