@@ -80,11 +80,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         "Role Lanes" in rendered and "Verification / Review" in rendered,
         "rendered status should expose the role lane section",
     )
+    require(
+        "Role Findings" in rendered
+        and status["roleResults"]["modeling"]["status"] == "missingState"
+        and status["roleResults"]["verification"]["status"] == "missingState",
+        "rendered status should expose fixed role result read-back status",
+    )
 
     result = {
         "threadId": status["threadId"],
         "recommendation": status["crrc"]["recommendation"],
         "roles": status["roles"],
+        "roleResults": status["roleResults"],
         "stateStatus": status["scene"]["scene"]["stateStatus"],
         "availableActions": status["scene"]["scene"]["availableActions"],
         "rendered": rendered,

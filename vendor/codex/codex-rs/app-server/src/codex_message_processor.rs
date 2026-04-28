@@ -4438,6 +4438,12 @@ impl CodexMessageProcessor {
             result_status,
             checkpoint_present,
             finding.is_some(),
+            finding.as_ref().is_some_and(|finding| {
+                thread
+                    .epiphany_state
+                    .as_ref()
+                    .is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
+            }),
         );
 
         let roles = map_epiphany_roles(
@@ -5077,6 +5083,12 @@ impl CodexMessageProcessor {
                 .and_then(|state| state.investigation_checkpoint.as_ref())
                 .is_some(),
             finding.is_some(),
+            finding.as_ref().is_some_and(|finding| {
+                thread
+                    .epiphany_state
+                    .as_ref()
+                    .is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
+            }),
         );
         let note = format!(
             "{} Result status: {:?}. {}",
@@ -13170,6 +13182,7 @@ fn map_epiphany_crrc_recommendation(
     result_status: ThreadEpiphanyReorientResultStatus,
     checkpoint_present: bool,
     finding_present: bool,
+    finding_accepted: bool,
 ) -> ThreadEpiphanyCrrcRecommendation {
     let build = |action: ThreadEpiphanyCrrcAction,
                  recommended_scene_action: Option<ThreadEpiphanySceneAction>,
@@ -13205,11 +13218,18 @@ fn map_epiphany_crrc_recommendation(
             );
         }
         ThreadEpiphanyReorientResultStatus::Completed => {
-            if finding_present {
+            if finding_present && !finding_accepted {
                 return build(
                     ThreadEpiphanyCrrcAction::AcceptReorientResult,
                     Some(ThreadEpiphanySceneAction::ReorientAccept),
                     "A completed reorientation finding is available; review and explicitly accept it before continuing.",
+                );
+            }
+            if finding_accepted && decision.action == ThreadEpiphanyReorientAction::Regather {
+                return build(
+                    ThreadEpiphanyCrrcAction::RegatherManually,
+                    Some(ThreadEpiphanySceneAction::Reorient),
+                    "The reorientation finding is already accepted; re-gather from the banked checkpoint before implementation continues.",
                 );
             }
             return build(
@@ -13260,6 +13280,18 @@ fn map_epiphany_crrc_recommendation(
         Some(ThreadEpiphanySceneAction::Reorient),
         "Pressure is tolerable and the checkpoint remains resume-ready; continue the bounded task.",
     )
+}
+
+fn epiphany_reorient_finding_already_accepted(
+    state: &EpiphanyThreadState,
+    finding: &ThreadEpiphanyReorientFinding,
+) -> bool {
+    let accepted_summary = reorient_finding_summary(finding);
+    state.recent_evidence.iter().any(|evidence| {
+        evidence.kind == "reorient_result"
+            && evidence.status == "accepted"
+            && evidence.summary == accepted_summary
+    })
 }
 
 fn map_epiphany_roles(
@@ -17491,6 +17523,7 @@ mod tests {
             ThreadEpiphanyReorientResultStatus::MissingBinding,
             true,
             false,
+            false,
         );
 
         assert_eq!(recommendation.action, ThreadEpiphanyCrrcAction::Continue);
@@ -17526,6 +17559,7 @@ mod tests {
             &decision,
             ThreadEpiphanyReorientResultStatus::MissingBinding,
             true,
+            false,
             false,
         );
 
@@ -17566,6 +17600,7 @@ mod tests {
             ThreadEpiphanyReorientResultStatus::Completed,
             true,
             true,
+            false,
         );
 
         assert_eq!(
@@ -17575,6 +17610,46 @@ mod tests {
         assert_eq!(
             recommendation.recommended_scene_action,
             Some(ThreadEpiphanySceneAction::ReorientAccept)
+        );
+    }
+
+    #[test]
+    fn map_epiphany_crrc_recommendation_does_not_reaccept_banked_finding() {
+        let pressure = map_epiphany_pressure(None);
+        let decision = ThreadEpiphanyReorientDecision {
+            action: ThreadEpiphanyReorientAction::Regather,
+            checkpoint_status: ThreadEpiphanyReorientCheckpointStatus::RegatherRequired,
+            checkpoint_id: Some("ix-accepted".to_string()),
+            pressure_level: pressure.level,
+            retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            graph_status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            watcher_status: ThreadEpiphanyInvalidationStatus::Clean,
+            reasons: vec![ThreadEpiphanyReorientReason::CheckpointRequestedRegather],
+            checkpoint_dirty_paths: Vec::new(),
+            checkpoint_changed_paths: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            next_action: "Regather from the accepted result.".to_string(),
+            note: "accepted".to_string(),
+        };
+
+        let recommendation = map_epiphany_crrc_recommendation(
+            true,
+            ThreadEpiphanyReorientStateStatus::Ready,
+            &pressure,
+            &decision,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            true,
+            true,
+            true,
+        );
+
+        assert_eq!(
+            recommendation.action,
+            ThreadEpiphanyCrrcAction::RegatherManually
+        );
+        assert_eq!(
+            recommendation.recommended_scene_action,
+            Some(ThreadEpiphanySceneAction::Reorient)
         );
     }
 

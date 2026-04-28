@@ -78,6 +78,7 @@ The landed machine now has:
 - read-only Phase 6 role ownership through `thread/epiphany/roles`, projecting implementation, modeling/checkpoint, verification/review, and reorientation lanes from typed state plus jobs/CRRC/result signals
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
+- first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, vanilla-reference output, and comparison notes
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 MVP status smoke coverage in `tools/epiphany_mvp_status_smoke.py`
@@ -187,9 +188,12 @@ blockers are now landed as
 `thread/epiphany/roleResult`. A human can now ask the harness what it believes,
 what it recommends, which role lane owns the next visible work, explicitly
 launch modeling/checkpoint or verification/review workers, and read their
-findings back without reading Rust. The next MVP question is dogfood, not
-another imagined organ: use the landed loop on real bounded coding work and fix
-only concrete blockers.
+findings back without reading Rust. The first auditable dogfood pass then added
+`tools/epiphany_mvp_dogfood.py`, rendered modeling/verification findings in the
+status view, and fixed CRRC's repeat-acceptance recommendation after
+`reorientAccept`. The next MVP question is human operator testing, not another
+imagined organ: use the landed loop and artifact bundle, then fix only concrete
+blockers.
 
 ## Phase 6 Direction
 
@@ -197,7 +201,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Dogfood the landed MVP loop on real bounded coding work through state, status, roles, roleLaunch/roleResult, and CRRC.
+1. Put the dogfooded MVP loop in front of a human operator through status/artifact review, then fix concrete usability blockers.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 3. Add targeted operator-view fields only when dogfooding exposes a real gap.
 

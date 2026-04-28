@@ -73,6 +73,14 @@ def collect_status(
     reorient = client.send("thread/epiphany/reorient", {"threadId": thread_id})
     jobs = client.send("thread/epiphany/jobs", {"threadId": thread_id})
     roles = client.send("thread/epiphany/roles", {"threadId": thread_id})
+    role_results = {
+        "modeling": client.send(
+            "thread/epiphany/roleResult", {"threadId": thread_id, "roleId": "modeling"}
+        ),
+        "verification": client.send(
+            "thread/epiphany/roleResult", {"threadId": thread_id, "roleId": "verification"}
+        ),
+    }
     reorient_result = client.send("thread/epiphany/reorientResult", {"threadId": thread_id})
     crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
 
@@ -84,6 +92,7 @@ def collect_status(
         "reorient": reorient,
         "jobs": jobs,
         "roles": roles,
+        "roleResults": role_results,
         "reorientResult": reorient_result,
         "crrc": crrc,
     }
@@ -99,6 +108,7 @@ def render_status(status: dict[str, Any]) -> str:
     result = status["reorientResult"]
     crrc = status["crrc"]
     roles = status["roles"]["roles"]
+    role_results = status.get("roleResults") or {}
     recommendation = crrc["recommendation"]
     checkpoint = scene.get("investigationCheckpoint") or {}
 
@@ -141,6 +151,25 @@ def render_status(status: dict[str, Any]) -> str:
         lines.append(
             f"- {lane['title']}: {lane['status']} ({lane['ownerRole']}) - {lane['note']}"
         )
+
+    lines.extend(
+        [
+            "",
+            "Role Findings",
+        ]
+    )
+    for role_id in ("modeling", "verification"):
+        role_result = role_results.get(role_id) or {}
+        finding = role_result.get("finding")
+        label = "Modeling / Checkpoint" if role_id == "modeling" else "Verification / Review"
+        lines.append(
+            f"- {label}: {maybe(role_result.get('status'))} for "
+            f"{maybe(role_result.get('bindingId'))}"
+        )
+        if finding:
+            lines.append(f"  verdict: {maybe(finding.get('verdict'))}")
+            lines.append(f"  summary: {maybe(finding.get('summary'))}")
+            lines.append(f"  next: {maybe(finding.get('nextSafeMove'))}")
 
     lines.extend(
         [
