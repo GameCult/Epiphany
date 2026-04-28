@@ -177,9 +177,10 @@ The read-back, acceptance, coordinator, and first dogfood-view blockers are now
 landed as `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
 `thread/epiphany/crrc`, and `tools/epiphany_mvp_status.py`. The next MVP
 blocker is richer role ownership: a human can now ask the harness what it
-believes and what it recommends without reading Rust, but implementation,
-modeling/checkpoint maintenance, and verification/review are still only narrow
-roles rather than a reusable specialist registry.
+believes and what it recommends without reading Rust, and the operator view now
+shows implementation, modeling/checkpoint maintenance, verification/review, and
+reorientation as distinct lanes. Those lanes are still derived views rather
+than a reusable specialist registry.
 
 ## Phase 6 Direction
 

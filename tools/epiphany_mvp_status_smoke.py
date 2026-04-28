@@ -63,10 +63,20 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         "regatherManually" in rendered,
         "rendered status should expose the CRRC recommendation",
     )
+    lane_ids = [lane["id"] for lane in status["roleLanes"]]
+    require(
+        lane_ids == ["implementation", "modeling", "verification", "reorientation"],
+        "status view should expose the four MVP role lanes",
+    )
+    require(
+        "Role Lanes" in rendered and "Verification / Review" in rendered,
+        "rendered status should expose the role lane section",
+    )
 
     result = {
         "threadId": status["threadId"],
         "recommendation": status["crrc"]["recommendation"],
+        "roleLanes": status["roleLanes"],
         "stateStatus": status["scene"]["scene"]["stateStatus"],
         "availableActions": status["scene"]["scene"]["availableActions"],
         "rendered": rendered,

@@ -44,6 +44,83 @@ def job_summary(job: dict[str, Any]) -> str:
     )
 
 
+def job_by_id(jobs: list[dict[str, Any]], job_id: str) -> dict[str, Any] | None:
+    for job in jobs:
+        if job.get("id") == job_id:
+            return job
+    return None
+
+
+def derive_role_lanes(status: dict[str, Any]) -> list[dict[str, str]]:
+    scene = status["scene"]["scene"]
+    pressure = status["pressure"]["pressure"]
+    reorient = status["reorient"]["decision"]
+    jobs = status["jobs"]["jobs"]
+    result = status["reorientResult"]
+    recommendation = status["crrc"]["recommendation"]
+    checkpoint = scene.get("investigationCheckpoint") or {}
+    verification = job_by_id(jobs, "verification")
+
+    implementation_status = "ready"
+    implementation_note = "Continue the bounded coding task."
+    if recommendation["action"] != "continue":
+        implementation_status = "blocked"
+        implementation_note = f"Wait for CRRC action: {recommendation['action']}."
+
+    modeling_status = "ready" if checkpoint else "needed"
+    modeling_note = (
+        f"{checkpoint.get('disposition', 'checkpoint missing')}: "
+        f"{checkpoint.get('nextAction') or reorient['nextAction']}"
+    )
+
+    verification_status = verification.get("status", "unknown") if verification else "unknown"
+    if verification:
+        verification_note = (
+            verification.get("blockingReason")
+            or verification.get("progressNote")
+            or "Review evidence and accepted findings before promotion."
+        )
+    else:
+        verification_note = "Verification lane is unavailable."
+
+    reorientation_status = recommendation["action"]
+    reorientation_note = (
+        f"{reorient['action']} verdict, result {result['status']}, "
+        f"pressure {pressure['level']}."
+    )
+
+    return [
+        {
+            "id": "implementation",
+            "title": "Implementation",
+            "status": implementation_status,
+            "owner": "coding-agent",
+            "note": implementation_note,
+        },
+        {
+            "id": "modeling",
+            "title": "Modeling / Checkpoint",
+            "status": modeling_status,
+            "owner": "epiphany-modeler",
+            "note": modeling_note,
+        },
+        {
+            "id": "verification",
+            "title": "Verification / Review",
+            "status": verification_status,
+            "owner": "epiphany-verifier",
+            "note": verification_note,
+        },
+        {
+            "id": "reorientation",
+            "title": "Reorientation",
+            "status": reorientation_status,
+            "owner": "epiphany-reorient",
+            "note": reorientation_note,
+        },
+    ]
+
+
 def collect_status(
     client: AppServerClient,
     *,
@@ -68,7 +145,7 @@ def collect_status(
     reorient_result = client.send("thread/epiphany/reorientResult", {"threadId": thread_id})
     crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
 
-    return {
+    status = {
         "threadId": thread_id,
         "read": read,
         "scene": scene,
@@ -78,6 +155,8 @@ def collect_status(
         "reorientResult": reorient_result,
         "crrc": crrc,
     }
+    status["roleLanes"] = derive_role_lanes(status)
+    return status
 
 
 def render_status(status: dict[str, Any]) -> str:
@@ -118,6 +197,17 @@ def render_status(status: dict[str, Any]) -> str:
                 f"- finding mode: {maybe(finding.get('mode'))}",
                 f"- finding next: {maybe(finding.get('nextSafeMove'))}",
             ]
+        )
+
+    lines.extend(
+        [
+            "",
+            "Role Lanes",
+        ]
+    )
+    for lane in status["roleLanes"]:
+        lines.append(
+            f"- {lane['title']}: {lane['status']} ({lane['owner']}) - {lane['note']}"
         )
 
     lines.extend(

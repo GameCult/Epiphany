@@ -33,7 +33,7 @@ The current spine is real, not aspirational:
 - read-only CRRC next-action recommendations through `thread/epiphany/crrc`
 - live bound-job progress notifications through `thread/epiphany/jobsUpdated`
 - read-only reflection surfaces through `thread/epiphany/scene`, `jobs`, `freshness`, `context`, `pressure`, and `reorient`
-- a first dogfood CLI operator view through `tools/epiphany_mvp_status.py`
+- a first dogfood CLI operator view through `tools/epiphany_mvp_status.py`, including explicit implementation, modeling/checkpoint, verification/review, and reorientation lanes
 - durable investigation checkpointing for compaction-safe planning
 - repo-owned heavy Epiphany organs in `epiphany-core/`, with vendored Codex kept as the host seam where practical
 
