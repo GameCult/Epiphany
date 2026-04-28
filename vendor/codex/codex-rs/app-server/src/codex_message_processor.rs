@@ -154,6 +154,10 @@ use codex_app_server_protocol::ThreadEpiphanyContextParams;
 use codex_app_server_protocol::ThreadEpiphanyContextResponse;
 use codex_app_server_protocol::ThreadEpiphanyContextSource;
 use codex_app_server_protocol::ThreadEpiphanyContextStateStatus;
+use codex_app_server_protocol::ThreadEpiphanyCrrcAction;
+use codex_app_server_protocol::ThreadEpiphanyCrrcParams;
+use codex_app_server_protocol::ThreadEpiphanyCrrcRecommendation;
+use codex_app_server_protocol::ThreadEpiphanyCrrcResponse;
 use codex_app_server_protocol::ThreadEpiphanyDistillParams;
 use codex_app_server_protocol::ThreadEpiphanyDistillResponse;
 use codex_app_server_protocol::ThreadEpiphanyFreshnessParams;
@@ -1096,6 +1100,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyReorient { request_id, params } => {
                 self.thread_epiphany_reorient(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyCrrc { request_id, params } => {
+                self.thread_epiphany_crrc(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyReorientLaunch { request_id, params } => {
@@ -4531,6 +4539,155 @@ impl CodexMessageProcessor {
             state_status,
             state_revision,
             decision,
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_crrc(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyCrrcParams,
+    ) {
+        let ThreadEpiphanyCrrcParams { thread_id } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let loaded = loaded_thread.is_some();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let retrieval_override = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_retrieval_state().await)
+        } else {
+            None
+        };
+        let watcher_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            let config_snapshot = loaded_thread.config_snapshot().await;
+            self.epiphany_invalidation_manager
+                .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
+                .await;
+            Some(
+                self.epiphany_invalidation_manager
+                    .snapshot(&thread_id)
+                    .await,
+            )
+        } else {
+            None
+        };
+        let (source, token_usage_info) = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            (
+                ThreadEpiphanyReorientSource::Live,
+                loaded_thread.token_usage_info().await,
+            )
+        } else {
+            let token_usage_info = match thread.path.as_deref() {
+                Some(path) => latest_token_usage_info_from_rollout_path(path).await,
+                None => None,
+            };
+            (ThreadEpiphanyReorientSource::Stored, token_usage_info)
+        };
+
+        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+            thread.epiphany_state.as_ref(),
+            retrieval_override.as_ref(),
+            watcher_snapshot.as_ref(),
+        );
+        let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+        let (state_status, decision) = map_epiphany_reorient(
+            thread.epiphany_state.as_ref(),
+            &pressure,
+            &retrieval,
+            &graph,
+            &watcher,
+        );
+
+        let mut state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            loaded_thread.epiphany_state_runtime().await
+        } else {
+            None
+        };
+        if state_db_ctx.is_none() {
+            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
+        }
+        let job_resolution = load_epiphany_job_launcher_snapshots(
+            state_db_ctx.as_ref(),
+            thread.epiphany_state.as_ref(),
+        )
+        .await;
+        let jobs = map_epiphany_jobs(
+            thread.epiphany_state.as_ref(),
+            retrieval_override.as_ref(),
+            &job_resolution,
+        );
+        let reorient_job = jobs
+            .iter()
+            .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
+            .cloned();
+        let (result_status, finding, result_note) = load_epiphany_reorient_result_snapshot(
+            thread.epiphany_state.as_ref(),
+            state_db_ctx.as_ref(),
+            EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        )
+        .await;
+        let available_actions = epiphany_scene_available_actions(
+            loaded,
+            thread.epiphany_state.is_some(),
+            thread
+                .epiphany_state
+                .as_ref()
+                .and_then(|state| state.investigation_checkpoint.as_ref())
+                .is_some(),
+            reorient_job.is_some(),
+        );
+        let recommendation = map_epiphany_crrc_recommendation(
+            loaded,
+            state_status,
+            &pressure,
+            &decision,
+            result_status,
+            thread
+                .epiphany_state
+                .as_ref()
+                .and_then(|state| state.investigation_checkpoint.as_ref())
+                .is_some(),
+            finding.is_some(),
+        );
+        let note = format!(
+            "{} Result status: {:?}. {}",
+            recommendation.reason, result_status, result_note
+        );
+
+        let response = ThreadEpiphanyCrrcResponse {
+            thread_id,
+            source,
+            state_status,
+            state_revision,
+            pressure,
+            decision,
+            recommendation,
+            reorient_binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
+            reorient_result_status: result_status,
+            reorient_job,
+            reorient_finding: finding,
+            available_actions,
+            note,
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -11909,6 +12066,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Freshness,
         ThreadEpiphanySceneAction::Pressure,
         ThreadEpiphanySceneAction::Reorient,
+        ThreadEpiphanySceneAction::Crrc,
     ];
     if checkpoint_present {
         actions.push(ThreadEpiphanySceneAction::ReorientLaunch);
@@ -12148,6 +12306,201 @@ fn render_epiphany_reorient_result_note(
             "The bound runtime backend job or item is missing.".to_string()
         }
     }
+}
+
+async fn load_epiphany_reorient_result_snapshot(
+    state: Option<&EpiphanyThreadState>,
+    state_db_ctx: Option<&StateDbHandle>,
+    binding_id: &str,
+) -> (
+    ThreadEpiphanyReorientResultStatus,
+    Option<ThreadEpiphanyReorientFinding>,
+    String,
+) {
+    let Some(state) = state else {
+        return (
+            ThreadEpiphanyReorientResultStatus::MissingState,
+            None,
+            "No authoritative Epiphany state exists for this thread.".to_string(),
+        );
+    };
+    let Some(binding) = state
+        .job_bindings
+        .iter()
+        .find(|binding| binding.id == binding_id)
+    else {
+        return (
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            None,
+            "No matching Epiphany reorientation worker binding exists.".to_string(),
+        );
+    };
+    let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
+        return (
+            ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+            None,
+            "The matching binding is not currently backed by the agent_jobs backend.".to_string(),
+        );
+    };
+    let Some(state_db_ctx) = state_db_ctx else {
+        return (
+            ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+            None,
+            "State runtime is unavailable, so the bound agent_jobs result cannot be read."
+                .to_string(),
+        );
+    };
+    let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
+        Ok(Some(job)) => job,
+        Ok(None) => {
+            return (
+                ThreadEpiphanyReorientResultStatus::BackendMissing,
+                None,
+                format!(
+                    "Bound agent_jobs backend job {:?} was not found.",
+                    agent_job_id
+                ),
+            );
+        }
+        Err(err) => {
+            return (
+                ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                None,
+                format!("Failed to read Epiphany reorientation backend job: {err}"),
+            );
+        }
+    };
+    let item = match state_db_ctx
+        .get_agent_job_item(agent_job_id, binding_id)
+        .await
+    {
+        Ok(Some(item)) => item,
+        Ok(None) => {
+            return (
+                ThreadEpiphanyReorientResultStatus::BackendMissing,
+                None,
+                "Bound agent_jobs backend item was not found for this reorient worker.".to_string(),
+            );
+        }
+        Err(err) => {
+            return (
+                ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                None,
+                format!("Failed to read Epiphany reorientation backend item: {err}"),
+            );
+        }
+    };
+    let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
+    let finding = item.result_json.as_ref().map(|result| {
+        map_epiphany_reorient_finding(
+            result.clone(),
+            agent_job.last_error.clone(),
+            item.last_error.clone(),
+        )
+    });
+    let note =
+        render_epiphany_reorient_result_note(status, finding.as_ref(), item.last_error.as_deref());
+    (status, finding, note)
+}
+
+fn map_epiphany_crrc_recommendation(
+    loaded: bool,
+    state_status: ThreadEpiphanyReorientStateStatus,
+    pressure: &ThreadEpiphanyPressure,
+    decision: &ThreadEpiphanyReorientDecision,
+    result_status: ThreadEpiphanyReorientResultStatus,
+    checkpoint_present: bool,
+    finding_present: bool,
+) -> ThreadEpiphanyCrrcRecommendation {
+    let build = |action: ThreadEpiphanyCrrcAction,
+                 recommended_scene_action: Option<ThreadEpiphanySceneAction>,
+                 reason: &str| ThreadEpiphanyCrrcRecommendation {
+        action,
+        recommended_scene_action,
+        reason: reason.to_string(),
+    };
+
+    if state_status == ThreadEpiphanyReorientStateStatus::Missing {
+        return build(
+            ThreadEpiphanyCrrcAction::RegatherManually,
+            None,
+            "No authoritative Epiphany state exists; re-gather source context before editing.",
+        );
+    }
+
+    if !checkpoint_present {
+        return build(
+            ThreadEpiphanyCrrcAction::PrepareCheckpoint,
+            Some(ThreadEpiphanySceneAction::Update),
+            "Epiphany state exists, but CRRC has no durable investigation checkpoint to resume.",
+        );
+    }
+
+    match result_status {
+        ThreadEpiphanyReorientResultStatus::Pending
+        | ThreadEpiphanyReorientResultStatus::Running => {
+            return build(
+                ThreadEpiphanyCrrcAction::WaitForReorientWorker,
+                Some(ThreadEpiphanySceneAction::ReorientResult),
+                "A reorientation worker is already in flight; wait or read the bound result.",
+            );
+        }
+        ThreadEpiphanyReorientResultStatus::Completed => {
+            if finding_present {
+                return build(
+                    ThreadEpiphanyCrrcAction::AcceptReorientResult,
+                    Some(ThreadEpiphanySceneAction::ReorientAccept),
+                    "A completed reorientation finding is available; review and explicitly accept it before continuing.",
+                );
+            }
+            return build(
+                ThreadEpiphanyCrrcAction::ReviewReorientResult,
+                Some(ThreadEpiphanySceneAction::ReorientResult),
+                "The reorientation worker completed, but no structured finding was recorded.",
+            );
+        }
+        ThreadEpiphanyReorientResultStatus::Failed
+        | ThreadEpiphanyReorientResultStatus::Cancelled => {
+            return build(
+                ThreadEpiphanyCrrcAction::RegatherManually,
+                Some(ThreadEpiphanySceneAction::ReorientResult),
+                "The reorientation worker ended without a usable finding; inspect the failure before relaunching.",
+            );
+        }
+        ThreadEpiphanyReorientResultStatus::MissingState => {
+            return build(
+                ThreadEpiphanyCrrcAction::RegatherManually,
+                None,
+                "No authoritative Epiphany state exists; re-gather source context before editing.",
+            );
+        }
+        ThreadEpiphanyReorientResultStatus::MissingBinding
+        | ThreadEpiphanyReorientResultStatus::BackendUnavailable
+        | ThreadEpiphanyReorientResultStatus::BackendMissing => {}
+    }
+
+    if pressure.should_prepare_compaction
+        || decision.action == ThreadEpiphanyReorientAction::Regather
+    {
+        if loaded {
+            return build(
+                ThreadEpiphanyCrrcAction::LaunchReorientWorker,
+                Some(ThreadEpiphanySceneAction::ReorientLaunch),
+                "The current pressure/reorientation verdict needs a bounded worker before safe continuation.",
+            );
+        }
+        return build(
+            ThreadEpiphanyCrrcAction::RegatherManually,
+            Some(ThreadEpiphanySceneAction::Reorient),
+            "The thread is not loaded, so CRRC can only report the regather verdict.",
+        );
+    }
+
+    build(
+        ThreadEpiphanyCrrcAction::Continue,
+        Some(ThreadEpiphanySceneAction::Reorient),
+        "Pressure is tolerable and the checkpoint remains resume-ready; continue the bounded task.",
+    )
 }
 
 async fn load_completed_epiphany_reorient_finding(
@@ -16090,6 +16443,120 @@ mod tests {
                 AgentJobItemStatus::Failed,
             ),
             ThreadEpiphanyReorientResultStatus::Failed
+        );
+    }
+
+    #[test]
+    fn map_epiphany_crrc_recommendation_continues_clean_checkpoint() {
+        let pressure = map_epiphany_pressure(None);
+        let decision = ThreadEpiphanyReorientDecision {
+            action: ThreadEpiphanyReorientAction::Resume,
+            checkpoint_status: ThreadEpiphanyReorientCheckpointStatus::ResumeReady,
+            checkpoint_id: Some("ix-clean".to_string()),
+            pressure_level: pressure.level,
+            retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            graph_status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            watcher_status: ThreadEpiphanyInvalidationStatus::Clean,
+            reasons: vec![ThreadEpiphanyReorientReason::CheckpointReady],
+            checkpoint_dirty_paths: Vec::new(),
+            checkpoint_changed_paths: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            next_action: "Continue the bounded task.".to_string(),
+            note: "ready".to_string(),
+        };
+
+        let recommendation = map_epiphany_crrc_recommendation(
+            true,
+            ThreadEpiphanyReorientStateStatus::Ready,
+            &pressure,
+            &decision,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            true,
+            false,
+        );
+
+        assert_eq!(recommendation.action, ThreadEpiphanyCrrcAction::Continue);
+        assert_eq!(
+            recommendation.recommended_scene_action,
+            Some(ThreadEpiphanySceneAction::Reorient)
+        );
+    }
+
+    #[test]
+    fn map_epiphany_crrc_recommendation_launches_on_regather_verdict() {
+        let pressure = map_epiphany_pressure(None);
+        let decision = ThreadEpiphanyReorientDecision {
+            action: ThreadEpiphanyReorientAction::Regather,
+            checkpoint_status: ThreadEpiphanyReorientCheckpointStatus::ResumeReady,
+            checkpoint_id: Some("ix-drifted".to_string()),
+            pressure_level: pressure.level,
+            retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            graph_status: ThreadEpiphanyGraphFreshnessStatus::Stale,
+            watcher_status: ThreadEpiphanyInvalidationStatus::Changed,
+            reasons: vec![ThreadEpiphanyReorientReason::CheckpointPathsChanged],
+            checkpoint_dirty_paths: Vec::new(),
+            checkpoint_changed_paths: vec![PathBuf::from("src/lib.rs")],
+            active_frontier_node_ids: vec!["node-a".to_string()],
+            next_action: "Regather.".to_string(),
+            note: "drifted".to_string(),
+        };
+
+        let recommendation = map_epiphany_crrc_recommendation(
+            true,
+            ThreadEpiphanyReorientStateStatus::Ready,
+            &pressure,
+            &decision,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            true,
+            false,
+        );
+
+        assert_eq!(
+            recommendation.action,
+            ThreadEpiphanyCrrcAction::LaunchReorientWorker
+        );
+        assert_eq!(
+            recommendation.recommended_scene_action,
+            Some(ThreadEpiphanySceneAction::ReorientLaunch)
+        );
+    }
+
+    #[test]
+    fn map_epiphany_crrc_recommendation_accepts_completed_finding() {
+        let pressure = map_epiphany_pressure(None);
+        let decision = ThreadEpiphanyReorientDecision {
+            action: ThreadEpiphanyReorientAction::Regather,
+            checkpoint_status: ThreadEpiphanyReorientCheckpointStatus::RegatherRequired,
+            checkpoint_id: Some("ix-result".to_string()),
+            pressure_level: pressure.level,
+            retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            graph_status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            watcher_status: ThreadEpiphanyInvalidationStatus::Clean,
+            reasons: vec![ThreadEpiphanyReorientReason::CheckpointRequestedRegather],
+            checkpoint_dirty_paths: Vec::new(),
+            checkpoint_changed_paths: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            next_action: "Review result.".to_string(),
+            note: "result".to_string(),
+        };
+
+        let recommendation = map_epiphany_crrc_recommendation(
+            true,
+            ThreadEpiphanyReorientStateStatus::Ready,
+            &pressure,
+            &decision,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            true,
+            true,
+        );
+
+        assert_eq!(
+            recommendation.action,
+            ThreadEpiphanyCrrcAction::AcceptReorientResult
+        );
+        assert_eq!(
+            recommendation.recommended_scene_action,
+            Some(ThreadEpiphanySceneAction::ReorientAccept)
         );
     }
 

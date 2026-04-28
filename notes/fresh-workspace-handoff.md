@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, and `thread/epiphany/reorientResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the first explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, and `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, and `thread/epiphany/reorientResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the first explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state, and `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -66,6 +66,7 @@ The current spine:
 - bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - read-only reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
+- read-only CRRC coordinator recommendation through `thread/epiphany/crrc`
 - thin launcher metadata in durable `jobBindings`
 - live bound-job progress notification through `thread/epiphany/jobsUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
@@ -74,6 +75,7 @@ The current spine:
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only context-pressure reflection through `thread/epiphany/pressure`
 - read-only CRRC reorientation policy through `thread/epiphany/reorient`
+- read-only CRRC next-action recommendation through `thread/epiphany/crrc`
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
@@ -99,6 +101,7 @@ The exact current control flow is documented in
 - `thread/epiphany/context` is read-only.
 - `thread/epiphany/pressure` is read-only.
 - `thread/epiphany/reorient` is read-only.
+- `thread/epiphany/crrc` is read-only.
 - `thread/epiphany/reorientResult` is read-only.
 - Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, `thread/epiphany/reorientAccept`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, and `thread/epiphany/reorientLaunch` authority surfaces when they mutate `jobBindings`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
@@ -167,6 +170,10 @@ For the bounded reorient-guided worker launch surface, run:
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'
 ```
 
+The same smoke now also covers the read-only `thread/epiphany/crrc`
+coordinator recommendation over continue, wait, accept, interrupt, and relaunch
+states.
+
 For Codex Rust work on this Windows machine:
 
 ```powershell
@@ -228,20 +235,21 @@ The bounded CRRC coordination/policy layer is now also landed as read-only
 watcher, and investigation-checkpoint signals to decide whether a checkpoint
 still deserves `resume` or has to admit `regather`.
 
-Also keep the guardrail in mind: a read-only reorientation verdict is still not
-automatic CRRC. Runtime coordination and next-action execution are still future
-work even though read-only job ownership/progress reflection now has a real
-runtime seam, the thin launcher boundary is landed, and one explicit
-reorient-guided launch surface can now consume the verdict on purpose.
+Also keep the guardrail in mind: a read-only reorientation verdict and read-only
+CRRC recommendation are still not automatic CRRC execution. Runtime action is
+still explicit even though read-only job ownership/progress reflection now has a
+real runtime seam, the thin launcher boundary is landed, and one explicit
+reorient-guided launch surface can consume the verdict on purpose.
 
-When the user asks to continue, the next likely organ is bounded CRRC
-coordination over the landed pressure, verdict, launch, result, and accept
-loop. Keep it explicit and narrow; do not build a broad hidden scheduler.
+When the user asks to continue, the next likely organ is a minimal dogfood-facing
+operator view over the landed scene, pressure, reorient, jobs, result, and CRRC
+recommendation loop. Keep it explicit and narrow; do not build a broad hidden
+scheduler or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
-`thread/epiphany/pressure`, and `thread/epiphany/reorient` smokes are now
-guardrails, not the next organs.
+`thread/epiphany/pressure`, `thread/epiphany/reorient`, and
+`thread/epiphany/crrc` smokes are now guardrails, not the next organs.
 
 ## Not Yet
 
@@ -249,7 +257,7 @@ guardrails, not the next organs.
 - automatic observation promotion
 - specialist-agent scheduling
 - GUI-as-source-of-truth
-- automatic runtime CRRC coordinator acting on the landed reorientation verdict and launch/read-back path
+- automatic runtime CRRC execution acting on the landed recommendation/verdict and launch/read-back path
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam
 - broad event stream beyond the landed state update notification
 

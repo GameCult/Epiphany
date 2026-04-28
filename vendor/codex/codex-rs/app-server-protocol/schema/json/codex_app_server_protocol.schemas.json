@@ -15105,6 +15105,43 @@
         ],
         "type": "string"
       },
+      "ThreadEpiphanyCrrcAction": {
+        "enum": [
+          "continue",
+          "prepareCheckpoint",
+          "launchReorientWorker",
+          "waitForReorientWorker",
+          "reviewReorientResult",
+          "acceptReorientResult",
+          "regatherManually"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyCrrcRecommendation": {
+        "properties": {
+          "action": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyCrrcAction"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "recommendedSceneAction": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanySceneAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "action",
+          "reason"
+        ],
+        "type": "object"
+      },
       "ThreadEpiphanyFreshnessSource": {
         "enum": [
           "stored",
@@ -16062,6 +16099,7 @@
           "freshness",
           "pressure",
           "reorient",
+          "crrc",
           "reorientLaunch",
           "reorientResult",
           "reorientAccept",

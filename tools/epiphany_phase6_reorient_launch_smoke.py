@@ -144,6 +144,23 @@ def assert_reorient_job(
     )
 
 
+def assert_crrc_recommendation(
+    crrc: dict[str, Any],
+    *,
+    action: str,
+    scene_action: str | None,
+) -> None:
+    recommendation = crrc["recommendation"]
+    require(
+        recommendation["action"] == action,
+        f"CRRC should recommend {action}, got {recommendation!r}",
+    )
+    require(
+        recommendation.get("recommendedSceneAction") == scene_action,
+        f"CRRC should point at scene action {scene_action!r}, got {recommendation!r}",
+    )
+
+
 def wait_for_jobs_surface(
     client: AppServerClient,
     thread_id: str,
@@ -204,6 +221,25 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         client.wait_for_notification(
             "thread/epiphany/stateUpdated",
             start_index=update_notification_start,
+        )
+
+        initial_crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+        assert initial_crrc is not None
+        require(initial_crrc["source"] == "live", "CRRC should read live thread signals")
+        require(initial_crrc["stateStatus"] == "ready", "CRRC should see ready Epiphany state")
+        require(initial_crrc["stateRevision"] == 1, "CRRC should report revision 1")
+        require(
+            initial_crrc["decision"]["action"] == "resume",
+            "CRRC should preserve the clean resume verdict",
+        )
+        require(
+            initial_crrc["reorientResultStatus"] == "missingBinding",
+            "CRRC should report the missing reorient binding before launch",
+        )
+        assert_crrc_recommendation(
+            initial_crrc,
+            action="continue",
+            scene_action="reorient",
         )
 
         resume_launch_notification_start = len(client.notifications)
@@ -269,6 +305,22 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert_reorient_job(job_by_id(resume_jobs["jobs"], BINDING_ID), action="resume")
 
+        resume_crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+        assert resume_crrc is not None
+        require(
+            resume_crrc["reorientBindingId"] == BINDING_ID,
+            "CRRC should expose the fixed reorient binding",
+        )
+        require(
+            resume_crrc["reorientResultStatus"] in {"pending", "running"},
+            "CRRC should see the launched worker as in flight",
+        )
+        assert_crrc_recommendation(
+            resume_crrc,
+            action="waitForReorientWorker",
+            scene_action="reorientResult",
+        )
+
         resume_result_payload = complete_reorient_backend_job(
             codex_home,
             resume_launch["job"]["backendJobId"],
@@ -305,6 +357,22 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "reorient result should project the next safe move",
         )
 
+        resume_result_crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+        assert resume_result_crrc is not None
+        require(
+            resume_result_crrc["reorientResultStatus"] == "completed",
+            "CRRC should see the completed resume result",
+        )
+        require(
+            resume_result_crrc["reorientFinding"]["rawResult"] == resume_result_payload,
+            "CRRC should project the reviewable resume finding",
+        )
+        assert_crrc_recommendation(
+            resume_result_crrc,
+            action="acceptReorientResult",
+            scene_action="reorientAccept",
+        )
+
         watched_file.write_text(
             "pub fn reorient_target() -> &'static str {\n    \"after\"\n}\n",
             encoding="utf-8",
@@ -313,6 +381,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(
             regather_reorient["decision"]["action"] == "regather",
             "touched checkpoint path should force a regather verdict",
+        )
+
+        drifted_crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+        assert drifted_crrc is not None
+        require(
+            drifted_crrc["decision"]["action"] == "regather",
+            "CRRC should preserve the invalidated checkpoint verdict",
+        )
+        assert_crrc_recommendation(
+            drifted_crrc,
+            action="acceptReorientResult",
+            scene_action="reorientAccept",
         )
 
         interrupt_notification_start = len(client.notifications)
@@ -336,6 +416,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(
             interrupted_jobs["stateRevision"] == 3,
             "jobs surface should reflect the interrupted revision",
+        )
+
+        interrupted_crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+        assert interrupted_crrc is not None
+        require(
+            interrupted_crrc["reorientResultStatus"] == "backendUnavailable",
+            "CRRC should see the cleared backend after interruption",
+        )
+        assert_crrc_recommendation(
+            interrupted_crrc,
+            action="launchReorientWorker",
+            scene_action="reorientLaunch",
         )
 
         regather_launch_notification_start = len(client.notifications)
@@ -420,6 +512,22 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         require(
             regather_result["finding"]["rawResult"] == regather_result_payload,
             "regather result should expose the raw worker result for review",
+        )
+
+        regather_result_crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+        assert regather_result_crrc is not None
+        require(
+            regather_result_crrc["reorientResultStatus"] == "completed",
+            "CRRC should see the completed regather result",
+        )
+        require(
+            regather_result_crrc["reorientFinding"]["rawResult"] == regather_result_payload,
+            "CRRC should expose the regather worker finding",
+        )
+        assert_crrc_recommendation(
+            regather_result_crrc,
+            action="acceptReorientResult",
+            scene_action="reorientAccept",
         )
 
         accept_notification_start = len(client.notifications)

@@ -74,6 +74,7 @@ The landed machine now has:
 - bounded Phase 6 reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - read-only Phase 6 reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit Phase 6 reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
+- read-only Phase 6 CRRC coordinator recommendation through `thread/epiphany/crrc`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
@@ -100,6 +101,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
 - `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
+- `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -136,9 +138,8 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- how much automatic CRRC coordination belongs once pressure, verdict, launch, result read-back, and explicit acceptance all exist
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
-- how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
+- how far the read-only CRRC recommendation should go before explicit client/operator action takes over
 - whether future bounded CRRC consumers should keep reusing the landed `agent_jobs` backend through the explicit job-control seam or start defining a second backend contract
 - what Phase 6 should prove before specialist scheduling begins
 
@@ -170,12 +171,12 @@ marketplace, broad ambient scheduling, automatic promotion of every tool
 observation, a GUI-first workflow, or a second job backend unless the current
 `agent_jobs` seam blocks the product loop.
 
-The read-back and acceptance blockers are now landed as
-`thread/epiphany/reorientResult` and `thread/epiphany/reorientAccept`. The next
-MVP blocker is bounded CRRC coordination: the harness can measure pressure,
-return a reorientation verdict, launch a worker, read its result, and explicitly
-accept the finding, but it still lacks the small policy surface that decides
-when to recommend or request that loop.
+The read-back, acceptance, and coordinator blockers are now landed as
+`thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`, and
+`thread/epiphany/crrc`. The next MVP blocker is product dogfooding: a human can
+now ask the harness what it believes and what it recommends, but the loop still
+needs a small non-Rust-facing surface that makes that answer easy to inspect
+and act on during real work.
 
 ## Phase 6 Direction
 
@@ -183,7 +184,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Decide how much bounded CRRC coordination belongs now that pressure, freshness, watcher, checkpoint, reorient, explicit job control, reorient launch, result read-back, and explicit acceptance all exist.
+1. Build a minimal dogfood-facing view over scene, pressure, reorient, jobs, reorient result, and CRRC recommendation so a non-Rust-speaking operator can test the product loop.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 

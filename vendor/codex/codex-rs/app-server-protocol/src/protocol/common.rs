@@ -366,6 +366,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyReorientParams,
         response: v2::ThreadEpiphanyReorientResponse,
     },
+    #[experimental("thread/epiphany/crrc")]
+    ThreadEpiphanyCrrc => "thread/epiphany/crrc" {
+        params: v2::ThreadEpiphanyCrrcParams,
+        response: v2::ThreadEpiphanyCrrcResponse,
+    },
     #[experimental("thread/epiphany/reorientLaunch")]
     ThreadEpiphanyReorientLaunch => "thread/epiphany/reorientLaunch" {
         params: v2::ThreadEpiphanyReorientLaunchParams,
@@ -1725,6 +1730,7 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Freshness,
                         v2::ThreadEpiphanySceneAction::Pressure,
                         v2::ThreadEpiphanySceneAction::Reorient,
+                        v2::ThreadEpiphanySceneAction::Crrc,
                         v2::ThreadEpiphanySceneAction::ReorientLaunch,
                         v2::ThreadEpiphanySceneAction::Update,
                         v2::ThreadEpiphanySceneAction::JobInterrupt,
@@ -1825,6 +1831,7 @@ mod tests {
                             "freshness",
                             "pressure",
                             "reorient",
+                            "crrc",
                             "reorientLaunch",
                             "update",
                             "jobInterrupt",
@@ -2235,6 +2242,117 @@ mod tests {
                         "nextAction": "Re-gather source before editing.",
                         "note": "Resume-ready checkpoint was invalidated by watcher/frontier drift."
                     }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_crrc_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyCrrc {
+            request_id: RequestId::Integer(9),
+            response: v2::ThreadEpiphanyCrrcResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyReorientSource::Live,
+                state_status: v2::ThreadEpiphanyReorientStateStatus::Ready,
+                state_revision: Some(4),
+                pressure: v2::ThreadEpiphanyPressure {
+                    status: v2::ThreadEpiphanyPressureStatus::Ready,
+                    level: v2::ThreadEpiphanyPressureLevel::High,
+                    basis: v2::ThreadEpiphanyPressureBasis::AutoCompactLimit,
+                    used_tokens: Some(92_000),
+                    model_context_window: Some(128_000),
+                    model_auto_compact_token_limit: Some(100_000),
+                    remaining_tokens: Some(8_000),
+                    ratio_per_mille: Some(920),
+                    should_prepare_compaction: true,
+                    note: "Pressure is derived from the model auto-compact token limit."
+                        .to_string(),
+                },
+                decision: v2::ThreadEpiphanyReorientDecision {
+                    action: v2::ThreadEpiphanyReorientAction::Regather,
+                    checkpoint_status: v2::ThreadEpiphanyReorientCheckpointStatus::ResumeReady,
+                    checkpoint_id: Some("ix-1".to_string()),
+                    pressure_level: v2::ThreadEpiphanyPressureLevel::High,
+                    retrieval_status: v2::ThreadEpiphanyRetrievalFreshnessStatus::Stale,
+                    graph_status: v2::ThreadEpiphanyGraphFreshnessStatus::Ready,
+                    watcher_status: v2::ThreadEpiphanyInvalidationStatus::Changed,
+                    reasons: vec![v2::ThreadEpiphanyReorientReason::CheckpointPathsChanged],
+                    checkpoint_dirty_paths: Vec::new(),
+                    checkpoint_changed_paths: vec![PathBuf::from("src/lib.rs")],
+                    active_frontier_node_ids: vec!["state-spine".to_string()],
+                    next_action: "Re-gather source before editing.".to_string(),
+                    note: "Resume-ready checkpoint was invalidated by watcher/frontier drift."
+                        .to_string(),
+                },
+                recommendation: v2::ThreadEpiphanyCrrcRecommendation {
+                    action: v2::ThreadEpiphanyCrrcAction::LaunchReorientWorker,
+                    recommended_scene_action: Some(v2::ThreadEpiphanySceneAction::ReorientLaunch),
+                    reason: "The current pressure/reorientation verdict needs a bounded worker before safe continuation."
+                        .to_string(),
+                },
+                reorient_binding_id: "reorient-worker".to_string(),
+                reorient_result_status: v2::ThreadEpiphanyReorientResultStatus::MissingBinding,
+                reorient_job: None,
+                reorient_finding: None,
+                available_actions: vec![
+                    v2::ThreadEpiphanySceneAction::Reorient,
+                    v2::ThreadEpiphanySceneAction::Crrc,
+                    v2::ThreadEpiphanySceneAction::ReorientLaunch,
+                ],
+                note: "The current pressure/reorientation verdict needs a bounded worker before safe continuation. Result status: MissingBinding. No matching Epiphany reorientation worker binding exists."
+                    .to_string(),
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(9));
+        assert_eq!(response.method(), "thread/epiphany/crrc");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/crrc",
+                "id": 9,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 4,
+                    "pressure": {
+                        "status": "ready",
+                        "level": "high",
+                        "basis": "autoCompactLimit",
+                        "usedTokens": 92000,
+                        "modelContextWindow": 128000,
+                        "modelAutoCompactTokenLimit": 100000,
+                        "remainingTokens": 8000,
+                        "ratioPerMille": 920,
+                        "shouldPrepareCompaction": true,
+                        "note": "Pressure is derived from the model auto-compact token limit."
+                    },
+                    "decision": {
+                        "action": "regather",
+                        "checkpointStatus": "resumeReady",
+                        "checkpointId": "ix-1",
+                        "pressureLevel": "high",
+                        "retrievalStatus": "stale",
+                        "graphStatus": "ready",
+                        "watcherStatus": "changed",
+                        "reasons": ["checkpointPathsChanged"],
+                        "checkpointChangedPaths": ["src/lib.rs"],
+                        "activeFrontierNodeIds": ["state-spine"],
+                        "nextAction": "Re-gather source before editing.",
+                        "note": "Resume-ready checkpoint was invalidated by watcher/frontier drift."
+                    },
+                    "recommendation": {
+                        "action": "launchReorientWorker",
+                        "recommendedSceneAction": "reorientLaunch",
+                        "reason": "The current pressure/reorientation verdict needs a bounded worker before safe continuation."
+                    },
+                    "reorientBindingId": "reorient-worker",
+                    "reorientResultStatus": "missingBinding",
+                    "availableActions": ["reorient", "crrc", "reorientLaunch"],
+                    "note": "The current pressure/reorientation verdict needs a bounded worker before safe continuation. Result status: MissingBinding. No matching Epiphany reorientation worker binding exists."
                 }
             }),
             serde_json::to_value(&response)?,
@@ -3814,6 +3932,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/reorient"));
+    }
+
+    #[test]
+    fn thread_epiphany_crrc_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyCrrc {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyCrrcParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/crrc"));
     }
 
     #[test]

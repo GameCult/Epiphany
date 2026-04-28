@@ -4002,6 +4002,7 @@ pub enum ThreadEpiphanySceneAction {
     Freshness,
     Pressure,
     Reorient,
+    Crrc,
     ReorientLaunch,
     ReorientResult,
     ReorientAccept,
@@ -4652,6 +4653,63 @@ pub struct ThreadEpiphanyReorientAcceptResponse {
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
     pub finding: ThreadEpiphanyReorientFinding,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyCrrcParams {
+    pub thread_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyCrrcResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyReorientSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub pressure: ThreadEpiphanyPressure,
+    pub decision: ThreadEpiphanyReorientDecision,
+    pub recommendation: ThreadEpiphanyCrrcRecommendation,
+    pub reorient_binding_id: String,
+    pub reorient_result_status: ThreadEpiphanyReorientResultStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub reorient_job: Option<ThreadEpiphanyJob>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub reorient_finding: Option<ThreadEpiphanyReorientFinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub available_actions: Vec<ThreadEpiphanySceneAction>,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyCrrcRecommendation {
+    pub action: ThreadEpiphanyCrrcAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub recommended_scene_action: Option<ThreadEpiphanySceneAction>,
+    pub reason: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyCrrcAction {
+    Continue,
+    PrepareCheckpoint,
+    LaunchReorientWorker,
+    WaitForReorientWorker,
+    ReviewReorientResult,
+    AcceptReorientResult,
+    RegatherManually,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
