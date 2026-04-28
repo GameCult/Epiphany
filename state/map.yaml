@@ -12,8 +12,8 @@ objective:
     explicit typed models of the codebase, active goal, evidence, and change
     machinery they are working on.
   current: >
-    Prove the Phase 6 MVP through the landed fixed-lane coordinator and
-    auditable operator artifacts before adding limited CRRC automation.
+    Dogfood the landed Phase 6 MVP coordinator and limited CRRC safe-boundary
+    automation on real local work before adding larger organs.
 
 constraints:
   - No frontier-scale training budget.
@@ -54,8 +54,8 @@ data_flow:
 active_subgoals:
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
   - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, roleResult, freshness, context, pressure, reorient, crrc, coordinator, and reorientResult.
-  - Extend Phase 6 coordination only where it makes role dependencies explicit and auditable without becoming a broad ambient dispatcher.
-  - Put the dogfooded MVP loop in front of a human operator before adding larger organs.
+  - Dogfood the landed Phase 6 coordinator and limited safe-boundary CRRC automation before adding larger organs.
+  - Preserve review gates for semantic findings; automatic CRRC may compact or launch the fixed reorient-worker, but not accept or promote.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
 
 accepted_design:
@@ -85,6 +85,7 @@ accepted_design:
   - A narrow auditable coordinator is likely central to the MVP because implementation, modeling/checkpoint, verification/review, and CRRC automation depend on each other's signals. CRRC itself is harness workflow automation, not a specialist-agent role: it watches pressure/continuity, ensures persistence, triggers compaction/rehydration/reorientation when needed, and may launch a bounded reorient-worker specialist when semantic regathering is required.
   - `thread/epiphany/coordinator` is the first harness-native fixed-lane coordinator surface: it composes roles, pressure, reorient, CRRC, roleResult, and reorientResult into a read-only action recommendation with target role, source signals, review requirements, automation eligibility, reason, and current lane summaries without mutating state or launching work.
   - `tools/epiphany_mvp_coordinator.py` is the first auditable coordinator runner: it drives the fixed single-user lanes through app-server APIs, may auto-launch modeling, verification, or reorient-worker jobs, keeps semantic findings review-gated by default, and writes coordinator summaries, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts.
+  - Limited native CRRC automation is now wired only at turn-complete safe boundaries: it can submit a compact operation when the read-only coordinator recommends `compactRehydrateReorient`, and it can launch the fixed `reorient-worker` when the coordinator recommends `launchReorientWorker`. It does not auto-launch modeling or verification, auto-accept findings, promote evidence, edit implementation code, or continue after reviewable semantic results.
   - `tools/epiphany_mvp_status.py` is the first dogfood operator view: it starts or reads a thread through app-server and renders scene, pressure, reorient, jobs, role result read-backs, reorient result, CRRC recommendation, and MVP role lanes as text or JSON without becoming a state store.
   - `thread/epiphany/roles` is the first harness-native role ownership surface: it projects implementation, modeling/checkpoint, verification/review, and reorientation lanes from authoritative typed state, bound jobs, pressure/reorient/CRRC, and worker result status without launching, scheduling, accepting, compacting, or mutating state.
   - `thread/epiphany/roleLaunch` and `thread/epiphany/roleResult` are the first explicit role-scoped specialist templates: modeling/checkpoint and verification/review can be launched through fixed bindings over the existing job-control seam and read back as reviewable findings, while implementation stays owned by the main coding agent and reorientation stays on the CRRC-specific launch/result path.
@@ -121,6 +122,7 @@ landed_baseline:
     - Phase 6 role ownership: read-only `thread/epiphany/roles` over implementation, modeling/checkpoint, verification/review, and reorientation lanes.
     - Phase 6 role specialists: explicit `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult` templates for modeling/checkpoint and verification/review.
     - Phase 6 coordinator: read-only `thread/epiphany/coordinator` plus `tools/epiphany_mvp_coordinator.py` and smoke coverage for the fixed-lane MVP loop.
+    - Phase 6 safe-boundary CRRC automation: turn-complete automation limited to coordinator-approved compact and fixed reorient-worker launch actions.
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
     - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
@@ -156,5 +158,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, roles, freshness, targeted context, pressure, reorient, CRRC, coordinator, reorient launch/result/accept, explicit modeling/checkpoint and verification/review role launch/result templates, MVP status, dogfood runner, coordinator runner, and live specialist runner are landed. The coordinator endpoint and runner now make fixed-lane modeling, verification, implementation continuation, and CRRC handoffs explicit through review-gated artifacts over the existing app-server/job seam. Implementation remains main-agent work; CRRC remains workflow automation, not a specialist persona. Persistent state remains distilled; evidence is a belief ledger, not an activity feed.
-  next_action: Dogfood the fixed-lane coordinator on real local work through `tools/epiphany_mvp_coordinator.py` and its artifact bundle. Fix concrete operator-loop blockers only; defer limited automatic CRRC safe-boundary execution until the coordinator artifacts prove the policy, and do not build a broad ambient dispatcher, GUI-as-source-of-truth, arbitrary specialist marketplace, or alternate job backend for the MVP.
+  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, roles, freshness, targeted context, pressure, reorient, CRRC, coordinator, reorient launch/result/accept, explicit modeling/checkpoint and verification/review role launch/result templates, MVP status, dogfood runner, coordinator runner, live specialist runner, and limited safe-boundary CRRC automation are landed. The coordinator endpoint and runner make fixed-lane modeling, verification, implementation continuation, and CRRC handoffs explicit through review-gated artifacts; native automation only compacts or launches the fixed reorient-worker at turn-complete boundaries when the coordinator says it can auto-run. Implementation remains main-agent work; CRRC remains workflow automation, not a specialist persona. Persistent state remains distilled; evidence is a belief ledger, not an activity feed.
+  next_action: Dogfood the fixed-lane coordinator and native CRRC safe-boundary automation on real local work through `tools/epiphany_mvp_coordinator.py`, `tools/epiphany_mvp_status.py`, and their artifact bundles. Fix concrete operator-loop blockers only; do not build a broad ambient dispatcher, GUI-as-source-of-truth, arbitrary specialist marketplace, alternate job backend, or automatic semantic acceptance for the MVP.

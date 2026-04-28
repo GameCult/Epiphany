@@ -10632,6 +10632,7 @@ impl CodexMessageProcessor {
                             thread_outgoing,
                             thread_state.clone(),
                             thread_watch_manager.clone(),
+                            epiphany_invalidation_manager.clone(),
                             api_version,
                             fallback_model_provider.clone(),
                             codex_home.as_path(),
@@ -13510,6 +13511,40 @@ struct EpiphanyCoordinatorDecision {
     reason: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EpiphanyCoordinatorAutomationAction {
+    None,
+    CompactRehydrateReorient,
+    LaunchReorientWorker,
+}
+
+fn map_epiphany_coordinator_automation_action(
+    decision: &EpiphanyCoordinatorDecision,
+) -> EpiphanyCoordinatorAutomationAction {
+    if !decision.can_auto_run {
+        return EpiphanyCoordinatorAutomationAction::None;
+    }
+    match decision.action {
+        ThreadEpiphanyCoordinatorAction::CompactRehydrateReorient => {
+            EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient
+        }
+        ThreadEpiphanyCoordinatorAction::LaunchReorientWorker => {
+            EpiphanyCoordinatorAutomationAction::LaunchReorientWorker
+        }
+        ThreadEpiphanyCoordinatorAction::PrepareCheckpoint
+        | ThreadEpiphanyCoordinatorAction::WaitForReorientWorker
+        | ThreadEpiphanyCoordinatorAction::ReviewReorientResult
+        | ThreadEpiphanyCoordinatorAction::RegatherManually
+        | ThreadEpiphanyCoordinatorAction::LaunchModeling
+        | ThreadEpiphanyCoordinatorAction::ReviewModelingResult
+        | ThreadEpiphanyCoordinatorAction::LaunchVerification
+        | ThreadEpiphanyCoordinatorAction::ReviewVerificationResult
+        | ThreadEpiphanyCoordinatorAction::ContinueImplementation => {
+            EpiphanyCoordinatorAutomationAction::None
+        }
+    }
+}
+
 fn map_epiphany_coordinator(
     state_status: ThreadEpiphanyReorientStateStatus,
     checkpoint_present: bool,
@@ -15189,6 +15224,154 @@ pub(crate) async fn thread_epiphany_jobs_updated_notification_for_agent_job_prog
         state_revision: Some(state.revision),
         jobs,
     })
+}
+
+pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
+    thread_id: ThreadId,
+    thread: Arc<CodexThread>,
+    epiphany_invalidation_manager: EpiphanyInvalidationManager,
+    outgoing: &ThreadScopedOutgoingMessageSender,
+) {
+    let thread_id_text = thread_id.to_string();
+    let Some(state) = thread.epiphany_state().await else {
+        return;
+    };
+
+    let retrieval_override = thread.epiphany_retrieval_state().await;
+    let config_snapshot = thread.config_snapshot().await;
+    epiphany_invalidation_manager
+        .ensure_thread_watch(&thread_id_text, &config_snapshot.cwd)
+        .await;
+    let watcher_snapshot = epiphany_invalidation_manager
+        .snapshot(&thread_id_text)
+        .await;
+    let token_usage_info = thread.token_usage_info().await;
+    let state_db_ctx = thread.epiphany_state_runtime().await;
+
+    let (_state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+        Some(&state),
+        Some(&retrieval_override),
+        Some(&watcher_snapshot),
+    );
+    let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+    let (state_status, reorient_decision) =
+        map_epiphany_reorient(Some(&state), &pressure, &retrieval, &graph, &watcher);
+    if state_status != ThreadEpiphanyReorientStateStatus::Ready {
+        return;
+    }
+
+    let job_resolution =
+        load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&state)).await;
+    let jobs = map_epiphany_jobs(Some(&state), Some(&retrieval_override), &job_resolution);
+    let reorient_job = jobs
+        .iter()
+        .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
+        .cloned();
+    let (reorient_result_status, reorient_finding, _) = load_epiphany_reorient_result_snapshot(
+        Some(&state),
+        state_db_ctx.as_ref(),
+        EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+    )
+    .await;
+    let crrc_recommendation = map_epiphany_crrc_recommendation(
+        true,
+        state_status,
+        &pressure,
+        &reorient_decision,
+        reorient_result_status,
+        state.investigation_checkpoint.as_ref().is_some(),
+        reorient_finding.is_some(),
+        reorient_finding
+            .as_ref()
+            .is_some_and(|finding| epiphany_reorient_finding_already_accepted(&state, finding)),
+    );
+    let roles = map_epiphany_roles(
+        Some(&state),
+        &jobs,
+        &reorient_decision,
+        &pressure,
+        &crrc_recommendation,
+        reorient_result_status,
+        reorient_job.as_ref(),
+    );
+    let (modeling_result_status, _, _) = load_epiphany_role_result_snapshot(
+        &state,
+        state_db_ctx.as_ref(),
+        ThreadEpiphanyRoleId::Modeling,
+        EPIPHANY_MODELING_ROLE_BINDING_ID,
+    )
+    .await;
+    let (verification_result_status, _, _) = load_epiphany_role_result_snapshot(
+        &state,
+        state_db_ctx.as_ref(),
+        ThreadEpiphanyRoleId::Verification,
+        EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+    )
+    .await;
+    let source_signals = ThreadEpiphanyCoordinatorSignals {
+        pressure_level: pressure.level,
+        should_prepare_compaction: pressure.should_prepare_compaction,
+        reorient_action: reorient_decision.action,
+        crrc_action: crrc_recommendation.action,
+        modeling_result_status,
+        verification_result_status,
+        reorient_result_status,
+    };
+    let coordinator = map_epiphany_coordinator(
+        state_status,
+        state.investigation_checkpoint.as_ref().is_some(),
+        &pressure,
+        &crrc_recommendation,
+        &roles,
+        &source_signals,
+    );
+
+    match map_epiphany_coordinator_automation_action(&coordinator) {
+        EpiphanyCoordinatorAutomationAction::None => {}
+        EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient => {
+            if let Err(err) = thread.submit(Op::Compact).await {
+                warn!(
+                    "failed to run Epiphany coordinator automatic compaction for {thread_id}: {err}"
+                );
+            }
+        }
+        EpiphanyCoordinatorAutomationAction::LaunchReorientWorker => {
+            let Some(checkpoint) = state.investigation_checkpoint.as_ref() else {
+                return;
+            };
+            let launch_request = build_epiphany_reorient_launch_request(
+                &thread_id_text,
+                Some(state.revision),
+                None,
+                &state,
+                checkpoint,
+                &reorient_decision,
+            );
+            let launched = match thread.epiphany_launch_job(launch_request).await {
+                Ok(launched) => launched,
+                Err(err) => {
+                    warn!(
+                        "failed to launch Epiphany coordinator reorientation worker for {thread_id}: {err}"
+                    );
+                    return;
+                }
+            };
+            let epiphany_state =
+                client_visible_live_thread_epiphany_state(thread.as_ref(), launched.epiphany_state)
+                    .await;
+            outgoing
+                .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                    ThreadEpiphanyStateUpdatedNotification {
+                        thread_id: thread_id_text,
+                        source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                        revision: epiphany_state.revision,
+                        changed_fields: vec![ThreadEpiphanyStateUpdatedField::JobBindings],
+                        epiphany_state,
+                    },
+                ))
+                .await;
+        }
+    }
 }
 
 async fn load_epiphany_job_launcher_snapshots(
@@ -18294,6 +18477,10 @@ mod tests {
             ThreadEpiphanyCoordinatorAction::CompactRehydrateReorient
         );
         assert!(decision.can_auto_run);
+        assert_eq!(
+            map_epiphany_coordinator_automation_action(&decision),
+            EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient
+        );
     }
 
     #[test]
@@ -18330,6 +18517,10 @@ mod tests {
             Some(ThreadEpiphanyRoleId::Reorientation)
         );
         assert!(decision.can_auto_run);
+        assert_eq!(
+            map_epiphany_coordinator_automation_action(&decision),
+            EpiphanyCoordinatorAutomationAction::LaunchReorientWorker
+        );
     }
 
     #[test]
@@ -18362,6 +18553,10 @@ mod tests {
             ThreadEpiphanyCoordinatorAction::ReviewReorientResult
         );
         assert!(decision.requires_review);
+        assert_eq!(
+            map_epiphany_coordinator_automation_action(&decision),
+            EpiphanyCoordinatorAutomationAction::None
+        );
     }
 
     #[test]
@@ -18392,6 +18587,10 @@ mod tests {
             launch_modeling.action,
             ThreadEpiphanyCoordinatorAction::LaunchModeling
         );
+        assert_eq!(
+            map_epiphany_coordinator_automation_action(&launch_modeling),
+            EpiphanyCoordinatorAutomationAction::None
+        );
 
         let modeling_done = coordinator_signals(
             ThreadEpiphanyCrrcAction::Continue,
@@ -18410,6 +18609,10 @@ mod tests {
         assert_eq!(
             launch_verification.action,
             ThreadEpiphanyCoordinatorAction::LaunchVerification
+        );
+        assert_eq!(
+            map_epiphany_coordinator_automation_action(&launch_verification),
+            EpiphanyCoordinatorAutomationAction::None
         );
 
         let verification_done = coordinator_signals(

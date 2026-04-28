@@ -1,8 +1,10 @@
 use crate::codex_message_processor::ApiVersion;
+use crate::codex_message_processor::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
 use crate::codex_message_processor::read_rollout_items_from_rollout;
 use crate::codex_message_processor::read_summary_from_rollout;
 use crate::codex_message_processor::summary_to_thread;
 use crate::codex_message_processor::thread_epiphany_jobs_updated_notification_for_agent_job_progress;
+use crate::epiphany_invalidation::EpiphanyInvalidationManager;
 use crate::error_code::INTERNAL_ERROR_CODE;
 use crate::error_code::INVALID_REQUEST_ERROR_CODE;
 use crate::outgoing_message::ClientRequestResult;
@@ -187,6 +189,7 @@ pub(crate) async fn apply_bespoke_event_handling(
     outgoing: ThreadScopedOutgoingMessageSender,
     thread_state: Arc<tokio::sync::Mutex<ThreadState>>,
     thread_watch_manager: ThreadWatchManager,
+    epiphany_invalidation_manager: EpiphanyInvalidationManager,
     api_version: ApiVersion,
     fallback_model_provider: String,
     codex_home: &Path,
@@ -244,6 +247,15 @@ pub(crate) async fn apply_bespoke_event_handling(
                 &thread_state,
             )
             .await;
+            if !turn_failed {
+                maybe_run_epiphany_coordinator_automation_for_turn_boundary(
+                    conversation_id,
+                    conversation,
+                    epiphany_invalidation_manager,
+                    &outgoing,
+                )
+                .await;
+            }
         }
         EventMsg::SkillsUpdateAvailable => {
             if let ApiVersion::V2 = api_version {
@@ -3289,6 +3301,7 @@ mod tests {
         outgoing: ThreadScopedOutgoingMessageSender,
         thread_state: Arc<Mutex<ThreadState>>,
         thread_watch_manager: ThreadWatchManager,
+        epiphany_invalidation_manager: EpiphanyInvalidationManager,
         analytics_events_client: AnalyticsEventsClient,
         codex_home: PathBuf,
     }
@@ -3308,6 +3321,7 @@ mod tests {
                 self.outgoing.clone(),
                 self.thread_state.clone(),
                 self.thread_watch_manager.clone(),
+                self.epiphany_invalidation_manager.clone(),
                 ApiVersion::V2,
                 "test-provider".to_string(),
                 &self.codex_home,
@@ -3629,6 +3643,7 @@ mod tests {
             outgoing: outgoing.clone(),
             thread_state: thread_state.clone(),
             thread_watch_manager: thread_watch_manager.clone(),
+            epiphany_invalidation_manager: EpiphanyInvalidationManager::new(),
             analytics_events_client: AnalyticsEventsClient::new(
                 AuthManager::from_auth_for_testing(
                     CodexAuth::create_dummy_chatgpt_auth_for_testing(),
@@ -4672,6 +4687,7 @@ mod tests {
 
         let thread_state = new_thread_state();
         let thread_watch_manager = ThreadWatchManager::new();
+        let epiphany_invalidation_manager = EpiphanyInvalidationManager::new();
         let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
         let outgoing = Arc::new(OutgoingMessageSender::new(tx));
         let outgoing = ThreadScopedOutgoingMessageSender::new(
@@ -4706,6 +4722,7 @@ mod tests {
             outgoing.clone(),
             thread_state.clone(),
             thread_watch_manager.clone(),
+            epiphany_invalidation_manager.clone(),
             ApiVersion::V2,
             "test-provider".to_string(),
             codex_home.path(),
@@ -4762,6 +4779,7 @@ mod tests {
             outgoing,
             thread_state,
             thread_watch_manager,
+            epiphany_invalidation_manager,
             ApiVersion::V2,
             "test-provider".to_string(),
             codex_home.path(),
