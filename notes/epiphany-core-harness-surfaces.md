@@ -50,6 +50,7 @@ The rule is:
 | `thread/epiphany/jobInterrupt` | bounded authority write | landed, live-smoked | Interrupts the current backend adapter for a bound launcher job, clears backend identity from the durable `jobBinding`, and emits `stateUpdated` with source `jobInterrupt`. |
 | `thread/epiphany/reorientLaunch` | bounded authority write | landed, live-smoked | Consumes the read-only reorientation verdict and launches one fixed `reorient-worker` job with explicit resume/regather scope over the current backend adapter. |
 | `thread/epiphany/reorientResult` | read-only result read-back | landed, live-smoked | Reads the fixed or requested reorient-worker binding through the current backend adapter and projects completed worker output as a reviewable finding without promotion or mutation. |
+| `thread/epiphany/reorientAccept` | explicit acceptance write | landed, live-smoked | Requires a completed reorient-worker result, then appends accepted observation/evidence and optionally updates scratch/checkpoint with a distinct state update source. |
 | `thread/epiphany/jobsUpdated` | notification | landed | Emits changed launcher-bound job snapshots for real runtime progress events when the mapped payload actually changes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable launcher metadata plus live backend overlay when a real owner exists. |
@@ -69,6 +70,7 @@ Durable Epiphany state may change through:
 - `thread/epiphany/jobLaunch`
 - `thread/epiphany/jobInterrupt`
 - `thread/epiphany/reorientLaunch`
+- `thread/epiphany/reorientAccept`
 - normal rollout persistence of the current live `EpiphanyThreadState`
 
 The following must stay read-only:
@@ -140,8 +142,6 @@ Metaphor is compression after source context. It is not decoration for guesses.
 These are not landed yet:
 
 - richer evidence-range and graph-shard inspection beyond the landed context shard
-- bounded acceptance/promotion of reviewed reorient-worker findings into typed
-  observations, scratch/checkpoint updates, or continuation packets
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
 - typed turn intent before broad mutation
@@ -178,10 +178,10 @@ Out of scope for the MVP:
 - a second job backend unless the current `agent_jobs` adapter blocks read-back
   or interruption
 
-The first read-back blocker is landed. The current MVP blocker is the
-acceptance path after read-back: the harness can inspect a worker finding, but
-it still needs a bounded way to turn an accepted finding into typed state or the
-next continuation packet.
+The first read-back and acceptance blockers are landed. The current MVP blocker
+is bounded CRRC coordination: deciding when the harness should recommend or
+request the landed pressure -> verdict -> launch -> result -> accept loop
+without becoming an ambient scheduler.
 
 ## Job And Progress Surface Direction
 
@@ -214,6 +214,14 @@ structured output as mode, summary, next safe move, checkpoint validity,
 inspected files, frontier ids, evidence ids, and raw result. It does not promote
 the finding, mutate typed state, schedule follow-up work, or continue the task
 for the agent.
+
+The first explicit acceptance surface over that finding is also landed as
+`thread/epiphany/reorientAccept`. It requires a completed reorient-worker
+result, appends an accepted observation and evidence record, and can explicitly
+bank the finding into scratch or the durable investigation checkpoint when the
+caller asks for those writes. It emits `thread/epiphany/stateUpdated` with
+source `reorientAccept`; it does not accept pending work, auto-promote arbitrary
+worker output, launch follow-up jobs, or silently continue implementation.
 
 The first live bound-runtime progress notification is also landed as
 `thread/epiphany/jobsUpdated`. It rides existing `agent_job_progress:{json}`
@@ -343,10 +351,11 @@ prompt/scene/context reflection, the first bounded policy verdict now exists as
 the thin job seam, one explicit `thread/epiphany/reorientLaunch` consumer can
 act on that verdict without becoming a hidden scheduler, and
 `thread/epiphany/reorientResult` can read that worker's finding back for human
-or client review. What does not exist yet is the acceptance/promotion path that
-turns reviewed findings into typed state or a continuation packet, nor the
-automatic runtime coordinator that decides when to launch the worker. Automatic
-CRRC still needs explicit runtime policy, bounded job ownership, clean stopping
+or client review, and `thread/epiphany/reorientAccept` can explicitly bank an
+accepted finding into typed observation/evidence plus optional scratch or
+checkpoint state. What does not exist yet is the automatic runtime coordinator
+that decides when to launch the worker or request acceptance. Automatic CRRC
+still needs explicit runtime policy, bounded job ownership, clean stopping
 rules, and honest result plumbing instead of vibes with a clipboard.
 
 Compaction should squeeze scratch, not the map.

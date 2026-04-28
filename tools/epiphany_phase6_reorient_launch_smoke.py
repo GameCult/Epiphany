@@ -422,11 +422,70 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "regather result should expose the raw worker result for review",
         )
 
+        accept_notification_start = len(client.notifications)
+        accepted = client.send(
+            "thread/epiphany/reorientAccept",
+            {
+                "threadId": thread_id,
+                "expectedRevision": 4,
+                "bindingId": BINDING_ID,
+                "updateScratch": True,
+                "updateInvestigationCheckpoint": True,
+            },
+        )
+        assert accepted is not None
+        require(
+            accepted["revision"] == 5,
+            "accepting a reorient finding should advance the durable revision",
+        )
+        require(
+            accepted["changedFields"]
+            == ["observations", "evidence", "scratch", "investigationCheckpoint"],
+            "accepting a reorient finding should only mutate the accepted state fields",
+        )
+        require(
+            accepted["finding"]["rawResult"] == regather_result_payload,
+            "acceptance should preserve the reviewed worker finding",
+        )
+        require(
+            accepted["epiphanyState"]["observations"][0]["id"]
+            == accepted["acceptedObservationId"],
+            "acceptance should prepend the accepted observation",
+        )
+        require(
+            accepted["epiphanyState"]["recent_evidence"][0]["id"]
+            == accepted["acceptedEvidenceId"],
+            "acceptance should prepend the accepted evidence",
+        )
+        require(
+            accepted["acceptedEvidenceId"]
+            in accepted["epiphanyState"]["investigation_checkpoint"]["evidence_ids"],
+            "acceptance should link accepted evidence into the checkpoint when requested",
+        )
+        require(
+            accepted["epiphanyState"]["scratch"]["next_probe"]
+            == "Review the reorientation finding before continuing implementation.",
+            "acceptance should bank the worker next safe move into scratch when requested",
+        )
+        accept_notification = client.wait_for_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=accept_notification_start,
+            timeout=15.0,
+        )
+        require(
+            accept_notification["params"]["source"] == "reorientAccept",
+            "acceptance should emit a distinct state update source",
+        )
+        require(
+            accept_notification["params"]["revision"] == 5,
+            "acceptance notification should expose revision 5",
+        )
+
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
         require(
-            final_read["thread"]["epiphanyState"]["revision"] == 4,
-            "reorient launch smoke should leave the final revision at 4",
+            final_read["thread"]["epiphanyState"]["revision"] == 5,
+            "reorient launch smoke should leave the final revision at 5 after acceptance",
         )
 
         result = {
@@ -443,6 +502,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "resumeResultStatus": resume_result["status"],
             "regatherResultStatus": regather_result["status"],
             "regatherNextSafeMove": regather_result["finding"]["nextSafeMove"],
+            "acceptRevision": accepted["revision"],
+            "acceptedObservationId": accepted["acceptedObservationId"],
+            "acceptedEvidenceId": accepted["acceptedEvidenceId"],
             "checkpointChangedPaths": regather_launch["decision"]["checkpointChangedPaths"],
             "finalReadRevision": final_read["thread"]["epiphanyState"]["revision"],
         }

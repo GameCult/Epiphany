@@ -13951,6 +13951,7 @@
         "reorient",
         "reorientLaunch",
         "reorientResult",
+        "reorientAccept",
         "propose",
         "promote",
         "update"
@@ -14349,7 +14350,8 @@
         "update",
         "promote",
         "jobLaunch",
-        "jobInterrupt"
+        "jobInterrupt",
+        "reorientAccept"
       ],
       "type": "string"
     },

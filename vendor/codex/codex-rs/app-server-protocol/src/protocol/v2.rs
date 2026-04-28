@@ -4004,6 +4004,7 @@ pub enum ThreadEpiphanySceneAction {
     Reorient,
     ReorientLaunch,
     ReorientResult,
+    ReorientAccept,
     Propose,
     Promote,
     Update,
@@ -4623,6 +4624,36 @@ pub struct ThreadEpiphanyReorientResultResponse {
     pub note: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientAcceptParams {
+    pub thread_id: String,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub binding_id: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub update_scratch: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub update_investigation_checkpoint: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientAcceptResponse {
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: CoreEpiphanyThreadState,
+    pub binding_id: String,
+    pub accepted_observation_id: String,
+    pub accepted_evidence_id: String,
+    pub finding: ThreadEpiphanyReorientFinding,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
@@ -4912,6 +4943,7 @@ pub enum ThreadEpiphanyStateUpdatedSource {
     Promote,
     JobLaunch,
     JobInterrupt,
+    ReorientAccept,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]

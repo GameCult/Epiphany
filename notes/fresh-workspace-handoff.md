@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, and `thread/epiphany/reorientResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the first explicit runtime consumer over that verdict, and `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, and `thread/epiphany/reorientResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the first explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, and `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -65,6 +65,7 @@ The current spine:
 - explicit launch/interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`
 - bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - read-only reorient-worker result read-back through `thread/epiphany/reorientResult`
+- explicit reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
 - thin launcher metadata in durable `jobBindings`
 - live bound-job progress notification through `thread/epiphany/jobsUpdated`
 - read-only compact reflection through `thread/epiphany/scene`
@@ -99,7 +100,7 @@ The exact current control flow is documented in
 - `thread/epiphany/pressure` is read-only.
 - `thread/epiphany/reorient` is read-only.
 - `thread/epiphany/reorientResult` is read-only.
-- Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, and `thread/epiphany/reorientLaunch` authority surfaces when they mutate `jobBindings`.
+- Durable typed state writes go through `thread/epiphany/update`, accepted `thread/epiphany/promote`, `thread/epiphany/reorientAccept`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, and `thread/epiphany/reorientLaunch` authority surfaces when they mutate `jobBindings`.
 - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
 - GUI/client surfaces reflect and steer typed state; they do not become the source of truth.
 - Do not restart Phase 5 hardening without a concrete regression.
@@ -233,10 +234,9 @@ work even though read-only job ownership/progress reflection now has a real
 runtime seam, the thin launcher boundary is landed, and one explicit
 reorient-guided launch surface can now consume the verdict on purpose.
 
-When the user asks to continue, the next likely organ is the bounded acceptance
-path after `thread/epiphany/reorientResult`: accepted worker findings should
-become typed observations, scratch/checkpoint updates, or a continuation packet
-without automatic promotion.
+When the user asks to continue, the next likely organ is bounded CRRC
+coordination over the landed pressure, verdict, launch, result, and accept
+loop. Keep it explicit and narrow; do not build a broad hidden scheduler.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

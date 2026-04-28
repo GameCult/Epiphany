@@ -4124,7 +4124,8 @@
         "update",
         "promote",
         "jobLaunch",
-        "jobInterrupt"
+        "jobInterrupt",
+        "reorientAccept"
       ],
       "type": "string"
     },

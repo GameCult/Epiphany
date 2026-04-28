@@ -190,6 +190,8 @@ use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyProposeParams;
 use codex_app_server_protocol::ThreadEpiphanyProposeResponse;
+use codex_app_server_protocol::ThreadEpiphanyReorientAcceptParams;
+use codex_app_server_protocol::ThreadEpiphanyReorientAcceptResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
@@ -416,12 +418,17 @@ use codex_protocol::protocol::ConversationAudioParams;
 use codex_protocol::protocol::ConversationStartParams;
 use codex_protocol::protocol::ConversationStartTransport;
 use codex_protocol::protocol::ConversationTextParams;
+use codex_protocol::protocol::EpiphanyCodeRef;
+use codex_protocol::protocol::EpiphanyEvidenceRecord;
+use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobBackendKind as CoreEpiphanyJobBackendKind;
 use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
+use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus;
+use codex_protocol::protocol::EpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::GitInfo as CoreGitInfo;
@@ -1097,6 +1104,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyReorientResult { request_id, params } => {
                 self.thread_epiphany_reorient_result(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyReorientAccept { request_id, params } => {
+                self.thread_epiphany_reorient_accept(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4920,6 +4931,194 @@ impl CodexMessageProcessor {
                     note,
                 },
             )
+            .await;
+    }
+
+    async fn thread_epiphany_reorient_accept(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyReorientAcceptParams,
+    ) {
+        let ThreadEpiphanyReorientAcceptParams {
+            thread_id,
+            expected_revision,
+            binding_id,
+            update_scratch,
+            update_investigation_checkpoint,
+        } = params;
+        let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into());
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let Some(state) = loaded_thread.epiphany_state().await else {
+            self.send_invalid_request_error(
+                request_id,
+                "cannot accept a reorientation finding without authoritative Epiphany state"
+                    .to_string(),
+            )
+            .await;
+            return;
+        };
+        if let Some(expected_revision) = expected_revision
+            && state.revision != expected_revision
+        {
+            self.send_invalid_request_error(
+                request_id,
+                format!(
+                    "epiphany state revision mismatch: expected {expected_revision}, found {}",
+                    state.revision
+                ),
+            )
+            .await;
+            return;
+        }
+
+        let finding = match load_completed_epiphany_reorient_finding(
+            loaded_thread.as_ref(),
+            &state,
+            binding_id.as_str(),
+        )
+        .await
+        {
+            Ok(finding) => finding,
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to accept Epiphany reorientation finding: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        if update_investigation_checkpoint && state.investigation_checkpoint.is_none() {
+            self.send_invalid_request_error(
+                request_id,
+                "cannot update investigation checkpoint because this thread has no durable checkpoint"
+                    .to_string(),
+            )
+            .await;
+            return;
+        }
+
+        let accepted_evidence_id = format!("ev-reorient-{}", Uuid::new_v4());
+        let accepted_observation_id = format!("obs-reorient-{}", Uuid::new_v4());
+        let code_refs = reorient_finding_code_refs(&finding);
+        let evidence = EpiphanyEvidenceRecord {
+            id: accepted_evidence_id.clone(),
+            kind: "reorient_result".to_string(),
+            status: "accepted".to_string(),
+            summary: reorient_finding_summary(&finding),
+            code_refs: code_refs.clone(),
+        };
+        let observation = EpiphanyObservation {
+            id: accepted_observation_id.clone(),
+            summary: reorient_finding_observation_summary(&finding),
+            source_kind: "reorient_result".to_string(),
+            status: "accepted".to_string(),
+            code_refs: code_refs.clone(),
+            evidence_ids: vec![accepted_evidence_id.clone()],
+        };
+
+        let scratch = update_scratch.then(|| reorient_finding_scratch(&binding_id, &finding));
+        let investigation_checkpoint = if update_investigation_checkpoint {
+            state.investigation_checkpoint.as_ref().map(|checkpoint| {
+                reorient_finding_investigation_checkpoint(
+                    checkpoint,
+                    accepted_evidence_id.as_str(),
+                    code_refs.as_slice(),
+                    &finding,
+                )
+            })
+        } else {
+            None
+        };
+
+        let mut changed_fields = vec![
+            ThreadEpiphanyStateUpdatedField::Observations,
+            ThreadEpiphanyStateUpdatedField::Evidence,
+        ];
+        if scratch.is_some() {
+            changed_fields.push(ThreadEpiphanyStateUpdatedField::Scratch);
+        }
+        if investigation_checkpoint.is_some() {
+            changed_fields.push(ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint);
+        }
+
+        let epiphany_state = match loaded_thread
+            .epiphany_update_state(EpiphanyStateUpdate {
+                expected_revision,
+                scratch,
+                investigation_checkpoint,
+                observations: vec![observation],
+                evidence: vec![evidence],
+                ..Default::default()
+            })
+            .await
+        {
+            Ok(state) => {
+                client_visible_live_thread_epiphany_state(loaded_thread.as_ref(), state).await
+            }
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to apply Epiphany reorientation finding: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyReorientAcceptResponse {
+                    revision: epiphany_state.revision,
+                    changed_fields: changed_fields.clone(),
+                    epiphany_state: epiphany_state.clone(),
+                    binding_id: binding_id.clone(),
+                    accepted_observation_id,
+                    accepted_evidence_id,
+                    finding,
+                },
+            )
+            .await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::ReorientAccept,
+                    revision: epiphany_state.revision,
+                    changed_fields,
+                    epiphany_state,
+                },
+            ))
             .await;
     }
 
@@ -11716,6 +11915,7 @@ fn epiphany_scene_available_actions(
     }
     if reorient_binding_present {
         actions.push(ThreadEpiphanySceneAction::ReorientResult);
+        actions.push(ThreadEpiphanySceneAction::ReorientAccept);
     }
     actions.push(ThreadEpiphanySceneAction::Update);
     if state_present {
@@ -11948,6 +12148,176 @@ fn render_epiphany_reorient_result_note(
             "The bound runtime backend job or item is missing.".to_string()
         }
     }
+}
+
+async fn load_completed_epiphany_reorient_finding(
+    thread: &CodexThread,
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+) -> CodexResult<ThreadEpiphanyReorientFinding> {
+    let binding = state
+        .job_bindings
+        .iter()
+        .find(|binding| binding.id == binding_id)
+        .ok_or_else(|| {
+            CodexErr::InvalidRequest(format!(
+                "epiphany reorientation binding {:?} was not found",
+                binding_id
+            ))
+        })?;
+    let agent_job_id = binding_agent_jobs_job_id(binding).ok_or_else(|| {
+        CodexErr::InvalidRequest(format!(
+            "epiphany reorientation binding {:?} is not backed by agent_jobs",
+            binding_id
+        ))
+    })?;
+    let state_db_ctx = thread.epiphany_state_runtime().await.ok_or_else(|| {
+        CodexErr::InvalidRequest(
+            "sqlite state db is unavailable for Epiphany reorientation result acceptance"
+                .to_string(),
+        )
+    })?;
+    let agent_job = state_db_ctx
+        .get_agent_job(agent_job_id)
+        .await
+        .map_err(|err| CodexErr::Fatal(format!("failed to read Epiphany backend job: {err}")))?
+        .ok_or_else(|| {
+            CodexErr::InvalidRequest(format!(
+                "bound agent_jobs backend job {:?} was not found",
+                agent_job_id
+            ))
+        })?;
+    let item = state_db_ctx
+        .get_agent_job_item(agent_job_id, binding_id)
+        .await
+        .map_err(|err| {
+            CodexErr::Fatal(format!(
+                "failed to read Epiphany backend job item for {binding_id:?}: {err}"
+            ))
+        })?
+        .ok_or_else(|| {
+            CodexErr::InvalidRequest(format!(
+                "bound agent_jobs backend item {:?} was not found",
+                binding_id
+            ))
+        })?;
+    let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
+    if status != ThreadEpiphanyReorientResultStatus::Completed {
+        return Err(CodexErr::InvalidRequest(format!(
+            "cannot accept reorientation result while worker status is {:?}",
+            status
+        )));
+    }
+    let result = item.result_json.ok_or_else(|| {
+        CodexErr::InvalidRequest(
+            "cannot accept completed reorientation worker because no result_json was recorded"
+                .to_string(),
+        )
+    })?;
+    Ok(map_epiphany_reorient_finding(
+        result,
+        agent_job.last_error,
+        item.last_error,
+    ))
+}
+
+fn reorient_finding_summary(finding: &ThreadEpiphanyReorientFinding) -> String {
+    let summary = finding
+        .summary
+        .clone()
+        .unwrap_or_else(|| "Reorientation worker returned a structured finding.".to_string());
+    if let Some(next_safe_move) = finding.next_safe_move.as_deref() {
+        format!("{summary} Next safe move: {next_safe_move}")
+    } else {
+        summary
+    }
+}
+
+fn reorient_finding_observation_summary(finding: &ThreadEpiphanyReorientFinding) -> String {
+    let mode = finding.mode.as_deref().unwrap_or("unknown");
+    let validity = match finding.checkpoint_still_valid {
+        Some(true) => "checkpoint still valid",
+        Some(false) => "checkpoint requires regather",
+        None => "checkpoint validity not reported",
+    };
+    format!(
+        "Accepted {mode} reorientation result: {validity}. {}",
+        reorient_finding_summary(finding)
+    )
+}
+
+fn reorient_finding_code_refs(finding: &ThreadEpiphanyReorientFinding) -> Vec<EpiphanyCodeRef> {
+    finding
+        .files_inspected
+        .iter()
+        .filter(|path| !path.trim().is_empty())
+        .map(|path| EpiphanyCodeRef {
+            path: PathBuf::from(path),
+            start_line: None,
+            end_line: None,
+            symbol: None,
+            note: Some("Inspected by accepted reorientation worker.".to_string()),
+        })
+        .collect()
+}
+
+fn reorient_finding_scratch(
+    binding_id: &str,
+    finding: &ThreadEpiphanyReorientFinding,
+) -> EpiphanyScratchPad {
+    let mode = finding.mode.as_deref().unwrap_or("unknown");
+    let checkpoint_validity = match finding.checkpoint_still_valid {
+        Some(true) => "valid",
+        Some(false) => "invalid",
+        None => "unknown",
+    };
+    EpiphanyScratchPad {
+        summary: finding.summary.clone(),
+        hypothesis: Some(format!(
+            "Accepted {mode} reorientation finding from {binding_id}; checkpoint validity is {checkpoint_validity}."
+        )),
+        next_probe: finding.next_safe_move.clone(),
+        notes: vec![format!(
+            "Files inspected: {}",
+            if finding.files_inspected.is_empty() {
+                "none reported".to_string()
+            } else {
+                finding.files_inspected.join(", ")
+            }
+        )],
+    }
+}
+
+fn reorient_finding_investigation_checkpoint(
+    checkpoint: &EpiphanyInvestigationCheckpoint,
+    evidence_id: &str,
+    code_refs: &[EpiphanyCodeRef],
+    finding: &ThreadEpiphanyReorientFinding,
+) -> EpiphanyInvestigationCheckpoint {
+    let mut checkpoint = checkpoint.clone();
+    checkpoint.summary = finding.summary.clone().or(checkpoint.summary);
+    checkpoint.next_action = finding.next_safe_move.clone().or(checkpoint.next_action);
+    checkpoint.disposition = match finding.checkpoint_still_valid {
+        Some(false) => EpiphanyInvestigationDisposition::RegatherRequired,
+        _ => EpiphanyInvestigationDisposition::ResumeReady,
+    };
+    if !checkpoint
+        .evidence_ids
+        .iter()
+        .any(|existing| existing == evidence_id)
+    {
+        checkpoint.evidence_ids.push(evidence_id.to_string());
+    }
+    for code_ref in code_refs {
+        if !checkpoint
+            .code_refs
+            .iter()
+            .any(|existing| existing.path == code_ref.path)
+        {
+            checkpoint.code_refs.push(code_ref.clone());
+        }
+    }
+    checkpoint
 }
 
 fn epiphany_code_ref_json(
@@ -15720,6 +16090,69 @@ mod tests {
                 AgentJobItemStatus::Failed,
             ),
             ThreadEpiphanyReorientResultStatus::Failed
+        );
+    }
+
+    #[test]
+    fn reorient_finding_acceptance_builds_scratch_and_checkpoint_update() {
+        let finding = ThreadEpiphanyReorientFinding {
+            mode: Some("regather".to_string()),
+            summary: Some("The old checkpoint no longer matches source.".to_string()),
+            next_safe_move: Some("Re-read src/lib.rs before editing.".to_string()),
+            checkpoint_still_valid: Some(false),
+            files_inspected: vec!["src/lib.rs".to_string()],
+            frontier_node_ids: vec!["node-1".to_string()],
+            evidence_ids: Vec::new(),
+            job_error: None,
+            item_error: None,
+            raw_result: serde_json::json!({
+                "mode": "regather",
+                "summary": "The old checkpoint no longer matches source.",
+                "nextSafeMove": "Re-read src/lib.rs before editing.",
+                "checkpointStillValid": false
+            }),
+        };
+
+        let scratch = reorient_finding_scratch("reorient-worker", &finding);
+        assert_eq!(
+            scratch.summary.as_deref(),
+            Some("The old checkpoint no longer matches source.")
+        );
+        assert_eq!(
+            scratch.next_probe.as_deref(),
+            Some("Re-read src/lib.rs before editing.")
+        );
+        assert!(
+            scratch
+                .hypothesis
+                .as_deref()
+                .is_some_and(|text| text.contains("checkpoint validity is invalid"))
+        );
+
+        let checkpoint = EpiphanyInvestigationCheckpoint {
+            checkpoint_id: "ix-1".to_string(),
+            kind: "source_gathering".to_string(),
+            disposition: EpiphanyInvestigationDisposition::ResumeReady,
+            focus: "Old focus".to_string(),
+            ..Default::default()
+        };
+        let code_refs = reorient_finding_code_refs(&finding);
+        let updated = reorient_finding_investigation_checkpoint(
+            &checkpoint,
+            "ev-reorient-1",
+            &code_refs,
+            &finding,
+        );
+
+        assert_eq!(
+            updated.disposition,
+            EpiphanyInvestigationDisposition::RegatherRequired
+        );
+        assert_eq!(updated.evidence_ids, vec!["ev-reorient-1"]);
+        assert_eq!(updated.code_refs[0].path, PathBuf::from("src/lib.rs"));
+        assert_eq!(
+            updated.next_action.as_deref(),
+            Some("Re-read src/lib.rs before editing.")
         );
     }
 

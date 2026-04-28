@@ -73,6 +73,7 @@ The landed machine now has:
 - read-only Phase 6 CRRC reorientation policy through `thread/epiphany/reorient`
 - bounded Phase 6 reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - read-only Phase 6 reorient-worker result read-back through `thread/epiphany/reorientResult`
+- explicit Phase 6 reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
@@ -94,6 +95,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt` are bounded authority surfaces over durable `jobBindings` plus the current backend adapter, not a hidden scheduler, queue, or second runtime.
 - `thread/epiphany/reorientLaunch` is a bounded runtime consumer over the reorientation verdict, not automatic CRRC, a hidden queue, or permission to keep working after drift without an explicit launch.
 - `thread/epiphany/reorientResult` is a read-only result read-back surface, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
+- `thread/epiphany/reorientAccept` is an explicit acceptance write for completed reorient-worker findings, not automatic promotion, scheduling, or permission to continue without review.
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
@@ -134,7 +136,7 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- how accepted reorient-worker findings should become typed observations, scratch/checkpoint updates, or continuation packets without auto-promoting them
+- how much automatic CRRC coordination belongs once pressure, verdict, launch, result read-back, and explicit acceptance all exist
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
 - whether future bounded CRRC consumers should keep reusing the landed `agent_jobs` backend through the explicit job-control seam or start defining a second backend contract
@@ -168,11 +170,12 @@ marketplace, broad ambient scheduling, automatic promotion of every tool
 observation, a GUI-first workflow, or a second job backend unless the current
 `agent_jobs` seam blocks the product loop.
 
-The immediate read-back blocker is now landed as `thread/epiphany/reorientResult`.
-The next MVP blocker is the review/acceptance step after read-back: completed
-worker findings are inspectable, but the harness still needs a bounded path that
-turns an accepted finding into typed observations, scratch/checkpoint updates,
-or a continuation packet without silently promoting it.
+The read-back and acceptance blockers are now landed as
+`thread/epiphany/reorientResult` and `thread/epiphany/reorientAccept`. The next
+MVP blocker is bounded CRRC coordination: the harness can measure pressure,
+return a reorientation verdict, launch a worker, read its result, and explicitly
+accept the finding, but it still lacks the small policy surface that decides
+when to recommend or request that loop.
 
 ## Phase 6 Direction
 
@@ -180,8 +183,8 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Decide how accepted reorient-worker findings should flow into typed state or the next continuation packet without bypassing review.
-2. Decide how much automatic CRRC coordination belongs now that pressure, freshness, watcher, checkpoint, reorient, explicit job control, and one explicit reorient-launch consumer all exist.
+1. Decide how much bounded CRRC coordination belongs now that pressure, freshness, watcher, checkpoint, reorient, explicit job control, reorient launch, result read-back, and explicit acceptance all exist.
+2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness

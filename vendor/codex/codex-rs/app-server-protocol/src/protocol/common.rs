@@ -376,6 +376,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyReorientResultParams,
         response: v2::ThreadEpiphanyReorientResultResponse,
     },
+    #[experimental("thread/epiphany/reorientAccept")]
+    ThreadEpiphanyReorientAccept => "thread/epiphany/reorientAccept" {
+        params: v2::ThreadEpiphanyReorientAcceptParams,
+        response: v2::ThreadEpiphanyReorientAcceptResponse,
+    },
     #[experimental("thread/epiphany/index")]
     ThreadEpiphanyIndex => "thread/epiphany/index" {
         params: v2::ThreadEpiphanyIndexParams,
@@ -2496,6 +2501,104 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_reorient_accept_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyReorientAccept {
+            request_id: RequestId::Integer(10),
+            response: v2::ThreadEpiphanyReorientAcceptResponse {
+                revision: 6,
+                changed_fields: vec![
+                    v2::ThreadEpiphanyStateUpdatedField::Observations,
+                    v2::ThreadEpiphanyStateUpdatedField::Evidence,
+                    v2::ThreadEpiphanyStateUpdatedField::Scratch,
+                ],
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 6,
+                    observations: vec![codex_protocol::protocol::EpiphanyObservation {
+                        id: "obs-reorient-1".to_string(),
+                        summary: "Accepted resume reorientation result.".to_string(),
+                        source_kind: "reorient_result".to_string(),
+                        status: "accepted".to_string(),
+                        evidence_ids: vec!["ev-reorient-1".to_string()],
+                        ..Default::default()
+                    }],
+                    recent_evidence: vec![codex_protocol::protocol::EpiphanyEvidenceRecord {
+                        id: "ev-reorient-1".to_string(),
+                        kind: "reorient_result".to_string(),
+                        status: "accepted".to_string(),
+                        summary: "Checkpoint remains source-grounded.".to_string(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                binding_id: "reorient-worker".to_string(),
+                accepted_observation_id: "obs-reorient-1".to_string(),
+                accepted_evidence_id: "ev-reorient-1".to_string(),
+                finding: v2::ThreadEpiphanyReorientFinding {
+                    mode: Some("resume".to_string()),
+                    summary: Some("Checkpoint remains source-grounded.".to_string()),
+                    next_safe_move: Some("Continue the bounded slice.".to_string()),
+                    checkpoint_still_valid: Some(true),
+                    files_inspected: Vec::new(),
+                    frontier_node_ids: Vec::new(),
+                    evidence_ids: Vec::new(),
+                    job_error: None,
+                    item_error: None,
+                    raw_result: json!({
+                        "mode": "resume",
+                        "summary": "Checkpoint remains source-grounded.",
+                        "nextSafeMove": "Continue the bounded slice."
+                    }),
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(10));
+        assert_eq!(response.method(), "thread/epiphany/reorientAccept");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/reorientAccept",
+                "id": 10,
+                "response": {
+                    "revision": 6,
+                    "changedFields": ["observations", "evidence", "scratch"],
+                    "epiphanyState": {
+                        "revision": 6,
+                        "observations": [{
+                            "id": "obs-reorient-1",
+                            "summary": "Accepted resume reorientation result.",
+                            "source_kind": "reorient_result",
+                            "status": "accepted",
+                            "evidence_ids": ["ev-reorient-1"]
+                        }],
+                        "recent_evidence": [{
+                            "id": "ev-reorient-1",
+                            "kind": "reorient_result",
+                            "status": "accepted",
+                            "summary": "Checkpoint remains source-grounded."
+                        }]
+                    },
+                    "bindingId": "reorient-worker",
+                    "acceptedObservationId": "obs-reorient-1",
+                    "acceptedEvidenceId": "ev-reorient-1",
+                    "finding": {
+                        "mode": "resume",
+                        "summary": "Checkpoint remains source-grounded.",
+                        "nextSafeMove": "Continue the bounded slice.",
+                        "checkpointStillValid": true,
+                        "rawResult": {
+                            "mode": "resume",
+                            "summary": "Checkpoint remains source-grounded.",
+                            "nextSafeMove": "Continue the bounded slice."
+                        }
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_thread_epiphany_retrieve_response() -> Result<()> {
         let response = ClientResponse::ThreadEpiphanyRetrieve {
             request_id: RequestId::Integer(8),
@@ -3738,6 +3841,22 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/reorientResult"));
+    }
+
+    #[test]
+    fn thread_epiphany_reorient_accept_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyReorientAccept {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyReorientAcceptParams {
+                thread_id: "thr_123".to_string(),
+                expected_revision: Some(5),
+                binding_id: Some("reorient-worker".to_string()),
+                update_scratch: true,
+                update_investigation_checkpoint: false,
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/reorientAccept"));
     }
 
     #[test]
