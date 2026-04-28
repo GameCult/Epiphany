@@ -371,6 +371,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyReorientLaunchParams,
         response: v2::ThreadEpiphanyReorientLaunchResponse,
     },
+    #[experimental("thread/epiphany/reorientResult")]
+    ThreadEpiphanyReorientResult => "thread/epiphany/reorientResult" {
+        params: v2::ThreadEpiphanyReorientResultParams,
+        response: v2::ThreadEpiphanyReorientResultResponse,
+    },
     #[experimental("thread/epiphany/index")]
     ThreadEpiphanyIndex => "thread/epiphany/index" {
         params: v2::ThreadEpiphanyIndexParams,
@@ -2383,6 +2388,114 @@ mod tests {
     }
 
     #[test]
+    fn serialize_thread_epiphany_reorient_result_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyReorientResult {
+            request_id: RequestId::Integer(9),
+            response: v2::ThreadEpiphanyReorientResultResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyReorientSource::Live,
+                state_status: v2::ThreadEpiphanyReorientStateStatus::Ready,
+                state_revision: Some(5),
+                binding_id: "reorient-worker".to_string(),
+                status: v2::ThreadEpiphanyReorientResultStatus::Completed,
+                job: Some(v2::ThreadEpiphanyJob {
+                    id: "reorient-worker".to_string(),
+                    kind: v2::ThreadEpiphanyJobKind::Specialist,
+                    scope: "reorient-guided checkpoint resume".to_string(),
+                    owner_role: "epiphany-reorient".to_string(),
+                    launcher_job_id: Some("epiphany-launch-1".to_string()),
+                    authority_scope: Some("epiphany.reorient.resume".to_string()),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_job_id: Some("backend-1".to_string()),
+                    status: v2::ThreadEpiphanyJobStatus::Completed,
+                    runtime_agent_job_id: Some("backend-1".to_string()),
+                    items_processed: Some(1),
+                    items_total: Some(1),
+                    progress_note: Some("1/1 items completed.".to_string()),
+                    last_checkpoint_at_unix_seconds: Some(1_744_700_000),
+                    blocking_reason: None,
+                    active_thread_ids: Vec::new(),
+                    linked_subgoal_ids: vec!["phase-6".to_string()],
+                    linked_graph_node_ids: vec!["state-spine".to_string()],
+                }),
+                finding: Some(v2::ThreadEpiphanyReorientFinding {
+                    mode: Some("resume".to_string()),
+                    summary: Some("Checkpoint remains source-grounded.".to_string()),
+                    next_safe_move: Some("Continue the read-back slice.".to_string()),
+                    checkpoint_still_valid: Some(true),
+                    files_inspected: vec!["src/lib.rs".to_string()],
+                    frontier_node_ids: vec!["state-spine".to_string()],
+                    evidence_ids: vec!["ev-1".to_string()],
+                    job_error: None,
+                    item_error: None,
+                    raw_result: json!({
+                        "mode": "resume",
+                        "summary": "Checkpoint remains source-grounded.",
+                        "nextSafeMove": "Continue the read-back slice.",
+                        "checkpointStillValid": true
+                    }),
+                }),
+                note:
+                    "Reorientation worker completed. Next safe move: Continue the read-back slice."
+                        .to_string(),
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(9));
+        assert_eq!(response.method(), "thread/epiphany/reorientResult");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/reorientResult",
+                "id": 9,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 5,
+                    "bindingId": "reorient-worker",
+                    "status": "completed",
+                    "job": {
+                        "id": "reorient-worker",
+                        "kind": "specialist",
+                        "scope": "reorient-guided checkpoint resume",
+                        "ownerRole": "epiphany-reorient",
+                        "launcherJobId": "epiphany-launch-1",
+                        "authorityScope": "epiphany.reorient.resume",
+                        "backendKind": "agentJobs",
+                        "backendJobId": "backend-1",
+                        "status": "completed",
+                        "runtimeAgentJobId": "backend-1",
+                        "itemsProcessed": 1,
+                        "itemsTotal": 1,
+                        "progressNote": "1/1 items completed.",
+                        "lastCheckpointAtUnixSeconds": 1744700000,
+                        "linkedSubgoalIds": ["phase-6"],
+                        "linkedGraphNodeIds": ["state-spine"]
+                    },
+                    "finding": {
+                        "mode": "resume",
+                        "summary": "Checkpoint remains source-grounded.",
+                        "nextSafeMove": "Continue the read-back slice.",
+                        "checkpointStillValid": true,
+                        "filesInspected": ["src/lib.rs"],
+                        "frontierNodeIds": ["state-spine"],
+                        "evidenceIds": ["ev-1"],
+                        "rawResult": {
+                            "mode": "resume",
+                            "summary": "Checkpoint remains source-grounded.",
+                            "nextSafeMove": "Continue the read-back slice.",
+                            "checkpointStillValid": true
+                        }
+                    },
+                    "note": "Reorientation worker completed. Next safe move: Continue the read-back slice."
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
     fn serialize_thread_epiphany_retrieve_response() -> Result<()> {
         let response = ClientResponse::ThreadEpiphanyRetrieve {
             request_id: RequestId::Integer(8),
@@ -3612,6 +3725,19 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/reorientLaunch"));
+    }
+
+    #[test]
+    fn thread_epiphany_reorient_result_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyReorientResult {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyReorientResultParams {
+                thread_id: "thr_123".to_string(),
+                binding_id: Some("reorient-worker".to_string()),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/reorientResult"));
     }
 
     #[test]

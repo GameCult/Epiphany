@@ -193,11 +193,15 @@ use codex_app_server_protocol::ThreadEpiphanyProposeResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
+use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyReorientLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientParams;
 use codex_app_server_protocol::ThreadEpiphanyReorientReason;
 use codex_app_server_protocol::ThreadEpiphanyReorientResponse;
+use codex_app_server_protocol::ThreadEpiphanyReorientResultParams;
+use codex_app_server_protocol::ThreadEpiphanyReorientResultResponse;
+use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
@@ -1089,6 +1093,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyReorientLaunch { request_id, params } => {
                 self.thread_epiphany_reorient_launch(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyReorientResult { request_id, params } => {
+                self.thread_epiphany_reorient_result(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyIndex { request_id, params } => {
@@ -4673,6 +4681,245 @@ impl CodexMessageProcessor {
                     epiphany_state,
                 },
             ))
+            .await;
+    }
+
+    async fn thread_epiphany_reorient_result(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyReorientResultParams,
+    ) {
+        let ThreadEpiphanyReorientResultParams {
+            thread_id,
+            binding_id,
+        } = params;
+        let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into());
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let source = if loaded_thread.is_some() {
+            ThreadEpiphanyReorientSource::Live
+        } else {
+            ThreadEpiphanyReorientSource::Stored
+        };
+        let Some(state) = thread.epiphany_state.as_ref() else {
+            self.outgoing
+                .send_response(
+                    request_id,
+                    ThreadEpiphanyReorientResultResponse {
+                        thread_id: thread_uuid.to_string(),
+                        source,
+                        state_status: ThreadEpiphanyReorientStateStatus::Missing,
+                        state_revision: None,
+                        binding_id,
+                        status: ThreadEpiphanyReorientResultStatus::MissingState,
+                        job: None,
+                        finding: None,
+                        note: "No authoritative Epiphany state exists for this thread.".to_string(),
+                    },
+                )
+                .await;
+            return;
+        };
+
+        let state_revision = Some(state.revision);
+        let state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            loaded_thread.epiphany_state_runtime().await
+        } else {
+            None
+        };
+        let job_resolution =
+            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(state)).await;
+        let job = map_epiphany_jobs(Some(state), None, &job_resolution)
+            .into_iter()
+            .find(|job| job.id == binding_id);
+
+        let Some(binding) = state
+            .job_bindings
+            .iter()
+            .find(|binding| binding.id == binding_id)
+        else {
+            self.outgoing
+                .send_response(
+                    request_id,
+                    ThreadEpiphanyReorientResultResponse {
+                        thread_id: thread_uuid.to_string(),
+                        source,
+                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+                        state_revision,
+                        binding_id,
+                        status: ThreadEpiphanyReorientResultStatus::MissingBinding,
+                        job,
+                        finding: None,
+                        note: "No matching Epiphany reorientation worker binding exists."
+                            .to_string(),
+                    },
+                )
+                .await;
+            return;
+        };
+
+        let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
+            self.outgoing
+                .send_response(
+                    request_id,
+                    ThreadEpiphanyReorientResultResponse {
+                        thread_id: thread_uuid.to_string(),
+                        source,
+                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+                        state_revision,
+                        binding_id,
+                        status: ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                        job,
+                        finding: None,
+                        note: "The matching binding is not currently backed by the agent_jobs backend."
+                            .to_string(),
+                    },
+                )
+                .await;
+            return;
+        };
+
+        let Some(state_db_ctx) = state_db_ctx.as_ref() else {
+            self.outgoing
+                .send_response(
+                    request_id,
+                    ThreadEpiphanyReorientResultResponse {
+                        thread_id: thread_uuid.to_string(),
+                        source,
+                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+                        state_revision,
+                        binding_id,
+                        status: ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                        job,
+                        finding: None,
+                        note: "State runtime is unavailable, so the bound agent_jobs result cannot be read."
+                            .to_string(),
+                    },
+                )
+                .await;
+            return;
+        };
+
+        let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
+            Ok(Some(job)) => job,
+            Ok(None) => {
+                self.outgoing
+                    .send_response(
+                        request_id,
+                        ThreadEpiphanyReorientResultResponse {
+                            thread_id: thread_uuid.to_string(),
+                            source,
+                            state_status: ThreadEpiphanyReorientStateStatus::Ready,
+                            state_revision,
+                            binding_id,
+                            status: ThreadEpiphanyReorientResultStatus::BackendMissing,
+                            job,
+                            finding: None,
+                            note: format!(
+                                "Bound agent_jobs backend job {:?} was not found.",
+                                agent_job_id
+                            ),
+                        },
+                    )
+                    .await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to read Epiphany reorientation backend job: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let item = match state_db_ctx
+            .get_agent_job_item(agent_job_id, binding_id.as_str())
+            .await
+        {
+            Ok(item) => item,
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to read Epiphany reorientation backend job item: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let Some(item) = item else {
+            self.outgoing
+                .send_response(
+                    request_id,
+                    ThreadEpiphanyReorientResultResponse {
+                        thread_id: thread_uuid.to_string(),
+                        source,
+                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+                        state_revision,
+                        binding_id,
+                        status: ThreadEpiphanyReorientResultStatus::BackendMissing,
+                        job,
+                        finding: None,
+                        note:
+                            "Bound agent_jobs backend item was not found for this reorient worker."
+                                .to_string(),
+                    },
+                )
+                .await;
+            return;
+        };
+
+        let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
+        let finding = item.result_json.as_ref().map(|result| {
+            map_epiphany_reorient_finding(
+                result.clone(),
+                agent_job.last_error.clone(),
+                item.last_error.clone(),
+            )
+        });
+        let note = render_epiphany_reorient_result_note(
+            status,
+            finding.as_ref(),
+            item.last_error.as_deref(),
+        );
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyReorientResultResponse {
+                    thread_id: thread_uuid.to_string(),
+                    source,
+                    state_status: ThreadEpiphanyReorientStateStatus::Ready,
+                    state_revision,
+                    binding_id,
+                    status,
+                    job,
+                    finding,
+                    note,
+                },
+            )
             .await;
     }
 
@@ -11331,6 +11578,12 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
         state
             .and_then(|state| state.investigation_checkpoint.as_ref())
             .is_some(),
+        state.is_some_and(|state| {
+            state
+                .job_bindings
+                .iter()
+                .any(|binding| binding.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
+        }),
     );
     let Some(state) = state else {
         return ThreadEpiphanyScene {
@@ -11441,6 +11694,7 @@ fn epiphany_scene_available_actions(
     loaded: bool,
     state_present: bool,
     checkpoint_present: bool,
+    reorient_binding_present: bool,
 ) -> Vec<ThreadEpiphanySceneAction> {
     if !loaded {
         return Vec::new();
@@ -11459,6 +11713,9 @@ fn epiphany_scene_available_actions(
     ];
     if checkpoint_present {
         actions.push(ThreadEpiphanySceneAction::ReorientLaunch);
+    }
+    if reorient_binding_present {
+        actions.push(ThreadEpiphanySceneAction::ReorientResult);
     }
     actions.push(ThreadEpiphanySceneAction::Update);
     if state_present {
@@ -11591,6 +11848,106 @@ fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
         "required": ["mode", "summary", "nextSafeMove"],
         "additionalProperties": true
     })
+}
+
+fn map_epiphany_reorient_result_status(
+    job_status: AgentJobStatus,
+    item_status: AgentJobItemStatus,
+) -> ThreadEpiphanyReorientResultStatus {
+    match job_status {
+        AgentJobStatus::Cancelled => ThreadEpiphanyReorientResultStatus::Cancelled,
+        AgentJobStatus::Failed => ThreadEpiphanyReorientResultStatus::Failed,
+        AgentJobStatus::Pending => ThreadEpiphanyReorientResultStatus::Pending,
+        AgentJobStatus::Running | AgentJobStatus::Completed => match item_status {
+            AgentJobItemStatus::Pending => ThreadEpiphanyReorientResultStatus::Pending,
+            AgentJobItemStatus::Running => ThreadEpiphanyReorientResultStatus::Running,
+            AgentJobItemStatus::Completed => ThreadEpiphanyReorientResultStatus::Completed,
+            AgentJobItemStatus::Failed => ThreadEpiphanyReorientResultStatus::Failed,
+        },
+    }
+}
+
+fn map_epiphany_reorient_finding(
+    raw_result: serde_json::Value,
+    job_error: Option<String>,
+    item_error: Option<String>,
+) -> ThreadEpiphanyReorientFinding {
+    ThreadEpiphanyReorientFinding {
+        mode: json_string_field(&raw_result, "mode"),
+        summary: json_string_field(&raw_result, "summary"),
+        next_safe_move: json_string_field(&raw_result, "nextSafeMove"),
+        checkpoint_still_valid: raw_result
+            .get("checkpointStillValid")
+            .and_then(serde_json::Value::as_bool),
+        files_inspected: json_string_array_field(&raw_result, "filesInspected"),
+        frontier_node_ids: json_string_array_field(&raw_result, "frontierNodeIds"),
+        evidence_ids: json_string_array_field(&raw_result, "evidenceIds"),
+        job_error,
+        item_error,
+        raw_result,
+    }
+}
+
+fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+fn json_string_array_field(value: &serde_json::Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn render_epiphany_reorient_result_note(
+    status: ThreadEpiphanyReorientResultStatus,
+    finding: Option<&ThreadEpiphanyReorientFinding>,
+    item_error: Option<&str>,
+) -> String {
+    match status {
+        ThreadEpiphanyReorientResultStatus::Completed => {
+            if let Some(finding) = finding {
+                let next = finding.next_safe_move.as_deref().unwrap_or("not supplied");
+                format!("Reorientation worker completed. Next safe move: {next}")
+            } else {
+                "Reorientation worker completed, but no structured result was recorded.".to_string()
+            }
+        }
+        ThreadEpiphanyReorientResultStatus::Failed => item_error
+            .map(|error| format!("Reorientation worker failed: {error}"))
+            .unwrap_or_else(|| "Reorientation worker failed.".to_string()),
+        ThreadEpiphanyReorientResultStatus::Cancelled => {
+            "Reorientation worker was cancelled before producing a result.".to_string()
+        }
+        ThreadEpiphanyReorientResultStatus::Running => {
+            "Reorientation worker is still running.".to_string()
+        }
+        ThreadEpiphanyReorientResultStatus::Pending => {
+            "Reorientation worker has not produced a result yet.".to_string()
+        }
+        ThreadEpiphanyReorientResultStatus::MissingState => {
+            "No authoritative Epiphany state exists for this thread.".to_string()
+        }
+        ThreadEpiphanyReorientResultStatus::MissingBinding => {
+            "No matching Epiphany reorientation worker binding exists.".to_string()
+        }
+        ThreadEpiphanyReorientResultStatus::BackendUnavailable => {
+            "The bound runtime backend is unavailable.".to_string()
+        }
+        ThreadEpiphanyReorientResultStatus::BackendMissing => {
+            "The bound runtime backend job or item is missing.".to_string()
+        }
+    }
 }
 
 fn epiphany_code_ref_json(
@@ -15272,6 +15629,98 @@ mod tests {
             vec!["obs-6", "obs-5", "obs-4", "obs-3", "obs-2"]
         );
         assert_eq!(evidence_ids, vec!["ev-6", "ev-5", "ev-4", "ev-3", "ev-2"]);
+    }
+
+    #[test]
+    fn map_epiphany_scene_exposes_reorient_result_when_binding_exists() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
+                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                scope: "reorient-guided checkpoint resume".to_string(),
+                owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
+                launcher_job_id: Some("launcher-1".to_string()),
+                authority_scope: Some("epiphany.reorient.resume".to_string()),
+                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs),
+                backend_job_id: Some("backend-1".to_string()),
+                runtime_agent_job_id: None,
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+                progress_note: None,
+                blocking_reason: None,
+            }],
+            ..Default::default()
+        };
+
+        let scene = map_epiphany_scene(Some(&state), true);
+
+        assert!(
+            scene
+                .available_actions
+                .contains(&ThreadEpiphanySceneAction::ReorientResult),
+            "scene should advertise the reorient result read-back surface"
+        );
+    }
+
+    #[test]
+    fn map_epiphany_reorient_result_finding_projects_structured_output() {
+        let raw_result = serde_json::json!({
+            "mode": "resume",
+            "summary": "Checkpoint still matches the source seam.",
+            "nextSafeMove": "Continue with the bounded read-back slice.",
+            "checkpointStillValid": true,
+            "filesInspected": ["src/a.rs", "src/b.rs"],
+            "frontierNodeIds": ["node-1"],
+            "evidenceIds": ["ev-1"],
+            "extra": {"left": "intact"}
+        });
+
+        let finding = map_epiphany_reorient_finding(
+            raw_result.clone(),
+            Some("job warning".to_string()),
+            None,
+        );
+
+        assert_eq!(finding.mode.as_deref(), Some("resume"));
+        assert_eq!(
+            finding.summary.as_deref(),
+            Some("Checkpoint still matches the source seam.")
+        );
+        assert_eq!(
+            finding.next_safe_move.as_deref(),
+            Some("Continue with the bounded read-back slice.")
+        );
+        assert_eq!(finding.checkpoint_still_valid, Some(true));
+        assert_eq!(finding.files_inspected, vec!["src/a.rs", "src/b.rs"]);
+        assert_eq!(finding.frontier_node_ids, vec!["node-1"]);
+        assert_eq!(finding.evidence_ids, vec!["ev-1"]);
+        assert_eq!(finding.job_error.as_deref(), Some("job warning"));
+        assert_eq!(finding.raw_result, raw_result);
+    }
+
+    #[test]
+    fn map_epiphany_reorient_result_status_keeps_runtime_terminal_states() {
+        assert_eq!(
+            map_epiphany_reorient_result_status(
+                AgentJobStatus::Cancelled,
+                AgentJobItemStatus::Running,
+            ),
+            ThreadEpiphanyReorientResultStatus::Cancelled
+        );
+        assert_eq!(
+            map_epiphany_reorient_result_status(
+                AgentJobStatus::Running,
+                AgentJobItemStatus::Completed,
+            ),
+            ThreadEpiphanyReorientResultStatus::Completed
+        );
+        assert_eq!(
+            map_epiphany_reorient_result_status(
+                AgentJobStatus::Completed,
+                AgentJobItemStatus::Failed,
+            ),
+            ThreadEpiphanyReorientResultStatus::Failed
+        );
     }
 
     #[test]

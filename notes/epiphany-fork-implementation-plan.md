@@ -72,6 +72,7 @@ The landed machine now has:
 - durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
 - read-only Phase 6 CRRC reorientation policy through `thread/epiphany/reorient`
 - bounded Phase 6 reorient-guided worker launch through `thread/epiphany/reorientLaunch`
+- read-only Phase 6 reorient-worker result read-back through `thread/epiphany/reorientResult`
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
@@ -92,6 +93,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/jobsUpdated` is a live notification derived from runtime progress events and launcher-bound job snapshots, not a scheduler, polling daemon, or durable runtime job store.
 - `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt` are bounded authority surfaces over durable `jobBindings` plus the current backend adapter, not a hidden scheduler, queue, or second runtime.
 - `thread/epiphany/reorientLaunch` is a bounded runtime consumer over the reorientation verdict, not automatic CRRC, a hidden queue, or permission to keep working after drift without an explicit launch.
+- `thread/epiphany/reorientResult` is a read-only result read-back surface, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
@@ -132,11 +134,45 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- how the launched reorient-worker results should flow back into typed state or reflection without hiding CRRC policy inside generic runtime job rows
+- how accepted reorient-worker findings should become typed observations, scratch/checkpoint updates, or continuation packets without auto-promoting them
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how much automatic CRRC coordination belongs in runtime once pressure, freshness, watcher, checkpoint, and reorientation signals all exist
 - whether future bounded CRRC consumers should keep reusing the landed `agent_jobs` backend through the explicit job-control seam or start defining a second backend contract
 - what Phase 6 should prove before specialist scheduling begins
+
+## MVP Cutline
+
+The testable MVP is not "all of Epiphany." It is the smallest harness loop that
+can prove the product thesis on real coding work:
+
+1. **State loop**: an agent can externalize objective, map, scratch, evidence,
+   checkpoint, and job state into typed durable state; that state survives
+   turns, resume, rollback, and compaction.
+2. **Role separation loop**: programming, modeling/checkpoint maintenance, and
+   verification/review can be represented as distinct bounded roles instead of
+   being forced into one giant context.
+3. **CRRC loop**: context pressure or continuity breakage can trigger explicit
+   checkpointing, rehydration, reorientation, and resume-versus-regather
+   continuation based on durable evidence rather than transcript vibes.
+4. **Read-back loop**: bounded specialist work launched by Epiphany, especially
+   `thread/epiphany/reorientLaunch`, returns findings into a reviewable
+   Epiphany surface or typed-state proposal instead of stranding them in
+   generic runtime job rows.
+5. **Dogfood loop**: a human can inspect the current map, scratch, evidence,
+   pressure, reorientation verdict, active specialist jobs, and pending
+   findings without reading Rust.
+
+The MVP should include narrow specialists and a bounded CRRC coordinator because
+those are central to the design. It should not include an arbitrary specialist
+marketplace, broad ambient scheduling, automatic promotion of every tool
+observation, a GUI-first workflow, or a second job backend unless the current
+`agent_jobs` seam blocks the product loop.
+
+The immediate read-back blocker is now landed as `thread/epiphany/reorientResult`.
+The next MVP blocker is the review/acceptance step after read-back: completed
+worker findings are inspectable, but the harness still needs a bounded path that
+turns an accepted finding into typed observations, scratch/checkpoint updates,
+or a continuation packet without silently promoting it.
 
 ## Phase 6 Direction
 
@@ -144,7 +180,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Decide how reorient-launched worker output should be reflected or distilled back into the harness without auto-promoting or hiding policy inside the runtime backend.
+1. Decide how accepted reorient-worker findings should flow into typed state or the next continuation packet without bypassing review.
 2. Decide how much automatic CRRC coordination belongs now that pressure, freshness, watcher, checkpoint, reorient, explicit job control, and one explicit reorient-launch consumer all exist.
 3. Add targeted scene/jobs/context/pressure/reorient fields only when a client or smoke exposes a real gap.
 

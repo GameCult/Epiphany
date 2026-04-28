@@ -342,7 +342,9 @@ export type { ThreadEpiphanyPressureStatus } from "./ThreadEpiphanyPressureStatu
 export type { ThreadEpiphanyReorientAction } from "./ThreadEpiphanyReorientAction";
 export type { ThreadEpiphanyReorientCheckpointStatus } from "./ThreadEpiphanyReorientCheckpointStatus";
 export type { ThreadEpiphanyReorientDecision } from "./ThreadEpiphanyReorientDecision";
+export type { ThreadEpiphanyReorientFinding } from "./ThreadEpiphanyReorientFinding";
 export type { ThreadEpiphanyReorientReason } from "./ThreadEpiphanyReorientReason";
+export type { ThreadEpiphanyReorientResultStatus } from "./ThreadEpiphanyReorientResultStatus";
 export type { ThreadEpiphanyReorientSource } from "./ThreadEpiphanyReorientSource";
 export type { ThreadEpiphanyReorientStateStatus } from "./ThreadEpiphanyReorientStateStatus";
 export type { ThreadEpiphanyRetrievalFreshness } from "./ThreadEpiphanyRetrievalFreshness";

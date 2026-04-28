@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sqlite3
 import time
 from typing import Any
 
@@ -33,6 +34,67 @@ def job_by_id(jobs: list[dict[str, Any]], job_id: str) -> dict[str, Any]:
         if job["id"] == job_id:
             return job
     raise AssertionError(f"missing job {job_id!r}: {jobs!r}")
+
+
+def locate_state_db(codex_home: Path) -> Path:
+    candidates = sorted(codex_home.glob("state_*.sqlite"))
+    if candidates:
+        return candidates[-1]
+    fallback = sorted(
+        path
+        for path in codex_home.glob("*.sqlite")
+        if "logs" not in path.name.lower()
+    )
+    if fallback:
+        return fallback[-1]
+    raise FileNotFoundError(f"no state db found under {codex_home}")
+
+
+def complete_reorient_backend_job(
+    codex_home: Path,
+    backend_job_id: str,
+    *,
+    mode: str,
+) -> dict[str, Any]:
+    result = {
+        "mode": mode,
+        "summary": f"{mode} worker result was read back from agent_jobs.",
+        "nextSafeMove": "Review the reorientation finding before continuing implementation.",
+        "checkpointStillValid": mode == "resume",
+        "filesInspected": [WATCHED_RELATIVE_PATH.as_posix()],
+        "frontierNodeIds": [GRAPH_NODE_ID],
+        "evidenceIds": ["ev-checkpoint"],
+    }
+    now = int(time.time())
+    db_path = locate_state_db(codex_home)
+    connection = sqlite3.connect(db_path)
+    try:
+        with connection:
+            connection.execute(
+                """
+                UPDATE agent_jobs
+                SET status = 'completed', updated_at = ?, completed_at = ?, last_error = NULL
+                WHERE id = ?
+                """,
+                (now, now, backend_job_id),
+            )
+            connection.execute(
+                """
+                UPDATE agent_job_items
+                SET status = 'completed',
+                    result_json = ?,
+                    reported_at = ?,
+                    completed_at = ?,
+                    updated_at = ?,
+                    last_error = NULL,
+                    assigned_thread_id = NULL
+                WHERE job_id = ? AND item_id = ?
+                """,
+                (json.dumps(result), now, now, now, backend_job_id, BINDING_ID),
+            )
+    finally:
+        connection.close()
+    return result
 
 
 def assert_reorient_job(
@@ -207,6 +269,42 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert_reorient_job(job_by_id(resume_jobs["jobs"], BINDING_ID), action="resume")
 
+        resume_result_payload = complete_reorient_backend_job(
+            codex_home,
+            resume_launch["job"]["backendJobId"],
+            mode="resume",
+        )
+        resume_result = client.send(
+            "thread/epiphany/reorientResult",
+            {"threadId": thread_id},
+        )
+        assert resume_result is not None
+        require(
+            resume_result["source"] == "live",
+            "reorient result should read from the live state/runtime seam",
+        )
+        require(
+            resume_result["stateRevision"] == 2,
+            "reorient result should preserve the state revision it read",
+        )
+        require(
+            resume_result["bindingId"] == BINDING_ID,
+            "reorient result should default to the fixed reorient-worker binding",
+        )
+        require(
+            resume_result["status"] == "completed",
+            "reorient result should expose completed backend output",
+        )
+        require(
+            resume_result["finding"]["rawResult"] == resume_result_payload,
+            "reorient result should expose the raw worker result for review",
+        )
+        require(
+            resume_result["finding"]["nextSafeMove"]
+            == "Review the reorientation finding before continuing implementation.",
+            "reorient result should project the next safe move",
+        )
+
         watched_file.write_text(
             "pub fn reorient_target() -> &'static str {\n    \"after\"\n}\n",
             encoding="utf-8",
@@ -297,6 +395,33 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         assert_reorient_job(job_by_id(regather_jobs["jobs"], BINDING_ID), action="regather")
 
+        regather_result_payload = complete_reorient_backend_job(
+            codex_home,
+            regather_launch["job"]["backendJobId"],
+            mode="regather",
+        )
+        regather_result = client.send(
+            "thread/epiphany/reorientResult",
+            {"threadId": thread_id, "bindingId": BINDING_ID},
+        )
+        assert regather_result is not None
+        require(
+            regather_result["stateRevision"] == 4,
+            "regather result should preserve the relaunched state revision",
+        )
+        require(
+            regather_result["status"] == "completed",
+            "regather result should expose completed backend output",
+        )
+        require(
+            regather_result["finding"]["mode"] == "regather",
+            "regather result should project the worker mode",
+        )
+        require(
+            regather_result["finding"]["rawResult"] == regather_result_payload,
+            "regather result should expose the raw worker result for review",
+        )
+
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
         require(
@@ -315,6 +440,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "regatherAction": regather_launch["decision"]["action"],
             "regatherRevision": regather_launch["revision"],
             "regatherScope": regather_launch["job"]["scope"],
+            "resumeResultStatus": resume_result["status"],
+            "regatherResultStatus": regather_result["status"],
+            "regatherNextSafeMove": regather_result["finding"]["nextSafeMove"],
             "checkpointChangedPaths": regather_launch["decision"]["checkpointChangedPaths"],
             "finalReadRevision": final_read["thread"]["epiphanyState"]["revision"],
         }

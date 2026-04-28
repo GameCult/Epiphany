@@ -49,6 +49,7 @@ The rule is:
 | `thread/epiphany/jobLaunch` | bounded authority write | landed, live-smoked | Creates a launcher-owned durable `jobBinding`, launches the current backend adapter, and emits `stateUpdated` with source `jobLaunch`. |
 | `thread/epiphany/jobInterrupt` | bounded authority write | landed, live-smoked | Interrupts the current backend adapter for a bound launcher job, clears backend identity from the durable `jobBinding`, and emits `stateUpdated` with source `jobInterrupt`. |
 | `thread/epiphany/reorientLaunch` | bounded authority write | landed, live-smoked | Consumes the read-only reorientation verdict and launches one fixed `reorient-worker` job with explicit resume/regather scope over the current backend adapter. |
+| `thread/epiphany/reorientResult` | read-only result read-back | landed, live-smoked | Reads the fixed or requested reorient-worker binding through the current backend adapter and projects completed worker output as a reviewable finding without promotion or mutation. |
 | `thread/epiphany/jobsUpdated` | notification | landed | Emits changed launcher-bound job snapshots for real runtime progress events when the mapped payload actually changes. |
 | `thread/epiphany/scene` | read-only reflection | landed, live-smoked | Compact client scene derived from authoritative Epiphany state, including checkpoint summary reflection. |
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable launcher metadata plus live backend overlay when a real owner exists. |
@@ -81,6 +82,7 @@ The following must stay read-only:
 - `thread/epiphany/context`
 - `thread/epiphany/pressure`
 - `thread/epiphany/reorient`
+- `thread/epiphany/reorientResult`
 
 `thread/epiphany/index` is a write to the retrieval catalog. It is not a
 license to mutate map/evidence/churn state as a side effect.
@@ -138,6 +140,8 @@ Metaphor is compression after source context. It is not decoration for guesses.
 These are not landed yet:
 
 - richer evidence-range and graph-shard inspection beyond the landed context shard
+- bounded acceptance/promotion of reviewed reorient-worker findings into typed
+  observations, scratch/checkpoint updates, or continuation packets
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
 - typed turn intent before broad mutation
@@ -147,6 +151,37 @@ These are not landed yet:
 
 Do not implement these as one blob. Each needs a bounded surface, a write rule,
 and a verification story.
+
+## MVP Product Loop
+
+The first product MVP should prove a complete Epiphany loop, not a complete
+Epiphany universe.
+
+Required loops:
+
+- durable typed state for map, scratch, evidence, checkpoint, and job bindings
+- role separation for implementation, modeling/checkpointing, and
+  verification/review, even if the first specialists are narrow and explicit
+- Compact-Rehydrate-Reorient-Continue as a first-class path driven by pressure,
+  freshness, watcher, checkpoint, and reorientation signals
+- read-back from bounded specialist jobs into reviewable Epiphany findings or
+  proposals
+- one inspectable dogfood surface that lets a non-Rust-speaking operator see
+  what the harness believes and what it wants to do next
+
+Out of scope for the MVP:
+
+- arbitrary specialist marketplaces
+- broad automatic background scheduling
+- GUI-first workflows
+- automatic promotion of all tool output
+- a second job backend unless the current `agent_jobs` adapter blocks read-back
+  or interruption
+
+The first read-back blocker is landed. The current MVP blocker is the
+acceptance path after read-back: the harness can inspect a worker finding, but
+it still needs a bounded way to turn an accepted finding into typed state or the
+next continuation packet.
 
 ## Job And Progress Surface Direction
 
@@ -171,6 +206,14 @@ The first bounded runtime consumer over CRRC verdicts is also landed as
 resume-versus-regather scope and checkpoint-derived payload. It is not
 automatic CRRC, not a background coordinator, and not a license to keep coding
 after drift without an explicit launch.
+
+The first read-back surface over that worker is also landed as
+`thread/epiphany/reorientResult`. It defaults to the fixed `reorient-worker`
+binding, resolves the current `agent_jobs` backend item, and projects completed
+structured output as mode, summary, next safe move, checkpoint validity,
+inspected files, frontier ids, evidence ids, and raw result. It does not promote
+the finding, mutate typed state, schedule follow-up work, or continue the task
+for the agent.
 
 The first live bound-runtime progress notification is also landed as
 `thread/epiphany/jobsUpdated`. It rides existing `agent_job_progress:{json}`
@@ -297,13 +340,14 @@ invalidation telemetry now exists inside that freshness surface for loaded
 threads, durable investigation packets now exist in typed state plus
 prompt/scene/context reflection, the first bounded policy verdict now exists as
 `thread/epiphany/reorient`, explicit launch/interrupt authority now exists over
-the thin job seam, and one explicit `thread/epiphany/reorientLaunch` consumer
-can now act on that verdict without becoming a hidden scheduler. What does not
-exist yet is the read-back path that brings that specialist's findings back
-into typed state or reflection, nor the automatic runtime coordinator that
-decides when to launch it. Automatic CRRC still needs explicit runtime policy,
-bounded job ownership, clean stopping rules, and honest result plumbing instead
-of vibes with a clipboard.
+the thin job seam, one explicit `thread/epiphany/reorientLaunch` consumer can
+act on that verdict without becoming a hidden scheduler, and
+`thread/epiphany/reorientResult` can read that worker's finding back for human
+or client review. What does not exist yet is the acceptance/promotion path that
+turns reviewed findings into typed state or a continuation packet, nor the
+automatic runtime coordinator that decides when to launch the worker. Automatic
+CRRC still needs explicit runtime policy, bounded job ownership, clean stopping
+rules, and honest result plumbing instead of vibes with a clipboard.
 
 Compaction should squeeze scratch, not the map.
 

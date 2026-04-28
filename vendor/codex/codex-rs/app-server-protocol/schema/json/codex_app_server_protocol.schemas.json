@@ -15632,6 +15632,69 @@
         ],
         "type": "object"
       },
+      "ThreadEpiphanyReorientFinding": {
+        "properties": {
+          "checkpointStillValid": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "evidenceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "filesInspected": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "frontierNodeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "itemError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jobError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "mode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "nextSafeMove": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rawResult": true,
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "rawResult"
+        ],
+        "type": "object"
+      },
       "ThreadEpiphanyReorientReason": {
         "enum": [
           "missingState",
@@ -15642,6 +15705,20 @@
           "frontierChanged",
           "unanchoredCheckpointWhileStateStale",
           "checkpointReady"
+        ],
+        "type": "string"
+      },
+      "ThreadEpiphanyReorientResultStatus": {
+        "enum": [
+          "missingState",
+          "missingBinding",
+          "backendUnavailable",
+          "backendMissing",
+          "pending",
+          "running",
+          "completed",
+          "failed",
+          "cancelled"
         ],
         "type": "string"
       },
@@ -15986,6 +16063,7 @@
           "pressure",
           "reorient",
           "reorientLaunch",
+          "reorientResult",
           "propose",
           "promote",
           "update"
