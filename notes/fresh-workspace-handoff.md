@@ -280,8 +280,12 @@ inspected the smoke workspace, called `report_agent_job_result`, and
 The CLI MVP is now testable. Put it in front of a human operator through
 `tools/epiphany_mvp_status.py`, `.epiphany-dogfood/mvp-loop`, and
 `.epiphany-dogfood/live-specialist`. Fix concrete blockers in that operator
-loop; do not build a broad hidden scheduler, marketplace, or
-GUI-as-source-of-truth.
+loop. The next likely organ is a narrow auditable role coordinator for the
+fixed single-user lanes: modeling/checkpoint tells implementation where the map
+says to look, verification/review tells modeling where the map is insufficient
+or stale, and CRRC decides when continuity has broken enough to regather. Do not
+turn that into a broad hidden dispatcher, arbitrary marketplace, alternate job
+backend, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
@@ -293,7 +297,7 @@ guardrails, not the next organs.
 
 - automatic watcher-driven semantic invalidation
 - automatic observation promotion
-- broad specialist-agent scheduling beyond explicit roleLaunch
+- broad specialist-agent scheduling beyond the fixed single-user role lanes
 - GUI-as-source-of-truth
 - automatic runtime CRRC execution acting on the landed recommendation/verdict and launch/read-back path
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam

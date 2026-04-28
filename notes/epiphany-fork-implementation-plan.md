@@ -149,7 +149,7 @@ The next unknowns are:
 
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how far the read-only CRRC recommendation should go before explicit client/operator action takes over
-- how much specialist ergonomics can improve before crossing into broad ambient scheduling
+- how much narrow role coordination is needed so modeling, implementation, verification, and CRRC can hand off work without collapsing back into one context
 - what concrete operator friction appears when the CLI MVP is tested on real work
 
 ## MVP Cutline
@@ -176,9 +176,11 @@ can prove the product thesis on real coding work:
 
 The MVP should include narrow specialists and a bounded CRRC coordinator because
 those are central to the design. It should not include an arbitrary specialist
-marketplace, broad ambient scheduling, automatic promotion of every tool
-observation, a GUI-first workflow, or a second job backend unless the current
-`agent_jobs` seam blocks the product loop.
+marketplace, broad ambient dispatcher, automatic promotion of every tool
+observation, a GUI-first workflow, or an alternate job backend for the MVP. The
+useful scheduler-shaped thing is narrower: an auditable role coordinator that
+keeps the fixed single-user lanes in sequence, makes handoffs explicit, and
+preserves operator review and interruption.
 
 The read-back, acceptance, coordinator, first dogfood-view, first
 harness-native role ownership, and first fixed role specialist launch/result
@@ -207,7 +209,7 @@ Useful candidates:
 
 1. Put the CLI MVP in front of a human operator through status/artifact review, then fix concrete usability blockers.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-3. Add targeted operator-view fields only when dogfooding exposes a real gap.
+3. Design the smallest fixed-lane role coordinator that can recommend or launch the next modeling, implementation, verification, or CRRC handoff without becoming a broad ambient dispatcher.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -220,7 +222,7 @@ These remain later work:
 - watcher-driven semantic invalidation
 - automatic observation promotion from tool output
 - richer evidence and graph-shard inspection beyond the landed targeted context read
-- role-scoped specialist-agent registry and scheduling
+- richer role ergonomics after the fixed single-user coordinator proves useful
 - mutation gates that warn or block broad writes when map freshness is stale
 - automatic CRRC runtime coordination on top of the landed typed context-pressure telemetry
 - GUI workflows for graph, evidence, job, invariant, and frontier steering
