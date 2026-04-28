@@ -31,6 +31,8 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` / `thread/epiphany/roleLaunch` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, roles project implementation/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleLaunch` can launch only fixed modeling/checkpoint or verification/review specialists, `roleResult` reads those outputs back as reviewable findings without mutation, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state, and `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating.
 - `tools/epiphany_mvp_status.py` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, pressure, reorient, jobs, roles, modeling/verification role result read-backs, reorient result, and CRRC recommendation as text or JSON.
 - `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including raw app-server transcript, rendered snapshots, final status, vanilla-reference prompt/output, and comparison notes.
+- `tools/epiphany_mvp_live_specialist.py` is the first auditable live-specialist runner. It launches a real role specialist through `thread/epiphany/roleLaunch`, lets the spawned worker report through `report_agent_job_result`, reads it back through `thread/epiphany/roleResult`, and writes local artifacts under `.epiphany-dogfood/live-specialist`.
+- Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -93,6 +95,7 @@ The current spine:
 - live reorient-guided worker launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live MVP operator status smoke through `tools/epiphany_mvp_status_smoke.py`
 - live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
+- live specialist MVP pass through `tools/epiphany_mvp_live_specialist.py`
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -268,10 +271,17 @@ produced `.epiphany-dogfood/mvp-loop` artifacts, ran a read-only Vanilla Codex
 reference, and fixed the concrete blocker where CRRC recommended accepting the
 same reorientation result again after `reorientAccept`.
 
-When the user asks to continue, put the testable MVP in front of a human
-operator through `tools/epiphany_mvp_status.py` and the dogfood artifact bundle.
-Fix concrete blockers in that operator loop; do not build a broad hidden
-scheduler, marketplace, or GUI-as-source-of-truth.
+The first live-specialist pass has also run. It produced
+`.epiphany-dogfood/live-specialist` artifacts and proved the real worker path:
+`roleLaunch` created a bound `agent_jobs` row, the spawned modeling worker
+inspected the smoke workspace, called `report_agent_job_result`, and
+`roleResult` projected a completed `checkpoint-ready` finding.
+
+The CLI MVP is now testable. Put it in front of a human operator through
+`tools/epiphany_mvp_status.py`, `.epiphany-dogfood/mvp-loop`, and
+`.epiphany-dogfood/live-specialist`. Fix concrete blockers in that operator
+loop; do not build a broad hidden scheduler, marketplace, or
+GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
@@ -283,7 +293,7 @@ guardrails, not the next organs.
 
 - automatic watcher-driven semantic invalidation
 - automatic observation promotion
-- specialist-agent scheduling
+- broad specialist-agent scheduling beyond explicit roleLaunch
 - GUI-as-source-of-truth
 - automatic runtime CRRC execution acting on the landed recommendation/verdict and launch/read-back path
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam

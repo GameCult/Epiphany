@@ -236,7 +236,7 @@ mod spawn_agents_on_csv {
             ));
         }
 
-        let db = required_state_db(&session)?;
+        let db = required_state_db(&session).await?;
         let input_path = turn.resolve_path(Some(args.csv_path));
         let input_path_display = input_path.display().to_string();
         let csv_content = tokio::fs::read_to_string(&input_path)
@@ -478,7 +478,7 @@ mod report_agent_job_result {
                 "result must be a JSON object".to_string(),
             ));
         }
-        let db = required_state_db(&session)?;
+        let db = required_state_db(&session).await?;
         let reporting_thread_id = session.conversation_id.to_string();
         let accepted = db
             .report_agent_job_item_result(
@@ -511,11 +511,23 @@ mod report_agent_job_result {
     }
 }
 
-fn required_state_db(
+async fn required_state_db(
     session: &Arc<Session>,
 ) -> Result<Arc<codex_state::StateRuntime>, FunctionCallError> {
-    session.state_db().ok_or_else(|| {
-        FunctionCallError::Fatal("sqlite state db is unavailable for this session".to_string())
+    if let Some(state_db) = session.state_db() {
+        return Ok(state_db);
+    }
+
+    let config = session.get_config().await;
+    codex_state::StateRuntime::init(
+        config.codex_home.to_path_buf(),
+        config.model_provider_id.clone(),
+    )
+    .await
+    .map_err(|err| {
+        FunctionCallError::Fatal(format!(
+            "sqlite state db is unavailable for this session and fallback init failed: {err}"
+        ))
     })
 }
 

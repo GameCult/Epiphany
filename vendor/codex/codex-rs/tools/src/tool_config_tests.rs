@@ -158,6 +158,29 @@ fn subagents_keep_request_user_input_mode_config_and_agent_jobs_workers_opt_in_b
 }
 
 #[test]
+fn agent_job_workers_get_report_tool_even_when_csv_front_door_disabled() {
+    let model_info = model_info();
+    let features = Features::with_defaults();
+
+    let available_models = Vec::new();
+    let tools_config = ToolsConfig::new(&ToolsConfigParams {
+        model_info: &model_info,
+        available_models: &available_models,
+        features: &features,
+        image_generation_tool_auth_allowed: true,
+        web_search_mode: Some(WebSearchMode::Cached),
+        session_source: SessionSource::SubAgent(SubAgentSource::Other(
+            "agent_job:test".to_string(),
+        )),
+        sandbox_policy: &SandboxPolicy::DangerFullAccess,
+        windows_sandbox_level: WindowsSandboxLevel::Disabled,
+    });
+
+    assert!(!tools_config.agent_jobs_tools);
+    assert!(tools_config.agent_jobs_worker_tools);
+}
+
+#[test]
 fn image_generation_requires_feature_and_supported_model() {
     let supported_model_info = model_info();
     let mut unsupported_model_info = supported_model_info.clone();

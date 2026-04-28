@@ -195,12 +195,11 @@ impl ToolsConfig {
             None => include_apply_patch_tool.then_some(ApplyPatchToolType::Freeform),
         };
 
-        let agent_jobs_worker_tools = include_agent_jobs
-            && matches!(
-                session_source,
-                SessionSource::SubAgent(SubAgentSource::Other(label))
-                    if label.starts_with("agent_job:")
-            );
+        let agent_jobs_worker_tools = matches!(
+            session_source,
+            SessionSource::SubAgent(SubAgentSource::Other(label))
+                if label.starts_with("agent_job:")
+        );
 
         Self {
             available_models: available_models.to_vec(),

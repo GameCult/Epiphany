@@ -484,14 +484,15 @@ pub fn build_tool_registry_plan(
             config.code_mode_enabled,
         );
         plan.register_handler("spawn_agents_on_csv", ToolHandlerKind::AgentJobs);
-        if config.agent_jobs_worker_tools {
-            plan.push_spec(
-                create_report_agent_job_result_tool(),
-                /*supports_parallel_tool_calls*/ false,
-                config.code_mode_enabled,
-            );
-            plan.register_handler("report_agent_job_result", ToolHandlerKind::AgentJobs);
-        }
+    }
+
+    if config.agent_jobs_worker_tools {
+        plan.push_spec(
+            create_report_agent_job_result_tool(),
+            /*supports_parallel_tool_calls*/ false,
+            config.code_mode_enabled,
+        );
+        plan.register_handler("report_agent_job_result", ToolHandlerKind::AgentJobs);
     }
 
     if let Some(mcp_tools) = params.mcp_tools {

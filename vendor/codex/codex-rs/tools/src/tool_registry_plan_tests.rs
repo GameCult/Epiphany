@@ -512,6 +512,36 @@ fn test_build_specs_agent_job_worker_tools_enabled() {
 }
 
 #[test]
+fn test_build_specs_agent_job_worker_report_tool_without_csv_front_door() {
+    let model_info = model_info();
+    let mut features = Features::with_defaults();
+    features.normalize_dependencies();
+    features.enable(Feature::Sqlite);
+    let available_models = Vec::new();
+    let tools_config = ToolsConfig::new(&ToolsConfigParams {
+        model_info: &model_info,
+        available_models: &available_models,
+        features: &features,
+        image_generation_tool_auth_allowed: true,
+        web_search_mode: Some(WebSearchMode::Cached),
+        session_source: SessionSource::SubAgent(SubAgentSource::Other(
+            "agent_job:test".to_string(),
+        )),
+        sandbox_policy: &SandboxPolicy::DangerFullAccess,
+        windows_sandbox_level: WindowsSandboxLevel::Disabled,
+    });
+    let (tools, _) = build_specs(
+        &tools_config,
+        /*mcp_tools*/ None,
+        /*deferred_mcp_tools*/ None,
+        &[],
+    );
+
+    assert_contains_tool_names(&tools, &["report_agent_job_result"]);
+    assert_lacks_tool_name(&tools, "spawn_agents_on_csv");
+}
+
+#[test]
 fn request_user_input_description_reflects_default_mode_feature_flag() {
     let model_info = model_info();
     let mut features = Features::with_defaults();

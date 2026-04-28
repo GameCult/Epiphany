@@ -79,6 +79,7 @@ The landed machine now has:
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, vanilla-reference output, and comparison notes
+- first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 MVP status smoke coverage in `tools/epiphany_mvp_status_smoke.py`
@@ -148,8 +149,8 @@ The next unknowns are:
 
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how far the read-only CRRC recommendation should go before explicit client/operator action takes over
-- whether future bounded CRRC consumers should keep reusing the landed `agent_jobs` backend through the explicit job-control seam or start defining a second backend contract
-- what Phase 6 should prove before specialist scheduling begins
+- how much specialist ergonomics can improve before crossing into broad ambient scheduling
+- what concrete operator friction appears when the CLI MVP is tested on real work
 
 ## MVP Cutline
 
@@ -191,9 +192,12 @@ launch modeling/checkpoint or verification/review workers, and read their
 findings back without reading Rust. The first auditable dogfood pass then added
 `tools/epiphany_mvp_dogfood.py`, rendered modeling/verification findings in the
 status view, and fixed CRRC's repeat-acceptance recommendation after
-`reorientAccept`. The next MVP question is human operator testing, not another
-imagined organ: use the landed loop and artifact bundle, then fix only concrete
-blockers.
+`reorientAccept`. The live-specialist runner then proved the real worker path by
+launching a modeling/checkpoint specialist, letting it inspect the smoke
+workspace, report through `report_agent_job_result`, and return a completed
+`checkpoint-ready` finding through `roleResult`. The next MVP question is human
+operator testing, not another imagined organ: use the landed loop and artifact
+bundle, then fix only concrete blockers.
 
 ## Phase 6 Direction
 
@@ -201,7 +205,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Put the dogfooded MVP loop in front of a human operator through status/artifact review, then fix concrete usability blockers.
+1. Put the CLI MVP in front of a human operator through status/artifact review, then fix concrete usability blockers.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 3. Add targeted operator-view fields only when dogfooding exposes a real gap.
 
