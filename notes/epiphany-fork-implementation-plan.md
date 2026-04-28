@@ -149,7 +149,7 @@ The next unknowns are:
 
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how far the read-only CRRC recommendation should go before explicit client/operator action takes over
-- how much narrow role coordination is needed so modeling, implementation, verification, and CRRC can hand off work without collapsing back into one context
+- how much narrow coordination is needed so modeling, implementation, verification, and CRRC automation can hand off work without collapsing back into one context
 - what concrete operator friction appears when the CLI MVP is tested on real work
 
 ## MVP Cutline
@@ -178,9 +178,12 @@ The MVP should include narrow specialists and a bounded CRRC coordinator because
 those are central to the design. It should not include an arbitrary specialist
 marketplace, broad ambient dispatcher, automatic promotion of every tool
 observation, a GUI-first workflow, or an alternate job backend for the MVP. The
-useful scheduler-shaped thing is narrower: an auditable role coordinator that
-keeps the fixed single-user lanes in sequence, makes handoffs explicit, and
-preserves operator review and interruption.
+useful scheduler-shaped thing is narrower: an auditable coordinator that keeps
+the fixed single-user lanes in sequence, makes handoffs explicit, and preserves
+operator review and interruption. CRRC is harness workflow automation, not a
+specialist-agent role; it watches context pressure and continuity, persists
+state, triggers compact/rehydrate/reorient behavior, and may launch a bounded
+reorient-worker specialist when semantic regathering is needed.
 
 The read-back, acceptance, coordinator, first dogfood-view, first
 harness-native role ownership, and first fixed role specialist launch/result
@@ -209,7 +212,7 @@ Useful candidates:
 
 1. Put the CLI MVP in front of a human operator through status/artifact review, then fix concrete usability blockers.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-3. Design the smallest fixed-lane role coordinator that can recommend or launch the next modeling, implementation, verification, or CRRC handoff without becoming a broad ambient dispatcher.
+3. Design the smallest fixed-lane coordinator that can recommend or launch the next modeling, implementation, verification, or CRRC-automation handoff without becoming a broad ambient dispatcher.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
