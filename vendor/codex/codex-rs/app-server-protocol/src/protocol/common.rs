@@ -351,6 +351,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyRolesParams,
         response: v2::ThreadEpiphanyRolesResponse,
     },
+    #[experimental("thread/epiphany/coordinator")]
+    ThreadEpiphanyCoordinator => "thread/epiphany/coordinator" {
+        params: v2::ThreadEpiphanyCoordinatorParams,
+        response: v2::ThreadEpiphanyCoordinatorResponse,
+    },
     #[experimental("thread/epiphany/roleLaunch")]
     ThreadEpiphanyRoleLaunch => "thread/epiphany/roleLaunch" {
         params: v2::ThreadEpiphanyRoleLaunchParams,
@@ -1742,6 +1747,7 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Context,
                         v2::ThreadEpiphanySceneAction::Jobs,
                         v2::ThreadEpiphanySceneAction::Roles,
+                        v2::ThreadEpiphanySceneAction::Coordinator,
                         v2::ThreadEpiphanySceneAction::RoleLaunch,
                         v2::ThreadEpiphanySceneAction::RoleResult,
                         v2::ThreadEpiphanySceneAction::JobLaunch,
@@ -1846,6 +1852,7 @@ mod tests {
                             "context",
                             "jobs",
                             "roles",
+                            "coordinator",
                             "roleLaunch",
                             "roleResult",
                             "jobLaunch",
@@ -2005,6 +2012,89 @@ mod tests {
                         }
                     ],
                     "note": "Role ownership is derived read-only."
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_coordinator_response() -> Result<()> {
+        let response = ClientResponse::ThreadEpiphanyCoordinator {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyCoordinatorResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyRolesSource::Live,
+                state_status: v2::ThreadEpiphanyReorientStateStatus::Ready,
+                state_revision: Some(4),
+                action: v2::ThreadEpiphanyCoordinatorAction::LaunchModeling,
+                target_role: Some(v2::ThreadEpiphanyRoleId::Modeling),
+                recommended_scene_action: Some(v2::ThreadEpiphanySceneAction::RoleLaunch),
+                requires_review: false,
+                can_auto_run: true,
+                reason: "The modeling/checkpoint lane is ready.".to_string(),
+                source_signals: v2::ThreadEpiphanyCoordinatorSignals {
+                    pressure_level: v2::ThreadEpiphanyPressureLevel::Low,
+                    should_prepare_compaction: false,
+                    reorient_action: v2::ThreadEpiphanyReorientAction::Resume,
+                    crrc_action: v2::ThreadEpiphanyCrrcAction::Continue,
+                    modeling_result_status: v2::ThreadEpiphanyRoleResultStatus::MissingBinding,
+                    verification_result_status: v2::ThreadEpiphanyRoleResultStatus::MissingBinding,
+                    reorient_result_status: v2::ThreadEpiphanyReorientResultStatus::MissingBinding,
+                },
+                roles: vec![v2::ThreadEpiphanyRoleLane {
+                    id: v2::ThreadEpiphanyRoleId::Modeling,
+                    title: "Modeling / Checkpoint".to_string(),
+                    owner_role: "epiphany-modeler".to_string(),
+                    status: v2::ThreadEpiphanyRoleStatus::Ready,
+                    note: "Checkpoint ready.".to_string(),
+                    jobs: Vec::new(),
+                    authority_scopes: vec!["thread/epiphany/roleLaunch".to_string()],
+                    recommended_action: Some(v2::ThreadEpiphanySceneAction::RoleLaunch),
+                }],
+                note: "Coordinator is read-only.".to_string(),
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/coordinator");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/coordinator",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 4,
+                    "action": "launchModeling",
+                    "targetRole": "modeling",
+                    "recommendedSceneAction": "roleLaunch",
+                    "requiresReview": false,
+                    "canAutoRun": true,
+                    "reason": "The modeling/checkpoint lane is ready.",
+                    "sourceSignals": {
+                        "pressureLevel": "low",
+                        "shouldPrepareCompaction": false,
+                        "reorientAction": "resume",
+                        "crrcAction": "continue",
+                        "modelingResultStatus": "missingBinding",
+                        "verificationResultStatus": "missingBinding",
+                        "reorientResultStatus": "missingBinding"
+                    },
+                    "roles": [
+                        {
+                            "id": "modeling",
+                            "title": "Modeling / Checkpoint",
+                            "ownerRole": "epiphany-modeler",
+                            "status": "ready",
+                            "note": "Checkpoint ready.",
+                            "authorityScopes": ["thread/epiphany/roleLaunch"],
+                            "recommendedAction": "roleLaunch"
+                        }
+                    ],
+                    "note": "Coordinator is read-only."
                 }
             }),
             serde_json::to_value(&response)?,
@@ -4209,6 +4299,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/roles"));
+    }
+
+    #[test]
+    fn thread_epiphany_coordinator_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyCoordinator {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyCoordinatorParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/coordinator"));
     }
 
     #[test]

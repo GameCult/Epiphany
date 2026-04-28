@@ -3998,6 +3998,7 @@ pub enum ThreadEpiphanySceneAction {
     Context,
     Jobs,
     Roles,
+    Coordinator,
     RoleLaunch,
     RoleResult,
     JobLaunch,
@@ -4301,6 +4302,68 @@ pub enum ThreadEpiphanyRoleResultStatus {
     Completed,
     Failed,
     Cancelled,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyCoordinatorParams {
+    pub thread_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyCoordinatorResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyRolesSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub action: ThreadEpiphanyCoordinatorAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub target_role: Option<ThreadEpiphanyRoleId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub recommended_scene_action: Option<ThreadEpiphanySceneAction>,
+    pub requires_review: bool,
+    pub can_auto_run: bool,
+    pub reason: String,
+    pub source_signals: ThreadEpiphanyCoordinatorSignals,
+    pub roles: Vec<ThreadEpiphanyRoleLane>,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyCoordinatorAction {
+    PrepareCheckpoint,
+    CompactRehydrateReorient,
+    LaunchReorientWorker,
+    WaitForReorientWorker,
+    ReviewReorientResult,
+    RegatherManually,
+    LaunchModeling,
+    ReviewModelingResult,
+    LaunchVerification,
+    ReviewVerificationResult,
+    ContinueImplementation,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyCoordinatorSignals {
+    pub pressure_level: ThreadEpiphanyPressureLevel,
+    pub should_prepare_compaction: bool,
+    pub reorient_action: ThreadEpiphanyReorientAction,
+    pub crrc_action: ThreadEpiphanyCrrcAction,
+    pub modeling_result_status: ThreadEpiphanyRoleResultStatus,
+    pub verification_result_status: ThreadEpiphanyRoleResultStatus,
+    pub reorient_result_status: ThreadEpiphanyReorientResultStatus,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

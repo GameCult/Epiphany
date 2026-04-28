@@ -12992,6 +12992,57 @@
       ],
       "type": "string"
     },
+    "ThreadEpiphanyCoordinatorAction": {
+      "enum": [
+        "prepareCheckpoint",
+        "compactRehydrateReorient",
+        "launchReorientWorker",
+        "waitForReorientWorker",
+        "reviewReorientResult",
+        "regatherManually",
+        "launchModeling",
+        "reviewModelingResult",
+        "launchVerification",
+        "reviewVerificationResult",
+        "continueImplementation"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyCoordinatorSignals": {
+      "properties": {
+        "crrcAction": {
+          "$ref": "#/definitions/ThreadEpiphanyCrrcAction"
+        },
+        "modelingResultStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyRoleResultStatus"
+        },
+        "pressureLevel": {
+          "$ref": "#/definitions/ThreadEpiphanyPressureLevel"
+        },
+        "reorientAction": {
+          "$ref": "#/definitions/ThreadEpiphanyReorientAction"
+        },
+        "reorientResultStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyReorientResultStatus"
+        },
+        "shouldPrepareCompaction": {
+          "type": "boolean"
+        },
+        "verificationResultStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyRoleResultStatus"
+        }
+      },
+      "required": [
+        "crrcAction",
+        "modelingResultStatus",
+        "pressureLevel",
+        "reorientAction",
+        "reorientResultStatus",
+        "shouldPrepareCompaction",
+        "verificationResultStatus"
+      ],
+      "type": "object"
+    },
     "ThreadEpiphanyCrrcAction": {
       "enum": [
         "continue",
@@ -14147,6 +14198,7 @@
         "context",
         "jobs",
         "roles",
+        "coordinator",
         "roleLaunch",
         "roleResult",
         "jobLaunch",

@@ -75,10 +75,12 @@ The landed machine now has:
 - read-only Phase 6 reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit Phase 6 reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
 - read-only Phase 6 CRRC coordinator recommendation through `thread/epiphany/crrc`
+- read-only Phase 6 fixed-lane MVP coordinator recommendation through `thread/epiphany/coordinator`, composing roles, pressure, reorient, CRRC, role results, and reorient result without mutation
 - read-only Phase 6 role ownership through `thread/epiphany/roles`, projecting implementation, modeling/checkpoint, verification/review, and reorientation lanes from typed state plus jobs/CRRC/result signals
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, vanilla-reference output, and comparison notes
+- first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
@@ -108,6 +110,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
 - `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
 - `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
+- `thread/epiphany/coordinator` is a read-only fixed-lane MVP policy projection over existing signals, not a scheduler, launcher, acceptance gate, compactor, or hidden state writer.
 - `thread/epiphany/roles` is a read-only role ownership projection, not a specialist scheduler, marketplace, launcher, acceptance gate, or second job backend.
 - `thread/epiphany/roleLaunch` is a bounded authority surface for fixed modeling/checkpoint and verification/review templates, not a broad scheduler or specialist marketplace.
 - `thread/epiphany/roleResult` is a read-only result projection, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
@@ -185,24 +188,30 @@ specialist-agent role; it watches context pressure and continuity, persists
 state, triggers compact/rehydrate/reorient behavior, and may launch a bounded
 reorient-worker specialist when semantic regathering is needed.
 
-The read-back, acceptance, coordinator, first dogfood-view, first
+The read-back, acceptance, CRRC recommendation, first dogfood-view, fixed-lane
+coordinator, first
 harness-native role ownership, and first fixed role specialist launch/result
 blockers are now landed as
 `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
-`thread/epiphany/crrc`, `tools/epiphany_mvp_status.py`, and
+`thread/epiphany/crrc`, `tools/epiphany_mvp_status.py`,
+`thread/epiphany/coordinator`, `tools/epiphany_mvp_coordinator.py`, and
 `thread/epiphany/roles`, `thread/epiphany/roleLaunch`, and
 `thread/epiphany/roleResult`. A human can now ask the harness what it believes,
-what it recommends, which role lane owns the next visible work, explicitly
-launch modeling/checkpoint or verification/review workers, and read their
-findings back without reading Rust. The first auditable dogfood pass then added
+what it recommends, which role lane owns the next visible work, which fixed-lane
+action should happen next, explicitly launch modeling/checkpoint or
+verification/review workers, and read their findings back without reading Rust.
+The first auditable dogfood pass then added
 `tools/epiphany_mvp_dogfood.py`, rendered modeling/verification findings in the
 status view, and fixed CRRC's repeat-acceptance recommendation after
 `reorientAccept`. The live-specialist runner then proved the real worker path by
 launching a modeling/checkpoint specialist, letting it inspect the smoke
 workspace, report through `report_agent_job_result`, and return a completed
-`checkpoint-ready` finding through `roleResult`. The next MVP question is human
-operator testing, not another imagined organ: use the landed loop and artifact
-bundle, then fix only concrete blockers.
+`checkpoint-ready` finding through `roleResult`. The coordinator runner then
+proved the sequence-locked MVP policy across cold start, clean checkpoint,
+modeling, verification, CRRC drift/reorient, and high-pressure compact/dry-run
+paths. The next MVP question is human operator testing, not another imagined
+organ: use the landed coordinator/status/artifact loop, then fix only concrete
+blockers.
 
 ## Phase 6 Direction
 
@@ -210,9 +219,9 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Put the CLI MVP in front of a human operator through status/artifact review, then fix concrete usability blockers.
+1. Put the fixed-lane coordinator MVP in front of a human operator through status/artifact review, then fix concrete usability blockers.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-3. Design the smallest fixed-lane coordinator that can recommend or launch the next modeling, implementation, verification, or CRRC-automation handoff without becoming a broad ambient dispatcher.
+3. After the coordinator artifacts prove the policy, add only limited safe-boundary CRRC automation: compact/resume/reorient or launch a bounded reorient-worker when the coordinator says it is safe, without silently accepting semantic findings.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -227,7 +236,7 @@ These remain later work:
 - richer evidence and graph-shard inspection beyond the landed targeted context read
 - richer role ergonomics after the fixed single-user coordinator proves useful
 - mutation gates that warn or block broad writes when map freshness is stale
-- automatic CRRC runtime coordination on top of the landed typed context-pressure telemetry
+- broader CRRC runtime coordination beyond the narrow safe-boundary actions proved by the MVP coordinator
 - GUI workflows for graph, evidence, job, invariant, and frontier steering
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a
@@ -281,6 +290,12 @@ Before modifying explicit role launch/read-back behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_role_smoke.py'
+```
+
+Before modifying the fixed-lane MVP coordinator endpoint or runner, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_mvp_coordinator_smoke.py'
 ```
 
 On this Windows machine, use:

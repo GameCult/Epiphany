@@ -321,6 +321,8 @@ export type { ThreadEpiphanyContext } from "./ThreadEpiphanyContext";
 export type { ThreadEpiphanyContextMissing } from "./ThreadEpiphanyContextMissing";
 export type { ThreadEpiphanyContextSource } from "./ThreadEpiphanyContextSource";
 export type { ThreadEpiphanyContextStateStatus } from "./ThreadEpiphanyContextStateStatus";
+export type { ThreadEpiphanyCoordinatorAction } from "./ThreadEpiphanyCoordinatorAction";
+export type { ThreadEpiphanyCoordinatorSignals } from "./ThreadEpiphanyCoordinatorSignals";
 export type { ThreadEpiphanyCrrcAction } from "./ThreadEpiphanyCrrcAction";
 export type { ThreadEpiphanyCrrcRecommendation } from "./ThreadEpiphanyCrrcRecommendation";
 export type { ThreadEpiphanyFreshnessSource } from "./ThreadEpiphanyFreshnessSource";

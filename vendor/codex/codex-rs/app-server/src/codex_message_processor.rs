@@ -154,6 +154,10 @@ use codex_app_server_protocol::ThreadEpiphanyContextParams;
 use codex_app_server_protocol::ThreadEpiphanyContextResponse;
 use codex_app_server_protocol::ThreadEpiphanyContextSource;
 use codex_app_server_protocol::ThreadEpiphanyContextStateStatus;
+use codex_app_server_protocol::ThreadEpiphanyCoordinatorAction;
+use codex_app_server_protocol::ThreadEpiphanyCoordinatorParams;
+use codex_app_server_protocol::ThreadEpiphanyCoordinatorResponse;
+use codex_app_server_protocol::ThreadEpiphanyCoordinatorSignals;
 use codex_app_server_protocol::ThreadEpiphanyCrrcAction;
 use codex_app_server_protocol::ThreadEpiphanyCrrcParams;
 use codex_app_server_protocol::ThreadEpiphanyCrrcRecommendation;
@@ -1100,6 +1104,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyRoles { request_id, params } => {
                 self.thread_epiphany_roles(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyCoordinator { request_id, params } => {
+                self.thread_epiphany_coordinator(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyRoleLaunch { request_id, params } => {
@@ -4462,6 +4470,216 @@ impl CodexMessageProcessor {
             source,
             state_status,
             state_revision,
+            roles,
+            note,
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_coordinator(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyCoordinatorParams,
+    ) {
+        let ThreadEpiphanyCoordinatorParams { thread_id } = params;
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let loaded = loaded_thread.is_some();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let retrieval_override = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_retrieval_state().await)
+        } else {
+            None
+        };
+        let watcher_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            let config_snapshot = loaded_thread.config_snapshot().await;
+            self.epiphany_invalidation_manager
+                .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
+                .await;
+            Some(
+                self.epiphany_invalidation_manager
+                    .snapshot(&thread_id)
+                    .await,
+            )
+        } else {
+            None
+        };
+        let (source, token_usage_info) = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            (
+                ThreadEpiphanyRolesSource::Live,
+                loaded_thread.token_usage_info().await,
+            )
+        } else {
+            let token_usage_info = match thread.path.as_deref() {
+                Some(path) => latest_token_usage_info_from_rollout_path(path).await,
+                None => None,
+            };
+            (ThreadEpiphanyRolesSource::Stored, token_usage_info)
+        };
+
+        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+            thread.epiphany_state.as_ref(),
+            retrieval_override.as_ref(),
+            watcher_snapshot.as_ref(),
+        );
+        let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+        let (state_status, decision) = map_epiphany_reorient(
+            thread.epiphany_state.as_ref(),
+            &pressure,
+            &retrieval,
+            &graph,
+            &watcher,
+        );
+
+        let mut state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            loaded_thread.epiphany_state_runtime().await
+        } else {
+            None
+        };
+        if state_db_ctx.is_none() {
+            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
+        }
+        let job_resolution = load_epiphany_job_launcher_snapshots(
+            state_db_ctx.as_ref(),
+            thread.epiphany_state.as_ref(),
+        )
+        .await;
+        let jobs = map_epiphany_jobs(
+            thread.epiphany_state.as_ref(),
+            retrieval_override.as_ref(),
+            &job_resolution,
+        );
+        let reorient_job = jobs
+            .iter()
+            .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
+            .cloned();
+        let (reorient_result_status, reorient_finding, _) = load_epiphany_reorient_result_snapshot(
+            thread.epiphany_state.as_ref(),
+            state_db_ctx.as_ref(),
+            EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        )
+        .await;
+        let checkpoint_present = thread
+            .epiphany_state
+            .as_ref()
+            .and_then(|state| state.investigation_checkpoint.as_ref())
+            .is_some();
+        let recommendation = map_epiphany_crrc_recommendation(
+            loaded,
+            state_status,
+            &pressure,
+            &decision,
+            reorient_result_status,
+            checkpoint_present,
+            reorient_finding.is_some(),
+            reorient_finding.as_ref().is_some_and(|finding| {
+                thread
+                    .epiphany_state
+                    .as_ref()
+                    .is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
+            }),
+        );
+        let roles = map_epiphany_roles(
+            thread.epiphany_state.as_ref(),
+            &jobs,
+            &decision,
+            &pressure,
+            &recommendation,
+            reorient_result_status,
+            reorient_job.as_ref(),
+        );
+
+        let (modeling_result_status, _, _) = if let Some(state) = thread.epiphany_state.as_ref() {
+            load_epiphany_role_result_snapshot(
+                state,
+                state_db_ctx.as_ref(),
+                ThreadEpiphanyRoleId::Modeling,
+                EPIPHANY_MODELING_ROLE_BINDING_ID,
+            )
+            .await
+        } else {
+            (
+                ThreadEpiphanyRoleResultStatus::MissingState,
+                None,
+                "No authoritative Epiphany state exists for this thread.".to_string(),
+            )
+        };
+        let (verification_result_status, _, _) = if let Some(state) = thread.epiphany_state.as_ref()
+        {
+            load_epiphany_role_result_snapshot(
+                state,
+                state_db_ctx.as_ref(),
+                ThreadEpiphanyRoleId::Verification,
+                EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+            )
+            .await
+        } else {
+            (
+                ThreadEpiphanyRoleResultStatus::MissingState,
+                None,
+                "No authoritative Epiphany state exists for this thread.".to_string(),
+            )
+        };
+
+        let source_signals = ThreadEpiphanyCoordinatorSignals {
+            pressure_level: pressure.level,
+            should_prepare_compaction: pressure.should_prepare_compaction,
+            reorient_action: decision.action,
+            crrc_action: recommendation.action,
+            modeling_result_status,
+            verification_result_status,
+            reorient_result_status,
+        };
+        let coordinator = map_epiphany_coordinator(
+            state_status,
+            checkpoint_present,
+            &pressure,
+            &recommendation,
+            &roles,
+            &source_signals,
+        );
+        let note = format!(
+            "Coordinator is read-only. It recommends {:?} from CRRC {:?}, pressure {:?}, modeling {:?}, verification {:?}, and reorient {:?}.",
+            coordinator.action,
+            recommendation.action,
+            pressure.level,
+            modeling_result_status,
+            verification_result_status,
+            reorient_result_status,
+        );
+
+        let response = ThreadEpiphanyCoordinatorResponse {
+            thread_id,
+            source,
+            state_status,
+            state_revision,
+            action: coordinator.action,
+            target_role: coordinator.target_role,
+            recommended_scene_action: coordinator.recommended_scene_action,
+            requires_review: coordinator.requires_review,
+            can_auto_run: coordinator.can_auto_run,
+            reason: coordinator.reason,
+            source_signals,
             roles,
             note,
         };
@@ -12488,6 +12706,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Context,
         ThreadEpiphanySceneAction::Jobs,
         ThreadEpiphanySceneAction::Roles,
+        ThreadEpiphanySceneAction::Coordinator,
         ThreadEpiphanySceneAction::RoleLaunch,
         ThreadEpiphanySceneAction::RoleResult,
         ThreadEpiphanySceneAction::JobLaunch,
@@ -13280,6 +13499,221 @@ fn map_epiphany_crrc_recommendation(
         Some(ThreadEpiphanySceneAction::Reorient),
         "Pressure is tolerable and the checkpoint remains resume-ready; continue the bounded task.",
     )
+}
+
+struct EpiphanyCoordinatorDecision {
+    action: ThreadEpiphanyCoordinatorAction,
+    target_role: Option<ThreadEpiphanyRoleId>,
+    recommended_scene_action: Option<ThreadEpiphanySceneAction>,
+    requires_review: bool,
+    can_auto_run: bool,
+    reason: String,
+}
+
+fn map_epiphany_coordinator(
+    state_status: ThreadEpiphanyReorientStateStatus,
+    checkpoint_present: bool,
+    pressure: &ThreadEpiphanyPressure,
+    recommendation: &ThreadEpiphanyCrrcRecommendation,
+    roles: &[ThreadEpiphanyRoleLane],
+    signals: &ThreadEpiphanyCoordinatorSignals,
+) -> EpiphanyCoordinatorDecision {
+    let build = |action,
+                 target_role,
+                 recommended_scene_action,
+                 requires_review,
+                 can_auto_run,
+                 reason: &str| EpiphanyCoordinatorDecision {
+        action,
+        target_role,
+        recommended_scene_action,
+        requires_review,
+        can_auto_run,
+        reason: reason.to_string(),
+    };
+
+    if state_status == ThreadEpiphanyReorientStateStatus::Missing || !checkpoint_present {
+        return build(
+            ThreadEpiphanyCoordinatorAction::PrepareCheckpoint,
+            Some(ThreadEpiphanyRoleId::Modeling),
+            Some(ThreadEpiphanySceneAction::Update),
+            false,
+            false,
+            "Authoritative state or investigation checkpoint is missing; prepare a checkpoint before coordination can continue.",
+        );
+    }
+
+    match recommendation.action {
+        ThreadEpiphanyCrrcAction::WaitForReorientWorker => {
+            return build(
+                ThreadEpiphanyCoordinatorAction::WaitForReorientWorker,
+                Some(ThreadEpiphanyRoleId::Reorientation),
+                Some(ThreadEpiphanySceneAction::ReorientResult),
+                false,
+                false,
+                "A CRRC reorient worker is already in flight; wait for the bounded result.",
+            );
+        }
+        ThreadEpiphanyCrrcAction::AcceptReorientResult
+        | ThreadEpiphanyCrrcAction::ReviewReorientResult => {
+            return build(
+                ThreadEpiphanyCoordinatorAction::ReviewReorientResult,
+                Some(ThreadEpiphanyRoleId::Reorientation),
+                recommendation.recommended_scene_action,
+                true,
+                false,
+                "A CRRC reorientation finding needs human review before continuation.",
+            );
+        }
+        ThreadEpiphanyCrrcAction::RegatherManually => {
+            return build(
+                ThreadEpiphanyCoordinatorAction::RegatherManually,
+                Some(ThreadEpiphanyRoleId::Reorientation),
+                recommendation.recommended_scene_action,
+                true,
+                false,
+                "CRRC cannot safely continue automatically; manual regathering is required.",
+            );
+        }
+        ThreadEpiphanyCrrcAction::PrepareCheckpoint
+        | ThreadEpiphanyCrrcAction::LaunchReorientWorker
+        | ThreadEpiphanyCrrcAction::Continue => {}
+    }
+
+    if pressure.should_prepare_compaction {
+        return build(
+            ThreadEpiphanyCoordinatorAction::CompactRehydrateReorient,
+            Some(ThreadEpiphanyRoleId::Reorientation),
+            Some(ThreadEpiphanySceneAction::Reorient),
+            false,
+            true,
+            "Context pressure crossed the preparation threshold; compact, rehydrate, and reorient before more implementation work.",
+        );
+    }
+
+    if recommendation.action == ThreadEpiphanyCrrcAction::LaunchReorientWorker {
+        return build(
+            ThreadEpiphanyCoordinatorAction::LaunchReorientWorker,
+            Some(ThreadEpiphanyRoleId::Reorientation),
+            Some(ThreadEpiphanySceneAction::ReorientLaunch),
+            false,
+            true,
+            "CRRC says continuity needs a bounded reorient worker before safe continuation.",
+        );
+    }
+
+    if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed {
+        return build(
+            ThreadEpiphanyCoordinatorAction::ReviewVerificationResult,
+            Some(ThreadEpiphanyRoleId::Verification),
+            Some(ThreadEpiphanySceneAction::RoleResult),
+            true,
+            false,
+            "A verification/review finding is complete and must be reviewed before continuation.",
+        );
+    }
+
+    if signals.modeling_result_status == ThreadEpiphanyRoleResultStatus::Completed {
+        return build(
+            ThreadEpiphanyCoordinatorAction::LaunchVerification,
+            Some(ThreadEpiphanyRoleId::Verification),
+            Some(ThreadEpiphanySceneAction::RoleLaunch),
+            false,
+            true,
+            "Modeling/checkpoint guidance is available; run verification before implementation continues.",
+        );
+    }
+
+    if role_status(roles, ThreadEpiphanyRoleId::Modeling).is_some_and(|status| {
+        matches!(
+            status,
+            ThreadEpiphanyRoleStatus::Ready | ThreadEpiphanyRoleStatus::Needed
+        )
+    }) && matches!(
+        signals.modeling_result_status,
+        ThreadEpiphanyRoleResultStatus::MissingBinding
+            | ThreadEpiphanyRoleResultStatus::BackendMissing
+            | ThreadEpiphanyRoleResultStatus::Cancelled
+            | ThreadEpiphanyRoleResultStatus::Failed
+    ) {
+        return build(
+            ThreadEpiphanyCoordinatorAction::LaunchModeling,
+            Some(ThreadEpiphanyRoleId::Modeling),
+            Some(ThreadEpiphanySceneAction::RoleLaunch),
+            false,
+            true,
+            "The modeling/checkpoint lane is ready and no current modeling finding is available.",
+        );
+    }
+
+    if matches!(
+        signals.modeling_result_status,
+        ThreadEpiphanyRoleResultStatus::Pending | ThreadEpiphanyRoleResultStatus::Running
+    ) {
+        return build(
+            ThreadEpiphanyCoordinatorAction::ReviewModelingResult,
+            Some(ThreadEpiphanyRoleId::Modeling),
+            Some(ThreadEpiphanySceneAction::RoleResult),
+            false,
+            false,
+            "A modeling/checkpoint specialist is already running; wait for its result.",
+        );
+    }
+
+    if role_status(roles, ThreadEpiphanyRoleId::Verification).is_some_and(|status| {
+        matches!(
+            status,
+            ThreadEpiphanyRoleStatus::Ready | ThreadEpiphanyRoleStatus::Needed
+        )
+    }) && matches!(
+        signals.verification_result_status,
+        ThreadEpiphanyRoleResultStatus::MissingBinding
+            | ThreadEpiphanyRoleResultStatus::BackendMissing
+            | ThreadEpiphanyRoleResultStatus::Cancelled
+            | ThreadEpiphanyRoleResultStatus::Failed
+    ) {
+        return build(
+            ThreadEpiphanyCoordinatorAction::LaunchVerification,
+            Some(ThreadEpiphanyRoleId::Verification),
+            Some(ThreadEpiphanySceneAction::RoleLaunch),
+            false,
+            true,
+            "The verification/review lane is ready and no current verification finding is available.",
+        );
+    }
+
+    if matches!(
+        signals.verification_result_status,
+        ThreadEpiphanyRoleResultStatus::Pending | ThreadEpiphanyRoleResultStatus::Running
+    ) {
+        return build(
+            ThreadEpiphanyCoordinatorAction::ReviewVerificationResult,
+            Some(ThreadEpiphanyRoleId::Verification),
+            Some(ThreadEpiphanySceneAction::RoleResult),
+            false,
+            false,
+            "A verification/review specialist is already running; wait for its result.",
+        );
+    }
+
+    build(
+        ThreadEpiphanyCoordinatorAction::ContinueImplementation,
+        Some(ThreadEpiphanyRoleId::Implementation),
+        None,
+        false,
+        false,
+        "CRRC is clear and no specialist lane is currently blocking implementation.",
+    )
+}
+
+fn role_status(
+    roles: &[ThreadEpiphanyRoleLane],
+    role_id: ThreadEpiphanyRoleId,
+) -> Option<ThreadEpiphanyRoleStatus> {
+    roles
+        .iter()
+        .find(|role| role.id == role_id)
+        .map(|role| role.status)
 }
 
 fn epiphany_reorient_finding_already_accepted(
@@ -17734,6 +18168,288 @@ mod tests {
         assert_eq!(roles[2].status, ThreadEpiphanyRoleStatus::Needed);
         assert_eq!(roles[2].jobs[0].owner_role, "epiphany-verifier");
         assert_eq!(roles[3].status, ThreadEpiphanyRoleStatus::Ready);
+    }
+
+    fn base_coordinator_roles() -> Vec<ThreadEpiphanyRoleLane> {
+        vec![
+            coordinator_role(
+                ThreadEpiphanyRoleId::Implementation,
+                ThreadEpiphanyRoleStatus::Ready,
+            ),
+            coordinator_role(
+                ThreadEpiphanyRoleId::Modeling,
+                ThreadEpiphanyRoleStatus::Ready,
+            ),
+            coordinator_role(
+                ThreadEpiphanyRoleId::Verification,
+                ThreadEpiphanyRoleStatus::Ready,
+            ),
+            coordinator_role(
+                ThreadEpiphanyRoleId::Reorientation,
+                ThreadEpiphanyRoleStatus::Ready,
+            ),
+        ]
+    }
+
+    fn coordinator_role(
+        id: ThreadEpiphanyRoleId,
+        status: ThreadEpiphanyRoleStatus,
+    ) -> ThreadEpiphanyRoleLane {
+        ThreadEpiphanyRoleLane {
+            id,
+            title: format!("{id:?}"),
+            owner_role: format!("{id:?}"),
+            status,
+            note: "test lane".to_string(),
+            jobs: Vec::new(),
+            authority_scopes: Vec::new(),
+            recommended_action: None,
+        }
+    }
+
+    fn coordinator_signals(
+        crrc_action: ThreadEpiphanyCrrcAction,
+        reorient_result_status: ThreadEpiphanyReorientResultStatus,
+        modeling_result_status: ThreadEpiphanyRoleResultStatus,
+        verification_result_status: ThreadEpiphanyRoleResultStatus,
+    ) -> ThreadEpiphanyCoordinatorSignals {
+        ThreadEpiphanyCoordinatorSignals {
+            pressure_level: ThreadEpiphanyPressureLevel::Low,
+            should_prepare_compaction: false,
+            reorient_action: ThreadEpiphanyReorientAction::Resume,
+            crrc_action,
+            modeling_result_status,
+            verification_result_status,
+            reorient_result_status,
+        }
+    }
+
+    #[test]
+    fn map_epiphany_coordinator_prepares_missing_checkpoint() {
+        let pressure = map_epiphany_pressure(None);
+        let recommendation = ThreadEpiphanyCrrcRecommendation {
+            action: ThreadEpiphanyCrrcAction::PrepareCheckpoint,
+            recommended_scene_action: Some(ThreadEpiphanySceneAction::Update),
+            reason: "checkpoint missing".to_string(),
+        };
+        let roles = base_coordinator_roles();
+        let signals = coordinator_signals(
+            ThreadEpiphanyCrrcAction::PrepareCheckpoint,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+
+        let decision = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            false,
+            &pressure,
+            &recommendation,
+            &roles,
+            &signals,
+        );
+
+        assert_eq!(
+            decision.action,
+            ThreadEpiphanyCoordinatorAction::PrepareCheckpoint
+        );
+        assert!(!decision.can_auto_run);
+    }
+
+    #[test]
+    fn map_epiphany_coordinator_compacts_at_pressure_threshold() {
+        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: 92,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
+            model_context_window: Some(200),
+            model_auto_compact_token_limit: Some(100),
+        }));
+        let recommendation = ThreadEpiphanyCrrcRecommendation {
+            action: ThreadEpiphanyCrrcAction::Continue,
+            recommended_scene_action: Some(ThreadEpiphanySceneAction::Reorient),
+            reason: "continue".to_string(),
+        };
+        let roles = base_coordinator_roles();
+        let signals = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+
+        let decision = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &signals,
+        );
+
+        assert_eq!(
+            decision.action,
+            ThreadEpiphanyCoordinatorAction::CompactRehydrateReorient
+        );
+        assert!(decision.can_auto_run);
+    }
+
+    #[test]
+    fn map_epiphany_coordinator_launches_reorient_worker_from_crrc() {
+        let pressure = map_epiphany_pressure(None);
+        let recommendation = ThreadEpiphanyCrrcRecommendation {
+            action: ThreadEpiphanyCrrcAction::LaunchReorientWorker,
+            recommended_scene_action: Some(ThreadEpiphanySceneAction::ReorientLaunch),
+            reason: "regather".to_string(),
+        };
+        let roles = base_coordinator_roles();
+        let signals = coordinator_signals(
+            ThreadEpiphanyCrrcAction::LaunchReorientWorker,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+
+        let decision = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &signals,
+        );
+
+        assert_eq!(
+            decision.action,
+            ThreadEpiphanyCoordinatorAction::LaunchReorientWorker
+        );
+        assert_eq!(
+            decision.target_role,
+            Some(ThreadEpiphanyRoleId::Reorientation)
+        );
+        assert!(decision.can_auto_run);
+    }
+
+    #[test]
+    fn map_epiphany_coordinator_reviews_reorient_result() {
+        let pressure = map_epiphany_pressure(None);
+        let recommendation = ThreadEpiphanyCrrcRecommendation {
+            action: ThreadEpiphanyCrrcAction::AcceptReorientResult,
+            recommended_scene_action: Some(ThreadEpiphanySceneAction::ReorientAccept),
+            reason: "review".to_string(),
+        };
+        let roles = base_coordinator_roles();
+        let signals = coordinator_signals(
+            ThreadEpiphanyCrrcAction::AcceptReorientResult,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+
+        let decision = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &signals,
+        );
+
+        assert_eq!(
+            decision.action,
+            ThreadEpiphanyCoordinatorAction::ReviewReorientResult
+        );
+        assert!(decision.requires_review);
+    }
+
+    #[test]
+    fn map_epiphany_coordinator_runs_modeling_then_verification_then_continue() {
+        let pressure = map_epiphany_pressure(None);
+        let recommendation = ThreadEpiphanyCrrcRecommendation {
+            action: ThreadEpiphanyCrrcAction::Continue,
+            recommended_scene_action: Some(ThreadEpiphanySceneAction::Reorient),
+            reason: "continue".to_string(),
+        };
+        let roles = base_coordinator_roles();
+        let missing = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+
+        let launch_modeling = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &missing,
+        );
+        assert_eq!(
+            launch_modeling.action,
+            ThreadEpiphanyCoordinatorAction::LaunchModeling
+        );
+
+        let modeling_done = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+        let launch_verification = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &modeling_done,
+        );
+        assert_eq!(
+            launch_verification.action,
+            ThreadEpiphanyCoordinatorAction::LaunchVerification
+        );
+
+        let verification_done = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::Completed,
+        );
+        let review_verification = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &verification_done,
+        );
+        assert_eq!(
+            review_verification.action,
+            ThreadEpiphanyCoordinatorAction::ReviewVerificationResult
+        );
+        assert!(review_verification.requires_review);
+
+        let reviewed = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::BackendMissing,
+            ThreadEpiphanyRoleResultStatus::BackendMissing,
+        );
+        let continue_implementation = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &[],
+            &reviewed,
+        );
+        assert_eq!(
+            continue_implementation.action,
+            ThreadEpiphanyCoordinatorAction::ContinueImplementation
+        );
     }
 
     #[test]

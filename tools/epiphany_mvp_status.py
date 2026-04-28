@@ -83,6 +83,7 @@ def collect_status(
     }
     reorient_result = client.send("thread/epiphany/reorientResult", {"threadId": thread_id})
     crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
+    coordinator = client.send("thread/epiphany/coordinator", {"threadId": thread_id})
 
     status = {
         "threadId": thread_id,
@@ -95,6 +96,7 @@ def collect_status(
         "roleResults": role_results,
         "reorientResult": reorient_result,
         "crrc": crrc,
+        "coordinator": coordinator,
     }
     return status
 
@@ -110,6 +112,7 @@ def render_status(status: dict[str, Any]) -> str:
     roles = status["roles"]["roles"]
     role_results = status.get("roleResults") or {}
     recommendation = crrc["recommendation"]
+    coordinator = status.get("coordinator") or {}
     checkpoint = scene.get("investigationCheckpoint") or {}
 
     lines = [
@@ -121,6 +124,7 @@ def render_status(status: dict[str, Any]) -> str:
         f"- action: {recommendation['action']}",
         f"- scene action: {maybe(recommendation.get('recommendedSceneAction'))}",
         f"- reason: {recommendation['reason']}",
+        f"- coordinator: {maybe(coordinator.get('action'))} ({maybe(coordinator.get('targetRole'))})",
         "",
         "Continuity",
         (
