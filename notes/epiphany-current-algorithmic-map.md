@@ -29,6 +29,7 @@ The spine exists in twenty-four live paths:
 - freshness reflection: app-server declares experimental read-only `thread/epiphany/freshness`, reads the same live/stored thread view used by scene/jobs/context, fills live retrieval state for loaded threads, and derives one bounded retrieval/graph freshness lens plus, for loaded threads, watcher-backed invalidation inputs with watched root, changed paths, mapped graph-node hits, active-frontier hits, and revision/source identity without mutating, scheduling, notifying, or performing automatic semantic invalidation in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4167), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4259), [epiphany_invalidation.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/epiphany_invalidation.rs:19), [epiphany_invalidation.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/epiphany_invalidation.rs:67), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4219), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11073).
 - targeted context reflection: app-server declares experimental read-only `thread/epiphany/context`, reads the same live/stored Epiphany state view used by scene/jobs, and derives a bounded state shard containing selected graph nodes/edges, links, active frontier, checkpoint, the full durable investigation-checkpoint packet, observations, direct evidence, linked evidence, and missing requested ids without retrieval, proposal, promotion, notification, mutation, or persistence in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:355), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4253), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4261), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11152).
 - context-pressure reflection: core token telemetry carries `model_auto_compact_token_limit` beside total/last usage and `model_context_window`; app-server declares experimental read-only `thread/epiphany/pressure`, reads live token usage or the latest stored rollout `TokenCount`, and derives `unknown`/`low`/`elevated`/`high`/`critical` pressure plus a non-acting compaction-prep recommendation without mutating Epiphany state or scheduling compaction in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:2237), [turn_context.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/turn_context.rs:103), [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2716), [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:360), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4361), [token_usage_replay.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor/token_usage_replay.rs:75), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4306), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11028).
+- pre-compaction checkpoint intervention: app-server `TokenCount` handling now checks the same pressure mapper, and for loaded Epiphany threads crossing `shouldPrepareCompaction` it steers the active turn once with a bounded CRRC checkpoint directive to bank working context before compaction/reorientation. The per-turn dedupe bit lives in listener `ThreadState`, and the intervention uses existing turn steering rather than a new scheduler in [bespoke_event_handling.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/bespoke_event_handling.rs:1467), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:15405), and [thread_state.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/thread_state.rs:144).
 - reorientation policy: app-server declares experimental read-only `thread/epiphany/reorient`, reuses the same live/stored thread view plus mapped pressure/freshness/watcher signals, and derives a bounded `resume`/`regather` verdict with checkpoint-path/frontier reasons without mutating, compacting, scheduling, notifying, or continuing work in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:365), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4514), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4394), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11424).
 - CRRC coordinator recommendation: app-server declares experimental read-only `thread/epiphany/crrc`, reuses the same pressure/freshness/watcher/reorientation mapping plus the fixed `reorient-worker` binding and result read-back helper, recognizes already accepted reorientation findings so an accepted result is not recommended for acceptance again, and returns one bounded recommendation such as continue, prepare checkpoint, launch worker, wait, review, accept, or regather manually without mutating, launching, accepting, compacting, notifying, scheduling, or silently continuing work in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:370), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4661), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4546).
 - role ownership projection: app-server declares experimental read-only `thread/epiphany/roles`, reuses the same state/jobs/pressure/reorient/result/CRRC signals as the coordinator loop, and projects implementation, modeling/checkpoint, verification/review, and reorientation lanes with owner roles, status, linked jobs, authority scopes, and recommended scene actions without launching, scheduling, accepting, compacting, notifying, or mutating state in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4161), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4310).
@@ -1266,6 +1267,41 @@ The response is a read-only gauge. The Phase 6 pressure smoke proved that a fres
 
 Pressure projection is read-only. It does not start compaction, perform CRRC, checkpoint source gathering, mutate `SessionState`, append rollout items, or emit state notifications. It is a pressure gauge, not an emergency crew with a clipboard addiction.
 
+## Flow 16A: Pre-Compaction Checkpoint Intervention
+
+### Input
+
+The core session emits `EventMsg::TokenCount` while a turn is active.
+
+### Plain-language role
+
+This is the first CRRC mid-work intervention. It catches the moment pressure has
+crossed the existing compaction-prep line but before the turn has ended, and it
+tells the active agent to bank what it has learned instead of letting compaction
+turn fresh working context into decorative smoke.
+
+### Mechanism
+
+The app-server event handler:
+
+1. clones the `TokenUsageInfo` from the `TokenCount` event before forwarding the normal token-usage notification.
+2. maps it through the same pressure helper used by `thread/epiphany/pressure`.
+3. ignores unknown/low/elevated pressure and acts only when `shouldPrepareCompaction` is true.
+4. requires a loaded thread with existing Epiphany state.
+5. records one intervention per active turn id in listener `ThreadState`.
+6. uses existing turn steering with the expected active turn id to inject a bounded CRRC directive.
+
+The directive tells the agent to stop broad implementation, persist the active
+working context into checkpoint/scratch/map/evidence as appropriate, say when the
+checkpoint is banked, and stop for CRRC compaction/reorientation.
+
+### Invariant
+
+This intervention does not mutate Epiphany state itself, accept semantic
+findings, promote evidence, launch arbitrary specialists, or continue
+implementation. It is a shove toward persistence, not a new little emperor with
+a queue.
+
 ## Flow 17: Reorientation Policy Control Flow
 
 ### Input
@@ -1308,7 +1344,7 @@ These are deliberately not shipped yet:
 
 - no broad live Epiphany event stream beyond `thread/epiphany/stateUpdated` for successful update/promote writes.
 - no automatic evidence promotion from tool output; the current distill/propose/promote path still requires explicit verifier-backed calls.
-- no automatic Compact-Rehydrate-Reorient-Continue coordinator; current code preserves and rehydrates valid Epiphany snapshots across resume/rollback/compaction, exposes context pressure, carries a durable investigation checkpoint packet, returns a read-only reorientation verdict, can explicitly launch one bounded reorientation worker, read that worker's result back through a reviewable surface, and explicitly accept completed findings into typed state, but runtime launch/acceptance policy and next-step execution are still explicit rather than ambient scheduler behavior.
+- no broad automatic Compact-Rehydrate-Reorient-Continue coordinator; current code preserves and rehydrates valid Epiphany snapshots across resume/rollback/compaction, exposes context pressure, carries a durable investigation checkpoint packet, can steer active loaded turns once at the compaction-prep threshold to bank working context, returns a read-only reorientation verdict, can explicitly launch one bounded reorientation worker, read that worker's result back through a reviewable surface, explicitly accept completed findings into typed state, and can auto-run only the narrow coordinator-approved compact/reorient-worker launch actions at turn completion. Semantic launch/acceptance policy and next-step execution remain explicit rather than ambient scheduler behavior.
 - no automatic watcher-driven graph or semantic invalidation.
 - no code-intelligence graph.
 - no broad specialist-agent scheduler or marketplace; only fixed manual modeling/checkpoint and verification/review role templates exist.

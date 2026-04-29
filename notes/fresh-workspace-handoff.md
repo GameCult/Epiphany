@@ -32,7 +32,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - `tools/epiphany_mvp_status.py` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, pressure, reorient, jobs, roles, modeling/verification role result read-backs, reorient result, and CRRC recommendation as text or JSON.
 - `tools/epiphany_mvp_coordinator.py` is the first auditable fixed-lane coordinator runner. It starts or reads a thread through app-server, follows the harness-native coordinator action, can auto-launch modeling, verification, or reorient-worker jobs, keeps semantic findings review-gated by default, and writes summary, steps, rendered snapshots, transcript, stderr, and final next-action artifacts under `.epiphany-dogfood/coordinator` or a caller-provided artifact directory.
 - Native CRRC automation is now landed only at turn-complete safe boundaries. It may submit `Op::Compact` for coordinator-approved `compactRehydrateReorient`, and it may launch the fixed `reorient-worker` for coordinator-approved `launchReorientWorker`. It does not auto-launch modeling/verification, accept findings, promote evidence, edit implementation code, or keep going after reviewable semantic output.
-- This is not the full CRRC design. Turn-complete-only automation can still miss the important failure mode where the active agent has learned something during work but has not yet externalized it before compaction. The next CRRC slice should add a pre-compaction checkpoint intervention: detect rising pressure before the hard cliff, interrupt or steer the agent into a bounded persistence pass, then compact/resume/reorient only after scratch/checkpoint/map/evidence are banked as needed.
+- Pre-compaction checkpoint intervention is now landed. On token-count events for loaded Epiphany threads, when pressure reaches the existing `shouldPrepareCompaction` threshold, the harness steers the active turn once with a CRRC checkpoint directive so the agent banks working context before compaction/reorientation. This is still bounded steering, not automatic semantic acceptance, a broad scheduler, or implementation continuation.
 - `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including raw app-server transcript, rendered snapshots, final status, vanilla-reference prompt/output, and comparison notes.
 - `tools/epiphany_mvp_live_specialist.py` is the first auditable live-specialist runner. It launches a real role specialist through `thread/epiphany/roleLaunch`, lets the spawned worker report through `report_agent_job_result`, reads it back through `thread/epiphany/roleResult`, and writes local artifacts under `.epiphany-dogfood/live-specialist`.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
@@ -89,6 +89,7 @@ The current spine:
 - read-only CRRC next-action recommendation through `thread/epiphany/crrc`
 - read-only fixed-lane MVP action recommendation through `thread/epiphany/coordinator`
 - limited turn-complete CRRC automation for coordinator-approved compact and fixed reorient-worker launch actions
+- token-count pre-compaction checkpoint intervention for loaded Epiphany turns at the `shouldPrepareCompaction` threshold
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
@@ -290,13 +291,13 @@ The first live-specialist pass has also run. It produced
 inspected the smoke workspace, called `report_agent_job_result`, and
 `roleResult` projected a completed `checkpoint-ready` finding.
 
-The fixed-lane coordinator MVP is testable, but the CRRC story is not complete.
-Limited safe-boundary CRRC execution is wired for compact and fixed
-reorient-worker launch actions, but it only acts after a turn ends. The next
-real organ is pre-compaction checkpoint intervention: when pressure rises before
-the hard cliff, interrupt or steer the active agent into a bounded persistence
-pass so learned working context is banked before compaction. After that, compact,
-resume, and reorient. CRRC is not a specialist-agent persona; the
+The fixed-lane coordinator MVP is testable, and the first pre-compaction CRRC
+intervention is now wired. Limited safe-boundary CRRC execution still handles
+compact and fixed reorient-worker launch actions after a turn ends; the
+token-count hook now handles the earlier danger zone by steering active loaded
+turns once when `shouldPrepareCompaction` is reached. The next real move is
+dogfooding the coordinator/status/pre-compaction loop on real local work and
+fixing concrete MVP blockers. CRRC is not a specialist-agent persona; the
 reorient-worker it may launch is the specialist. Do not turn the coordinator
 into a broad hidden dispatcher, arbitrary marketplace, alternate job backend,
 automatic semantic acceptance path, or GUI-as-source-of-truth.
@@ -314,7 +315,7 @@ are now guardrails, not the next organs.
 - automatic observation promotion
 - broad specialist-agent scheduling beyond the fixed single-user role lanes
 - GUI-as-source-of-truth
-- broad runtime CRRC execution beyond the landed safe-boundary compact and fixed reorient-worker launch actions
+- broad runtime CRRC execution beyond the landed safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam
 - broad event stream beyond the landed state update notification
 

@@ -66,6 +66,7 @@ pub(crate) struct ThreadState {
     listener_command_tx: Option<mpsc::UnboundedSender<ThreadListenerCommand>>,
     current_turn_history: ThreadHistoryBuilder,
     last_epiphany_jobs_by_job_id: HashMap<String, ThreadEpiphanyJob>,
+    last_epiphany_checkpoint_intervention_turn_id: Option<String>,
     listener_thread: Option<Weak<CodexThread>>,
 }
 
@@ -138,6 +139,18 @@ impl ThreadState {
             }
         }
         changed
+    }
+
+    pub(crate) fn record_epiphany_checkpoint_intervention(&mut self, turn_id: &str) -> bool {
+        if self
+            .last_epiphany_checkpoint_intervention_turn_id
+            .as_deref()
+            == Some(turn_id)
+        {
+            return false;
+        }
+        self.last_epiphany_checkpoint_intervention_turn_id = Some(turn_id.to_string());
+        true
     }
 }
 

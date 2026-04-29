@@ -14664,6 +14664,34 @@ fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPre
     }
 }
 
+fn should_run_epiphany_pre_compaction_checkpoint_intervention(
+    pressure: &ThreadEpiphanyPressure,
+) -> bool {
+    pressure.status == ThreadEpiphanyPressureStatus::Ready && pressure.should_prepare_compaction
+}
+
+fn render_epiphany_pre_compaction_checkpoint_intervention(
+    pressure: &ThreadEpiphanyPressure,
+) -> String {
+    let usage = match (
+        pressure.used_tokens,
+        pressure.remaining_tokens,
+        pressure.ratio_per_mille,
+    ) {
+        (Some(used), Some(remaining), Some(ratio)) => format!(
+            "{used} tokens used, {remaining} remaining, {}.{}% of the selected limit",
+            ratio / 10,
+            ratio % 10
+        ),
+        (Some(used), _, _) => format!("{used} tokens used"),
+        _ => "token usage known only as a pressure threshold crossing".to_string(),
+    };
+    format!(
+        "Epiphany CRRC pre-compaction checkpoint intervention: context pressure is {} ({usage}). Stop broad implementation now and bank the active working context before compaction. Persist a bounded checkpoint/scratch update with the current objective, files or seams inspected, important findings, unresolved questions, and the next safe move. Add distilled evidence only if this changes future belief. After the checkpoint is banked, say so plainly and stop for CRRC compaction/reorientation; do not continue implementation past unresolved drift.",
+        pressure_level_label(pressure.level),
+    )
+}
+
 fn map_epiphany_reorient(
     state: Option<&EpiphanyThreadState>,
     pressure: &ThreadEpiphanyPressure,
@@ -15370,6 +15398,52 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
                     },
                 ))
                 .await;
+        }
+    }
+}
+
+pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count(
+    thread_id: ThreadId,
+    turn_id: String,
+    thread: Arc<CodexThread>,
+    token_usage_info: Option<CoreTokenUsageInfo>,
+    thread_state: &Arc<Mutex<ThreadState>>,
+) {
+    let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+    if !should_run_epiphany_pre_compaction_checkpoint_intervention(&pressure) {
+        return;
+    }
+    if thread.epiphany_state().await.is_none() {
+        return;
+    }
+    if !thread_state
+        .lock()
+        .await
+        .record_epiphany_checkpoint_intervention(&turn_id)
+    {
+        return;
+    }
+
+    let text = render_epiphany_pre_compaction_checkpoint_intervention(&pressure);
+    match thread
+        .steer_input(
+            vec![CoreInputItem::Text {
+                text,
+                text_elements: Vec::new(),
+            }],
+            Some(&turn_id),
+            None,
+        )
+        .await
+    {
+        Ok(_) => {}
+        Err(SteerInputError::NoActiveTurn(_))
+        | Err(SteerInputError::ExpectedTurnMismatch { .. })
+        | Err(SteerInputError::ActiveTurnNotSteerable { .. })
+        | Err(SteerInputError::EmptyInput) => {
+            warn!(
+                "failed to steer Epiphany pre-compaction checkpoint intervention for {thread_id}"
+            );
         }
     }
 }
@@ -17503,6 +17577,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Context,
                 ThreadEpiphanySceneAction::Jobs,
                 ThreadEpiphanySceneAction::Roles,
+                ThreadEpiphanySceneAction::Coordinator,
                 ThreadEpiphanySceneAction::RoleLaunch,
                 ThreadEpiphanySceneAction::RoleResult,
                 ThreadEpiphanySceneAction::JobLaunch,
@@ -17752,6 +17827,40 @@ mod tests {
         );
         assert_eq!(pressure.ratio_per_mille, Some(750));
         assert!(!pressure.should_prepare_compaction);
+    }
+
+    #[test]
+    fn pre_compaction_checkpoint_intervention_uses_compaction_prep_threshold() {
+        let elevated = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: 89,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
+            model_context_window: None,
+            model_auto_compact_token_limit: Some(100),
+        }));
+        let high = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: 90,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
+            model_context_window: None,
+            model_auto_compact_token_limit: Some(100),
+        }));
+
+        assert!(!should_run_epiphany_pre_compaction_checkpoint_intervention(
+            &elevated
+        ));
+        assert!(should_run_epiphany_pre_compaction_checkpoint_intervention(
+            &high
+        ));
+
+        let prompt = render_epiphany_pre_compaction_checkpoint_intervention(&high);
+        assert!(prompt.contains("pre-compaction checkpoint intervention"));
+        assert!(prompt.contains("bank the active working context"));
+        assert!(prompt.contains("do not continue implementation"));
     }
 
     #[test]

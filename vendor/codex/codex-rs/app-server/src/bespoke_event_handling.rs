@@ -1,5 +1,6 @@
 use crate::codex_message_processor::ApiVersion;
 use crate::codex_message_processor::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
+use crate::codex_message_processor::maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count;
 use crate::codex_message_processor::read_rollout_items_from_rollout;
 use crate::codex_message_processor::read_summary_from_rollout;
 use crate::codex_message_processor::summary_to_thread;
@@ -1464,8 +1465,22 @@ pub(crate) async fn apply_bespoke_event_handling(
                 .await;
         }
         EventMsg::TokenCount(token_count_event) => {
-            handle_token_count_event(conversation_id, event_turn_id, token_count_event, &outgoing)
-                .await;
+            let token_usage_info = token_count_event.info.clone();
+            handle_token_count_event(
+                conversation_id,
+                event_turn_id.clone(),
+                token_count_event,
+                &outgoing,
+            )
+            .await;
+            maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count(
+                conversation_id,
+                event_turn_id,
+                conversation,
+                token_usage_info,
+                &thread_state,
+            )
+            .await;
         }
         EventMsg::Error(ev) => {
             thread_watch_manager
