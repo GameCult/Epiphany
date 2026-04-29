@@ -5,6 +5,14 @@ export interface StatusRequest {
   appServer?: string;
 }
 
+export type OperatorAction = "statusSnapshot" | "coordinatorPlan";
+
+export interface OperatorActionResult {
+  action: OperatorAction;
+  artifactPath: string;
+  summary: string;
+}
+
 export interface ArtifactBundle {
   name: string;
   path: string;

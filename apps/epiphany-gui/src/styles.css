@@ -75,7 +75,8 @@ h3 {
   line-height: 1.2;
 }
 
-.primaryButton {
+.primaryButton,
+.secondaryButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -89,14 +90,42 @@ h3 {
   cursor: pointer;
 }
 
-.primaryButton:disabled {
+.secondaryButton {
+  border-color: #b8c4bc;
+  color: #244d3a;
+  background: #ffffff;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
   cursor: wait;
   opacity: 0.68;
 }
 
 .controls {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 10px;
+}
+
+.actionStrip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
   margin-bottom: 16px;
+}
+
+.actionResult {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: #3e493f;
+  font-size: 0.86rem;
+}
+
+.actionResult code {
+  max-width: min(580px, 70vw);
 }
 
 label {
@@ -376,6 +405,11 @@ code {
 
   .topbar {
     grid-template-columns: 1fr;
+  }
+
+  .actionStrip,
+  .secondaryButton {
+    width: 100%;
   }
 
   .cardGrid,

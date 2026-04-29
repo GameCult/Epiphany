@@ -1,0 +1,164 @@
+{
+  "generatedAt": "1777475847000",
+  "repoRoot": "E:\\Projects\\EpiphanyAgent",
+  "status": {
+    "threadId": "019dd9d1-045b-7f13-b0e1-38ed89b31495",
+    "scene": {
+      "scene": {
+        "availableActions": [
+          "index",
+          "retrieve",
+          "distill",
+          "context",
+          "jobs",
+          "roles",
+          "coordinator",
+          "roleLaunch",
+          "roleResult",
+          "jobLaunch",
+          "freshness",
+          "pressure",
+          "reorient",
+          "crrc",
+          "update"
+        ],
+        "source": "live",
+        "stateStatus": "missing"
+      }
+    },
+    "pressure": {
+      "pressure": {
+        "basis": "unknown",
+        "level": "unknown",
+        "note": "No token usage telemetry has been recorded for this thread yet.",
+        "shouldPrepareCompaction": false,
+        "status": "unknown"
+      }
+    },
+    "reorient": {
+      "decision": {
+        "action": "regather",
+        "checkpointStatus": "missing",
+        "graphStatus": "missing",
+        "nextAction": "Re-gather source context before editing.",
+        "note": "No Epiphany state survived, so there is no authoritative checkpoint to resume.",
+        "pressureLevel": "unknown",
+        "reasons": ["missingState", "missingCheckpoint"],
+        "retrievalStatus": "ready",
+        "watcherStatus": "clean"
+      }
+    },
+    "jobs": {
+      "jobs": [
+        {
+          "id": "retrieval-index",
+          "kind": "indexing",
+          "ownerRole": "epiphany-core",
+          "progressNote": "Retrieval catalog is ready.",
+          "scope": "E:\\Projects\\EpiphanyAgent",
+          "status": "idle"
+        },
+        {
+          "blockingReason": "Epiphany state is missing, so there is no graph to remap.",
+          "id": "graph-remap",
+          "kind": "remap",
+          "ownerRole": "epiphany-harness",
+          "scope": "architecture/dataflow graphs",
+          "status": "blocked"
+        },
+        {
+          "blockingReason": "Epiphany state is missing, so there are no invariants to verify.",
+          "id": "verification",
+          "kind": "verification",
+          "ownerRole": "epiphany-harness",
+          "scope": "invariants/evidence",
+          "status": "blocked"
+        }
+      ]
+    },
+    "roles": {
+      "roles": [
+        {
+          "id": "implementation",
+          "note": "Wait for CRRC action: RegatherManually.",
+          "ownerRole": "coding-agent",
+          "status": "blocked",
+          "title": "Implementation"
+        },
+        {
+          "id": "modeling",
+          "note": "Checkpoint missing: Re-gather source context before editing.",
+          "ownerRole": "epiphany-modeler",
+          "recommendedAction": "update",
+          "status": "needed",
+          "title": "Modeling / Checkpoint"
+        },
+        {
+          "id": "verification",
+          "note": "Epiphany state is missing, so there are no invariants to verify.",
+          "ownerRole": "epiphany-verifier",
+          "status": "blocked",
+          "title": "Verification / Review"
+        },
+        {
+          "id": "reorientation",
+          "note": "Regather verdict, result MissingState, pressure Unknown. No authoritative Epiphany state exists; re-gather source context before editing.",
+          "ownerRole": "epiphany-reorient",
+          "status": "needed",
+          "title": "Reorientation"
+        }
+      ]
+    },
+    "roleResults": {
+      "modeling": {
+        "bindingId": "modeling-checkpoint-worker",
+        "note": "No authoritative Epiphany state exists for this thread.",
+        "roleId": "modeling",
+        "status": "missingState"
+      },
+      "verification": {
+        "bindingId": "verification-review-worker",
+        "note": "No authoritative Epiphany state exists for this thread.",
+        "roleId": "verification",
+        "status": "missingState"
+      }
+    },
+    "reorientResult": {
+      "bindingId": "reorient-worker",
+      "note": "No authoritative Epiphany state exists for this thread.",
+      "status": "missingState"
+    },
+    "crrc": {
+      "recommendation": {
+        "action": "regatherManually",
+        "reason": "No authoritative Epiphany state exists; re-gather source context before editing."
+      }
+    },
+    "coordinator": {
+      "action": "prepareCheckpoint",
+      "canAutoRun": false,
+      "reason": "Authoritative state or investigation checkpoint is missing; prepare a checkpoint before coordination can continue.",
+      "recommendedSceneAction": "update",
+      "requiresReview": false,
+      "targetRole": "modeling"
+    }
+  },
+  "artifacts": [
+    {
+      "name": "mvp-loop-selfdogfood-vanilla2-20260429",
+      "path": "E:\\Projects\\EpiphanyAgent\\.epiphany-dogfood\\mvp-loop-selfdogfood-vanilla2-20260429",
+      "files": [
+        "artifact-manifest.json",
+        "comparison.md",
+        "epiphany-dogfood-summary.json",
+        "epiphany-final-status.json",
+        "epiphany-transcript.jsonl",
+        "vanilla-reference.md"
+      ],
+      "summaryPath": "E:\\Projects\\EpiphanyAgent\\.epiphany-dogfood\\mvp-loop-selfdogfood-vanilla2-20260429\\epiphany-dogfood-summary.json",
+      "finalStatusPath": "E:\\Projects\\EpiphanyAgent\\.epiphany-dogfood\\mvp-loop-selfdogfood-vanilla2-20260429\\epiphany-final-status.json",
+      "comparisonPath": "E:\\Projects\\EpiphanyAgent\\.epiphany-dogfood\\mvp-loop-selfdogfood-vanilla2-20260429\\comparison.md",
+      "modifiedMillis": 1777475847000
+    }
+  ]
+}

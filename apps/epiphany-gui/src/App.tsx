@@ -1,7 +1,7 @@
-import { invoke } from "@tauri-apps/api/core";
 import { AlertTriangle, BriefcaseBusiness, ClipboardCheck, Database, FileText, GitBranch, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { ArtifactBundle, OperatorSnapshot, StatusRequest } from "./types";
+import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
+import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 
 const roleOrder = ["implementation", "modeling", "verification", "reorientation"];
 
@@ -34,13 +34,15 @@ function useSnapshot() {
   const [snapshot, setSnapshot] = useState<OperatorSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionResult, setActionResult] = useState<OperatorActionResult | null>(null);
+  const [runningAction, setRunningAction] = useState<OperatorAction | null>(null);
   const [request, setRequest] = useState<StatusRequest>({});
 
   async function refresh(nextRequest = request) {
     setLoading(true);
     setError(null);
     try {
-      const result = await invoke<OperatorSnapshot>("load_operator_snapshot", { request: nextRequest });
+      const result = await loadOperatorSnapshot(nextRequest);
       setSnapshot(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -49,16 +51,31 @@ function useSnapshot() {
     }
   }
 
+  async function runAction(action: OperatorAction) {
+    setRunningAction(action);
+    setError(null);
+    setActionResult(null);
+    try {
+      const result = await runOperatorAction(action, request);
+      setActionResult(result);
+      await refresh(request);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunningAction(null);
+    }
+  }
+
   useEffect(() => {
     void refresh({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { snapshot, loading, error, request, setRequest, refresh };
+  return { snapshot, loading, error, request, setRequest, refresh, actionResult, runningAction, runAction };
 }
 
 export function App() {
-  const { snapshot, loading, error, request, setRequest, refresh } = useSnapshot();
+  const { snapshot, loading, error, request, setRequest, refresh, actionResult, runningAction, runAction } = useSnapshot();
   const status = snapshot?.status;
   const scene = status?.scene?.scene ?? {};
   const pressure = status?.pressure?.pressure ?? {};
@@ -104,6 +121,32 @@ export function App() {
             onChange={(event) => setRequest({ ...request, cwd: event.target.value || undefined })}
           />
         </label>
+      </section>
+
+      <section className="actionStrip" aria-label="Bounded operator actions">
+        <button
+          className="secondaryButton"
+          onClick={() => void runAction("statusSnapshot")}
+          disabled={runningAction !== null}
+          title="Write an auditable status snapshot"
+        >
+          <FileText size={16} aria-hidden="true" />
+          {runningAction === "statusSnapshot" ? "Writing" : "Status Snapshot"}
+        </button>
+        <button
+          className="secondaryButton"
+          onClick={() => void runAction("coordinatorPlan")}
+          disabled={runningAction !== null}
+          title="Run a review-gated coordinator plan"
+        >
+          <ClipboardCheck size={16} aria-hidden="true" />
+          {runningAction === "coordinatorPlan" ? "Running" : "Coordinator Plan"}
+        </button>
+        {actionResult && (
+          <p className="actionResult">
+            {actionResult.summary} <code>{actionResult.artifactPath}</code>
+          </p>
+        )}
       </section>
 
       {error && (
@@ -171,7 +214,7 @@ export function App() {
               <article className="jobRow" key={text(job.id)}>
                 <div>
                   <strong>{text(job.id)}</strong>
-                  <span>{text(job.kind)} · {text(job.ownerRole)}</span>
+                  <span>{text(job.kind)} - {text(job.ownerRole)}</span>
                 </div>
                 <Pill tone={statusClass(job.status)}>{text(job.status)}</Pill>
               </article>
