@@ -3872,6 +3872,91 @@
       ],
       "type": "object"
     },
+    "ThreadEpiphanyGraphQuery": {
+      "properties": {
+        "depth": {
+          "description": "Defaults to 1 and is capped by the server.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "direction": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadEpiphanyGraphQueryDirection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Defaults to `both`."
+        },
+        "edgeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "edgeKinds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "includeLinks": {
+          "description": "Defaults to true so neighborhood queries preserve dataflow/architecture joins.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "kind": {
+          "$ref": "#/definitions/ThreadEpiphanyGraphQueryKind"
+        },
+        "nodeIds": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "symbols": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyGraphQueryDirection": {
+      "enum": [
+        "incoming",
+        "outgoing",
+        "both"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyGraphQueryKind": {
+      "enum": [
+        "node",
+        "path",
+        "frontierNeighborhood",
+        "neighbors"
+      ],
+      "type": "string"
+    },
     "ThreadEpiphanyRoleId": {
       "enum": [
         "implementation",

@@ -67,6 +67,8 @@ The landed machine now has:
 - live Phase 6 watcher-backed invalidation smoke coverage in `tools/epiphany_phase6_invalidation_smoke.py`
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
 - live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
+- read-only Phase 6 graph traversal through `thread/epiphany/graphQuery`
+- live Phase 6 graph traversal smoke coverage in `tools/epiphany_phase6_graph_query_smoke.py`
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
 - live Phase 6 pressure app-server smoke coverage in `tools/epiphany_phase6_pressure_smoke.py`
 - durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
@@ -109,6 +111,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/reorientAccept` is an explicit acceptance write for completed reorient-worker findings, not automatic promotion, scheduling, or permission to continue without review.
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
+- `thread/epiphany/graphQuery` is bounded graph traversal over authoritative typed state, not retrieval, proposal, promotion, scheduling, indexing, or a state writer.
 - `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
 - `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
 - `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
@@ -311,7 +314,7 @@ These remain later work:
 
 - watcher-driven semantic invalidation
 - automatic observation promotion from tool output
-- richer evidence and graph-shard inspection beyond the landed targeted context read
+- richer evidence UI and graph steering beyond the landed targeted context and graph traversal reads
 - richer role ergonomics after the fixed single-user coordinator proves useful
 - mutation gates that warn or block broad writes when map freshness is stale
 - broader CRRC runtime coordination beyond the landed narrow safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
@@ -358,6 +361,12 @@ Before modifying targeted context-shard behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
+```
+
+Before modifying graph traversal behavior, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_graph_query_smoke.py'
 ```
 
 For app-server protocol changes, expect to run the relevant protocol tests,

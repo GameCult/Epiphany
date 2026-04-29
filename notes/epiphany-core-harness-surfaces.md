@@ -56,6 +56,7 @@ The rule is:
 | `thread/epiphany/jobs` | read-only reflection | landed, live-smoked | Derived indexing, remap, verification, and specialist-progress slots from typed state and retrieval summaries, with durable launcher metadata plus live backend overlay when a real owner exists. |
 | `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state, with watcher-backed invalidation inputs for loaded threads. |
 | `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
+| `thread/epiphany/graphQuery` | read-only reflection | landed, live-smoked | Bounded graph traversal over authoritative typed state: explicit nodes/edges, path/symbol matches, edge-kind matches, neighbor walks, and frontier neighborhoods with architecture/dataflow links. |
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
 | `thread/epiphany/reorient` | read-only policy reflection | landed, live-smoked | Bounded CRRC reorientation verdict derived from checkpoint, freshness, watcher, and pressure signals; returns resume vs regather without acting on the decision. |
 | `thread/epiphany/crrc` | read-only coordinator reflection | landed, live-smoked | Composes pressure, reorientation verdict, bound worker status/result, and available actions into one recommendation without launching, accepting, compacting, or mutating state. |
@@ -84,6 +85,7 @@ The following must stay read-only:
 - `thread/epiphany/jobs`
 - `thread/epiphany/freshness`
 - `thread/epiphany/context`
+- `thread/epiphany/graphQuery`
 - `thread/epiphany/pressure`
 - `thread/epiphany/reorient`
 - `thread/epiphany/crrc`
@@ -94,7 +96,7 @@ license to mutate map/evidence/churn state as a side effect.
 
 ## Reflection Authority
 
-Scene, jobs, freshness, context, reorient, CRRC, and GUI surfaces may compress state for humans and
+Scene, jobs, freshness, context, graphQuery, reorient, CRRC, and GUI surfaces may compress state for humans and
 clients. They may not invent canonical understanding.
 
 Reflection surfaces should:
@@ -144,7 +146,7 @@ Metaphor is compression after source context. It is not decoration for guesses.
 
 These are not landed yet:
 
-- richer evidence-range and graph-shard inspection beyond the landed context shard
+- richer evidence UI and graph steering beyond the landed context and graph traversal reads
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
 - typed turn intent before broad mutation
@@ -176,7 +178,7 @@ Out of scope for the MVP:
 
 - arbitrary specialist marketplaces
 - broad automatic background scheduling
-- GUI-first workflows
+- GUI-as-source-of-truth workflows
 - automatic promotion of all tool output
 - a second job backend unless the current `agent_jobs` adapter blocks read-back
   or interruption
@@ -316,6 +318,25 @@ It selects from existing typed state only:
 It does not run retrieval, draft proposals, promote observations, mutate
 `SessionState`, append rollout items, or emit `thread/epiphany/stateUpdated`.
 It is a bounded lens, not a clerk with a pen.
+
+## Graph Query Surface Direction
+
+The first graph traversal read is landed as `thread/epiphany/graphQuery`.
+
+It selects and walks existing typed graph state only:
+
+- explicit architecture/dataflow node ids and edge ids
+- path and symbol matches from code refs on nodes, edges, and links
+- bounded incoming, outgoing, or bidirectional neighbor walks
+- active frontier neighborhoods
+- edge-kind matches
+- architecture/dataflow links by default
+- current graph frontier and graph checkpoint identity
+- matched selectors and missing explicit ids
+
+It does not run retrieval, draft proposals, promote observations, index code,
+mutate `SessionState`, append rollout items, schedule workers, or emit
+`thread/epiphany/stateUpdated`. It is a traversal lens, not a map editor.
 
 ## Reorientation Policy
 

@@ -329,6 +329,11 @@ export type { ThreadEpiphanyFreshnessSource } from "./ThreadEpiphanyFreshnessSou
 export type { ThreadEpiphanyGraphContext } from "./ThreadEpiphanyGraphContext";
 export type { ThreadEpiphanyGraphFreshness } from "./ThreadEpiphanyGraphFreshness";
 export type { ThreadEpiphanyGraphFreshnessStatus } from "./ThreadEpiphanyGraphFreshnessStatus";
+export type { ThreadEpiphanyGraphQuery } from "./ThreadEpiphanyGraphQuery";
+export type { ThreadEpiphanyGraphQueryDirection } from "./ThreadEpiphanyGraphQueryDirection";
+export type { ThreadEpiphanyGraphQueryKind } from "./ThreadEpiphanyGraphQueryKind";
+export type { ThreadEpiphanyGraphQueryMatched } from "./ThreadEpiphanyGraphQueryMatched";
+export type { ThreadEpiphanyGraphQueryMissing } from "./ThreadEpiphanyGraphQueryMissing";
 export type { ThreadEpiphanyInvalidationInput } from "./ThreadEpiphanyInvalidationInput";
 export type { ThreadEpiphanyInvalidationStatus } from "./ThreadEpiphanyInvalidationStatus";
 export type { ThreadEpiphanyJob } from "./ThreadEpiphanyJob";

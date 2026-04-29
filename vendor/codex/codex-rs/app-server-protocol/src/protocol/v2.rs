@@ -3996,6 +3996,7 @@ pub enum ThreadEpiphanySceneAction {
     Retrieve,
     Distill,
     Context,
+    GraphQuery,
     Jobs,
     Roles,
     Coordinator,
@@ -4711,6 +4712,109 @@ pub struct ThreadEpiphanyContextMissing {
     pub observation_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyGraphQueryParams {
+    pub thread_id: String,
+    pub query: ThreadEpiphanyGraphQuery,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyGraphQuery {
+    pub kind: ThreadEpiphanyGraphQueryKind,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_kinds: Vec<String>,
+    /// Defaults to `both`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub direction: Option<ThreadEpiphanyGraphQueryDirection>,
+    /// Defaults to 1 and is capped by the server.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub depth: Option<u32>,
+    /// Defaults to true so neighborhood queries preserve dataflow/architecture joins.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub include_links: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyGraphQueryKind {
+    Node,
+    Path,
+    FrontierNeighborhood,
+    Neighbors,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyGraphQueryDirection {
+    Incoming,
+    Outgoing,
+    Both,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyGraphQueryResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyContextSource,
+    pub state_status: ThreadEpiphanyContextStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub graph: ThreadEpiphanyGraphContext,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub frontier: Option<CoreEpiphanyGraphFrontier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checkpoint: Option<CoreEpiphanyGraphCheckpoint>,
+    pub matched: ThreadEpiphanyGraphQueryMatched,
+    pub missing: ThreadEpiphanyGraphQueryMissing,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyGraphQueryMatched {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_kinds: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyGraphQueryMissing {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub edge_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

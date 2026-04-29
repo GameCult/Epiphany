@@ -376,6 +376,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyContextParams,
         response: v2::ThreadEpiphanyContextResponse,
     },
+    #[experimental("thread/epiphany/graphQuery")]
+    ThreadEpiphanyGraphQuery => "thread/epiphany/graphQuery" {
+        params: v2::ThreadEpiphanyGraphQueryParams,
+        response: v2::ThreadEpiphanyGraphQueryResponse,
+    },
     #[experimental("thread/epiphany/pressure")]
     ThreadEpiphanyPressure => "thread/epiphany/pressure" {
         params: v2::ThreadEpiphanyPressureParams,
@@ -2533,6 +2538,104 @@ mod tests {
                     "missing": {
                         "graphNodeIds": ["missing-node"]
                     }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_graph_query_request_and_response() -> Result<()> {
+        let request = ClientRequest::ThreadEpiphanyGraphQuery {
+            request_id: RequestId::Integer(24),
+            params: v2::ThreadEpiphanyGraphQueryParams {
+                thread_id: "thr_123".to_string(),
+                query: v2::ThreadEpiphanyGraphQuery {
+                    kind: v2::ThreadEpiphanyGraphQueryKind::FrontierNeighborhood,
+                    node_ids: vec!["state-spine".to_string()],
+                    edge_ids: Vec::new(),
+                    paths: vec![PathBuf::from("src/lib.rs")],
+                    symbols: Vec::new(),
+                    edge_kinds: vec!["calls".to_string()],
+                    direction: Some(v2::ThreadEpiphanyGraphQueryDirection::Both),
+                    depth: Some(1),
+                    include_links: Some(true),
+                },
+            },
+        };
+
+        assert_eq!(request.method(), "thread/epiphany/graphQuery");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/graphQuery",
+                "id": 24,
+                "params": {
+                    "threadId": "thr_123",
+                    "query": {
+                        "kind": "frontierNeighborhood",
+                        "nodeIds": ["state-spine"],
+                        "paths": ["src/lib.rs"],
+                        "edgeKinds": ["calls"],
+                        "direction": "both",
+                        "depth": 1,
+                        "includeLinks": true
+                    }
+                }
+            }),
+            serde_json::to_value(&request)?,
+        );
+
+        let response = ClientResponse::ThreadEpiphanyGraphQuery {
+            request_id: RequestId::Integer(24),
+            response: v2::ThreadEpiphanyGraphQueryResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyContextSource::Live,
+                state_status: v2::ThreadEpiphanyContextStateStatus::Ready,
+                state_revision: Some(2),
+                graph: v2::ThreadEpiphanyGraphContext {
+                    architecture_nodes: vec![codex_protocol::protocol::EpiphanyGraphNode {
+                        id: "state-spine".to_string(),
+                        title: "State spine".to_string(),
+                        purpose: "Persist Epiphany state.".to_string(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                frontier: None,
+                checkpoint: None,
+                matched: v2::ThreadEpiphanyGraphQueryMatched {
+                    node_ids: vec!["state-spine".to_string()],
+                    edge_ids: Vec::new(),
+                    paths: Vec::new(),
+                    symbols: Vec::new(),
+                    edge_kinds: Vec::new(),
+                },
+                missing: v2::ThreadEpiphanyGraphQueryMissing::default(),
+            },
+        };
+
+        assert_eq!(response.method(), "thread/epiphany/graphQuery");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/graphQuery",
+                "id": 24,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 2,
+                    "graph": {
+                        "architectureNodes": [{
+                            "id": "state-spine",
+                            "title": "State spine",
+                            "purpose": "Persist Epiphany state."
+                        }]
+                    },
+                    "matched": {
+                        "nodeIds": ["state-spine"]
+                    },
+                    "missing": {}
                 }
             }),
             serde_json::to_value(&response)?,
