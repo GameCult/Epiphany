@@ -33,7 +33,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - `tools/epiphany_mvp_coordinator.py` is the first auditable fixed-lane coordinator runner. It starts or reads a thread through app-server, follows the harness-native coordinator action, can auto-launch modeling, verification, or reorient-worker jobs, keeps semantic findings review-gated by default, and writes summary, steps, rendered snapshots, transcript, stderr, and final next-action artifacts under `.epiphany-dogfood/coordinator` or a caller-provided artifact directory.
 - Native CRRC automation is now landed only at turn-complete safe boundaries. It may submit `Op::Compact` for coordinator-approved `compactRehydrateReorient`, and it may launch the fixed `reorient-worker` for coordinator-approved `launchReorientWorker`. It does not auto-launch modeling/verification, accept findings, promote evidence, edit implementation code, or keep going after reviewable semantic output.
 - Pre-compaction checkpoint intervention is now landed. On token-count events for loaded Epiphany threads, when pressure reaches the existing `shouldPrepareCompaction` threshold, the harness steers the active turn once with a CRRC checkpoint directive so the agent banks working context before compaction/reorientation. This is still bounded steering, not automatic semantic acceptance, a broad scheduler, or implementation continuation.
-- `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including raw app-server transcript, rendered snapshots, final status, vanilla-reference prompt/output, and comparison notes.
+- `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including raw app-server transcript, rendered snapshots, final status, vanilla-reference prompt/output, and comparison notes. The runner now writes truthful vanilla/comparison artifacts whether the optional vanilla reference is skipped, fails, or completes.
 - `tools/epiphany_mvp_live_specialist.py` is the first auditable live-specialist runner. It launches a real role specialist through `thread/epiphany/roleLaunch`, lets the spawned worker report through `report_agent_job_result`, reads it back through `thread/epiphany/roleResult`, and writes local artifacts under `.epiphany-dogfood/live-specialist`.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
@@ -280,10 +280,13 @@ still explicit even though read-only job ownership/progress reflection now has a
 real runtime seam, the thin launcher boundary is landed, and one explicit
 reorient-guided launch surface can consume the verdict on purpose.
 
-The first auditable dogfood pass has run. It exercised the landed MVP loop,
-produced `.epiphany-dogfood/mvp-loop` artifacts, ran a read-only Vanilla Codex
-reference, and fixed the concrete blocker where CRRC recommended accepting the
-same reorientation result again after `reorientAccept`.
+The latest auditable MVP dogfood pass has run. It exercised the landed MVP loop,
+produced `.epiphany-dogfood/mvp-loop-selfdogfood-vanilla2-20260429` artifacts,
+ran a real Vanilla Codex reference through app-server with a persisted
+transcript, and fixed the concrete blocker where the runner's manifest claimed
+vanilla/comparison artifacts that did not exist. Comparison artifacts are now
+honest: they record skipped, failed, or completed vanilla-reference state
+instead of pretending the receipt drawer is full.
 
 The first live-specialist pass has also run. It produced
 `.epiphany-dogfood/live-specialist` artifacts and proved the real worker path:
@@ -296,8 +299,9 @@ intervention is now wired. Limited safe-boundary CRRC execution still handles
 compact and fixed reorient-worker launch actions after a turn ends; the
 token-count hook now handles the earlier danger zone by steering active loaded
 turns once when `shouldPrepareCompaction` is reached. The next real move is
-dogfooding the coordinator/status/pre-compaction loop on real local work and
-fixing concrete MVP blockers. CRRC is not a specialist-agent persona; the
+continued agent-run dogfooding, then the smallest local GUI/operator view over
+the same status and artifact surfaces so the user does not have to operate the
+machine from a terminal. CRRC is not a specialist-agent persona; the
 reorient-worker it may launch is the specialist. Do not turn the coordinator
 into a broad hidden dispatcher, arbitrary marketplace, alternate job backend,
 automatic semantic acceptance path, or GUI-as-source-of-truth.

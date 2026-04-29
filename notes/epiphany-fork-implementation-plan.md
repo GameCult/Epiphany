@@ -80,7 +80,7 @@ The landed machine now has:
 - read-only Phase 6 role ownership through `thread/epiphany/roles`, projecting implementation, modeling/checkpoint, verification/review, and reorientation lanes from typed state plus jobs/CRRC/result signals
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
-- first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, vanilla-reference output, and comparison notes
+- first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
@@ -218,7 +218,11 @@ pre-compaction checkpoint intervention is now also landed: token-count pressure
 events steer active loaded Epiphany turns once at the `shouldPrepareCompaction`
 threshold so working context can be banked before compaction. The next MVP
 question is sharper: dogfood the coordinator/status/pre-compaction loop and fix
-only concrete blockers.
+only concrete blockers. The latest self-dogfood pass found one: the dogfood
+runner's manifest promised vanilla/comparison artifacts that were not actually
+written. The runner now always writes the prompt, reference status, comparison,
+and manifest honestly, and an explicit `--run-vanilla-reference` pass can spend
+a real vanilla Codex turn and persist its transcript for comparison.
 
 ## Phase 6 Direction
 
@@ -226,7 +230,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Put the fixed-lane coordinator and pre-compaction checkpoint loop in front of a human operator through status/artifact review, then fix concrete usability blockers.
+1. Keep dogfood execution agent-run and auditable, then put the fixed-lane coordinator and pre-compaction checkpoint loop in front of the user through the smallest local GUI/operator view over the same status/artifact surfaces.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 3. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
 

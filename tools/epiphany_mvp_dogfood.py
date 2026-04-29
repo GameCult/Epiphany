@@ -24,6 +24,7 @@ from epiphany_phase6_role_smoke import complete_role_backend_job
 
 
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-dogfood" / "mvp-loop"
+DEFAULT_VANILLA_CODEX_HOME = Path.home() / ".codex"
 
 
 def reset_artifact_dir(path: Path) -> None:
@@ -44,6 +45,144 @@ def write_json(path: Path, value: Any) -> None:
 def write_text(path: Path, value: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(value, encoding="utf-8")
+
+
+def latest_agent_message(thread_read: dict[str, Any]) -> str:
+    turns = thread_read.get("thread", {}).get("turns", [])
+    if not isinstance(turns, list):
+        return ""
+    for turn in reversed(turns):
+        items = turn.get("items", []) if isinstance(turn, dict) else []
+        if not isinstance(items, list):
+            continue
+        for item in reversed(items):
+            if isinstance(item, dict) and item.get("type") == "agentMessage":
+                text = item.get("text")
+                if isinstance(text, str):
+                    return text
+    return ""
+
+
+def vanilla_reference_prompt(workspace: Path) -> str:
+    return f"""You are a vanilla Codex reference agent with no Epiphany typed-state surfaces.
+
+Inspect the bounded smoke workspace at:
+{workspace}
+
+Task:
+- Decide whether it is safe to resume from this checkpoint:
+  - checkpoint id: ix-reorient-1
+  - focus: Verify src/reorient_target.rs before broad edits.
+  - expected symbol: reorient_target at lines 1-3.
+- Return a concise review with:
+  - files inspected
+  - whether the checkpoint still matches the source
+  - the next safe move
+
+Do not edit files.
+"""
+
+
+def write_reference_not_run(artifact_dir: Path, reason: str, prompt: str) -> dict[str, Any]:
+    write_text(artifact_dir / "vanilla-reference-prompt.md", prompt)
+    write_text(
+        artifact_dir / "vanilla-reference.md",
+        f"Vanilla reference was not executed.\n\nReason: {reason}\n",
+    )
+    comparison = (
+        "# Dogfood Comparison\n\n"
+        "Epiphany artifacts were produced for the MVP loop.\n\n"
+        f"Vanilla reference: not executed. {reason}\n"
+    )
+    write_text(artifact_dir / "comparison.md", comparison)
+    return {
+        "status": "notRun",
+        "reason": reason,
+        "promptPath": "vanilla-reference-prompt.md",
+        "responsePath": "vanilla-reference.md",
+        "comparisonPath": "comparison.md",
+    }
+
+
+def run_vanilla_reference(args: argparse.Namespace, artifact_dir: Path, workspace: Path) -> dict[str, Any]:
+    prompt = vanilla_reference_prompt(workspace)
+    write_text(artifact_dir / "vanilla-reference-prompt.md", prompt)
+
+    if not args.run_vanilla_reference:
+        return write_reference_not_run(
+            artifact_dir,
+            "Pass --run-vanilla-reference to spend a real vanilla Codex turn.",
+            prompt,
+        )
+
+    codex_home = args.vanilla_codex_home.resolve()
+    transcript_path = artifact_dir / "vanilla-reference-transcript.jsonl"
+    stderr_path = artifact_dir / "vanilla-reference.stderr.log"
+    try:
+        with AppServerClient(args.app_server.resolve(), codex_home, transcript_path, stderr_path) as client:
+            client.send(
+                "initialize",
+                {
+                    "clientInfo": {
+                        "name": "epiphany-mvp-vanilla-reference",
+                        "title": "Epiphany MVP Vanilla Reference",
+                        "version": "0.1.0",
+                    },
+                    "capabilities": {"experimentalApi": True},
+                },
+            )
+            client.send("initialized", expect_response=False)
+            started = client.send("thread/start", {"cwd": str(workspace), "ephemeral": False})
+            assert started is not None
+            thread_id = started["thread"]["id"]
+            turn = client.send(
+                "turn/start",
+                {
+                    "threadId": thread_id,
+                    "input": [{"type": "text", "text": prompt, "textElements": []}],
+                },
+            )
+            assert turn is not None
+            client.wait_for_notification("turn/completed", timeout=args.vanilla_timeout_seconds)
+            read = client.send("thread/read", {"threadId": thread_id, "includeTurns": True})
+            assert read is not None
+            response = latest_agent_message(read)
+    except Exception as exc:
+        write_text(artifact_dir / "vanilla-reference.md", f"Vanilla reference failed: {exc}\n")
+        write_text(
+            artifact_dir / "comparison.md",
+            "# Dogfood Comparison\n\n"
+            "Epiphany artifacts were produced for the MVP loop.\n\n"
+            f"Vanilla reference failed: {exc}\n",
+        )
+        return {
+            "status": "failed",
+            "error": str(exc),
+            "promptPath": "vanilla-reference-prompt.md",
+            "responsePath": "vanilla-reference.md",
+            "comparisonPath": "comparison.md",
+            "transcriptPath": "vanilla-reference-transcript.jsonl",
+            "stderrPath": "vanilla-reference.stderr.log",
+        }
+
+    write_text(artifact_dir / "vanilla-reference.md", response)
+    write_text(
+        artifact_dir / "comparison.md",
+        "# Dogfood Comparison\n\n"
+        "Epiphany run produced typed state, role-lane findings, CRRC drift detection, reorient acceptance, rendered snapshots, and JSON-RPC transcript artifacts.\n\n"
+        "Vanilla reference produced a single untyped review turn over the same bounded workspace.\n\n"
+        "Primary product signal: Epiphany makes lane ownership, checkpoint state, drift, and review gates inspectable as structured artifacts. Vanilla Codex can still solve the tiny source question, but it does not produce durable typed role/CRRC state unless the operator asks for it manually.\n",
+    )
+    return {
+        "status": "completed",
+        "threadId": thread_id,
+        "turnId": turn.get("turnId") or turn.get("turn_id"),
+        "promptPath": "vanilla-reference-prompt.md",
+        "responsePath": "vanilla-reference.md",
+        "comparisonPath": "comparison.md",
+        "transcriptPath": "vanilla-reference-transcript.jsonl",
+        "stderrPath": "vanilla-reference.stderr.log",
+    }
 
 
 def snapshot(
@@ -215,6 +354,8 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
 
+    reference = run_vanilla_reference(args, artifact_dir, workspace)
+
     summary = {
         "objective": "Dogfood the Epiphany MVP loop on a bounded continuity/role-separation task.",
         "artifactDir": str(artifact_dir),
@@ -244,6 +385,7 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
             "payload": reorient_payload,
         },
         "finalRecommendation": final_status["crrc"]["recommendation"],
+        "vanillaReference": reference,
         "artifactManifest": [
             "epiphany-dogfood-summary.json",
             "epiphany-final-status.json",
@@ -253,11 +395,13 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
             "epiphany-server.stderr.log",
             "vanilla-reference-prompt.md",
             "vanilla-reference.md",
-            "vanilla-reference.stdout.log",
-            "vanilla-reference.stderr.log",
             "comparison.md",
         ],
     }
+    if reference.get("transcriptPath"):
+        summary["artifactManifest"].append(str(reference["transcriptPath"]))
+    if reference.get("stderrPath"):
+        summary["artifactManifest"].append(str(reference["stderrPath"]))
 
     write_json(artifact_dir / "epiphany-snapshots.json", snapshots)
     write_json(artifact_dir / "epiphany-final-status.json", final_status)
@@ -272,7 +416,7 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
                 "transcript contains JSON-RPC request/response audit trail",
                 "stderr captures app-server diagnostics",
                 "snapshots preserve rendered and raw status at each dogfood checkpoint",
-                "vanilla reference and comparison files are added after the control agent run",
+                "comparison.md states whether the optional vanilla reference actually ran",
             ],
         },
     )
@@ -285,6 +429,9 @@ def main() -> int:
     )
     parser.add_argument("--app-server", type=Path, default=DEFAULT_APP_SERVER)
     parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
+    parser.add_argument("--run-vanilla-reference", action="store_true")
+    parser.add_argument("--vanilla-codex-home", type=Path, default=DEFAULT_VANILLA_CODEX_HOME)
+    parser.add_argument("--vanilla-timeout-seconds", type=float, default=240.0)
     args = parser.parse_args()
     result = run_dogfood(args)
     print(json.dumps(result, indent=2, ensure_ascii=False))
