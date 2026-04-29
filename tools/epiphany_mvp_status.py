@@ -66,6 +66,8 @@ def collect_status(
         if started is None:
             raise RuntimeError("thread/start returned no response")
         thread_id = started["thread"]["id"]
+    elif not ephemeral:
+        client.send("thread/resume", {"threadId": thread_id})
 
     read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
     scene = client.send("thread/epiphany/scene", {"threadId": thread_id})

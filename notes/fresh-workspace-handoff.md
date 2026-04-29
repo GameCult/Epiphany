@@ -35,7 +35,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Pre-compaction checkpoint intervention is now landed. On token-count events for loaded Epiphany threads, when pressure reaches the existing `shouldPrepareCompaction` threshold, the harness steers the active turn once with a CRRC checkpoint directive so the agent banks working context before compaction/reorientation. This is still bounded steering, not automatic semantic acceptance, a broad scheduler, or implementation continuation.
 - `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including raw app-server transcript, rendered snapshots, final status, vanilla-reference prompt/output, and comparison notes. The runner now writes truthful vanilla/comparison artifacts whether the optional vanilla reference is skipped, fails, or completes.
 - `tools/epiphany_mvp_live_specialist.py` is the first auditable live-specialist runner. It launches a real role specialist through `thread/epiphany/roleLaunch`, lets the spawned worker report through `report_agent_job_result`, reads it back through `thread/epiphany/roleResult`, and writes local artifacts under `.epiphany-dogfood/live-specialist`.
-- The first MVP GUI shell now exists under `apps/epiphany-gui`. It is a Tauri v2 + React operator console over the existing status bridge and dogfood artifact surfaces, not a new source of truth. It has bounded buttons for status snapshots and coordinator-plan artifacts.
+- The first MVP GUI shell now exists under `apps/epiphany-gui`. It is a Tauri v2 + React operator console over the existing status bridge, dogfood artifacts, and GUI action artifacts, not a new source of truth. It can prepare a durable Epiphany checkpoint for a resumable operator thread, run status snapshots and coordinator-plan artifacts, launch/read the fixed modeling and verification lanes, launch/read the fixed reorient-worker, and explicitly accept completed reorient findings after review.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
@@ -104,7 +104,7 @@ The current spine:
 - live MVP coordinator smoke through `tools/epiphany_mvp_coordinator_smoke.py`
 - live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
 - live specialist MVP pass through `tools/epiphany_mvp_live_specialist.py`
-- Tauri v2 + React GUI operator shell under `apps/epiphany-gui`, including visual smoke and first bounded artifact-writing buttons
+- Tauri v2 + React GUI operator shell under `apps/epiphany-gui`, including visual smoke, durable checkpoint preparation, fixed lane launch/read-back controls, explicit review-gated reorient acceptance, and bounded artifact-writing buttons
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -301,16 +301,20 @@ intervention is now wired. Limited safe-boundary CRRC execution still handles
 compact and fixed reorient-worker launch actions after a turn ends; the
 token-count hook now handles the earlier danger zone by steering active loaded
 turns once when `shouldPrepareCompaction` is reached. The first Tauri v2 +
-React operator console is also scaffolded. It renders the same status,
-coordinator, role, reorient, job, and artifact surfaces through the existing MVP
-status bridge so the user does not have to operate the machine from a terminal.
-The GUI visual smoke covers desktop and mobile screenshots and clicks the first
-bounded buttons: status snapshot and coordinator plan. The next real move is
-adding the fixed role/reorient launch and explicit reorientAccept buttons while
-preserving review gates. CRRC is not a specialist-agent persona; the
-reorient-worker it may launch is the specialist. Do not turn the coordinator
-into a broad hidden dispatcher, arbitrary marketplace, alternate job backend,
-automatic semantic acceptance path, or GUI-as-source-of-truth.
+React operator console is now usable enough to dogfood: it renders the same
+status, coordinator, role, reorient, job, and artifact surfaces through the
+existing MVP status bridge; it has a Prepare Checkpoint button that creates
+durable resumable Epiphany state; and it can launch/read fixed modeling,
+verification, and reorient lanes plus accept completed reorient findings after
+review. GUI visual smoke covers desktop and mobile screenshots and clicks the
+bounded browser-fallback controls. A live bridge probe also proved
+`prepareCheckpoint` creates a resumable thread and a later process can
+`readModelingResult` from it. The next real move is dogfooding the built GUI on
+a real Epiphany thread, fixing only concrete operator blockers. CRRC is not a
+specialist-agent persona; the reorient-worker it may launch is the specialist.
+Do not turn the coordinator into a broad hidden dispatcher, arbitrary
+marketplace, alternate job backend, automatic semantic acceptance path, or
+GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

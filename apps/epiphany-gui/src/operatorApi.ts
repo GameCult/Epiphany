@@ -23,6 +23,7 @@ export async function runOperatorAction(action: OperatorAction, request: StatusR
     action,
     artifactPath: "E:\\Projects\\EpiphanyAgent\\.epiphany-gui\\sample-action",
     summary: `${action} sample completed.`,
+    threadId: action === "prepareCheckpoint" ? "019dd9d1-045b-7f13-b0e1-38ed89b31495" : request.threadId,
   };
 }
 

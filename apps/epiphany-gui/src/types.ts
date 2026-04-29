@@ -5,12 +5,23 @@ export interface StatusRequest {
   appServer?: string;
 }
 
-export type OperatorAction = "statusSnapshot" | "coordinatorPlan";
+export type OperatorAction =
+  | "statusSnapshot"
+  | "coordinatorPlan"
+  | "prepareCheckpoint"
+  | "launchModeling"
+  | "readModelingResult"
+  | "launchVerification"
+  | "readVerificationResult"
+  | "launchReorient"
+  | "readReorientResult"
+  | "acceptReorient";
 
 export interface OperatorActionResult {
   action: OperatorAction;
   artifactPath: string;
   summary: string;
+  threadId?: string;
 }
 
 export interface ArtifactBundle {

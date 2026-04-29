@@ -20,6 +20,7 @@ struct OperatorActionResult {
     action: String,
     artifact_path: String,
     summary: String,
+    thread_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -66,6 +67,14 @@ fn run_operator_action(
     match action.as_str() {
         "statusSnapshot" => run_status_snapshot(&repo_root, request),
         "coordinatorPlan" => run_coordinator_plan(&repo_root, request),
+        "launchModeling"
+        | "readModelingResult"
+        | "launchVerification"
+        | "readVerificationResult"
+        | "launchReorient"
+        | "readReorientResult"
+        | "acceptReorient"
+        | "prepareCheckpoint" => run_gui_action_bridge(&repo_root, request, action),
         _ => Err(format!("unknown operator action: {action}")),
     }
 }
@@ -100,7 +109,8 @@ fn load_status(repo_root: &Path, request: StatusRequest) -> Result<Value, String
         .arg("--transcript")
         .arg(transcript)
         .arg("--stderr")
-        .arg(stderr);
+        .arg(stderr)
+        .arg("--no-ephemeral");
 
     if let Some(thread_id) = request.thread_id {
         command.arg("--thread-id").arg(thread_id);
@@ -161,7 +171,8 @@ fn run_status_snapshot(
         .arg("--transcript")
         .arg(transcript_path)
         .arg("--stderr")
-        .arg(stderr_path);
+        .arg(stderr_path)
+        .arg("--no-ephemeral");
     if let Some(thread_id) = request.thread_id {
         command.arg("--thread-id").arg(thread_id);
     }
@@ -173,6 +184,7 @@ fn run_status_snapshot(
         action: "statusSnapshot".to_string(),
         artifact_path: artifact_root.display().to_string(),
         summary: "Status snapshot written.".to_string(),
+        thread_id: None,
     })
 }
 
@@ -218,6 +230,54 @@ fn run_coordinator_plan(
         action: "coordinatorPlan".to_string(),
         artifact_path: artifact_dir.display().to_string(),
         summary: "Coordinator plan artifact written.".to_string(),
+        thread_id: None,
+    })
+}
+
+fn run_gui_action_bridge(
+    repo_root: &Path,
+    request: StatusRequest,
+    action: String,
+) -> Result<OperatorActionResult, String> {
+    let thread_id = request.thread_id.clone();
+    let python = find_python()?;
+    let artifact_root = repo_root.join(".epiphany-gui").join("actions");
+    let workspace = request
+        .cwd
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo_root.to_path_buf());
+    let codex_home = request
+        .codex_home
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo_root.join(".epiphany-gui").join("codex-home"));
+
+    let mut command = Command::new(python);
+    command
+        .current_dir(repo_root)
+        .arg(repo_root.join("tools").join("epiphany_gui_action.py"))
+        .arg("--action")
+        .arg(&action)
+        .arg("--cwd")
+        .arg(workspace)
+        .arg("--codex-home")
+        .arg(codex_home)
+        .arg("--artifact-root")
+        .arg(artifact_root);
+    if let Some(thread_id) = thread_id {
+        command.arg("--thread-id").arg(thread_id);
+    }
+    if let Some(app_server) = request.app_server {
+        command.arg("--app-server").arg(app_server);
+    }
+    let value = run_json_command(command, &action)?;
+    Ok(OperatorActionResult {
+        action,
+        artifact_path: json_string(&value, "artifactPath")?,
+        summary: json_string(&value, "summary")?,
+        thread_id: value
+            .get("threadId")
+            .and_then(Value::as_str)
+            .map(ToString::to_string),
     })
 }
 
@@ -232,13 +292,53 @@ fn run_command(mut command: Command, label: &str) -> Result<(), String> {
     Err(format!("{label} exited with {}: {}", output.status, stderr))
 }
 
+fn run_json_command(mut command: Command, label: &str) -> Result<Value, String> {
+    let output = command
+        .output()
+        .map_err(|err| format!("failed to run {label}: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("{label} exited with {}: {}", output.status, stderr));
+    }
+    serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("failed to parse {label} JSON: {err}"))
+}
+
+fn json_string(value: &Value, key: &str) -> Result<String, String> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+        .ok_or_else(|| format!("missing string field in GUI action result: {key}"))
+}
+
 fn list_artifacts(repo_root: &Path) -> Result<Vec<ArtifactBundle>, String> {
-    let root = repo_root.join(".epiphany-dogfood");
+    let mut bundles = Vec::new();
+    collect_artifact_root(&mut bundles, &repo_root.join(".epiphany-dogfood"), "")?;
+    collect_artifact_root(
+        &mut bundles,
+        &repo_root.join(".epiphany-gui").join("actions"),
+        "actions/",
+    )?;
+    collect_artifact_root(
+        &mut bundles,
+        &repo_root.join(".epiphany-gui").join("status-snapshots"),
+        "status/",
+    )?;
+
+    bundles.sort_by(|a, b| b.modified_millis.cmp(&a.modified_millis));
+    Ok(bundles)
+}
+
+fn collect_artifact_root(
+    bundles: &mut Vec<ArtifactBundle>,
+    root: &Path,
+    name_prefix: &str,
+) -> Result<(), String> {
     if !root.exists() {
-        return Ok(Vec::new());
+        return Ok(());
     }
 
-    let mut bundles = Vec::new();
     for entry in fs::read_dir(&root).map_err(|err| format!("failed to read artifacts: {err}"))? {
         let entry = entry.map_err(|err| format!("failed to read artifact entry: {err}"))?;
         let path = entry.path();
@@ -255,24 +355,27 @@ fn list_artifacts(repo_root: &Path) -> Result<Vec<ArtifactBundle>, String> {
             }
         }
         files.sort();
+        let raw_name = entry.file_name().to_string_lossy().to_string();
         let modified_millis = entry
             .metadata()
             .ok()
             .and_then(|metadata| metadata.modified().ok())
             .and_then(system_time_millis);
         bundles.push(ArtifactBundle {
-            name: entry.file_name().to_string_lossy().to_string(),
+            name: format!("{name_prefix}{raw_name}"),
             path: path.display().to_string(),
-            summary_path: existing_path(&path, "epiphany-dogfood-summary.json"),
-            final_status_path: existing_path(&path, "epiphany-final-status.json"),
+            summary_path: existing_path(&path, "epiphany-dogfood-summary.json")
+                .or_else(|| existing_path(&path, "gui-action-summary.json"))
+                .or_else(|| existing_path(&path, "status.json")),
+            final_status_path: existing_path(&path, "epiphany-final-status.json")
+                .or_else(|| existing_path(&path, "after-status.json")),
             comparison_path: existing_path(&path, "comparison.md"),
             files,
             modified_millis,
         });
     }
 
-    bundles.sort_by(|a, b| b.modified_millis.cmp(&a.modified_millis));
-    Ok(bundles)
+    Ok(())
 }
 
 fn existing_path(root: &Path, name: &str) -> Option<String> {

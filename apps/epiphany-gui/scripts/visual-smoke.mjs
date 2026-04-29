@@ -52,11 +52,25 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   await page.getByText("prepareCheckpoint").waitFor();
   await page.getByText("Role Lanes").waitFor();
   await page.getByText("Artifact Bundles").waitFor();
+  await page.getByRole("button", { name: "Prepare Checkpoint" }).waitFor();
+  await page.getByRole("button", { name: "Launch Modeling" }).waitFor();
+  await page.getByRole("button", { name: "Read Modeling" }).waitFor();
+  await page.getByRole("button", { name: "Launch Verification" }).waitFor();
+  await page.getByRole("button", { name: "Read Verification" }).waitFor();
+  await page.getByRole("button", { name: "Launch Reorient" }).waitFor();
+  await page.getByRole("button", { name: "Read Reorient" }).waitFor();
+  await page.getByRole("button", { name: "Accept Reorient" }).waitFor();
   if (viewport.width >= 900) {
     await page.getByRole("button", { name: "Status Snapshot" }).click();
     await page.getByText("statusSnapshot sample completed.").waitFor();
     await page.getByRole("button", { name: "Coordinator Plan" }).click();
     await page.getByText("coordinatorPlan sample completed.").waitFor();
+    await page.getByRole("button", { name: "Prepare Checkpoint" }).click();
+    await page.getByText("prepareCheckpoint sample completed.").waitFor();
+    await page.getByRole("button", { name: "Read Modeling" }).click();
+    await page.getByText("readModelingResult sample completed.").waitFor();
+    await page.getByRole("button", { name: "Read Reorient" }).click();
+    await page.getByText("readReorientResult sample completed.").waitFor();
   }
   await page.screenshot({ path: screenshotPath, fullPage: true });
 

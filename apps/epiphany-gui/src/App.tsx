@@ -1,9 +1,113 @@
-import { AlertTriangle, BriefcaseBusiness, ClipboardCheck, Database, FileText, GitBranch, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  BriefcaseBusiness,
+  CheckCircle2,
+  ClipboardCheck,
+  Database,
+  Eye,
+  FileText,
+  GitBranch,
+  Play,
+  RefreshCw,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 
 const roleOrder = ["implementation", "modeling", "verification", "reorientation"];
+const actionButtons: Array<{
+  action: OperatorAction;
+  label: string;
+  runningLabel: string;
+  title: string;
+  requiresThread?: boolean;
+  requiresReadyState?: boolean;
+  requiresReorientResult?: boolean;
+  icon: "file" | "check" | "play" | "eye" | "accept";
+}> = [
+  {
+    action: "statusSnapshot",
+    label: "Status Snapshot",
+    runningLabel: "Writing",
+    title: "Write an auditable status snapshot",
+    icon: "file",
+  },
+  {
+    action: "coordinatorPlan",
+    label: "Coordinator Plan",
+    runningLabel: "Running",
+    title: "Run a review-gated coordinator plan",
+    icon: "check",
+  },
+  {
+    action: "prepareCheckpoint",
+    label: "Prepare Checkpoint",
+    runningLabel: "Preparing",
+    title: "Seed durable Epiphany state for this GUI operator thread",
+    icon: "accept",
+  },
+  {
+    action: "launchModeling",
+    label: "Launch Modeling",
+    runningLabel: "Launching",
+    title: "Launch the fixed modeling/checkpoint worker for this thread",
+    requiresThread: true,
+    requiresReadyState: true,
+    icon: "play",
+  },
+  {
+    action: "readModelingResult",
+    label: "Read Modeling",
+    runningLabel: "Reading",
+    title: "Read the latest modeling/checkpoint finding",
+    requiresThread: true,
+    icon: "eye",
+  },
+  {
+    action: "launchVerification",
+    label: "Launch Verification",
+    runningLabel: "Launching",
+    title: "Launch the fixed verification/review worker for this thread",
+    requiresThread: true,
+    requiresReadyState: true,
+    icon: "play",
+  },
+  {
+    action: "readVerificationResult",
+    label: "Read Verification",
+    runningLabel: "Reading",
+    title: "Read the latest verification/review finding",
+    requiresThread: true,
+    icon: "eye",
+  },
+  {
+    action: "launchReorient",
+    label: "Launch Reorient",
+    runningLabel: "Launching",
+    title: "Launch the bounded reorient-worker for this thread",
+    requiresThread: true,
+    requiresReadyState: true,
+    icon: "play",
+  },
+  {
+    action: "readReorientResult",
+    label: "Read Reorient",
+    runningLabel: "Reading",
+    title: "Read the latest reorient-worker finding",
+    requiresThread: true,
+    icon: "eye",
+  },
+  {
+    action: "acceptReorient",
+    label: "Accept Reorient",
+    runningLabel: "Accepting",
+    title: "Accept a completed reorient-worker finding into Epiphany state",
+    requiresThread: true,
+    requiresReadyState: true,
+    requiresReorientResult: true,
+    icon: "accept",
+  },
+];
 
 function text(value: unknown, fallback = "none"): string {
   if (value === null || value === undefined || value === "") {
@@ -44,6 +148,16 @@ function useSnapshot() {
     try {
       const result = await loadOperatorSnapshot(nextRequest);
       setSnapshot(result);
+      const loadedThreadId = result.status?.threadId;
+      const loadedState = result.status?.scene?.scene?.stateStatus;
+      if (
+        !nextRequest.threadId &&
+        loadedState !== "missing" &&
+        typeof loadedThreadId === "string" &&
+        loadedThreadId.length > 0
+      ) {
+        setRequest((current) => (current.threadId ? current : { ...current, threadId: loadedThreadId }));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -58,7 +172,11 @@ function useSnapshot() {
     try {
       const result = await runOperatorAction(action, request);
       setActionResult(result);
-      await refresh(request);
+      const nextRequest = result.threadId ? { ...request, threadId: result.threadId } : request;
+      if (result.threadId) {
+        setRequest(nextRequest);
+      }
+      await refresh(nextRequest);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -90,6 +208,9 @@ export function App() {
   const jobs: any[] = Array.isArray(status?.jobs?.jobs) ? status.jobs.jobs : [];
   const roleResults = status?.roleResults ?? {};
   const reorientResult = status?.reorientResult ?? {};
+  const readyState = scene.stateStatus === "ready";
+  const currentThreadId = request.threadId;
+  const canAcceptReorient = text(reorientResult?.status).toLowerCase() === "completed";
 
   return (
     <main className="shell">
@@ -108,7 +229,7 @@ export function App() {
         <label>
           Thread ID
           <input
-            placeholder="start ephemeral status thread"
+            placeholder="auto-load persistent status thread"
             value={request.threadId ?? ""}
             onChange={(event) => setRequest({ ...request, threadId: event.target.value || undefined })}
           />
@@ -124,24 +245,31 @@ export function App() {
       </section>
 
       <section className="actionStrip" aria-label="Bounded operator actions">
-        <button
-          className="secondaryButton"
-          onClick={() => void runAction("statusSnapshot")}
-          disabled={runningAction !== null}
-          title="Write an auditable status snapshot"
-        >
-          <FileText size={16} aria-hidden="true" />
-          {runningAction === "statusSnapshot" ? "Writing" : "Status Snapshot"}
-        </button>
-        <button
-          className="secondaryButton"
-          onClick={() => void runAction("coordinatorPlan")}
-          disabled={runningAction !== null}
-          title="Run a review-gated coordinator plan"
-        >
-          <ClipboardCheck size={16} aria-hidden="true" />
-          {runningAction === "coordinatorPlan" ? "Running" : "Coordinator Plan"}
-        </button>
+        {actionButtons.map((button) => {
+          const needsThread = button.requiresThread && !currentThreadId;
+          const needsState = button.requiresReadyState && !readyState;
+          const needsReorient = button.requiresReorientResult && !canAcceptReorient;
+          const disabled = runningAction !== null || needsThread || needsState || needsReorient;
+          const title = needsThread
+            ? "Prepare a checkpoint or enter a persisted thread id first"
+            : needsState
+              ? "Prepare Epiphany state before launching this lane"
+              : needsReorient
+                ? "Read a completed reorient result before accepting it"
+                : button.title;
+          return (
+            <button
+              className="secondaryButton"
+              onClick={() => void runAction(button.action)}
+              disabled={disabled}
+              title={title}
+              key={button.action}
+            >
+              <ActionIcon icon={button.icon} />
+              {runningAction === button.action ? button.runningLabel : button.label}
+            </button>
+          );
+        })}
         {actionResult && (
           <p className="actionResult">
             {actionResult.summary} <code>{actionResult.artifactPath}</code>
@@ -262,6 +390,14 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
       <h2>{title}</h2>
     </div>
   );
+}
+
+function ActionIcon({ icon }: { icon: "file" | "check" | "play" | "eye" | "accept" }) {
+  if (icon === "file") return <FileText size={16} aria-hidden="true" />;
+  if (icon === "check") return <ClipboardCheck size={16} aria-hidden="true" />;
+  if (icon === "play") return <Play size={16} aria-hidden="true" />;
+  if (icon === "eye") return <Eye size={16} aria-hidden="true" />;
+  return <CheckCircle2 size={16} aria-hidden="true" />;
 }
 
 function Pill({ tone, children }: { tone: string; children: React.ReactNode }) {

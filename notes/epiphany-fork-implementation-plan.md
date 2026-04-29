@@ -83,7 +83,7 @@ The landed machine now has:
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
-- first Phase 6 GUI operator shell under `apps/epiphany-gui`, a Tauri v2 + React console over the existing status bridge and dogfood artifacts, with bounded status-snapshot and coordinator-plan buttons
+- first Phase 6 GUI operator shell under `apps/epiphany-gui`, a Tauri v2 + React console over the existing status bridge, dogfood artifacts, and GUI action artifacts, with durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 MVP status smoke coverage in `tools/epiphany_mvp_status_smoke.py`
@@ -265,6 +265,7 @@ Initial shape:
    - refresh status
    - run status snapshot
    - run coordinator pass
+   - prepare a durable checkpoint for a resumable operator thread
    - launch fixed modeling/checkpoint role
    - launch fixed verification/review role
    - launch fixed reorient-worker when recommended
@@ -281,9 +282,11 @@ Implementation slices:
    existing MVP status bridge, render the same data as
    `tools/epiphany_mvp_status.py`, and provide artifact bundle links. This
    slice is landed under `apps/epiphany-gui`.
-2. **Bounded operator actions**: status snapshot and coordinator-plan buttons
-   are landed. Next add buttons for roleLaunch, roleResult, reorientLaunch,
-   reorientResult, and reorientAccept flows, preserving review gates.
+2. **Bounded operator actions**: status snapshot, coordinator-plan, durable
+   checkpoint preparation, roleLaunch, roleResult, reorientLaunch,
+   reorientResult, and explicit reorientAccept flows are landed. Review gates
+   remain explicit; the GUI does not auto-promote evidence or continue
+   implementation after semantic findings.
 3. **Dogfood launcher**: wrap `tools/epiphany_mvp_dogfood.py` and
    `tools/epiphany_mvp_coordinator.py` as explicit operator actions that write
    artifact bundles and stream progress/status into the GUI.
@@ -294,10 +297,13 @@ Implementation slices:
 Verification:
 
 - Keep the existing CLI smokes as backend guardrails.
-- Add a GUI smoke that starts the app-server against a smoke thread, opens the
-  Tauri webview, verifies the operator console renders scene/coordinator/roles,
-  and checks at least one bounded action produces an auditable artifact.
-- Use screenshots for layout regressions once the first screen exists.
+- Keep `npm run smoke:visual` for browser-layout regressions and bounded
+  browser-fallback action clicks.
+- For native GUI changes, run `npm run build`, `cargo fmt --check`,
+  `cargo check`, and `npm run tauri -- build --debug --no-bundle`.
+- Use live bridge probes when action lifecycle changes; the current
+  `prepareCheckpoint -> readModelingResult` probe proved a checkpoint-created
+  thread can be resumed by a later process.
 
 ## Later Phases
 
