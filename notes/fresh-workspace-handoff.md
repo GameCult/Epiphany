@@ -32,6 +32,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - `tools/epiphany_mvp_status.py` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, pressure, reorient, jobs, roles, modeling/verification role result read-backs, reorient result, and CRRC recommendation as text or JSON.
 - `tools/epiphany_mvp_coordinator.py` is the first auditable fixed-lane coordinator runner. It starts or reads a thread through app-server, follows the harness-native coordinator action, can auto-launch modeling, verification, or reorient-worker jobs, keeps semantic findings review-gated by default, and writes summary, steps, rendered snapshots, transcript, stderr, and final next-action artifacts under `.epiphany-dogfood/coordinator` or a caller-provided artifact directory.
 - Native CRRC automation is now landed only at turn-complete safe boundaries. It may submit `Op::Compact` for coordinator-approved `compactRehydrateReorient`, and it may launch the fixed `reorient-worker` for coordinator-approved `launchReorientWorker`. It does not auto-launch modeling/verification, accept findings, promote evidence, edit implementation code, or keep going after reviewable semantic output.
+- This is not the full CRRC design. Turn-complete-only automation can still miss the important failure mode where the active agent has learned something during work but has not yet externalized it before compaction. The next CRRC slice should add a pre-compaction checkpoint intervention: detect rising pressure before the hard cliff, interrupt or steer the agent into a bounded persistence pass, then compact/resume/reorient only after scratch/checkpoint/map/evidence are banked as needed.
 - `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including raw app-server transcript, rendered snapshots, final status, vanilla-reference prompt/output, and comparison notes.
 - `tools/epiphany_mvp_live_specialist.py` is the first auditable live-specialist runner. It launches a real role specialist through `thread/epiphany/roleLaunch`, lets the spawned worker report through `report_agent_job_result`, reads it back through `thread/epiphany/roleResult`, and writes local artifacts under `.epiphany-dogfood/live-specialist`.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
@@ -289,17 +290,16 @@ The first live-specialist pass has also run. It produced
 inspected the smoke workspace, called `report_agent_job_result`, and
 `roleResult` projected a completed `checkpoint-ready` finding.
 
-The fixed-lane coordinator MVP is now testable. Put it in front of a human
-operator through `tools/epiphany_mvp_coordinator.py`,
-`tools/epiphany_mvp_status.py`, `.epiphany-dogfood/coordinator`,
-`.epiphany-dogfood/mvp-loop`, and `.epiphany-dogfood/live-specialist`. Fix
-concrete blockers in that operator loop. Limited safe-boundary CRRC execution is
-already wired for compact and fixed reorient-worker launch actions, so the next
-unknown is how it behaves under real operator pressure, not which speculative
-organ to invent. CRRC is not a specialist-agent persona; the reorient-worker it
-may launch is the specialist. Do not turn the coordinator into a broad hidden
-dispatcher, arbitrary marketplace, alternate job backend, automatic semantic
-acceptance path, or GUI-as-source-of-truth.
+The fixed-lane coordinator MVP is testable, but the CRRC story is not complete.
+Limited safe-boundary CRRC execution is wired for compact and fixed
+reorient-worker launch actions, but it only acts after a turn ends. The next
+real organ is pre-compaction checkpoint intervention: when pressure rises before
+the hard cliff, interrupt or steer the active agent into a bounded persistence
+pass so learned working context is banked before compaction. After that, compact,
+resume, and reorient. CRRC is not a specialist-agent persona; the
+reorient-worker it may launch is the specialist. Do not turn the coordinator
+into a broad hidden dispatcher, arbitrary marketplace, alternate job backend,
+automatic semantic acceptance path, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

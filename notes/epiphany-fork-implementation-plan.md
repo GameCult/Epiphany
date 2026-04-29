@@ -113,6 +113,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
 - `thread/epiphany/coordinator` is a read-only fixed-lane MVP policy projection over existing signals, not a scheduler, launcher, acceptance gate, compactor, or hidden state writer.
 - Native CRRC automation may act only at safe turn-complete boundaries and only for coordinator-approved `compactRehydrateReorient` and `launchReorientWorker` actions. It must not auto-launch modeling or verification, auto-accept semantic findings, promote evidence, edit implementation code, or silently continue after unresolved drift.
+- Turn-complete-only CRRC automation is conservative but incomplete. The MVP still needs pre-compaction checkpoint intervention so the harness can interrupt or steer the active agent into banking scratch/checkpoint/map/evidence before compaction erases learned but unexternalized working context.
 - `thread/epiphany/roles` is a read-only role ownership projection, not a specialist scheduler, marketplace, launcher, acceptance gate, or second job backend.
 - `thread/epiphany/roleLaunch` is a bounded authority surface for fixed modeling/checkpoint and verification/review templates, not a broad scheduler or specialist marketplace.
 - `thread/epiphany/roleResult` is a read-only result projection, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
@@ -213,8 +214,9 @@ proved the sequence-locked MVP policy across cold start, clean checkpoint,
 modeling, verification, CRRC drift/reorient, and high-pressure compact/dry-run
 paths. Native CRRC automation then wired the proved policy into turn-complete
 safe boundaries for compact and fixed reorient-worker launch only. The next MVP
-question is human operator testing, not another imagined organ: use the landed
-coordinator/status/artifact loop, then fix only concrete blockers.
+question is sharper: add the smallest pre-compaction checkpoint intervention so
+active work can be persisted before compaction, then dogfood the
+coordinator/status/artifact loop and fix only concrete blockers.
 
 ## Phase 6 Direction
 
@@ -224,7 +226,7 @@ Useful candidates:
 
 1. Put the fixed-lane coordinator MVP in front of a human operator through status/artifact review, then fix concrete usability blockers.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-3. Dogfood the landed safe-boundary CRRC automation on real work and fix only concrete blockers in compact/reorient-worker launch behavior.
+3. Add pre-compaction checkpoint intervention before dogfooding long work: detect rising pressure before the hard cliff, interrupt or steer into a bounded persistence pass, then compact/resume/reorient.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
