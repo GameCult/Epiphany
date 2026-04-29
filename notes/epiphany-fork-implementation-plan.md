@@ -118,6 +118,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/roleLaunch` is a bounded authority surface for fixed modeling/checkpoint and verification/review templates, not a broad scheduler or specialist marketplace.
 - `thread/epiphany/roleResult` is a read-only result projection, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
+- The MVP GUI target is a local Tauri v2 + React operator app over the existing app-server APIs. Tauri owns windowing and local lifecycle; app-server and typed Epiphany state remain authoritative.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
 
@@ -238,6 +239,64 @@ Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
 hardening slices.
 
+## GUI Operator Plan
+
+Build the MVP GUI as a local Tauri v2 + React operator console.
+
+The GUI is not the source of truth. It is a desktop window over the same
+app-server surfaces already proved by the CLI status, coordinator, dogfood, and
+live-specialist runners. Its job is to make the single-user loop usable without
+terminal handling, not to invent a parallel state model.
+
+Initial shape:
+
+1. Scaffold `apps/epiphany-gui` as a Tauri v2 app with a React frontend.
+2. Start by consuming existing app-server JSON-RPC surfaces rather than adding new protocol unless the UI exposes a real missing primitive.
+3. Make the first screen an operator console, not a landing page:
+   - active thread and workspace
+   - coordinator recommendation and reason
+   - pressure, CRRC, and reorientation status
+   - fixed role lanes for implementation, modeling/checkpoint, verification/review, and reorientation
+   - reviewable role and reorient findings
+   - job/progress list
+   - artifact bundle list with links to summaries, transcripts, stderr, and comparison files
+4. Add explicit action buttons only for already-bounded authority surfaces:
+   - refresh status
+   - run status snapshot
+   - run coordinator pass
+   - launch fixed modeling/checkpoint role
+   - launch fixed verification/review role
+   - launch fixed reorient-worker when recommended
+   - accept a completed reorientation finding after review
+   - open artifact folder/file
+5. Keep semantic acceptance gated. The GUI may launch bounded work and display
+   findings, but it must not auto-promote evidence, auto-accept worker output,
+   invent arbitrary specialists, or continue implementation after unresolved
+   drift.
+
+Implementation slices:
+
+1. **Read-only shell**: scaffold Tauri/React, connect to a running app-server,
+   render the same data as `tools/epiphany_mvp_status.py`, and provide artifact
+   file links.
+2. **Bounded operator actions**: add buttons for the existing coordinator,
+   roleLaunch, roleResult, reorientLaunch, reorientResult, and reorientAccept
+   flows, preserving review gates.
+3. **Dogfood launcher**: wrap `tools/epiphany_mvp_dogfood.py` and
+   `tools/epiphany_mvp_coordinator.py` as explicit operator actions that write
+   artifact bundles and stream progress/status into the GUI.
+4. **Usability pass**: make the current recommendation, blocked lane, pending
+   review, and next safe action visually obvious enough that the user can test
+   the product without reading transcripts unless something smells wrong.
+
+Verification:
+
+- Keep the existing CLI smokes as backend guardrails.
+- Add a GUI smoke that starts the app-server against a smoke thread, opens the
+  Tauri webview, verifies the operator console renders scene/coordinator/roles,
+  and checks at least one bounded action produces an auditable artifact.
+- Use screenshots for layout regressions once the first screen exists.
+
 ## Later Phases
 
 These remain later work:
@@ -248,7 +307,7 @@ These remain later work:
 - richer role ergonomics after the fixed single-user coordinator proves useful
 - mutation gates that warn or block broad writes when map freshness is stale
 - broader CRRC runtime coordination beyond the landed narrow safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
-- GUI workflows for graph, evidence, job, invariant, and frontier steering
+- richer GUI workflows for graph, evidence, job, invariant, and frontier steering after the operator console proves useful
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a
 clear invariant that says what it must not break.

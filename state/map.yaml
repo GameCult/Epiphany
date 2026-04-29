@@ -12,9 +12,9 @@ objective:
     explicit typed models of the codebase, active goal, evidence, and change
     machinery they are working on.
   current: >
-    Dogfood the landed Phase 6 MVP coordinator, limited CRRC safe-boundary
-    automation, and pre-compaction checkpoint intervention on real local work
-    before adding larger organs.
+    Turn the landed Phase 6 coordinator/status/dogfood artifact surfaces into
+    the smallest local Tauri v2 + React operator GUI, while continuing
+    agent-run dogfood of CRRC and pre-compaction behavior.
 
 constraints:
   - No frontier-scale training budget.
@@ -75,6 +75,7 @@ accepted_design:
   - Context pressure must become an explicit runtime signal for automatic CRRC; inference from transcript vibes, user warnings, or shrinking safe scope is useful only as a temporary human/agent heuristic.
   - The harness now has an in-flight investigation checkpoint packet in durable typed state; automatic CRRC still needs runtime logic that reads the packet and decides whether to resume or force reorientation and re-gathering after compaction.
   - GUI/client work must reflect or steer typed state rather than manufacture a second source of truth.
+  - The MVP GUI target is a local Tauri v2 + React operator console over existing app-server APIs. Tauri owns windowing and local lifecycle; React renders the operator surface; app-server and typed Epiphany state remain authoritative.
   - Durable `job_bindings` now form a thin Epiphany-owned launcher seam: bindings can carry launcher identity, authority scope, backend kind, and backend job id while still supporting the older runtime-agent-job pointer as a compatibility alias.
   - `thread/epiphany/jobs` is a read-only job/progress reflection: it derives indexing, remap, verification, and specialist slots from authoritative state and retrieval summaries, and can overlay durable launcher bindings onto live runtime `agent_jobs` snapshots through the current backend adapter when a real owner exists; it is not a scheduler, notification stream, or durable runtime job table.
   - `thread/epiphany/jobsUpdated` is the first live bound-job progress notification: it translates runtime `agent_job_progress:{json}` background events into changed launcher-bound payloads by resolving durable `job_bindings` against live `agent_jobs` snapshots through the current backend adapter, without polling in a loop, mutating state, or scheduling work.
@@ -162,4 +163,4 @@ rejected_paths:
 
 current_status:
   summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, roles, freshness, targeted context, pressure, reorient, CRRC, coordinator, reorient launch/result/accept, explicit modeling/checkpoint and verification/review role launch/result templates, MVP status, dogfood runner, coordinator runner, live specialist runner, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention are landed. Native CRRC can steer active loaded Epiphany turns once at `shouldPrepareCompaction`; turn-complete automation can still compact or launch the fixed reorient-worker when the coordinator says it can auto-run. The latest self-dogfood pass exposed and fixed an artifact-honesty blocker in the MVP dogfood runner: comparison and vanilla-reference artifacts are now actually written and the optional real vanilla run produces a persisted read-back transcript. Implementation remains main-agent work; CRRC remains workflow automation, not a specialist persona.
-  next_action: Continue dogfooding the coordinator/status/pre-compaction loop through auditable artifacts that the agent runs for the user, then turn the same artifact/status surfaces into the smallest local GUI/operator view. Keep semantic acceptance review-gated, and do not build a broad ambient dispatcher, GUI-as-source-of-truth, arbitrary specialist marketplace, or alternate job backend for the MVP.
+  next_action: Scaffold `apps/epiphany-gui` as a Tauri v2 + React local operator console over the existing app-server status/coordinator/role/reorient/artifact surfaces. First slice is read-only: render active thread, coordinator recommendation, pressure/CRRC/reorient status, role lanes, job progress, reviewable findings, and artifact bundle links without becoming a source of truth.
