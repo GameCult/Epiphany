@@ -35,7 +35,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Pre-compaction checkpoint intervention is now landed. On token-count events for loaded Epiphany threads, when pressure reaches the existing `shouldPrepareCompaction` threshold, the harness steers the active turn once with a CRRC checkpoint directive so the agent banks working context before compaction/reorientation. This is still bounded steering, not automatic semantic acceptance, a broad scheduler, or implementation continuation.
 - `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including raw app-server transcript, rendered snapshots, final status, vanilla-reference prompt/output, and comparison notes. The runner now writes truthful vanilla/comparison artifacts whether the optional vanilla reference is skipped, fails, or completes.
 - `tools/epiphany_mvp_live_specialist.py` is the first auditable live-specialist runner. It launches a real role specialist through `thread/epiphany/roleLaunch`, lets the spawned worker report through `report_agent_job_result`, reads it back through `thread/epiphany/roleResult`, and writes local artifacts under `.epiphany-dogfood/live-specialist`.
-- The MVP GUI plan is now Tauri v2 + React under `apps/epiphany-gui`, talking to existing app-server APIs. It is an operator console over typed state and artifact surfaces, not a new source of truth.
+- The first MVP GUI shell now exists under `apps/epiphany-gui`. It is a Tauri v2 + React read-only operator console over the existing status bridge and dogfood artifact surfaces, not a new source of truth.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
@@ -104,6 +104,7 @@ The current spine:
 - live MVP coordinator smoke through `tools/epiphany_mvp_coordinator_smoke.py`
 - live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
 - live specialist MVP pass through `tools/epiphany_mvp_live_specialist.py`
+- Tauri v2 + React read-only GUI operator shell under `apps/epiphany-gui`
 
 The exact current control flow is documented in
 `notes/epiphany-current-algorithmic-map.md`.
@@ -299,14 +300,15 @@ The fixed-lane coordinator MVP is testable, and the first pre-compaction CRRC
 intervention is now wired. Limited safe-boundary CRRC execution still handles
 compact and fixed reorient-worker launch actions after a turn ends; the
 token-count hook now handles the earlier danger zone by steering active loaded
-turns once when `shouldPrepareCompaction` is reached. The next real move is the
-first Tauri v2 + React operator console slice over the same status,
-coordinator, role, reorient, job, and artifact surfaces so the user does not
-have to operate the machine from a terminal. Start read-only, then add bounded
-buttons for already-existing authority surfaces. CRRC is not a specialist-agent
-persona; the reorient-worker it may launch is the specialist. Do not turn the
-coordinator into a broad hidden dispatcher, arbitrary marketplace, alternate
-job backend, automatic semantic acceptance path, or GUI-as-source-of-truth.
+turns once when `shouldPrepareCompaction` is reached. The first Tauri v2 +
+React read-only operator console is also scaffolded. It renders the same status,
+coordinator, role, reorient, job, and artifact surfaces through the existing MVP
+status bridge so the user does not have to operate the machine from a terminal.
+The next real move is a visual/operator smoke, then bounded buttons for
+already-existing authority surfaces. CRRC is not a specialist-agent persona;
+the reorient-worker it may launch is the specialist. Do not turn the coordinator
+into a broad hidden dispatcher, arbitrary marketplace, alternate job backend,
+automatic semantic acceptance path, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

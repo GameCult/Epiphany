@@ -83,6 +83,7 @@ The landed machine now has:
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
+- first Phase 6 GUI operator shell under `apps/epiphany-gui`, a Tauri v2 + React read-only console over the existing status bridge and dogfood artifacts
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 MVP status smoke coverage in `tools/epiphany_mvp_status_smoke.py`
@@ -276,9 +277,10 @@ Initial shape:
 
 Implementation slices:
 
-1. **Read-only shell**: scaffold Tauri/React, connect to a running app-server,
-   render the same data as `tools/epiphany_mvp_status.py`, and provide artifact
-   file links.
+1. **Read-only shell**: scaffold Tauri/React, connect to app-server through the
+   existing MVP status bridge, render the same data as
+   `tools/epiphany_mvp_status.py`, and provide artifact bundle links. This
+   slice is landed under `apps/epiphany-gui`.
 2. **Bounded operator actions**: add buttons for the existing coordinator,
    roleLaunch, roleResult, reorientLaunch, reorientResult, and reorientAccept
    flows, preserving review gates.

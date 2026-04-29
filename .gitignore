@@ -2,5 +2,10 @@ __pycache__/
 *.pyc
 epiphany-core/target/
 epiphany-core/Cargo.lock
+apps/epiphany-gui/node_modules/
+apps/epiphany-gui/dist/
+apps/epiphany-gui/src-tauri/gen/
+apps/epiphany-gui/src-tauri/target/
+.epiphany-gui/
 .epiphany-smoke/
 .epiphany-dogfood/

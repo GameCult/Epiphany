@@ -1,0 +1,207 @@
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StatusRequest {
+    thread_id: Option<String>,
+    cwd: Option<String>,
+    codex_home: Option<String>,
+    app_server: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ArtifactBundle {
+    name: String,
+    path: String,
+    files: Vec<String>,
+    summary_path: Option<String>,
+    final_status_path: Option<String>,
+    comparison_path: Option<String>,
+    modified_millis: Option<u128>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct OperatorSnapshot {
+    generated_at: String,
+    repo_root: String,
+    status: Value,
+    artifacts: Vec<ArtifactBundle>,
+}
+
+#[tauri::command]
+fn load_operator_snapshot(request: Option<StatusRequest>) -> Result<OperatorSnapshot, String> {
+    let repo_root = repo_root()?;
+    let status = load_status(&repo_root, request.unwrap_or_default())?;
+    let artifacts = list_artifacts(&repo_root)?;
+    Ok(OperatorSnapshot {
+        generated_at: unix_millis().to_string(),
+        repo_root: repo_root.display().to_string(),
+        status,
+        artifacts,
+    })
+}
+
+impl Default for StatusRequest {
+    fn default() -> Self {
+        Self {
+            thread_id: None,
+            cwd: None,
+            codex_home: None,
+            app_server: None,
+        }
+    }
+}
+
+fn load_status(repo_root: &Path, request: StatusRequest) -> Result<Value, String> {
+    let python = find_python()?;
+    let status_script = repo_root.join("tools").join("epiphany_mvp_status.py");
+    let workspace = request
+        .cwd
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo_root.to_path_buf());
+    let codex_home = request
+        .codex_home
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo_root.join(".epiphany-gui").join("codex-home"));
+    let transcript = repo_root
+        .join(".epiphany-gui")
+        .join("status-transcript.jsonl");
+    let stderr = repo_root
+        .join(".epiphany-gui")
+        .join("status-server.stderr.log");
+
+    let mut command = Command::new(python);
+    command
+        .current_dir(repo_root)
+        .arg(status_script)
+        .arg("--json")
+        .arg("--cwd")
+        .arg(workspace)
+        .arg("--codex-home")
+        .arg(codex_home)
+        .arg("--transcript")
+        .arg(transcript)
+        .arg("--stderr")
+        .arg(stderr);
+
+    if let Some(thread_id) = request.thread_id {
+        command.arg("--thread-id").arg(thread_id);
+    }
+    if let Some(app_server) = request.app_server {
+        command.arg("--app-server").arg(app_server);
+    }
+
+    let output = command
+        .output()
+        .map_err(|err| format!("failed to run Epiphany status bridge: {err}"))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!(
+            "Epiphany status bridge exited with {}: {}",
+            output.status, stderr
+        ));
+    }
+
+    serde_json::from_slice(&output.stdout)
+        .map_err(|err| format!("failed to parse Epiphany status JSON: {err}"))
+}
+
+fn list_artifacts(repo_root: &Path) -> Result<Vec<ArtifactBundle>, String> {
+    let root = repo_root.join(".epiphany-dogfood");
+    if !root.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut bundles = Vec::new();
+    for entry in fs::read_dir(&root).map_err(|err| format!("failed to read artifacts: {err}"))? {
+        let entry = entry.map_err(|err| format!("failed to read artifact entry: {err}"))?;
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let mut files = Vec::new();
+        for file in
+            fs::read_dir(&path).map_err(|err| format!("failed to read artifact bundle: {err}"))?
+        {
+            let file = file.map_err(|err| format!("failed to read artifact file: {err}"))?;
+            if file.path().is_file() {
+                files.push(file.file_name().to_string_lossy().to_string());
+            }
+        }
+        files.sort();
+        let modified_millis = entry
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok())
+            .and_then(system_time_millis);
+        bundles.push(ArtifactBundle {
+            name: entry.file_name().to_string_lossy().to_string(),
+            path: path.display().to_string(),
+            summary_path: existing_path(&path, "epiphany-dogfood-summary.json"),
+            final_status_path: existing_path(&path, "epiphany-final-status.json"),
+            comparison_path: existing_path(&path, "comparison.md"),
+            files,
+            modified_millis,
+        });
+    }
+
+    bundles.sort_by(|a, b| b.modified_millis.cmp(&a.modified_millis));
+    Ok(bundles)
+}
+
+fn existing_path(root: &Path, name: &str) -> Option<String> {
+    let path = root.join(name);
+    path.exists().then(|| path.display().to_string())
+}
+
+fn repo_root() -> Result<PathBuf, String> {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    manifest_dir
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+        .ok_or_else(|| "failed to derive repository root from CARGO_MANIFEST_DIR".to_string())
+}
+
+fn find_python() -> Result<PathBuf, String> {
+    if let Ok(value) = std::env::var("EPIPHANY_PYTHON") {
+        let path = PathBuf::from(value);
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+    let bundled = PathBuf::from(
+        r"C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe",
+    );
+    if bundled.exists() {
+        return Ok(bundled);
+    }
+    Ok(PathBuf::from("python"))
+}
+
+fn unix_millis() -> u128 {
+    system_time_millis(SystemTime::now()).unwrap_or_default()
+}
+
+fn system_time_millis(value: SystemTime) -> Option<u128> {
+    value
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .map(|duration| duration.as_millis())
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .invoke_handler(tauri::generate_handler![load_operator_snapshot])
+        .run(tauri::generate_context!())
+        .expect("error while running Epiphany operator");
+}
