@@ -5752,6 +5752,26 @@ mod tests {
                 open_question_ids: vec!["q1".to_string()],
                 open_gap_ids: vec!["g1".to_string()],
             }),
+            investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
+                checkpoint_id: "ix-1".to_string(),
+                kind: "source_gathering".to_string(),
+                disposition: EpiphanyInvestigationDisposition::ResumeReady,
+                focus: "Resume the prompt-facing replay seam.".to_string(),
+                summary: Some("The checkpoint keeps the active source seam warm.".to_string()),
+                next_action: Some("Re-open the rollout path before broad edits.".to_string()),
+                captured_at_turn_id: Some("turn-123".to_string()),
+                open_questions: vec!["Does compaction still preserve the seam?".to_string()],
+                code_refs: vec![EpiphanyCodeRef {
+                    path: test_path_buf("/repo/core/src/session/mod.rs"),
+                    start_line: Some(2600),
+                    end_line: Some(2690),
+                    symbol: Some(
+                        "record_context_updates_and_set_reference_context_item".to_string(),
+                    ),
+                    note: Some("Investigation checkpoint anchor".to_string()),
+                }],
+                evidence_ids: vec!["ev-1".to_string()],
+            }),
             retrieval: Some(EpiphanyRetrievalState {
                 workspace_root: test_path_buf("/repo"),
                 index_revision: Some("bm25-v1".to_string()),

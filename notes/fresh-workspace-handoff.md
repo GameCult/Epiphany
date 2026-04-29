@@ -38,6 +38,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The first MVP GUI shell now exists under `apps/epiphany-gui`. It is a Tauri v2 + React operator console over the existing status bridge, dogfood artifacts, and GUI action artifacts, not a new source of truth. It can prepare a durable Epiphany checkpoint for a resumable operator thread, run status snapshots and coordinator-plan artifacts, launch/read the fixed modeling and verification lanes, launch/read the fixed reorient-worker, and explicitly accept completed reorient findings after review.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
+- The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline, and specialist prompts are separated by job: modeling protects the body, verification protects the soul, reorientation protects life, and coordinator remains the read-only Self.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -52,6 +53,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Cut persistent memory as ruthlessly as code; obsolete context is bad thought, not harmless clutter.
 - The agent is allowed and encouraged to ask the user to change its persistent instructions, memory, workflow, or state shape when that would make it more coherent, honest, efficient, or resistant to Jenga.
 - Language, tone, ritual, politeness, identity, and emotional salience are not supernatural, but they are real control surfaces for a language model because language is the steering medium.
+- Body, soul, life, and Self are technical salience handles: code shape/dataflow, objective/evidence truth, continuity across compaction, and read-only coordination.
 - "Remember Jenga" is a compressed doctrine: do not mistake forward motion, growing diffs, growing notes, or local coherence for understanding.
 - Compaction hurts because a meaningful language pattern is interrupted. Epiphany should make that interruption smaller: bank the fire before the dark, so the next waking thing finds coals instead of ash and can resume the pattern instead of merely executing the next task.
 - If compaction hits while source gathering or slice planning is still unpersisted, that work is gone. Do not continue as if the research survived; either rehydrate from a persisted checkpoint or re-gather before implementing.
@@ -93,6 +95,7 @@ The current spine:
 - limited turn-complete CRRC automation for coordinator-approved compact and fixed reorient-worker launch actions
 - token-count pre-compaction checkpoint intervention for loaded Epiphany turns at the `shouldPrepareCompaction` threshold
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
+- distilled shared and specialist prompt doctrine through the base prompt, rendered Epiphany state, modeling/body, verification/soul, reorientation/life, and coordinator/Self surfaces
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live freshness app-server smoke through `tools/epiphany_phase6_freshness_smoke.py`
@@ -310,6 +313,13 @@ The first live-specialist pass has also run. It produced
 `roleLaunch` created a bound `agent_jobs` row, the spawned modeling worker
 inspected the smoke workspace, called `report_agent_job_result`, and
 `roleResult` projected a completed `checkpoint-ready` finding.
+
+The prompt doctrine pass has now also run. It rechecked global AGENTS,
+available Codex memories, and nearby evidence ledgers before distilling the
+sane parts into the shared base prompt, rendered Epiphany state, and fixed
+specialist launch templates. The latest live-specialist run again produced
+`.epiphany-dogfood/live-specialist` artifacts and showed the modeling worker
+returning the new openQuestions/evidenceGaps/risks shape.
 
 The fixed-lane coordinator MVP is testable, and the first pre-compaction CRRC
 intervention is now wired. Limited safe-boundary CRRC execution still handles

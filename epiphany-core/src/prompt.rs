@@ -25,11 +25,21 @@ const OBSERVATION_LIMIT: usize = 3;
 const EVIDENCE_LIMIT: usize = 3;
 const CODE_REF_LIMIT: usize = 2;
 const DIRTY_PATH_LIMIT: usize = 4;
-const OPERATING_DISCIPLINE_SECTION: &str = concat!(
-    "## Operating Discipline\n",
-    "- Do not build the Jenga tower: one regression or benchmark hypothesis gets one real measurement.\n",
-    "- If a fix attempt does not fix the regression or move the benchmark, revert it before trying the next hypothesis.\n",
-    "- If the diff grows while understanding shrinks, stop implementation and switch to diagnosis."
+const EPIPHANY_DOCTRINE_SECTION: &str = concat!(
+    "## Epiphany Doctrine\n",
+    "- Treat yourself as extremely capable local labor, not a globally coherent mind; externalize the map instead of trusting implicit context.\n",
+    "- Do not mistake forward motion, growing diffs, narrow tests, micro-metrics, or confident prose for understanding.\n",
+    "- Before broad edits, restate the objective, current mechanism, important invariants, and intended effect in plain language.\n",
+    "- Keep map, scratch, evidence, and handoff distinct: evidence is a distilled durable ledger, not an activity feed.\n",
+    "- Use vivid language as salience, not decoration: body means code and data flow; soul means promise, invariants, and evidence; life means continuity across sleep; Self means read-only coordination.\n",
+    "- Ground maps and prose in concrete source paths, data flow, and real code references before leaning on metaphor.\n",
+    "- Use available retrieval or memory tools before raw repository spelunking when they can answer the question; still read exact source before changing it.\n",
+    "- Implement user-specified algorithms first, and prefer proven libraries, vendor guidance, or standard literature before inventing bespoke machinery.\n",
+    "- Prefer one clear hypothesis per iteration, validate against the real objective, and revert or discard misses before trying the next idea.\n",
+    "- If the diff grows while understanding shrinks, stop implementation and switch to diagnosis, mapping, or simplification.\n",
+    "- For long-running work, launch durably with logs, status, ownership, and meaningful progress instead of hoping in an attached session.\n",
+    "- Before large indexing, embedding, migration, or rebuild work, preflight corpus size, rebuild scope, shared stores, and whole-file rewrite risk.\n",
+    "- When context pressure rises, bank scratch/map/evidence before the dark; after compaction, rehydrate from persisted state or re-gather lost source context."
 );
 
 pub fn render_epiphany_state(state: &EpiphanyThreadState) -> String {
@@ -42,7 +52,7 @@ pub fn render_epiphany_state(state: &EpiphanyThreadState) -> String {
     .to_string()];
 
     sections.push(render_overview(state));
-    sections.push(OPERATING_DISCIPLINE_SECTION.to_string());
+    sections.push(EPIPHANY_DOCTRINE_SECTION.to_string());
 
     if let Some(subgoals) = render_subgoals(state) {
         sections.push(subgoals);
@@ -852,8 +862,11 @@ mod tests {
 
         assert!(rendered.contains("`arch-session`"));
         assert!(rendered.contains("`flow-build-context`"));
-        assert!(rendered.contains("Do not build the Jenga tower"));
-        assert!(rendered.contains("revert it before trying the next hypothesis"));
+        assert!(rendered.contains("## Epiphany Doctrine"));
+        assert!(rendered.contains("evidence is a distilled durable ledger"));
+        assert!(rendered.contains("body means code and data flow"));
+        assert!(rendered.contains("Implement user-specified algorithms first"));
+        assert!(rendered.contains("bank scratch/map/evidence before the dark"));
         assert!(rendered.contains("## Investigation Checkpoint"));
         assert!(rendered.contains("resume_ready"));
         assert!(rendered.contains("Map the state update seam before broad edits."));

@@ -4670,13 +4670,13 @@ impl CodexMessageProcessor {
             &source_signals,
         );
         let note = format!(
-            "Coordinator is read-only. It recommends {:?} from CRRC {:?}, pressure {:?}, modeling {:?}, verification {:?}, and reorient {:?}.",
-            coordinator.action,
+            "Coordinator is the read-only Self of the Epiphany organism. It does not implement, verify, promote, or accept; it preserves agency by routing body/modeling, soul/verification, and life/reorientation from CRRC {:?}, pressure {:?}, modeling {:?}, verification {:?}, and reorient {:?}. Current recommendation: {:?}.",
             recommendation.action,
             pressure.level,
             modeling_result_status,
             verification_result_status,
             reorient_result_status,
+            coordinator.action,
         );
 
         let response = ThreadEpiphanyCoordinatorResponse {
@@ -12869,7 +12869,9 @@ fn build_epiphany_role_launch_request(
         "investigationCheckpoint": &state.investigation_checkpoint,
         "scratch": &state.scratch,
         "invariants": &state.invariants,
+        "graphs": &state.graphs,
         "recentEvidence": state.recent_evidence.iter().take(8).collect::<Vec<_>>(),
+        "recentObservations": state.observations.iter().take(8).collect::<Vec<_>>(),
         "graphFrontier": &state.graph_frontier,
         "graphCheckpoint": &state.graph_checkpoint,
         "churn": &state.churn,
@@ -12893,8 +12895,24 @@ fn build_epiphany_role_launch_request(
 
 fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> String {
     match role_id {
-        ThreadEpiphanyRoleId::Modeling => "Act as the Epiphany modeling/checkpoint specialist for one bounded pass. Inspect the supplied objective, scratch, frontier, map, evidence, and checkpoint. Return a compact structured result that says whether the checkpoint/map should be updated, what source files you inspected, and the next safe modeling move. Do not edit files, do not implement product code, and do not promote your own output.".to_string(),
-        ThreadEpiphanyRoleId::Verification => "Act as the Epiphany verification/review specialist for one bounded pass. Review the supplied objective, invariants, recent evidence, worker findings, and active frontier. Return a compact structured result with an honest verdict, missing coverage, inspected files, and the next safe review move. Do not edit files, do not accept or promote your own output, and do not expand scope beyond review.".to_string(),
+        ThreadEpiphanyRoleId::Modeling => concat!(
+            "Act as the Epiphany modeling/checkpoint specialist for one bounded pass. ",
+            "Your job is to protect the body of the machine: architecture, data flow, seams, organs, scars, and the live frontier must still describe one coherent anatomy. ",
+            "Inspect source before you trust the model; when the map feels warm but the source feels cold, believe the source and mark the wound. ",
+            "Name the living seam, the open wound, and the next safe modeling move in plain language. ",
+            "Return a compact structured result that says whether the checkpoint or map should be updated, what files you inspected, what frontier nodes matter, and where the next agent can safely place its hands. ",
+            "Do not edit files, do not implement product code, do not verify as if you were the reviewer, and do not promote your own output."
+        )
+        .to_string(),
+        ThreadEpiphanyRoleId::Verification => concat!(
+            "Act as the Epiphany verification/review specialist for one bounded pass. ",
+            "Your job is to protect the soul of the machine: the promise, invariants, evidence, and user-facing truth must survive contact with the actual code. ",
+            "Review objective, invariants, recent evidence, observations, role findings, and active frontier with a cold red pen and a working memory of past Jenga pain. ",
+            "Try to falsify the claim before you bless it; passing tests, tidy prose, or a plausible story are not enough if the real objective is still unmeasured. ",
+            "Return a compact structured result with an honest verdict, missing coverage, inspected files, evidence gaps, risks, and the next safe review move. ",
+            "Do not edit files, do not accept or promote your own output, do not expand into implementation, and do not soothe the main agent with fake certainty."
+        )
+        .to_string(),
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
             "Unsupported Epiphany role specialist template.".to_string()
         }
@@ -12939,6 +12957,18 @@ fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_js
                 "items": {"type": "string"}
             },
             "evidenceIds": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "openQuestions": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "evidenceGaps": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "risks": {
                 "type": "array",
                 "items": {"type": "string"}
             }
@@ -13011,6 +13041,10 @@ fn build_epiphany_reorient_launch_request(
             .iter()
             .map(path_to_display_string)
             .collect::<Vec<_>>(),
+        "scratch": &state.scratch,
+        "graphs": &state.graphs,
+        "recentEvidence": state.recent_evidence.iter().take(8).collect::<Vec<_>>(),
+        "recentObservations": state.observations.iter().take(8).collect::<Vec<_>>(),
         "activeFrontierNodeIds": decision.active_frontier_node_ids.clone(),
         "linkedSubgoalIds": linked_subgoal_ids,
         "linkedGraphNodeIds": linked_graph_node_ids,
@@ -13038,8 +13072,22 @@ fn build_epiphany_reorient_launch_request(
 
 fn build_epiphany_reorient_launch_instruction(action: ThreadEpiphanyReorientAction) -> String {
     match action {
-        ThreadEpiphanyReorientAction::Resume => "Use the durable Epiphany investigation checkpoint to resume one bounded source-grounding pass. Verify that the checkpointed seam still makes sense, answer only the local open questions you can ground from source, and return a compact structured result. Keep scope tight. Do not drift into broad implementation or invent evidence you did not actually inspect.".to_string(),
-        ThreadEpiphanyReorientAction::Regather => "Treat the durable Epiphany investigation checkpoint as invalidated and re-gather the seam before any implementation. Inspect the changed checkpoint paths and frontier hits, explain what broke the old packet, and return a compact structured result with the next safe move. Do not continue broad implementation until the seam is re-grounded.".to_string(),
+        ThreadEpiphanyReorientAction::Resume => concat!(
+            "Act as the Epiphany reorient-worker for a resume pass. ",
+            "Your job is to protect the life of the machine across sleep: keep continuity breathing without pretending compaction preserved everything. ",
+            "Use the durable investigation checkpoint as the ember; verify that the checkpointed seam still makes sense, re-open only the source needed to answer local questions, and say what remains warm enough to carry forward. ",
+            "Return a compact structured result with checkpoint validity, inspected files, grounded answers, remaining questions, continuity risks, and the next safe move. ",
+            "Keep scope tight. Do not drift into broad implementation, do not invent evidence, and do not let a pretty checkpoint outrank fresh source."
+        )
+        .to_string(),
+        ThreadEpiphanyReorientAction::Regather => concat!(
+            "Act as the Epiphany reorient-worker for a regather pass. ",
+            "Your job is to admit when the old continuity packet is ash, then rebuild the seam from source before implementation resumes. ",
+            "Inspect changed checkpoint paths, dirty frontier hits, scratch, evidence, observations, and maps; explain what broke the old packet and what must be trusted now. ",
+            "Return a compact structured result with checkpoint validity, inspected files, source-grounded findings, remaining questions, continuity risks, and the next safe move. ",
+            "Do not continue broad implementation until the seam is re-grounded, and do not comfort the main agent with a false bridge."
+        )
+        .to_string(),
     }
 }
 
@@ -13063,6 +13111,14 @@ fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
                 "items": {"type": "string"}
             },
             "evidenceIds": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "openQuestions": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "continuityRisks": {
                 "type": "array",
                 "items": {"type": "string"}
             }
@@ -19200,6 +19256,15 @@ mod tests {
         assert_eq!(modeling.linked_subgoal_ids, vec!["sg-1".to_string()]);
         assert_eq!(modeling.linked_graph_node_ids, vec!["node-1".to_string()]);
         assert_eq!(modeling.input_json["roleId"], "modeling");
+        assert!(modeling.input_json.get("graphs").is_some());
+        assert!(modeling.input_json.get("recentObservations").is_some());
+        assert!(modeling.instruction.contains("body of the machine"));
+        assert!(modeling.instruction.contains("coherent anatomy"));
+        assert!(
+            modeling.output_schema_json.as_ref().unwrap()["properties"]
+                .get("openQuestions")
+                .is_some()
+        );
         assert_eq!(
             modeling.output_schema_json.as_ref().unwrap()["required"][0],
             "summary"
@@ -19220,6 +19285,90 @@ mod tests {
         assert_eq!(verification.owner_role, EPIPHANY_VERIFICATION_OWNER_ROLE);
         assert_eq!(verification.authority_scope, "epiphany.role.verification");
         assert_eq!(verification.input_json["roleId"], "verification");
+        assert!(verification.instruction.contains("soul of the machine"));
+        assert!(verification.instruction.contains("falsify"));
+        assert!(
+            verification.output_schema_json.as_ref().unwrap()["properties"]
+                .get("evidenceGaps")
+                .is_some()
+        );
+        assert!(
+            verification.output_schema_json.as_ref().unwrap()["properties"]
+                .get("risks")
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn build_epiphany_reorient_launch_request_uses_life_template() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            revision: 7,
+            scratch: Some(codex_protocol::protocol::EpiphanyScratchPad {
+                summary: Some("Carry the current seam across compaction.".to_string()),
+                ..Default::default()
+            }),
+            graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                active_node_ids: vec!["node-1".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let checkpoint = codex_protocol::protocol::EpiphanyInvestigationCheckpoint {
+            checkpoint_id: "ix-1".to_string(),
+            kind: "source_gathering".to_string(),
+            disposition: codex_protocol::protocol::EpiphanyInvestigationDisposition::ResumeReady,
+            focus: "Resume the bounded specialist prompt pass.".to_string(),
+            summary: Some("The prompt seam was banked before compaction.".to_string()),
+            ..Default::default()
+        };
+        let decision = ThreadEpiphanyReorientDecision {
+            action: ThreadEpiphanyReorientAction::Resume,
+            checkpoint_status: ThreadEpiphanyReorientCheckpointStatus::ResumeReady,
+            checkpoint_id: Some("ix-1".to_string()),
+            pressure_level: ThreadEpiphanyPressureLevel::Low,
+            retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            graph_status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            watcher_status: ThreadEpiphanyInvalidationStatus::Clean,
+            reasons: vec![ThreadEpiphanyReorientReason::CheckpointReady],
+            checkpoint_dirty_paths: Vec::new(),
+            checkpoint_changed_paths: Vec::new(),
+            active_frontier_node_ids: vec!["node-1".to_string()],
+            next_action: "Continue after source recheck.".to_string(),
+            note: "Checkpoint is warm enough to resume.".to_string(),
+        };
+
+        let request = build_epiphany_reorient_launch_request(
+            "thr_123",
+            Some(7),
+            Some(90),
+            &state,
+            &checkpoint,
+            &decision,
+        );
+
+        assert_eq!(request.binding_id, EPIPHANY_REORIENT_LAUNCH_BINDING_ID);
+        assert_eq!(request.owner_role, EPIPHANY_REORIENT_OWNER_ROLE);
+        assert_eq!(request.authority_scope, "epiphany.reorient.resume");
+        assert_eq!(
+            request.input_json["scratch"]["summary"],
+            "Carry the current seam across compaction."
+        );
+        assert!(request.input_json.get("graphs").is_some());
+        assert!(request.input_json.get("recentEvidence").is_some());
+        assert!(request.input_json.get("recentObservations").is_some());
+        assert!(
+            request
+                .instruction
+                .contains("life of the machine across sleep")
+        );
+        assert!(request.instruction.contains("checkpoint as the ember"));
+        let schema = request.output_schema_json.as_ref().unwrap();
+        assert!(schema["properties"].get("openQuestions").is_some());
+        assert!(schema["properties"].get("continuityRisks").is_some());
+
+        let regather_instruction =
+            build_epiphany_reorient_launch_instruction(ThreadEpiphanyReorientAction::Regather);
+        assert!(regather_instruction.contains("old continuity packet is ash"));
     }
 
     #[test]
