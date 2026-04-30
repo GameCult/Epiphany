@@ -4665,6 +4665,10 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
         });
+        let verification_result_allows_implementation = verification_result_accepted
+            && verification_finding
+                .as_ref()
+                .is_some_and(epiphany_verification_finding_allows_implementation);
 
         let source_signals = ThreadEpiphanyCoordinatorSignals {
             pressure_level: pressure.level,
@@ -4683,6 +4687,7 @@ impl CodexMessageProcessor {
             &roles,
             &source_signals,
             verification_result_accepted,
+            verification_result_allows_implementation,
             reorient_finding_accepted,
         );
         let note = render_epiphany_coordinator_note(
@@ -13993,6 +13998,7 @@ fn map_epiphany_coordinator(
     roles: &[ThreadEpiphanyRoleLane],
     signals: &ThreadEpiphanyCoordinatorSignals,
     verification_result_accepted: bool,
+    verification_result_allows_implementation: bool,
     reorient_finding_accepted: bool,
 ) -> EpiphanyCoordinatorDecision {
     let build = |action,
@@ -14092,6 +14098,20 @@ fn map_epiphany_coordinator(
             true,
             false,
             "A verification/review finding is complete and must be reviewed before continuation.",
+        );
+    }
+
+    if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed
+        && verification_result_accepted
+        && !verification_result_allows_implementation
+    {
+        return build(
+            ThreadEpiphanyCoordinatorAction::LaunchModeling,
+            Some(ThreadEpiphanyRoleId::Modeling),
+            Some(ThreadEpiphanySceneAction::RoleLaunch),
+            false,
+            true,
+            "The accepted verification/review finding did not pass; strengthen modeling/checkpoint evidence before implementation continues.",
         );
     }
 
@@ -14231,6 +14251,16 @@ fn epiphany_role_finding_already_accepted(
             && evidence.status == "accepted"
             && evidence.summary == accepted_summary
     })
+}
+
+fn epiphany_verification_finding_allows_implementation(
+    finding: &ThreadEpiphanyRoleFinding,
+) -> bool {
+    finding.role_id == ThreadEpiphanyRoleId::Verification
+        && finding
+            .verdict
+            .as_deref()
+            .is_some_and(|verdict| verdict.eq_ignore_ascii_case("pass"))
 }
 
 fn map_epiphany_roles(
@@ -16364,6 +16394,10 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let verification_result_accepted = verification_finding
         .as_ref()
         .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
+    let verification_result_allows_implementation = verification_result_accepted
+        && verification_finding
+            .as_ref()
+            .is_some_and(epiphany_verification_finding_allows_implementation);
     let source_signals = ThreadEpiphanyCoordinatorSignals {
         pressure_level: pressure.level,
         should_prepare_compaction: pressure.should_prepare_compaction,
@@ -16381,6 +16415,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         &roles,
         &source_signals,
         verification_result_accepted,
+        verification_result_allows_implementation,
         reorient_finding_accepted,
     );
 
@@ -19632,6 +19667,7 @@ mod tests {
             &signals,
             false,
             false,
+            false,
         );
 
         assert_eq!(
@@ -19669,6 +19705,7 @@ mod tests {
             &recommendation,
             &roles,
             &signals,
+            false,
             false,
             false,
         );
@@ -19711,6 +19748,7 @@ mod tests {
             &recommendation,
             &[],
             &signals,
+            false,
             false,
             true,
         );
@@ -19767,6 +19805,7 @@ mod tests {
             &signals,
             false,
             false,
+            false,
         );
 
         assert_eq!(
@@ -19809,6 +19848,7 @@ mod tests {
             &signals,
             false,
             false,
+            false,
         );
 
         assert_eq!(
@@ -19847,6 +19887,7 @@ mod tests {
             &missing,
             false,
             false,
+            false,
         );
         assert_eq!(
             launch_modeling.action,
@@ -19872,6 +19913,7 @@ mod tests {
             &modeling_backend_unavailable,
             false,
             false,
+            false,
         );
         assert_eq!(
             relaunch_modeling.action,
@@ -19891,6 +19933,7 @@ mod tests {
             &recommendation,
             &roles,
             &modeling_done,
+            false,
             false,
             false,
         );
@@ -19918,12 +19961,33 @@ mod tests {
             &verification_done,
             false,
             false,
+            false,
         );
         assert_eq!(
             review_verification.action,
             ThreadEpiphanyCoordinatorAction::ReviewVerificationResult
         );
         assert!(review_verification.requires_review);
+
+        let accepted_needs_evidence_verification = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &verification_done,
+            true,
+            false,
+            false,
+        );
+        assert_eq!(
+            accepted_needs_evidence_verification.action,
+            ThreadEpiphanyCoordinatorAction::LaunchModeling
+        );
+        assert_eq!(
+            accepted_needs_evidence_verification.target_role,
+            Some(ThreadEpiphanyRoleId::Modeling)
+        );
 
         let accepted_verification = map_epiphany_coordinator(
             ThreadEpiphanyReorientStateStatus::Ready,
@@ -19932,6 +19996,7 @@ mod tests {
             &recommendation,
             &roles,
             &verification_done,
+            true,
             true,
             false,
         );
@@ -19954,6 +20019,7 @@ mod tests {
             &recommendation,
             &[],
             &reviewed,
+            false,
             false,
             false,
         );
