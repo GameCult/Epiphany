@@ -33,6 +33,7 @@ struct ArtifactBundle {
     final_status_path: Option<String>,
     comparison_path: Option<String>,
     implementation_audit: Option<ImplementationAudit>,
+    runtime_audit: Option<RuntimeAudit>,
     modified_millis: Option<u128>,
 }
 
@@ -43,6 +44,15 @@ struct ImplementationAudit {
     workspace_changed: bool,
     tracked_diff_present: bool,
     changed_files: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimeAudit {
+    result_path: String,
+    status: String,
+    project_version: Option<String>,
+    editor_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -77,6 +87,7 @@ fn run_operator_action(
     match action.as_str() {
         "statusSnapshot" => run_status_snapshot(&repo_root, request),
         "coordinatorPlan" => run_coordinator_plan(&repo_root, request),
+        "inspectUnity" => run_unity_inspection(&repo_root, request),
         "launchModeling"
         | "readModelingResult"
         | "acceptModeling"
@@ -90,6 +101,39 @@ fn run_operator_action(
         | "prepareCheckpoint" => run_gui_action_bridge(&repo_root, request, action),
         _ => Err(format!("unknown operator action: {action}")),
     }
+}
+
+fn run_unity_inspection(
+    repo_root: &Path,
+    request: StatusRequest,
+) -> Result<OperatorActionResult, String> {
+    let python = find_python()?;
+    let artifact_root = repo_root.join(".epiphany-gui").join("runtime");
+    let workspace = request
+        .cwd
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo_root.to_path_buf());
+
+    let mut command = Command::new(python);
+    command
+        .current_dir(repo_root)
+        .arg(repo_root.join("tools").join("epiphany_unity_bridge.py"))
+        .arg("inspect")
+        .arg("--project-path")
+        .arg(workspace)
+        .arg("--artifact-root")
+        .arg(artifact_root);
+    let value = run_json_command(command, "unity inspection")?;
+    let status = value
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    Ok(OperatorActionResult {
+        action: "inspectUnity".to_string(),
+        artifact_path: json_string(&value, "artifactPath")?,
+        summary: format!("Unity bridge inspection: {status}."),
+        thread_id: None,
+    })
 }
 
 fn load_status(repo_root: &Path, request: StatusRequest) -> Result<Value, String> {
@@ -338,6 +382,11 @@ fn list_artifacts(repo_root: &Path) -> Result<Vec<ArtifactBundle>, String> {
         &repo_root.join(".epiphany-gui").join("status-snapshots"),
         "status/",
     )?;
+    collect_artifact_root(
+        &mut bundles,
+        &repo_root.join(".epiphany-gui").join("runtime"),
+        "runtime/",
+    )?;
 
     bundles.sort_by(|a, b| b.modified_millis.cmp(&a.modified_millis));
     Ok(bundles)
@@ -379,17 +428,40 @@ fn collect_artifact_root(
             path: path.display().to_string(),
             summary_path: existing_path(&path, "epiphany-dogfood-summary.json")
                 .or_else(|| existing_path(&path, "gui-action-summary.json"))
+                .or_else(|| existing_path(&path, "unity-bridge-summary.json"))
                 .or_else(|| existing_path(&path, "status.json")),
             final_status_path: existing_path(&path, "epiphany-final-status.json")
                 .or_else(|| existing_path(&path, "after-status.json")),
             comparison_path: existing_path(&path, "comparison.md"),
             implementation_audit: read_implementation_audit(&path),
+            runtime_audit: read_runtime_audit(&path),
             files,
             modified_millis,
         });
     }
 
     Ok(())
+}
+
+fn read_runtime_audit(root: &Path) -> Option<RuntimeAudit> {
+    let result_path = root.join("unity-bridge-summary.json");
+    let text = fs::read_to_string(&result_path).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    let status = value.get("status").and_then(Value::as_str)?.to_string();
+    let project_version = value
+        .get("projectVersion")
+        .and_then(Value::as_str)
+        .map(ToString::to_string);
+    let editor_path = value
+        .get("editorPath")
+        .and_then(Value::as_str)
+        .map(ToString::to_string);
+    Some(RuntimeAudit {
+        result_path: result_path.display().to_string(),
+        status,
+        project_version,
+        editor_path,
+    })
 }
 
 fn existing_path(root: &Path, name: &str) -> Option<String> {

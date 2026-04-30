@@ -20,6 +20,7 @@ from epiphany_mvp_status import sanitize_for_operator
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase6_reorient_launch_smoke import BINDING_ID as REORIENT_BINDING_ID
+from epiphany_unity_bridge import bridge_guidance as unity_bridge_guidance
 
 
 DEFAULT_CODEX_HOME = ROOT / ".epiphany-gui" / "codex-home"
@@ -309,63 +310,8 @@ def active_review_files_from_status(status: dict[str, Any]) -> list[str]:
     return sorted(set(files))
 
 
-def read_unity_project_version(cwd: Path) -> str | None:
-    version_path = cwd / "ProjectSettings" / "ProjectVersion.txt"
-    if not version_path.exists():
-        return None
-    for line in version_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith("m_EditorVersion:"):
-            version = line.split(":", 1)[1].strip()
-            return version or None
-    return None
-
-
-def installed_unity_hub_versions() -> list[str]:
-    roots = [
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
-        / "Unity"
-        / "Hub"
-        / "Editor",
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
-        / "Unity"
-        / "Hub"
-        / "Editor",
-    ]
-    versions: set[str] = set()
-    for root in roots:
-        if not root.exists():
-            continue
-        versions.update(path.name for path in root.iterdir() if path.is_dir())
-    return sorted(versions)
-
-
 def unity_guidance(cwd: Path) -> str:
-    project_version = read_unity_project_version(cwd)
-    if project_version is None:
-        return "- Unity: no ProjectSettings/ProjectVersion.txt was found; do not launch Unity from PATH."
-    exact_editor = (
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
-        / "Unity"
-        / "Hub"
-        / "Editor"
-        / project_version
-        / "Editor"
-        / "Unity.exe"
-    )
-    installed_versions = installed_unity_hub_versions()
-    installed_text = ", ".join(installed_versions) if installed_versions else "none detected"
-    if exact_editor.exists():
-        return (
-            f"- Unity: project pins {project_version}. If an editor run is unavoidable, "
-            f"use only `{exact_editor}` with explicit batch/quit/projectPath arguments; "
-            "do not invoke `Unity`, `Unity.exe`, default installs, or PATH-resolved editors."
-        )
-    return (
-        f"- Unity: project pins {project_version}, but no exact Hub editor was found "
-        f"(Hub versions detected: {installed_text}). Do not launch `Unity`, `Unity.exe`, "
-        "default installs, or legacy editors; if runtime parity requires Unity, stop with "
-        "a reviewable inability/evidence-gap artifact instead of probing with the wrong editor."
-    )
+    return unity_bridge_guidance(cwd, ROOT)
 
 
 def first_present(value: dict[str, Any], *paths: tuple[str, ...]) -> Any:

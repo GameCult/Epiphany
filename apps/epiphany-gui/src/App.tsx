@@ -26,7 +26,7 @@ const actionButtons: Array<{
   requiresVerificationResult?: boolean;
   requiresReorientResult?: boolean;
   requiresContinueImplementation?: boolean;
-  icon: "file" | "check" | "play" | "eye" | "accept";
+  icon: "file" | "check" | "play" | "eye" | "accept" | "runtime";
 }> = [
   {
     action: "statusSnapshot",
@@ -41,6 +41,13 @@ const actionButtons: Array<{
     runningLabel: "Running",
     title: "Run a review-gated coordinator plan",
     icon: "check",
+  },
+  {
+    action: "inspectUnity",
+    label: "Inspect Unity",
+    runningLabel: "Inspecting",
+    title: "Resolve the project-pinned Unity editor and write runtime artifacts",
+    icon: "runtime",
   },
   {
     action: "prepareCheckpoint",
@@ -247,6 +254,11 @@ export function App() {
     [snapshot?.artifacts],
   );
   const latestImplementationAudit = latestImplementationArtifact?.implementationAudit;
+  const latestRuntimeArtifact = useMemo(
+    () => (snapshot?.artifacts ?? []).find((artifact) => artifact.runtimeAudit),
+    [snapshot?.artifacts],
+  );
+  const latestRuntimeAudit = latestRuntimeArtifact?.runtimeAudit;
   const implementationNoDiffPending =
     Boolean(latestArtifact?.implementationAudit) && latestArtifact?.implementationAudit?.workspaceChanged === false;
   const readyState = scene.stateStatus === "ready";
@@ -367,6 +379,20 @@ export function App() {
         </section>
       )}
 
+      {latestRuntimeAudit && (
+        <section className={`notice ${latestRuntimeAudit.status === "ready" ? "okNotice" : "warnNotice"}`}>
+          {latestRuntimeAudit.status === "ready" ? (
+            <CheckCircle2 size={18} aria-hidden="true" />
+          ) : (
+            <AlertTriangle size={18} aria-hidden="true" />
+          )}
+          <span>
+            <strong>Latest runtime audit:</strong> Unity {text(latestRuntimeAudit.projectVersion)} is{" "}
+            {text(latestRuntimeAudit.status)}. <code>{latestRuntimeArtifact?.path}</code>
+          </span>
+        </section>
+      )}
+
       <section className="statusGrid" aria-label="Coordinator summary">
         <Panel title="Recommendation" icon={<ClipboardCheck size={18} />}>
           <div className={`actionBanner ${statusClass(coordinator.action ?? crrc.action)}`}>
@@ -477,11 +503,12 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
   );
 }
 
-function ActionIcon({ icon }: { icon: "file" | "check" | "play" | "eye" | "accept" }) {
+function ActionIcon({ icon }: { icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" }) {
   if (icon === "file") return <FileText size={16} aria-hidden="true" />;
   if (icon === "check") return <ClipboardCheck size={16} aria-hidden="true" />;
   if (icon === "play") return <Play size={16} aria-hidden="true" />;
   if (icon === "eye") return <Eye size={16} aria-hidden="true" />;
+  if (icon === "runtime") return <Database size={16} aria-hidden="true" />;
   return <CheckCircle2 size={16} aria-hidden="true" />;
 }
 
@@ -515,6 +542,14 @@ function Finding({ title, result, findingKey = "finding" }: { title: string; res
 
 function ArtifactOutcome({ artifact }: { artifact: ArtifactBundle }) {
   const audit = artifact.implementationAudit;
+  const runtime = artifact.runtimeAudit;
+  if (runtime) {
+    return (
+      <Pill tone={runtime.status === "ready" ? "ok" : "warn"}>
+        Unity {runtime.status}
+      </Pill>
+    );
+  }
   if (!audit) return <span className="artifactOutcome muted">none</span>;
   return (
     <Pill tone={audit.workspaceChanged ? "ok" : "warn"}>

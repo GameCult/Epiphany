@@ -8,6 +8,7 @@ export interface StatusRequest {
 export type OperatorAction =
   | "statusSnapshot"
   | "coordinatorPlan"
+  | "inspectUnity"
   | "prepareCheckpoint"
   | "continueImplementation"
   | "launchModeling"
@@ -39,6 +40,12 @@ export interface ArtifactBundle {
     workspaceChanged: boolean;
     trackedDiffPresent: boolean;
     changedFiles: string[];
+  };
+  runtimeAudit?: {
+    resultPath: string;
+    status: string;
+    projectVersion?: string;
+    editorPath?: string;
   };
   modifiedMillis?: number;
 }

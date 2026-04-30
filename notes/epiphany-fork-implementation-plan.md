@@ -87,6 +87,7 @@ The landed machine now has:
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - first Phase 6 GUI operator shell under `apps/epiphany-gui`, a Tauri v2 + React console over the existing status bridge, dogfood artifacts, and GUI action artifacts, with durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
+- first Unity editor/runtime bridge through `tools/epiphany_unity_bridge.py`, `tools/epiphany_unity_bridge_smoke.py`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 MVP status smoke coverage in `tools/epiphany_mvp_status_smoke.py`
@@ -124,6 +125,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/roleResult` is a read-only result projection, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
 - `thread/epiphany/roleAccept` is a narrow modeling/checkpoint acceptance write, not automatic specialist promotion, a verifier substitute, a broad state editor, or permission for workers to accept their own output.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
+- The Unity bridge may inspect and run only the project-pinned editor through explicit bridge commands; agents must not launch PATH/default/legacy Unity directly or substitute nearby Hub versions.
 - The MVP GUI target is a local Tauri v2 + React operator app over the existing app-server APIs. Tauri owns windowing and local lifecycle; app-server and typed Epiphany state remain authoritative.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -160,7 +162,7 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- how to give implementation and verification lanes controlled runtime/editor access without letting workers launch random local tools
+- how much controlled runtime/editor access the first Unity bridge gives implementation and verification lanes before deeper engine probes need a richer bridge
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how far the read-only CRRC recommendation should go before explicit client/operator action takes over
 - how much narrow coordination is needed so modeling, implementation, verification, and CRRC automation can hand off work without collapsing back into one context
@@ -238,14 +240,16 @@ written. The runner now always writes the prompt, reference status, comparison,
 and manifest honestly, and an explicit `--run-vanilla-reference` pass can spend
 a real vanilla Codex turn and persist its transcript for comparison.
 
-The latest Aetheria dogfood pass found the next bigger blocker. The fixed lanes
-can now catch modeling, verification, stale job, no-diff, and reorientation
-failures, but the implementation lane cannot prove engine assumptions without a
-controlled editor/runtime bridge. A worker tried to launch a legacy default
-Unity editor even though Aetheria pins a Unity 6000 project version. The guard
-is now to refuse PATH/default/legacy Unity, but the real MVP organ is a bridge
-that resolves the project-pinned editor, runs explicit batch/test/probe commands,
-captures logs and artifacts, and feeds those artifacts into evidence.
+The latest Aetheria dogfood pass found the next bigger blocker, and the first
+slice is now landed. The fixed lanes can catch modeling, verification, stale
+job, no-diff, and reorientation failures, but the implementation lane cannot
+prove engine assumptions by launching random local tools. A worker tried to
+launch a legacy default Unity editor even though Aetheria pins Unity
+`6000.1.10f1`. `tools/epiphany_unity_bridge.py` now reads the project pin,
+resolves only an exact Hub editor, refuses wrong or missing editors, owns the
+batch/quit/projectPath command wrapper, and writes inspection/command/log
+artifacts. On this machine Aetheria is correctly blocked: only Unity
+`6000.4.2f1` is installed.
 
 ## Phase 6 Direction
 
@@ -253,8 +257,8 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Build a first-class editor/runtime bridge for engine repos. For Unity, read the project-pinned editor version, refuse wrong or missing editors, run only explicit batch/test/probe commands, and write logs/probe output into auditable artifacts.
-2. Keep dogfood execution agent-run and auditable, then put the fixed-lane coordinator and pre-compaction checkpoint loop in front of the user through the smallest local GUI/operator view over the same status/artifact surfaces.
+1. Dogfood the first Unity editor/runtime bridge in the implementation lane. The bridge can inspect pins, refuse wrong/missing editors, and run exact-editor batch/probe commands; it still needs real Aetheria use before richer engine probes are justified.
+2. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces.
 3. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 4. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
 
@@ -287,6 +291,7 @@ Initial shape:
    - refresh status
    - run status snapshot
    - run coordinator pass
+   - inspect project-pinned Unity runtime through the bridge
    - prepare a durable checkpoint for a resumable operator thread
    - launch fixed modeling/checkpoint role
    - accept a completed modeling/checkpoint `statePatch` after review
@@ -305,11 +310,11 @@ Implementation slices:
    existing MVP status bridge, render the same data as
    `tools/epiphany_mvp_status.py`, and provide artifact bundle links. This
    slice is landed under `apps/epiphany-gui`.
-2. **Bounded operator actions**: status snapshot, coordinator-plan, durable
-   checkpoint preparation, roleLaunch, roleResult, reorientLaunch,
-   reorientResult, and explicit reorientAccept flows are landed. Review gates
-   remain explicit; the GUI does not auto-promote evidence or continue
-   implementation after semantic findings.
+2. **Bounded operator actions**: status snapshot, coordinator-plan, Unity
+   runtime inspection, durable checkpoint preparation, roleLaunch, roleResult,
+   reorientLaunch, reorientResult, and explicit reorientAccept flows are
+   landed. Review gates remain explicit; the GUI does not auto-promote
+   evidence or continue implementation after semantic findings.
 3. **Dogfood launcher**: wrap `tools/epiphany_mvp_dogfood.py` and
    `tools/epiphany_mvp_coordinator.py` as explicit operator actions that write
    artifact bundles and stream progress/status into the GUI.
@@ -320,6 +325,7 @@ Implementation slices:
 Verification:
 
 - Keep the existing CLI smokes as backend guardrails.
+- Keep `tools/epiphany_unity_bridge_smoke.py` for Unity bridge regressions.
 - Keep `npm run smoke:visual` for browser-layout regressions and bounded
   browser-fallback action clicks.
 - For native GUI changes, run `npm run build`, `cargo fmt --check`,

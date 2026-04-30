@@ -47,8 +47,8 @@ Do not trust this file for the exact live HEAD. Always check git.
 - A later dogfood attempt exposed another supervision scar: manually launching modeling, reorientation, and verification from the supervisor is not clean dogfood. The coordinator now treats `regatherManually` as fallback only after fixed lanes cannot advance, stops at `reviewModelingResult` for completed unaccepted modeling findings, and the CLI runner's explicit test-only `--auto-review` mode can accept modeling `statePatch` findings before launching verification. Production semantic findings remain review-gated.
 - The latest dogfood pass fixed concrete harness wounds: stale completed backend jobs now project as terminal, accepted verifier non-pass findings no longer clear implementation, verification coverage accepts modeler source evidence ids as current-model coverage, implementation audits compare pre/post diff hashes instead of treating existing dirt as fresh work, the latest implementation audit status wins, blocked no-diff turns route back through CRRC, stale accepted reorient findings relaunch bounded reorientation when the checkpoint regathers, and accepted reorientation findings now bank resume-ready checkpoints.
 - The latest audited implementation artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777548050463576300-28568`: it correctly shows `workspaceChanged: false`, `dirtyWorkspace: true`, `trackedDiffChanged: false`, wrote a no-diff audit, advanced Epiphany state to revision 57, and routed coordinator/CRRC back to `launchReorientWorker` instead of pretending old dirt was progress.
-- Aetheria dogfood also exposed the next product organ: editor/runtime integration. An implementation worker launched legacy `D:\Unity\Editor\Unity.exe -version` (Unity 5.5.0f3) even though Aetheria pins Unity `6000.1.10f1`; the stray process was killed, and `tools/epiphany_gui_action.py` now tells implementation workers not to launch PATH/default/legacy Unity when the exact pinned editor is unavailable. This is a guardrail, not the real bridge.
-- The next real MVP organ is a typed editor/runtime bridge for engine repos: resolve the project-pinned editor, refuse wrong or missing versions, run explicit batch/test/probe commands, capture logs/screenshots/probe outputs as artifacts, and feed those artifacts into Epiphany evidence for verification. Do not let implementation agents test assumptions by launching random editors from shell.
+- Aetheria dogfood exposed and then landed the first editor/runtime bridge. An implementation worker launched legacy `D:\Unity\Editor\Unity.exe -version` (Unity 5.5.0f3) even though Aetheria pins Unity `6000.1.10f1`; the stray process was killed. `tools/epiphany_unity_bridge.py` now resolves the project-pinned Unity editor, refuses wrong/missing versions, owns `-batchmode`, `-quit`, and `-projectPath`, and writes inspection/command/log artifacts. `tools/epiphany_gui_action.py` points implementation workers at that bridge, and the GUI has an Inspect Unity action.
+- The current Aetheria runtime truth is blocked but legible: the project pins Unity `6000.1.10f1`, this machine currently has Hub editor `6000.4.2f1`, and the bridge wrote `.epiphany-gui/runtime/unity-inspect-1777549218802064800-23832` proving the exact editor is missing. Treat that artifact as the evidence gap until the pinned editor exists.
 - The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -111,6 +111,7 @@ The current spine:
 - token-count pre-compaction checkpoint intervention for loaded Epiphany turns at the `shouldPrepareCompaction` threshold, with a turn-scoped compact handoff consumed after a successful steer
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
 - distilled shared and config-backed specialist prompt doctrine through the base prompt, rendered Epiphany state, modeling/body, verification/soul, reorientation/life, and coordinator/Self surfaces
+- first Unity runtime bridge through `tools/epiphany_unity_bridge.py`, `tools/epiphany_unity_bridge_smoke.py`, GUI Inspect Unity, runtime artifact listing, and implementation prompt guardrails
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live freshness app-server smoke through `tools/epiphany_phase6_freshness_smoke.py`
@@ -359,19 +360,21 @@ bounded browser-fallback controls. A live bridge probe also proved
 `prepareCheckpoint` creates a resumable thread and a later process can
 `readModelingResult` from it.
 
-The next real move is not more direct Aetheria implementation. The supervised
-run proved the fixed lanes can catch failures, but engine verification needs a
-first-class editor/runtime bridge before the agent can test its assumptions.
-Build that bridge next: pinned Unity resolution, wrong-version refusal, explicit
-batch/test/probe commands, artifact capture, and evidence ingestion. Read only
-operator-safe projections; do not open raw worker transcripts, direct worker
-messages, or `rawResult` payloads unless the user explicitly asks for forensic
-debugging. Use generated function/API telemetry for call-shape visibility
-without sungazing. CRRC is not a specialist-agent persona; the reorient-worker
-it may launch is the specialist. Do not turn the coordinator into a broad hidden
-dispatcher, arbitrary marketplace, alternate job backend, automatic semantic
-acceptance path, target-repo implementation worker, direct-thought feed, random
-editor launcher, or GUI-as-source-of-truth.
+The next real move is not more direct Aetheria implementation by the supervisor.
+The first Unity bridge is landed, and it correctly blocks Aetheria runtime
+execution until Unity `6000.1.10f1` is installed. Resume dogfood through
+Epiphany's GUI/coordinator/fixed lanes with the bridge in the loop: the
+implementation lane may inspect the source and may use bridge artifacts as
+evidence, but it must not launch Unity directly or use the installed
+`6000.4.2f1` editor as a substitute. Read only operator-safe projections; do
+not open raw worker transcripts, direct worker messages, or `rawResult`
+payloads unless the user explicitly asks for forensic debugging. Use generated
+function/API telemetry for call-shape visibility without sungazing. CRRC is not
+a specialist-agent persona; the reorient-worker it may launch is the
+specialist. Do not turn the coordinator into a broad hidden dispatcher,
+arbitrary marketplace, alternate job backend, automatic semantic acceptance
+path, target-repo implementation worker, direct-thought feed, random editor
+launcher, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
@@ -389,7 +392,7 @@ next organs.
 - GUI-as-source-of-truth
 - broad runtime CRRC execution beyond the landed safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam
-- first-class editor/runtime bridge for pinned Unity or other engine/tool runtimes
+- broader editor/runtime bridges beyond the first pinned Unity bridge
 - broad event stream beyond the landed state update notification
 
 The machine is good enough to move outward. Do not sand the same edge until the

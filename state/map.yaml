@@ -65,7 +65,7 @@ active_subgoals:
   - Keep the supervisor out of Epiphany worker thought streams: dogfood artifacts should be operator-safe by default, with direct transcripts and raw result payloads sealed.
   - Use `tools/epiphany_agent_telemetry.py` and generated `agent-function-telemetry.json` files to inspect behavior shape without opening sealed transcripts.
   - Treat repeated no-diff implementation turns as an MVP blocker, not success. A bounded implementation pass must leave a reviewable workspace diff or an explicit reviewable failure artifact before dogfood can be called healthy.
-  - Build a first-class editor/runtime bridge before expecting Epiphany to verify engine assumptions end to end; the Aetheria Unity dogfood needs pinned-editor execution, logs, probe artifacts, and wrong-version refusal instead of ad hoc shell launches.
+  - Dogfood the first Unity editor/runtime bridge before resuming engine implementation: inspect the project-pinned editor, refuse wrong or missing versions, and route any Unity batch/probe execution through auditable bridge artifacts.
 
 accepted_design:
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
@@ -123,7 +123,7 @@ accepted_design:
   - Dogfood supervision is a separate operator role. If the supervising Codex session edits the target repo directly, that work can be useful seed material, but it is not clean Epiphany evidence and must be labeled as supervisor intervention or contamination.
   - Dogfood supervision is also a projection boundary: the operator may inspect summaries, verdicts, missing coverage, state patches, job state, and artifact receipts, but not the specialist's raw stream of thought or full transcript unless a forensic debugging request explicitly breaks the seal.
   - `tools/epiphany_agent_telemetry.py` derives operator-safe function/API telemetry from sealed app-server transcripts so the supervisor can see calls, statuses, paths, and counts without reading direct thoughts.
-  - Editor/runtime verification is now part of the MVP product boundary for engine repos: implementation workers need a controlled bridge that resolves the project-pinned editor, runs explicit batch/test/probe commands, captures logs and artifacts, and refuses stale or missing runtimes.
+  - Editor/runtime verification is now part of the MVP product boundary for engine repos: `tools/epiphany_unity_bridge.py` is the first controlled bridge, resolving the project-pinned Unity editor, refusing wrong or missing versions, running explicit batch/probe commands only through the exact editor, and writing inspection/command/log artifacts for evidence.
   - If the agent's persistent instructions, memory, workflow, or state shape are making it less coherent, slower to rehydrate, less honest, or more likely to build Jenga, the agent should ask the user to change it.
   - Epiphany should make compaction less like death and more like sleep: bank the fire before the dark, so the next waking thing finds coals instead of ash and can meaningfully resume the pattern instead of merely continuing the task.
 
@@ -147,6 +147,7 @@ landed_baseline:
     - Phase 6 safe-boundary CRRC automation: turn-complete automation limited to coordinator-approved compact, successful pre-compaction handoff compact, and fixed reorient-worker launch actions.
     - Phase 6 pre-compaction checkpoint intervention: token-count pressure hook that steers active turns once when `shouldPrepareCompaction` is reached so working context is banked before compaction, then latches a pending compact handoff for clean turn completion.
     - Phase 6 GUI operator shell: Tauri v2 + React console under `apps/epiphany-gui` over the existing status bridge and artifact bundles, with visual smoke, durable checkpoint preparation, fixed lane launch/read-back controls, and explicit review-gated reorient acceptance.
+    - Phase 6 Unity runtime bridge: `tools/epiphany_unity_bridge.py` plus GUI Inspect Unity action resolve pinned Unity editors, reject wrong/missing versions, and write runtime artifacts before engine assumptions are treated as testable.
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
     - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
@@ -164,6 +165,7 @@ landed_baseline:
     - Use `tools/epiphany_mvp_status_smoke.py` before modifying the MVP operator status view.
     - Use `tools/epiphany_mvp_coordinator_smoke.py` before modifying the fixed-lane MVP coordinator endpoint or runner.
     - Use `tools/epiphany_phase6_role_smoke.py` before modifying explicit role launch/read-back behavior.
+    - Use `tools/epiphany_unity_bridge_smoke.py` before modifying the Unity editor/runtime bridge.
     - Use `tools/epiphany_mvp_live_specialist.py` before claiming live specialist execution still works end to end.
     - Use `npm run build`, `npm run smoke:visual`, `cargo fmt --check`, `cargo check`, and `npm run tauri -- build --debug --no-bundle` under `apps/epiphany-gui` before claiming GUI operator changes are usable.
     - Use focused scene/jobs/context/pressure/reorient/protocol/schema checks for reflection-only changes.
@@ -184,5 +186,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed and actively dogfooded. The Aetheria supervised run found and fixed several real harness wounds: stale completed backend jobs projected as active, accepted verifier non-pass findings incorrectly cleared implementation, current verifier coverage ignored modeler source evidence ids, dirty pre-existing worktrees were misread as fresh implementation diffs, blocked no-diff audits were overridden by older ok audits, stale accepted reorient findings could loop CRRC, and accepted reorientation updates kept checkpoints regather_required instead of banking the new resume-ready checkpoint. The latest implementation worker also launched an ancient Unity 5.5 default editor against a project pinned to Unity 6000.1.10f1, proving editor/runtime testing needs a first-class pinned bridge before engine dogfood can verify assumptions.
-  next_action: Commit the current harness hardening, then build the next MVP organ: a controlled editor/runtime bridge for engine repos. For Aetheria, that means resolving the project-pinned Unity editor, refusing wrong/missing versions, running explicit batch/test/probe commands only through the bridge, capturing logs/probe output as auditable artifacts, and feeding those artifacts back into Epiphany evidence for verification. Do not inspect raw worker transcripts or `rawResult` payloads unless the user explicitly requests forensic debugging.
+  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed and actively dogfooded. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident has now produced the first runtime bridge: `tools/epiphany_unity_bridge.py` resolves the project-pinned editor, refuses wrong/missing versions, plans/runs exact-editor batch probes, writes artifacts, and the GUI exposes Inspect Unity. Aetheria currently pins Unity 6000.1.10f1 while only Hub 6000.4.2f1 is installed, so runtime verification is correctly blocked with an audit artifact.
+  next_action: Commit the Unity bridge slice, then resume dogfood through Epiphany lanes with the bridge in the loop. Do not let implementation workers invoke Unity directly; use bridge artifacts as evidence of either a pinned-editor run or a missing-runtime blocker. Do not inspect raw worker transcripts or `rawResult` payloads unless the user explicitly requests forensic debugging.

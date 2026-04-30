@@ -14,6 +14,8 @@ Current slice:
   lanes, role findings, jobs, and artifact bundles
 - writes explicit status-snapshot and coordinator-plan artifact bundles through
   bounded operator buttons
+- resolves project-pinned Unity editors through the runtime bridge and writes
+  audit artifacts instead of letting workers launch PATH/default editors
 - prepares durable Epiphany checkpoint state, then launches and reads the fixed
   modeling, verification, and reorient lanes from GUI buttons, with reorient
   acceptance kept explicit and review-gated
@@ -52,6 +54,8 @@ The bounded buttons are intentionally narrow:
   `.epiphany-gui/status-snapshots`.
 - **Coordinator Plan** runs `tools/epiphany_mvp_coordinator.py --mode plan` and
   writes an auditable bundle under `.epiphany-dogfood`.
+- **Inspect Unity** runs `tools/epiphany_unity_bridge.py inspect` and writes a
+  pinned-editor inspection bundle under `.epiphany-gui/runtime`.
 - **Prepare Checkpoint** seeds durable Epiphany state for a GUI operator thread
   and returns the persisted thread id that unlocks lane actions.
 - **Launch/Read Modeling** and **Launch/Read Verification** call the fixed role
