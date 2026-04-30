@@ -155,5 +155,7 @@ The doctrine now lands in three places:
   preserves the sane host mechanics while making state, memory, source
   grounding, anti-churn discipline, and compaction behavior first-class.
 - `vendor\codex\codex-rs\app-server\src\codex_message_processor.rs` carries the
-  fixed specialist launch prompts: modeling/body, verification/soul,
-  reorientation/life, and the read-only coordinator/Self note.
+  fixed specialist launch prompt loader and selector.
+- `vendor\codex\codex-rs\app-server\src\prompts\epiphany_specialists.toml`
+  owns the editable prompt text for modeling/body, verification/soul,
+  reorientation/life, and the read-only coordinator/Self note template.

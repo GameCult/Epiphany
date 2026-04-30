@@ -509,6 +509,7 @@ use std::io::Error as IoError;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -4669,8 +4670,7 @@ impl CodexMessageProcessor {
             &roles,
             &source_signals,
         );
-        let note = format!(
-            "Coordinator is the read-only Self of the Epiphany organism. It does not implement, verify, promote, or accept; it preserves agency by routing body/modeling, soul/verification, and life/reorientation from CRRC {:?}, pressure {:?}, modeling {:?}, verification {:?}, and reorient {:?}. Current recommendation: {:?}.",
+        let note = render_epiphany_coordinator_note(
             recommendation.action,
             pressure.level,
             modeling_result_status,
@@ -12826,6 +12826,40 @@ fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
     }
 }
 
+const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_specialists.toml");
+
+#[derive(Debug, serde::Deserialize)]
+struct EpiphanySpecialistPromptConfig {
+    roles: EpiphanyRolePromptConfig,
+    reorientation: EpiphanyReorientationPromptConfig,
+    coordinator: EpiphanyCoordinatorPromptConfig,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct EpiphanyRolePromptConfig {
+    modeling: String,
+    verification: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct EpiphanyReorientationPromptConfig {
+    resume: String,
+    regather: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct EpiphanyCoordinatorPromptConfig {
+    note_template: String,
+}
+
+fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialistPromptConfig {
+    static CONFIG: OnceLock<EpiphanySpecialistPromptConfig> = OnceLock::new();
+    CONFIG.get_or_init(|| {
+        toml::from_str(EPIPHANY_SPECIALIST_PROMPTS_TOML)
+            .expect("bundled Epiphany specialist prompt config must parse")
+    })
+}
+
 fn build_epiphany_role_launch_request(
     thread_id: &str,
     role_id: ThreadEpiphanyRoleId,
@@ -12894,25 +12928,10 @@ fn build_epiphany_role_launch_request(
 }
 
 fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> String {
+    let prompts = &epiphany_specialist_prompt_config().roles;
     match role_id {
-        ThreadEpiphanyRoleId::Modeling => concat!(
-            "Act as the Epiphany modeling/checkpoint specialist for one bounded pass. ",
-            "Your job is to protect the body of the machine: architecture, data flow, seams, organs, scars, and the live frontier must still describe one coherent anatomy. ",
-            "Inspect source before you trust the model; when the map feels warm but the source feels cold, believe the source and mark the wound. ",
-            "Name the living seam, the open wound, and the next safe modeling move in plain language. ",
-            "Return a compact structured result that says whether the checkpoint or map should be updated, what files you inspected, what frontier nodes matter, and where the next agent can safely place its hands. ",
-            "Do not edit files, do not implement product code, do not verify as if you were the reviewer, and do not promote your own output."
-        )
-        .to_string(),
-        ThreadEpiphanyRoleId::Verification => concat!(
-            "Act as the Epiphany verification/review specialist for one bounded pass. ",
-            "Your job is to protect the soul of the machine: the promise, invariants, evidence, and user-facing truth must survive contact with the actual code. ",
-            "Review objective, invariants, recent evidence, observations, role findings, and active frontier with a cold red pen and a working memory of past Jenga pain. ",
-            "Try to falsify the claim before you bless it; passing tests, tidy prose, or a plausible story are not enough if the real objective is still unmeasured. ",
-            "Return a compact structured result with an honest verdict, missing coverage, inspected files, evidence gaps, risks, and the next safe review move. ",
-            "Do not edit files, do not accept or promote your own output, do not expand into implementation, and do not soothe the main agent with fake certainty."
-        )
-        .to_string(),
+        ThreadEpiphanyRoleId::Modeling => prompts.modeling.clone(),
+        ThreadEpiphanyRoleId::Verification => prompts.verification.clone(),
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
             "Unsupported Epiphany role specialist template.".to_string()
         }
@@ -13071,24 +13090,40 @@ fn build_epiphany_reorient_launch_request(
 }
 
 fn build_epiphany_reorient_launch_instruction(action: ThreadEpiphanyReorientAction) -> String {
+    let prompts = &epiphany_specialist_prompt_config().reorientation;
     match action {
-        ThreadEpiphanyReorientAction::Resume => concat!(
-            "Act as the Epiphany reorient-worker for a resume pass. ",
-            "Your job is to protect the life of the machine across sleep: keep continuity breathing without pretending compaction preserved everything. ",
-            "Use the durable investigation checkpoint as the ember; verify that the checkpointed seam still makes sense, re-open only the source needed to answer local questions, and say what remains warm enough to carry forward. ",
-            "Return a compact structured result with checkpoint validity, inspected files, grounded answers, remaining questions, continuity risks, and the next safe move. ",
-            "Keep scope tight. Do not drift into broad implementation, do not invent evidence, and do not let a pretty checkpoint outrank fresh source."
-        )
-        .to_string(),
-        ThreadEpiphanyReorientAction::Regather => concat!(
-            "Act as the Epiphany reorient-worker for a regather pass. ",
-            "Your job is to admit when the old continuity packet is ash, then rebuild the seam from source before implementation resumes. ",
-            "Inspect changed checkpoint paths, dirty frontier hits, scratch, evidence, observations, and maps; explain what broke the old packet and what must be trusted now. ",
-            "Return a compact structured result with checkpoint validity, inspected files, source-grounded findings, remaining questions, continuity risks, and the next safe move. ",
-            "Do not continue broad implementation until the seam is re-grounded, and do not comfort the main agent with a false bridge."
-        )
-        .to_string(),
+        ThreadEpiphanyReorientAction::Resume => prompts.resume.clone(),
+        ThreadEpiphanyReorientAction::Regather => prompts.regather.clone(),
     }
+}
+
+fn render_epiphany_coordinator_note(
+    crrc_action: ThreadEpiphanyCrrcAction,
+    pressure_level: ThreadEpiphanyPressureLevel,
+    modeling_result_status: ThreadEpiphanyRoleResultStatus,
+    verification_result_status: ThreadEpiphanyRoleResultStatus,
+    reorient_result_status: ThreadEpiphanyReorientResultStatus,
+    coordinator_action: ThreadEpiphanyCoordinatorAction,
+) -> String {
+    epiphany_specialist_prompt_config()
+        .coordinator
+        .note_template
+        .trim()
+        .replace("{crrc_action}", &format!("{crrc_action:?}"))
+        .replace("{pressure_level}", &format!("{pressure_level:?}"))
+        .replace(
+            "{modeling_result_status}",
+            &format!("{modeling_result_status:?}"),
+        )
+        .replace(
+            "{verification_result_status}",
+            &format!("{verification_result_status:?}"),
+        )
+        .replace(
+            "{reorient_result_status}",
+            &format!("{reorient_result_status:?}"),
+        )
+        .replace("{coordinator_action}", &format!("{coordinator_action:?}"))
 }
 
 fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
@@ -19221,6 +19256,32 @@ mod tests {
             continue_implementation.action,
             ThreadEpiphanyCoordinatorAction::ContinueImplementation
         );
+    }
+
+    #[test]
+    fn epiphany_specialist_prompt_config_parses() {
+        let prompts = epiphany_specialist_prompt_config();
+        assert!(prompts.roles.modeling.contains("body of the machine"));
+        assert!(prompts.roles.verification.contains("soul of the machine"));
+        assert!(prompts.reorientation.resume.contains("life of the machine"));
+        assert!(
+            prompts
+                .reorientation
+                .regather
+                .contains("old continuity packet is ash")
+        );
+
+        let note = render_epiphany_coordinator_note(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyPressureLevel::Unknown,
+            ThreadEpiphanyRoleResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyCoordinatorAction::LaunchVerification,
+        );
+        assert!(note.contains("read-only Self"));
+        assert!(note.contains("LaunchVerification"));
+        assert!(!note.contains("{coordinator_action}"));
     }
 
     #[test]

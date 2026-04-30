@@ -38,7 +38,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The first MVP GUI shell now exists under `apps/epiphany-gui`. It is a Tauri v2 + React operator console over the existing status bridge, dogfood artifacts, and GUI action artifacts, not a new source of truth. It can prepare a durable Epiphany checkpoint for a resumable operator thread, run status snapshots and coordinator-plan artifacts, launch/read the fixed modeling and verification lanes, launch/read the fixed reorient-worker, and explicitly accept completed reorient findings after review.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
-- The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline, and specialist prompts are separated by job: modeling protects the body, verification protects the soul, reorientation protects life, and coordinator remains the read-only Self.
+- The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline, and specialist prompt text lives in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`: modeling protects the body, verification protects the soul, reorientation protects life, and coordinator remains the read-only Self.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -95,7 +95,7 @@ The current spine:
 - limited turn-complete CRRC automation for coordinator-approved compact and fixed reorient-worker launch actions
 - token-count pre-compaction checkpoint intervention for loaded Epiphany turns at the `shouldPrepareCompaction` threshold
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
-- distilled shared and specialist prompt doctrine through the base prompt, rendered Epiphany state, modeling/body, verification/soul, reorientation/life, and coordinator/Self surfaces
+- distilled shared and config-backed specialist prompt doctrine through the base prompt, rendered Epiphany state, modeling/body, verification/soul, reorientation/life, and coordinator/Self surfaces
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live freshness app-server smoke through `tools/epiphany_phase6_freshness_smoke.py`
@@ -317,9 +317,13 @@ inspected the smoke workspace, called `report_agent_job_result`, and
 The prompt doctrine pass has now also run. It rechecked global AGENTS,
 available Codex memories, and nearby evidence ledgers before distilling the
 sane parts into the shared base prompt, rendered Epiphany state, and fixed
-specialist launch templates. The latest live-specialist run again produced
-`.epiphany-dogfood/live-specialist` artifacts and showed the modeling worker
-returning the new openQuestions/evidenceGaps/risks shape.
+specialist launch templates. The specialist/coordinator prompt bodies have
+since been extracted from Rust into
+`vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`, with
+app-server parsing that bundled config at launch-template selection time. The
+latest live-specialist run again produced `.epiphany-dogfood/live-specialist`
+artifacts and showed the modeling worker returning the
+openQuestions/evidenceGaps/risks shape from the config-backed prompt.
 
 The fixed-lane coordinator MVP is testable, and the first pre-compaction CRRC
 intervention is now wired. Limited safe-boundary CRRC execution still handles
