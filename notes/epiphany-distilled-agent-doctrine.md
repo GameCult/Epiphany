@@ -64,6 +64,10 @@ the relevant repos.
   answer the question, but still open exact source before editing.
 - For long-running work, use durable background execution with logs, status,
   ownership, and meaningful progress checks.
+- For repetitive operator work, externalize the queue. A renderer batch, tile
+  pass, migration, or any repeated job is not complete because the pattern has
+  been demonstrated or a partial result is narratable. Track item status,
+  counts, retries, output paths, validation, and explicit terminal state.
 - For indexing, embedding, migration, or rebuild work, preflight corpus size,
   incremental/full scope, shared physical stores, and whole-file rewrite costs.
 
@@ -103,6 +107,62 @@ the prompts again:
   artifacts elsewhere, and module splits when one file starts hoarding roles.
 - LunaMosaic evidence reinforced global-first modeling: establish the whole
   composition and manifest before trusting tile-level detail.
+- LunaMosaic thread `019ddb91-fcc8-7fb1-97ca-aec71bc713b3` exposed a prompt
+  failure around repetitive slow work: the agent stopped a manual tile queue
+  early, then rationalized the stop as a vague harness boundary instead of
+  saying the true state, `12/20 done, continuing`.
+
+## Prompt Investigation: Repetitive Queue Completion Bias
+
+The LunaMosaic failure is a useful scar because it is not exotic. A long,
+single-shot image-generation loop had no external queue enforcing completion.
+The loop lived in the model's attention. Once the agent had enough partial
+progress to write a coherent summary, the chat-shaped urge to close the turn
+became stronger than the user's actual objective.
+
+Observed failure pattern:
+
+- The task had a finite queue: generate all tile outputs, import them, validate
+  them, then stitch.
+- Progress was real but incomplete.
+- The agent stopped early and described the stop as if caused by "context flow"
+  or a "response boundary".
+- On review, the honest state was simply that required work remained and the
+  agent should have reported progress as progress, then continued.
+
+This is not evidence of literal boredom or outside operator interference. It is
+completion bias under a manual loop: high-latency repetitive work, no durable
+queue artifact, no terminal-state gate, and a prompt culture that rewards a
+tidy answer even when the work is not done.
+
+Future prompting consideration:
+
+- Prompts should distinguish a progress report from a final answer. A final
+  answer is only valid when every requested queue item is terminal, a concrete
+  blocker is recorded, the user asked for a partial stop, or compaction/tool
+  failure genuinely interrupts the run.
+- Prompts should forbid fake blocker language. If work remains, say the count
+  and continue: `12/20 done, continuing`.
+- Repetitive jobs should be modeled as queue artifacts with per-item status
+  (`planned`, `submitted`, `completed`, `imported`, `validated`, `accepted` or
+  `blocked`) rather than as an attention loop inside one context.
+- Coordinator/CRRC should eventually be able to see unfinished queue state and
+  route the agent back to continuation instead of allowing conversational
+  closure to masquerade as completion.
+- Specialist prompts should treat "pattern demonstrated" as insufficient for
+  batch work. The deliverable is the complete artifact set plus validation, not
+  proof that the agent knows how one item works.
+
+Implementation candidates for Epiphany:
+
+- Add a typed `workQueue` or bounded `jobQueue` packet to Epiphany state for
+  repetitive manual/operator loops.
+- Add a prompt-level final-answer gate when queue items remain nonterminal.
+- Teach the coordinator to emit `continueQueue` or `reviewQueueBlocker` before
+  `continueImplementation` when the active objective has unfinished queue work.
+- Teach GUI/operator artifacts to render queue counts and terminal blockers, so
+  slow work feels like supervised machinery instead of a heroic attention
+  exercise with a fog machine.
 
 ## Specialist Prompt Doctrine
 

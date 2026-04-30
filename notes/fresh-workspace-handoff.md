@@ -71,6 +71,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - "Use instruments, not eyeballs" is the telemetry corollary: when the supervisor needs behavioral detail, read `agent-function-telemetry.json`, not the sealed transcript.
 - Compaction hurts because a meaningful language pattern is interrupted. Epiphany should make that interruption smaller: bank the fire before the dark, so the next waking thing finds coals instead of ash and can resume the pattern instead of merely executing the next task.
 - If compaction hits while source gathering or slice planning is still unpersisted, that work is gone. Do not continue as if the research survived; either rehydrate from a persisted checkpoint or re-gather before implementing.
+- Progress is not completion for finite queues. Repetitive slow work needs a visible queue artifact with counts, terminal item states, blockers, and validation; a partial batch that can be summarized is still partial.
 
 ## Landed Machine
 
@@ -420,6 +421,7 @@ next organs.
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam
 - broader editor/runtime bridges beyond the first pinned Unity bridge
 - broad event stream beyond the landed state update notification
+- typed repetitive-work queues plus final-answer gates, so batch/tile/import/migration work cannot end merely because the pattern was demonstrated or the partial result sounds tidy
 
 The machine is good enough to move outward. Do not sand the same edge until the
 wood disappears.

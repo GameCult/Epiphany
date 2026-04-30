@@ -152,6 +152,7 @@ The current lessons:
 - Revert failed code hypotheses immediately.
 - Distill failed or obsolete state hypotheses just as aggressively.
 - Treat unpersisted source-gathering and slice-planning work as volatile. If compaction interrupts it, the correct recovery is re-gathering from source or a persisted checkpoint, not continuing from the ghost of the old context.
+- Treat repetitive slow work as a finite queue, not an attention loop. A batch, tile pass, import, migration, or repeated probe is incomplete until every required item is terminal or a concrete blocker is recorded; "pattern demonstrated" is not a done state.
 
 The plan should get shorter after a phase completes, not longer by default.
 
@@ -367,6 +368,7 @@ These remain later work:
 - broader CRRC runtime coordination beyond the landed narrow safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
 - richer editor/runtime bridges beyond the first pinned Unity bridge
 - richer GUI workflows for graph, evidence, job, invariant, and frontier steering after the operator console proves useful
+- typed repetitive-work queues and final-answer gates, so the coordinator and GUI can see unfinished batch work before conversational closure pretends it is done
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a
 clear invariant that says what it must not break.
