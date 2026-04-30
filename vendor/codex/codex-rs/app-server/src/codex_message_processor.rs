@@ -4628,21 +4628,28 @@ impl CodexMessageProcessor {
             reorient_job.as_ref(),
         );
 
-        let (modeling_result_status, _, _) = if let Some(state) = thread.epiphany_state.as_ref() {
-            load_epiphany_role_result_snapshot(
-                state,
-                state_db_ctx.as_ref(),
-                ThreadEpiphanyRoleId::Modeling,
-                EPIPHANY_MODELING_ROLE_BINDING_ID,
-            )
-            .await
-        } else {
-            (
-                ThreadEpiphanyRoleResultStatus::MissingState,
-                None,
-                "No authoritative Epiphany state exists for this thread.".to_string(),
-            )
-        };
+        let (modeling_result_status, modeling_finding, _) =
+            if let Some(state) = thread.epiphany_state.as_ref() {
+                load_epiphany_role_result_snapshot(
+                    state,
+                    state_db_ctx.as_ref(),
+                    ThreadEpiphanyRoleId::Modeling,
+                    EPIPHANY_MODELING_ROLE_BINDING_ID,
+                )
+                .await
+            } else {
+                (
+                    ThreadEpiphanyRoleResultStatus::MissingState,
+                    None,
+                    "No authoritative Epiphany state exists for this thread.".to_string(),
+                )
+            };
+        let modeling_result_accepted = modeling_finding.as_ref().is_some_and(|finding| {
+            thread
+                .epiphany_state
+                .as_ref()
+                .is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
+        });
         let (verification_result_status, verification_finding, _) =
             if let Some(state) = thread.epiphany_state.as_ref() {
                 load_epiphany_role_result_snapshot(
@@ -4665,6 +4672,14 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
         });
+        let modeling_result_accepted_after_verification =
+            thread.epiphany_state.as_ref().is_some_and(|state| {
+                role_finding_accepted_after(
+                    state,
+                    modeling_finding.as_ref(),
+                    verification_finding.as_ref(),
+                )
+            });
         let verification_result_allows_implementation = verification_result_accepted
             && verification_finding
                 .as_ref()
@@ -4686,6 +4701,8 @@ impl CodexMessageProcessor {
             &recommendation,
             &roles,
             &source_signals,
+            modeling_result_accepted,
+            modeling_result_accepted_after_verification,
             verification_result_accepted,
             verification_result_allows_implementation,
             reorient_finding_accepted,
@@ -13997,6 +14014,8 @@ fn map_epiphany_coordinator(
     recommendation: &ThreadEpiphanyCrrcRecommendation,
     roles: &[ThreadEpiphanyRoleLane],
     signals: &ThreadEpiphanyCoordinatorSignals,
+    modeling_result_accepted: bool,
+    modeling_result_accepted_after_verification: bool,
     verification_result_accepted: bool,
     verification_result_allows_implementation: bool,
     reorient_finding_accepted: bool,
@@ -14048,18 +14067,9 @@ fn map_epiphany_coordinator(
                 "A CRRC reorientation finding needs human review before continuation.",
             );
         }
-        ThreadEpiphanyCrrcAction::RegatherManually => {
-            return build(
-                ThreadEpiphanyCoordinatorAction::RegatherManually,
-                Some(ThreadEpiphanyRoleId::Reorientation),
-                recommendation.recommended_scene_action,
-                true,
-                false,
-                "CRRC cannot safely continue automatically; manual regathering is required.",
-            );
-        }
         ThreadEpiphanyCrrcAction::PrepareCheckpoint
         | ThreadEpiphanyCrrcAction::LaunchReorientWorker
+        | ThreadEpiphanyCrrcAction::RegatherManually
         | ThreadEpiphanyCrrcAction::Continue => {}
     }
 
@@ -14088,6 +14098,19 @@ fn map_epiphany_coordinator(
         );
     }
 
+    if signals.modeling_result_status == ThreadEpiphanyRoleResultStatus::Completed
+        && !modeling_result_accepted
+    {
+        return build(
+            ThreadEpiphanyCoordinatorAction::ReviewModelingResult,
+            Some(ThreadEpiphanyRoleId::Modeling),
+            Some(ThreadEpiphanySceneAction::RoleResult),
+            true,
+            false,
+            "A modeling/checkpoint finding is complete and must be reviewed before verification or implementation continues.",
+        );
+    }
+
     if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed
         && !verification_result_accepted
     {
@@ -14104,6 +14127,7 @@ fn map_epiphany_coordinator(
     if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed
         && verification_result_accepted
         && !verification_result_allows_implementation
+        && !modeling_result_accepted_after_verification
     {
         return build(
             ThreadEpiphanyCoordinatorAction::LaunchModeling,
@@ -14116,7 +14140,8 @@ fn map_epiphany_coordinator(
     }
 
     if signals.modeling_result_status == ThreadEpiphanyRoleResultStatus::Completed
-        && !verification_result_accepted
+        && modeling_result_accepted
+        && !verification_result_allows_implementation
     {
         return build(
             ThreadEpiphanyCoordinatorAction::LaunchVerification,
@@ -14202,6 +14227,17 @@ fn map_epiphany_coordinator(
         );
     }
 
+    if recommendation.action == ThreadEpiphanyCrrcAction::RegatherManually {
+        return build(
+            ThreadEpiphanyCoordinatorAction::RegatherManually,
+            Some(ThreadEpiphanyRoleId::Reorientation),
+            recommendation.recommended_scene_action,
+            true,
+            false,
+            "CRRC cannot safely continue automatically and no fixed specialist lane is currently able to advance the regather.",
+        );
+    }
+
     build(
         ThreadEpiphanyCoordinatorAction::ContinueImplementation,
         Some(ThreadEpiphanyRoleId::Implementation),
@@ -14238,15 +14274,42 @@ fn epiphany_role_finding_already_accepted(
     state: &EpiphanyThreadState,
     finding: &ThreadEpiphanyRoleFinding,
 ) -> bool {
+    epiphany_role_finding_accepted_index(state, finding).is_some()
+}
+
+fn role_finding_accepted_after(
+    state: &EpiphanyThreadState,
+    later: Option<&ThreadEpiphanyRoleFinding>,
+    earlier: Option<&ThreadEpiphanyRoleFinding>,
+) -> bool {
+    let Some(later) = later else {
+        return false;
+    };
+    let Some(later_index) = epiphany_role_finding_accepted_index(state, later) else {
+        return false;
+    };
+    let Some(earlier) = earlier else {
+        return true;
+    };
+    let Some(earlier_index) = epiphany_role_finding_accepted_index(state, earlier) else {
+        return true;
+    };
+    later_index > earlier_index
+}
+
+fn epiphany_role_finding_accepted_index(
+    state: &EpiphanyThreadState,
+    finding: &ThreadEpiphanyRoleFinding,
+) -> Option<usize> {
     let accepted_kind = match finding.role_id {
         ThreadEpiphanyRoleId::Modeling => "modeling_result",
         ThreadEpiphanyRoleId::Verification => "verification_result",
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
-            return false;
+            return None;
         }
     };
     let accepted_summary = role_finding_summary(finding);
-    state.recent_evidence.iter().any(|evidence| {
+    state.recent_evidence.iter().position(|evidence| {
         evidence.kind == accepted_kind
             && evidence.status == "accepted"
             && evidence.summary == accepted_summary
@@ -16377,13 +16440,16 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         reorient_result_status,
         reorient_job.as_ref(),
     );
-    let (modeling_result_status, _, _) = load_epiphany_role_result_snapshot(
+    let (modeling_result_status, modeling_finding, _) = load_epiphany_role_result_snapshot(
         &state,
         state_db_ctx.as_ref(),
         ThreadEpiphanyRoleId::Modeling,
         EPIPHANY_MODELING_ROLE_BINDING_ID,
     )
     .await;
+    let modeling_result_accepted = modeling_finding
+        .as_ref()
+        .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
     let (verification_result_status, verification_finding, _) = load_epiphany_role_result_snapshot(
         &state,
         state_db_ctx.as_ref(),
@@ -16394,6 +16460,11 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let verification_result_accepted = verification_finding
         .as_ref()
         .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
+    let modeling_result_accepted_after_verification = role_finding_accepted_after(
+        &state,
+        modeling_finding.as_ref(),
+        verification_finding.as_ref(),
+    );
     let verification_result_allows_implementation = verification_result_accepted
         && verification_finding
             .as_ref()
@@ -16414,6 +16485,8 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         &crrc_recommendation,
         &roles,
         &source_signals,
+        modeling_result_accepted,
+        modeling_result_accepted_after_verification,
         verification_result_accepted,
         verification_result_allows_implementation,
         reorient_finding_accepted,
@@ -19668,6 +19741,8 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
         );
 
         assert_eq!(
@@ -19705,6 +19780,8 @@ mod tests {
             &recommendation,
             &roles,
             &signals,
+            false,
+            false,
             false,
             false,
             false,
@@ -19748,6 +19825,8 @@ mod tests {
             &recommendation,
             &[],
             &signals,
+            false,
+            false,
             false,
             false,
             true,
@@ -19806,6 +19885,8 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
         );
 
         assert_eq!(
@@ -19849,6 +19930,8 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
         );
 
         assert_eq!(
@@ -19859,6 +19942,65 @@ mod tests {
         assert_eq!(
             map_epiphany_coordinator_automation_action(&decision),
             EpiphanyCoordinatorAutomationAction::None
+        );
+    }
+
+    #[test]
+    fn map_epiphany_coordinator_uses_fixed_lanes_before_manual_regather() {
+        let pressure = map_epiphany_pressure(None);
+        let recommendation = ThreadEpiphanyCrrcRecommendation {
+            action: ThreadEpiphanyCrrcAction::RegatherManually,
+            recommended_scene_action: Some(ThreadEpiphanySceneAction::Reorient),
+            reason: "checkpoint requested regather".to_string(),
+        };
+        let roles = base_coordinator_roles();
+        let missing = coordinator_signals(
+            ThreadEpiphanyCrrcAction::RegatherManually,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+
+        let launch_modeling = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &missing,
+            false,
+            false,
+            false,
+            false,
+            true,
+        );
+        assert_eq!(
+            launch_modeling.action,
+            ThreadEpiphanyCoordinatorAction::LaunchModeling
+        );
+
+        let modeling_done = coordinator_signals(
+            ThreadEpiphanyCrrcAction::RegatherManually,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+        let review_modeling = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &modeling_done,
+            false,
+            false,
+            false,
+            false,
+            true,
+        );
+        assert_eq!(
+            review_modeling.action,
+            ThreadEpiphanyCoordinatorAction::ReviewModelingResult
         );
     }
 
@@ -19888,6 +20030,8 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
         );
         assert_eq!(
             launch_modeling.action,
@@ -19914,6 +20058,8 @@ mod tests {
             false,
             false,
             false,
+            false,
+            false,
         );
         assert_eq!(
             relaunch_modeling.action,
@@ -19926,6 +20072,25 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::Completed,
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
+        let review_modeling = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &modeling_done,
+            false,
+            false,
+            false,
+            false,
+            false,
+        );
+        assert_eq!(
+            review_modeling.action,
+            ThreadEpiphanyCoordinatorAction::ReviewModelingResult
+        );
+        assert!(review_modeling.requires_review);
+
         let launch_verification = map_epiphany_coordinator(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
@@ -19933,6 +20098,8 @@ mod tests {
             &recommendation,
             &roles,
             &modeling_done,
+            true,
+            false,
             false,
             false,
             false,
@@ -19959,6 +20126,8 @@ mod tests {
             &recommendation,
             &roles,
             &verification_done,
+            true,
+            false,
             false,
             false,
             false,
@@ -19976,6 +20145,8 @@ mod tests {
             &recommendation,
             &roles,
             &verification_done,
+            true,
+            false,
             true,
             false,
             false,
@@ -19996,6 +20167,8 @@ mod tests {
             &recommendation,
             &roles,
             &verification_done,
+            true,
+            false,
             true,
             true,
             false,
@@ -20019,6 +20192,8 @@ mod tests {
             &recommendation,
             &[],
             &reviewed,
+            false,
+            false,
             false,
             false,
             false,

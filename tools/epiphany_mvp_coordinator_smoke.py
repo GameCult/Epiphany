@@ -133,7 +133,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             mode="run",
             bootstrap_smoke_state=True,
             auto_review=True,
-            max_steps=3,
+            max_steps=4,
         )
     )
     require(

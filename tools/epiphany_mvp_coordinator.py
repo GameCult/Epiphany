@@ -373,6 +373,55 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                 break
 
             revision = state_revision(status)
+            if action == "reviewModelingResult":
+                result = client.send(
+                    "thread/epiphany/roleResult",
+                    {"threadId": thread_id, "roleId": "modeling"},
+                )
+                step["events"].append(
+                    {
+                        "type": "roleResult",
+                        "roleId": "modeling",
+                        "result": sanitize_for_operator(result),
+                    }
+                )
+                finding = result.get("finding") if isinstance(result, dict) else None
+                if not (
+                    args.auto_review
+                    and isinstance(finding, dict)
+                    and isinstance(finding.get("statePatch"), dict)
+                    and revision is not None
+                ):
+                    final_action = {
+                        "action": "reviewModelingResult",
+                        "reason": result.get("note") if isinstance(result, dict) else coordinator.get("reason"),
+                    }
+                    append_jsonl(steps_path, step)
+                    break
+                accepted = client.send(
+                    "thread/epiphany/roleAccept",
+                    {
+                        "threadId": thread_id,
+                        "roleId": "modeling",
+                        "expectedRevision": revision,
+                    },
+                )
+                step["events"].append(
+                    {
+                        "type": "roleAccept",
+                        "roleId": "modeling",
+                        "accepted": sanitize_for_operator(accepted),
+                    }
+                )
+                final_status = collect_coordinator_status(
+                    client,
+                    thread_id=thread_id,
+                    cwd=cwd,
+                    ephemeral=args.ephemeral,
+                )
+                append_jsonl(steps_path, step)
+                continue
+
             if action == "launchModeling":
                 launch = launch_role(
                     client,

@@ -44,8 +44,9 @@ Do not trust this file for the exact live HEAD. Always check git.
 - `tools/epiphany_agent_telemetry.py` is the safe instrument panel for sealed runs. Status/coordinator/GUI/dogfood/live-specialist tools generate telemetry JSON from sealed transcripts that preserves method names, call shape, job/status/path counts, and any visible function/tool names while sealing text, direct messages, and raw results.
 - Latest Aetheria supervised dogfood thread: `019ddc52-4ee8-7203-b6c0-106a9c270067` with codex-home `.epiphany-dogfood/aetheria-supervised/codex-home`. CRRC compact/reorient/reorientAccept reached Epiphany state revision 16 after rollout replay fixes. Later sanity review showed the modeler and verifier were doing the right work: modeling emitted source-grounded graph/checkpoint/frontier artifacts, while verification returned `needs-evidence` and explicitly did not bless implementation.
 - Coordinator policy now treats accepted verifier results as implementation clearance only when the verifier verdict is `pass`. Accepting a `needs-evidence`, `needs-review`, or `fail` verifier finding records the review but routes the loop back toward modeling/checkpoint strengthening or reorientation. The policy was tightened after a too-permissive coordinator path treated reviewed verifier output as a green light.
+- A later dogfood attempt exposed another supervision scar: manually launching modeling, reorientation, and verification from the supervisor is not clean dogfood. The coordinator now treats `regatherManually` as fallback only after fixed lanes cannot advance, stops at `reviewModelingResult` for completed unaccepted modeling findings, and the CLI runner's explicit test-only `--auto-review` mode can accept modeling `statePatch` findings before launching verification. Production semantic findings remain review-gated.
 - The implementation lane is the current product blocker, but it is now harness-visible. The latest audited artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777528376766401900-25000`: it shows `workspaceChanged: false`, wrote `implementation-audit.md`, applied a no-diff `thread/epiphany/update`, advanced Epiphany state to revision 17, and marked the investigation checkpoint `regather_required`. The next clean run should retry through the operator-safe coordinator lanes after the pre-compaction handoff repair, not by reading sealed worker thoughts.
-- Follow-up coordinator plans at `.epiphany-dogfood/aetheria-supervised/coordinator-after-nodiff-state-20260430-plan` and `.epiphany-dogfood/aetheria-supervised/coordinator-after-verification-verdict-policy-20260430-plan` return `regatherManually` with implementation blocked, instead of continuing fake progress.
+- Follow-up coordinator plans at `.epiphany-dogfood/aetheria-supervised/coordinator-after-nodiff-state-20260430-plan` and `.epiphany-dogfood/aetheria-supervised/coordinator-after-verification-verdict-policy-20260430-plan` returned `regatherManually` with implementation blocked. After the latest coordinator fix, `.epiphany-dogfood/aetheria-supervised/supervisor-runs/dogfood-20260430-094721/coordinator-post-puppet-fix-plan` returns `reviewModelingResult`: the harness now surfaces the unaccepted modeling finding instead of asking the supervisor to improvise.
 - The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -359,11 +360,14 @@ bounded browser-fallback controls. A live bridge probe also proved
 The next real move is not more direct Aetheria implementation. The clean
 supervised lane reached implementation too early because the coordinator treated
 an accepted verifier finding as a green light even when the verifier verdict was
-`needs-evidence`. That policy is now tightened: only an accepted verifier
-`pass` clears implementation. The current Aetheria thread should therefore
-start with bounded regather/modeling repair for the `regather_required`
-checkpoint and verifier evidence gaps, then run verification again before any
-implementation retry. Read only operator-safe projections; do not
+`needs-evidence`. The next dogfood attempt then proved that supervisor-clicked
+lane launches are theatre, not harness autonomy. Both policies are now
+tightened: only an accepted verifier `pass` clears implementation, and
+`regatherManually` no longer preempts fixed modeling/verification review lanes.
+The current Aetheria thread should stop at `reviewModelingResult` because the
+latest modeler produced a useful source-grounded finding but no reviewable
+`statePatch`; fix that modeling output contract before another implementation
+retry. Read only operator-safe projections; do not
 open raw worker transcripts, direct
 worker messages, or `rawResult` payloads unless the user explicitly asks for
 forensic debugging. Use generated function/API telemetry for call-shape
