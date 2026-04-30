@@ -42,11 +42,13 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention.
 - The dogfood quarantine now has a direct-thought boundary. The supervisor may read coordinator actions, role/reorient statuses, structured finding summaries, reviewed state patches, rendered status snapshots, and artifact manifests. It must not read raw worker transcripts, direct worker messages, full turn logs, or `rawResult` payloads during normal dogfood. Those artifacts are sealed for explicit forensic debugging only.
 - `tools/epiphany_agent_telemetry.py` is the safe instrument panel for sealed runs. Status/coordinator/GUI/dogfood/live-specialist tools generate telemetry JSON from sealed transcripts that preserves method names, call shape, job/status/path counts, and any visible function/tool names while sealing text, direct messages, and raw results.
-- Latest Aetheria supervised dogfood thread: `019ddc52-4ee8-7203-b6c0-106a9c270067` with codex-home `.epiphany-dogfood/aetheria-supervised/codex-home`. CRRC compact/reorient/reorientAccept reached Epiphany state revision 16 after rollout replay fixes. Later sanity review showed the modeler and verifier were doing the right work: modeling emitted source-grounded graph/checkpoint/frontier artifacts, while verification returned `needs-evidence` and explicitly did not bless implementation.
+- Latest Aetheria supervised dogfood thread: `019ddc52-4ee8-7203-b6c0-106a9c270067` with codex-home `.epiphany-dogfood/aetheria-supervised/codex-home`. It has now exercised modeling, verification, implementation audit, no-diff repair, CRRC reorientation, reorient acceptance, and coordinator replay through operator-safe artifacts without opening sealed worker thoughts.
 - Coordinator policy now treats accepted verifier results as implementation clearance only when the verifier verdict is `pass`. Accepting a `needs-evidence`, `needs-review`, or `fail` verifier finding records the review but routes the loop back toward modeling/checkpoint strengthening or reorientation. The policy was tightened after a too-permissive coordinator path treated reviewed verifier output as a green light.
 - A later dogfood attempt exposed another supervision scar: manually launching modeling, reorientation, and verification from the supervisor is not clean dogfood. The coordinator now treats `regatherManually` as fallback only after fixed lanes cannot advance, stops at `reviewModelingResult` for completed unaccepted modeling findings, and the CLI runner's explicit test-only `--auto-review` mode can accept modeling `statePatch` findings before launching verification. Production semantic findings remain review-gated.
-- The implementation lane is the current product blocker, but it is now harness-visible. The latest audited artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777528376766401900-25000`: it shows `workspaceChanged: false`, wrote `implementation-audit.md`, applied a no-diff `thread/epiphany/update`, advanced Epiphany state to revision 17, and marked the investigation checkpoint `regather_required`. The next clean run should retry through the operator-safe coordinator lanes after the pre-compaction handoff repair, not by reading sealed worker thoughts.
-- Follow-up coordinator plans at `.epiphany-dogfood/aetheria-supervised/coordinator-after-nodiff-state-20260430-plan` and `.epiphany-dogfood/aetheria-supervised/coordinator-after-verification-verdict-policy-20260430-plan` returned `regatherManually` with implementation blocked. After the latest coordinator fix, `.epiphany-dogfood/aetheria-supervised/supervisor-runs/dogfood-20260430-094721/coordinator-post-puppet-fix-plan` returns `reviewModelingResult`: the harness now surfaces the unaccepted modeling finding instead of asking the supervisor to improvise.
+- The latest dogfood pass fixed concrete harness wounds: stale completed backend jobs now project as terminal, accepted verifier non-pass findings no longer clear implementation, verification coverage accepts modeler source evidence ids as current-model coverage, implementation audits compare pre/post diff hashes instead of treating existing dirt as fresh work, the latest implementation audit status wins, blocked no-diff turns route back through CRRC, stale accepted reorient findings relaunch bounded reorientation when the checkpoint regathers, and accepted reorientation findings now bank resume-ready checkpoints.
+- The latest audited implementation artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777548050463576300-28568`: it correctly shows `workspaceChanged: false`, `dirtyWorkspace: true`, `trackedDiffChanged: false`, wrote a no-diff audit, advanced Epiphany state to revision 57, and routed coordinator/CRRC back to `launchReorientWorker` instead of pretending old dirt was progress.
+- Aetheria dogfood also exposed the next product organ: editor/runtime integration. An implementation worker launched legacy `D:\Unity\Editor\Unity.exe -version` (Unity 5.5.0f3) even though Aetheria pins Unity `6000.1.10f1`; the stray process was killed, and `tools/epiphany_gui_action.py` now tells implementation workers not to launch PATH/default/legacy Unity when the exact pinned editor is unavailable. This is a guardrail, not the real bridge.
+- The next real MVP organ is a typed editor/runtime bridge for engine repos: resolve the project-pinned editor, refuse wrong or missing versions, run explicit batch/test/probe commands, capture logs/screenshots/probe outputs as artifacts, and feed those artifacts into Epiphany evidence for verification. Do not let implementation agents test assumptions by launching random editors from shell.
 - The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
@@ -357,25 +359,19 @@ bounded browser-fallback controls. A live bridge probe also proved
 `prepareCheckpoint` creates a resumable thread and a later process can
 `readModelingResult` from it.
 
-The next real move is not more direct Aetheria implementation. The clean
-supervised lane reached implementation too early because the coordinator treated
-an accepted verifier finding as a green light even when the verifier verdict was
-`needs-evidence`. The next dogfood attempt then proved that supervisor-clicked
-lane launches are theatre, not harness autonomy. Both policies are now
-tightened: only an accepted verifier `pass` clears implementation, and
-`regatherManually` no longer preempts fixed modeling/verification review lanes.
-The current Aetheria thread should stop at `reviewModelingResult` because the
-latest modeler produced a useful source-grounded finding but no reviewable
-`statePatch`; fix that modeling output contract before another implementation
-retry. Read only operator-safe projections; do not
-open raw worker transcripts, direct
-worker messages, or `rawResult` payloads unless the user explicitly asks for
-forensic debugging. Use generated function/API telemetry for call-shape
-visibility without sungazing. CRRC is not a specialist-agent persona; the
-reorient-worker it may launch is the specialist. Do not turn the coordinator
-into a broad hidden dispatcher, arbitrary marketplace, alternate job backend,
-automatic semantic acceptance path, target-repo implementation worker,
-direct-thought feed, or GUI-as-source-of-truth.
+The next real move is not more direct Aetheria implementation. The supervised
+run proved the fixed lanes can catch failures, but engine verification needs a
+first-class editor/runtime bridge before the agent can test its assumptions.
+Build that bridge next: pinned Unity resolution, wrong-version refusal, explicit
+batch/test/probe commands, artifact capture, and evidence ingestion. Read only
+operator-safe projections; do not open raw worker transcripts, direct worker
+messages, or `rawResult` payloads unless the user explicitly asks for forensic
+debugging. Use generated function/API telemetry for call-shape visibility
+without sungazing. CRRC is not a specialist-agent persona; the reorient-worker
+it may launch is the specialist. Do not turn the coordinator into a broad hidden
+dispatcher, arbitrary marketplace, alternate job backend, automatic semantic
+acceptance path, target-repo implementation worker, direct-thought feed, random
+editor launcher, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
@@ -393,6 +389,7 @@ next organs.
 - GUI-as-source-of-truth
 - broad runtime CRRC execution beyond the landed safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
 - Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam
+- first-class editor/runtime bridge for pinned Unity or other engine/tool runtimes
 - broad event stream beyond the landed state update notification
 
 The machine is good enough to move outward. Do not sand the same edge until the

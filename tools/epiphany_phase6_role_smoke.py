@@ -38,6 +38,7 @@ def complete_role_backend_job(
     binding_id: str,
     role_id: str,
     verdict: str,
+    evidence_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     result = {
         "roleId": role_id,
@@ -48,7 +49,7 @@ def complete_role_backend_job(
         "scratchSummary": "Scratch remains review-only until explicitly updated.",
         "filesInspected": [WATCHED_RELATIVE_PATH.as_posix()],
         "frontierNodeIds": [GRAPH_NODE_ID],
-        "evidenceIds": ["ev-checkpoint"],
+        "evidenceIds": evidence_ids or ["ev-checkpoint"],
     }
     if role_id == "modeling":
         patch = reorient_patch()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 from copy import deepcopy
 from datetime import datetime
 from datetime import timezone
@@ -48,27 +49,147 @@ def run_git(cwd: Path, *args: str) -> dict[str, Any]:
     }
 
 
+def git_diff_hash(cwd: Path) -> dict[str, Any]:
+    diff = run_git(cwd, "diff", "--binary")
+    if not diff.get("ok"):
+        return diff
+    text = str(diff.get("stdout") or "")
+    return {
+        "ok": True,
+        "sha256": hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest(),
+        "bytes": len(text.encode("utf-8", errors="replace")),
+    }
+
+
 def git_snapshot(cwd: Path) -> dict[str, Any]:
     return {
         "head": run_git(cwd, "rev-parse", "--short", "HEAD"),
         "branch": run_git(cwd, "branch", "--show-current"),
         "status": run_git(cwd, "status", "--short", "--branch"),
         "changedFiles": run_git(cwd, "diff", "--name-only"),
+        "untrackedFiles": run_git(cwd, "ls-files", "--others", "--exclude-standard"),
         "diffStat": run_git(cwd, "diff", "--stat"),
+        "diffHash": git_diff_hash(cwd),
     }
 
 
-def git_change_summary(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+def split_git_lines(value: Any) -> list[str]:
+    text = str(value or "").strip()
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def normalize_repo_path(path: str) -> str:
+    return path.strip().replace("\\", "/")
+
+
+def parse_review_file_note(note: str) -> list[str]:
+    if ":" not in note:
+        return []
+    _, raw_paths = note.split(":", 1)
+    paths: list[str] = []
+    for raw_path in raw_paths.split(","):
+        path = normalize_repo_path(raw_path)
+        if not path or path.lower() in {"none", "unknown files"} or "*" in path:
+            continue
+        paths.append(path)
+    return paths
+
+
+def parent_path(path: str) -> str:
+    normalized = normalize_repo_path(path)
+    if "/" not in normalized:
+        return ""
+    return normalized.rsplit("/", 1)[0]
+
+
+def is_under(path: str, root: str) -> bool:
+    normalized = normalize_repo_path(path)
+    if not root:
+        return "/" not in normalized
+    return normalized == root or normalized.startswith(f"{root}/")
+
+
+def review_untracked_files(
+    *,
+    changed_files: list[str],
+    new_untracked_files: list[str],
+    after_untracked: set[str],
+    active_review_files: list[str] | None = None,
+) -> list[str]:
+    active_review_file_set = {
+        normalize_repo_path(path)
+        for path in active_review_files or []
+        if normalize_repo_path(path)
+    }
+    review_roots = {
+        parent_path(path)
+        for path in [*changed_files, *new_untracked_files, *active_review_file_set]
+        if path
+    }
+    if not review_roots:
+        return sorted(new_untracked_files)
+    return sorted(
+        path
+        for path in after_untracked
+        if path in new_untracked_files
+        or path in active_review_file_set
+        or any(is_under(path, root) for root in review_roots)
+    )
+
+
+def git_change_summary(
+    before: dict[str, Any],
+    after: dict[str, Any],
+    *,
+    active_review_files: list[str] | None = None,
+) -> dict[str, Any]:
     before_status = set(str(nested_get(before, "status", "stdout") or "").splitlines())
     after_status = set(str(nested_get(after, "status", "stdout") or "").splitlines())
     added_status = sorted(after_status - before_status)
     removed_status = sorted(before_status - after_status)
-    changed_files = str(nested_get(after, "changedFiles", "stdout") or "").strip()
+    before_changed_files = split_git_lines(nested_get(before, "changedFiles", "stdout"))
+    changed_files = split_git_lines(nested_get(after, "changedFiles", "stdout"))
+    before_untracked = set(split_git_lines(nested_get(before, "untrackedFiles", "stdout")))
+    after_untracked = set(split_git_lines(nested_get(after, "untrackedFiles", "stdout")))
+    new_untracked_files = sorted(after_untracked - before_untracked)
+    active_review_files = sorted(
+        {
+            normalize_repo_path(path)
+            for path in active_review_files or []
+            if normalize_repo_path(path)
+        }
+    )
+    untracked_files = review_untracked_files(
+        changed_files=changed_files,
+        new_untracked_files=new_untracked_files,
+        after_untracked=after_untracked,
+        active_review_files=active_review_files,
+    )
+    workspace_files = sorted({*changed_files, *untracked_files})
+    ignored_untracked_count = max(0, len(after_untracked) - len(set(untracked_files)))
+    before_diff_stat = str(nested_get(before, "diffStat", "stdout") or "").strip()
     diff_stat = str(nested_get(after, "diffStat", "stdout") or "").strip()
+    before_diff_hash = nested_get(before, "diffHash", "sha256")
+    after_diff_hash = nested_get(after, "diffHash", "sha256")
+    if isinstance(before_diff_hash, str) and isinstance(after_diff_hash, str):
+        tracked_diff_changed = before_diff_hash != after_diff_hash
+    else:
+        tracked_diff_changed = before_changed_files != changed_files or before_diff_stat != diff_stat
+    workspace_changed = bool(
+        added_status or removed_status or new_untracked_files or tracked_diff_changed
+    )
     return {
-        "workspaceChanged": bool(added_status or removed_status or changed_files or diff_stat),
+        "workspaceChanged": workspace_changed,
+        "dirtyWorkspace": bool(changed_files or after_untracked or diff_stat),
         "trackedDiffPresent": bool(changed_files or diff_stat),
-        "changedFiles": changed_files.splitlines() if changed_files else [],
+        "trackedDiffChanged": tracked_diff_changed,
+        "beforeChangedFiles": before_changed_files,
+        "changedFiles": changed_files,
+        "untrackedFiles": untracked_files,
+        "newUntrackedFiles": new_untracked_files,
+        "activeReviewFiles": active_review_files,
+        "workspaceFiles": workspace_files,
+        "ignoredUntrackedFileCount": ignored_untracked_count,
         "statusAdded": added_status,
         "statusRemoved": removed_status,
         "diffStat": diff_stat,
@@ -85,27 +206,62 @@ def render_implementation_audit(result: dict[str, Any]) -> str:
     status_removed = result.get("statusRemoved")
     if not isinstance(status_removed, list):
         status_removed = []
+    untracked_files = result.get("untrackedFiles")
+    if not isinstance(untracked_files, list):
+        untracked_files = []
+    new_untracked_files = result.get("newUntrackedFiles")
+    if not isinstance(new_untracked_files, list):
+        new_untracked_files = []
+    active_review_files = result.get("activeReviewFiles")
+    if not isinstance(active_review_files, list):
+        active_review_files = []
+    ignored_untracked_count = result.get("ignoredUntrackedFileCount")
+    if not isinstance(ignored_untracked_count, int):
+        ignored_untracked_count = 0
+    workspace_files = result.get("workspaceFiles")
+    if not isinstance(workspace_files, list):
+        workspace_files = []
 
     outcome = (
-        "reviewable workspace diff"
+        "reviewable new workspace diff"
         if result.get("workspaceChanged")
-        else "no workspace diff"
+        else "no new workspace diff"
     )
     next_action = (
         "Review the changed files before accepting this implementation slice."
         if result.get("workspaceChanged")
-        else "Stop and review this as an implementation-lane failure before rerunning; the worker completed without changing the target workspace."
+        else "Stop and review this as an implementation-lane failure before rerunning; the worker completed without changing the target workspace further."
     )
     return "\n".join(
         [
             "# Implementation Audit",
             "",
             f"Outcome: {outcome}",
+            f"Dirty workspace present: {bool(result.get('dirtyWorkspace'))}",
             f"Tracked diff present: {bool(result.get('trackedDiffPresent'))}",
+            f"Tracked diff changed this turn: {bool(result.get('trackedDiffChanged'))}",
             "",
             "Changed files:",
             *(f"- {path}" for path in changed_files),
             *([] if changed_files else ["- none"]),
+            "",
+            "Untracked files:",
+            *(f"- {path}" for path in untracked_files),
+            *([] if untracked_files else ["- none"]),
+            "",
+            "New untracked files this turn:",
+            *(f"- {path}" for path in new_untracked_files),
+            *([] if new_untracked_files else ["- none"]),
+            "",
+            "Carried review files from Epiphany scratch:",
+            *(f"- {path}" for path in active_review_files),
+            *([] if active_review_files else ["- none"]),
+            "",
+            f"Ignored unrelated untracked files: {ignored_untracked_count}",
+            "",
+            "Workspace files needing review:",
+            *(f"- {path}" for path in workspace_files),
+            *([] if workspace_files else ["- none"]),
             "",
             "Git status delta:",
             *(f"- added: {line}" for line in status_added),
@@ -125,6 +281,91 @@ def nested_get(value: dict[str, Any], *keys: str) -> Any:
             return None
         current = current.get(key)
     return current
+
+
+def active_review_files_from_status(status: dict[str, Any]) -> list[str]:
+    state = nested_get(status, "read", "thread", "epiphanyState")
+    if not isinstance(state, dict):
+        return []
+    scratch = state.get("scratch")
+    if not isinstance(scratch, dict):
+        return []
+    notes = scratch.get("notes")
+    if not isinstance(notes, list):
+        return []
+    files: list[str] = []
+    for note in notes:
+        if not isinstance(note, str):
+            continue
+        if note.startswith(
+            (
+                "Tracked files:",
+                "Review untracked files:",
+                "Untracked files:",
+                "New untracked files this turn:",
+            )
+        ):
+            files.extend(parse_review_file_note(note))
+    return sorted(set(files))
+
+
+def read_unity_project_version(cwd: Path) -> str | None:
+    version_path = cwd / "ProjectSettings" / "ProjectVersion.txt"
+    if not version_path.exists():
+        return None
+    for line in version_path.read_text(encoding="utf-8", errors="replace").splitlines():
+        if line.startswith("m_EditorVersion:"):
+            version = line.split(":", 1)[1].strip()
+            return version or None
+    return None
+
+
+def installed_unity_hub_versions() -> list[str]:
+    roots = [
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        / "Unity"
+        / "Hub"
+        / "Editor",
+        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"))
+        / "Unity"
+        / "Hub"
+        / "Editor",
+    ]
+    versions: set[str] = set()
+    for root in roots:
+        if not root.exists():
+            continue
+        versions.update(path.name for path in root.iterdir() if path.is_dir())
+    return sorted(versions)
+
+
+def unity_guidance(cwd: Path) -> str:
+    project_version = read_unity_project_version(cwd)
+    if project_version is None:
+        return "- Unity: no ProjectSettings/ProjectVersion.txt was found; do not launch Unity from PATH."
+    exact_editor = (
+        Path(os.environ.get("ProgramFiles", r"C:\Program Files"))
+        / "Unity"
+        / "Hub"
+        / "Editor"
+        / project_version
+        / "Editor"
+        / "Unity.exe"
+    )
+    installed_versions = installed_unity_hub_versions()
+    installed_text = ", ".join(installed_versions) if installed_versions else "none detected"
+    if exact_editor.exists():
+        return (
+            f"- Unity: project pins {project_version}. If an editor run is unavoidable, "
+            f"use only `{exact_editor}` with explicit batch/quit/projectPath arguments; "
+            "do not invoke `Unity`, `Unity.exe`, default installs, or PATH-resolved editors."
+        )
+    return (
+        f"- Unity: project pins {project_version}, but no exact Hub editor was found "
+        f"(Hub versions detected: {installed_text}). Do not launch `Unity`, `Unity.exe`, "
+        "default installs, or legacy editors; if runtime parity requires Unity, stop with "
+        "a reviewable inability/evidence-gap artifact instead of probing with the wrong editor."
+    )
 
 
 def first_present(value: dict[str, Any], *paths: tuple[str, ...]) -> Any:
@@ -153,7 +394,7 @@ def summarized_recent_evidence(state: dict[str, Any], limit: int = 8) -> list[st
     return lines
 
 
-def build_implementation_prompt(status: dict[str, Any]) -> str:
+def build_implementation_prompt(status: dict[str, Any], cwd: Path) -> str:
     operator_status = sanitize_for_operator(status)
     state = first_present(
         operator_status,
@@ -217,6 +458,8 @@ Accepted evidence:
 Implementation rules:
 - Do not read sealed transcript artifacts or raw specialist result payloads.
 - Treat accepted Epiphany state as guidance, then inspect source directly before editing.
+- Environment guardrails:
+{unity_guidance(cwd)}
 - Make a bounded first pass: design or implement a parallel compute-backed gravity height producer that preserves the current `_NebulaSurfaceHeight`, `_GridTransform`, and Slime `Heightmap` contracts before changing shader consumers.
 - This is an implementation turn, not a planning turn. Leave a concrete source diff unless direct source evidence proves the bounded pass is impossible.
 - If there is no implementation diff yet, prefer a small reversible compatibility scaffold over another explanation. A valid first diff may be a source-local contract/scaffold for a compute-backed gravity height producer that runs beside the camera path and does not rewire consumers yet.
@@ -256,7 +499,7 @@ def implementation_no_diff_patch(
     updated_checkpoint = deepcopy(checkpoint)
     updated_checkpoint["disposition"] = "regather_required"
     updated_checkpoint["summary"] = (
-        "Implementation turn completed with no workspace diff; the current "
+        "Implementation turn completed with no new workspace diff; the current "
         "checkpoint is insufficient to drive the coding lane safely."
     )
     updated_checkpoint["next_action"] = (
@@ -277,8 +520,8 @@ def implementation_no_diff_patch(
                 "id": observation_id,
                 "summary": (
                     "The implementation lane completed a bounded turn but left "
-                    "no tracked workspace diff, so continuation needs review or "
-                    "checkpoint repair."
+                    "no new tracked or untracked workspace delta, so continuation "
+                    "needs review or checkpoint repair."
                 ),
                 "source_kind": "implementation",
                 "status": "blocked",
@@ -291,12 +534,88 @@ def implementation_no_diff_patch(
                 "kind": "implementation-audit",
                 "status": "blocked",
                 "summary": (
-                    "continueImplementation produced no workspace diff "
+                    "continueImplementation produced no new workspace diff "
                     f"(trackedDiffPresent={bool(implementation_result.get('trackedDiffPresent'))}); "
                     f"artifact={artifact_dir.name}."
                 ),
             }
         ],
+    }
+
+
+def implementation_diff_patch(
+    *,
+    artifact_dir: Path,
+    implementation_result: dict[str, Any],
+) -> dict[str, Any]:
+    evidence_id = f"ev-implementation-diff-{artifact_dir.name}"
+    observation_id = f"obs-implementation-diff-{artifact_dir.name}"
+    workspace_files = implementation_result.get("workspaceFiles")
+    if not isinstance(workspace_files, list):
+        workspace_files = []
+    changed_files = implementation_result.get("changedFiles")
+    if not isinstance(changed_files, list):
+        changed_files = []
+    untracked_files = implementation_result.get("untrackedFiles")
+    if not isinstance(untracked_files, list):
+        untracked_files = []
+    new_untracked_files = implementation_result.get("newUntrackedFiles")
+    if not isinstance(new_untracked_files, list):
+        new_untracked_files = []
+    ignored_untracked_count = implementation_result.get("ignoredUntrackedFileCount")
+    if not isinstance(ignored_untracked_count, int):
+        ignored_untracked_count = 0
+
+    file_text = ", ".join(str(path) for path in workspace_files[:12]) or "unknown files"
+    code_refs = [
+        {
+            "path": str(path),
+            "note": "Changed by bounded continueImplementation evidence-gathering turn.",
+        }
+        for path in workspace_files[:20]
+    ]
+    summary = (
+        "continueImplementation produced a reviewable workspace diff "
+        f"(trackedDiffPresent={bool(implementation_result.get('trackedDiffPresent'))}); "
+        f"artifact={artifact_dir.name}; files={file_text}."
+    )
+    return {
+        "observations": [
+            {
+                "id": observation_id,
+                "summary": (
+                    "The implementation lane produced a bounded workspace diff "
+                    "from the current accepted modeling checkpoint; verification "
+                    "should review the changed files before implementation continues."
+                ),
+                "source_kind": "implementation",
+                "status": "accepted",
+                "evidence_ids": [evidence_id],
+                "code_refs": code_refs,
+            }
+        ],
+        "evidence": [
+            {
+                "id": evidence_id,
+                "kind": "implementation-audit",
+                "status": "ok",
+                "summary": summary,
+                "code_refs": code_refs,
+            }
+        ],
+        "scratch": {
+            "summary": (
+                "Implementation produced a reviewable diff; next safe move is "
+                "verification of the changed workspace files, including untracked files."
+            ),
+            "next_probe": "Run verification/review against the implementation diff before continuing.",
+            "notes": [
+                f"Tracked files: {', '.join(str(path) for path in changed_files) or 'none'}",
+                f"Untracked files: {', '.join(str(path) for path in untracked_files) or 'none'}",
+                f"New untracked files this turn: {', '.join(str(path) for path in new_untracked_files) or 'none'}",
+                f"Ignored unrelated untracked files: {ignored_untracked_count}",
+            ],
+        },
     }
 
 
@@ -672,7 +991,7 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                         f"(got {coordinator.get('action')!r})"
                     )
                 pre_git = git_snapshot(cwd)
-                prompt = build_implementation_prompt(before)
+                prompt = build_implementation_prompt(before, cwd)
                 write_text(artifact_dir / "implementation-prompt.md", prompt)
                 turn = client.send(
                     "turn/start",
@@ -700,7 +1019,11 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                     "turn/completed", timeout=args.timeout_seconds
                 )
                 post_git = git_snapshot(cwd)
-                implementation_result = git_change_summary(pre_git, post_git)
+                implementation_result = git_change_summary(
+                    pre_git,
+                    post_git,
+                    active_review_files=active_review_files_from_status(before),
+                )
                 write_json(artifact_dir / "git-before.json", pre_git)
                 write_json(artifact_dir / "git-after.json", post_git)
                 write_json(artifact_dir / "implementation-result.json", implementation_result)
@@ -708,6 +1031,8 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                     artifact_dir / "implementation-audit.md",
                     render_implementation_audit(implementation_result),
                 )
+                update_status = collect_status(client, thread_id=thread_id, cwd=cwd, ephemeral=False)
+                update_revision = state_revision(update_status)
                 response = {
                     "turn": turn,
                     "completed": sanitize_for_operator(completed),
@@ -716,6 +1041,22 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                     "implementationResult": implementation_result,
                 }
                 if implementation_result["workspaceChanged"]:
+                    diff_patch = implementation_diff_patch(
+                        artifact_dir=artifact_dir,
+                        implementation_result=implementation_result,
+                    )
+                    if update_revision is not None:
+                        write_json(artifact_dir / "implementation-state-patch.json", diff_patch)
+                        diff_update = client.send(
+                            "thread/epiphany/update",
+                            {
+                                "threadId": thread_id,
+                                "expectedRevision": update_revision,
+                                "patch": diff_patch,
+                            },
+                        )
+                        write_json(artifact_dir / "implementation-state-update.json", diff_update)
+                        response["implementationUpdate"] = sanitize_for_operator(diff_update)
                     summary = (
                         "Ran bounded implementation turn and produced a reviewable workspace diff."
                     )
@@ -731,14 +1072,16 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                             "thread/epiphany/update",
                             {
                                 "threadId": thread_id,
-                                "expectedRevision": revision,
+                                "expectedRevision": update_revision
+                                if update_revision is not None
+                                else revision,
                                 "patch": no_diff_patch,
                             },
                         )
                         write_json(artifact_dir / "no-diff-state-update.json", no_diff_update)
                         response["noDiffUpdate"] = sanitize_for_operator(no_diff_update)
                     summary = (
-                        "Ran bounded implementation turn, but it produced no workspace diff."
+                        "Ran bounded implementation turn, but it produced no new workspace diff."
                     )
                     if response.get("noDiffUpdate"):
                         summary += " Marked the checkpoint for repair before retry."

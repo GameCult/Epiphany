@@ -231,6 +231,7 @@ def maybe_complete_role_backend(
     launch: dict[str, Any],
     *,
     role_id: str,
+    evidence_ids: list[str] | None = None,
 ) -> dict[str, Any] | None:
     if not args.test_complete_backend:
         return None
@@ -245,6 +246,7 @@ def maybe_complete_role_backend(
         binding_id=binding_id,
         role_id=role_id,
         verdict=verdict,
+        evidence_ids=evidence_ids,
     )
 
 
@@ -288,6 +290,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
     snapshots: list[str] = []
     final_status: dict[str, Any] | None = None
     final_action: dict[str, Any] | None = None
+    accepted_modeling_evidence_id: str | None = None
 
     with AppServerClient(app_server, codex_home, transcript_path, stderr_path) as client:
         client.send(
@@ -413,6 +416,10 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                         "accepted": sanitize_for_operator(accepted),
                     }
                 )
+                if isinstance(accepted, dict):
+                    accepted_id = accepted.get("acceptedEvidenceId")
+                    if isinstance(accepted_id, str) and accepted_id:
+                        accepted_modeling_evidence_id = accepted_id
                 final_status = collect_coordinator_status(
                     client,
                     thread_id=thread_id,
@@ -484,7 +491,17 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                         "launch": sanitize_for_operator(launch),
                     }
                 )
-                completed = maybe_complete_role_backend(args, launch, role_id="verification")
+                verification_evidence_ids = (
+                    ["ev-checkpoint", accepted_modeling_evidence_id]
+                    if accepted_modeling_evidence_id
+                    else None
+                )
+                completed = maybe_complete_role_backend(
+                    args,
+                    launch,
+                    role_id="verification",
+                    evidence_ids=verification_evidence_ids,
+                )
                 if completed is not None:
                     step["events"].append(
                         {"type": "testCompleteBackend", "payload": sanitize_for_operator(completed)}

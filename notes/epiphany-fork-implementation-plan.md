@@ -160,10 +160,11 @@ and notify typed state. It can.
 
 The next unknowns are:
 
+- how to give implementation and verification lanes controlled runtime/editor access without letting workers launch random local tools
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how far the read-only CRRC recommendation should go before explicit client/operator action takes over
 - how much narrow coordination is needed so modeling, implementation, verification, and CRRC automation can hand off work without collapsing back into one context
-- what concrete operator friction appears when the CLI MVP is tested on real work
+- what concrete operator friction appears when the GUI/operator MVP is tested on real work
 
 ## MVP Cutline
 
@@ -237,15 +238,25 @@ written. The runner now always writes the prompt, reference status, comparison,
 and manifest honestly, and an explicit `--run-vanilla-reference` pass can spend
 a real vanilla Codex turn and persist its transcript for comparison.
 
+The latest Aetheria dogfood pass found the next bigger blocker. The fixed lanes
+can now catch modeling, verification, stale job, no-diff, and reorientation
+failures, but the implementation lane cannot prove engine assumptions without a
+controlled editor/runtime bridge. A worker tried to launch a legacy default
+Unity editor even though Aetheria pins a Unity 6000 project version. The guard
+is now to refuse PATH/default/legacy Unity, but the real MVP organ is a bridge
+that resolves the project-pinned editor, runs explicit batch/test/probe commands,
+captures logs and artifacts, and feeds those artifacts into evidence.
+
 ## Phase 6 Direction
 
 Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Keep dogfood execution agent-run and auditable, then put the fixed-lane coordinator and pre-compaction checkpoint loop in front of the user through the smallest local GUI/operator view over the same status/artifact surfaces.
-2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-3. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
+1. Build a first-class editor/runtime bridge for engine repos. For Unity, read the project-pinned editor version, refuse wrong or missing editors, run only explicit batch/test/probe commands, and write logs/probe output into auditable artifacts.
+2. Keep dogfood execution agent-run and auditable, then put the fixed-lane coordinator and pre-compaction checkpoint loop in front of the user through the smallest local GUI/operator view over the same status/artifact surfaces.
+3. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
+4. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
@@ -327,6 +338,7 @@ These remain later work:
 - richer role ergonomics after the fixed single-user coordinator proves useful
 - mutation gates that warn or block broad writes when map freshness is stale
 - broader CRRC runtime coordination beyond the landed narrow safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
+- richer editor/runtime bridges beyond the first pinned Unity bridge
 - richer GUI workflows for graph, evidence, job, invariant, and frontier steering after the operator console proves useful
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a

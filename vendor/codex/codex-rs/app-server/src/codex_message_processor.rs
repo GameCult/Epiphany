@@ -4650,6 +4650,9 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
         });
+        let modeling_result_reviewable = modeling_finding
+            .as_ref()
+            .is_some_and(epiphany_modeling_finding_has_reviewable_state_patch);
         let (verification_result_status, verification_finding, _) =
             if let Some(state) = thread.epiphany_state.as_ref() {
                 load_epiphany_role_result_snapshot(
@@ -4672,6 +4675,15 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
         });
+        let verification_result_covers_current_modeling =
+            thread.epiphany_state.as_ref().is_none_or(|state| {
+                epiphany_verification_finding_covers_current_modeling(
+                    state,
+                    modeling_result_accepted,
+                    modeling_finding.as_ref(),
+                    verification_finding.as_ref(),
+                )
+            });
         let modeling_result_accepted_after_verification =
             thread.epiphany_state.as_ref().is_some_and(|state| {
                 role_finding_accepted_after(
@@ -4680,10 +4692,25 @@ impl CodexMessageProcessor {
                     verification_finding.as_ref(),
                 )
             });
+        let implementation_evidence_after_verification =
+            thread.epiphany_state.as_ref().is_some_and(|state| {
+                implementation_evidence_after_role_finding(state, verification_finding.as_ref())
+            });
+        let verification_result_cites_implementation_evidence =
+            thread.epiphany_state.as_ref().is_some_and(|state| {
+                epiphany_role_finding_cites_implementation_evidence(
+                    state,
+                    verification_finding.as_ref(),
+                )
+            });
         let verification_result_allows_implementation = verification_result_accepted
             && verification_finding
                 .as_ref()
                 .is_some_and(epiphany_verification_finding_allows_implementation);
+        let verification_result_needs_evidence = verification_result_accepted
+            && verification_finding
+                .as_ref()
+                .is_some_and(epiphany_verification_finding_needs_evidence);
 
         let source_signals = ThreadEpiphanyCoordinatorSignals {
             pressure_level: pressure.level,
@@ -4702,9 +4729,14 @@ impl CodexMessageProcessor {
             &roles,
             &source_signals,
             modeling_result_accepted,
+            modeling_result_reviewable,
             modeling_result_accepted_after_verification,
+            implementation_evidence_after_verification,
+            verification_result_cites_implementation_evidence,
+            verification_result_covers_current_modeling,
             verification_result_accepted,
             verification_result_allows_implementation,
+            verification_result_needs_evidence,
             reorient_finding_accepted,
         );
         let note = render_epiphany_coordinator_note(
@@ -13208,51 +13240,88 @@ fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_js
         }
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => vec![],
     };
+    let mut properties = serde_json::json!({
+        "roleId": {
+            "type": "string",
+            "enum": [epiphany_role_label(role_id)]
+        },
+        "verdict": {
+            "type": "string",
+            "enum": verdict_enum
+        },
+        "summary": {"type": "string"},
+        "nextSafeMove": {"type": "string"},
+        "checkpointSummary": {"type": "string"},
+        "scratchSummary": {"type": "string"},
+        "filesInspected": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "frontierNodeIds": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "evidenceIds": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "openQuestions": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "evidenceGaps": {
+            "type": "array",
+            "items": {"type": "string"}
+        },
+        "risks": {
+            "type": "array",
+            "items": {"type": "string"}
+        }
+    });
+    let mut required = vec![
+        "roleId",
+        "verdict",
+        "summary",
+        "nextSafeMove",
+        "filesInspected",
+    ];
+    if role_id == ThreadEpiphanyRoleId::Modeling {
+        if let Some(map) = properties.as_object_mut() {
+            map.insert(
+                "statePatch".to_string(),
+                serde_json::json!({
+                    "type": "object",
+                    "description": "Required reviewable thread/epiphany/update patch for modeling. Use only graphs, graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence. The patch must include at least one durable modeling field, not observations/evidence alone.",
+                    "anyOf": [
+                        {"required": ["graphs"]},
+                        {"required": ["graphFrontier"]},
+                        {"required": ["graphCheckpoint"]},
+                        {"required": ["scratch"]},
+                        {"required": ["investigationCheckpoint"]}
+                    ],
+                    "properties": {
+                        "investigationCheckpoint": {
+                            "type": "object",
+                            "properties": {
+                                "disposition": {
+                                    "type": "string",
+                                    "enum": ["resume_ready", "regather_required"]
+                                }
+                            },
+                            "additionalProperties": true
+                        }
+                    },
+                    "additionalProperties": true
+                }),
+            );
+        }
+        required.push("frontierNodeIds");
+        required.push("statePatch");
+    }
     serde_json::json!({
         "type": "object",
-        "properties": {
-            "roleId": {
-                "type": "string",
-                "enum": [epiphany_role_label(role_id)]
-            },
-            "verdict": {
-                "type": "string",
-                "enum": verdict_enum
-            },
-            "summary": {"type": "string"},
-            "nextSafeMove": {"type": "string"},
-            "checkpointSummary": {"type": "string"},
-            "scratchSummary": {"type": "string"},
-            "filesInspected": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
-            "frontierNodeIds": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
-            "evidenceIds": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
-            "openQuestions": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
-            "evidenceGaps": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
-            "risks": {
-                "type": "array",
-                "items": {"type": "string"}
-            },
-            "statePatch": {
-                "type": "object",
-                "description": "Optional reviewable thread/epiphany/update patch. Modeling may use only graphs, graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence."
-            }
-        },
-        "required": ["summary", "nextSafeMove"],
+        "properties": properties,
+        "required": required,
         "additionalProperties": true
     })
 }
@@ -13484,6 +13553,18 @@ fn map_epiphany_role_finding(
     job_error: Option<String>,
     item_error: Option<String>,
 ) -> ThreadEpiphanyRoleFinding {
+    let state_patch = raw_result
+        .get("statePatch")
+        .cloned()
+        .and_then(|patch| serde_json::from_value(patch).ok());
+    let item_error = if role_id == ThreadEpiphanyRoleId::Modeling {
+        merge_epiphany_item_error(
+            item_error,
+            modeling_role_state_patch_error(&raw_result, state_patch.as_ref()),
+        )
+    } else {
+        item_error
+    };
     ThreadEpiphanyRoleFinding {
         role_id,
         verdict: json_string_field(&raw_result, "verdict"),
@@ -13497,14 +13578,57 @@ fn map_epiphany_role_finding(
         open_questions: json_string_array_field(&raw_result, "openQuestions"),
         evidence_gaps: json_string_array_field(&raw_result, "evidenceGaps"),
         risks: json_string_array_field(&raw_result, "risks"),
-        state_patch: raw_result
-            .get("statePatch")
-            .cloned()
-            .and_then(|patch| serde_json::from_value(patch).ok()),
+        state_patch,
         job_error,
         item_error,
         raw_result,
     }
+}
+
+fn merge_epiphany_item_error(
+    item_error: Option<String>,
+    modeling_error: Option<String>,
+) -> Option<String> {
+    match (item_error, modeling_error) {
+        (Some(existing), Some(extra)) => Some(format!("{existing}; {extra}")),
+        (Some(existing), None) => Some(existing),
+        (None, Some(extra)) => Some(extra),
+        (None, None) => None,
+    }
+}
+
+fn modeling_role_state_patch_error(
+    raw_result: &serde_json::Value,
+    state_patch: Option<&ThreadEpiphanyUpdatePatch>,
+) -> Option<String> {
+    let Some(value) = raw_result.get("statePatch") else {
+        return Some("modeling result is not reviewable: missing required statePatch".to_string());
+    };
+    let Some(patch) = state_patch else {
+        return Some(format!(
+            "modeling result is not reviewable: invalid statePatch ({})",
+            serde_json::from_value::<ThreadEpiphanyUpdatePatch>(value.clone()).unwrap_err()
+        ));
+    };
+    let errors = modeling_role_accept_patch_errors(patch);
+    if errors.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "modeling result is not reviewable: {}",
+            errors.join("; ")
+        ))
+    }
+}
+
+fn epiphany_modeling_finding_has_reviewable_state_patch(
+    finding: &ThreadEpiphanyRoleFinding,
+) -> bool {
+    finding.role_id == ThreadEpiphanyRoleId::Modeling
+        && finding
+            .state_patch
+            .as_ref()
+            .is_some_and(|patch| modeling_role_accept_patch_errors(patch).is_empty())
 }
 
 fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
@@ -13538,10 +13662,17 @@ fn render_epiphany_role_result_note(
         ThreadEpiphanyRoleResultStatus::Completed => {
             if let Some(finding) = finding {
                 let next = finding.next_safe_move.as_deref().unwrap_or("not supplied");
-                format!(
-                    "{:?} role specialist completed. Next safe move: {next}",
-                    role_id
-                )
+                if let Some(item_error) = finding.item_error.as_deref().or(item_error) {
+                    format!(
+                        "{:?} role specialist completed, but the finding needs repair: {item_error}. Next safe move: {next}",
+                        role_id
+                    )
+                } else {
+                    format!(
+                        "{:?} role specialist completed. Next safe move: {next}",
+                        role_id
+                    )
+                }
             } else {
                 format!(
                     "{:?} role specialist completed, but no structured result was recorded.",
@@ -13884,10 +14015,17 @@ fn map_epiphany_crrc_recommendation(
                 );
             }
             if finding_accepted && decision.action == ThreadEpiphanyReorientAction::Regather {
+                if loaded {
+                    return build(
+                        ThreadEpiphanyCrrcAction::LaunchReorientWorker,
+                        Some(ThreadEpiphanySceneAction::ReorientLaunch),
+                        "The accepted reorientation finding is stale against the current regather checkpoint; launch a fresh bounded worker before implementation continues.",
+                    );
+                }
                 return build(
                     ThreadEpiphanyCrrcAction::RegatherManually,
                     Some(ThreadEpiphanySceneAction::Reorient),
-                    "The reorientation finding is already accepted; re-gather from the banked checkpoint before implementation continues.",
+                    "The accepted reorientation finding is stale against the current regather checkpoint, but the thread is not loaded.",
                 );
             }
             if finding_accepted {
@@ -14015,9 +14153,14 @@ fn map_epiphany_coordinator(
     roles: &[ThreadEpiphanyRoleLane],
     signals: &ThreadEpiphanyCoordinatorSignals,
     modeling_result_accepted: bool,
+    modeling_result_reviewable: bool,
     modeling_result_accepted_after_verification: bool,
+    implementation_evidence_after_verification: bool,
+    verification_result_cites_implementation_evidence: bool,
+    verification_result_covers_current_modeling: bool,
     verification_result_accepted: bool,
     verification_result_allows_implementation: bool,
+    verification_result_needs_evidence: bool,
     reorient_finding_accepted: bool,
 ) -> EpiphanyCoordinatorDecision {
     let build = |action,
@@ -14101,6 +14244,16 @@ fn map_epiphany_coordinator(
     if signals.modeling_result_status == ThreadEpiphanyRoleResultStatus::Completed
         && !modeling_result_accepted
     {
+        if !modeling_result_reviewable {
+            return build(
+                ThreadEpiphanyCoordinatorAction::LaunchModeling,
+                Some(ThreadEpiphanyRoleId::Modeling),
+                Some(ThreadEpiphanySceneAction::RoleLaunch),
+                false,
+                true,
+                "The completed modeling/checkpoint finding is not reviewable because it has no acceptable statePatch; relaunch modeling with the typed patch contract before verification or implementation continues.",
+            );
+        }
         return build(
             ThreadEpiphanyCoordinatorAction::ReviewModelingResult,
             Some(ThreadEpiphanyRoleId::Modeling),
@@ -14108,6 +14261,33 @@ fn map_epiphany_coordinator(
             true,
             false,
             "A modeling/checkpoint finding is complete and must be reviewed before verification or implementation continues.",
+        );
+    }
+
+    if matches!(
+        signals.modeling_result_status,
+        ThreadEpiphanyRoleResultStatus::Pending | ThreadEpiphanyRoleResultStatus::Running
+    ) {
+        return build(
+            ThreadEpiphanyCoordinatorAction::ReviewModelingResult,
+            Some(ThreadEpiphanyRoleId::Modeling),
+            Some(ThreadEpiphanySceneAction::RoleResult),
+            false,
+            false,
+            "A modeling/checkpoint specialist is already running; wait for its result before reviewing stale verification output.",
+        );
+    }
+
+    if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed
+        && !verification_result_covers_current_modeling
+    {
+        return build(
+            ThreadEpiphanyCoordinatorAction::LaunchVerification,
+            Some(ThreadEpiphanyRoleId::Verification),
+            Some(ThreadEpiphanySceneAction::RoleLaunch),
+            false,
+            true,
+            "The completed verification/review finding does not cover the currently accepted modeling evidence; relaunch verification before implementation continues.",
         );
     }
 
@@ -14121,6 +14301,65 @@ fn map_epiphany_coordinator(
             true,
             false,
             "A verification/review finding is complete and must be reviewed before continuation.",
+        );
+    }
+
+    if verification_result_accepted && implementation_evidence_after_verification {
+        return build(
+            ThreadEpiphanyCoordinatorAction::LaunchVerification,
+            Some(ThreadEpiphanyRoleId::Verification),
+            Some(ThreadEpiphanySceneAction::RoleLaunch),
+            false,
+            true,
+            "Implementation evidence was produced after the accepted verification/review finding; rerun verification before implementation continues.",
+        );
+    }
+
+    if recommendation.action == ThreadEpiphanyCrrcAction::RegatherManually
+        && role_status(roles, ThreadEpiphanyRoleId::Implementation)
+            == Some(ThreadEpiphanyRoleStatus::Blocked)
+    {
+        return build(
+            ThreadEpiphanyCoordinatorAction::RegatherManually,
+            Some(ThreadEpiphanyRoleId::Reorientation),
+            recommendation.recommended_scene_action,
+            true,
+            false,
+            "CRRC says regather is required and the implementation lane is blocked; repair continuity before another coding turn.",
+        );
+    }
+
+    if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed
+        && verification_result_accepted
+        && !verification_result_allows_implementation
+        && verification_result_needs_evidence
+        && modeling_result_accepted
+        && verification_result_covers_current_modeling
+    {
+        return build(
+            ThreadEpiphanyCoordinatorAction::ContinueImplementation,
+            Some(ThreadEpiphanyRoleId::Implementation),
+            None,
+            false,
+            false,
+            "The accepted verification/review finding asks for implementation evidence from the current modeling checkpoint; continue only the bounded evidence-gathering implementation step before re-verification.",
+        );
+    }
+
+    if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed
+        && verification_result_accepted
+        && !verification_result_allows_implementation
+        && verification_result_cites_implementation_evidence
+        && modeling_result_accepted
+        && verification_result_covers_current_modeling
+    {
+        return build(
+            ThreadEpiphanyCoordinatorAction::ContinueImplementation,
+            Some(ThreadEpiphanyRoleId::Implementation),
+            None,
+            false,
+            false,
+            "The accepted verification/review finding failed against concrete implementation evidence from the current model; continue only the bounded repair step before re-verification.",
         );
     }
 
@@ -14173,20 +14412,6 @@ fn map_epiphany_coordinator(
             false,
             true,
             "The modeling/checkpoint lane is ready and no current modeling finding is available.",
-        );
-    }
-
-    if matches!(
-        signals.modeling_result_status,
-        ThreadEpiphanyRoleResultStatus::Pending | ThreadEpiphanyRoleResultStatus::Running
-    ) {
-        return build(
-            ThreadEpiphanyCoordinatorAction::ReviewModelingResult,
-            Some(ThreadEpiphanyRoleId::Modeling),
-            Some(ThreadEpiphanySceneAction::RoleResult),
-            false,
-            false,
-            "A modeling/checkpoint specialist is already running; wait for its result.",
         );
     }
 
@@ -14277,6 +14502,45 @@ fn epiphany_role_finding_already_accepted(
     epiphany_role_finding_accepted_index(state, finding).is_some()
 }
 
+fn epiphany_role_finding_accepted_evidence_id(
+    state: &EpiphanyThreadState,
+    finding: &ThreadEpiphanyRoleFinding,
+) -> Option<String> {
+    epiphany_role_finding_accepted_index(state, finding)
+        .and_then(|index| state.recent_evidence.get(index))
+        .map(|evidence| evidence.id.clone())
+}
+
+fn epiphany_verification_finding_covers_current_modeling(
+    state: &EpiphanyThreadState,
+    modeling_result_accepted: bool,
+    modeling_finding: Option<&ThreadEpiphanyRoleFinding>,
+    verification_finding: Option<&ThreadEpiphanyRoleFinding>,
+) -> bool {
+    if !modeling_result_accepted {
+        return true;
+    }
+    let Some(modeling_finding) = modeling_finding else {
+        return true;
+    };
+    let Some(verification_finding) = verification_finding else {
+        return false;
+    };
+
+    let mut modeling_evidence_ids: HashSet<String> =
+        modeling_finding.evidence_ids.iter().cloned().collect();
+    if let Some(accepted_id) = epiphany_role_finding_accepted_evidence_id(state, modeling_finding) {
+        modeling_evidence_ids.insert(accepted_id);
+    }
+    if modeling_evidence_ids.is_empty() {
+        return true;
+    }
+    verification_finding
+        .evidence_ids
+        .iter()
+        .any(|id| modeling_evidence_ids.contains(id))
+}
+
 fn role_finding_accepted_after(
     state: &EpiphanyThreadState,
     later: Option<&ThreadEpiphanyRoleFinding>,
@@ -14294,7 +14558,38 @@ fn role_finding_accepted_after(
     let Some(earlier_index) = epiphany_role_finding_accepted_index(state, earlier) else {
         return true;
     };
-    later_index > earlier_index
+    later_index < earlier_index
+}
+
+fn implementation_evidence_after_role_finding(
+    state: &EpiphanyThreadState,
+    earlier: Option<&ThreadEpiphanyRoleFinding>,
+) -> bool {
+    let earlier_index =
+        earlier.and_then(|finding| epiphany_role_finding_accepted_index(state, finding));
+    state
+        .recent_evidence
+        .iter()
+        .enumerate()
+        .find(|(index, evidence)| {
+            evidence.kind == "implementation-audit"
+                && earlier_index.is_none_or(|earlier_index| *index < earlier_index)
+        })
+        .is_some_and(|(_, evidence)| evidence.status == "ok")
+}
+
+fn epiphany_role_finding_cites_implementation_evidence(
+    state: &EpiphanyThreadState,
+    finding: Option<&ThreadEpiphanyRoleFinding>,
+) -> bool {
+    let Some(finding) = finding else {
+        return false;
+    };
+    finding.evidence_ids.iter().any(|id| {
+        state.recent_evidence.iter().any(|evidence| {
+            evidence.id == *id && evidence.kind == "implementation-audit" && evidence.status == "ok"
+        })
+    })
 }
 
 fn epiphany_role_finding_accepted_index(
@@ -14324,6 +14619,14 @@ fn epiphany_verification_finding_allows_implementation(
             .verdict
             .as_deref()
             .is_some_and(|verdict| verdict.eq_ignore_ascii_case("pass"))
+}
+
+fn epiphany_verification_finding_needs_evidence(finding: &ThreadEpiphanyRoleFinding) -> bool {
+    finding.role_id == ThreadEpiphanyRoleId::Verification
+        && finding
+            .verdict
+            .as_deref()
+            .is_some_and(|verdict| verdict.eq_ignore_ascii_case("needs-evidence"))
 }
 
 fn map_epiphany_roles(
@@ -14914,10 +15217,7 @@ fn reorient_finding_investigation_checkpoint(
     let mut checkpoint = checkpoint.clone();
     checkpoint.summary = finding.summary.clone().or(checkpoint.summary);
     checkpoint.next_action = finding.next_safe_move.clone().or(checkpoint.next_action);
-    checkpoint.disposition = match finding.checkpoint_still_valid {
-        Some(false) => EpiphanyInvestigationDisposition::RegatherRequired,
-        _ => EpiphanyInvestigationDisposition::ResumeReady,
-    };
+    checkpoint.disposition = EpiphanyInvestigationDisposition::ResumeReady;
     if !checkpoint
         .evidence_ids
         .iter()
@@ -16450,6 +16750,9 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let modeling_result_accepted = modeling_finding
         .as_ref()
         .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
+    let modeling_result_reviewable = modeling_finding
+        .as_ref()
+        .is_some_and(epiphany_modeling_finding_has_reviewable_state_patch);
     let (verification_result_status, verification_finding, _) = load_epiphany_role_result_snapshot(
         &state,
         state_db_ctx.as_ref(),
@@ -16460,15 +16763,30 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let verification_result_accepted = verification_finding
         .as_ref()
         .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
+    let verification_result_covers_current_modeling =
+        epiphany_verification_finding_covers_current_modeling(
+            &state,
+            modeling_result_accepted,
+            modeling_finding.as_ref(),
+            verification_finding.as_ref(),
+        );
     let modeling_result_accepted_after_verification = role_finding_accepted_after(
         &state,
         modeling_finding.as_ref(),
         verification_finding.as_ref(),
     );
+    let implementation_evidence_after_verification =
+        implementation_evidence_after_role_finding(&state, verification_finding.as_ref());
+    let verification_result_cites_implementation_evidence =
+        epiphany_role_finding_cites_implementation_evidence(&state, verification_finding.as_ref());
     let verification_result_allows_implementation = verification_result_accepted
         && verification_finding
             .as_ref()
             .is_some_and(epiphany_verification_finding_allows_implementation);
+    let verification_result_needs_evidence = verification_result_accepted
+        && verification_finding
+            .as_ref()
+            .is_some_and(epiphany_verification_finding_needs_evidence);
     let source_signals = ThreadEpiphanyCoordinatorSignals {
         pressure_level: pressure.level,
         should_prepare_compaction: pressure.should_prepare_compaction,
@@ -16486,9 +16804,14 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         &roles,
         &source_signals,
         modeling_result_accepted,
+        modeling_result_reviewable,
         modeling_result_accepted_after_verification,
+        implementation_evidence_after_verification,
+        verification_result_cites_implementation_evidence,
+        verification_result_covers_current_modeling,
         verification_result_accepted,
         verification_result_allows_implementation,
+        verification_result_needs_evidence,
         reorient_finding_accepted,
     );
 
@@ -16755,13 +17078,14 @@ fn overlay_epiphany_job_binding(
     }
 
     if let Some(snapshot) = snapshot {
-        job.status = map_thread_epiphany_job_status(snapshot.status);
+        let effective_status = effective_agent_job_status(snapshot.status, &snapshot.progress);
+        job.status = map_thread_epiphany_job_status(effective_status);
         job.items_processed = Some(progress_processed_items(&snapshot.progress));
         job.items_total = Some(progress_total_items(&snapshot.progress));
-        job.progress_note = Some(render_agent_job_progress_note(snapshot));
+        job.progress_note = Some(render_agent_job_progress_note(snapshot, effective_status));
         job.last_checkpoint_at_unix_seconds = Some(snapshot.updated_at_unix_seconds);
         job.active_thread_ids = snapshot.active_thread_ids.clone();
-        job.blocking_reason = match snapshot.status {
+        job.blocking_reason = match effective_status {
             AgentJobStatus::Failed => snapshot.last_error.clone().or(job.blocking_reason),
             AgentJobStatus::Cancelled => Some(
                 snapshot
@@ -16788,6 +17112,29 @@ fn overlay_epiphany_job_binding(
     }
 
     job
+}
+
+fn effective_agent_job_status(
+    status: AgentJobStatus,
+    progress: &AgentJobProgress,
+) -> AgentJobStatus {
+    if matches!(status, AgentJobStatus::Pending | AgentJobStatus::Running)
+        && progress.pending_items == 0
+        && progress.running_items == 0
+        && progress.total_items > 0
+        && progress
+            .completed_items
+            .saturating_add(progress.failed_items)
+            >= progress.total_items
+    {
+        if progress.failed_items > 0 {
+            AgentJobStatus::Failed
+        } else {
+            AgentJobStatus::Completed
+        }
+    } else {
+        status
+    }
 }
 
 fn map_core_epiphany_job_backend_kind(
@@ -16830,9 +17177,12 @@ fn progress_processed_items(progress: &AgentJobProgress) -> u32 {
     .unwrap_or(u32::MAX)
 }
 
-fn render_agent_job_progress_note(snapshot: &EpiphanyJobBackendSnapshot) -> String {
+fn render_agent_job_progress_note(
+    snapshot: &EpiphanyJobBackendSnapshot,
+    effective_status: AgentJobStatus,
+) -> String {
     let progress = &snapshot.progress;
-    match snapshot.status {
+    match effective_status {
         AgentJobStatus::Pending => format!(
             "Runtime agent job is pending with {} pending, {} running, {} completed, and {} failed item(s).",
             progress.pending_items,
@@ -19502,7 +19852,7 @@ mod tests {
     }
 
     #[test]
-    fn map_epiphany_crrc_recommendation_does_not_reaccept_banked_finding() {
+    fn map_epiphany_crrc_recommendation_relaunches_stale_accepted_regather() {
         let pressure = map_epiphany_pressure(None);
         let decision = ThreadEpiphanyReorientDecision {
             action: ThreadEpiphanyReorientAction::Regather,
@@ -19533,10 +19883,26 @@ mod tests {
 
         assert_eq!(
             recommendation.action,
-            ThreadEpiphanyCrrcAction::RegatherManually
+            ThreadEpiphanyCrrcAction::LaunchReorientWorker
         );
         assert_eq!(
             recommendation.recommended_scene_action,
+            Some(ThreadEpiphanySceneAction::ReorientLaunch)
+        );
+
+        let unloaded = map_epiphany_crrc_recommendation(
+            false,
+            ThreadEpiphanyReorientStateStatus::Ready,
+            &pressure,
+            &decision,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            true,
+            true,
+            true,
+        );
+        assert_eq!(unloaded.action, ThreadEpiphanyCrrcAction::RegatherManually);
+        assert_eq!(
+            unloaded.recommended_scene_action,
             Some(ThreadEpiphanySceneAction::Reorient)
         );
     }
@@ -19715,6 +20081,66 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Copy)]
+    struct CoordinatorTestFlags {
+        modeling_result_accepted: bool,
+        modeling_result_reviewable: bool,
+        modeling_result_accepted_after_verification: bool,
+        implementation_evidence_after_verification: bool,
+        verification_result_cites_implementation_evidence: bool,
+        verification_result_covers_current_modeling: bool,
+        verification_result_accepted: bool,
+        verification_result_allows_implementation: bool,
+        verification_result_needs_evidence: bool,
+        reorient_finding_accepted: bool,
+    }
+
+    impl Default for CoordinatorTestFlags {
+        fn default() -> Self {
+            Self {
+                modeling_result_accepted: false,
+                modeling_result_reviewable: false,
+                modeling_result_accepted_after_verification: false,
+                implementation_evidence_after_verification: false,
+                verification_result_cites_implementation_evidence: false,
+                verification_result_covers_current_modeling: true,
+                verification_result_accepted: false,
+                verification_result_allows_implementation: false,
+                verification_result_needs_evidence: false,
+                reorient_finding_accepted: false,
+            }
+        }
+    }
+
+    fn coordinator_decision(
+        state_status: ThreadEpiphanyReorientStateStatus,
+        checkpoint_present: bool,
+        pressure: &ThreadEpiphanyPressure,
+        recommendation: &ThreadEpiphanyCrrcRecommendation,
+        roles: &[ThreadEpiphanyRoleLane],
+        signals: &ThreadEpiphanyCoordinatorSignals,
+        flags: CoordinatorTestFlags,
+    ) -> EpiphanyCoordinatorDecision {
+        map_epiphany_coordinator(
+            state_status,
+            checkpoint_present,
+            pressure,
+            recommendation,
+            roles,
+            signals,
+            flags.modeling_result_accepted,
+            flags.modeling_result_reviewable,
+            flags.modeling_result_accepted_after_verification,
+            flags.implementation_evidence_after_verification,
+            flags.verification_result_cites_implementation_evidence,
+            flags.verification_result_covers_current_modeling,
+            flags.verification_result_accepted,
+            flags.verification_result_allows_implementation,
+            flags.verification_result_needs_evidence,
+            flags.reorient_finding_accepted,
+        )
+    }
+
     #[test]
     fn map_epiphany_coordinator_prepares_missing_checkpoint() {
         let pressure = map_epiphany_pressure(None);
@@ -19731,18 +20157,14 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
 
-        let decision = map_epiphany_coordinator(
+        let decision = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             false,
             &pressure,
             &recommendation,
             &roles,
             &signals,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags::default(),
         );
 
         assert_eq!(
@@ -19773,18 +20195,14 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
 
-        let decision = map_epiphany_coordinator(
+        let decision = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &signals,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags::default(),
         );
 
         assert_eq!(
@@ -19818,18 +20236,17 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::BackendMissing,
         );
 
-        let decision = map_epiphany_coordinator(
+        let decision = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &[],
             &signals,
-            false,
-            false,
-            false,
-            false,
-            true,
+            CoordinatorTestFlags {
+                reorient_finding_accepted: true,
+                ..Default::default()
+            },
         );
 
         assert_eq!(
@@ -19875,18 +20292,14 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
 
-        let decision = map_epiphany_coordinator(
+        let decision = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &signals,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags::default(),
         );
 
         assert_eq!(
@@ -19920,18 +20333,14 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
 
-        let decision = map_epiphany_coordinator(
+        let decision = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &signals,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags::default(),
         );
 
         assert_eq!(
@@ -19961,18 +20370,17 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
 
-        let launch_modeling = map_epiphany_coordinator(
+        let launch_modeling = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &missing,
-            false,
-            false,
-            false,
-            false,
-            true,
+            CoordinatorTestFlags {
+                reorient_finding_accepted: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
             launch_modeling.action,
@@ -19985,22 +20393,51 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::Completed,
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
-        let review_modeling = map_epiphany_coordinator(
+        let review_modeling = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &modeling_done,
-            false,
-            false,
-            false,
-            false,
-            true,
+            CoordinatorTestFlags {
+                modeling_result_reviewable: true,
+                reorient_finding_accepted: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
             review_modeling.action,
             ThreadEpiphanyCoordinatorAction::ReviewModelingResult
+        );
+
+        let mut blocked_roles = base_coordinator_roles();
+        blocked_roles[0].status = ThreadEpiphanyRoleStatus::Blocked;
+        let verifier_done = coordinator_signals(
+            ThreadEpiphanyCrrcAction::RegatherManually,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::Completed,
+        );
+        let blocked_regather = coordinator_decision(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &blocked_roles,
+            &verifier_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_accepted_after_verification: true,
+                verification_result_accepted: true,
+                verification_result_needs_evidence: true,
+                reorient_finding_accepted: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            blocked_regather.action,
+            ThreadEpiphanyCoordinatorAction::RegatherManually
         );
     }
 
@@ -20020,18 +20457,14 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
 
-        let launch_modeling = map_epiphany_coordinator(
+        let launch_modeling = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &missing,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags::default(),
         );
         assert_eq!(
             launch_modeling.action,
@@ -20048,18 +20481,14 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::BackendUnavailable,
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
-        let relaunch_modeling = map_epiphany_coordinator(
+        let relaunch_modeling = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &modeling_backend_unavailable,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags::default(),
         );
         assert_eq!(
             relaunch_modeling.action,
@@ -20072,18 +20501,17 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::Completed,
             ThreadEpiphanyRoleResultStatus::MissingBinding,
         );
-        let review_modeling = map_epiphany_coordinator(
+        let review_modeling = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &modeling_done,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags {
+                modeling_result_reviewable: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
             review_modeling.action,
@@ -20091,18 +20519,55 @@ mod tests {
         );
         assert!(review_modeling.requires_review);
 
-        let launch_verification = map_epiphany_coordinator(
+        let modeling_running_with_old_verification = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::Running,
+            ThreadEpiphanyRoleResultStatus::Completed,
+        );
+        let wait_for_modeling = coordinator_decision(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &modeling_running_with_old_verification,
+            CoordinatorTestFlags::default(),
+        );
+        assert_eq!(
+            wait_for_modeling.action,
+            ThreadEpiphanyCoordinatorAction::ReviewModelingResult
+        );
+        assert!(!wait_for_modeling.requires_review);
+        assert!(wait_for_modeling.reason.contains("stale verification"));
+
+        let relaunch_unreviewable_modeling = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &modeling_done,
+            CoordinatorTestFlags::default(),
+        );
+        assert_eq!(
+            relaunch_unreviewable_modeling.action,
+            ThreadEpiphanyCoordinatorAction::LaunchModeling
+        );
+        assert!(relaunch_unreviewable_modeling.reason.contains("statePatch"));
+
+        let launch_verification = coordinator_decision(
+            ThreadEpiphanyReorientStateStatus::Ready,
             true,
-            false,
-            false,
-            false,
-            false,
+            &pressure,
+            &recommendation,
+            &roles,
+            &modeling_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
             launch_verification.action,
@@ -20119,18 +20584,42 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::Completed,
             ThreadEpiphanyRoleResultStatus::Completed,
         );
-        let review_verification = map_epiphany_coordinator(
+        let stale_verification = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &verification_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                verification_result_covers_current_modeling: false,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            stale_verification.action,
+            ThreadEpiphanyCoordinatorAction::LaunchVerification
+        );
+        assert!(
+            stale_verification
+                .reason
+                .contains("currently accepted modeling")
+        );
+
+        let review_verification = coordinator_decision(
+            ThreadEpiphanyReorientStateStatus::Ready,
             true,
-            false,
-            false,
-            false,
-            false,
+            &pressure,
+            &recommendation,
+            &roles,
+            &verification_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
             review_verification.action,
@@ -20138,40 +20627,131 @@ mod tests {
         );
         assert!(review_verification.requires_review);
 
-        let accepted_needs_evidence_verification = map_epiphany_coordinator(
+        let accepted_non_pass_verification = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &verification_done,
-            true,
-            false,
-            true,
-            false,
-            false,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                verification_result_accepted: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
-            accepted_needs_evidence_verification.action,
+            accepted_non_pass_verification.action,
             ThreadEpiphanyCoordinatorAction::LaunchModeling
         );
         assert_eq!(
-            accepted_needs_evidence_verification.target_role,
+            accepted_non_pass_verification.target_role,
             Some(ThreadEpiphanyRoleId::Modeling)
         );
 
-        let accepted_verification = map_epiphany_coordinator(
+        let accepted_needs_evidence_verification = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &roles,
             &verification_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                verification_result_accepted: true,
+                verification_result_needs_evidence: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            accepted_needs_evidence_verification.action,
+            ThreadEpiphanyCoordinatorAction::ContinueImplementation
+        );
+        assert_eq!(
+            accepted_needs_evidence_verification.target_role,
+            Some(ThreadEpiphanyRoleId::Implementation)
+        );
+        assert!(
+            accepted_needs_evidence_verification
+                .reason
+                .contains("implementation evidence")
+        );
+
+        let accepted_failed_implementation_verification = coordinator_decision(
+            ThreadEpiphanyReorientStateStatus::Ready,
             true,
-            false,
+            &pressure,
+            &recommendation,
+            &roles,
+            &verification_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                verification_result_accepted: true,
+                verification_result_cites_implementation_evidence: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            accepted_failed_implementation_verification.action,
+            ThreadEpiphanyCoordinatorAction::ContinueImplementation
+        );
+        assert_eq!(
+            accepted_failed_implementation_verification.target_role,
+            Some(ThreadEpiphanyRoleId::Implementation)
+        );
+        assert!(
+            accepted_failed_implementation_verification
+                .reason
+                .contains("bounded repair")
+        );
+
+        let implementation_after_verification = coordinator_decision(
+            ThreadEpiphanyReorientStateStatus::Ready,
             true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &verification_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                implementation_evidence_after_verification: true,
+                verification_result_accepted: true,
+                verification_result_needs_evidence: true,
+                ..Default::default()
+            },
+        );
+        assert_eq!(
+            implementation_after_verification.action,
+            ThreadEpiphanyCoordinatorAction::LaunchVerification
+        );
+        assert_eq!(
+            implementation_after_verification.target_role,
+            Some(ThreadEpiphanyRoleId::Verification)
+        );
+        assert!(
+            implementation_after_verification
+                .reason
+                .contains("Implementation evidence")
+        );
+
+        let accepted_verification = coordinator_decision(
+            ThreadEpiphanyReorientStateStatus::Ready,
             true,
-            false,
+            &pressure,
+            &recommendation,
+            &roles,
+            &verification_done,
+            CoordinatorTestFlags {
+                modeling_result_accepted: true,
+                modeling_result_reviewable: true,
+                verification_result_accepted: true,
+                verification_result_allows_implementation: true,
+                ..Default::default()
+            },
         );
         assert_eq!(
             accepted_verification.action,
@@ -20185,18 +20765,14 @@ mod tests {
             ThreadEpiphanyRoleResultStatus::BackendMissing,
             ThreadEpiphanyRoleResultStatus::BackendMissing,
         );
-        let continue_implementation = map_epiphany_coordinator(
+        let continue_implementation = coordinator_decision(
             ThreadEpiphanyReorientStateStatus::Ready,
             true,
             &pressure,
             &recommendation,
             &[],
             &reviewed,
-            false,
-            false,
-            false,
-            false,
-            false,
+            CoordinatorTestFlags::default(),
         );
         assert_eq!(
             continue_implementation.action,
@@ -20268,14 +20844,30 @@ mod tests {
         assert!(modeling.instruction.contains("body of the machine"));
         assert!(modeling.instruction.contains("coherent anatomy"));
         assert!(
-            modeling.output_schema_json.as_ref().unwrap()["properties"]
-                .get("openQuestions")
-                .is_some()
+            modeling
+                .instruction
+                .contains("`statePatch` is part of the modeling job")
+        );
+        let modeling_schema = modeling.output_schema_json.as_ref().unwrap();
+        assert!(modeling_schema["properties"].get("openQuestions").is_some());
+        assert!(modeling_schema["properties"].get("statePatch").is_some());
+        assert_eq!(
+            modeling_schema["properties"]["statePatch"]["anyOf"][0]["required"][0],
+            "graphs"
         );
         assert_eq!(
-            modeling.output_schema_json.as_ref().unwrap()["required"][0],
-            "summary"
+            modeling_schema["properties"]["statePatch"]["properties"]["investigationCheckpoint"]["properties"]
+                ["disposition"]["enum"][0],
+            "resume_ready"
         );
+        let modeling_required = modeling_schema["required"]
+            .as_array()
+            .expect("modeling schema required fields")
+            .iter()
+            .filter_map(serde_json::Value::as_str)
+            .collect::<Vec<_>>();
+        assert!(modeling_required.contains(&"statePatch"));
+        assert!(modeling_required.contains(&"verdict"));
 
         let verification = build_epiphany_role_launch_request(
             "thr_123",
@@ -20303,6 +20895,11 @@ mod tests {
             verification.output_schema_json.as_ref().unwrap()["properties"]
                 .get("risks")
                 .is_some()
+        );
+        assert!(
+            verification.output_schema_json.as_ref().unwrap()["properties"]
+                .get("statePatch")
+                .is_none()
         );
     }
 
@@ -20437,6 +21034,284 @@ mod tests {
     }
 
     #[test]
+    fn map_epiphany_role_finding_marks_modeling_without_patch_unreviewable() {
+        let missing_patch = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Modeling,
+            serde_json::json!({
+                "roleId": "modeling",
+                "verdict": "checkpoint-ready",
+                "summary": "Source was inspected, but nothing durable was banked.",
+                "nextSafeMove": "Relaunch modeling with a state patch."
+            }),
+            None,
+            None,
+        );
+
+        assert!(missing_patch.state_patch.is_none());
+        assert!(
+            missing_patch
+                .item_error
+                .as_deref()
+                .is_some_and(|error| error.contains("missing required statePatch"))
+        );
+        assert!(!epiphany_modeling_finding_has_reviewable_state_patch(
+            &missing_patch
+        ));
+
+        let reviewable = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Modeling,
+            serde_json::json!({
+                "roleId": "modeling",
+                "verdict": "checkpoint-ready",
+                "summary": "The checkpoint is banked in scratch.",
+                "nextSafeMove": "Review the modeling patch.",
+                "statePatch": {
+                    "scratch": {
+                        "summary": "Source-grounded modeling checkpoint.",
+                        "hypothesis": "The current graph remains coherent.",
+                        "next_probe": "Run verification."
+                    }
+                }
+            }),
+            None,
+            None,
+        );
+
+        assert!(reviewable.item_error.is_none());
+        assert!(epiphany_modeling_finding_has_reviewable_state_patch(
+            &reviewable
+        ));
+
+        let invalid_checkpoint_enum = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Modeling,
+            serde_json::json!({
+                "roleId": "modeling",
+                "verdict": "checkpoint-ready",
+                "summary": "The checkpoint enum used the verdict spelling.",
+                "nextSafeMove": "Use the typed checkpoint enum.",
+                "statePatch": {
+                    "investigationCheckpoint": {
+                        "checkpoint_id": "ix-1",
+                        "kind": "source_gathering",
+                        "disposition": "checkpoint_ready",
+                        "focus": "Model the seam."
+                    }
+                }
+            }),
+            None,
+            None,
+        );
+        assert!(
+            invalid_checkpoint_enum
+                .item_error
+                .as_deref()
+                .is_some_and(|error| error.contains("checkpoint_ready"))
+        );
+        assert!(!epiphany_modeling_finding_has_reviewable_state_patch(
+            &invalid_checkpoint_enum
+        ));
+    }
+
+    #[test]
+    fn role_finding_accepted_after_uses_newest_first_evidence_order() {
+        let modeling = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Modeling,
+            serde_json::json!({
+                "roleId": "modeling",
+                "verdict": "checkpoint-update-needed",
+                "summary": "Newer modeling checkpoint.",
+                "nextSafeMove": "Verify the new model.",
+                "statePatch": {
+                    "scratch": {
+                        "summary": "New model.",
+                        "next_probe": "Verify."
+                    }
+                }
+            }),
+            None,
+            None,
+        );
+        let verification = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Verification,
+            serde_json::json!({
+                "roleId": "verification",
+                "verdict": "needs-evidence",
+                "summary": "Older verification finding.",
+                "nextSafeMove": "Strengthen modeling."
+            }),
+            None,
+            None,
+        );
+        let state = EpiphanyThreadState {
+            recent_evidence: vec![
+                EpiphanyEvidenceRecord {
+                    id: "ev-modeling-new".to_string(),
+                    kind: "modeling_result".to_string(),
+                    status: "accepted".to_string(),
+                    summary: role_finding_summary(&modeling),
+                    ..Default::default()
+                },
+                EpiphanyEvidenceRecord {
+                    id: "ev-verification-old".to_string(),
+                    kind: "verification_result".to_string(),
+                    status: "accepted".to_string(),
+                    summary: role_finding_summary(&verification),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        assert!(role_finding_accepted_after(
+            &state,
+            Some(&modeling),
+            Some(&verification)
+        ));
+        assert!(!role_finding_accepted_after(
+            &state,
+            Some(&verification),
+            Some(&modeling)
+        ));
+    }
+
+    #[test]
+    fn verification_coverage_accepts_modeling_source_evidence_ids() {
+        let modeling = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Modeling,
+            serde_json::json!({
+                "roleId": "modeling",
+                "verdict": "checkpoint-update-needed",
+                "summary": "Modeling found the source seam.",
+                "nextSafeMove": "Verify the modeled seam.",
+                "evidenceIds": ["ev-model-source"],
+                "statePatch": {
+                    "scratch": {
+                        "summary": "Modeling checkpoint.",
+                        "next_probe": "Verify."
+                    }
+                }
+            }),
+            None,
+            None,
+        );
+        let verification = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Verification,
+            serde_json::json!({
+                "roleId": "verification",
+                "verdict": "needs-evidence",
+                "summary": "Verification covered the modeler's source evidence.",
+                "nextSafeMove": "Gather implementation evidence.",
+                "evidenceIds": ["ev-model-source"]
+            }),
+            None,
+            None,
+        );
+        let stale_verification = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Verification,
+            serde_json::json!({
+                "roleId": "verification",
+                "verdict": "needs-evidence",
+                "summary": "Verification covered unrelated evidence.",
+                "nextSafeMove": "Gather implementation evidence.",
+                "evidenceIds": ["ev-other"]
+            }),
+            None,
+            None,
+        );
+        let state = EpiphanyThreadState {
+            recent_evidence: vec![EpiphanyEvidenceRecord {
+                id: "ev-modeling-accepted".to_string(),
+                kind: "modeling_result".to_string(),
+                status: "accepted".to_string(),
+                summary: role_finding_summary(&modeling),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+
+        assert!(epiphany_verification_finding_covers_current_modeling(
+            &state,
+            true,
+            Some(&modeling),
+            Some(&verification)
+        ));
+        assert!(epiphany_verification_finding_covers_current_modeling(
+            &state,
+            true,
+            Some(&modeling),
+            Some(&map_epiphany_role_finding(
+                ThreadEpiphanyRoleId::Verification,
+                serde_json::json!({
+                    "roleId": "verification",
+                    "verdict": "needs-evidence",
+                    "summary": "Verification covered the accepted wrapper evidence.",
+                    "nextSafeMove": "Gather implementation evidence.",
+                    "evidenceIds": ["ev-modeling-accepted"]
+                }),
+                None,
+                None,
+            ))
+        ));
+        assert!(!epiphany_verification_finding_covers_current_modeling(
+            &state,
+            true,
+            Some(&modeling),
+            Some(&stale_verification)
+        ));
+    }
+
+    #[test]
+    fn implementation_evidence_after_verification_uses_latest_audit() {
+        let verification = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Verification,
+            serde_json::json!({
+                "roleId": "verification",
+                "verdict": "needs-evidence",
+                "summary": "Need implementation evidence.",
+                "nextSafeMove": "Gather evidence."
+            }),
+            None,
+            None,
+        );
+        let mut state = EpiphanyThreadState {
+            recent_evidence: vec![
+                EpiphanyEvidenceRecord {
+                    id: "ev-implementation-blocked".to_string(),
+                    kind: "implementation-audit".to_string(),
+                    status: "blocked".to_string(),
+                    summary: "No new diff.".to_string(),
+                    ..Default::default()
+                },
+                EpiphanyEvidenceRecord {
+                    id: "ev-implementation-ok".to_string(),
+                    kind: "implementation-audit".to_string(),
+                    status: "ok".to_string(),
+                    summary: "Older diff.".to_string(),
+                    ..Default::default()
+                },
+                EpiphanyEvidenceRecord {
+                    id: "ev-verification".to_string(),
+                    kind: "verification_result".to_string(),
+                    status: "accepted".to_string(),
+                    summary: role_finding_summary(&verification),
+                    ..Default::default()
+                },
+            ],
+            ..Default::default()
+        };
+
+        assert!(!implementation_evidence_after_role_finding(
+            &state,
+            Some(&verification)
+        ));
+        state.recent_evidence[0].status = "ok".to_string();
+        assert!(implementation_evidence_after_role_finding(
+            &state,
+            Some(&verification)
+        ));
+    }
+
+    #[test]
     fn reorient_finding_acceptance_builds_scratch_and_checkpoint_update() {
         let finding = ThreadEpiphanyReorientFinding {
             mode: Some("regather".to_string()),
@@ -20489,7 +21364,7 @@ mod tests {
 
         assert_eq!(
             updated.disposition,
-            EpiphanyInvestigationDisposition::RegatherRequired
+            EpiphanyInvestigationDisposition::ResumeReady
         );
         assert_eq!(updated.evidence_ids, vec!["ev-reorient-1"]);
         assert_eq!(updated.code_refs[0].path, PathBuf::from("src/lib.rs"));
@@ -20986,6 +21861,61 @@ mod tests {
         assert_eq!(
             specialist.linked_graph_node_ids,
             vec!["job-surface".to_string()]
+        );
+    }
+
+    #[test]
+    fn map_epiphany_jobs_treats_stale_active_backend_job_as_completed() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                id: "specialist-work".to_string(),
+                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                scope: "role-scoped specialist work".to_string(),
+                owner_role: "epiphany-harness".to_string(),
+                launcher_job_id: Some("launcher-specialist-1".to_string()),
+                authority_scope: Some("epiphany.specialist".to_string()),
+                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs),
+                backend_job_id: Some("job-specialist-1".to_string()),
+                runtime_agent_job_id: Some("job-specialist-1".to_string()),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+                progress_note: None,
+                blocking_reason: None,
+            }],
+            ..Default::default()
+        };
+        let resolution = EpiphanyJobLauncherResolution {
+            agent_jobs_available: true,
+            snapshots_by_binding_id: HashMap::from([(
+                "specialist-work".to_string(),
+                EpiphanyJobBackendSnapshot {
+                    status: AgentJobStatus::Running,
+                    progress: AgentJobProgress {
+                        total_items: 1,
+                        pending_items: 0,
+                        running_items: 0,
+                        completed_items: 1,
+                        failed_items: 0,
+                    },
+                    updated_at_unix_seconds: 1_744_600_000,
+                    last_error: None,
+                    active_thread_ids: Vec::new(),
+                },
+            )]),
+        };
+
+        let jobs = map_epiphany_jobs(Some(&state), None, &resolution);
+        let specialist = jobs
+            .iter()
+            .find(|job| job.id == "specialist-work")
+            .expect("specialist slot should exist");
+
+        assert_eq!(specialist.status, ThreadEpiphanyJobStatus::Completed);
+        assert_eq!(specialist.items_processed, Some(1));
+        assert_eq!(specialist.items_total, Some(1));
+        assert_eq!(
+            specialist.progress_note.as_deref(),
+            Some("Runtime agent job completed all 1 item(s).")
         );
     }
 

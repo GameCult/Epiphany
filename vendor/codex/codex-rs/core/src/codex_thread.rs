@@ -980,6 +980,42 @@ async fn validate_epiphany_job_launch_target(
             codex_state::AgentJobStatus::Pending | codex_state::AgentJobStatus::Running
         )
     }) {
+        let progress = state_db
+            .get_agent_job_progress(agent_job_id)
+            .await
+            .map_err(|err| {
+                CodexErr::Fatal(format!(
+                    "failed to inspect existing Epiphany backend job progress {:?}: {err}",
+                    agent_job_id
+                ))
+            })?;
+        if progress.pending_items == 0 && progress.running_items == 0 {
+            if progress.failed_items > 0 {
+                state_db
+                    .mark_agent_job_failed(
+                        agent_job_id,
+                        "Epiphany launch recovered a stale active backend job with no active items.",
+                    )
+                    .await
+                    .map_err(|err| {
+                        CodexErr::Fatal(format!(
+                            "failed to mark stale Epiphany backend job {:?} failed: {err}",
+                            agent_job_id
+                        ))
+                    })?;
+            } else {
+                state_db
+                    .mark_agent_job_completed(agent_job_id)
+                    .await
+                    .map_err(|err| {
+                        CodexErr::Fatal(format!(
+                            "failed to mark stale Epiphany backend job {:?} completed: {err}",
+                            agent_job_id
+                        ))
+                    })?;
+            }
+            return Ok(());
+        }
         return Err(CodexErr::InvalidRequest(format!(
             "epiphany job binding {:?} is already bound to active backend job {:?}; interrupt it before launching a replacement",
             request.binding_id, agent_job_id
