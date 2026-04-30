@@ -176,6 +176,16 @@ def render_status(status: dict[str, Any]) -> str:
             lines.append(f"  verdict: {maybe(finding.get('verdict'))}")
             lines.append(f"  summary: {maybe(finding.get('summary'))}")
             lines.append(f"  next: {maybe(finding.get('nextSafeMove'))}")
+            lines.append(
+                "  state patch: "
+                + ("available" if isinstance(finding.get("statePatch"), dict) else "none")
+            )
+            if finding.get("openQuestions"):
+                lines.append(f"  open questions: {', '.join(map(str, finding['openQuestions']))}")
+            if finding.get("evidenceGaps"):
+                lines.append(f"  evidence gaps: {', '.join(map(str, finding['evidenceGaps']))}")
+            if finding.get("risks"):
+                lines.append(f"  risks: {', '.join(map(str, finding['risks']))}")
 
     lines.extend(
         [

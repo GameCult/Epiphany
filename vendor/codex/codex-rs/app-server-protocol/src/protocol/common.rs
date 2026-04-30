@@ -366,6 +366,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyRoleResultParams,
         response: v2::ThreadEpiphanyRoleResultResponse,
     },
+    #[experimental("thread/epiphany/roleAccept")]
+    ThreadEpiphanyRoleAccept => "thread/epiphany/roleAccept" {
+        params: v2::ThreadEpiphanyRoleAcceptParams,
+        response: v2::ThreadEpiphanyRoleAcceptResponse,
+    },
     #[experimental("thread/epiphany/freshness")]
     ThreadEpiphanyFreshness => "thread/epiphany/freshness" {
         params: v2::ThreadEpiphanyFreshnessParams,
@@ -2258,6 +2263,10 @@ mod tests {
                     files_inspected: vec!["src/lib.rs".to_string()],
                     frontier_node_ids: vec!["state-spine".to_string()],
                     evidence_ids: vec!["ev-1".to_string()],
+                    open_questions: Vec::new(),
+                    evidence_gaps: Vec::new(),
+                    risks: Vec::new(),
+                    state_patch: None,
                     job_error: None,
                     item_error: None,
                     raw_result: json!({
@@ -2317,6 +2326,115 @@ mod tests {
                         }
                     },
                     "note": "Verification role specialist completed. Next safe move: Promote the verified patch."
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_role_accept_response() -> Result<()> {
+        let patch = v2::ThreadEpiphanyUpdatePatch {
+            graph_frontier: Some(codex_protocol::protocol::EpiphanyGraphFrontier {
+                active_node_ids: vec!["state-spine".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let finding = v2::ThreadEpiphanyRoleFinding {
+            role_id: v2::ThreadEpiphanyRoleId::Modeling,
+            verdict: Some("checkpoint-update-needed".to_string()),
+            summary: Some("Graph frontier should keep state-spine active.".to_string()),
+            next_safe_move: Some("Accept the reviewed modeling patch.".to_string()),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: vec!["src/lib.rs".to_string()],
+            frontier_node_ids: vec!["state-spine".to_string()],
+            evidence_ids: Vec::new(),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch: Some(patch.clone()),
+            job_error: None,
+            item_error: None,
+            raw_result: json!({
+                "verdict": "checkpoint-update-needed",
+                "summary": "Graph frontier should keep state-spine active.",
+                "nextSafeMove": "Accept the reviewed modeling patch.",
+                "statePatch": {
+                    "graphFrontier": {
+                        "active_node_ids": ["state-spine"]
+                    }
+                }
+            }),
+        };
+        let response = ClientResponse::ThreadEpiphanyRoleAccept {
+            request_id: RequestId::Integer(10),
+            response: v2::ThreadEpiphanyRoleAcceptResponse {
+                revision: 5,
+                changed_fields: vec![
+                    v2::ThreadEpiphanyStateUpdatedField::GraphFrontier,
+                    v2::ThreadEpiphanyStateUpdatedField::Observations,
+                    v2::ThreadEpiphanyStateUpdatedField::Evidence,
+                ],
+                epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
+                    revision: 5,
+                    ..Default::default()
+                },
+                role_id: v2::ThreadEpiphanyRoleId::Modeling,
+                binding_id: "modeling-checkpoint-worker".to_string(),
+                accepted_observation_id: "obs-modeling-1".to_string(),
+                accepted_evidence_id: "ev-modeling-1".to_string(),
+                applied_patch: patch,
+                finding,
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(10));
+        assert_eq!(response.method(), "thread/epiphany/roleAccept");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/roleAccept",
+                "id": 10,
+                "response": {
+                    "revision": 5,
+                    "changedFields": ["graphFrontier", "observations", "evidence"],
+                    "epiphanyState": {
+                        "revision": 5
+                    },
+                    "roleId": "modeling",
+                    "bindingId": "modeling-checkpoint-worker",
+                    "acceptedObservationId": "obs-modeling-1",
+                    "acceptedEvidenceId": "ev-modeling-1",
+                    "appliedPatch": {
+                        "graphFrontier": {
+                            "active_node_ids": ["state-spine"]
+                        }
+                    },
+                    "finding": {
+                        "roleId": "modeling",
+                        "verdict": "checkpoint-update-needed",
+                        "summary": "Graph frontier should keep state-spine active.",
+                        "nextSafeMove": "Accept the reviewed modeling patch.",
+                        "filesInspected": ["src/lib.rs"],
+                        "frontierNodeIds": ["state-spine"],
+                        "statePatch": {
+                            "graphFrontier": {
+                                "active_node_ids": ["state-spine"]
+                            }
+                        },
+                        "rawResult": {
+                            "verdict": "checkpoint-update-needed",
+                            "summary": "Graph frontier should keep state-spine active.",
+                            "nextSafeMove": "Accept the reviewed modeling patch.",
+                            "statePatch": {
+                                "graphFrontier": {
+                                    "active_node_ids": ["state-spine"]
+                                }
+                            }
+                        }
+                    }
                 }
             }),
             serde_json::to_value(&response)?,
@@ -4443,6 +4561,21 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/roleResult"));
+    }
+
+    #[test]
+    fn thread_epiphany_role_accept_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyRoleAccept {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyRoleAcceptParams {
+                thread_id: "thr_123".to_string(),
+                role_id: v2::ThreadEpiphanyRoleId::Modeling,
+                expected_revision: Some(2),
+                binding_id: None,
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/roleAccept"));
     }
 
     #[test]

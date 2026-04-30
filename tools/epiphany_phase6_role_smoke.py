@@ -50,6 +50,42 @@ def complete_role_backend_job(
         "frontierNodeIds": [GRAPH_NODE_ID],
         "evidenceIds": ["ev-checkpoint"],
     }
+    if role_id == "modeling":
+        patch = reorient_patch()
+        graphs = patch["graphs"]
+        graphs["architecture"]["nodes"].append(
+            {
+                "id": "accepted-modeling-node",
+                "title": "Accepted modeling node",
+                "purpose": "Proves a modeling role finding can grow the durable graph after review.",
+                "code_refs": [
+                    {
+                        "path": WATCHED_RELATIVE_PATH.as_posix(),
+                        "start_line": 1,
+                        "end_line": 3,
+                        "symbol": "reorient_target",
+                    }
+                ],
+            }
+        )
+        result["statePatch"] = {
+            "graphs": graphs,
+            "graphFrontier": {
+                "active_node_ids": [GRAPH_NODE_ID, "accepted-modeling-node"],
+                "dirty_paths": [],
+            },
+            "graphCheckpoint": {
+                "checkpoint_id": "ck-modeling-accepted",
+                "graph_revision": 2,
+                "summary": "Modeling role accepted a graph-growth checkpoint.",
+                "frontier_node_ids": [GRAPH_NODE_ID, "accepted-modeling-node"],
+            },
+            "scratch": {
+                "summary": "Modeling role found a graph growth candidate.",
+                "current_focus": "Review-gated modeling acceptance smoke.",
+                "next_action": "Verify the accepted graph node is visible in durable Epiphany state.",
+            },
+        }
     now = int(time.time())
     db_path = locate_state_db(codex_home)
     connection = sqlite3.connect(db_path)
@@ -89,6 +125,7 @@ def assert_role_job(
     owner_role: str,
     authority_scope: str,
     scope: str,
+    expected_graph_node_ids: list[str] | None = None,
 ) -> None:
     require(job["id"] == binding_id, f"{binding_id} should use the fixed binding id")
     require(job["kind"] == "specialist", f"{binding_id} should use a specialist job")
@@ -105,7 +142,11 @@ def assert_role_job(
         f"{binding_id} should align runtime and backend ids",
     )
     require(job["linkedSubgoalIds"] == [SUBGOAL_ID], f"{binding_id} should bind subgoal")
-    require(job["linkedGraphNodeIds"] == [GRAPH_NODE_ID], f"{binding_id} should bind frontier")
+    expected_graph_node_ids = expected_graph_node_ids or [GRAPH_NODE_ID]
+    require(
+        job["linkedGraphNodeIds"] == expected_graph_node_ids,
+        f"{binding_id} should bind frontier",
+    )
 
 
 def launch_role(
@@ -273,14 +314,55 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             scope="role-scoped modeling/checkpoint maintenance",
         )
 
+        accept_start = len(client.notifications)
+        modeling_accept = client.send(
+            "thread/epiphany/roleAccept",
+            {
+                "threadId": thread_id,
+                "roleId": "modeling",
+                "expectedRevision": 2,
+            },
+        )
+        assert modeling_accept is not None
+        require(
+            modeling_accept["changedFields"]
+            == [
+                "graphs",
+                "graphFrontier",
+                "graphCheckpoint",
+                "scratch",
+                "observations",
+                "evidence",
+            ],
+            "modeling accept should apply only modeling patch fields plus audit records",
+        )
+        require(
+            modeling_accept["appliedPatch"]["graphs"]["architecture"]["nodes"][-1]["id"]
+            == "accepted-modeling-node",
+            "modeling accept should apply the reviewed graph patch",
+        )
+        accept_notification = client.wait_for_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=accept_start,
+            timeout=15.0,
+        )
+        require(
+            accept_notification["params"]["source"] == "roleAccept",
+            "modeling accept should emit roleAccept state update source",
+        )
+        require(
+            accept_notification["params"]["revision"] == 3,
+            "modeling accept should advance durable revision",
+        )
+
         verification_launch = launch_role(
             client,
             thread_id,
             role_id="verification",
-            expected_revision=2,
+            expected_revision=3,
         )
         require(
-            verification_launch["revision"] == 3,
+            verification_launch["revision"] == 4,
             "verification launch should advance revision",
         )
         assert_role_job(
@@ -289,6 +371,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             owner_role="epiphany-verifier",
             authority_scope="epiphany.role.verification",
             scope="role-scoped verification/review",
+            expected_graph_node_ids=[GRAPH_NODE_ID, "accepted-modeling-node"],
         )
         verification_payload = complete_role_backend_job(
             codex_home,
@@ -308,7 +391,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             role_id="verification",
             binding_id=VERIFICATION_BINDING_ID,
             payload=verification_payload,
-            expected_revision=3,
+            expected_revision=4,
         )
         client.require_no_notification(
             "thread/epiphany/stateUpdated",
@@ -318,8 +401,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
         require(
-            final_read["thread"]["epiphanyState"]["revision"] == 3,
+            final_read["thread"]["epiphanyState"]["revision"] == 4,
             "role result read-back should not mutate durable state",
+        )
+        graph_ids = [
+            node["id"]
+            for node in final_read["thread"]["epiphanyState"]["graphs"]["architecture"]["nodes"]
+        ]
+        require(
+            "accepted-modeling-node" in graph_ids,
+            "accepted modeling result should grow the durable graph",
         )
 
         result = {
@@ -329,6 +420,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "modelingRevision": modeling_launch["revision"],
             "modelingResultStatus": modeling_result["status"],
             "modelingNextSafeMove": modeling_result["finding"]["nextSafeMove"],
+            "modelingAcceptRevision": modeling_accept["revision"],
+            "modelingAcceptedNode": "accepted-modeling-node",
             "verificationRevision": verification_launch["revision"],
             "verificationResultStatus": verification_result["status"],
             "verificationVerdict": verification_result["finding"]["verdict"],

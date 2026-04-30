@@ -4002,6 +4002,7 @@ pub enum ThreadEpiphanySceneAction {
     Coordinator,
     RoleLaunch,
     RoleResult,
+    RoleAccept,
     JobLaunch,
     JobInterrupt,
     Freshness,
@@ -4290,6 +4291,35 @@ pub struct ThreadEpiphanyRoleResultResponse {
     pub note: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleAcceptParams {
+    pub thread_id: String,
+    pub role_id: ThreadEpiphanyRoleId,
+    #[serde(default)]
+    #[ts(optional = nullable)]
+    pub expected_revision: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub binding_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleAcceptResponse {
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: CoreEpiphanyThreadState,
+    pub role_id: ThreadEpiphanyRoleId,
+    pub binding_id: String,
+    pub accepted_observation_id: String,
+    pub accepted_evidence_id: String,
+    pub applied_patch: ThreadEpiphanyUpdatePatch,
+    pub finding: ThreadEpiphanyRoleFinding,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
@@ -4393,6 +4423,15 @@ pub struct ThreadEpiphanyRoleFinding {
     pub frontier_node_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub open_questions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence_gaps: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub risks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_patch: Option<ThreadEpiphanyUpdatePatch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub job_error: Option<String>,
@@ -5353,6 +5392,7 @@ pub enum ThreadEpiphanyStateUpdatedSource {
     JobLaunch,
     JobInterrupt,
     ReorientAccept,
+    RoleAccept,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]

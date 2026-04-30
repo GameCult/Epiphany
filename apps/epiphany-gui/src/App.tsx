@@ -22,6 +22,7 @@ const actionButtons: Array<{
   title: string;
   requiresThread?: boolean;
   requiresReadyState?: boolean;
+  requiresModelingPatch?: boolean;
   requiresReorientResult?: boolean;
   icon: "file" | "check" | "play" | "eye" | "accept";
 }> = [
@@ -62,6 +63,16 @@ const actionButtons: Array<{
     title: "Read the latest modeling/checkpoint finding",
     requiresThread: true,
     icon: "eye",
+  },
+  {
+    action: "acceptModeling",
+    label: "Accept Modeling",
+    runningLabel: "Accepting",
+    title: "Accept a reviewed modeling graph/checkpoint patch into Epiphany state",
+    requiresThread: true,
+    requiresReadyState: true,
+    requiresModelingPatch: true,
+    icon: "accept",
   },
   {
     action: "launchVerification",
@@ -210,6 +221,9 @@ export function App() {
   const reorientResult = status?.reorientResult ?? {};
   const readyState = scene.stateStatus === "ready";
   const currentThreadId = request.threadId;
+  const modelingFinding = roleResults?.modeling?.finding;
+  const canAcceptModeling =
+    text(roleResults?.modeling?.status).toLowerCase() === "completed" && Boolean(modelingFinding?.statePatch);
   const canAcceptReorient = text(reorientResult?.status).toLowerCase() === "completed";
 
   return (
@@ -248,15 +262,18 @@ export function App() {
         {actionButtons.map((button) => {
           const needsThread = button.requiresThread && !currentThreadId;
           const needsState = button.requiresReadyState && !readyState;
+          const needsModeling = button.requiresModelingPatch && !canAcceptModeling;
           const needsReorient = button.requiresReorientResult && !canAcceptReorient;
-          const disabled = runningAction !== null || needsThread || needsState || needsReorient;
+          const disabled = runningAction !== null || needsThread || needsState || needsModeling || needsReorient;
           const title = needsThread
             ? "Prepare a checkpoint or enter a persisted thread id first"
             : needsState
               ? "Prepare Epiphany state before launching this lane"
-              : needsReorient
-                ? "Read a completed reorient result before accepting it"
-                : button.title;
+              : needsModeling
+                ? "Read a completed modeling result with a state patch before accepting it"
+                : needsReorient
+                  ? "Read a completed reorient result before accepting it"
+                  : button.title;
           return (
             <button
               className="secondaryButton"
@@ -418,6 +435,7 @@ function Finding({ title, result, findingKey = "finding" }: { title: string; res
           <dl className="facts compact">
             <div><dt>Verdict</dt><dd>{text(finding.verdict ?? finding.mode)}</dd></div>
             <div><dt>Next</dt><dd>{text(finding.nextSafeMove)}</dd></div>
+            <div><dt>Patch</dt><dd>{finding.statePatch ? "available" : "none"}</dd></div>
           </dl>
         </>
       ) : (

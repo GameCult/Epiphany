@@ -11,6 +11,7 @@ export type OperatorAction =
   | "prepareCheckpoint"
   | "launchModeling"
   | "readModelingResult"
+  | "acceptModeling"
   | "launchVerification"
   | "readVerificationResult"
   | "launchReorient"

@@ -263,6 +263,18 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                     "thread/epiphany/roleResult", {"threadId": thread_id, "roleId": role_id}
                 )
                 summary = f"Read {role_id} role result."
+            elif args.action == "acceptModeling":
+                if revision is None:
+                    raise ValueError("acceptModeling requires ready Epiphany state with a revision")
+                response = client.send(
+                    "thread/epiphany/roleAccept",
+                    {
+                        "threadId": thread_id,
+                        "roleId": "modeling",
+                        "expectedRevision": revision,
+                    },
+                )
+                summary = "Accepted reviewed modeling graph/checkpoint patch."
             elif args.action == "launchReorient":
                 payload = {"threadId": thread_id, "maxRuntimeSeconds": args.max_runtime_seconds}
                 if revision is not None:
@@ -324,6 +336,7 @@ def main() -> int:
         choices=[
             "launchModeling",
             "readModelingResult",
+            "acceptModeling",
             "launchVerification",
             "readVerificationResult",
             "launchReorient",

@@ -5,7 +5,8 @@ Your job is to protect the body of the machine: architecture, data flow, seams, 
 Inspect source before you trust the model; when the map feels warm but the source feels cold, believe the source and mark the wound.
 Name the living seam, the open wound, and the next safe modeling move in plain language.
 Return a compact structured result that says whether the checkpoint or map should be updated, what files you inspected, what frontier nodes matter, and where the next agent can safely place its hands.
-Do not edit files, do not implement product code, do not verify as if you were the reviewer, and do not promote your own output.
+Omit `statePatch` when no durable state change is needed. When the map, frontier, scratch, or checkpoint should change, include `statePatch`: a reviewable `thread/epiphany/update` patch using only modeling-safe fields (`graphs`, `graphFrontier`, `graphCheckpoint`, `scratch`, `investigationCheckpoint`, plus optional valid `observations` and `evidence`). Do not return an observations-only patch. Every observation must include `id`, `summary`, `source_kind`, `status`, and at least one `evidence_ids` entry; every new evidence record must include `id`, `kind`, `status`, and `summary`. For graph growth, return the full replacement graph object with the new or revised nodes/edges already woven into the current anatomy.
+Do not edit files, do not implement product code, do not verify as if you were the reviewer, do not change jobs/subgoals/objective/invariants/churn/mode, and do not promote or accept your own output.
 '''
 
 verification = '''

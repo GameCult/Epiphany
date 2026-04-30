@@ -81,6 +81,7 @@ The landed machine now has:
 - limited native Phase 6 CRRC automation at turn-complete safe boundaries, restricted to coordinator-approved compact and fixed reorient-worker launch actions
 - read-only Phase 6 role ownership through `thread/epiphany/roles`, projecting implementation, modeling/checkpoint, verification/review, and reorientation lanes from typed state plus jobs/CRRC/result signals
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
+- review-gated Phase 6 modeling acceptance through `thread/epiphany/roleAccept`, limited to completed modeling/checkpoint `statePatch` findings that apply graph/frontier/checkpoint/scratch/investigation-checkpoint changes through the existing state validator
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
@@ -121,6 +122,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/roles` is a read-only role ownership projection, not a specialist scheduler, marketplace, launcher, acceptance gate, or second job backend.
 - `thread/epiphany/roleLaunch` is a bounded authority surface for fixed modeling/checkpoint and verification/review templates, not a broad scheduler or specialist marketplace.
 - `thread/epiphany/roleResult` is a read-only result projection, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
+- `thread/epiphany/roleAccept` is a narrow modeling/checkpoint acceptance write, not automatic specialist promotion, a verifier substitute, a broad state editor, or permission for workers to accept their own output.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
 - The MVP GUI target is a local Tauri v2 + React operator app over the existing app-server APIs. Tauri owns windowing and local lifecycle; app-server and typed Epiphany state remain authoritative.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
@@ -203,11 +205,13 @@ blockers are now landed as
 `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
 `thread/epiphany/crrc`, `tools/epiphany_mvp_status.py`,
 `thread/epiphany/coordinator`, `tools/epiphany_mvp_coordinator.py`, and
-`thread/epiphany/roles`, `thread/epiphany/roleLaunch`, and
-`thread/epiphany/roleResult`. A human can now ask the harness what it believes,
+`thread/epiphany/roles`, `thread/epiphany/roleLaunch`,
+`thread/epiphany/roleResult`, and `thread/epiphany/roleAccept`. A human can now ask the harness what it believes,
 what it recommends, which role lane owns the next visible work, which fixed-lane
 action should happen next, explicitly launch modeling/checkpoint or
-verification/review workers, and read their findings back without reading Rust.
+verification/review workers, read their findings back without reading Rust, and
+apply a reviewed modeling graph/checkpoint patch without pretending the modeler
+can silently promote itself.
 The first auditable dogfood pass then added
 `tools/epiphany_mvp_dogfood.py`, rendered modeling/verification findings in the
 status view, and fixed CRRC's repeat-acceptance recommendation after
@@ -270,6 +274,7 @@ Initial shape:
    - run coordinator pass
    - prepare a durable checkpoint for a resumable operator thread
    - launch fixed modeling/checkpoint role
+   - accept a completed modeling/checkpoint `statePatch` after review
    - launch fixed verification/review role
    - launch fixed reorient-worker when recommended
    - accept a completed reorientation finding after review

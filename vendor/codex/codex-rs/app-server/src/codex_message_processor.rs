@@ -229,6 +229,8 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
+use codex_app_server_protocol::ThreadEpiphanyRoleAcceptParams;
+use codex_app_server_protocol::ThreadEpiphanyRoleAcceptResponse;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleLane;
@@ -1124,6 +1126,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyRoleResult { request_id, params } => {
                 self.thread_epiphany_role_result(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyRoleAccept { request_id, params } => {
+                self.thread_epiphany_role_accept(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyFreshness { request_id, params } => {
@@ -4939,6 +4945,204 @@ impl CodexMessageProcessor {
                     note,
                 },
             )
+            .await;
+    }
+
+    async fn thread_epiphany_role_accept(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyRoleAcceptParams,
+    ) {
+        let ThreadEpiphanyRoleAcceptParams {
+            thread_id,
+            role_id,
+            expected_revision,
+            binding_id,
+        } = params;
+
+        if role_id != ThreadEpiphanyRoleId::Modeling {
+            self.send_invalid_request_error(
+                request_id,
+                "only the modeling/checkpoint role currently has an Epiphany role acceptance path"
+                    .to_string(),
+            )
+            .await;
+            return;
+        }
+        let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_MODELING_ROLE_BINDING_ID.into());
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return;
+            }
+        };
+        let Some(state) = loaded_thread.epiphany_state().await else {
+            self.send_invalid_request_error(
+                request_id,
+                "cannot accept an Epiphany role finding without authoritative Epiphany state"
+                    .to_string(),
+            )
+            .await;
+            return;
+        };
+        if let Some(expected_revision) = expected_revision
+            && state.revision != expected_revision
+        {
+            self.send_invalid_request_error(
+                request_id,
+                format!(
+                    "epiphany state revision mismatch: expected {expected_revision}, found {}",
+                    state.revision
+                ),
+            )
+            .await;
+            return;
+        }
+
+        let finding = match load_completed_epiphany_role_finding(
+            loaded_thread.as_ref(),
+            &state,
+            role_id,
+            &binding_id,
+        )
+        .await
+        {
+            Ok(finding) => finding,
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to accept Epiphany role finding: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        let mut patch = match parse_role_finding_state_patch(&finding) {
+            Ok(patch) => patch,
+            Err(message) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+        };
+        let patch_errors = modeling_role_accept_patch_errors(&patch);
+        if !patch_errors.is_empty() {
+            self.send_invalid_request_error(
+                request_id,
+                format!(
+                    "modeling role state patch is not acceptable: {}",
+                    patch_errors.join("; ")
+                ),
+            )
+            .await;
+            return;
+        }
+
+        let accepted_evidence_id = format!("ev-modeling-{}", Uuid::new_v4());
+        let accepted_observation_id = format!("obs-modeling-{}", Uuid::new_v4());
+        let code_refs = role_finding_code_refs(&finding);
+        let evidence = EpiphanyEvidenceRecord {
+            id: accepted_evidence_id.clone(),
+            kind: "modeling_result".to_string(),
+            status: "accepted".to_string(),
+            summary: role_finding_summary(&finding),
+            code_refs: code_refs.clone(),
+        };
+        let observation = EpiphanyObservation {
+            id: accepted_observation_id.clone(),
+            summary: role_finding_observation_summary(&finding),
+            source_kind: "modeling_result".to_string(),
+            status: "accepted".to_string(),
+            code_refs,
+            evidence_ids: vec![accepted_evidence_id.clone()],
+        };
+        patch.evidence.push(evidence);
+        patch.observations.push(observation);
+        let changed_fields = epiphany_update_patch_changed_fields(&patch);
+        let applied_patch = patch.clone();
+
+        let epiphany_state = match loaded_thread
+            .epiphany_update_state(EpiphanyStateUpdate {
+                expected_revision,
+                objective: patch.objective,
+                active_subgoal_id: patch.active_subgoal_id,
+                subgoals: patch.subgoals,
+                invariants: patch.invariants,
+                graphs: patch.graphs,
+                graph_frontier: patch.graph_frontier,
+                graph_checkpoint: patch.graph_checkpoint,
+                scratch: patch.scratch,
+                investigation_checkpoint: patch.investigation_checkpoint,
+                job_bindings: patch.job_bindings,
+                observations: patch.observations,
+                evidence: patch.evidence,
+                churn: patch.churn,
+                mode: patch.mode,
+            })
+            .await
+        {
+            Ok(state) => {
+                client_visible_live_thread_epiphany_state(loaded_thread.as_ref(), state).await
+            }
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to apply Epiphany role finding: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
+
+        self.outgoing
+            .send_response(
+                request_id,
+                ThreadEpiphanyRoleAcceptResponse {
+                    revision: epiphany_state.revision,
+                    changed_fields: changed_fields.clone(),
+                    epiphany_state: epiphany_state.clone(),
+                    role_id,
+                    binding_id: binding_id.clone(),
+                    accepted_observation_id,
+                    accepted_evidence_id,
+                    applied_patch,
+                    finding,
+                },
+            )
+            .await;
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                ThreadEpiphanyStateUpdatedNotification {
+                    thread_id: thread_uuid.to_string(),
+                    source: ThreadEpiphanyStateUpdatedSource::RoleAccept,
+                    revision: epiphany_state.revision,
+                    changed_fields,
+                    epiphany_state,
+                },
+            ))
             .await;
     }
 
@@ -12770,6 +12974,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Coordinator,
         ThreadEpiphanySceneAction::RoleLaunch,
         ThreadEpiphanySceneAction::RoleResult,
+        ThreadEpiphanySceneAction::RoleAccept,
         ThreadEpiphanySceneAction::JobLaunch,
         ThreadEpiphanySceneAction::Freshness,
         ThreadEpiphanySceneAction::Pressure,
@@ -12990,6 +13195,10 @@ fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_js
             "risks": {
                 "type": "array",
                 "items": {"type": "string"}
+            },
+            "statePatch": {
+                "type": "object",
+                "description": "Optional reviewable thread/epiphany/update patch. Modeling may use only graphs, graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence."
             }
         },
         "required": ["summary", "nextSafeMove"],
@@ -13234,6 +13443,13 @@ fn map_epiphany_role_finding(
         files_inspected: json_string_array_field(&raw_result, "filesInspected"),
         frontier_node_ids: json_string_array_field(&raw_result, "frontierNodeIds"),
         evidence_ids: json_string_array_field(&raw_result, "evidenceIds"),
+        open_questions: json_string_array_field(&raw_result, "openQuestions"),
+        evidence_gaps: json_string_array_field(&raw_result, "evidenceGaps"),
+        risks: json_string_array_field(&raw_result, "risks"),
+        state_patch: raw_result
+            .get("statePatch")
+            .cloned()
+            .and_then(|patch| serde_json::from_value(patch).ok()),
         job_error,
         item_error,
         raw_result,
@@ -14030,6 +14246,7 @@ fn map_epiphany_roles(
             authority_scopes: vec![
                 "thread/epiphany/roleLaunch".to_string(),
                 "thread/epiphany/roleResult".to_string(),
+                "thread/epiphany/roleAccept".to_string(),
                 "thread/epiphany/update".to_string(),
             ],
             recommended_action: modeling_recommended_action,
@@ -14238,6 +14455,178 @@ async fn load_completed_epiphany_reorient_finding(
         agent_job.last_error,
         item.last_error,
     ))
+}
+
+async fn load_completed_epiphany_role_finding(
+    thread: &CodexThread,
+    state: &EpiphanyThreadState,
+    role_id: ThreadEpiphanyRoleId,
+    binding_id: &str,
+) -> CodexResult<ThreadEpiphanyRoleFinding> {
+    let binding = state
+        .job_bindings
+        .iter()
+        .find(|binding| binding.id == binding_id)
+        .ok_or_else(|| {
+            CodexErr::InvalidRequest(format!(
+                "epiphany role binding {:?} was not found",
+                binding_id
+            ))
+        })?;
+    let agent_job_id = binding_agent_jobs_job_id(binding).ok_or_else(|| {
+        CodexErr::InvalidRequest(format!(
+            "epiphany role binding {:?} is not backed by agent_jobs",
+            binding_id
+        ))
+    })?;
+    let state_db_ctx = thread.epiphany_state_runtime().await.ok_or_else(|| {
+        CodexErr::InvalidRequest(
+            "sqlite state db is unavailable for Epiphany role result acceptance".to_string(),
+        )
+    })?;
+    let agent_job = state_db_ctx
+        .get_agent_job(agent_job_id)
+        .await
+        .map_err(|err| CodexErr::Fatal(format!("failed to read Epiphany backend job: {err}")))?
+        .ok_or_else(|| {
+            CodexErr::InvalidRequest(format!(
+                "bound agent_jobs backend job {:?} was not found",
+                agent_job_id
+            ))
+        })?;
+    let item = state_db_ctx
+        .get_agent_job_item(agent_job_id, binding_id)
+        .await
+        .map_err(|err| {
+            CodexErr::Fatal(format!(
+                "failed to read Epiphany backend job item for {binding_id:?}: {err}"
+            ))
+        })?
+        .ok_or_else(|| {
+            CodexErr::InvalidRequest(format!(
+                "bound agent_jobs backend item {:?} was not found",
+                binding_id
+            ))
+        })?;
+    let status = map_epiphany_role_result_status(agent_job.status, item.status);
+    if status != ThreadEpiphanyRoleResultStatus::Completed {
+        return Err(CodexErr::InvalidRequest(format!(
+            "cannot accept role result while worker status is {:?}",
+            status
+        )));
+    }
+    let result = item.result_json.ok_or_else(|| {
+        CodexErr::InvalidRequest(
+            "cannot accept completed role worker because no result_json was recorded".to_string(),
+        )
+    })?;
+    Ok(map_epiphany_role_finding(
+        role_id,
+        result,
+        agent_job.last_error,
+        item.last_error,
+    ))
+}
+
+fn parse_role_finding_state_patch(
+    finding: &ThreadEpiphanyRoleFinding,
+) -> Result<ThreadEpiphanyUpdatePatch, String> {
+    let Some(value) = finding.raw_result.get("statePatch") else {
+        return Err(
+            "completed modeling role finding did not include a reviewable statePatch".to_string(),
+        );
+    };
+    serde_json::from_value(value.clone())
+        .map_err(|err| format!("completed modeling role finding has invalid statePatch: {err}"))
+}
+
+fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
+    let mut errors = Vec::new();
+    if patch.objective.is_some() {
+        errors
+            .push("objective changes are not allowed through modeling role acceptance".to_string());
+    }
+    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
+        errors.push("subgoal changes are not allowed through modeling role acceptance".to_string());
+    }
+    if patch.invariants.is_some() {
+        errors
+            .push("invariant changes are not allowed through modeling role acceptance".to_string());
+    }
+    if patch.job_bindings.is_some() {
+        errors.push(
+            "job binding changes are not allowed through modeling role acceptance".to_string(),
+        );
+    }
+    if patch.churn.is_some() || patch.mode.is_some() {
+        errors.push(
+            "churn or mode changes are not allowed through modeling role acceptance".to_string(),
+        );
+    }
+    if patch.graphs.is_none()
+        && patch.graph_frontier.is_none()
+        && patch.graph_checkpoint.is_none()
+        && patch.scratch.is_none()
+        && patch.investigation_checkpoint.is_none()
+    {
+        errors.push(
+            "statePatch must include a modeling field: graphs, graphFrontier, graphCheckpoint, scratch, or investigationCheckpoint"
+                .to_string(),
+        );
+    }
+    errors
+}
+
+fn role_finding_summary(finding: &ThreadEpiphanyRoleFinding) -> String {
+    let summary = finding
+        .summary
+        .clone()
+        .unwrap_or_else(|| "Role worker returned a structured finding.".to_string());
+    if let Some(next_safe_move) = finding.next_safe_move.as_deref() {
+        format!("{summary} Next safe move: {next_safe_move}")
+    } else {
+        summary
+    }
+}
+
+fn role_finding_observation_summary(finding: &ThreadEpiphanyRoleFinding) -> String {
+    let verdict = finding.verdict.as_deref().unwrap_or("unknown");
+    let changed_fields = finding
+        .state_patch
+        .as_ref()
+        .map(epiphany_update_patch_changed_fields)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|field| format!("{field:?}"))
+        .collect::<Vec<_>>();
+    let changed = if changed_fields.is_empty() {
+        "no typed state fields projected".to_string()
+    } else {
+        changed_fields.join(", ")
+    };
+    format!(
+        "Accepted {:?} role result with verdict {verdict}; projected fields: {changed}. {}",
+        finding.role_id,
+        role_finding_summary(finding)
+    )
+}
+
+fn role_finding_code_refs(finding: &ThreadEpiphanyRoleFinding) -> Vec<EpiphanyCodeRef> {
+    finding
+        .files_inspected
+        .iter()
+        .filter(|path| !path.trim().is_empty())
+        .map(|path| EpiphanyCodeRef {
+            path: PathBuf::from(path),
+            start_line: None,
+            end_line: None,
+            symbol: None,
+            note: Some(format!(
+                "Inspected by accepted {:?} role worker.",
+                finding.role_id
+            )),
+        })
+        .collect()
 }
 
 fn reorient_finding_summary(finding: &ThreadEpiphanyReorientFinding) -> String {
@@ -18074,6 +18463,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Coordinator,
                 ThreadEpiphanySceneAction::RoleLaunch,
                 ThreadEpiphanySceneAction::RoleResult,
+                ThreadEpiphanySceneAction::RoleAccept,
                 ThreadEpiphanySceneAction::JobLaunch,
                 ThreadEpiphanySceneAction::Freshness,
                 ThreadEpiphanySceneAction::Pressure,

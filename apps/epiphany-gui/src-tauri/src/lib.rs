@@ -69,6 +69,7 @@ fn run_operator_action(
         "coordinatorPlan" => run_coordinator_plan(&repo_root, request),
         "launchModeling"
         | "readModelingResult"
+        | "acceptModeling"
         | "launchVerification"
         | "readVerificationResult"
         | "launchReorient"
