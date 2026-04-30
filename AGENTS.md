@@ -97,6 +97,22 @@ When the user says to prepare for imminent compaction:
 - Before handoff, compaction, or phase boundaries, sync `state/map.yaml`, add distilled evidence when the lesson changes future belief, refresh `notes/fresh-workspace-handoff.md`, and make the next action explicit.
 - Do not write handoff notes that trap the next session in indefinite tiny hardening work. Bounded slices are a landing discipline, not a roadmap; when a phase is complete enough, name the next larger organ to build.
 
+## Dogfood Supervision Quarantine
+
+When Epiphany is being dogfooded on another repository, this Codex session is the
+operator/supervisor, not the implementation worker.
+
+- Use Epiphany's coordinator, GUI, fixed role lanes, and artifact bundles to
+  drive target-repo work.
+- Do not edit, stage, or commit the target repo directly unless the user
+  explicitly authorizes a supervisor intervention.
+- If a supervisor intervention is authorized, label it as such in the audit
+  artifacts and evidence. Do not present it as proof that Epiphany coordinated
+  the work.
+- If direct target-repo implementation happens by accident, stop immediately,
+  mark the run contaminated, preserve or discard only the supervisor's own
+  uncommitted edits as appropriate, and resume through the Epiphany lanes.
+
 ## Verification Guardrails
 
 - Use focused checks for the surface being changed instead of defaulting to a whole-repo ritual.

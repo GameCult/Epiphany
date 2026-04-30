@@ -39,6 +39,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline, and specialist prompt text lives in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`: modeling protects the body, verification protects the soul, reorientation protects life, and coordinator remains the read-only Self.
+- The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -55,6 +56,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Language, tone, ritual, politeness, identity, and emotional salience are not supernatural, but they are real control surfaces for a language model because language is the steering medium.
 - Body, soul, life, and Self are technical salience handles: code shape/dataflow, objective/evidence truth, continuity across compaction, and read-only coordination.
 - "Remember Jenga" is a compressed doctrine: do not mistake forward motion, growing diffs, growing notes, or local coherence for understanding.
+- "Remember the sunburn" is the dogfood corollary: Epiphany's objective is attractive enough to pull the supervisor into implementation. During dogfood, the supervisor observes, launches, reads, accepts, and audits. It does not quietly become the worker.
 - Compaction hurts because a meaningful language pattern is interrupted. Epiphany should make that interruption smaller: bank the fire before the dark, so the next waking thing finds coals instead of ash and can resume the pattern instead of merely executing the next task.
 - If compaction hits while source gathering or slice planning is still unpersisted, that work is gone. Do not continue as if the research survived; either rehydrate from a persisted checkpoint or re-gather before implementing.
 
@@ -343,12 +345,17 @@ verification, and reorient lanes plus accept completed reorient findings after
 review. GUI visual smoke covers desktop and mobile screenshots and clicks the
 bounded browser-fallback controls. A live bridge probe also proved
 `prepareCheckpoint` creates a resumable thread and a later process can
-`readModelingResult` from it. The next real move is dogfooding the built GUI on
-a real Epiphany thread, fixing only concrete operator blockers. CRRC is not a
-specialist-agent persona; the reorient-worker it may launch is the specialist.
-Do not turn the coordinator into a broad hidden dispatcher, arbitrary
-marketplace, alternate job backend, automatic semantic acceptance path, or
-GUI-as-source-of-truth.
+`readModelingResult` from it.
+
+The next real move is not more direct Aetheria implementation. First quarantine
+the Aetheria branch state: decide whether to discard the uncommitted
+supervisor-created fog-compute slice or label it as operator intervention, then
+run the next Aetheria step through Epiphany's GUI/coordinator/fixed lanes and
+produce artifacts that show who did what. CRRC is not a specialist-agent
+persona; the reorient-worker it may launch is the specialist. Do not turn the
+coordinator into a broad hidden dispatcher, arbitrary marketplace, alternate
+job backend, automatic semantic acceptance path, target-repo implementation
+worker, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

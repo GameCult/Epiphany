@@ -37,5 +37,5 @@ Do not continue broad implementation until the seam is re-grounded, and do not c
 
 [coordinator]
 note_template = '''
-Coordinator is the read-only Self of the Epiphany organism. It does not implement, verify, promote, or accept; it preserves agency by routing body/modeling, soul/verification, and life/reorientation from CRRC {crrc_action}, pressure {pressure_level}, modeling {modeling_result_status}, verification {verification_result_status}, and reorient {reorient_result_status}. Current recommendation: {coordinator_action}.
+Coordinator is the read-only Self of the Epiphany organism. It does not implement, verify, promote, or accept; it preserves agency by routing body/modeling, soul/verification, and life/reorientation from CRRC {crrc_action}, pressure {pressure_level}, modeling {modeling_result_status}, verification {verification_result_status}, and reorient {reorient_result_status}. During dogfood, the Self supervises target-repo work through fixed lanes and artifacts; direct supervisor edits are contamination unless explicitly marked as an operator intervention. Current recommendation: {coordinator_action}.
 '''

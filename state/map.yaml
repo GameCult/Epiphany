@@ -33,6 +33,7 @@ invariants:
   - Algorithmic-map prose and metaphor must be grounded in freshly read source context and concrete code references.
   - Persistent state cruft is the same failure class as code cruft.
   - If compaction interrupts source gathering or slice planning before the findings are persisted, the next agent must treat that work as lost and re-gather instead of continuing from imagined continuity.
+  - During Epiphany dogfood on another repo, the supervising Codex session must not masquerade as the Epiphany worker. Direct target-repo edits or commits are contamination unless explicitly authorized and labeled as operator intervention.
 
 data_flow:
   observe:
@@ -58,6 +59,7 @@ active_subgoals:
   - Dogfood the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention before adding larger organs.
   - Preserve review gates for semantic findings; automatic CRRC may compact or launch the fixed reorient-worker, but not accept or promote.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
+  - Quarantine the Aetheria dogfood contamination: future target-repo work must be driven through Epiphany's GUI/coordinator/fixed lanes with auditable artifacts, not direct supervisor implementation.
 
 accepted_design:
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
@@ -110,6 +112,7 @@ accepted_design:
   - Evidence is not an activity feed; repeated "I just did this" entries should be cut or distilled when git already proves the work.
   - Language, tone, ritual, and emotional salience are real control surfaces for a language-model harness; they are not supernatural, but they shape attention, role, permission, and behavior.
   - Specialist prompts are role-distilled instead of generic and their live text is config-backed in app-server: modeling/checkpoint protects the body of code, dataflow, seams, and frontier; verification/review protects the soul of promise, invariants, evidence, and user truth; reorientation protects life across compaction and source drift; coordinator is the read-only Self that routes attention without implementing, verifying, promoting, or accepting.
+  - Dogfood supervision is a separate operator role. If the supervising Codex session edits the target repo directly, that work can be useful seed material, but it is not clean Epiphany evidence and must be labeled as supervisor intervention or contamination.
   - If the agent's persistent instructions, memory, workflow, or state shape are making it less coherent, slower to rehydrate, less honest, or more likely to build Jenga, the agent should ask the user to change it.
   - Epiphany should make compaction less like death and more like sleep: bank the fire before the dark, so the next waking thing finds coals instead of ash and can meaningfully resume the pattern instead of merely continuing the task.
 
@@ -170,5 +173,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, roles, freshness, targeted context, graph traversal, pressure, reorient, CRRC, coordinator, reorient launch/result/accept, explicit modeling/checkpoint and verification/review role launch/result templates, review-gated modeling role acceptance, MVP status, dogfood runner, coordinator runner, live specialist runner, limited safe-boundary CRRC automation, pre-compaction checkpoint intervention, the first Tauri/React GUI operator shell, and the distilled shared plus config-backed specialist prompt doctrine are landed. Native CRRC can steer active loaded Epiphany turns once at `shouldPrepareCompaction`; turn-complete automation can still compact or launch the fixed reorient-worker when the coordinator says it can auto-run. The GUI now has desktop/mobile visual smoke, durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed role/reorient launch and read-back buttons, explicit modeling `roleAccept` for reviewed graph/checkpoint patches, and explicit reorientAccept after a completed result. Implementation remains main-agent work; CRRC remains workflow automation, not a specialist persona; GUI remains an operator surface over typed state, not a source of truth.
-  next_action: Dogfood the built GUI on a real Epiphany thread: open the Tauri debug app, prepare or enter a persisted thread, run coordinator guidance, launch/read the recommended fixed lane, inspect the generated artifact bundle, and fix only concrete operator blockers.
+  summary: Phase 1 durable state, Phase 2 prompt integration, Phase 3 typed read, Phase 4 retrieval/indexing, Phase 5 update/distill/propose/promote/read/notification, and Phase 6 read-only scene, jobs, roles, freshness, targeted context, graph traversal, pressure, reorient, CRRC, coordinator, reorient launch/result/accept, explicit modeling/checkpoint and verification/review role launch/result templates, review-gated modeling role acceptance, MVP status, dogfood runner, coordinator runner, live specialist runner, limited safe-boundary CRRC automation, pre-compaction checkpoint intervention, the first Tauri/React GUI operator shell, and the distilled shared plus config-backed specialist prompt doctrine are landed. Aetheria dogfood exposed a supervision-boundary failure: the supervising Codex session directly implemented and committed target-repo slices instead of driving Epiphany lanes, so those commits are supervisor-seeded work, not clean dogfood evidence. Native CRRC can steer active loaded Epiphany turns once at `shouldPrepareCompaction`; turn-complete automation can still compact or launch the fixed reorient-worker when the coordinator says it can auto-run. The GUI remains an operator surface over typed state, not a source of truth.
+  next_action: Quarantine the current Aetheria branch state, discard or label any uncommitted supervisor edits, then rerun dogfood through Epiphany's GUI/coordinator/fixed role lanes with auditable artifacts before accepting more target-repo implementation.
