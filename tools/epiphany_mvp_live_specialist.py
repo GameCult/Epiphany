@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -114,6 +115,7 @@ def run_live_specialist(args: argparse.Namespace) -> dict[str, Any]:
     workspace = artifact_dir / "workspace"
     transcript_path = artifact_dir / "epiphany-transcript.jsonl"
     stderr_path = artifact_dir / "epiphany-server.stderr.log"
+    telemetry_path = artifact_dir / "agent-function-telemetry.json"
     prepare_workspace(workspace)
 
     role_results: list[dict[str, Any]] = []
@@ -183,6 +185,7 @@ def run_live_specialist(args: argparse.Namespace) -> dict[str, Any]:
             "live-specialist-summary.json",
             "epiphany-final-status.json",
             "epiphany-final-status.txt",
+            "agent-function-telemetry.json",
         ],
         "sealedArtifactManifest": [
             {
@@ -199,6 +202,7 @@ def run_live_specialist(args: argparse.Namespace) -> dict[str, Any]:
     write_json(artifact_dir / "live-specialist-summary.json", summary)
     write_json(artifact_dir / "epiphany-final-status.json", operator_final_status)
     write_text(artifact_dir / "epiphany-final-status.txt", final_rendered)
+    write_transcript_telemetry(transcript_path, telemetry_path)
     return summary
 
 

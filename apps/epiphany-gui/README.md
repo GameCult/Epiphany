@@ -64,3 +64,8 @@ Raw transcripts, stderr logs, full turn logs, direct worker messages, and
 use projected status, finding summaries, state patches, coordinator
 recommendations, and manifests by default; open sealed artifacts only for
 explicit debugging.
+
+For more detail without reading the worker's direct stream, use the generated
+`agent-function-telemetry.json` files. They summarize API/function-call shape,
+job/status/path counts, and visible tool names while sealing text and raw
+results.

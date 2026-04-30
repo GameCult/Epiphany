@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -234,6 +235,7 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
     workspace = artifact_dir / "workspace"
     transcript_path = artifact_dir / "epiphany-transcript.jsonl"
     stderr_path = artifact_dir / "epiphany-server.stderr.log"
+    telemetry_path = artifact_dir / "agent-function-telemetry.json"
     codex_home.mkdir(parents=True, exist_ok=True)
     watched_file = prepare_workspace(workspace)
 
@@ -394,6 +396,7 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
             "epiphany-final-status.json",
             "epiphany-final-status.txt",
             "epiphany-snapshots.json",
+            "agent-function-telemetry.json",
             "vanilla-reference-prompt.md",
             "vanilla-reference.md",
             "comparison.md",
@@ -428,6 +431,7 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
     write_json(artifact_dir / "epiphany-final-status.json", operator_final_status)
     write_text(artifact_dir / "epiphany-final-status.txt", final_rendered)
     write_json(artifact_dir / "epiphany-dogfood-summary.json", summary)
+    write_transcript_telemetry(transcript_path, telemetry_path)
     write_json(
         artifact_dir / "artifact-manifest.json",
         {

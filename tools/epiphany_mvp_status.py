@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Any
 
+from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import DEFAULT_APP_SERVER
 from epiphany_phase5_smoke import ROOT
@@ -285,6 +286,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     status = sanitize_for_operator(status)
+    write_transcript_telemetry(transcript_path, transcript_path.with_suffix(".telemetry.json"))
     if args.result is not None:
         result_path = args.result.resolve()
         result_path.parent.mkdir(parents=True, exist_ok=True)
@@ -292,6 +294,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             json.dumps(status, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
+        write_transcript_telemetry(transcript_path, result_path.with_suffix(".telemetry.json"))
     return status
 
 

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -236,6 +237,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
     reset_artifact_dir(artifact_dir)
     transcript_path = artifact_dir / "epiphany-transcript.jsonl"
     stderr_path = artifact_dir / "epiphany-server.stderr.log"
+    telemetry_path = artifact_dir / "agent-function-telemetry.json"
     steps_path = artifact_dir / "coordinator-steps.jsonl"
     cwd = args.cwd.resolve()
     codex_home = args.codex_home.resolve()
@@ -497,6 +499,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
             "coordinator-final-status.json",
             "coordinator-final-status.txt",
             "coordinator-final-action.txt",
+            "agent-function-telemetry.json",
             *snapshots,
         ],
         "sealedArtifactManifest": [
@@ -517,6 +520,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
         artifact_dir / "coordinator-final-action.txt",
         json.dumps(operator_final_action, indent=2, ensure_ascii=False) + "\n",
     )
+    write_transcript_telemetry(transcript_path, telemetry_path)
     return summary
 
 

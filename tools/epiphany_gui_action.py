@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -202,6 +203,7 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
     artifact_dir = args.artifact_root.resolve() / f"{args.action}-{time.time_ns()}-{os.getpid()}"
     transcript_path = artifact_dir / "transcript.jsonl"
     stderr_path = artifact_dir / "server.stderr.log"
+    telemetry_path = artifact_dir / "agent-function-telemetry.json"
     cwd = args.cwd.resolve()
     codex_home.mkdir(parents=True, exist_ok=True)
     artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -331,8 +333,10 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                 "reason": "sealed app-server diagnostics; inspect only for explicit debugging",
             },
         ],
+        "telemetryPath": str(telemetry_path),
     }
     write_json(artifact_dir / "gui-action-summary.json", result)
+    write_transcript_telemetry(transcript_path, telemetry_path)
     return result
 
 

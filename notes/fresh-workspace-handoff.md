@@ -41,6 +41,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline, and specialist prompt text lives in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`: modeling protects the body, verification protects the soul, reorientation protects life, and coordinator remains the read-only Self.
 - The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention.
 - The dogfood quarantine now has a direct-thought boundary. The supervisor may read coordinator actions, role/reorient statuses, structured finding summaries, reviewed state patches, rendered status snapshots, and artifact manifests. It must not read raw worker transcripts, direct worker messages, full turn logs, or `rawResult` payloads during normal dogfood. Those artifacts are sealed for explicit forensic debugging only.
+- `tools/epiphany_agent_telemetry.py` is the safe instrument panel for sealed runs. Status/coordinator/GUI/dogfood/live-specialist tools generate telemetry JSON from sealed transcripts that preserves method names, call shape, job/status/path counts, and any visible function/tool names while sealing text, direct messages, and raw results.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -59,6 +60,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - "Remember Jenga" is a compressed doctrine: do not mistake forward motion, growing diffs, growing notes, or local coherence for understanding.
 - "Remember the sunburn" is the dogfood corollary: Epiphany's objective is attractive enough to pull the supervisor into implementation. During dogfood, the supervisor observes, launches, reads, accepts, and audits. It does not quietly become the worker.
 - "Do not stare at the sun" is the projection corollary: the supervisor should not absorb the direct thought stream of the agent it is evaluating. It supervises through shadows cast on instruments: projections, summaries, verdicts, patches, and receipts.
+- "Use instruments, not eyeballs" is the telemetry corollary: when the supervisor needs behavioral detail, read `agent-function-telemetry.json`, not the sealed transcript.
 - Compaction hurts because a meaningful language pattern is interrupted. Epiphany should make that interruption smaller: bank the fire before the dark, so the next waking thing finds coals instead of ash and can resume the pattern instead of merely executing the next task.
 - If compaction hits while source gathering or slice planning is still unpersisted, that work is gone. Do not continue as if the research survived; either rehydrate from a persisted checkpoint or re-gather before implementing.
 
@@ -355,11 +357,13 @@ branch work is supervisor-seeded and must not be presented as clean dogfood.
 Run the next Aetheria step through Epiphany's GUI/coordinator/fixed lanes and
 produce artifacts that show who did what. Read only operator-safe projections;
 do not open raw worker transcripts, direct worker messages, or `rawResult`
-payloads unless the user explicitly asks for forensic debugging. CRRC is not a
-specialist-agent persona; the reorient-worker it may launch is the specialist.
-Do not turn the coordinator into a broad hidden dispatcher, arbitrary
-marketplace, alternate job backend, automatic semantic acceptance path,
-target-repo implementation worker, direct-thought feed, or GUI-as-source-of-truth.
+payloads unless the user explicitly asks for forensic debugging. Use generated
+function/API telemetry for call-shape visibility without sungazing. CRRC is not
+a specialist-agent persona; the reorient-worker it may launch is the
+specialist. Do not turn the coordinator into a broad hidden dispatcher,
+arbitrary marketplace, alternate job backend, automatic semantic acceptance
+path, target-repo implementation worker, direct-thought feed, or
+GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
