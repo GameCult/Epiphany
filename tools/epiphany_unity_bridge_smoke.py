@@ -25,7 +25,7 @@ def reset_path(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def prepare_project(workspace: Path) -> None:
+def prepare_project(workspace: Path, *, include_bridge: bool = False) -> None:
     reset_path(workspace)
     settings = workspace / "ProjectSettings"
     settings.mkdir(parents=True, exist_ok=True)
@@ -39,6 +39,10 @@ def prepare_project(workspace: Path) -> None:
         ),
         encoding="utf-8",
     )
+    if include_bridge:
+        bridge = workspace / "Assets" / "Editor" / "Epiphany" / "EpiphanyEditorBridge.cs"
+        bridge.parent.mkdir(parents=True, exist_ok=True)
+        bridge.write_text("// smoke marker for resident Epiphany editor bridge\n", encoding="utf-8")
 
 
 def create_fake_editor(root: Path, version: str) -> Path:
@@ -94,6 +98,17 @@ def require_artifact(summary: dict[str, Any], name: str) -> None:
     require((artifact_path / name).exists(), f"missing bridge artifact: {name}")
 
 
+def read_command_artifact(summary: dict[str, Any]) -> dict[str, Any]:
+    artifact_path = Path(str(summary["artifactPath"]))
+    command_path = artifact_path / "unity-command.json"
+    require(command_path.exists(), "missing unity-command.json")
+    return json.loads(command_path.read_text(encoding="utf-8"))
+
+
+def require_command_contains(command: list[str], value: str) -> None:
+    require(value in command, f"command should contain {value!r}: {command}")
+
+
 def main() -> int:
     workspace = DEFAULT_WORKSPACE.resolve()
     artifact_root = DEFAULT_ARTIFACT_ROOT.resolve()
@@ -127,6 +142,7 @@ def main() -> int:
     )
     require(ready["status"] == "ready", "exact editor should satisfy pin")
     require(ready["editorPath"] == str(exact_editor), "inspection should resolve exact editor")
+    require(ready["editorBridge"]["exists"] is False, "fresh smoke project should not have bridge package yet")
 
     planned = run_bridge(
         workspace,
@@ -138,12 +154,106 @@ def main() -> int:
     require(planned["runStatus"] == "planned", "dry run should plan instead of executing")
     command = planned["command"]
     require(command[0] == str(exact_editor), "command should use exact editor path")
-    require("-batchmode" in command, "bridge should own -batchmode")
-    require("-quit" in command, "bridge should own -quit")
-    require("-projectPath" in command, "bridge should own -projectPath")
-    require(str(workspace) in command, "command should target the requested project")
+    require_command_contains(command, "-batchmode")
+    require_command_contains(command, "-quit")
+    require_command_contains(command, "-projectPath")
+    require_command_contains(command, "-logFile")
+    require_command_contains(command, str(workspace))
     require(str(wrong_editor) not in command, "command must not use wrong editor")
     require_artifact(planned, "unity-command.json")
+
+    missing_package = run_bridge(
+        workspace,
+        artifact_root,
+        roots=fake_roots,
+        args=[
+            "probe",
+            "--dry-run",
+            "--operation",
+            "scene-facts",
+            "--scene",
+            "Assets/Scenes/Main.unity",
+        ],
+        expect_success=False,
+    )
+    require(
+        missing_package["status"] == "missingEditorBridgePackage",
+        "named probes should require the resident editor package",
+    )
+    require(missing_package["runStatus"] == "blocked", "missing package probe should be blocked")
+
+    prepare_project(workspace, include_bridge=True)
+    bridged = run_bridge(
+        workspace,
+        artifact_root,
+        roots=fake_roots,
+        args=["inspect"],
+    )
+    require(bridged["status"] == "ready", "bridge project should still resolve exact editor")
+    require(bridged["editorBridge"]["exists"] is True, "resident editor bridge should be detected")
+
+    scene_probe = run_bridge(
+        workspace,
+        artifact_root,
+        roots=fake_roots,
+        args=[
+            "probe",
+            "--dry-run",
+            "--operation",
+            "scene-facts",
+            "--scene",
+            "Assets/Scenes/Main.unity",
+            "--max-objects",
+            "25",
+            "--max-properties",
+            "12",
+        ],
+    )
+    require(scene_probe["runStatus"] == "planned", "scene probe should plan under dry run")
+    scene_command = scene_probe["command"]
+    require(scene_command[0] == str(exact_editor), "scene probe should use exact editor path")
+    require_command_contains(scene_command, "-executeMethod")
+    require_command_contains(scene_command, "GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe")
+    require_command_contains(scene_command, "-epiphanyArtifactDir")
+    require_command_contains(scene_command, str(Path(str(scene_probe["artifactPath"]))))
+    require_command_contains(scene_command, "-epiphanyOperation")
+    require_command_contains(scene_command, "scene-facts")
+    require_command_contains(scene_command, "-epiphanyScene")
+    require_command_contains(scene_command, "Assets/Scenes/Main.unity")
+    require_command_contains(scene_command, "-epiphanyMaxObjects")
+    require_command_contains(scene_command, "25")
+    scene_artifact = read_command_artifact(scene_probe)
+    require(scene_artifact["operation"] == "scene-facts", "scene command artifact should name operation")
+    require("scene-facts.json" in scene_artifact["expectedArtifacts"], "scene facts artifact should be expected")
+
+    compilation = run_bridge(
+        workspace,
+        artifact_root,
+        roots=fake_roots,
+        args=["check-compilation", "--dry-run"],
+    )
+    require(compilation["runStatus"] == "planned", "compilation probe should plan under dry run")
+    compilation_artifact = read_command_artifact(compilation)
+    require(
+        "compilation.json" in compilation_artifact["expectedArtifacts"],
+        "compilation artifact should be expected",
+    )
+
+    tests = run_bridge(
+        workspace,
+        artifact_root,
+        roots=fake_roots,
+        args=["run-tests", "--dry-run", "--platform", "editmode", "--filter", "SmokeSuite"],
+    )
+    require(tests["runStatus"] == "planned", "Unity test run should plan under dry run")
+    test_command = tests["command"]
+    require_command_contains(test_command, "-runTests")
+    require_command_contains(test_command, "-testPlatform")
+    require_command_contains(test_command, "editmode")
+    require_command_contains(test_command, "-testFilter")
+    require_command_contains(test_command, "SmokeSuite")
+    tests_artifact = read_command_artifact(tests)
+    require("test-results.xml" in tests_artifact["expectedArtifacts"], "test results should be expected")
 
     blocked = run_bridge(
         workspace,
@@ -160,6 +270,9 @@ def main() -> int:
         "missingStatus": missing["status"],
         "readyStatus": ready["status"],
         "plannedStatus": planned["runStatus"],
+        "missingPackageStatus": missing_package["status"],
+        "sceneProbeStatus": scene_probe["runStatus"],
+        "testStatus": tests["runStatus"],
         "blockedStatus": blocked["runStatus"],
         "resolvedEditor": ready["editorPath"],
     }

@@ -361,9 +361,14 @@ bounded browser-fallback controls. A live bridge probe also proved
 `prepareCheckpoint` creates a resumable thread and a later process can
 `readModelingResult` from it.
 
-The next real move is bridge construction, not another Aetheria implementation
-dogfood run. The first Unity bridge is landed, and it correctly blocks Aetheria
-runtime execution until Unity `6000.1.10f1` is installed. The detailed
+The next real move is still bridge construction, not another Aetheria
+implementation dogfood run. The pinned Unity bridge is landed, the clean
+Aetheria branch `codex/epiphany-unity-editor-bridge` now contains the resident
+`Assets/Editor/Epiphany/EpiphanyEditorBridge.cs` package, and
+`tools/epiphany_unity_bridge.py` can detect that package and plan named
+editor-resident probes/tests through
+`GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe`. Runtime execution
+still correctly blocks until Unity `6000.1.10f1` is installed. The detailed
 next-environment plan now lives in
 `notes/epiphany-rider-unity-integration-plan.md`: Rider is the
 IDE/source-context organ, Unity is the editor/runtime fact organ, and Epiphany
@@ -372,9 +377,8 @@ three-pronged: Rider is the human code view for repo state, source tree, diffs,
 diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives,
 specialist lane state, logs/artifacts, persisted state, and graph/control-flow
 views; Unity is the pinned runtime environment for tests, probes, scene
-configuration, assets, shaders, and play/edit-mode evidence. Build that plan in
-slices before the next run: Aetheria-side resident Unity editor package, named
-Unity bridge operations over that package, GUI Environment panel,
+configuration, assets, shaders, and play/edit-mode evidence. Build the
+remaining slices before the next run: GUI Environment panel,
 EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, and Rider plugin
 MVP. The Unity package is not optional decoration: scene files, prefabs,
 materials, shaders, ScriptableObjects, asset GUIDs, and prefab overrides must be
