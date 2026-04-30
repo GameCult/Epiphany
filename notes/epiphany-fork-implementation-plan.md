@@ -153,6 +153,7 @@ The current lessons:
 - Distill failed or obsolete state hypotheses just as aggressively.
 - Treat unpersisted source-gathering and slice-planning work as volatile. If compaction interrupts it, the correct recovery is re-gathering from source or a persisted checkpoint, not continuing from the ghost of the old context.
 - Treat repetitive slow work as a finite queue, not an attention loop. A batch, tile pass, import, migration, or repeated probe is incomplete until every required item is terminal or a concrete blocker is recorded; "pattern demonstrated" is not a done state.
+- Treat pattern completion bias as a prompt and coordinator failure mode. Implementation should chase the stated objective until it is complete or concretely blocked; the coordinator should challenge implementation claims against objective progress, verifier-readable evidence, shortcuts, and pointless embellishments.
 
 The plan should get shorter after a phase completes, not longer by default.
 
@@ -369,6 +370,7 @@ These remain later work:
 - richer editor/runtime bridges beyond the first pinned Unity bridge
 - richer GUI workflows for graph, evidence, job, invariant, and frontier steering after the operator console proves useful
 - typed repetitive-work queues and final-answer gates, so the coordinator and GUI can see unfinished batch work before conversational closure pretends it is done
+- stronger coordinator challenge loops for implementation claims, including objective-progress checks and explicit shortcut/embellishment rejection before another implementation turn is treated as successful
 
 Do not start these from vibes. Each one needs a source-grounded slice plan and a
 clear invariant that says what it must not break.

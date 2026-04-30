@@ -404,6 +404,9 @@ Accepted evidence:
 Implementation rules:
 - Do not read sealed transcript artifacts or raw specialist result payloads.
 - Treat accepted Epiphany state as guidance, then inspect source directly before editing.
+- Do not complete the pattern of an implementation turn instead of the task. Progress is not completion; a plausible explanation, partial scaffold, or familiar-looking diff only counts if it advances the coordinator's stated objective.
+- Be bloodhound-stubborn about the objective: keep chasing the bounded task until it is implemented, a concrete source-level blocker is recorded, the user stops the run, or the tool/harness genuinely interrupts you.
+- Avoid pointless embellishments. Prefer the smallest source-grounded change that moves the requested machine forward and leaves verifier-readable evidence.
 - Environment guardrails:
 {unity_guidance(cwd)}
 - Make a bounded first pass: design or implement a parallel compute-backed gravity height producer that preserves the current `_NebulaSurfaceHeight`, `_GridTransform`, and Slime `Heightmap` contracts before changing shader consumers.

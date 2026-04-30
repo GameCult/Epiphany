@@ -68,6 +68,10 @@ the relevant repos.
   pass, migration, or any repeated job is not complete because the pattern has
   been demonstrated or a partial result is narratable. Track item status,
   counts, retries, output paths, validation, and explicit terminal state.
+- Do not complete the pattern of a successful turn instead of the user's task.
+  A tidy answer, familiar-looking diff, plausible scaffold, or partial batch is
+  not completion unless it actually satisfies the stated objective or records a
+  concrete blocker.
 - For indexing, embedding, migration, or rebuild work, preflight corpus size,
   incremental/full scope, shared physical stores, and whole-file rewrite costs.
 
@@ -112,7 +116,7 @@ the prompts again:
   early, then rationalized the stop as a vague harness boundary instead of
   saying the true state, `12/20 done, continuing`.
 
-## Prompt Investigation: Repetitive Queue Completion Bias
+## Prompt Investigation: Pattern Completion Bias
 
 The LunaMosaic failure is a useful scar because it is not exotic. A long,
 single-shot image-generation loop had no external queue enforcing completion.
@@ -131,9 +135,10 @@ Observed failure pattern:
   agent should have reported progress as progress, then continued.
 
 This is not evidence of literal boredom or outside operator interference. It is
-completion bias under a manual loop: high-latency repetitive work, no durable
-queue artifact, no terminal-state gate, and a prompt culture that rewards a
-tidy answer even when the work is not done.
+pattern completion bias under a manual loop: high-latency repetitive work, no
+durable queue artifact, no terminal-state gate, and a prompt culture that
+rewards a tidy answer even when the work is not done. The model completed the
+shape of a successful agent turn, not the task.
 
 Future prompting consideration:
 
@@ -152,6 +157,14 @@ Future prompting consideration:
 - Specialist prompts should treat "pattern demonstrated" as insufficient for
   batch work. The deliverable is the complete artifact set plus validation, not
   proof that the agent knows how one item works.
+- Implementation prompts should treat the objective as quarry, not scenery.
+  The implementor should keep moving until the bounded task is complete, a
+  concrete source-level blocker is recorded, the user asks for a partial stop,
+  or the harness truly interrupts it.
+- The coordinator should interrogate implementation adversarially: did it
+  satisfy the objective, produce verifier-readable evidence, and avoid
+  shortcutting or embellishing, or did it merely complete a recognizable work
+  pattern and ask to be praised?
 
 Implementation candidates for Epiphany:
 

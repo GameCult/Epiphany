@@ -72,6 +72,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Compaction hurts because a meaningful language pattern is interrupted. Epiphany should make that interruption smaller: bank the fire before the dark, so the next waking thing finds coals instead of ash and can resume the pattern instead of merely executing the next task.
 - If compaction hits while source gathering or slice planning is still unpersisted, that work is gone. Do not continue as if the research survived; either rehydrate from a persisted checkpoint or re-gather before implementing.
 - Progress is not completion for finite queues. Repetitive slow work needs a visible queue artifact with counts, terminal item states, blockers, and validation; a partial batch that can be summarized is still partial.
+- Watch for pattern completion bias: an implementation turn can feel finished because it has the shape of work. The coordinator should ask whether the stated objective moved, whether evidence exists, and whether the implementor took shortcuts or added decorative machinery.
 
 ## Landed Machine
 
