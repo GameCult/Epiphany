@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from datetime import datetime
 from datetime import timezone
 import json
@@ -226,6 +227,77 @@ Implementation rules:
 - Keep the change reviewable. Update or add source-local notes/tests if the repo has an established place for them.
 - If the source contradicts the checkpoint, stop and explain the contradiction instead of tower-building.
 """
+
+
+def implementation_no_diff_patch(
+    status: dict[str, Any],
+    *,
+    artifact_dir: Path,
+    implementation_result: dict[str, Any],
+) -> dict[str, Any] | None:
+    operator_status = sanitize_for_operator(status)
+    state = first_present(
+        operator_status,
+        ("read", "thread", "epiphanyState"),
+        ("scene", "scene", "epiphanyState"),
+    )
+    if not isinstance(state, dict):
+        return None
+    checkpoint = first_present(
+        state,
+        ("investigation_checkpoint",),
+        ("investigationCheckpoint",),
+    )
+    if not isinstance(checkpoint, dict):
+        return None
+
+    evidence_id = f"ev-implementation-no-diff-{artifact_dir.name}"
+    observation_id = f"obs-implementation-no-diff-{artifact_dir.name}"
+    updated_checkpoint = deepcopy(checkpoint)
+    updated_checkpoint["disposition"] = "regather_required"
+    updated_checkpoint["summary"] = (
+        "Implementation turn completed with no workspace diff; the current "
+        "checkpoint is insufficient to drive the coding lane safely."
+    )
+    updated_checkpoint["next_action"] = (
+        "Review the no-diff implementation audit, then repair the implementation "
+        "lane through modeling or reorientation before continuing code work."
+    )
+    evidence_ids = updated_checkpoint.get("evidence_ids")
+    if not isinstance(evidence_ids, list):
+        evidence_ids = []
+    if evidence_id not in evidence_ids:
+        evidence_ids = [*evidence_ids, evidence_id]
+    updated_checkpoint["evidence_ids"] = evidence_ids
+
+    return {
+        "investigationCheckpoint": updated_checkpoint,
+        "observations": [
+            {
+                "id": observation_id,
+                "summary": (
+                    "The implementation lane completed a bounded turn but left "
+                    "no tracked workspace diff, so continuation needs review or "
+                    "checkpoint repair."
+                ),
+                "source_kind": "implementation",
+                "status": "blocked",
+                "evidence_ids": [evidence_id],
+            }
+        ],
+        "evidence": [
+            {
+                "id": evidence_id,
+                "kind": "implementation-audit",
+                "status": "blocked",
+                "summary": (
+                    "continueImplementation produced no workspace diff "
+                    f"(trackedDiffPresent={bool(implementation_result.get('trackedDiffPresent'))}); "
+                    f"artifact={artifact_dir.name}."
+                ),
+            }
+        ],
+    }
 
 
 def wait_for_role_result(
@@ -648,9 +720,28 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                         "Ran bounded implementation turn and produced a reviewable workspace diff."
                     )
                 else:
+                    no_diff_patch = implementation_no_diff_patch(
+                        before,
+                        artifact_dir=artifact_dir,
+                        implementation_result=implementation_result,
+                    )
+                    if no_diff_patch is not None and revision is not None:
+                        write_json(artifact_dir / "no-diff-state-patch.json", no_diff_patch)
+                        no_diff_update = client.send(
+                            "thread/epiphany/update",
+                            {
+                                "threadId": thread_id,
+                                "expectedRevision": revision,
+                                "patch": no_diff_patch,
+                            },
+                        )
+                        write_json(artifact_dir / "no-diff-state-update.json", no_diff_update)
+                        response["noDiffUpdate"] = sanitize_for_operator(no_diff_update)
                     summary = (
                         "Ran bounded implementation turn, but it produced no workspace diff."
                     )
+                    if response.get("noDiffUpdate"):
+                        summary += " Marked the checkpoint for repair before retry."
             else:
                 raise ValueError(f"unsupported GUI action: {args.action}")
 

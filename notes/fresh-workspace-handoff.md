@@ -42,9 +42,10 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention.
 - The dogfood quarantine now has a direct-thought boundary. The supervisor may read coordinator actions, role/reorient statuses, structured finding summaries, reviewed state patches, rendered status snapshots, and artifact manifests. It must not read raw worker transcripts, direct worker messages, full turn logs, or `rawResult` payloads during normal dogfood. Those artifacts are sealed for explicit forensic debugging only.
 - `tools/epiphany_agent_telemetry.py` is the safe instrument panel for sealed runs. Status/coordinator/GUI/dogfood/live-specialist tools generate telemetry JSON from sealed transcripts that preserves method names, call shape, job/status/path counts, and any visible function/tool names while sealing text, direct messages, and raw results.
-- Latest Aetheria supervised dogfood thread: `019ddc52-4ee8-7203-b6c0-106a9c270067` with codex-home `.epiphany-dogfood/aetheria-supervised/codex-home`. CRRC compact/reorient/reorientAccept reached Epiphany state revision 16 after rollout replay fixes, and a fresh coordinator resume now clears to `continueImplementation`.
-- The implementation lane is the current MVP blocker. Four `continueImplementation` turns completed without a tracked Aetheria diff; the latest audited artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777527640605829200-12724`, with `implementation-result.json` showing `workspaceChanged: false` and telemetry showing only `Get-Content` commands with no write verbs.
-- The GUI now parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit. Future `continueImplementation` action bundles also write `implementation-audit.md`.
+- Latest Aetheria supervised dogfood thread: `019ddc52-4ee8-7203-b6c0-106a9c270067` with codex-home `.epiphany-dogfood/aetheria-supervised/codex-home`. CRRC compact/reorient/reorientAccept reached Epiphany state revision 16 after rollout replay fixes, and a fresh coordinator resume cleared to `continueImplementation`.
+- The implementation lane is the current product blocker, but it is now harness-visible. The latest audited artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777528376766401900-25000`: it shows `workspaceChanged: false`, wrote `implementation-audit.md`, applied a no-diff `thread/epiphany/update`, advanced Epiphany state to revision 17, and marked the investigation checkpoint `regather_required`.
+- A follow-up coordinator plan at `.epiphany-dogfood/aetheria-supervised/coordinator-after-nodiff-state-20260430-plan` now returns `regatherManually` with implementation blocked, instead of continuing fake progress.
+- The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -356,13 +357,14 @@ bounded browser-fallback controls. A live bridge probe also proved
 
 The next real move is not more direct Aetheria implementation. The clean
 supervised lane now reaches implementation, but the implementation agent is
-reading and stopping without leaving a diff. The GUI surfaces that and prevents
-immediate repeat-mashing, but the coordinator still does not know about the
-implementation failure. Treat this as an MVP blocker: either make no-diff
-implementation a coordinator-visible review stop or redirect it into a bounded
-modeling/reorientation repair path, then rerun through the GUI/coordinator/fixed
-lanes and produce artifacts that show who did what. Read only operator-safe
-projections; do not open raw worker transcripts, direct
+reading and stopping without leaving a diff. The GUI surfaces that, immediate
+repeat-mashing is blocked, and no-diff implementation now marks the checkpoint
+`regather_required` so the coordinator returns `regatherManually` instead of
+continuing. Treat this as the next product repair path: run bounded
+modeling/reorientation to turn the checkpoint back into implementation-ready
+guidance, then retry through the GUI/coordinator/fixed lanes and produce
+artifacts that show who did what. Read only operator-safe projections; do not
+open raw worker transcripts, direct
 worker messages, or `rawResult` payloads unless the user explicitly asks for
 forensic debugging. Use generated function/API telemetry for call-shape
 visibility without sungazing. CRRC is not a specialist-agent persona; the
