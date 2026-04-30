@@ -269,6 +269,11 @@ export function App() {
   const canAcceptVerification = text(roleResults?.verification?.status).toLowerCase() === "completed";
   const canAcceptReorient = text(reorientResult?.status).toLowerCase() === "completed";
   const canContinueImplementation = text(coordinator.action).toLowerCase() === "continueimplementation";
+  const unityBridge = latestRuntimeAudit?.editorBridge;
+  const installedEditors = latestRuntimeAudit?.installedEditors ?? [];
+  const candidatePaths = latestRuntimeAudit?.candidatePaths ?? [];
+  const searchRoots = latestRuntimeAudit?.searchRoots ?? [];
+  const unityBridgeReady = latestRuntimeAudit?.status === "ready" && unityBridge?.exists === true;
 
   return (
     <main className="shell">
@@ -392,6 +397,58 @@ export function App() {
           </span>
         </section>
       )}
+
+      <section className="sectionBand">
+        <SectionHeader title="Environment" icon={<Database size={18} />} />
+        <div className="environmentGrid">
+          <article className="environmentCard">
+            <div className="cardTopline">
+              <h3>Unity Editor</h3>
+              <Pill tone={unityBridgeReady ? "ok" : statusClass(latestRuntimeAudit?.status)}>
+                {unityBridgeReady ? "bridge ready" : text(latestRuntimeAudit?.status, "unknown")}
+              </Pill>
+            </div>
+            <dl className="facts environmentFacts">
+              <div><dt>Project</dt><dd>{text(latestRuntimeAudit?.projectVersion)}</dd></div>
+              <div><dt>Editor</dt><dd>{text(latestRuntimeAudit?.editorPath, "missing")}</dd></div>
+              <div><dt>Package</dt><dd>{unityBridge?.exists ? "present" : "missing"}</dd></div>
+              <div><dt>Method</dt><dd>{text(unityBridge?.executeMethod)}</dd></div>
+            </dl>
+            {latestRuntimeAudit?.note && <p className="environmentNote">{latestRuntimeAudit.note}</p>}
+            <PathList title="Installed" items={installedEditors.map((editor) => `${text(editor.version)} ${text(editor.editorPath)}`)} />
+            <PathList title="Candidates" items={candidatePaths} />
+          </article>
+
+          <article className="environmentCard">
+            <div className="cardTopline">
+              <h3>Rider</h3>
+              <Pill tone="neutral">pending</Pill>
+            </div>
+            <dl className="facts environmentFacts">
+              <div><dt>Workspace</dt><dd>{text(request.cwd ?? snapshot?.repoRoot)}</dd></div>
+              <div><dt>Plugin</dt><dd>not wired</dd></div>
+              <div><dt>Diagnostics</dt><dd>pending</dd></div>
+              <div><dt>Diff view</dt><dd>pending</dd></div>
+            </dl>
+            <p className="environmentNote">Bridge pending.</p>
+          </article>
+
+          <article className="environmentCard">
+            <div className="cardTopline">
+              <h3>Artifacts</h3>
+              <Pill tone={latestRuntimeArtifact ? "ok" : "neutral"}>{latestRuntimeArtifact ? "available" : "none"}</Pill>
+            </div>
+            <dl className="facts environmentFacts">
+              <div><dt>Runtime bundle</dt><dd>{text(latestRuntimeArtifact?.name)}</dd></div>
+              <div><dt>Files</dt><dd>{text(latestRuntimeArtifact?.files.length)}</dd></div>
+              <div><dt>Summary</dt><dd>{text(latestRuntimeArtifact?.summaryPath)}</dd></div>
+              <div><dt>Project path</dt><dd>{text(latestRuntimeAudit?.projectPath)}</dd></div>
+            </dl>
+            <PathList title="Search roots" items={searchRoots} />
+            <code title={latestRuntimeArtifact?.path}>{text(latestRuntimeArtifact?.path)}</code>
+          </article>
+        </div>
+      </section>
 
       <section className="statusGrid" aria-label="Coordinator summary">
         <Panel title="Recommendation" icon={<ClipboardCheck size={18} />}>
@@ -555,6 +612,19 @@ function ArtifactOutcome({ artifact }: { artifact: ArtifactBundle }) {
     <Pill tone={audit.workspaceChanged ? "ok" : "warn"}>
       {audit.workspaceChanged ? "Diff" : "No Diff"}
     </Pill>
+  );
+}
+
+function PathList({ title, items }: { title: string; items: string[] }) {
+  if (!items.length) return null;
+  return (
+    <div className="pathList">
+      <strong>{title}</strong>
+      {items.slice(0, 4).map((item) => (
+        <code key={item} title={item}>{item}</code>
+      ))}
+      {items.length > 4 && <span>{items.length - 4} more</span>}
+    </div>
   );
 }
 

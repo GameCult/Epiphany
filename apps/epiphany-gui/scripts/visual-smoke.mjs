@@ -50,6 +50,9 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   await page.goto(url, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Operator Console" }).waitFor();
   await page.getByText("prepareCheckpoint").waitFor();
+  await page.getByRole("heading", { name: "Environment" }).waitFor();
+  await page.getByText("Unity Editor").waitFor();
+  await page.getByText("Rider").waitFor();
   await page.getByText("Role Lanes").waitFor();
   await page.getByText("Artifact Bundles").waitFor();
   await page.getByRole("button", { name: "Prepare Checkpoint" }).waitFor();

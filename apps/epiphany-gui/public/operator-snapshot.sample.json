@@ -145,6 +145,43 @@
   },
   "artifacts": [
     {
+      "name": "runtime/unity-inspect-sample",
+      "path": "E:\\Projects\\EpiphanyAgent\\.epiphany-gui\\runtime\\unity-inspect-sample",
+      "files": [
+        "unity-bridge-inspection.md",
+        "unity-bridge-summary.json"
+      ],
+      "summaryPath": "E:\\Projects\\EpiphanyAgent\\.epiphany-gui\\runtime\\unity-inspect-sample\\unity-bridge-summary.json",
+      "runtimeAudit": {
+        "resultPath": "E:\\Projects\\EpiphanyAgent\\.epiphany-gui\\runtime\\unity-inspect-sample\\unity-bridge-summary.json",
+        "status": "missingEditor",
+        "projectPath": "E:\\Projects\\Aetheria-Economy",
+        "projectVersion": "6000.1.10f1",
+        "note": "Project pins Unity 6000.1.10f1, but no exact editor was found.",
+        "editorBridge": {
+          "exists": true,
+          "path": "E:\\Projects\\Aetheria-Economy\\Assets\\Editor\\Epiphany\\EpiphanyEditorBridge.cs",
+          "relativePath": "Assets/Editor/Epiphany/EpiphanyEditorBridge.cs",
+          "executeMethod": "GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe"
+        },
+        "installedEditors": [
+          {
+            "version": "6000.4.2f1",
+            "editorPath": "C:\\Program Files\\Unity\\Hub\\Editor\\6000.4.2f1\\Editor\\Unity.exe"
+          }
+        ],
+        "candidatePaths": [
+          "C:\\Program Files\\Unity\\Hub\\Editor\\6000.1.10f1\\Editor\\Unity.exe",
+          "C:\\Program Files (x86)\\Unity\\Hub\\Editor\\6000.1.10f1\\Editor\\Unity.exe"
+        ],
+        "searchRoots": [
+          "C:\\Program Files\\Unity\\Hub\\Editor",
+          "C:\\Program Files (x86)\\Unity\\Hub\\Editor"
+        ]
+      },
+      "modifiedMillis": 1777475848000
+    },
+    {
       "name": "mvp-loop-selfdogfood-vanilla2-20260429",
       "path": "E:\\Projects\\EpiphanyAgent\\.epiphany-dogfood\\mvp-loop-selfdogfood-vanilla2-20260429",
       "files": [

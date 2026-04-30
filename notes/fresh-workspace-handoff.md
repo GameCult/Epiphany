@@ -367,9 +367,12 @@ Aetheria branch `codex/epiphany-unity-editor-bridge` now contains the resident
 `Assets/Editor/Epiphany/EpiphanyEditorBridge.cs` package, and
 `tools/epiphany_unity_bridge.py` can detect that package and plan named
 editor-resident probes/tests through
-`GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe`. Runtime execution
-still correctly blocks until Unity `6000.1.10f1` is installed. The detailed
-next-environment plan now lives in
+`GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe`. The GUI Environment
+panel now shows the latest Unity runtime audit, resident package presence,
+execute method, installed/candidate editor paths, search roots, and artifact
+bundle details, with Rider explicitly pending until its bridge exists. Runtime
+execution still correctly blocks until Unity `6000.1.10f1` is installed. The
+detailed next-environment plan now lives in
 `notes/epiphany-rider-unity-integration-plan.md`: Rider is the
 IDE/source-context organ, Unity is the editor/runtime fact organ, and Epiphany
 remains the durable coordinator/Self. The intended product workflow is
@@ -378,9 +381,8 @@ diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives,
 specialist lane state, logs/artifacts, persisted state, and graph/control-flow
 views; Unity is the pinned runtime environment for tests, probes, scene
 configuration, assets, shaders, and play/edit-mode evidence. Build the
-remaining slices before the next run: GUI Environment panel,
-EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, and Rider plugin
-MVP. The Unity package is not optional decoration: scene files, prefabs,
+remaining slices before the next run: EpiphanyGraph-backed GUI graph dashboard,
+Rider context bridge, and Rider plugin MVP. The Unity package is not optional decoration: scene files, prefabs,
 materials, shaders, ScriptableObjects, asset GUIDs, and prefab overrides must be
 inspected from inside the Unity Editor through Unity APIs, not inferred from
 serialized text unless there is no editor-level path. The adjacent

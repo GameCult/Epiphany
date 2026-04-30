@@ -166,6 +166,10 @@ input {
   padding: 12px;
 }
 
+.notice span {
+  min-width: 0;
+}
+
 .dangerNotice {
   border-color: #d9b1a4;
   color: #6b2418;
@@ -185,9 +189,12 @@ input {
 }
 
 .notice code {
-  display: inline;
-  max-width: min(620px, 70vw);
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   vertical-align: bottom;
+  white-space: nowrap;
 }
 
 .statusGrid {
@@ -304,6 +311,48 @@ dd {
   gap: 12px;
 }
 
+.environmentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr) minmax(300px, 0.9fr);
+  gap: 12px;
+}
+
+.environmentCard {
+  min-width: 0;
+  border: 1px solid #d9ded5;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.environmentFacts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.environmentNote {
+  margin-top: 10px;
+  color: #3e493f;
+  font-size: 0.88rem;
+  line-height: 1.42;
+}
+
+.pathList {
+  display: grid;
+  gap: 5px;
+  margin-top: 10px;
+}
+
+.pathList strong {
+  color: #667168;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.pathList span {
+  color: #667168;
+  font-size: 0.78rem;
+}
+
 .laneCard,
 .findingCard,
 .jobRow {
@@ -417,6 +466,10 @@ code {
 
   .cardGrid {
     grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+
+  .environmentGrid {
+    grid-template-columns: 1fr;
   }
 }
 

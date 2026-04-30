@@ -51,7 +51,29 @@ struct ImplementationAudit {
 struct RuntimeAudit {
     result_path: String,
     status: String,
+    project_path: Option<String>,
     project_version: Option<String>,
+    editor_path: Option<String>,
+    note: Option<String>,
+    editor_bridge: Option<EditorBridgeAudit>,
+    installed_editors: Vec<InstalledUnityEditor>,
+    candidate_paths: Vec<String>,
+    search_roots: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EditorBridgeAudit {
+    exists: bool,
+    path: Option<String>,
+    relative_path: Option<String>,
+    execute_method: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InstalledUnityEditor {
+    version: Option<String>,
     editor_path: Option<String>,
 }
 
@@ -448,20 +470,68 @@ fn read_runtime_audit(root: &Path) -> Option<RuntimeAudit> {
     let text = fs::read_to_string(&result_path).ok()?;
     let value: Value = serde_json::from_str(&text).ok()?;
     let status = value.get("status").and_then(Value::as_str)?.to_string();
-    let project_version = value
-        .get("projectVersion")
-        .and_then(Value::as_str)
-        .map(ToString::to_string);
-    let editor_path = value
-        .get("editorPath")
-        .and_then(Value::as_str)
-        .map(ToString::to_string);
     Some(RuntimeAudit {
         result_path: result_path.display().to_string(),
         status,
-        project_version,
-        editor_path,
+        project_path: json_optional_string(&value, "projectPath"),
+        project_version: json_optional_string(&value, "projectVersion"),
+        editor_path: json_optional_string(&value, "editorPath"),
+        note: json_optional_string(&value, "note"),
+        editor_bridge: read_editor_bridge(&value),
+        installed_editors: read_installed_editors(&value),
+        candidate_paths: read_string_array(&value, "candidatePaths"),
+        search_roots: read_string_array(&value, "searchRoots"),
     })
+}
+
+fn json_optional_string(value: &Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
+}
+
+fn read_string_array(value: &Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn read_editor_bridge(value: &Value) -> Option<EditorBridgeAudit> {
+    let bridge = value.get("editorBridge")?;
+    Some(EditorBridgeAudit {
+        exists: bridge
+            .get("exists")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        path: json_optional_string(bridge, "path"),
+        relative_path: json_optional_string(bridge, "relativePath"),
+        execute_method: json_optional_string(bridge, "executeMethod"),
+    })
+}
+
+fn read_installed_editors(value: &Value) -> Vec<InstalledUnityEditor> {
+    value
+        .get("installedEditors")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| InstalledUnityEditor {
+                    version: json_optional_string(item, "version"),
+                    editor_path: json_optional_string(item, "editorPath"),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn existing_path(root: &Path, name: &str) -> Option<String> {

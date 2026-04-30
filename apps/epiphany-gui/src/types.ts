@@ -44,8 +44,22 @@ export interface ArtifactBundle {
   runtimeAudit?: {
     resultPath: string;
     status: string;
+    projectPath?: string;
     projectVersion?: string;
     editorPath?: string;
+    note?: string;
+    editorBridge?: {
+      exists: boolean;
+      path?: string;
+      relativePath?: string;
+      executeMethod?: string;
+    };
+    installedEditors?: Array<{
+      version?: string;
+      editorPath?: string;
+    }>;
+    candidatePaths?: string[];
+    searchRoots?: string[];
   };
   modifiedMillis?: number;
 }
