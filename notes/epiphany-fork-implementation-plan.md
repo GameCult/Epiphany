@@ -113,7 +113,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/freshness` is a derived reflection, not automatic watcher-driven invalidation, a mutation gate, or a hidden refresh scheduler.
 - `thread/epiphany/context` is a targeted reflection, not a state writer or hidden proposal engine.
 - `thread/epiphany/graphQuery` is bounded graph traversal over authoritative typed state, not retrieval, proposal, promotion, scheduling, indexing, or a state writer.
-- `thread/epiphany/pressure` is a context-pressure reflection, not an automatic compactor, scheduler, or CRRC coordinator.
+- `thread/epiphany/pressure` is a current-context pressure reflection, not cumulative spend accounting, an automatic compactor, scheduler, or CRRC coordinator.
 - `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
 - `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
 - `thread/epiphany/coordinator` is a read-only fixed-lane MVP policy projection over existing signals, not a scheduler, launcher, acceptance gate, compactor, or hidden state writer.
@@ -227,8 +227,9 @@ pre-compaction checkpoint steering now also latches a pending compact handoff
 for the completed turn, so the brake becomes a real compaction request instead
 of a polite suggestion. The first
 pre-compaction checkpoint intervention is now also landed: token-count pressure
-events steer active loaded Epiphany turns once at the `shouldPrepareCompaction`
-threshold so working context can be banked before compaction. The next MVP
+events steer active loaded Epiphany turns once when current context usage reaches
+80% of the active auto-compact/context limit, ignoring cumulative token spend so
+CRRC does not yell at clouds. The next MVP
 question is sharper: dogfood the coordinator/status/pre-compaction loop and fix
 only concrete blockers. The latest self-dogfood pass found one: the dogfood
 runner's manifest promised vanilla/comparison artifacts that were not actually

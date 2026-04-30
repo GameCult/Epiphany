@@ -14899,6 +14899,10 @@ fn pressure_level_label(level: ThreadEpiphanyPressureLevel) -> &'static str {
     }
 }
 
+const EPIPHANY_PRESSURE_ELEVATED_PER_MILLE: u32 = 650;
+const EPIPHANY_PRESSURE_PREPARE_COMPACTION_PER_MILLE: u32 = 800;
+const EPIPHANY_PRESSURE_CRITICAL_PER_MILLE: u32 = 950;
+
 fn retrieval_freshness_status_label(
     status: ThreadEpiphanyRetrievalFreshnessStatus,
 ) -> &'static str {
@@ -15256,7 +15260,21 @@ fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPre
         };
     };
 
-    let used_tokens = info.total_token_usage.total_tokens.max(0);
+    let used_tokens = info.last_token_usage.total_tokens.max(0);
+    if used_tokens == 0 && info.total_token_usage.total_tokens > 0 {
+        return ThreadEpiphanyPressure {
+            status: ThreadEpiphanyPressureStatus::Unknown,
+            level: ThreadEpiphanyPressureLevel::Unknown,
+            basis: ThreadEpiphanyPressureBasis::Unknown,
+            used_tokens: None,
+            model_context_window: info.model_context_window,
+            model_auto_compact_token_limit: info.model_auto_compact_token_limit,
+            remaining_tokens: None,
+            ratio_per_mille: None,
+            should_prepare_compaction: false,
+            note: "Only cumulative token spend is available; CRRC will not infer current context pressure from that.".to_string(),
+        };
+    }
     let model_context_window = info.model_context_window.filter(|value| *value > 0);
     let model_auto_compact_token_limit = info
         .model_auto_compact_token_limit
@@ -15280,7 +15298,7 @@ fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPre
             remaining_tokens: None,
             ratio_per_mille: None,
             should_prepare_compaction: false,
-            note: "Token usage is known, but no context window or auto-compact threshold is available."
+            note: "Current context usage is known, but no context window or auto-compact threshold is available."
                 .to_string(),
         };
     };
@@ -15288,21 +15306,28 @@ fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPre
     let ratio_per_mille = ((used_tokens.saturating_mul(1000)) / limit).max(0) as u32;
     let remaining_tokens = limit.saturating_sub(used_tokens);
     let level = match ratio_per_mille {
-        ratio if ratio >= 1000 => ThreadEpiphanyPressureLevel::Critical,
-        ratio if ratio >= 900 => ThreadEpiphanyPressureLevel::High,
-        ratio if ratio >= 750 => ThreadEpiphanyPressureLevel::Elevated,
+        ratio if ratio >= EPIPHANY_PRESSURE_CRITICAL_PER_MILLE => {
+            ThreadEpiphanyPressureLevel::Critical
+        }
+        ratio if ratio >= EPIPHANY_PRESSURE_PREPARE_COMPACTION_PER_MILLE => {
+            ThreadEpiphanyPressureLevel::High
+        }
+        ratio if ratio >= EPIPHANY_PRESSURE_ELEVATED_PER_MILLE => {
+            ThreadEpiphanyPressureLevel::Elevated
+        }
         _ => ThreadEpiphanyPressureLevel::Low,
     };
-    let should_prepare_compaction = ratio_per_mille >= 900;
+    let should_prepare_compaction =
+        ratio_per_mille >= EPIPHANY_PRESSURE_PREPARE_COMPACTION_PER_MILLE;
     let note = match basis {
         ThreadEpiphanyPressureBasis::AutoCompactLimit => {
-            "Pressure is derived from the model auto-compact token limit.".to_string()
+            "Pressure is derived from current context usage against the model auto-compact token limit.".to_string()
         }
         ThreadEpiphanyPressureBasis::ModelContextWindow => {
-            "Pressure is derived from the model context window because no auto-compact threshold was recorded.".to_string()
+            "Pressure is derived from current context usage against the model context window because no auto-compact threshold was recorded.".to_string()
         }
         ThreadEpiphanyPressureBasis::Unknown => {
-            "Token usage is known, but no usable pressure limit was recorded.".to_string()
+            "Current context usage is known, but no usable pressure limit was recorded.".to_string()
         }
     };
 
@@ -17417,6 +17442,26 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    fn core_token_usage_info(
+        cumulative_tokens: i64,
+        current_context_tokens: i64,
+        model_context_window: Option<i64>,
+        model_auto_compact_token_limit: Option<i64>,
+    ) -> CoreTokenUsageInfo {
+        CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: cumulative_tokens,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: current_context_tokens,
+                ..Default::default()
+            },
+            model_context_window,
+            model_auto_compact_token_limit,
+        }
+    }
+
     #[test]
     fn validate_dynamic_tools_rejects_unsupported_input_schema() {
         let tools = vec![ApiDynamicToolSpec {
@@ -18800,15 +18845,12 @@ mod tests {
 
     #[test]
     fn map_epiphany_pressure_prefers_auto_compact_limit() {
-        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
-            total_token_usage: codex_protocol::protocol::TokenUsage {
-                total_tokens: 92,
-                ..Default::default()
-            },
-            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
-            model_context_window: Some(200),
-            model_auto_compact_token_limit: Some(100),
-        }));
+        let pressure = map_epiphany_pressure(Some(&core_token_usage_info(
+            1_000,
+            82,
+            Some(200),
+            Some(100),
+        )));
 
         assert_eq!(pressure.status, ThreadEpiphanyPressureStatus::Ready);
         assert_eq!(pressure.level, ThreadEpiphanyPressureLevel::High);
@@ -18816,22 +18858,38 @@ mod tests {
             pressure.basis,
             ThreadEpiphanyPressureBasis::AutoCompactLimit
         );
-        assert_eq!(pressure.ratio_per_mille, Some(920));
-        assert_eq!(pressure.remaining_tokens, Some(8));
+        assert_eq!(pressure.ratio_per_mille, Some(820));
+        assert_eq!(pressure.remaining_tokens, Some(18));
         assert!(pressure.should_prepare_compaction);
     }
 
     #[test]
+    fn map_epiphany_pressure_ignores_cumulative_thread_spend() {
+        let pressure =
+            map_epiphany_pressure(Some(&core_token_usage_info(310, 70, Some(200), Some(100))));
+
+        assert_eq!(pressure.status, ThreadEpiphanyPressureStatus::Ready);
+        assert_eq!(pressure.level, ThreadEpiphanyPressureLevel::Elevated);
+        assert_eq!(pressure.used_tokens, Some(70));
+        assert_eq!(pressure.ratio_per_mille, Some(700));
+        assert!(!pressure.should_prepare_compaction);
+    }
+
+    #[test]
+    fn map_epiphany_pressure_refuses_cumulative_only_telemetry() {
+        let pressure =
+            map_epiphany_pressure(Some(&core_token_usage_info(310, 0, Some(200), Some(100))));
+
+        assert_eq!(pressure.status, ThreadEpiphanyPressureStatus::Unknown);
+        assert_eq!(pressure.level, ThreadEpiphanyPressureLevel::Unknown);
+        assert_eq!(pressure.ratio_per_mille, None);
+        assert!(!pressure.should_prepare_compaction);
+    }
+
+    #[test]
     fn map_epiphany_pressure_falls_back_to_context_window() {
-        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
-            total_token_usage: codex_protocol::protocol::TokenUsage {
-                total_tokens: 150,
-                ..Default::default()
-            },
-            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
-            model_context_window: Some(200),
-            model_auto_compact_token_limit: None,
-        }));
+        let pressure =
+            map_epiphany_pressure(Some(&core_token_usage_info(1_000, 150, Some(200), None)));
 
         assert_eq!(pressure.status, ThreadEpiphanyPressureStatus::Ready);
         assert_eq!(pressure.level, ThreadEpiphanyPressureLevel::Elevated);
@@ -18845,24 +18903,9 @@ mod tests {
 
     #[test]
     fn pre_compaction_checkpoint_intervention_uses_compaction_prep_threshold() {
-        let elevated = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
-            total_token_usage: codex_protocol::protocol::TokenUsage {
-                total_tokens: 89,
-                ..Default::default()
-            },
-            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
-            model_context_window: None,
-            model_auto_compact_token_limit: Some(100),
-        }));
-        let high = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
-            total_token_usage: codex_protocol::protocol::TokenUsage {
-                total_tokens: 90,
-                ..Default::default()
-            },
-            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
-            model_context_window: None,
-            model_auto_compact_token_limit: Some(100),
-        }));
+        let elevated =
+            map_epiphany_pressure(Some(&core_token_usage_info(1_000, 79, None, Some(100))));
+        let high = map_epiphany_pressure(Some(&core_token_usage_info(1_000, 80, None, Some(100))));
 
         assert!(!should_run_epiphany_pre_compaction_checkpoint_intervention(
             &elevated
@@ -18953,15 +18996,12 @@ mod tests {
             ),
             ..Default::default()
         };
-        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
-            total_token_usage: codex_protocol::protocol::TokenUsage {
-                total_tokens: 40,
-                ..Default::default()
-            },
-            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
-            model_context_window: Some(200),
-            model_auto_compact_token_limit: Some(100),
-        }));
+        let pressure = map_epiphany_pressure(Some(&core_token_usage_info(
+            1_000,
+            40,
+            Some(200),
+            Some(100),
+        )));
         let retrieval = ThreadEpiphanyRetrievalFreshness {
             status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
             semantic_available: Some(true),
@@ -19603,15 +19643,12 @@ mod tests {
 
     #[test]
     fn map_epiphany_coordinator_compacts_at_pressure_threshold() {
-        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
-            total_token_usage: codex_protocol::protocol::TokenUsage {
-                total_tokens: 92,
-                ..Default::default()
-            },
-            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
-            model_context_window: Some(200),
-            model_auto_compact_token_limit: Some(100),
-        }));
+        let pressure = map_epiphany_pressure(Some(&core_token_usage_info(
+            1_000,
+            80,
+            Some(200),
+            Some(100),
+        )));
         let recommendation = ThreadEpiphanyCrrcRecommendation {
             action: ThreadEpiphanyCrrcAction::Continue,
             recommended_scene_action: Some(ThreadEpiphanySceneAction::Reorient),
@@ -19649,15 +19686,12 @@ mod tests {
 
     #[test]
     fn map_epiphany_coordinator_does_not_recompact_after_accepted_resume_reorient() {
-        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
-            total_token_usage: codex_protocol::protocol::TokenUsage {
-                total_tokens: 92,
-                ..Default::default()
-            },
-            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
-            model_context_window: Some(200),
-            model_auto_compact_token_limit: Some(100),
-        }));
+        let pressure = map_epiphany_pressure(Some(&core_token_usage_info(
+            1_000,
+            80,
+            Some(200),
+            Some(100),
+        )));
         let recommendation = ThreadEpiphanyCrrcRecommendation {
             action: ThreadEpiphanyCrrcAction::Continue,
             recommended_scene_action: Some(ThreadEpiphanySceneAction::Reorient),
