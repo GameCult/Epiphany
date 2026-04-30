@@ -42,6 +42,9 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention.
 - The dogfood quarantine now has a direct-thought boundary. The supervisor may read coordinator actions, role/reorient statuses, structured finding summaries, reviewed state patches, rendered status snapshots, and artifact manifests. It must not read raw worker transcripts, direct worker messages, full turn logs, or `rawResult` payloads during normal dogfood. Those artifacts are sealed for explicit forensic debugging only.
 - `tools/epiphany_agent_telemetry.py` is the safe instrument panel for sealed runs. Status/coordinator/GUI/dogfood/live-specialist tools generate telemetry JSON from sealed transcripts that preserves method names, call shape, job/status/path counts, and any visible function/tool names while sealing text, direct messages, and raw results.
+- Latest Aetheria supervised dogfood thread: `019ddc52-4ee8-7203-b6c0-106a9c270067` with codex-home `.epiphany-dogfood/aetheria-supervised/codex-home`. CRRC compact/reorient/reorientAccept reached Epiphany state revision 16 after rollout replay fixes, and a fresh coordinator resume now clears to `continueImplementation`.
+- The implementation lane is the current MVP blocker. Four `continueImplementation` turns completed without a tracked Aetheria diff; the latest audited artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777527640605829200-12724`, with `implementation-result.json` showing `workspaceChanged: false` and telemetry showing only `Get-Content` commands with no write verbs.
+- The GUI now parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit. Future `continueImplementation` action bundles also write `implementation-audit.md`.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -351,19 +354,22 @@ bounded browser-fallback controls. A live bridge probe also proved
 `prepareCheckpoint` creates a resumable thread and a later process can
 `readModelingResult` from it.
 
-The next real move is not more direct Aetheria implementation. The uncommitted
-supervisor-created fog-compute slice was discarded; the remaining Aetheria
-branch work is supervisor-seeded and must not be presented as clean dogfood.
-Run the next Aetheria step through Epiphany's GUI/coordinator/fixed lanes and
-produce artifacts that show who did what. Read only operator-safe projections;
-do not open raw worker transcripts, direct worker messages, or `rawResult`
-payloads unless the user explicitly asks for forensic debugging. Use generated
-function/API telemetry for call-shape visibility without sungazing. CRRC is not
-a specialist-agent persona; the reorient-worker it may launch is the
-specialist. Do not turn the coordinator into a broad hidden dispatcher,
-arbitrary marketplace, alternate job backend, automatic semantic acceptance
-path, target-repo implementation worker, direct-thought feed, or
-GUI-as-source-of-truth.
+The next real move is not more direct Aetheria implementation. The clean
+supervised lane now reaches implementation, but the implementation agent is
+reading and stopping without leaving a diff. The GUI surfaces that and prevents
+immediate repeat-mashing, but the coordinator still does not know about the
+implementation failure. Treat this as an MVP blocker: either make no-diff
+implementation a coordinator-visible review stop or redirect it into a bounded
+modeling/reorientation repair path, then rerun through the GUI/coordinator/fixed
+lanes and produce artifacts that show who did what. Read only operator-safe
+projections; do not open raw worker transcripts, direct
+worker messages, or `rawResult` payloads unless the user explicitly asks for
+forensic debugging. Use generated function/API telemetry for call-shape
+visibility without sungazing. CRRC is not a specialist-agent persona; the
+reorient-worker it may launch is the specialist. Do not turn the coordinator
+into a broad hidden dispatcher, arbitrary marketplace, alternate job backend,
+automatic semantic acceptance path, target-repo implementation worker,
+direct-thought feed, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

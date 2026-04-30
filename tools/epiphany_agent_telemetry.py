@@ -7,6 +7,7 @@ from datetime import datetime
 from datetime import timezone
 import json
 from pathlib import Path
+import re
 from typing import Any
 
 
@@ -140,6 +141,52 @@ def collect_strings(value: Any, key_names: set[str]) -> list[str]:
     return found
 
 
+def summarize_command_text(command: str) -> dict[str, Any]:
+    compact = " ".join(line.strip() for line in command.splitlines() if line.strip())
+    verbs = sorted(
+        {
+            match.group(0)
+            for match in re.finditer(
+                r"\b(?:rg|git|Get-Content|Get-ChildItem|Select-String|Test-Path|New-Item|Set-Content|"
+                r"python|cargo|dotnet|npm|node|apply_patch)\b",
+                command,
+                flags=re.IGNORECASE,
+            )
+        },
+        key=str.lower,
+    )
+    return {
+        "chars": len(command),
+        "lines": len(command.splitlines()) or 1,
+        "preview": compact[:240],
+        "truncated": len(compact) > 240,
+        "verbs": verbs,
+        "hasWriteVerb": any(
+            verb.lower() in {"new-item", "set-content", "apply_patch"}
+            for verb in verbs
+        ),
+    }
+
+
+def collect_command_telemetry(value: Any) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    if isinstance(value, dict):
+        if value.get("type") == "commandExecution" and isinstance(value.get("command"), str):
+            command_info = summarize_command_text(value["command"])
+            command_info["cwd"] = value.get("cwd")
+            command_info["status"] = value.get("status")
+            command_info["exitCode"] = value.get("exitCode")
+            command_info["durationMs"] = value.get("durationMs")
+            found.append(command_info)
+        for item in value.values():
+            if isinstance(item, (dict, list)):
+                found.extend(collect_command_telemetry(item))
+    elif isinstance(value, list):
+        for item in value:
+            found.extend(collect_command_telemetry(item))
+    return found
+
+
 def telemetry_event(index: int, record: dict[str, Any]) -> dict[str, Any]:
     direction = "unknown"
     payload: Any = record
@@ -165,6 +212,11 @@ def telemetry_event(index: int, record: dict[str, Any]) -> dict[str, Any]:
         event["params"] = summarize_value(payload["params"], key="params")
     if "result" in payload:
         event["result"] = summarize_value(payload["result"], key="responseResult")
+
+    command_telemetry = collect_command_telemetry(payload)
+    if command_telemetry:
+        event["commandTelemetry"] = command_telemetry[:16]
+        event["commandTelemetryCount"] = len(command_telemetry)
 
     names = sorted(set(collect_strings(payload, {"toolName", "tool", "functionName", "name"})))
     if names:

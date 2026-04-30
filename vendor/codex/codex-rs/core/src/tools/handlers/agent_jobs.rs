@@ -613,7 +613,19 @@ pub(crate) async fn run_agent_job_loop(
     loop {
         let mut progressed = false;
 
-        if !cancel_requested && db.is_agent_job_cancelled(job_id.as_str()).await? {
+        if cancel_requested {
+            if clear_cancelled_active_items(
+                session.clone(),
+                db.clone(),
+                job_id.as_str(),
+                &mut active_items,
+                "agent job was cancelled before the worker completed",
+            )
+            .await?
+            {
+                progressed = true;
+            }
+        } else if db.is_agent_job_cancelled(job_id.as_str()).await? {
             cancel_requested = true;
             let _ = session
                 .notify_background_event(
@@ -621,6 +633,17 @@ pub(crate) async fn run_agent_job_loop(
                     format!("agent job {job_id} cancellation requested; stopping new workers"),
                 )
                 .await;
+            if clear_cancelled_active_items(
+                session.clone(),
+                db.clone(),
+                job_id.as_str(),
+                &mut active_items,
+                "agent job was cancelled before the worker completed",
+            )
+            .await?
+            {
+                progressed = true;
+            }
         }
 
         if !cancel_requested && active_items.len() < options.max_concurrency {
@@ -961,6 +984,33 @@ async fn reap_stale_active_items(
     for (thread_id, item_id) in stale {
         let error_message = format!("worker exceeded max runtime of {runtime_timeout:?}");
         db.mark_agent_job_item_failed(job_id, item_id.as_str(), error_message.as_str())
+            .await?;
+        let _ = session
+            .services
+            .agent_control
+            .shutdown_live_agent(thread_id)
+            .await;
+        active_items.remove(&thread_id);
+    }
+    Ok(true)
+}
+
+async fn clear_cancelled_active_items(
+    session: Arc<Session>,
+    db: Arc<codex_state::StateRuntime>,
+    job_id: &str,
+    active_items: &mut HashMap<ThreadId, ActiveJobItem>,
+    error_message: &str,
+) -> anyhow::Result<bool> {
+    if active_items.is_empty() {
+        return Ok(false);
+    }
+    let active: Vec<(ThreadId, String)> = active_items
+        .iter()
+        .map(|(thread_id, item)| (*thread_id, item.item_id.clone()))
+        .collect();
+    for (thread_id, item_id) in active {
+        db.mark_agent_job_item_failed(job_id, item_id.as_str(), error_message)
             .await?;
         let _ = session
             .services

@@ -32,7 +32,17 @@ struct ArtifactBundle {
     summary_path: Option<String>,
     final_status_path: Option<String>,
     comparison_path: Option<String>,
+    implementation_audit: Option<ImplementationAudit>,
     modified_millis: Option<u128>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ImplementationAudit {
+    result_path: String,
+    workspace_changed: bool,
+    tracked_diff_present: bool,
+    changed_files: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -72,9 +82,11 @@ fn run_operator_action(
         | "acceptModeling"
         | "launchVerification"
         | "readVerificationResult"
+        | "acceptVerification"
         | "launchReorient"
         | "readReorientResult"
         | "acceptReorient"
+        | "continueImplementation"
         | "prepareCheckpoint" => run_gui_action_bridge(&repo_root, request, action),
         _ => Err(format!("unknown operator action: {action}")),
     }
@@ -371,6 +383,7 @@ fn collect_artifact_root(
             final_status_path: existing_path(&path, "epiphany-final-status.json")
                 .or_else(|| existing_path(&path, "after-status.json")),
             comparison_path: existing_path(&path, "comparison.md"),
+            implementation_audit: read_implementation_audit(&path),
             files,
             modified_millis,
         });
@@ -382,6 +395,34 @@ fn collect_artifact_root(
 fn existing_path(root: &Path, name: &str) -> Option<String> {
     let path = root.join(name);
     path.exists().then(|| path.display().to_string())
+}
+
+fn read_implementation_audit(root: &Path) -> Option<ImplementationAudit> {
+    let result_path = root.join("implementation-result.json");
+    let text = fs::read_to_string(&result_path).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    Some(ImplementationAudit {
+        result_path: result_path.display().to_string(),
+        workspace_changed: value
+            .get("workspaceChanged")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        tracked_diff_present: value
+            .get("trackedDiffPresent")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        changed_files: value
+            .get("changedFiles")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(ToString::to_string)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    })
 }
 
 fn repo_root() -> Result<PathBuf, String> {

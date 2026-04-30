@@ -204,6 +204,48 @@ WHERE job_id = ? AND item_id = ?
         row.map(AgentJobItem::try_from).transpose()
     }
 
+    pub async fn latest_agent_job_item_by_source_id(
+        &self,
+        source_id: &str,
+    ) -> anyhow::Result<Option<(AgentJob, AgentJobItem)>> {
+        let row: Option<AgentJobItemRow> = sqlx::query_as::<_, AgentJobItemRow>(
+            r#"
+SELECT
+    job_id,
+    item_id,
+    row_index,
+    source_id,
+    row_json,
+    status,
+    assigned_thread_id,
+    attempt_count,
+    result_json,
+    last_error,
+    created_at,
+    updated_at,
+    completed_at,
+    reported_at
+FROM agent_job_items
+WHERE source_id = ? OR item_id = ?
+ORDER BY updated_at DESC, created_at DESC
+LIMIT 1
+            "#,
+        )
+        .bind(source_id)
+        .bind(source_id)
+        .fetch_optional(self.pool.as_ref())
+        .await?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let item = AgentJobItem::try_from(row)?;
+        let job = self
+            .get_agent_job(item.job_id.as_str())
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("agent job {} was missing", item.job_id))?;
+        Ok(Some((job, item)))
+    }
+
     pub async fn mark_agent_job_running(&self, job_id: &str) -> anyhow::Result<()> {
         let now = Utc::now().timestamp();
         sqlx::query(
@@ -274,6 +316,7 @@ WHERE id = ?
         reason: &str,
     ) -> anyhow::Result<bool> {
         let now = Utc::now().timestamp();
+        let mut tx = self.pool.begin().await?;
         let result = sqlx::query(
             r#"
 UPDATE agent_jobs
@@ -288,9 +331,33 @@ WHERE id = ? AND status IN (?, ?)
         .bind(job_id)
         .bind(AgentJobStatus::Pending.as_str())
         .bind(AgentJobStatus::Running.as_str())
-        .execute(self.pool.as_ref())
+        .execute(&mut *tx)
         .await?;
-        Ok(result.rows_affected() > 0)
+        let cancelled = result.rows_affected() > 0;
+        if cancelled {
+            sqlx::query(
+                r#"
+UPDATE agent_job_items
+SET
+    status = ?,
+    completed_at = ?,
+    updated_at = ?,
+    last_error = ?,
+    assigned_thread_id = NULL
+WHERE job_id = ? AND status = ?
+                "#,
+            )
+            .bind(AgentJobItemStatus::Failed.as_str())
+            .bind(now)
+            .bind(now)
+            .bind(reason)
+            .bind(job_id)
+            .bind(AgentJobItemStatus::Running.as_str())
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(cancelled)
     }
 
     pub async fn is_agent_job_cancelled(&self, job_id: &str) -> anyhow::Result<bool> {
@@ -679,6 +746,51 @@ mod tests {
         assert_eq!(item.status, AgentJobItemStatus::Failed);
         assert_eq!(item.result_json, None);
         assert_eq!(item.last_error, Some("missing report".to_string()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn mark_agent_job_cancelled_fails_running_items() -> anyhow::Result<()> {
+        let codex_home = unique_temp_dir();
+        let runtime = StateRuntime::init(codex_home, "test-provider".to_string()).await?;
+        let (job_id, item_id, _thread_id) =
+            create_running_single_item_job(runtime.as_ref()).await?;
+
+        let cancelled = runtime
+            .mark_agent_job_cancelled(job_id.as_str(), "operator interrupted job")
+            .await?;
+        assert!(cancelled);
+
+        let job = runtime
+            .get_agent_job(job_id.as_str())
+            .await?
+            .expect("job should exist");
+        assert_eq!(job.status, AgentJobStatus::Cancelled);
+        assert_eq!(job.last_error, Some("operator interrupted job".to_string()));
+
+        let item = runtime
+            .get_agent_job_item(job_id.as_str(), item_id.as_str())
+            .await?
+            .expect("job item should exist");
+        assert_eq!(item.status, AgentJobItemStatus::Failed);
+        assert_eq!(item.assigned_thread_id, None);
+        assert_eq!(
+            item.last_error,
+            Some("operator interrupted job".to_string())
+        );
+        assert!(item.completed_at.is_some());
+
+        let progress = runtime.get_agent_job_progress(job_id.as_str()).await?;
+        assert_eq!(
+            progress,
+            AgentJobProgress {
+                total_items: 1,
+                pending_items: 0,
+                running_items: 0,
+                completed_items: 0,
+                failed_items: 1,
+            }
+        );
         Ok(())
     }
 }

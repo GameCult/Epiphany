@@ -53,10 +53,8 @@ fn finalize_active_segment<'a>(
     // Thread rollback drops the newest surviving real user-message boundaries. In replay, that
     // means skipping the next finalized segments that contain a non-contextual
     // `EventMsg::UserMessage`.
-    if *pending_rollback_turns > 0 {
-        if active_segment.counts_as_user_turn {
-            *pending_rollback_turns -= 1;
-        }
+    if *pending_rollback_turns > 0 && active_segment.counts_as_user_turn {
+        *pending_rollback_turns -= 1;
         return;
     }
 
@@ -93,6 +91,18 @@ fn finalize_active_segment<'a>(
     }
 }
 
+fn is_out_of_band_epiphany_segment(active_segment: &ActiveReplaySegment<'_>) -> bool {
+    active_segment.turn_id.is_none()
+        && !active_segment.counts_as_user_turn
+        && active_segment.epiphany_state.is_some()
+        && active_segment.previous_turn_settings.is_none()
+        && active_segment.base_replacement_history.is_none()
+        && matches!(
+            active_segment.reference_context_item,
+            TurnReferenceContextItem::NeverSet
+        )
+}
+
 impl Session {
     pub(super) async fn reconstruct_history_from_rollout(
         &self,
@@ -119,6 +129,24 @@ impl Session {
         let mut active_segment: Option<ActiveReplaySegment<'_>> = None;
 
         for (index, item) in rollout_items.iter().enumerate().rev() {
+            if active_segment
+                .as_ref()
+                .is_some_and(is_out_of_band_epiphany_segment)
+                && let Some(active_segment) = active_segment.take()
+            {
+                finalize_active_segment(
+                    active_segment,
+                    &mut base_replacement_history,
+                    &mut previous_turn_settings,
+                    &mut reference_context_item,
+                    &mut epiphany_state,
+                    &mut pending_rollback_turns,
+                );
+            }
+            if epiphany_state.is_some() {
+                break;
+            }
+
             match item {
                 RolloutItem::Compacted(compacted) => {
                     let active_segment =

@@ -9,11 +9,13 @@ export type OperatorAction =
   | "statusSnapshot"
   | "coordinatorPlan"
   | "prepareCheckpoint"
+  | "continueImplementation"
   | "launchModeling"
   | "readModelingResult"
   | "acceptModeling"
   | "launchVerification"
   | "readVerificationResult"
+  | "acceptVerification"
   | "launchReorient"
   | "readReorientResult"
   | "acceptReorient";
@@ -32,6 +34,12 @@ export interface ArtifactBundle {
   summaryPath?: string;
   finalStatusPath?: string;
   comparisonPath?: string;
+  implementationAudit?: {
+    resultPath: string;
+    workspaceChanged: boolean;
+    trackedDiffPresent: boolean;
+    changedFiles: string[];
+  };
   modifiedMillis?: number;
 }
 

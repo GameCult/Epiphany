@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sqlite3
 import time
 from typing import Any
 
@@ -100,6 +101,48 @@ def assert_interrupted_specialist_job(job: dict[str, Any]) -> None:
         and "launch explicitly" in job["blockingReason"].lower(),
         "interrupt should leave a bounded relaunch reason behind",
     )
+
+
+def read_backend_job_metadata(codex_home: Path, job_id: str) -> dict[str, Any]:
+    db_paths = sorted(codex_home.glob("state_*.sqlite"))
+    require(db_paths, f"state sqlite database should exist under {codex_home}")
+    db_path = db_paths[-1]
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        job_row = conn.execute(
+            """
+            SELECT status, last_error IS NOT NULL AS has_error
+            FROM agent_jobs
+            WHERE id = ?
+            """,
+            (job_id,),
+        ).fetchone()
+        require(job_row is not None, f"backend job {job_id!r} should exist")
+        item_row = conn.execute(
+            """
+            SELECT status,
+                   assigned_thread_id IS NOT NULL AS has_thread,
+                   last_error IS NOT NULL AS has_error,
+                   completed_at IS NOT NULL AS has_completed_at
+            FROM agent_job_items
+            WHERE job_id = ?
+            ORDER BY row_index ASC
+            LIMIT 1
+            """,
+            (job_id,),
+        ).fetchone()
+        require(item_row is not None, f"backend item for job {job_id!r} should exist")
+        return {
+            "jobStatus": job_row["status"],
+            "jobHasError": bool(job_row["has_error"]),
+            "itemStatus": item_row["status"],
+            "itemHasThread": bool(item_row["has_thread"]),
+            "itemHasError": bool(item_row["has_error"]),
+            "itemHasCompletedAt": bool(item_row["has_completed_at"]),
+        }
+    finally:
+        conn.close()
 
 
 def wait_for_jobs_surface(
@@ -322,6 +365,30 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         interrupted_job = job_by_id(interrupted_jobs["jobs"], BINDING_ID)
         assert_interrupted_specialist_job(interrupted_job)
 
+        backend_metadata = read_backend_job_metadata(
+            codex_home, ready_job["backendJobId"]
+        )
+        require(
+            backend_metadata["jobStatus"] == "cancelled",
+            "interrupt should mark the backend job cancelled",
+        )
+        require(
+            backend_metadata["itemStatus"] == "failed",
+            "interrupt should close the running backend item instead of leaving it running",
+        )
+        require(
+            not backend_metadata["itemHasThread"],
+            "interrupt should clear the backend item thread assignment",
+        )
+        require(
+            backend_metadata["itemHasError"],
+            "interrupt should leave an item-level interruption reason",
+        )
+        require(
+            backend_metadata["itemHasCompletedAt"],
+            "interrupt should set completed_at on the closed backend item",
+        )
+
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
         require(
@@ -344,6 +411,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "interruptInterruptedThreadIds": interrupt["interruptedThreadIds"],
             "interruptedStatus": interrupted_job["status"],
             "interruptedBlockingReason": interrupted_job["blockingReason"],
+            "backendAfterInterrupt": backend_metadata,
             "jobsUpdatedNotificationCount": client.count_notifications(
                 "thread/epiphany/jobsUpdated",
                 start_index=launch_notification_start,

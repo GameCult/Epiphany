@@ -4602,6 +4602,12 @@ impl CodexMessageProcessor {
             .as_ref()
             .and_then(|state| state.investigation_checkpoint.as_ref())
             .is_some();
+        let reorient_finding_accepted = reorient_finding.as_ref().is_some_and(|finding| {
+            thread
+                .epiphany_state
+                .as_ref()
+                .is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
+        });
         let recommendation = map_epiphany_crrc_recommendation(
             loaded,
             state_status,
@@ -4610,12 +4616,7 @@ impl CodexMessageProcessor {
             reorient_result_status,
             checkpoint_present,
             reorient_finding.is_some(),
-            reorient_finding.as_ref().is_some_and(|finding| {
-                thread
-                    .epiphany_state
-                    .as_ref()
-                    .is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
-            }),
+            reorient_finding_accepted,
         );
         let roles = map_epiphany_roles(
             thread.epiphany_state.as_ref(),
@@ -4642,22 +4643,28 @@ impl CodexMessageProcessor {
                 "No authoritative Epiphany state exists for this thread.".to_string(),
             )
         };
-        let (verification_result_status, _, _) = if let Some(state) = thread.epiphany_state.as_ref()
-        {
-            load_epiphany_role_result_snapshot(
-                state,
-                state_db_ctx.as_ref(),
-                ThreadEpiphanyRoleId::Verification,
-                EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
-            )
-            .await
-        } else {
-            (
-                ThreadEpiphanyRoleResultStatus::MissingState,
-                None,
-                "No authoritative Epiphany state exists for this thread.".to_string(),
-            )
-        };
+        let (verification_result_status, verification_finding, _) =
+            if let Some(state) = thread.epiphany_state.as_ref() {
+                load_epiphany_role_result_snapshot(
+                    state,
+                    state_db_ctx.as_ref(),
+                    ThreadEpiphanyRoleId::Verification,
+                    EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+                )
+                .await
+            } else {
+                (
+                    ThreadEpiphanyRoleResultStatus::MissingState,
+                    None,
+                    "No authoritative Epiphany state exists for this thread.".to_string(),
+                )
+            };
+        let verification_result_accepted = verification_finding.as_ref().is_some_and(|finding| {
+            thread
+                .epiphany_state
+                .as_ref()
+                .is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
+        });
 
         let source_signals = ThreadEpiphanyCoordinatorSignals {
             pressure_level: pressure.level,
@@ -4675,6 +4682,8 @@ impl CodexMessageProcessor {
             &recommendation,
             &roles,
             &source_signals,
+            verification_result_accepted,
+            reorient_finding_accepted,
         );
         let note = render_epiphany_coordinator_note(
             recommendation.action,
@@ -4960,16 +4969,14 @@ impl CodexMessageProcessor {
             binding_id,
         } = params;
 
-        if role_id != ThreadEpiphanyRoleId::Modeling {
-            self.send_invalid_request_error(
-                request_id,
-                "only the modeling/checkpoint role currently has an Epiphany role acceptance path"
-                    .to_string(),
-            )
-            .await;
-            return;
-        }
-        let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_MODELING_ROLE_BINDING_ID.into());
+        let default_binding_id = match epiphany_role_binding_id(role_id) {
+            Ok(binding_id) => binding_id,
+            Err(message) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+        };
+        let binding_id = binding_id.unwrap_or_else(|| default_binding_id.into());
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
             Ok(id) => id,
@@ -5037,32 +5044,54 @@ impl CodexMessageProcessor {
             }
         };
 
-        let mut patch = match parse_role_finding_state_patch(&finding) {
-            Ok(patch) => patch,
-            Err(message) => {
-                self.send_invalid_request_error(request_id, message).await;
+        let mut patch = match role_id {
+            ThreadEpiphanyRoleId::Modeling => {
+                let patch = match parse_role_finding_state_patch(&finding) {
+                    Ok(patch) => patch,
+                    Err(message) => {
+                        self.send_invalid_request_error(request_id, message).await;
+                        return;
+                    }
+                };
+                let patch_errors = modeling_role_accept_patch_errors(&patch);
+                if !patch_errors.is_empty() {
+                    self.send_invalid_request_error(
+                        request_id,
+                        format!(
+                            "modeling role state patch is not acceptable: {}",
+                            patch_errors.join("; ")
+                        ),
+                    )
+                    .await;
+                    return;
+                }
+                patch
+            }
+            ThreadEpiphanyRoleId::Verification => ThreadEpiphanyUpdatePatch::default(),
+            ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+                self.send_invalid_request_error(
+                    request_id,
+                    format!("role {:?} cannot be accepted through roleAccept", role_id),
+                )
+                .await;
                 return;
             }
         };
-        let patch_errors = modeling_role_accept_patch_errors(&patch);
-        if !patch_errors.is_empty() {
-            self.send_invalid_request_error(
-                request_id,
-                format!(
-                    "modeling role state patch is not acceptable: {}",
-                    patch_errors.join("; ")
-                ),
-            )
-            .await;
-            return;
-        }
 
-        let accepted_evidence_id = format!("ev-modeling-{}", Uuid::new_v4());
-        let accepted_observation_id = format!("obs-modeling-{}", Uuid::new_v4());
+        let accepted_kind = match role_id {
+            ThreadEpiphanyRoleId::Modeling => "modeling_result",
+            ThreadEpiphanyRoleId::Verification => "verification_result",
+            ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+                unreachable!("unsupported roles returned above")
+            }
+        };
+        let accepted_prefix = epiphany_role_label(role_id);
+        let accepted_evidence_id = format!("ev-{accepted_prefix}-{}", Uuid::new_v4());
+        let accepted_observation_id = format!("obs-{accepted_prefix}-{}", Uuid::new_v4());
         let code_refs = role_finding_code_refs(&finding);
         let evidence = EpiphanyEvidenceRecord {
             id: accepted_evidence_id.clone(),
-            kind: "modeling_result".to_string(),
+            kind: accepted_kind.to_string(),
             status: "accepted".to_string(),
             summary: role_finding_summary(&finding),
             code_refs: code_refs.clone(),
@@ -5070,7 +5099,7 @@ impl CodexMessageProcessor {
         let observation = EpiphanyObservation {
             id: accepted_observation_id.clone(),
             summary: role_finding_observation_summary(&finding),
-            source_kind: "modeling_result".to_string(),
+            source_kind: accepted_kind.to_string(),
             status: "accepted".to_string(),
             code_refs,
             evidence_ids: vec![accepted_evidence_id.clone()],
@@ -13682,24 +13711,10 @@ async fn load_epiphany_reorient_result_snapshot(
             "No authoritative Epiphany state exists for this thread.".to_string(),
         );
     };
-    let Some(binding) = state
+    let binding = state
         .job_bindings
         .iter()
-        .find(|binding| binding.id == binding_id)
-    else {
-        return (
-            ThreadEpiphanyReorientResultStatus::MissingBinding,
-            None,
-            "No matching Epiphany reorientation worker binding exists.".to_string(),
-        );
-    };
-    let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
-        return (
-            ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-            None,
-            "The matching binding is not currently backed by the agent_jobs backend.".to_string(),
-        );
-    };
+        .find(|binding| binding.id == binding_id);
     let Some(state_db_ctx) = state_db_ctx else {
         return (
             ThreadEpiphanyReorientResultStatus::BackendUnavailable,
@@ -13708,44 +13723,78 @@ async fn load_epiphany_reorient_result_snapshot(
                 .to_string(),
         );
     };
-    let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
-        Ok(Some(job)) => job,
-        Ok(None) => {
-            return (
-                ThreadEpiphanyReorientResultStatus::BackendMissing,
-                None,
-                format!(
-                    "Bound agent_jobs backend job {:?} was not found.",
-                    agent_job_id
-                ),
-            );
-        }
-        Err(err) => {
+    let (agent_job, item) = if let Some(binding) = binding {
+        let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
             return (
                 ThreadEpiphanyReorientResultStatus::BackendUnavailable,
                 None,
-                format!("Failed to read Epiphany reorientation backend job: {err}"),
+                "The matching binding is not currently backed by the agent_jobs backend."
+                    .to_string(),
             );
-        }
-    };
-    let item = match state_db_ctx
-        .get_agent_job_item(agent_job_id, binding_id)
-        .await
-    {
-        Ok(Some(item)) => item,
-        Ok(None) => {
-            return (
-                ThreadEpiphanyReorientResultStatus::BackendMissing,
-                None,
-                "Bound agent_jobs backend item was not found for this reorient worker.".to_string(),
-            );
-        }
-        Err(err) => {
-            return (
-                ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                None,
-                format!("Failed to read Epiphany reorientation backend item: {err}"),
-            );
+        };
+        let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
+            Ok(Some(job)) => job,
+            Ok(None) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::BackendMissing,
+                    None,
+                    format!(
+                        "Bound agent_jobs backend job {:?} was not found.",
+                        agent_job_id
+                    ),
+                );
+            }
+            Err(err) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                    None,
+                    format!("Failed to read Epiphany reorientation backend job: {err}"),
+                );
+            }
+        };
+        let item = match state_db_ctx
+            .get_agent_job_item(agent_job_id, binding_id)
+            .await
+        {
+            Ok(Some(item)) => item,
+            Ok(None) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::BackendMissing,
+                    None,
+                    "Bound agent_jobs backend item was not found for this reorient worker."
+                        .to_string(),
+                );
+            }
+            Err(err) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                    None,
+                    format!("Failed to read Epiphany reorientation backend item: {err}"),
+                );
+            }
+        };
+        (agent_job, item)
+    } else {
+        match state_db_ctx
+            .latest_agent_job_item_by_source_id(binding_id)
+            .await
+        {
+            Ok(Some((agent_job, item))) => (agent_job, item),
+            Ok(None) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::MissingBinding,
+                    None,
+                    "No matching Epiphany reorientation worker binding or recovered backend item exists."
+                        .to_string(),
+                );
+            }
+            Err(err) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                    None,
+                    format!("Failed to recover Epiphany reorientation backend item: {err}"),
+                );
+            }
         }
     };
     let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
@@ -13817,6 +13866,20 @@ fn map_epiphany_crrc_recommendation(
                     ThreadEpiphanyCrrcAction::RegatherManually,
                     Some(ThreadEpiphanySceneAction::Reorient),
                     "The reorientation finding is already accepted; re-gather from the banked checkpoint before implementation continues.",
+                );
+            }
+            if finding_accepted {
+                return build(
+                    ThreadEpiphanyCrrcAction::Continue,
+                    Some(ThreadEpiphanySceneAction::Reorient),
+                    "The reorientation finding is already accepted and the checkpoint remains resume-ready; continue the bounded task.",
+                );
+            }
+            if finding_present {
+                return build(
+                    ThreadEpiphanyCrrcAction::ReviewReorientResult,
+                    Some(ThreadEpiphanySceneAction::ReorientResult),
+                    "A completed reorientation finding is available, but it has not been accepted yet.",
                 );
             }
             return build(
@@ -13919,6 +13982,8 @@ fn map_epiphany_coordinator(
     recommendation: &ThreadEpiphanyCrrcRecommendation,
     roles: &[ThreadEpiphanyRoleLane],
     signals: &ThreadEpiphanyCoordinatorSignals,
+    verification_result_accepted: bool,
+    reorient_finding_accepted: bool,
 ) -> EpiphanyCoordinatorDecision {
     let build = |action,
                  target_role,
@@ -13982,7 +14047,10 @@ fn map_epiphany_coordinator(
         | ThreadEpiphanyCrrcAction::Continue => {}
     }
 
-    if pressure.should_prepare_compaction {
+    if pressure.should_prepare_compaction
+        && !(reorient_finding_accepted
+            && recommendation.action == ThreadEpiphanyCrrcAction::Continue)
+    {
         return build(
             ThreadEpiphanyCoordinatorAction::CompactRehydrateReorient,
             Some(ThreadEpiphanyRoleId::Reorientation),
@@ -14004,7 +14072,9 @@ fn map_epiphany_coordinator(
         );
     }
 
-    if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed {
+    if signals.verification_result_status == ThreadEpiphanyRoleResultStatus::Completed
+        && !verification_result_accepted
+    {
         return build(
             ThreadEpiphanyCoordinatorAction::ReviewVerificationResult,
             Some(ThreadEpiphanyRoleId::Verification),
@@ -14015,7 +14085,9 @@ fn map_epiphany_coordinator(
         );
     }
 
-    if signals.modeling_result_status == ThreadEpiphanyRoleResultStatus::Completed {
+    if signals.modeling_result_status == ThreadEpiphanyRoleResultStatus::Completed
+        && !verification_result_accepted
+    {
         return build(
             ThreadEpiphanyCoordinatorAction::LaunchVerification,
             Some(ThreadEpiphanyRoleId::Verification),
@@ -14127,6 +14199,25 @@ fn epiphany_reorient_finding_already_accepted(
     let accepted_summary = reorient_finding_summary(finding);
     state.recent_evidence.iter().any(|evidence| {
         evidence.kind == "reorient_result"
+            && evidence.status == "accepted"
+            && evidence.summary == accepted_summary
+    })
+}
+
+fn epiphany_role_finding_already_accepted(
+    state: &EpiphanyThreadState,
+    finding: &ThreadEpiphanyRoleFinding,
+) -> bool {
+    let accepted_kind = match finding.role_id {
+        ThreadEpiphanyRoleId::Modeling => "modeling_result",
+        ThreadEpiphanyRoleId::Verification => "verification_result",
+        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+            return false;
+        }
+    };
+    let accepted_summary = role_finding_summary(finding);
+    state.recent_evidence.iter().any(|evidence| {
+        evidence.kind == accepted_kind
             && evidence.status == "accepted"
             && evidence.summary == accepted_summary
     })
@@ -14263,6 +14354,7 @@ fn map_epiphany_roles(
             authority_scopes: vec![
                 "thread/epiphany/roleLaunch".to_string(),
                 "thread/epiphany/roleResult".to_string(),
+                "thread/epiphany/roleAccept".to_string(),
                 "thread/epiphany/distill".to_string(),
                 "thread/epiphany/propose".to_string(),
                 "thread/epiphany/promote".to_string(),
@@ -14393,52 +14485,64 @@ async fn load_completed_epiphany_reorient_finding(
     state: &EpiphanyThreadState,
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyReorientFinding> {
-    let binding = state
-        .job_bindings
-        .iter()
-        .find(|binding| binding.id == binding_id)
-        .ok_or_else(|| {
-            CodexErr::InvalidRequest(format!(
-                "epiphany reorientation binding {:?} was not found",
-                binding_id
-            ))
-        })?;
-    let agent_job_id = binding_agent_jobs_job_id(binding).ok_or_else(|| {
-        CodexErr::InvalidRequest(format!(
-            "epiphany reorientation binding {:?} is not backed by agent_jobs",
-            binding_id
-        ))
-    })?;
     let state_db_ctx = thread.epiphany_state_runtime().await.ok_or_else(|| {
         CodexErr::InvalidRequest(
             "sqlite state db is unavailable for Epiphany reorientation result acceptance"
                 .to_string(),
         )
     })?;
-    let agent_job = state_db_ctx
-        .get_agent_job(agent_job_id)
-        .await
-        .map_err(|err| CodexErr::Fatal(format!("failed to read Epiphany backend job: {err}")))?
-        .ok_or_else(|| {
+    let (agent_job, item) = if let Some(binding) = state
+        .job_bindings
+        .iter()
+        .find(|binding| binding.id == binding_id)
+    {
+        let agent_job_id = binding_agent_jobs_job_id(binding).ok_or_else(|| {
             CodexErr::InvalidRequest(format!(
-                "bound agent_jobs backend job {:?} was not found",
-                agent_job_id
-            ))
-        })?;
-    let item = state_db_ctx
-        .get_agent_job_item(agent_job_id, binding_id)
-        .await
-        .map_err(|err| {
-            CodexErr::Fatal(format!(
-                "failed to read Epiphany backend job item for {binding_id:?}: {err}"
-            ))
-        })?
-        .ok_or_else(|| {
-            CodexErr::InvalidRequest(format!(
-                "bound agent_jobs backend item {:?} was not found",
+                "epiphany reorientation binding {:?} is not backed by agent_jobs",
                 binding_id
             ))
         })?;
+        let agent_job = state_db_ctx
+            .get_agent_job(agent_job_id)
+            .await
+            .map_err(|err| CodexErr::Fatal(format!("failed to read Epiphany backend job: {err}")))?
+            .ok_or_else(|| {
+                CodexErr::InvalidRequest(format!(
+                    "bound agent_jobs backend job {:?} was not found",
+                    agent_job_id
+                ))
+            })?;
+        let item = state_db_ctx
+            .get_agent_job_item(agent_job_id, binding_id)
+            .await
+            .map_err(|err| {
+                CodexErr::Fatal(format!(
+                    "failed to read Epiphany backend job item for {binding_id:?}: {err}"
+                ))
+            })?
+            .ok_or_else(|| {
+                CodexErr::InvalidRequest(format!(
+                    "bound agent_jobs backend item {:?} was not found",
+                    binding_id
+                ))
+            })?;
+        (agent_job, item)
+    } else {
+        state_db_ctx
+            .latest_agent_job_item_by_source_id(binding_id)
+            .await
+            .map_err(|err| {
+                CodexErr::Fatal(format!(
+                    "failed to recover Epiphany backend job item for {binding_id:?}: {err}"
+                ))
+            })?
+            .ok_or_else(|| {
+                CodexErr::InvalidRequest(format!(
+                    "epiphany reorientation binding {:?} was not found and no recovered backend item exists",
+                    binding_id
+                ))
+            })?
+    };
     let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
     if status != ThreadEpiphanyReorientResultStatus::Completed {
         return Err(CodexErr::InvalidRequest(format!(
@@ -16185,6 +16289,9 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
     )
     .await;
+    let reorient_finding_accepted = reorient_finding
+        .as_ref()
+        .is_some_and(|finding| epiphany_reorient_finding_already_accepted(&state, finding));
     let crrc_recommendation = map_epiphany_crrc_recommendation(
         true,
         state_status,
@@ -16193,9 +16300,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         reorient_result_status,
         state.investigation_checkpoint.as_ref().is_some(),
         reorient_finding.is_some(),
-        reorient_finding
-            .as_ref()
-            .is_some_and(|finding| epiphany_reorient_finding_already_accepted(&state, finding)),
+        reorient_finding_accepted,
     );
     let roles = map_epiphany_roles(
         Some(&state),
@@ -16213,13 +16318,16 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         EPIPHANY_MODELING_ROLE_BINDING_ID,
     )
     .await;
-    let (verification_result_status, _, _) = load_epiphany_role_result_snapshot(
+    let (verification_result_status, verification_finding, _) = load_epiphany_role_result_snapshot(
         &state,
         state_db_ctx.as_ref(),
         ThreadEpiphanyRoleId::Verification,
         EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
     )
     .await;
+    let verification_result_accepted = verification_finding
+        .as_ref()
+        .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
     let source_signals = ThreadEpiphanyCoordinatorSignals {
         pressure_level: pressure.level,
         should_prepare_compaction: pressure.should_prepare_compaction,
@@ -16236,6 +16344,8 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         &crrc_recommendation,
         &roles,
         &source_signals,
+        verification_result_accepted,
+        reorient_finding_accepted,
     );
 
     match map_epiphany_coordinator_automation_action(&coordinator) {
@@ -16300,12 +16410,14 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
     if thread.epiphany_state().await.is_none() {
         return;
     }
-    if !thread_state
-        .lock()
-        .await
-        .record_epiphany_checkpoint_intervention(&turn_id)
     {
-        return;
+        let mut state = thread_state.lock().await;
+        if state.turn_summary.context_compaction_started {
+            return;
+        }
+        if !state.record_epiphany_checkpoint_intervention(&turn_id) {
+            return;
+        }
     }
 
     let text = render_epiphany_pre_compaction_checkpoint_intervention(&pressure);
@@ -19266,6 +19378,43 @@ mod tests {
     }
 
     #[test]
+    fn map_epiphany_crrc_recommendation_continues_after_accepted_resume_finding() {
+        let pressure = map_epiphany_pressure(None);
+        let decision = ThreadEpiphanyReorientDecision {
+            action: ThreadEpiphanyReorientAction::Resume,
+            checkpoint_status: ThreadEpiphanyReorientCheckpointStatus::ResumeReady,
+            checkpoint_id: Some("ix-accepted-resume".to_string()),
+            pressure_level: pressure.level,
+            retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            graph_status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            watcher_status: ThreadEpiphanyInvalidationStatus::Clean,
+            reasons: Vec::new(),
+            checkpoint_dirty_paths: Vec::new(),
+            checkpoint_changed_paths: Vec::new(),
+            active_frontier_node_ids: Vec::new(),
+            next_action: "Continue from the accepted result.".to_string(),
+            note: "accepted resume".to_string(),
+        };
+
+        let recommendation = map_epiphany_crrc_recommendation(
+            true,
+            ThreadEpiphanyReorientStateStatus::Ready,
+            &pressure,
+            &decision,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            true,
+            true,
+            true,
+        );
+
+        assert_eq!(recommendation.action, ThreadEpiphanyCrrcAction::Continue);
+        assert_eq!(
+            recommendation.recommended_scene_action,
+            Some(ThreadEpiphanySceneAction::Reorient)
+        );
+    }
+
+    #[test]
     fn map_epiphany_roles_projects_mvp_ownership_lanes() {
         let state = codex_protocol::protocol::EpiphanyThreadState {
             investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
@@ -19425,6 +19574,8 @@ mod tests {
             &recommendation,
             &roles,
             &signals,
+            false,
+            false,
         );
 
         assert_eq!(
@@ -19465,6 +19616,8 @@ mod tests {
             &recommendation,
             &roles,
             &signals,
+            false,
+            false,
         );
 
         assert_eq!(
@@ -19475,6 +19628,46 @@ mod tests {
         assert_eq!(
             map_epiphany_coordinator_automation_action(&decision),
             EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient
+        );
+    }
+
+    #[test]
+    fn map_epiphany_coordinator_does_not_recompact_after_accepted_resume_reorient() {
+        let pressure = map_epiphany_pressure(Some(&CoreTokenUsageInfo {
+            total_token_usage: codex_protocol::protocol::TokenUsage {
+                total_tokens: 92,
+                ..Default::default()
+            },
+            last_token_usage: codex_protocol::protocol::TokenUsage::default(),
+            model_context_window: Some(200),
+            model_auto_compact_token_limit: Some(100),
+        }));
+        let recommendation = ThreadEpiphanyCrrcRecommendation {
+            action: ThreadEpiphanyCrrcAction::Continue,
+            recommended_scene_action: Some(ThreadEpiphanySceneAction::Reorient),
+            reason: "accepted resume finding".to_string(),
+        };
+        let signals = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::Completed,
+            ThreadEpiphanyRoleResultStatus::BackendMissing,
+            ThreadEpiphanyRoleResultStatus::BackendMissing,
+        );
+
+        let decision = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &[],
+            &signals,
+            false,
+            true,
+        );
+
+        assert_eq!(
+            decision.action,
+            ThreadEpiphanyCoordinatorAction::ContinueImplementation
         );
     }
 
@@ -19501,6 +19694,8 @@ mod tests {
             &recommendation,
             &roles,
             &signals,
+            false,
+            false,
         );
 
         assert_eq!(
@@ -19541,6 +19736,8 @@ mod tests {
             &recommendation,
             &roles,
             &signals,
+            false,
+            false,
         );
 
         assert_eq!(
@@ -19577,6 +19774,8 @@ mod tests {
             &recommendation,
             &roles,
             &missing,
+            false,
+            false,
         );
         assert_eq!(
             launch_modeling.action,
@@ -19600,6 +19799,8 @@ mod tests {
             &recommendation,
             &roles,
             &modeling_backend_unavailable,
+            false,
+            false,
         );
         assert_eq!(
             relaunch_modeling.action,
@@ -19619,6 +19820,8 @@ mod tests {
             &recommendation,
             &roles,
             &modeling_done,
+            false,
+            false,
         );
         assert_eq!(
             launch_verification.action,
@@ -19642,12 +19845,30 @@ mod tests {
             &recommendation,
             &roles,
             &verification_done,
+            false,
+            false,
         );
         assert_eq!(
             review_verification.action,
             ThreadEpiphanyCoordinatorAction::ReviewVerificationResult
         );
         assert!(review_verification.requires_review);
+
+        let accepted_verification = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &verification_done,
+            true,
+            false,
+        );
+        assert_eq!(
+            accepted_verification.action,
+            ThreadEpiphanyCoordinatorAction::ContinueImplementation
+        );
+        assert!(!accepted_verification.requires_review);
 
         let reviewed = coordinator_signals(
             ThreadEpiphanyCrrcAction::Continue,
@@ -19662,6 +19883,8 @@ mod tests {
             &recommendation,
             &[],
             &reviewed,
+            false,
+            false,
         );
         assert_eq!(
             continue_implementation.action,

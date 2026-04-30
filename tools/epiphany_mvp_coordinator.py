@@ -65,6 +65,19 @@ def append_jsonl(path: Path, value: Any) -> None:
         handle.write(json.dumps(value, ensure_ascii=False) + "\n")
 
 
+def thread_lifecycle_event(kind: str, response: dict[str, Any]) -> dict[str, Any]:
+    thread = response.get("thread")
+    if not isinstance(thread, dict):
+        return {"type": kind}
+    return {
+        "type": kind,
+        "threadId": thread.get("id"),
+        "status": thread.get("status"),
+        "cwd": thread.get("cwd"),
+        "ephemeral": thread.get("ephemeral"),
+    }
+
+
 def state_revision(status: dict[str, Any]) -> int | None:
     state = status.get("read", {}).get("thread", {}).get("epiphanyState")
     if isinstance(state, dict):
@@ -150,6 +163,29 @@ def wait_for_reorient_result(
         time.sleep(poll_seconds)
     assert latest is not None
     return latest
+
+
+def wait_for_any_notification(
+    client: AppServerClient,
+    methods: set[str],
+    *,
+    start_index: int,
+    timeout: float,
+) -> dict[str, Any]:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        assert client.proc is not None
+        if client.proc.poll() is not None:
+            ordered = ", ".join(sorted(methods))
+            raise RuntimeError(
+                f"app-server exited with {client.proc.returncode} before notification {ordered}"
+            )
+        for msg in client.notifications[start_index:]:
+            if msg.get("method") in methods:
+                return msg
+        time.sleep(0.1)
+    ordered = ", ".join(sorted(methods))
+    raise TimeoutError(f"timed out waiting for notification {ordered}")
 
 
 def launch_role(
@@ -248,6 +284,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
         prepare_workspace(cwd)
 
     steps: list[dict[str, Any]] = []
+    startup_events: list[dict[str, Any]] = []
     snapshots: list[str] = []
     final_status: dict[str, Any] | None = None
     final_action: dict[str, Any] | None = None
@@ -272,8 +309,12 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
             )
             assert started is not None
             thread_id = started["thread"]["id"]
+            startup_events.append(thread_lifecycle_event("threadStart", started))
         else:
             thread_id = args.thread_id
+            resumed = client.send("thread/resume", {"threadId": thread_id})
+            assert resumed is not None
+            startup_events.append(thread_lifecycle_event("threadResume", resumed))
 
         if args.bootstrap_smoke_state:
             update = client.send(
@@ -366,6 +407,12 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                         "result": sanitize_for_operator(result),
                     }
                 )
+                final_status = collect_coordinator_status(
+                    client,
+                    thread_id=thread_id,
+                    cwd=cwd,
+                    ephemeral=args.ephemeral,
+                )
                 if not args.auto_review:
                     final_action = {"action": "reviewModelingResult", "reason": result.get("note")}
                     append_jsonl(steps_path, step)
@@ -407,6 +454,12 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                         "result": sanitize_for_operator(result),
                     }
                 )
+                final_status = collect_coordinator_status(
+                    client,
+                    thread_id=thread_id,
+                    cwd=cwd,
+                    ephemeral=args.ephemeral,
+                )
                 if not args.auto_review:
                     final_action = {"action": "reviewVerificationResult", "reason": result.get("note")}
                     append_jsonl(steps_path, step)
@@ -434,6 +487,12 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     poll_seconds=args.poll_seconds,
                 )
                 step["events"].append({"type": "reorientResult", "result": sanitize_for_operator(result)})
+                final_status = collect_coordinator_status(
+                    client,
+                    thread_id=thread_id,
+                    cwd=cwd,
+                    ephemeral=args.ephemeral,
+                )
                 if not args.auto_review:
                     final_action = {"action": "reviewReorientResult", "reason": result.get("note")}
                     append_jsonl(steps_path, step)
@@ -446,11 +505,15 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     step["events"].append({"type": "dryCompact", "threadId": thread_id})
                     append_jsonl(steps_path, step)
                     continue
+                notification_start_index = len(client.notifications)
                 compact = client.send("thread/compact/start", {"threadId": thread_id})
                 step["events"].append({"type": "compactStart", "response": sanitize_for_operator(compact)})
                 try:
-                    notification = client.wait_for_notification(
-                        "thread/compacted", timeout=args.timeout_seconds
+                    notification = wait_for_any_notification(
+                        client,
+                        {"thread/compacted", "turn/completed"},
+                        start_index=notification_start_index,
+                        timeout=args.timeout_seconds,
                     )
                     step["events"].append(
                         {"type": "compacted", "notification": sanitize_for_operator(notification)}
@@ -465,6 +528,57 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     break
                 resumed = client.send("thread/resume", {"threadId": thread_id})
                 step["events"].append({"type": "resume", "response": sanitize_for_operator(resumed)})
+                post_compact_status = collect_coordinator_status(
+                    client,
+                    thread_id=thread_id,
+                    cwd=cwd,
+                    ephemeral=args.ephemeral,
+                )
+                post_compact_crrc = post_compact_status.get("crrc", {}).get("recommendation", {})
+                step["events"].append(
+                    {"type": "postCompactCrrc", "recommendation": sanitize_for_operator(post_compact_crrc)}
+                )
+                final_status = post_compact_status
+                if post_compact_crrc.get("action") == "launchReorientWorker":
+                    launch = launch_reorient(
+                        client,
+                        thread_id=thread_id,
+                        expected_revision=state_revision(post_compact_status),
+                        max_runtime_seconds=args.max_runtime_seconds,
+                    )
+                    step["events"].append(
+                        {"type": "reorientLaunch", "launch": sanitize_for_operator(launch)}
+                    )
+                    completed = maybe_complete_reorient_backend(args, launch)
+                    if completed is not None:
+                        step["events"].append(
+                            {
+                                "type": "testCompleteBackend",
+                                "payload": sanitize_for_operator(completed),
+                            }
+                        )
+                    result = wait_for_reorient_result(
+                        client,
+                        thread_id=thread_id,
+                        timeout_seconds=args.timeout_seconds,
+                        poll_seconds=args.poll_seconds,
+                    )
+                    step["events"].append(
+                        {"type": "reorientResult", "result": sanitize_for_operator(result)}
+                    )
+                    final_status = collect_coordinator_status(
+                        client,
+                        thread_id=thread_id,
+                        cwd=cwd,
+                        ephemeral=args.ephemeral,
+                    )
+                    if not args.auto_review:
+                        final_action = {
+                            "action": "reviewReorientResult",
+                            "reason": result.get("note"),
+                        }
+                        append_jsonl(steps_path, step)
+                        break
                 append_jsonl(steps_path, step)
                 continue
 
@@ -489,6 +603,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
         "workspace": str(cwd),
         "threadId": final_status["threadId"] if final_status else args.thread_id,
         "mode": args.mode,
+        "startupEvents": sanitize_for_operator(startup_events),
         "steps": operator_steps,
         "snapshots": snapshots,
         "finalAction": operator_final_action,

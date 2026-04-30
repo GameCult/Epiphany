@@ -23,7 +23,9 @@ const actionButtons: Array<{
   requiresThread?: boolean;
   requiresReadyState?: boolean;
   requiresModelingPatch?: boolean;
+  requiresVerificationResult?: boolean;
   requiresReorientResult?: boolean;
+  requiresContinueImplementation?: boolean;
   icon: "file" | "check" | "play" | "eye" | "accept";
 }> = [
   {
@@ -46,6 +48,16 @@ const actionButtons: Array<{
     runningLabel: "Preparing",
     title: "Seed durable Epiphany state for this GUI operator thread",
     icon: "accept",
+  },
+  {
+    action: "continueImplementation",
+    label: "Continue Implementation",
+    runningLabel: "Implementing",
+    title: "Run a bounded implementation turn when the coordinator has cleared specialist lanes",
+    requiresThread: true,
+    requiresReadyState: true,
+    requiresContinueImplementation: true,
+    icon: "play",
   },
   {
     action: "launchModeling",
@@ -90,6 +102,16 @@ const actionButtons: Array<{
     title: "Read the latest verification/review finding",
     requiresThread: true,
     icon: "eye",
+  },
+  {
+    action: "acceptVerification",
+    label: "Accept Verification",
+    runningLabel: "Accepting",
+    title: "Accept a reviewed verification finding into Epiphany state",
+    requiresThread: true,
+    requiresReadyState: true,
+    requiresVerificationResult: true,
+    icon: "accept",
   },
   {
     action: "launchReorient",
@@ -219,12 +241,22 @@ export function App() {
   const jobs: any[] = Array.isArray(status?.jobs?.jobs) ? status.jobs.jobs : [];
   const roleResults = status?.roleResults ?? {};
   const reorientResult = status?.reorientResult ?? {};
+  const latestArtifact = snapshot?.artifacts?.[0];
+  const latestImplementationArtifact = useMemo(
+    () => (snapshot?.artifacts ?? []).find((artifact) => artifact.implementationAudit),
+    [snapshot?.artifacts],
+  );
+  const latestImplementationAudit = latestImplementationArtifact?.implementationAudit;
+  const implementationNoDiffPending =
+    Boolean(latestArtifact?.implementationAudit) && latestArtifact?.implementationAudit?.workspaceChanged === false;
   const readyState = scene.stateStatus === "ready";
   const currentThreadId = request.threadId;
   const modelingFinding = roleResults?.modeling?.finding;
   const canAcceptModeling =
     text(roleResults?.modeling?.status).toLowerCase() === "completed" && Boolean(modelingFinding?.statePatch);
+  const canAcceptVerification = text(roleResults?.verification?.status).toLowerCase() === "completed";
   const canAcceptReorient = text(reorientResult?.status).toLowerCase() === "completed";
+  const canContinueImplementation = text(coordinator.action).toLowerCase() === "continueimplementation";
 
   return (
     <main className="shell">
@@ -263,17 +295,34 @@ export function App() {
           const needsThread = button.requiresThread && !currentThreadId;
           const needsState = button.requiresReadyState && !readyState;
           const needsModeling = button.requiresModelingPatch && !canAcceptModeling;
+          const needsVerification = button.requiresVerificationResult && !canAcceptVerification;
           const needsReorient = button.requiresReorientResult && !canAcceptReorient;
-          const disabled = runningAction !== null || needsThread || needsState || needsModeling || needsReorient;
+          const needsImplementation = button.requiresContinueImplementation && !canContinueImplementation;
+          const needsNoDiffReview = button.requiresContinueImplementation && implementationNoDiffPending;
+          const disabled =
+            runningAction !== null ||
+            needsThread ||
+            needsState ||
+            needsModeling ||
+            needsVerification ||
+            needsReorient ||
+            needsImplementation ||
+            needsNoDiffReview;
           const title = needsThread
             ? "Prepare a checkpoint or enter a persisted thread id first"
             : needsState
               ? "Prepare Epiphany state before launching this lane"
               : needsModeling
                 ? "Read a completed modeling result with a state patch before accepting it"
-                : needsReorient
-                  ? "Read a completed reorient result before accepting it"
-                  : button.title;
+                : needsVerification
+                  ? "Read a completed verification result before accepting it"
+                  : needsReorient
+                    ? "Read a completed reorient result before accepting it"
+                    : needsImplementation
+                      ? "Run the coordinator and clear review gates before continuing implementation"
+                      : needsNoDiffReview
+                        ? "Review the latest no-diff implementation artifact or run another lane before retrying"
+                        : button.title;
           return (
             <button
               className="secondaryButton"
@@ -298,6 +347,23 @@ export function App() {
         <section className="notice dangerNotice" role="alert">
           <AlertTriangle size={18} aria-hidden="true" />
           <span>{error}</span>
+        </section>
+      )}
+
+      {latestImplementationAudit && (
+        <section className={`notice ${latestImplementationAudit.workspaceChanged ? "okNotice" : "warnNotice"}`}>
+          {latestImplementationAudit.workspaceChanged ? (
+            <CheckCircle2 size={18} aria-hidden="true" />
+          ) : (
+            <AlertTriangle size={18} aria-hidden="true" />
+          )}
+          <span>
+            <strong>Latest implementation audit:</strong>{" "}
+            {latestImplementationAudit.workspaceChanged
+              ? `${latestImplementationAudit.changedFiles.length} changed file(s) need review.`
+              : "the worker completed with no workspace diff; review the artifact before rerunning."}{" "}
+            <code>{latestImplementationArtifact?.path}</code>
+          </span>
         </section>
       )}
 
@@ -374,12 +440,14 @@ export function App() {
         <div className="artifactTable" role="table" aria-label="Artifact bundles">
           <div className="artifactHeader" role="row">
             <span>Name</span>
+            <span>Outcome</span>
             <span>Files</span>
             <span>Path</span>
           </div>
           {(snapshot?.artifacts ?? []).map((artifact: ArtifactBundle) => (
             <div className="artifactRow" role="row" key={artifact.path}>
               <strong>{artifact.name}</strong>
+              <span><ArtifactOutcome artifact={artifact} /></span>
               <span>{artifact.files.length}</span>
               <code title={artifact.path}>{artifact.path}</code>
             </div>
@@ -442,6 +510,16 @@ function Finding({ title, result, findingKey = "finding" }: { title: string; res
         <p>{text(result?.note, "No finding available.")}</p>
       )}
     </article>
+  );
+}
+
+function ArtifactOutcome({ artifact }: { artifact: ArtifactBundle }) {
+  const audit = artifact.implementationAudit;
+  if (!audit) return <span className="artifactOutcome muted">none</span>;
+  return (
+    <Pill tone={audit.workspaceChanged ? "ok" : "warn"}>
+      {audit.workspaceChanged ? "Diff" : "No Diff"}
+    </Pill>
   );
 }
 

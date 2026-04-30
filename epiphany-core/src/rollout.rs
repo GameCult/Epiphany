@@ -20,10 +20,8 @@ fn finalize_active_segment(
     epiphany_state: &mut Option<EpiphanyThreadState>,
     pending_rollback_turns: &mut usize,
 ) {
-    if *pending_rollback_turns > 0 {
-        if active_segment.counts_as_user_turn {
-            *pending_rollback_turns -= 1;
-        }
+    if *pending_rollback_turns > 0 && active_segment.counts_as_user_turn {
+        *pending_rollback_turns -= 1;
         return;
     }
 
@@ -33,6 +31,12 @@ fn finalize_active_segment(
     {
         *epiphany_state = active_segment.epiphany_state;
     }
+}
+
+fn is_out_of_band_epiphany_segment(active_segment: &ActiveEpiphanyReplaySegment) -> bool {
+    active_segment.turn_id.is_none()
+        && !active_segment.counts_as_user_turn
+        && active_segment.epiphany_state.is_some()
 }
 
 pub fn latest_epiphany_state_from_rollout_items<F>(
@@ -47,6 +51,21 @@ where
     let mut active_segment: Option<ActiveEpiphanyReplaySegment> = None;
 
     for item in rollout_items.iter().rev() {
+        if active_segment
+            .as_ref()
+            .is_some_and(is_out_of_band_epiphany_segment)
+            && let Some(active_segment) = active_segment.take()
+        {
+            finalize_active_segment(
+                active_segment,
+                &mut epiphany_state,
+                &mut pending_rollback_turns,
+            );
+        }
+        if epiphany_state.is_some() {
+            break;
+        }
+
         match item {
             RolloutItem::EventMsg(EventMsg::ThreadRolledBack(rollback)) => {
                 pending_rollback_turns = pending_rollback_turns
@@ -344,6 +363,46 @@ mod tests {
         assert_eq!(
             latest_epiphany_state_from_rollout_items(&rollout_items, simple_is_user_turn_boundary),
             Some(state)
+        );
+    }
+
+    #[test]
+    fn latest_epiphany_state_from_rollout_items_accepts_out_of_band_snapshot_after_turn() {
+        let turn_state = sample_epiphany_state("turn-before-control-plane-update");
+        let control_plane_state = sample_epiphany_state("control-plane-update");
+        let rollout_items = vec![
+            RolloutItem::EventMsg(EventMsg::TurnStarted(TurnStartedEvent {
+                turn_id: "turn-before-control-plane-update".to_string(),
+                started_at: None,
+                model_context_window: None,
+                collaboration_mode_kind: Default::default(),
+            })),
+            RolloutItem::EventMsg(EventMsg::UserMessage(UserMessageEvent {
+                message: "before control-plane update".to_string(),
+                images: None,
+                text_elements: Vec::new(),
+                local_images: Vec::new(),
+            })),
+            RolloutItem::EpiphanyState(EpiphanyStateItem {
+                turn_id: Some("turn-before-control-plane-update".to_string()),
+                state: turn_state,
+            }),
+            RolloutItem::EventMsg(EventMsg::TurnComplete(TurnCompleteEvent {
+                turn_id: "turn-before-control-plane-update".to_string(),
+                last_agent_message: None,
+                completed_at: None,
+                duration_ms: None,
+                time_to_first_token_ms: None,
+            })),
+            RolloutItem::EpiphanyState(EpiphanyStateItem {
+                turn_id: None,
+                state: control_plane_state.clone(),
+            }),
+        ];
+
+        assert_eq!(
+            latest_epiphany_state_from_rollout_items(&rollout_items, simple_is_user_turn_boundary),
+            Some(control_plane_state)
         );
     }
 }

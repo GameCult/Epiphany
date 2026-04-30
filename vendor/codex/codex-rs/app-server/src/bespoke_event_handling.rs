@@ -235,7 +235,13 @@ pub(crate) async fn apply_bespoke_event_handling(
         EventMsg::TurnComplete(turn_complete_event) => {
             // All per-thread requests are bound to a turn, so abort them.
             outgoing.abort_pending_server_requests().await;
-            let turn_failed = thread_state.lock().await.turn_summary.last_error.is_some();
+            let (turn_failed, turn_was_context_compaction) = {
+                let state = thread_state.lock().await;
+                (
+                    state.turn_summary.last_error.is_some(),
+                    state.turn_summary.context_compaction_started,
+                )
+            };
             thread_watch_manager
                 .note_turn_completed(&conversation_id.to_string(), turn_failed)
                 .await;
@@ -248,7 +254,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                 &thread_state,
             )
             .await;
-            if !turn_failed {
+            if !turn_failed && !turn_was_context_compaction {
                 maybe_run_epiphany_coordinator_automation_for_turn_boundary(
                     conversation_id,
                     conversation,
@@ -1591,6 +1597,13 @@ pub(crate) async fn apply_bespoke_event_handling(
         }
         EventMsg::ItemStarted(item_started_event) => {
             let item: ThreadItem = item_started_event.item.clone().into();
+            if matches!(item, ThreadItem::ContextCompaction { .. }) {
+                thread_state
+                    .lock()
+                    .await
+                    .turn_summary
+                    .context_compaction_started = true;
+            }
             let notification = ItemStartedNotification {
                 thread_id: conversation_id.to_string(),
                 turn_id: event_turn_id.clone(),

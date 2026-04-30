@@ -172,6 +172,24 @@ input {
   background: #fff7f4;
 }
 
+.warnNotice {
+  border-color: #dfc36f;
+  color: #76520b;
+  background: #fff8df;
+}
+
+.okNotice {
+  border-color: #9ac8aa;
+  color: #1d5d39;
+  background: #edf8f0;
+}
+
+.notice code {
+  display: inline;
+  max-width: min(620px, 70vw);
+  vertical-align: bottom;
+}
+
 .statusGrid {
   grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
   margin-bottom: 22px;
@@ -352,7 +370,7 @@ dd {
 
 .artifactHeader,
 .artifactRow {
-  grid-template-columns: minmax(180px, 0.6fr) 72px minmax(220px, 1fr);
+  grid-template-columns: minmax(180px, 0.6fr) 96px 72px minmax(220px, 1fr);
   min-height: 42px;
   padding: 0 12px;
 }
@@ -375,6 +393,11 @@ code {
   color: #36503f;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.artifactOutcome.muted {
+  color: #77817a;
+  font-size: 0.82rem;
 }
 
 .emptyState {

@@ -5,6 +5,7 @@ from datetime import datetime
 from datetime import timezone
 import json
 import os
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -21,6 +22,255 @@ from epiphany_phase6_reorient_launch_smoke import BINDING_ID as REORIENT_BINDING
 
 DEFAULT_CODEX_HOME = ROOT / ".epiphany-gui" / "codex-home"
 DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-gui" / "actions"
+TERMINAL_ROLE_STATUSES = {"completed", "failed", "cancelled"}
+TERMINAL_REORIENT_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def run_git(cwd: Path, *args: str) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=cwd,
+            capture_output=True,
+            check=False,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as error:
+        return {"ok": False, "error": str(error), "args": list(args)}
+    return {
+        "ok": completed.returncode == 0,
+        "returncode": completed.returncode,
+        "args": list(args),
+        "stdout": completed.stdout.strip(),
+        "stderr": completed.stderr.strip(),
+    }
+
+
+def git_snapshot(cwd: Path) -> dict[str, Any]:
+    return {
+        "head": run_git(cwd, "rev-parse", "--short", "HEAD"),
+        "branch": run_git(cwd, "branch", "--show-current"),
+        "status": run_git(cwd, "status", "--short", "--branch"),
+        "changedFiles": run_git(cwd, "diff", "--name-only"),
+        "diffStat": run_git(cwd, "diff", "--stat"),
+    }
+
+
+def git_change_summary(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+    before_status = set(str(nested_get(before, "status", "stdout") or "").splitlines())
+    after_status = set(str(nested_get(after, "status", "stdout") or "").splitlines())
+    added_status = sorted(after_status - before_status)
+    removed_status = sorted(before_status - after_status)
+    changed_files = str(nested_get(after, "changedFiles", "stdout") or "").strip()
+    diff_stat = str(nested_get(after, "diffStat", "stdout") or "").strip()
+    return {
+        "workspaceChanged": bool(added_status or removed_status or changed_files or diff_stat),
+        "trackedDiffPresent": bool(changed_files or diff_stat),
+        "changedFiles": changed_files.splitlines() if changed_files else [],
+        "statusAdded": added_status,
+        "statusRemoved": removed_status,
+        "diffStat": diff_stat,
+    }
+
+
+def render_implementation_audit(result: dict[str, Any]) -> str:
+    changed_files = result.get("changedFiles")
+    if not isinstance(changed_files, list):
+        changed_files = []
+    status_added = result.get("statusAdded")
+    if not isinstance(status_added, list):
+        status_added = []
+    status_removed = result.get("statusRemoved")
+    if not isinstance(status_removed, list):
+        status_removed = []
+
+    outcome = (
+        "reviewable workspace diff"
+        if result.get("workspaceChanged")
+        else "no workspace diff"
+    )
+    next_action = (
+        "Review the changed files before accepting this implementation slice."
+        if result.get("workspaceChanged")
+        else "Stop and review this as an implementation-lane failure before rerunning; the worker completed without changing the target workspace."
+    )
+    return "\n".join(
+        [
+            "# Implementation Audit",
+            "",
+            f"Outcome: {outcome}",
+            f"Tracked diff present: {bool(result.get('trackedDiffPresent'))}",
+            "",
+            "Changed files:",
+            *(f"- {path}" for path in changed_files),
+            *([] if changed_files else ["- none"]),
+            "",
+            "Git status delta:",
+            *(f"- added: {line}" for line in status_added),
+            *(f"- removed: {line}" for line in status_removed),
+            *([] if status_added or status_removed else ["- none"]),
+            "",
+            f"Next action: {next_action}",
+            "",
+        ]
+    )
+
+
+def nested_get(value: dict[str, Any], *keys: str) -> Any:
+    current: Any = value
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+def first_present(value: dict[str, Any], *paths: tuple[str, ...]) -> Any:
+    for path in paths:
+        item = nested_get(value, *path)
+        if item not in (None, "", []):
+            return item
+    return None
+
+
+def summarized_recent_evidence(state: dict[str, Any], limit: int = 8) -> list[str]:
+    recent = state.get("recent_evidence")
+    if not isinstance(recent, list):
+        return []
+    lines: list[str] = []
+    for item in recent[:limit]:
+        if not isinstance(item, dict):
+            continue
+        summary = item.get("summary")
+        if not isinstance(summary, str) or not summary.strip():
+            continue
+        evidence_id = item.get("id", "unknown")
+        kind = item.get("kind", "unknown")
+        status = item.get("status", "unknown")
+        lines.append(f"- {evidence_id} [{kind}/{status}]: {summary}")
+    return lines
+
+
+def build_implementation_prompt(status: dict[str, Any]) -> str:
+    operator_status = sanitize_for_operator(status)
+    state = first_present(
+        operator_status,
+        ("read", "thread", "epiphanyState"),
+        ("scene", "scene", "epiphanyState"),
+    )
+    if not isinstance(state, dict):
+        state = {}
+    coordinator = operator_status.get("coordinator")
+    if not isinstance(coordinator, dict):
+        coordinator = {}
+    crrc = nested_get(operator_status, "crrc", "decision")
+    if not isinstance(crrc, dict):
+        crrc = {}
+
+    checkpoint = first_present(
+        state,
+        ("graph_checkpoint",),
+        ("graphCheckpoint",),
+    )
+    if not isinstance(checkpoint, dict):
+        checkpoint = {}
+    frontier = first_present(state, ("graph_frontier",), ("graphFrontier",))
+    if not isinstance(frontier, dict):
+        frontier = {}
+    scratch = state.get("scratch")
+    if not isinstance(scratch, dict):
+        scratch = {}
+
+    evidence_lines = summarized_recent_evidence(state)
+    if not evidence_lines:
+        evidence_lines = ["- none recorded"]
+
+    active_node_ids = frontier.get("active_node_ids") or frontier.get("activeNodeIds") or []
+    if isinstance(active_node_ids, list):
+        active_node_text = ", ".join(str(item) for item in active_node_ids)
+    else:
+        active_node_text = str(active_node_ids or "none")
+
+    return f"""You are the Epiphany implementation agent for this repository.
+
+Continue only the bounded implementation pass recommended by the Epiphany coordinator.
+
+Coordinator:
+- action: {coordinator.get("action")}
+- target role: {coordinator.get("targetRole")}
+- reason: {coordinator.get("reason")}
+
+Checkpoint:
+- id: {checkpoint.get("checkpoint_id") or checkpoint.get("checkpointId")}
+- summary: {checkpoint.get("summary")}
+- frontier: {active_node_text}
+
+Continuity:
+- next action: {crrc.get("nextAction") or nested_get(operator_status, "reorient", "decision", "nextAction")}
+- scratch: {scratch.get("summary")}
+
+Accepted evidence:
+{chr(10).join(evidence_lines)}
+
+Implementation rules:
+- Do not read sealed transcript artifacts or raw specialist result payloads.
+- Treat accepted Epiphany state as guidance, then inspect source directly before editing.
+- Make a bounded first pass: design or implement a parallel compute-backed gravity height producer that preserves the current `_NebulaSurfaceHeight`, `_GridTransform`, and Slime `Heightmap` contracts before changing shader consumers.
+- This is an implementation turn, not a planning turn. Leave a concrete source diff unless direct source evidence proves the bounded pass is impossible.
+- If there is no implementation diff yet, prefer a small reversible compatibility scaffold over another explanation. A valid first diff may be a source-local contract/scaffold for a compute-backed gravity height producer that runs beside the camera path and does not rewire consumers yet.
+- A previous supervised implementation attempt already performed source-only inspection and left no diff. Do not repeat that pattern. Reuse the accepted checkpoint and inspect only what you need to place the smallest safe scaffold.
+- A good minimal patch shape is a disabled/parallel gravity heightfield compatibility producer or contract in the rendering layer, plus any tiny supporting compute-shader stub needed to express the intended data path. Preserve legacy texture names and do not rewire consumers in this pass.
+- Before stopping, check `git status --short`. If it still shows no source diff, continue implementing unless you have found a specific source contradiction or missing dependency that makes even the compatibility scaffold unsafe.
+- Do not attempt the full fog/froxel migration in this pass unless the compatibility producer and contract evidence are already in place.
+- Keep the change reviewable. Update or add source-local notes/tests if the repo has an established place for them.
+- If the source contradicts the checkpoint, stop and explain the contradiction instead of tower-building.
+"""
+
+
+def wait_for_role_result(
+    client: AppServerClient,
+    *,
+    thread_id: str,
+    role_id: str,
+    timeout_seconds: int,
+    poll_seconds: float,
+) -> dict[str, Any]:
+    deadline = time.time() + timeout_seconds
+    latest: dict[str, Any] | None = None
+    while time.time() < deadline:
+        latest = client.send(
+            "thread/epiphany/roleResult",
+            {"threadId": thread_id, "roleId": role_id},
+        )
+        assert latest is not None
+        if latest.get("status") in TERMINAL_ROLE_STATUSES:
+            return latest
+        time.sleep(poll_seconds)
+    assert latest is not None
+    return latest
+
+
+def wait_for_reorient_result(
+    client: AppServerClient,
+    *,
+    thread_id: str,
+    timeout_seconds: int,
+    poll_seconds: float,
+) -> dict[str, Any]:
+    deadline = time.time() + timeout_seconds
+    latest: dict[str, Any] | None = None
+    while time.time() < deadline:
+        latest = client.send(
+            "thread/epiphany/reorientResult",
+            {"threadId": thread_id, "bindingId": REORIENT_BINDING_ID},
+        )
+        assert latest is not None
+        if latest.get("status") in TERMINAL_REORIENT_STATUSES:
+            return latest
+        time.sleep(poll_seconds)
+    assert latest is not None
+    return latest
 
 
 def checkpoint_patch(cwd: Path) -> dict[str, Any]:
@@ -246,6 +496,7 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
             )
             summary = "Prepared durable Epiphany checkpoint."
         else:
+            client.send("thread/resume", {"threadId": thread_id})
             before = collect_status(client, thread_id=thread_id, cwd=cwd, ephemeral=False)
             revision = state_revision(before)
 
@@ -258,8 +509,20 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                 }
                 if revision is not None:
                     payload["expectedRevision"] = revision
-                response = client.send("thread/epiphany/roleLaunch", payload)
-                summary = f"Launched {role_id} role worker."
+                launch = client.send("thread/epiphany/roleLaunch", payload)
+                if args.wait:
+                    result = wait_for_role_result(
+                        client,
+                        thread_id=thread_id,
+                        role_id=role_id,
+                        timeout_seconds=args.timeout_seconds,
+                        poll_seconds=args.poll_seconds,
+                    )
+                    response = {"launch": launch, "result": result}
+                    summary = f"Launched {role_id} role worker and waited for a reviewable result."
+                else:
+                    response = launch
+                    summary = f"Launched {role_id} role worker without waiting."
             elif args.action in {"readModelingResult", "readVerificationResult"}:
                 role_id = "modeling" if args.action == "readModelingResult" else "verification"
                 response = client.send(
@@ -278,12 +541,35 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                     },
                 )
                 summary = "Accepted reviewed modeling graph/checkpoint patch."
+            elif args.action == "acceptVerification":
+                if revision is None:
+                    raise ValueError("acceptVerification requires ready Epiphany state with a revision")
+                response = client.send(
+                    "thread/epiphany/roleAccept",
+                    {
+                        "threadId": thread_id,
+                        "roleId": "verification",
+                        "expectedRevision": revision,
+                    },
+                )
+                summary = "Accepted reviewed verification finding."
             elif args.action == "launchReorient":
                 payload = {"threadId": thread_id, "maxRuntimeSeconds": args.max_runtime_seconds}
                 if revision is not None:
                     payload["expectedRevision"] = revision
-                response = client.send("thread/epiphany/reorientLaunch", payload)
-                summary = "Launched fixed reorient-worker."
+                launch = client.send("thread/epiphany/reorientLaunch", payload)
+                if args.wait:
+                    result = wait_for_reorient_result(
+                        client,
+                        thread_id=thread_id,
+                        timeout_seconds=args.timeout_seconds,
+                        poll_seconds=args.poll_seconds,
+                    )
+                    response = {"launch": launch, "result": result}
+                    summary = "Launched fixed reorient-worker and waited for a reviewable result."
+                else:
+                    response = launch
+                    summary = "Launched fixed reorient-worker without waiting."
             elif args.action == "readReorientResult":
                 response = client.send(
                     "thread/epiphany/reorientResult",
@@ -304,6 +590,67 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                     },
                 )
                 summary = "Accepted reviewed reorientation finding."
+            elif args.action == "continueImplementation":
+                coordinator = before.get("coordinator")
+                if not isinstance(coordinator, dict):
+                    raise ValueError("continueImplementation requires coordinator status")
+                if coordinator.get("action") != "continueImplementation" and not args.force:
+                    raise ValueError(
+                        "coordinator is not recommending continueImplementation "
+                        f"(got {coordinator.get('action')!r})"
+                    )
+                pre_git = git_snapshot(cwd)
+                prompt = build_implementation_prompt(before)
+                write_text(artifact_dir / "implementation-prompt.md", prompt)
+                turn = client.send(
+                    "turn/start",
+                    {
+                        "threadId": thread_id,
+                        "cwd": str(cwd),
+                        "sandboxPolicy": {
+                            "type": "workspaceWrite",
+                            "writableRoots": [str(cwd)],
+                            "readOnlyAccess": {"type": "fullAccess"},
+                            "networkAccess": False,
+                            "excludeTmpdirEnvVar": False,
+                            "excludeSlashTmp": False,
+                        },
+                        "input": [
+                            {
+                                "type": "text",
+                                "text": prompt,
+                                "textElements": [],
+                            }
+                        ],
+                    },
+                )
+                completed = client.wait_for_notification(
+                    "turn/completed", timeout=args.timeout_seconds
+                )
+                post_git = git_snapshot(cwd)
+                implementation_result = git_change_summary(pre_git, post_git)
+                write_json(artifact_dir / "git-before.json", pre_git)
+                write_json(artifact_dir / "git-after.json", post_git)
+                write_json(artifact_dir / "implementation-result.json", implementation_result)
+                write_text(
+                    artifact_dir / "implementation-audit.md",
+                    render_implementation_audit(implementation_result),
+                )
+                response = {
+                    "turn": turn,
+                    "completed": sanitize_for_operator(completed),
+                    "preGit": pre_git,
+                    "postGit": post_git,
+                    "implementationResult": implementation_result,
+                }
+                if implementation_result["workspaceChanged"]:
+                    summary = (
+                        "Ran bounded implementation turn and produced a reviewable workspace diff."
+                    )
+                else:
+                    summary = (
+                        "Ran bounded implementation turn, but it produced no workspace diff."
+                    )
             else:
                 raise ValueError(f"unsupported GUI action: {args.action}")
 
@@ -348,6 +695,9 @@ def main() -> int:
     parser.add_argument("--thread-id")
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)
     parser.add_argument("--max-runtime-seconds", type=int, default=180)
+    parser.add_argument("--timeout-seconds", type=int, default=300)
+    parser.add_argument("--poll-seconds", type=float, default=5.0)
+    parser.add_argument("--wait", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument(
         "--action",
         required=True,
@@ -357,11 +707,18 @@ def main() -> int:
             "acceptModeling",
             "launchVerification",
             "readVerificationResult",
+            "acceptVerification",
             "launchReorient",
             "readReorientResult",
             "acceptReorient",
+            "continueImplementation",
             "prepareCheckpoint",
         ],
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow continueImplementation even when the coordinator is not recommending it.",
     )
     args = parser.parse_args()
     print(json.dumps(run_action(args), indent=2, ensure_ascii=False))

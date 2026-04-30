@@ -211,6 +211,58 @@ async fn record_initial_history_resumed_hydrates_out_of_band_epiphany_state_befo
 }
 
 #[tokio::test]
+async fn record_initial_history_resumed_hydrates_out_of_band_epiphany_state_after_completed_turn() {
+    let (session, _turn_context) = make_session_and_context().await;
+    let turn_id = "turn-before-control-plane-update".to_string();
+    let turn_state = sample_epiphany_state("turn-before-control-plane-update");
+    let control_plane_state = sample_epiphany_state("control-plane-update");
+
+    session
+        .record_initial_history(InitialHistory::Resumed(ResumedHistory {
+            conversation_id: ThreadId::default(),
+            history: vec![
+                RolloutItem::EventMsg(EventMsg::TurnStarted(
+                    codex_protocol::protocol::TurnStartedEvent {
+                        turn_id: turn_id.clone(),
+                        started_at: None,
+                        model_context_window: Some(128_000),
+                        collaboration_mode_kind: ModeKind::Default,
+                    },
+                )),
+                RolloutItem::EventMsg(EventMsg::UserMessage(
+                    codex_protocol::protocol::UserMessageEvent {
+                        message: "before control-plane update".to_string(),
+                        images: None,
+                        local_images: Vec::new(),
+                        text_elements: Vec::new(),
+                    },
+                )),
+                RolloutItem::EpiphanyState(EpiphanyStateItem {
+                    turn_id: Some(turn_id.clone()),
+                    state: turn_state,
+                }),
+                RolloutItem::EventMsg(EventMsg::TurnComplete(
+                    codex_protocol::protocol::TurnCompleteEvent {
+                        turn_id,
+                        last_agent_message: None,
+                        completed_at: None,
+                        duration_ms: None,
+                        time_to_first_token_ms: None,
+                    },
+                )),
+                RolloutItem::EpiphanyState(EpiphanyStateItem {
+                    turn_id: None,
+                    state: control_plane_state.clone(),
+                }),
+            ],
+            rollout_path: PathBuf::from("resumed.jsonl"),
+        }))
+        .await;
+
+    assert_eq!(session.epiphany_state().await, Some(control_plane_state));
+}
+
+#[tokio::test]
 async fn record_initial_history_resumed_hydrates_previous_turn_settings_from_lifecycle_turn_with_missing_turn_context_id()
  {
     let (session, turn_context) = make_session_and_context().await;
