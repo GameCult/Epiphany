@@ -38,7 +38,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The first MVP GUI shell now exists under `apps/epiphany-gui`. It is a Tauri v2 + React operator console over the existing status bridge, dogfood artifacts, and GUI action artifacts, not a new source of truth. It can prepare a durable Epiphany checkpoint for a resumable operator thread, run status snapshots and coordinator-plan artifacts, launch/read the fixed modeling and verification lanes, launch/read the fixed reorient-worker, and explicitly accept completed reorient findings after review.
 - Internal `agent_job:` workers now get the reporting tool independent of the user-facing CSV spawn feature, and ephemeral worker sessions can initialize the sqlite state runtime on demand so specialist reports land in the shared backend.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
-- The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline, and specialist prompt text lives in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`: modeling protects the body, verification protects the soul, reorientation protects life, and coordinator remains the read-only Self.
+- The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline. Rendered state intro/doctrine text lives in `epiphany-core/src/prompts/`, and lane/control prompt text lives in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`: modeling protects the body, verification protects the soul, implementation is the GUI-launched main coding lane, reorientation protects life, coordinator remains the read-only Self, and CRRC owns the pre-compaction intervention template.
 - The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention.
 - The dogfood quarantine now has a direct-thought boundary. The supervisor may read coordinator actions, role/reorient statuses, structured finding summaries, reviewed state patches, rendered status snapshots, and artifact manifests. It must not read raw worker transcripts, direct worker messages, full turn logs, or `rawResult` payloads during normal dogfood. Those artifacts are sealed for explicit forensic debugging only.
 - `tools/epiphany_agent_telemetry.py` is the safe instrument panel for sealed runs. Status/coordinator/GUI/dogfood/live-specialist tools generate telemetry JSON from sealed transcripts that preserves method names, call shape, job/status/path counts, and any visible function/tool names while sealing text, direct messages, and raw results.
@@ -112,7 +112,7 @@ The current spine:
 - limited turn-complete CRRC automation for coordinator-approved compact and fixed reorient-worker launch actions
 - token-count pre-compaction checkpoint intervention for loaded Epiphany turns at the `shouldPrepareCompaction` threshold, with a turn-scoped compact handoff consumed after a successful steer
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
-- distilled shared and config-backed specialist prompt doctrine through the base prompt, rendered Epiphany state, modeling/body, verification/soul, reorientation/life, and coordinator/Self surfaces
+- distilled shared and config-backed prompt doctrine through the base prompt, rendered Epiphany state prompt files, modeling/body, verification/soul, GUI-launched implementation, reorientation/life, coordinator/Self, and CRRC intervention surfaces
 - first Unity runtime bridge through `tools/epiphany_unity_bridge.py`, `tools/epiphany_unity_bridge_smoke.py`, GUI Inspect Unity, runtime artifact listing, and implementation prompt guardrails
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
@@ -339,12 +339,14 @@ actually grows after review.
 
 The prompt doctrine pass has now also run. It rechecked global AGENTS,
 available Codex memories, and nearby evidence ledgers before distilling the
-sane parts into the shared base prompt, rendered Epiphany state, and fixed
-specialist launch templates. The specialist/coordinator prompt bodies have
-since been extracted from Rust into
-`vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`, with
-app-server parsing that bundled config at launch-template selection time. The
-latest live-specialist run again produced `.epiphany-dogfood/live-specialist`
+sane parts into the shared base prompt, rendered Epiphany state, and fixed lane
+templates. Major prompt text now lives in prompt files instead of Rust/Python
+string slabs: rendered state intro/doctrine lives under `epiphany-core/src/prompts/`,
+and lane/control templates live in
+`vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`.
+Implementation is not a `roleLaunch` specialist; it is the GUI-launched main
+coding lane, and its `continue_template` now lives in the same TOML for audit.
+The latest live-specialist run again produced `.epiphany-dogfood/live-specialist`
 artifacts and showed the modeling worker returning the
 openQuestions/evidenceGaps/risks shape from the config-backed prompt.
 

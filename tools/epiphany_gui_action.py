@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import time
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -25,8 +26,46 @@ from epiphany_unity_bridge import bridge_guidance as unity_bridge_guidance
 
 DEFAULT_CODEX_HOME = ROOT / ".epiphany-gui" / "codex-home"
 DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-gui" / "actions"
+EPIPHANY_PROMPTS_PATH = (
+    ROOT
+    / "vendor"
+    / "codex"
+    / "codex-rs"
+    / "app-server"
+    / "src"
+    / "prompts"
+    / "epiphany_specialists.toml"
+)
 TERMINAL_ROLE_STATUSES = {"completed", "failed", "cancelled"}
 TERMINAL_REORIENT_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def load_epiphany_prompt_config() -> dict[str, Any]:
+    with EPIPHANY_PROMPTS_PATH.open("rb") as handle:
+        config = tomllib.load(handle)
+    if not isinstance(config, dict):
+        raise ValueError(f"invalid Epiphany prompt config: {EPIPHANY_PROMPTS_PATH}")
+    return config
+
+
+def implementation_continue_template() -> str:
+    config = load_epiphany_prompt_config()
+    template = nested_get(config, "implementation", "continue_template")
+    if not isinstance(template, str) or not template.strip():
+        raise ValueError(
+            "missing [implementation].continue_template in "
+            f"{EPIPHANY_PROMPTS_PATH}"
+        )
+    return template.strip()
+
+
+def prompt_text(value: Any, default: str = "none") -> str:
+    if value is None:
+        return default
+    text = str(value)
+    if not text.strip():
+        return default
+    return text
 
 
 def run_git(cwd: Path, *args: str) -> dict[str, Any]:
@@ -380,45 +419,24 @@ def build_implementation_prompt(status: dict[str, Any], cwd: Path) -> str:
     else:
         active_node_text = str(active_node_ids or "none")
 
-    return f"""You are the Epiphany implementation agent for this repository.
-
-Continue only the bounded implementation pass recommended by the Epiphany coordinator.
-
-Coordinator:
-- action: {coordinator.get("action")}
-- target role: {coordinator.get("targetRole")}
-- reason: {coordinator.get("reason")}
-
-Checkpoint:
-- id: {checkpoint.get("checkpoint_id") or checkpoint.get("checkpointId")}
-- summary: {checkpoint.get("summary")}
-- frontier: {active_node_text}
-
-Continuity:
-- next action: {crrc.get("nextAction") or nested_get(operator_status, "reorient", "decision", "nextAction")}
-- scratch: {scratch.get("summary")}
-
-Accepted evidence:
-{chr(10).join(evidence_lines)}
-
-Implementation rules:
-- Do not read sealed transcript artifacts or raw specialist result payloads.
-- Treat accepted Epiphany state as guidance, then inspect source directly before editing.
-- Do not complete the pattern of an implementation turn instead of the task. Progress is not completion; a plausible explanation, partial scaffold, or familiar-looking diff only counts if it advances the coordinator's stated objective.
-- Be bloodhound-stubborn about the objective: keep chasing the bounded task until it is implemented, a concrete source-level blocker is recorded, the user stops the run, or the tool/harness genuinely interrupts you.
-- Avoid pointless embellishments. Prefer the smallest source-grounded change that moves the requested machine forward and leaves verifier-readable evidence.
-- Environment guardrails:
-{unity_guidance(cwd)}
-- Make a bounded first pass: design or implement a parallel compute-backed gravity height producer that preserves the current `_NebulaSurfaceHeight`, `_GridTransform`, and Slime `Heightmap` contracts before changing shader consumers.
-- This is an implementation turn, not a planning turn. Leave a concrete source diff unless direct source evidence proves the bounded pass is impossible.
-- If there is no implementation diff yet, prefer a small reversible compatibility scaffold over another explanation. A valid first diff may be a source-local contract/scaffold for a compute-backed gravity height producer that runs beside the camera path and does not rewire consumers yet.
-- A previous supervised implementation attempt already performed source-only inspection and left no diff. Do not repeat that pattern. Reuse the accepted checkpoint and inspect only what you need to place the smallest safe scaffold.
-- A good minimal patch shape is a disabled/parallel gravity heightfield compatibility producer or contract in the rendering layer, plus any tiny supporting compute-shader stub needed to express the intended data path. Preserve legacy texture names and do not rewire consumers in this pass.
-- Before stopping, check `git status --short`. If it still shows no source diff, continue implementing unless you have found a specific source contradiction or missing dependency that makes even the compatibility scaffold unsafe.
-- Do not attempt the full fog/froxel migration in this pass unless the compatibility producer and contract evidence are already in place.
-- Keep the change reviewable. Update or add source-local notes/tests if the repo has an established place for them.
-- If the source contradicts the checkpoint, stop and explain the contradiction instead of tower-building.
-"""
+    template = implementation_continue_template()
+    return template.format(
+        coordinator_action=prompt_text(coordinator.get("action")),
+        coordinator_target_role=prompt_text(coordinator.get("targetRole")),
+        coordinator_reason=prompt_text(coordinator.get("reason")),
+        checkpoint_id=prompt_text(
+            checkpoint.get("checkpoint_id") or checkpoint.get("checkpointId")
+        ),
+        checkpoint_summary=prompt_text(checkpoint.get("summary")),
+        frontier_active_nodes=prompt_text(active_node_text),
+        continuity_next_action=prompt_text(
+            crrc.get("nextAction")
+            or nested_get(operator_status, "reorient", "decision", "nextAction")
+        ),
+        scratch_summary=prompt_text(scratch.get("summary")),
+        accepted_evidence="\n".join(evidence_lines),
+        unity_guidance=unity_guidance(cwd),
+    )
 
 
 def implementation_no_diff_patch(

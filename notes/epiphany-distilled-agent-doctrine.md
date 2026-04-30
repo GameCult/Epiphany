@@ -219,16 +219,19 @@ shape, truth, continuity, and coordination.
 
 ## Prompt Integration
 
-The doctrine now lands in three places:
+The doctrine now lands through these prompt and loader surfaces:
 
-- `epiphany-core\src\prompt.rs` renders an `## Epiphany Doctrine` section into
-  the typed `<epiphany_state>` developer fragment.
+- `epiphany-core\src\prompts\epiphany_state_intro.md` and
+  `epiphany-core\src\prompts\epiphany_doctrine.md` provide the rendered
+  `<epiphany_state>` intro and doctrine text; Rust assembles the dynamic state
+  sections around those prompt files.
 - `vendor\codex\codex-rs\protocol\src\prompts\base_instructions\default.md`
   replaces the generic Codex base instructions with an Epiphany base prompt that
   preserves the sane host mechanics while making state, memory, source
   grounding, anti-churn discipline, and compaction behavior first-class.
 - `vendor\codex\codex-rs\app-server\src\codex_message_processor.rs` carries the
-  fixed specialist launch prompt loader and selector.
+  fixed prompt loader and lane selector.
 - `vendor\codex\codex-rs\app-server\src\prompts\epiphany_specialists.toml`
-  owns the editable prompt text for modeling/body, verification/soul,
-  reorientation/life, and the read-only coordinator/Self note template.
+  owns the editable prompt text for modeling/body, verification/soul, the
+  GUI-launched implementation lane, reorientation/life, the read-only
+  coordinator/Self note template, and the CRRC pre-compaction intervention.

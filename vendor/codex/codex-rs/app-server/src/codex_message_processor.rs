@@ -13119,14 +13119,24 @@ const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_sp
 #[derive(Debug, serde::Deserialize)]
 struct EpiphanySpecialistPromptConfig {
     roles: EpiphanyRolePromptConfig,
+    // Parsed here so the bundled prompt config fails fast even though the GUI runner consumes it.
+    #[allow(dead_code)]
+    implementation: EpiphanyImplementationPromptConfig,
     reorientation: EpiphanyReorientationPromptConfig,
     coordinator: EpiphanyCoordinatorPromptConfig,
+    crrc: EpiphanyCrrcPromptConfig,
 }
 
 #[derive(Debug, serde::Deserialize)]
 struct EpiphanyRolePromptConfig {
     modeling: String,
     verification: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct EpiphanyImplementationPromptConfig {
+    #[allow(dead_code)]
+    continue_template: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -13138,6 +13148,11 @@ struct EpiphanyReorientationPromptConfig {
 #[derive(Debug, serde::Deserialize)]
 struct EpiphanyCoordinatorPromptConfig {
     note_template: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct EpiphanyCrrcPromptConfig {
+    pre_compaction_checkpoint_intervention: String,
 }
 
 fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialistPromptConfig {
@@ -15760,10 +15775,12 @@ fn render_epiphany_pre_compaction_checkpoint_intervention(
         (Some(used), _, _) => format!("{used} tokens used"),
         _ => "token usage known only as a pressure threshold crossing".to_string(),
     };
-    format!(
-        "Epiphany CRRC pre-compaction checkpoint intervention: context pressure is {} ({usage}). Stop broad implementation now and bank the active working context before compaction. Persist a bounded checkpoint/scratch update with the current objective, files or seams inspected, important findings, unresolved questions, and the next safe move. Add distilled evidence only if this changes future belief. After the checkpoint is banked, say so plainly and stop for CRRC compaction/reorientation; do not continue implementation past unresolved drift.",
-        pressure_level_label(pressure.level),
-    )
+    epiphany_specialist_prompt_config()
+        .crrc
+        .pre_compaction_checkpoint_intervention
+        .trim()
+        .replace("{pressure_level}", pressure_level_label(pressure.level))
+        .replace("{usage}", &usage)
 }
 
 fn map_epiphany_reorient(
@@ -20785,12 +20802,24 @@ mod tests {
         let prompts = epiphany_specialist_prompt_config();
         assert!(prompts.roles.modeling.contains("body of the machine"));
         assert!(prompts.roles.verification.contains("soul of the machine"));
+        assert!(
+            prompts
+                .implementation
+                .continue_template
+                .contains("implementation agent")
+        );
         assert!(prompts.reorientation.resume.contains("life of the machine"));
         assert!(
             prompts
                 .reorientation
                 .regather
                 .contains("old continuity packet is ash")
+        );
+        assert!(
+            prompts
+                .crrc
+                .pre_compaction_checkpoint_intervention
+                .contains("pre-compaction checkpoint intervention")
         );
 
         let note = render_epiphany_coordinator_note(
