@@ -261,9 +261,15 @@ tree, diffs, diagnostics, and code refs; Epiphany GUI is the agent dashboard
 for objectives, specialist lanes, logs/artifacts, persisted state, and
 graph/control-flow views; Unity is the pinned runtime environment for tests,
 probes, scene configuration, assets, shaders, and play/edit-mode evidence. The
-adjacent EpiphanyGraph React viewer is the preferred seed for GUI graph
-diagramming because it consumes typed `graphs.architecture`,
-`graphs.dataflow`, and `graphs.links` directly.
+Unity side must become editor-resident, not merely command-line: an
+Aetheria-side Unity Editor package should inspect scenes, prefabs, serialized
+component fields, prefab overrides, materials, shaders, ScriptableObjects, and
+asset references through Unity APIs such as `SerializedObject`,
+`AssetDatabase`, `PrefabUtility`, and `EditorSceneManager`, with typed
+artifacts and explicit dry-run/apply boundaries for refactors. The adjacent
+EpiphanyGraph React viewer is the preferred seed for GUI graph diagramming
+because it consumes typed `graphs.architecture`, `graphs.dataflow`, and
+`graphs.links` directly.
 
 ## Phase 6 Direction
 
@@ -271,7 +277,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Build the three-pronged Rider/Epiphany GUI/Unity workflow before the next Aetheria implementation dogfood run: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, then Rider plugin MVP.
+1. Build the three-pronged Rider/Epiphany GUI/Unity workflow before the next Aetheria implementation dogfood run: Aetheria-side resident Unity editor package, named Unity bridge operations over that package, GUI Environment panel, EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, then Rider plugin MVP.
 2. Use the next dogfood run to test the bridge-equipped loop, not to discover again that Epiphany cannot prove runtime/editor assumptions from source inspection alone.
 3. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces once the bridges exist.
 4. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.

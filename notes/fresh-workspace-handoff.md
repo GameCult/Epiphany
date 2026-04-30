@@ -373,9 +373,13 @@ diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives,
 specialist lane state, logs/artifacts, persisted state, and graph/control-flow
 views; Unity is the pinned runtime environment for tests, probes, scene
 configuration, assets, shaders, and play/edit-mode evidence. Build that plan in
-slices before the next run: named Unity bridge operations, Aetheria-side Unity
-editor package probes, GUI Environment panel, EpiphanyGraph-backed GUI graph
-dashboard, Rider context bridge, and Rider plugin MVP. The adjacent
+slices before the next run: Aetheria-side resident Unity editor package, named
+Unity bridge operations over that package, GUI Environment panel,
+EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, and Rider plugin
+MVP. The Unity package is not optional decoration: scene files, prefabs,
+materials, shaders, ScriptableObjects, asset GUIDs, and prefab overrides must be
+inspected from inside the Unity Editor through Unity APIs, not inferred from
+serialized text unless there is no editor-level path. The adjacent
 `E:\Projects\EpiphanyGraph\web\epiphany-graph-viewer` component consumes
 `graphs.architecture`, `graphs.dataflow`, and `graphs.links` directly and is
 the preferred seed for GUI graph/control-flow diagramming. The next Aetheria

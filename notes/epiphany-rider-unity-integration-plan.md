@@ -28,7 +28,14 @@ The plan assumes current public seams rather than folklore:
 - Unity can be driven through explicit editor command-line operations such as
   `-batchmode`, `-quit`, `-projectPath`, `-executeMethod`, and test runner
   flags like `-runTests` / `-testResults`.
+  - Unity command-line arguments: <https://docs.unity.cn/Manual/EditorCommandLineArguments.html>
   - Unity command-line tests: <https://docs.unity.cn/Packages/com.unity.test-framework%401.0/manual/reference-command-line.html>
+- Unity editor tooling can inspect and edit Unity-owned serialized state through
+  editor APIs rather than text-parsing `.unity` and `.prefab` YAML.
+  - `SerializedObject` / `SerializedProperty`: <https://docs.unity.cn/ScriptReference/SerializedObject.html>
+  - `AssetDatabase`: <https://docs.unity.cn/ScriptReference/AssetDatabase.html>
+  - `PrefabUtility`: <https://docs.unity.cn/ScriptReference/PrefabUtility.html>
+  - `EditorSceneManager`: <https://docs.unity.cn/ScriptReference/SceneManagement.EditorSceneManager.html>
 
 These seams are enough. We do not need to build a magical all-knowing IDE worm.
 We need a few sober pipes that tell the truth.
@@ -153,6 +160,10 @@ It should expose:
 - asset database refresh and compilation status
 - edit-mode and play-mode tests
 - scene, prefab, material, shader, and ScriptableObject facts
+- Unity-serialized component fields through `SerializedObject` /
+  `SerializedProperty`
+- prefab instance overrides and prefab asset operations through `PrefabUtility`
+- scene loading, saving, and setup inspection through `EditorSceneManager`
 - targeted runtime probes
 - logs, screenshots, probe JSON, and test results as artifacts
 - scene configuration inspection and explicit bridge-owned scene/probe actions
@@ -161,6 +172,16 @@ Unity's job is to answer runtime questions. It is not the coordinator, not the
 IDE, and not a place where agents get to freehand process launches. Runtime
 truth comes from the pinned Unity bridge and its artifacts, or it does not
 count.
+
+The key distinction: Epiphany should not treat scene and prefab files as merely
+text. A lot of the real game configuration lives in Unity's serialized object
+model: component fields, prefab overrides, material references, shader links,
+scene object hierarchies, asset GUIDs, ScriptableObject references, and import
+state. Text parsing can sometimes help explain a file, but it cannot safely
+answer or refactor most editor-level questions. For those, Epiphany needs a
+resident Unity editor package that can walk Unity objects using Unity's own
+editor APIs, write typed artifacts, and perform narrow, reviewable mutations
+only when explicitly authorized.
 
 ### Full Workflow Contract
 
@@ -278,6 +299,11 @@ Unity may:
 - run explicit probes through a pinned editor process
 - run edit-mode/play-mode tests through bridge-owned command lines
 - refresh assets and report compile/domain reload status when explicitly asked
+- inspect scene hierarchy, prefab assets, prefab instances, prefab overrides,
+  materials, shaders, ScriptableObjects, asset GUIDs, and serialized component
+  properties from inside the Editor
+- perform narrow editor-owned refactors only through explicit reviewed bridge
+  commands with before/after artifacts
 - write JSON artifacts, logs, screenshots, and probe outputs
 
 Unity must not:
@@ -286,8 +312,11 @@ Unity must not:
 - substitute nearby Hub versions for the pinned editor
 - continue into play mode/probes after compilation failure unless the requested
   probe explicitly allows failure capture
-- apply scene/prefab/asset mutations without an explicit bridge command and
-  artifact receipt
+- apply scene/prefab/asset mutations without an explicit bridge command,
+  dry-run/preview artifact when feasible, and final artifact receipt
+- let implementation workers edit Unity serialized YAML directly for
+  nontrivial scene/prefab refactors when Unity APIs can perform the operation
+  with object identity intact
 - become the coordinator
 
 ### Epiphany Boundary
@@ -472,7 +501,7 @@ Required invariant:
 
 - exact `ProjectSettings/ProjectVersion.txt` editor version or blocked.
 
-### Phase U1: Unity Editor Package
+### Phase U1: Resident Unity Editor Package
 
 Add an Aetheria-side package, preferably UPM-shaped:
 
@@ -485,6 +514,8 @@ Packages/com.gamecult.epiphany.unity/
     EpiphanyArtifactWriter.cs
     EpiphanyCompilationProbe.cs
     EpiphanySceneProbe.cs
+    EpiphanyPrefabProbe.cs
+    EpiphanySerializedObjectProbe.cs
     EpiphanyShaderProbe.cs
 ```
 
@@ -498,7 +529,10 @@ Use `Packages/` once the bridge starts to stabilize. For the first Aetheria
 pass, `Assets/Editor/Epiphany` is acceptable if speed matters more than package
 cleanliness.
 
-The Unity package exposes static `-executeMethod` targets:
+This package is the real Unity organ. It lives inside the Editor so Epiphany can
+inspect Unity-owned object state instead of guessing from serialized text.
+
+The first package exposes static `-executeMethod` targets:
 
 ```csharp
 Epiphany.EditorBridge.InspectProject
@@ -508,15 +542,48 @@ Epiphany.EditorBridge.RunEditModeTests
 Epiphany.EditorBridge.RunPlayModeTests
 Epiphany.EditorBridge.RunProbe
 Epiphany.EditorBridge.CaptureSceneFacts
+Epiphany.EditorBridge.CapturePrefabFacts
+Epiphany.EditorBridge.CaptureSerializedObjectFacts
 Epiphany.EditorBridge.CaptureShaderFacts
 ```
 
 All methods write JSON artifacts under a bridge-provided output directory.
 
+Initial editor-resident probes:
+
+- **Scene object graph**
+  - open or inspect target scenes through `EditorSceneManager`
+  - enumerate root GameObjects, children, components, enabled state, layers,
+    tags, serialized fields, object references, and missing scripts
+  - report scene dirtiness and save requirements without saving by default
+- **Prefab graph**
+  - load prefab assets through `AssetDatabase`
+  - report prefab roots, nested prefab instances, variants, overrides, removed
+    components, added components, and object references through `PrefabUtility`
+- **Serialized object dump**
+  - walk selected component/material/ScriptableObject serialized properties
+    through `SerializedObject`
+  - emit stable property paths, values, object reference GUIDs/paths, and
+    unsupported/unreadable fields
+- **Reference search**
+  - find assets, scenes, prefabs, materials, and components that reference a
+    GUID, material, shader, component type, or script
+- **Dry-run mutation preview**
+  - compute intended scene/prefab/material changes and write a proposed patch
+    artifact without saving assets
+  - require explicit operator/coordinator approval before applying
+
+Mutation rule: editor package commands may eventually apply scene, prefab, or
+asset changes, but only through named operations with scoped inputs, dry-run
+preview when feasible, backup/dirty-state reporting, changed asset lists, and a
+final artifact receipt. No broad YAML surgery. No "I think this GUID means a
+thing" refactors. The Editor knows what the object is; use it.
+
 ### Phase U2: Bridge Command Contract
 
-Extend `tools/epiphany_unity_bridge.py run` with named operations instead of
-freeform `-executeMethod` being the normal path.
+Extend `tools/epiphany_unity_bridge.py run` with named operations that call the
+resident editor package instead of making freeform `-executeMethod` the normal
+path.
 
 Recommended CLI:
 
@@ -529,6 +596,16 @@ python tools/epiphany_unity_bridge.py probe `
   --project-path E:\Projects\Aetheria-Economy `
   --operation scene-facts `
   --scene Assets/Scenes/Main.unity
+
+python tools/epiphany_unity_bridge.py probe `
+  --project-path E:\Projects\Aetheria-Economy `
+  --operation prefab-facts `
+  --asset Assets/Prefabs/Nebula.prefab
+
+python tools/epiphany_unity_bridge.py probe `
+  --project-path E:\Projects\Aetheria-Economy `
+  --operation serialized-object `
+  --asset Assets/Materials/Nebula.mat
 
 python tools/epiphany_unity_bridge.py test `
   --project-path E:\Projects\Aetheria-Economy `
@@ -575,6 +652,11 @@ optional:
   screenshot.png
   shader-report.json
   scene-facts.json
+  prefab-facts.json
+  serialized-object-facts.json
+  reference-search.json
+  mutation-preview.json
+  mutation-apply.json
   compilation.json
 ```
 
@@ -625,6 +707,15 @@ Initial Aetheria-specific probes:
 - **Scene/prefab reference probe**
   - Which scenes contain gravity/fog renderers?
   - Which prefabs reference the old camera path?
+- **Scene configuration probe**
+  - Which scene objects and components own gravity/fog configuration?
+  - Which serialized component fields point at the old rendering path?
+  - Which object references would need to change for the hierarchical texture
+    set?
+- **Prefab override probe**
+  - Which prefab assets and prefab instances carry overrides relevant to
+    gravity/fog rendering?
+  - Which overrides are inherited versus local scene edits?
 - **Play-mode smoke probe**
   - Can a minimal scene enter play mode long enough to validate the gravity
     texture producer contract?
@@ -901,35 +992,56 @@ Rider changed ranges or git diff touches frontier files
   environment organ.
 - No code change beyond docs.
 
-### Slice 2: Unity Bridge Operations
+### Slice 2: Resident Unity Editor Package
+
+- Add Aetheria-side `Assets/Editor/Epiphany` bridge first.
+- Implement:
+  - `InspectProject`
+  - `CheckCompilation`
+  - `CaptureSceneFacts`
+  - `CapturePrefabFacts`
+  - `CaptureSerializedObjectFacts`
+  - `RunProbe`
+  - artifact writer
+- Use Unity APIs for Unity state:
+  - `AssetDatabase` for asset lookup and GUID/path mapping
+  - `EditorSceneManager` for scene loading/inspection
+  - `SerializedObject` / `SerializedProperty` for component, material, and
+    ScriptableObject fields
+  - `PrefabUtility` for prefab assets, instances, and overrides
+- Keep it source-controlled in Aetheria, not Epiphany, unless it becomes a
+  reusable UPM package later.
+
+### Slice 3: Unity Bridge Operations
 
 - Extend `epiphany_unity_bridge.py` from generic `run` to named operations:
   - `inspect`
   - `check-compilation`
   - `run-tests`
   - `run-probe`
+- Add built-in operations for scene facts, prefab facts, serialized object
+  facts, and reference search.
 - Add output-dir argument contract for Unity `-executeMethod` targets.
 - Add smoke with fake pinned editor and command JSON.
 
-### Slice 3: Unity Editor Package
+### Slice 4: Unity Mutation Preview
 
-- Add Aetheria-side `Assets/Editor/Epiphany` bridge first.
-- Implement:
-  - `InspectProject`
-  - `CheckCompilation`
-  - `RunProbe`
-  - artifact writer
-- Keep it source-controlled in Aetheria, not Epiphany, unless it becomes a
-  reusable UPM package later.
+- Add dry-run editor commands for narrow scene/prefab/material changes.
+- Write before/after artifacts and changed-asset manifests.
+- Require explicit review before apply commands are available to agents.
+- Keep broad direct YAML edits blocked for Unity-owned serialized state.
 
-### Slice 4: GUI Environment Panel
+### Slice 5: GUI Environment Panel
 
 - Add Environment band to `apps/epiphany-gui`.
 - Surface latest Unity bridge status and artifact.
 - Add buttons for named bridge operations.
+- Add buttons for scene facts, prefab facts, serialized object facts, and
+  reference search.
+- Display mutation previews separately from applied changes.
 - Keep artifacts visible and sealed logs separate from summaries.
 
-### Slice 4b: GUI Graph Dashboard
+### Slice 5b: GUI Graph Dashboard
 
 - Pull in or vendor the adjacent `@epiphanygraph/epiphany-graph-viewer`
   component.
@@ -939,13 +1051,13 @@ Rider changed ranges or git diff touches frontier files
 - Add graph health and validation status near coordinator/modeling lane state.
 - Keep raw graph payloads accessible as artifacts or JSON for exact reasoning.
 
-### Slice 5: Rider Bridge CLI
+### Slice 6: Rider Bridge CLI
 
 - Add `tools/epiphany_rider_bridge.py` as a local protocol stub.
 - It should accept context packets from the future plugin and write artifacts.
 - It should not require Rider plugin code yet.
 
-### Slice 6: Rider Plugin MVP
+### Slice 7: Rider Plugin MVP
 
 - Create `integrations/rider`.
 - Frontend-only Kotlin plugin:
@@ -956,7 +1068,7 @@ Rider changed ranges or git diff touches frontier files
   - run Inspect Unity through Epiphany bridge
 - No ReSharper backend yet.
 
-### Slice 7: Coordinator Environment Awareness
+### Slice 8: Coordinator Environment Awareness
 
 - Add read-only environment projection after tools settle:
   - IDE status
