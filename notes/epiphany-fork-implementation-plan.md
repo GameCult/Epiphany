@@ -117,7 +117,7 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/reorient` is a bounded policy verdict, not an automatic runtime coordinator, scheduler, compactor, or hidden state writer.
 - `thread/epiphany/crrc` is a read-only coordinator recommendation over existing signals, not a scheduler, launch button, acceptance gate, compactor, or hidden state writer.
 - `thread/epiphany/coordinator` is a read-only fixed-lane MVP policy projection over existing signals, not a scheduler, launcher, acceptance gate, compactor, or hidden state writer.
-- Native CRRC automation may act only at safe turn-complete boundaries and only for coordinator-approved `compactRehydrateReorient` and `launchReorientWorker` actions. It must not auto-launch modeling or verification, auto-accept semantic findings, promote evidence, edit implementation code, or silently continue after unresolved drift.
+- Native CRRC automation may act only at safe turn-complete boundaries and only for coordinator-approved `compactRehydrateReorient`, successful pre-compaction checkpoint handoff compact, and coordinator-approved `launchReorientWorker` actions. It must not auto-launch modeling or verification, auto-accept semantic findings, promote evidence, edit implementation code, or silently continue after unresolved drift.
 - Pre-compaction checkpoint intervention may steer an active loaded Epiphany turn once at the token-count boundary when pressure reaches the existing `shouldPrepareCompaction` threshold. The steering directive is allowed to ask the agent to bank scratch/checkpoint/map/evidence before compaction/reorientation; it must not auto-accept semantic findings, promote evidence, launch arbitrary workers, or continue implementation after unresolved drift.
 - `thread/epiphany/roles` is a read-only role ownership projection, not a specialist scheduler, marketplace, launcher, acceptance gate, or second job backend.
 - `thread/epiphany/roleLaunch` is a bounded authority surface for fixed modeling/checkpoint and verification/review templates, not a broad scheduler or specialist marketplace.
@@ -222,7 +222,10 @@ workspace, report through `report_agent_job_result`, and return a completed
 proved the sequence-locked MVP policy across cold start, clean checkpoint,
 modeling, verification, CRRC drift/reorient, and high-pressure compact/dry-run
 paths. Native CRRC automation then wired the proved policy into turn-complete
-safe boundaries for compact and fixed reorient-worker launch only. The first
+safe boundaries for compact and fixed reorient-worker launch only. Successful
+pre-compaction checkpoint steering now also latches a pending compact handoff
+for the completed turn, so the brake becomes a real compaction request instead
+of a polite suggestion. The first
 pre-compaction checkpoint intervention is now also landed: token-count pressure
 events steer active loaded Epiphany turns once at the `shouldPrepareCompaction`
 threshold so working context can be banked before compaction. The next MVP
@@ -241,7 +244,7 @@ Useful candidates:
 
 1. Keep dogfood execution agent-run and auditable, then put the fixed-lane coordinator and pre-compaction checkpoint loop in front of the user through the smallest local GUI/operator view over the same status/artifact surfaces.
 2. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-3. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
+3. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny

@@ -13975,6 +13975,16 @@ fn map_epiphany_coordinator_automation_action(
     }
 }
 
+fn select_epiphany_coordinator_automation_action(
+    decision: &EpiphanyCoordinatorDecision,
+    force_checkpoint_compaction: bool,
+) -> EpiphanyCoordinatorAutomationAction {
+    if force_checkpoint_compaction {
+        return EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient;
+    }
+    map_epiphany_coordinator_automation_action(decision)
+}
+
 fn map_epiphany_coordinator(
     state_status: ThreadEpiphanyReorientStateStatus,
     checkpoint_present: bool,
@@ -16247,6 +16257,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     thread: Arc<CodexThread>,
     epiphany_invalidation_manager: EpiphanyInvalidationManager,
     outgoing: &ThreadScopedOutgoingMessageSender,
+    force_checkpoint_compaction: bool,
 ) {
     let thread_id_text = thread_id.to_string();
     let Some(state) = thread.epiphany_state().await else {
@@ -16348,7 +16359,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         reorient_finding_accepted,
     );
 
-    match map_epiphany_coordinator_automation_action(&coordinator) {
+    match select_epiphany_coordinator_automation_action(&coordinator, force_checkpoint_compaction) {
         EpiphanyCoordinatorAutomationAction::None => {}
         EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient => {
             if let Err(err) = thread.submit(Op::Compact).await {
@@ -16432,7 +16443,12 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
         )
         .await
     {
-        Ok(_) => {}
+        Ok(_) => {
+            thread_state
+                .lock()
+                .await
+                .mark_epiphany_checkpoint_intervention_pending_compaction(&turn_id);
+        }
         Err(SteerInputError::NoActiveTurn(_))
         | Err(SteerInputError::ExpectedTurnMismatch { .. })
         | Err(SteerInputError::ActiveTurnNotSteerable { .. })
@@ -19668,6 +19684,27 @@ mod tests {
         assert_eq!(
             decision.action,
             ThreadEpiphanyCoordinatorAction::ContinueImplementation
+        );
+    }
+
+    #[test]
+    fn select_epiphany_coordinator_automation_forces_checkpoint_compaction_handoff() {
+        let decision = EpiphanyCoordinatorDecision {
+            action: ThreadEpiphanyCoordinatorAction::ContinueImplementation,
+            target_role: Some(ThreadEpiphanyRoleId::Implementation),
+            recommended_scene_action: None,
+            requires_review: false,
+            can_auto_run: false,
+            reason: "ordinary coordinator would continue".to_string(),
+        };
+
+        assert_eq!(
+            map_epiphany_coordinator_automation_action(&decision),
+            EpiphanyCoordinatorAutomationAction::None
+        );
+        assert_eq!(
+            select_epiphany_coordinator_automation_action(&decision, true),
+            EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient
         );
     }
 

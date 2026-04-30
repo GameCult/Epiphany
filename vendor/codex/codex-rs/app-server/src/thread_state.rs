@@ -68,6 +68,7 @@ pub(crate) struct ThreadState {
     current_turn_history: ThreadHistoryBuilder,
     last_epiphany_jobs_by_job_id: HashMap<String, ThreadEpiphanyJob>,
     last_epiphany_checkpoint_intervention_turn_id: Option<String>,
+    pending_epiphany_checkpoint_compaction_turn_id: Option<String>,
     listener_thread: Option<Weak<CodexThread>>,
 }
 
@@ -101,6 +102,7 @@ impl ThreadState {
         self.listener_command_tx = None;
         self.current_turn_history.reset();
         self.last_epiphany_jobs_by_job_id.clear();
+        self.pending_epiphany_checkpoint_compaction_turn_id = None;
         self.listener_thread = None;
     }
 
@@ -152,6 +154,62 @@ impl ThreadState {
         }
         self.last_epiphany_checkpoint_intervention_turn_id = Some(turn_id.to_string());
         true
+    }
+
+    pub(crate) fn mark_epiphany_checkpoint_intervention_pending_compaction(
+        &mut self,
+        turn_id: &str,
+    ) {
+        self.pending_epiphany_checkpoint_compaction_turn_id = Some(turn_id.to_string());
+    }
+
+    pub(crate) fn take_epiphany_checkpoint_intervention_pending_compaction(
+        &mut self,
+        turn_id: &str,
+    ) -> bool {
+        if self
+            .pending_epiphany_checkpoint_compaction_turn_id
+            .as_deref()
+            != Some(turn_id)
+        {
+            return false;
+        }
+        self.pending_epiphany_checkpoint_compaction_turn_id = None;
+        true
+    }
+
+    pub(crate) fn clear_epiphany_checkpoint_intervention_pending_compaction(&mut self) {
+        self.pending_epiphany_checkpoint_compaction_turn_id = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ThreadState;
+
+    #[test]
+    fn epiphany_checkpoint_intervention_pending_compaction_is_turn_scoped() {
+        let mut state = ThreadState::default();
+
+        assert!(state.record_epiphany_checkpoint_intervention("turn-a"));
+        assert!(!state.record_epiphany_checkpoint_intervention("turn-a"));
+        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
+
+        state.mark_epiphany_checkpoint_intervention_pending_compaction("turn-a");
+
+        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-b"));
+        assert!(state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
+        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
+    }
+
+    #[test]
+    fn epiphany_checkpoint_intervention_pending_compaction_can_be_cleared() {
+        let mut state = ThreadState::default();
+
+        state.mark_epiphany_checkpoint_intervention_pending_compaction("turn-a");
+        state.clear_epiphany_checkpoint_intervention_pending_compaction();
+
+        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
     }
 }
 

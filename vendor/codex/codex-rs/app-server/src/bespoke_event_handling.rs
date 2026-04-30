@@ -235,11 +235,12 @@ pub(crate) async fn apply_bespoke_event_handling(
         EventMsg::TurnComplete(turn_complete_event) => {
             // All per-thread requests are bound to a turn, so abort them.
             outgoing.abort_pending_server_requests().await;
-            let (turn_failed, turn_was_context_compaction) = {
-                let state = thread_state.lock().await;
+            let (turn_failed, turn_was_context_compaction, force_checkpoint_compaction) = {
+                let mut state = thread_state.lock().await;
                 (
                     state.turn_summary.last_error.is_some(),
                     state.turn_summary.context_compaction_started,
+                    state.take_epiphany_checkpoint_intervention_pending_compaction(&event_turn_id),
                 )
             };
             thread_watch_manager
@@ -260,6 +261,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                     conversation,
                     epiphany_invalidation_manager,
                     &outgoing,
+                    force_checkpoint_compaction,
                 )
                 .await;
             }
@@ -1885,6 +1887,7 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing.abort_pending_server_requests().await;
             let pending = {
                 let mut state = thread_state.lock().await;
+                state.clear_epiphany_checkpoint_intervention_pending_compaction();
                 std::mem::take(&mut state.pending_interrupts)
             };
             if !pending.is_empty() {
