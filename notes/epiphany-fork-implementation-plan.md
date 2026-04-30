@@ -162,11 +162,12 @@ and notify typed state. It can.
 
 The next unknowns are:
 
-- how much controlled runtime/editor access the first Unity bridge gives implementation and verification lanes before deeper engine probes need a richer bridge
+- what bridge surface is sufficient for the next Aetheria run: named Unity operations, Aetheria-side editor probes, GUI environment status, Rider context capture, and a Rider plugin MVP
+- how much controlled runtime/editor access the richer Unity bridge gives implementation and verification lanes before deeper engine probes need another slice
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how far the read-only CRRC recommendation should go before explicit client/operator action takes over
 - how much narrow coordination is needed so modeling, implementation, verification, and CRRC automation can hand off work without collapsing back into one context
-- what concrete operator friction appears when the GUI/operator MVP is tested on real work
+- what concrete operator friction appears once the bridge-equipped GUI/operator MVP is tested on real work
 
 ## MVP Cutline
 
@@ -262,9 +263,9 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Dogfood the first Unity editor/runtime bridge in the implementation lane. The bridge can inspect pins, refuse wrong/missing editors, and run exact-editor batch/probe commands; it still needs real Aetheria use before richer engine probes are justified.
-2. Build the Rider+Unity environment plan in slices: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, Rider context bridge, then Rider plugin MVP.
-3. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces.
+1. Build the Rider+Unity environment plan before the next Aetheria implementation dogfood run: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, Rider context bridge, then Rider plugin MVP.
+2. Use the next dogfood run to test the bridge-equipped loop, not to discover again that Epiphany cannot prove runtime/editor assumptions from source inspection alone.
+3. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces once the bridges exist.
 4. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 5. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
 

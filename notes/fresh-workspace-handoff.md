@@ -361,18 +361,20 @@ bounded browser-fallback controls. A live bridge probe also proved
 `prepareCheckpoint` creates a resumable thread and a later process can
 `readModelingResult` from it.
 
-The next real move is not more direct Aetheria implementation by the supervisor.
-The first Unity bridge is landed, and it correctly blocks Aetheria runtime
-execution until Unity `6000.1.10f1` is installed. The detailed next-environment
-plan now lives in `notes/epiphany-rider-unity-integration-plan.md`: Rider is
-the IDE/source-context organ, Unity is the editor/runtime fact organ, and
-Epiphany remains the durable coordinator/Self. Resume dogfood through
-Epiphany's GUI/coordinator/fixed lanes with the bridge in the loop; then build
-the plan in slices: named Unity bridge operations, Aetheria-side Unity editor
-package probes, GUI Environment panel, Rider context bridge, and Rider plugin
-MVP. The implementation lane may inspect source and may use bridge artifacts as
-evidence, but it must not launch Unity directly or use installed `6000.4.2f1`
-as a substitute. Read only operator-safe projections; do not open raw worker
+The next real move is bridge construction, not another Aetheria implementation
+dogfood run. The first Unity bridge is landed, and it correctly blocks Aetheria
+runtime execution until Unity `6000.1.10f1` is installed. The detailed
+next-environment plan now lives in
+`notes/epiphany-rider-unity-integration-plan.md`: Rider is the
+IDE/source-context organ, Unity is the editor/runtime fact organ, and Epiphany
+remains the durable coordinator/Self. Build the plan in slices before the next
+run: named Unity bridge operations, Aetheria-side Unity editor package probes,
+GUI Environment panel, Rider context bridge, and Rider plugin MVP. The next
+Aetheria dogfood pass should happen only after Epiphany can gather Rider/source
+context and Unity/editor runtime evidence through auditable bridges. The
+implementation lane may inspect source and may use bridge artifacts as evidence,
+but it must not launch Unity directly or use installed `6000.4.2f1` as a
+substitute. Read only operator-safe projections; do not open raw worker
 transcripts, direct worker messages, or `rawResult` payloads unless the user
 explicitly asks for forensic debugging. Use generated function/API telemetry
 for call-shape visibility without sungazing. CRRC is not a specialist-agent

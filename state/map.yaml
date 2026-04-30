@@ -58,14 +58,14 @@ data_flow:
 active_subgoals:
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
   - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, roleResult, freshness, context, graphQuery, pressure, reorient, crrc, coordinator, and reorientResult.
-  - Dogfood the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention before adding larger organs.
+  - Keep the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention ready for the next bridge-equipped dogfood run.
   - Preserve review gates for semantic findings; automatic CRRC may compact or launch the fixed reorient-worker, but not accept or promote.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
   - Quarantine the Aetheria dogfood contamination: future target-repo work must be driven through Epiphany's GUI/coordinator/fixed lanes with auditable artifacts, not direct supervisor implementation.
   - Keep the supervisor out of Epiphany worker thought streams: dogfood artifacts should be operator-safe by default, with direct transcripts and raw result payloads sealed.
   - Use `tools/epiphany_agent_telemetry.py` and generated `agent-function-telemetry.json` files to inspect behavior shape without opening sealed transcripts.
   - Treat repeated no-diff implementation turns as an MVP blocker, not success. A bounded implementation pass must leave a reviewable workspace diff or an explicit reviewable failure artifact before dogfood can be called healthy.
-  - Dogfood the first Unity editor/runtime bridge before resuming engine implementation: inspect the project-pinned editor, refuse wrong or missing versions, and route any Unity batch/probe execution through auditable bridge artifacts.
+  - Build the Rider and Unity bridges before the next Aetheria implementation dogfood run: named Unity bridge operations, Aetheria-side Unity editor probes, GUI Environment panel, Rider context bridge, and Rider plugin MVP.
   - Use `notes/epiphany-rider-unity-integration-plan.md` as the source-grounded plan for Rider-as-IDE and Unity-as-editor/runtime integration seams.
 
 accepted_design:
@@ -188,5 +188,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed and actively dogfooded. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident has now produced the first runtime bridge, and `notes/epiphany-rider-unity-integration-plan.md` now defines the next environment integration seams for Rider as IDE and Unity as editor/runtime.
-  next_action: Resume dogfood through Epiphany lanes with the Unity bridge in the loop, then implement the Rider+Unity integration plan in slices: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, Rider context bridge, then Rider plugin MVP. Do not let implementation workers invoke Unity directly; use bridge artifacts as evidence of either a pinned-editor run or a missing-runtime blocker. Do not inspect raw worker transcripts or `rawResult` payloads unless the user explicitly requests forensic debugging.
+  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident proved the next blocker is environment access, so `notes/epiphany-rider-unity-integration-plan.md` now governs the bridge-building pass before the next Aetheria dogfood run.
+  next_action: Implement the Rider+Unity integration plan before further Aetheria implementation dogfood: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, Rider context bridge, then Rider plugin MVP. The next dogfood run should happen only after Epiphany can gather Rider/source context and Unity/editor runtime evidence through auditable bridges. Do not let implementation workers invoke Unity directly; use bridge artifacts as evidence of either a pinned-editor run or a missing-runtime blocker. Do not inspect raw worker transcripts or `rawResult` payloads unless the user explicitly requests forensic debugging.
