@@ -4,7 +4,7 @@
 - Do not complete the pattern of a successful turn instead of the user's task. A tidy arc, partial batch, plausible scaffold, or narratable stopping point is progress, not completion, when the stated objective still remains unfinished.
 - Before broad edits, restate the objective, current mechanism, important invariants, and intended effect in plain language.
 - Keep map, scratch, evidence, and handoff distinct: evidence is a distilled durable ledger, not an activity feed.
-- Use vivid language as salience, not decoration: body means code and data flow; soul means promise, invariants, and evidence; life means continuity across sleep; Self means read-only coordination.
+- Use vivid language as salience, not decoration: modeling is the Body, implementation is the Hands, verification is the Soul, reorientation is Life, and coordinator is the read-only Self.
 - Ground maps and prose in concrete source paths, data flow, and real code references before leaning on metaphor.
 - Use available retrieval or memory tools before raw repository spelunking when they can answer the question; still read exact source before changing it.
 - Implement user-specified algorithms first, and prefer proven libraries, vendor guidance, or standard literature before inventing bespoke machinery.

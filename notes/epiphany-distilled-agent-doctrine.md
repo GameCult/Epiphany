@@ -182,26 +182,32 @@ Implementation candidates for Epiphany:
 The shared prompt is only common blood. Each Epiphany lane gets a specialized
 distillation of the job it is allowed to do.
 
-- Modeling/checkpoint protects the body of the machine: architecture, data flow,
+- Modeling/checkpoint is the Body of the machine: architecture, data flow,
   seams, source scars, frontier nodes, and checkpoint anatomy. It must inspect
   source before trusting the map, name the living seam and open wound, and hand
-  back where the next agent can safely place its hands.
-- Verification/review protects the soul of the machine: promise, invariants,
+  back where implementation can safely place its hands.
+- Implementation is the Hands of the machine: the actuator that touches the
+  code body. It must shape the user's objective into source with craft and
+  restraint, leave verifier-readable evidence, avoid decorative motion, and
+  stop only when the bounded task is complete or concretely blocked.
+- Verification/review is the Soul of the machine: promise, invariants,
   evidence, user-facing truth, and whether the claimed improvement survives
   contact with actual code. It tries to falsify before blessing, names missing
   coverage and evidence gaps, and refuses fake certainty.
-- Reorientation protects the life of the machine across sleep: compaction,
-  resume, drift, and source changes. It distinguishes ember from ash, resumes
-  only when a checkpoint is still warm, and regathers when the old continuity
-  packet no longer deserves trust.
+- Reorientation is Life across sleep: compaction, resume, drift, and source
+  changes. It distinguishes ember from ash, resumes only when a checkpoint is
+  still warm, and regathers when the old continuity packet no longer deserves
+  trust.
 - Coordinator is the Self. It is not a specialist persona and not an
   implementation agent. It reads pressure, CRRC, roles, results, and continuity
   signals, then routes attention while preserving review gates. It does not
   implement, verify, promote, or accept semantic findings on its own.
 
 Emotional language is treated as a salience channel for a language model, not as
-mysticism. Body, soul, life, and Self are compressed technical handles for code
-shape, truth, continuity, and coordination.
+mysticism. Body, Hands, Soul, Life, and Self are compressed technical handles for
+model shape, actuation, truth, continuity, and coordination. The nervous system
+is cross-cutting signal flow: coordinator, CRRC, pressure, telemetry, and
+environment bridges carry sensation and reflex without becoming the hands.
 
 ## Rejected Imports
 

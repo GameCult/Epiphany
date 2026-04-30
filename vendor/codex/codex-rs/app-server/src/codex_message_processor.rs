@@ -20800,20 +20800,20 @@ mod tests {
     #[test]
     fn epiphany_specialist_prompt_config_parses() {
         let prompts = epiphany_specialist_prompt_config();
-        assert!(prompts.roles.modeling.contains("body of the machine"));
-        assert!(prompts.roles.verification.contains("soul of the machine"));
+        assert!(prompts.roles.modeling.contains("Body of the machine"));
+        assert!(prompts.roles.verification.contains("Soul of the machine"));
         assert!(
             prompts
                 .implementation
                 .continue_template
-                .contains("implementation agent")
+                .contains("Hands of the machine")
         );
-        assert!(prompts.reorientation.resume.contains("life of the machine"));
+        assert!(prompts.reorientation.resume.contains("Life across sleep"));
         assert!(
             prompts
                 .reorientation
                 .regather
-                .contains("old continuity packet is ash")
+                .contains("Life returning after rupture")
         );
         assert!(
             prompts
@@ -20831,6 +20831,7 @@ mod tests {
             ThreadEpiphanyCoordinatorAction::LaunchVerification,
         );
         assert!(note.contains("read-only Self"));
+        assert!(note.contains("Hands/implementation"));
         assert!(note.contains("LaunchVerification"));
         assert!(!note.contains("{coordinator_action}"));
     }
@@ -20870,7 +20871,7 @@ mod tests {
         assert_eq!(modeling.input_json["roleId"], "modeling");
         assert!(modeling.input_json.get("graphs").is_some());
         assert!(modeling.input_json.get("recentObservations").is_some());
-        assert!(modeling.instruction.contains("body of the machine"));
+        assert!(modeling.instruction.contains("Body of the machine"));
         assert!(modeling.instruction.contains("coherent anatomy"));
         assert!(
             modeling
@@ -20913,7 +20914,7 @@ mod tests {
         assert_eq!(verification.owner_role, EPIPHANY_VERIFICATION_OWNER_ROLE);
         assert_eq!(verification.authority_scope, "epiphany.role.verification");
         assert_eq!(verification.input_json["roleId"], "verification");
-        assert!(verification.instruction.contains("soul of the machine"));
+        assert!(verification.instruction.contains("Soul of the machine"));
         assert!(verification.instruction.contains("falsify"));
         assert!(
             verification.output_schema_json.as_ref().unwrap()["properties"]
@@ -20989,11 +20990,7 @@ mod tests {
         assert!(request.input_json.get("graphs").is_some());
         assert!(request.input_json.get("recentEvidence").is_some());
         assert!(request.input_json.get("recentObservations").is_some());
-        assert!(
-            request
-                .instruction
-                .contains("life of the machine across sleep")
-        );
+        assert!(request.instruction.contains("Life across sleep"));
         assert!(request.instruction.contains("checkpoint as the ember"));
         let schema = request.output_schema_json.as_ref().unwrap();
         assert!(schema["properties"].get("openQuestions").is_some());
@@ -21001,7 +20998,7 @@ mod tests {
 
         let regather_instruction =
             build_epiphany_reorient_launch_instruction(ThreadEpiphanyReorientAction::Regather);
-        assert!(regather_instruction.contains("old continuity packet is ash"));
+        assert!(regather_instruction.contains("Life returning after rupture"));
     }
 
     #[test]
