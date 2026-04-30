@@ -83,7 +83,7 @@ The landed machine now has:
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
 - review-gated Phase 6 modeling acceptance through `thread/epiphany/roleAccept`, limited to completed modeling/checkpoint `statePatch` findings that apply graph/frontier/checkpoint/scratch/investigation-checkpoint changes through the existing state validator
 - first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
-- first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, raw app-server transcript, final status artifacts, truthful vanilla-reference output, and comparison notes
+- first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, sealed app-server transcript diagnostics, operator-safe final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - first Phase 6 GUI operator shell under `apps/epiphany-gui`, a Tauri v2 + React console over the existing status bridge, dogfood artifacts, and GUI action artifacts, with durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
@@ -267,7 +267,7 @@ Initial shape:
    - fixed role lanes for implementation, modeling/checkpoint, verification/review, and reorientation
    - reviewable role and reorient findings
    - job/progress list
-   - artifact bundle list with links to summaries, transcripts, stderr, and comparison files
+   - artifact bundle list with links to summaries, sealed transcript/stderr receipts, and comparison files
 4. Add explicit action buttons only for already-bounded authority surfaces:
    - refresh status
    - run status snapshot
@@ -300,7 +300,7 @@ Implementation slices:
    artifact bundles and stream progress/status into the GUI.
 4. **Usability pass**: make the current recommendation, blocked lane, pending
    review, and next safe action visually obvious enough that the user can test
-   the product without reading transcripts unless something smells wrong.
+   the product without reading sealed transcripts unless the user explicitly asks for forensic debugging.
 
 Verification:
 

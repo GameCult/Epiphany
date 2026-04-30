@@ -75,6 +75,21 @@ def require_artifacts(summary: dict[str, Any]) -> None:
         require((artifact_dir / name).exists(), f"missing coordinator artifact {name}")
 
 
+def require_operator_safe(value: Any, path: str = "$") -> None:
+    if isinstance(value, dict):
+        if "rawResult" in value:
+            raw_result = value["rawResult"]
+            require(
+                isinstance(raw_result, dict) and raw_result.get("sealed") is True,
+                f"{path}.rawResult should be sealed in operator-facing artifacts",
+            )
+        for key, item in value.items():
+            require_operator_safe(item, f"{path}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            require_operator_safe(item, f"{path}[{index}]")
+
+
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     app_server = args.app_server.resolve()
     if not app_server.exists():
@@ -91,6 +106,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "cold start should stop at prepareCheckpoint",
     )
     require_artifacts(cold)
+    require_operator_safe(cold)
 
     modeling = run_coordinator(
         coordinator_args(
@@ -107,6 +123,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "modeling run should stop with a reviewable modeling result",
     )
     require_artifacts(modeling)
+    require_operator_safe(modeling)
 
     verification = run_coordinator(
         coordinator_args(
@@ -124,6 +141,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "auto-review smoke should drive through verification and stop at review",
     )
     require_artifacts(verification)
+    require_operator_safe(verification)
 
     drift = run_coordinator(
         coordinator_args(
@@ -141,6 +159,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "source drift should launch reorient worker and stop for review",
     )
     require_artifacts(drift)
+    require_operator_safe(drift)
 
     pressure = run_coordinator(
         coordinator_args(
@@ -163,6 +182,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         "dry compact smoke should record the compaction action",
     )
     require_artifacts(pressure)
+    require_operator_safe(pressure)
 
     result = {
         "artifactRoot": str(artifact_root),

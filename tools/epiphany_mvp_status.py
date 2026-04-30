@@ -14,6 +14,45 @@ from epiphany_phase5_smoke import ROOT
 DEFAULT_CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
 DEFAULT_TRANSCRIPT = ROOT / ".epiphany-status" / "epiphany-mvp-status-transcript.jsonl"
 DEFAULT_STDERR = ROOT / ".epiphany-status" / "epiphany-mvp-status-server.stderr.log"
+SEALED_DIRECT_THOUGHT_KEYS = {
+    "rawResult",
+    "turns",
+    "items",
+    "inputTranscript",
+    "activeTranscript",
+}
+
+
+def sealed_direct_thought(key: str, value: Any) -> dict[str, Any]:
+    length: int | None = None
+    if isinstance(value, (list, str, dict)):
+        length = len(value)
+    sealed: dict[str, Any] = {
+        "sealed": True,
+        "key": key,
+        "reason": (
+            "Operator-safe dogfood views use projected findings and audit "
+            "receipts; direct agent transcript/thought payloads stay sealed "
+            "unless the user explicitly requests forensic debugging."
+        ),
+    }
+    if length is not None:
+        sealed["size"] = length
+    return sealed
+
+
+def sanitize_for_operator(value: Any) -> Any:
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            if key in SEALED_DIRECT_THOUGHT_KEYS:
+                sanitized[key] = sealed_direct_thought(key, item)
+            else:
+                sanitized[key] = sanitize_for_operator(item)
+        return sanitized
+    if isinstance(value, list):
+        return [sanitize_for_operator(item) for item in value]
+    return value
 
 
 def maybe(value: Any, fallback: str = "none") -> str:
@@ -245,6 +284,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ephemeral=args.ephemeral,
         )
 
+    status = sanitize_for_operator(status)
     if args.result is not None:
         result_path = args.result.resolve()
         result_path.parent.mkdir(parents=True, exist_ok=True)
@@ -264,7 +304,7 @@ def main() -> int:
     parser.add_argument("--thread-id")
     parser.add_argument("--cwd", type=Path, default=ROOT)
     parser.add_argument("--ephemeral", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--json", action="store_true", help="Print raw collected JSON.")
+    parser.add_argument("--json", action="store_true", help="Print operator-safe collected JSON.")
     parser.add_argument("--result", type=Path)
     parser.add_argument("--transcript", type=Path, default=DEFAULT_TRANSCRIPT)
     parser.add_argument("--stderr", type=Path, default=DEFAULT_STDERR)

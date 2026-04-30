@@ -12,6 +12,7 @@ from typing import Any
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
+from epiphany_mvp_status import sanitize_for_operator
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase5_smoke import require
@@ -160,14 +161,15 @@ def run_live_specialist(args: argparse.Namespace) -> dict[str, Any]:
             role_results.append(
                 {
                     "roleId": role_id,
-                    "launch": launch,
+                    "launch": sanitize_for_operator(launch),
                     "seenStatuses": seen_statuses,
-                    "result": result,
+                    "result": sanitize_for_operator(result),
                 }
             )
 
         final_status = collect_status(client, thread_id=thread_id, cwd=workspace, ephemeral=True)
-        final_rendered = render_status(final_status)
+        operator_final_status = sanitize_for_operator(final_status)
+        final_rendered = render_status(operator_final_status)
 
     summary = {
         "objective": "Run a real Epiphany role specialist through roleLaunch, agent_jobs, report_agent_job_result, and roleResult.",
@@ -176,18 +178,26 @@ def run_live_specialist(args: argparse.Namespace) -> dict[str, Any]:
         "threadId": thread_id,
         "workspace": str(workspace),
         "roles": role_results,
-        "finalStatus": final_status,
+        "finalStatus": operator_final_status,
         "artifactManifest": [
             "live-specialist-summary.json",
             "epiphany-final-status.json",
             "epiphany-final-status.txt",
-            "epiphany-transcript.jsonl",
-            "epiphany-server.stderr.log",
+        ],
+        "sealedArtifactManifest": [
+            {
+                "path": "epiphany-transcript.jsonl",
+                "reason": "sealed worker transcript; do not read during normal supervision",
+            },
+            {
+                "path": "epiphany-server.stderr.log",
+                "reason": "sealed app-server diagnostics; inspect only for explicit debugging",
+            },
         ],
     }
 
     write_json(artifact_dir / "live-specialist-summary.json", summary)
-    write_json(artifact_dir / "epiphany-final-status.json", final_status)
+    write_json(artifact_dir / "epiphany-final-status.json", operator_final_status)
     write_text(artifact_dir / "epiphany-final-status.txt", final_rendered)
     return summary
 

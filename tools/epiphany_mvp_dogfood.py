@@ -9,6 +9,7 @@ from typing import Any
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
+from epiphany_mvp_status import sanitize_for_operator
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase5_smoke import require
@@ -169,7 +170,7 @@ def run_vanilla_reference(args: argparse.Namespace, artifact_dir: Path, workspac
     write_text(
         artifact_dir / "comparison.md",
         "# Dogfood Comparison\n\n"
-        "Epiphany run produced typed state, role-lane findings, CRRC drift detection, reorient acceptance, rendered snapshots, and JSON-RPC transcript artifacts.\n\n"
+        "Epiphany run produced typed state, role-lane findings, CRRC drift detection, reorient acceptance, rendered snapshots, and sealed JSON-RPC transcript artifacts.\n\n"
         "Vanilla reference produced a single untyped review turn over the same bounded workspace.\n\n"
         "Primary product signal: Epiphany makes lane ownership, checkpoint state, drift, and review gates inspectable as structured artifacts. Vanilla Codex can still solve the tiny source question, but it does not produce durable typed role/CRRC state unless the operator asks for it manually.\n",
     )
@@ -193,7 +194,8 @@ def snapshot(
     label: str,
 ) -> dict[str, Any]:
     status = collect_status(client, thread_id=thread_id, cwd=cwd, ephemeral=True)
-    return {"label": label, "status": status, "rendered": render_status(status)}
+    operator_status = sanitize_for_operator(status)
+    return {"label": label, "status": operator_status, "rendered": render_status(operator_status)}
 
 
 def launch_role(
@@ -350,7 +352,8 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
             final_status["crrc"]["recommendation"]["action"] == "regatherManually",
             "accepted regather findings should not be recommended for acceptance again",
         )
-        final_rendered = render_status(final_status)
+        operator_final_status = sanitize_for_operator(final_status)
+        final_rendered = render_status(operator_final_status)
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
 
@@ -368,43 +371,61 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
             "bindingId": MODELING_BINDING_ID,
             "backendJobId": modeling_launch["job"]["backendJobId"],
             "resultStatus": modeling_result["status"],
-            "payload": modeling_payload,
+            "payload": sanitize_for_operator(modeling_payload),
         },
         "verification": {
             "revision": verification_launch["revision"],
             "bindingId": VERIFICATION_BINDING_ID,
             "backendJobId": verification_launch["job"]["backendJobId"],
             "resultStatus": verification_result["status"],
-            "payload": verification_payload,
+            "payload": sanitize_for_operator(verification_payload),
         },
         "crrc": {
             "driftDecision": regather["decision"],
             "launchRevision": reorient_launch["revision"],
             "resultStatus": reorient_result["status"],
             "acceptedRevision": accepted["revision"],
-            "payload": reorient_payload,
+            "payload": sanitize_for_operator(reorient_payload),
         },
-        "finalRecommendation": final_status["crrc"]["recommendation"],
+        "finalRecommendation": operator_final_status["crrc"]["recommendation"],
         "vanillaReference": reference,
         "artifactManifest": [
             "epiphany-dogfood-summary.json",
             "epiphany-final-status.json",
             "epiphany-final-status.txt",
             "epiphany-snapshots.json",
-            "epiphany-transcript.jsonl",
-            "epiphany-server.stderr.log",
             "vanilla-reference-prompt.md",
             "vanilla-reference.md",
             "comparison.md",
         ],
+        "sealedArtifactManifest": [
+            {
+                "path": "epiphany-transcript.jsonl",
+                "reason": "sealed JSON-RPC audit trail; do not read during normal supervision",
+            },
+            {
+                "path": "epiphany-server.stderr.log",
+                "reason": "sealed app-server diagnostics; inspect only for explicit debugging",
+            },
+        ],
     }
     if reference.get("transcriptPath"):
-        summary["artifactManifest"].append(str(reference["transcriptPath"]))
+        summary["sealedArtifactManifest"].append(
+            {
+                "path": str(reference["transcriptPath"]),
+                "reason": "sealed vanilla-reference transcript; inspect only for explicit comparison debugging",
+            }
+        )
     if reference.get("stderrPath"):
-        summary["artifactManifest"].append(str(reference["stderrPath"]))
+        summary["sealedArtifactManifest"].append(
+            {
+                "path": str(reference["stderrPath"]),
+                "reason": "sealed vanilla-reference diagnostics; inspect only for explicit debugging",
+            }
+        )
 
     write_json(artifact_dir / "epiphany-snapshots.json", snapshots)
-    write_json(artifact_dir / "epiphany-final-status.json", final_status)
+    write_json(artifact_dir / "epiphany-final-status.json", operator_final_status)
     write_text(artifact_dir / "epiphany-final-status.txt", final_rendered)
     write_json(artifact_dir / "epiphany-dogfood-summary.json", summary)
     write_json(
@@ -412,10 +433,11 @@ def run_dogfood(args: argparse.Namespace) -> dict[str, Any]:
         {
             "artifactDir": str(artifact_dir),
             "files": summary["artifactManifest"],
+            "sealedFiles": summary["sealedArtifactManifest"],
             "notes": [
-                "transcript contains JSON-RPC request/response audit trail",
-                "stderr captures app-server diagnostics",
-                "snapshots preserve rendered and raw status at each dogfood checkpoint",
+                "sealed transcripts contain JSON-RPC request/response audit trails",
+                "sealed stderr files capture app-server diagnostics",
+                "snapshots preserve rendered and operator-safe status at each dogfood checkpoint",
                 "comparison.md states whether the optional vanilla reference actually ran",
             ],
         },

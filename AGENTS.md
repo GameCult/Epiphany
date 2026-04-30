@@ -104,6 +104,13 @@ operator/supervisor, not the implementation worker.
 
 - Use Epiphany's coordinator, GUI, fixed role lanes, and artifact bundles to
   drive target-repo work.
+- Consume only operator-safe projections: coordinator actions, role/reorient
+  statuses, structured finding summaries, reviewed state patches, rendered
+  snapshots, and artifact manifests.
+- Do not read raw worker transcripts, full turn logs, direct worker messages,
+  `rawResult` payloads, or other agent-thought streams during normal dogfood.
+  Those are sealed forensic artifacts. Open them only when the user explicitly
+  asks for debugging that cannot be done from projected findings.
 - Do not edit, stage, or commit the target repo directly unless the user
   explicitly authorizes a supervisor intervention.
 - If a supervisor intervention is authorized, label it as such in the audit
@@ -112,6 +119,9 @@ operator/supervisor, not the implementation worker.
 - If direct target-repo implementation happens by accident, stop immediately,
   mark the run contaminated, preserve or discard only the supervisor's own
   uncommitted edits as appropriate, and resume through the Epiphany lanes.
+- If a direct-thought artifact is accidentally read, stop immediately, mark the
+  run contaminated for supervision purposes, and continue from sealed
+  projections instead of letting the worker's stream steer the supervisor.
 
 ## Verification Guardrails
 

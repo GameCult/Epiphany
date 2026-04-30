@@ -11,6 +11,7 @@ from typing import Any
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
+from epiphany_mvp_status import sanitize_for_operator
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase5_smoke import require
@@ -307,7 +308,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                 }
 
             snapshot_name = f"step-{index:02d}-{action}.txt"
-            write_text(artifact_dir / snapshot_name, render_status(status))
+            write_text(artifact_dir / snapshot_name, render_status(sanitize_for_operator(status)))
             snapshots.append(snapshot_name)
 
             step: dict[str, Any] = {
@@ -337,10 +338,18 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     expected_revision=revision,
                     max_runtime_seconds=args.max_runtime_seconds,
                 )
-                step["events"].append({"type": "roleLaunch", "roleId": "modeling", "launch": launch})
+                step["events"].append(
+                    {
+                        "type": "roleLaunch",
+                        "roleId": "modeling",
+                        "launch": sanitize_for_operator(launch),
+                    }
+                )
                 completed = maybe_complete_role_backend(args, launch, role_id="modeling")
                 if completed is not None:
-                    step["events"].append({"type": "testCompleteBackend", "payload": completed})
+                    step["events"].append(
+                        {"type": "testCompleteBackend", "payload": sanitize_for_operator(completed)}
+                    )
                 result = wait_for_role_result(
                     client,
                     thread_id=thread_id,
@@ -348,7 +357,13 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     timeout_seconds=args.timeout_seconds,
                     poll_seconds=args.poll_seconds,
                 )
-                step["events"].append({"type": "roleResult", "roleId": "modeling", "result": result})
+                step["events"].append(
+                    {
+                        "type": "roleResult",
+                        "roleId": "modeling",
+                        "result": sanitize_for_operator(result),
+                    }
+                )
                 if not args.auto_review:
                     final_action = {"action": "reviewModelingResult", "reason": result.get("note")}
                     append_jsonl(steps_path, step)
@@ -364,10 +379,18 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     expected_revision=revision,
                     max_runtime_seconds=args.max_runtime_seconds,
                 )
-                step["events"].append({"type": "roleLaunch", "roleId": "verification", "launch": launch})
+                step["events"].append(
+                    {
+                        "type": "roleLaunch",
+                        "roleId": "verification",
+                        "launch": sanitize_for_operator(launch),
+                    }
+                )
                 completed = maybe_complete_role_backend(args, launch, role_id="verification")
                 if completed is not None:
-                    step["events"].append({"type": "testCompleteBackend", "payload": completed})
+                    step["events"].append(
+                        {"type": "testCompleteBackend", "payload": sanitize_for_operator(completed)}
+                    )
                 result = wait_for_role_result(
                     client,
                     thread_id=thread_id,
@@ -376,7 +399,11 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     poll_seconds=args.poll_seconds,
                 )
                 step["events"].append(
-                    {"type": "roleResult", "roleId": "verification", "result": result}
+                    {
+                        "type": "roleResult",
+                        "roleId": "verification",
+                        "result": sanitize_for_operator(result),
+                    }
                 )
                 if not args.auto_review:
                     final_action = {"action": "reviewVerificationResult", "reason": result.get("note")}
@@ -392,17 +419,19 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     expected_revision=revision,
                     max_runtime_seconds=args.max_runtime_seconds,
                 )
-                step["events"].append({"type": "reorientLaunch", "launch": launch})
+                step["events"].append({"type": "reorientLaunch", "launch": sanitize_for_operator(launch)})
                 completed = maybe_complete_reorient_backend(args, launch)
                 if completed is not None:
-                    step["events"].append({"type": "testCompleteBackend", "payload": completed})
+                    step["events"].append(
+                        {"type": "testCompleteBackend", "payload": sanitize_for_operator(completed)}
+                    )
                 result = wait_for_reorient_result(
                     client,
                     thread_id=thread_id,
                     timeout_seconds=args.timeout_seconds,
                     poll_seconds=args.poll_seconds,
                 )
-                step["events"].append({"type": "reorientResult", "result": result})
+                step["events"].append({"type": "reorientResult", "result": sanitize_for_operator(result)})
                 if not args.auto_review:
                     final_action = {"action": "reviewReorientResult", "reason": result.get("note")}
                     append_jsonl(steps_path, step)
@@ -416,12 +445,14 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     append_jsonl(steps_path, step)
                     continue
                 compact = client.send("thread/compact/start", {"threadId": thread_id})
-                step["events"].append({"type": "compactStart", "response": compact})
+                step["events"].append({"type": "compactStart", "response": sanitize_for_operator(compact)})
                 try:
                     notification = client.wait_for_notification(
                         "thread/compacted", timeout=args.timeout_seconds
                     )
-                    step["events"].append({"type": "compacted", "notification": notification})
+                    step["events"].append(
+                        {"type": "compacted", "notification": sanitize_for_operator(notification)}
+                    )
                 except TimeoutError as exc:
                     step["events"].append({"type": "compactWaitTimeout", "error": str(exc)})
                     final_action = {
@@ -431,7 +462,7 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                     append_jsonl(steps_path, step)
                     break
                 resumed = client.send("thread/resume", {"threadId": thread_id})
-                step["events"].append({"type": "resume", "response": resumed})
+                step["events"].append({"type": "resume", "response": sanitize_for_operator(resumed)})
                 append_jsonl(steps_path, step)
                 continue
 
@@ -444,8 +475,11 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
             final_status = collect_coordinator_status(
                 client, thread_id=thread_id, cwd=cwd, ephemeral=args.ephemeral
             )
-        final_rendered = render_status(final_status)
+        operator_final_status = sanitize_for_operator(final_status)
+        final_rendered = render_status(operator_final_status)
 
+    operator_steps = sanitize_for_operator(steps)
+    operator_final_action = sanitize_for_operator(final_action)
     summary = {
         "objective": "Coordinate the Epiphany MVP lanes over existing app-server APIs.",
         "artifactDir": str(artifact_dir),
@@ -453,27 +487,35 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
         "workspace": str(cwd),
         "threadId": final_status["threadId"] if final_status else args.thread_id,
         "mode": args.mode,
-        "steps": steps,
+        "steps": operator_steps,
         "snapshots": snapshots,
-        "finalAction": final_action,
-        "finalStatus": final_status,
+        "finalAction": operator_final_action,
+        "finalStatus": operator_final_status,
         "artifactManifest": [
             "coordinator-summary.json",
             "coordinator-steps.jsonl",
             "coordinator-final-status.json",
             "coordinator-final-status.txt",
             "coordinator-final-action.txt",
-            "epiphany-transcript.jsonl",
-            "epiphany-server.stderr.log",
             *snapshots,
+        ],
+        "sealedArtifactManifest": [
+            {
+                "path": "epiphany-transcript.jsonl",
+                "reason": "sealed JSON-RPC audit trail; do not read during normal supervision",
+            },
+            {
+                "path": "epiphany-server.stderr.log",
+                "reason": "sealed app-server diagnostics; inspect only for explicit debugging",
+            },
         ],
     }
     write_json(artifact_dir / "coordinator-summary.json", summary)
-    write_json(artifact_dir / "coordinator-final-status.json", final_status)
+    write_json(artifact_dir / "coordinator-final-status.json", operator_final_status)
     write_text(artifact_dir / "coordinator-final-status.txt", final_rendered)
     write_text(
         artifact_dir / "coordinator-final-action.txt",
-        json.dumps(final_action, indent=2, ensure_ascii=False) + "\n",
+        json.dumps(operator_final_action, indent=2, ensure_ascii=False) + "\n",
     )
     return summary
 

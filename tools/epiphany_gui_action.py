@@ -12,6 +12,7 @@ from typing import Any
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
+from epiphany_mvp_status import sanitize_for_operator
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase6_reorient_launch_smoke import BINDING_ID as REORIENT_BINDING_ID
@@ -307,16 +308,29 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
         assert response is not None
         after = collect_status(client, thread_id=thread_id, cwd=cwd, ephemeral=True)
 
-    write_json(artifact_dir / "before-status.json", before)
-    write_json(artifact_dir / "action-response.json", response)
-    write_json(artifact_dir / "after-status.json", after)
-    write_text(artifact_dir / "after-status.txt", render_status(after))
+    operator_before = sanitize_for_operator(before)
+    operator_response = sanitize_for_operator(response)
+    operator_after = sanitize_for_operator(after)
+    write_json(artifact_dir / "before-status.json", operator_before)
+    write_json(artifact_dir / "action-response.json", operator_response)
+    write_json(artifact_dir / "after-status.json", operator_after)
+    write_text(artifact_dir / "after-status.txt", render_status(operator_after))
     result = {
         "action": args.action,
         "artifactPath": str(artifact_dir),
         "summary": summary,
         "threadId": thread_id,
-        "response": response,
+        "response": operator_response,
+        "sealedArtifactManifest": [
+            {
+                "path": "transcript.jsonl",
+                "reason": "sealed JSON-RPC audit trail; do not read during normal supervision",
+            },
+            {
+                "path": "server.stderr.log",
+                "reason": "sealed app-server diagnostics; inspect only for explicit debugging",
+            },
+        ],
     }
     write_json(artifact_dir / "gui-action-summary.json", result)
     return result

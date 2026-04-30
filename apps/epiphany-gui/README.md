@@ -58,3 +58,9 @@ The bounded buttons are intentionally narrow:
   lane APIs and write GUI action bundles under `.epiphany-gui/actions`.
 - **Launch/Read/Accept Reorient** calls the fixed reorient-worker APIs.
   Acceptance stays disabled until a completed reorient result is present.
+
+Raw transcripts, stderr logs, full turn logs, direct worker messages, and
+`rawResult` payloads are sealed forensic artifacts. The operator console should
+use projected status, finding summaries, state patches, coordinator
+recommendations, and manifests by default; open sealed artifacts only for
+explicit debugging.
