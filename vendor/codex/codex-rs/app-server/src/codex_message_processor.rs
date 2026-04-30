@@ -14034,6 +14034,7 @@ fn map_epiphany_coordinator(
     }) && matches!(
         signals.modeling_result_status,
         ThreadEpiphanyRoleResultStatus::MissingBinding
+            | ThreadEpiphanyRoleResultStatus::BackendUnavailable
             | ThreadEpiphanyRoleResultStatus::BackendMissing
             | ThreadEpiphanyRoleResultStatus::Cancelled
             | ThreadEpiphanyRoleResultStatus::Failed
@@ -14070,6 +14071,7 @@ fn map_epiphany_coordinator(
     }) && matches!(
         signals.verification_result_status,
         ThreadEpiphanyRoleResultStatus::MissingBinding
+            | ThreadEpiphanyRoleResultStatus::BackendUnavailable
             | ThreadEpiphanyRoleResultStatus::BackendMissing
             | ThreadEpiphanyRoleResultStatus::Cancelled
             | ThreadEpiphanyRoleResultStatus::Failed
@@ -19583,6 +19585,25 @@ mod tests {
         assert_eq!(
             map_epiphany_coordinator_automation_action(&launch_modeling),
             EpiphanyCoordinatorAutomationAction::None
+        );
+
+        let modeling_backend_unavailable = coordinator_signals(
+            ThreadEpiphanyCrrcAction::Continue,
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+            ThreadEpiphanyRoleResultStatus::MissingBinding,
+        );
+        let relaunch_modeling = map_epiphany_coordinator(
+            ThreadEpiphanyReorientStateStatus::Ready,
+            true,
+            &pressure,
+            &recommendation,
+            &roles,
+            &modeling_backend_unavailable,
+        );
+        assert_eq!(
+            relaunch_modeling.action,
+            ThreadEpiphanyCoordinatorAction::LaunchModeling
         );
 
         let modeling_done = coordinator_signals(
