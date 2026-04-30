@@ -255,7 +255,15 @@ artifacts. On this machine Aetheria is correctly blocked: only Unity
 The detailed environment plan now lives in
 `notes/epiphany-rider-unity-integration-plan.md`. Its opinionated cut is Rider
 as the IDE/source-context organ, Unity as the editor/runtime fact organ, and
-Epiphany as the durable coordinator/Self.
+Epiphany as the durable coordinator/Self. The product workflow is now framed as
+three integrated surfaces: Rider is the human code view for repo state, source
+tree, diffs, diagnostics, and code refs; Epiphany GUI is the agent dashboard
+for objectives, specialist lanes, logs/artifacts, persisted state, and
+graph/control-flow views; Unity is the pinned runtime environment for tests,
+probes, scene configuration, assets, shaders, and play/edit-mode evidence. The
+adjacent EpiphanyGraph React viewer is the preferred seed for GUI graph
+diagramming because it consumes typed `graphs.architecture`,
+`graphs.dataflow`, and `graphs.links` directly.
 
 ## Phase 6 Direction
 
@@ -263,7 +271,7 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Build the Rider+Unity environment plan before the next Aetheria implementation dogfood run: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, Rider context bridge, then Rider plugin MVP.
+1. Build the three-pronged Rider/Epiphany GUI/Unity workflow before the next Aetheria implementation dogfood run: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, then Rider plugin MVP.
 2. Use the next dogfood run to test the bridge-equipped loop, not to discover again that Epiphany cannot prove runtime/editor assumptions from source inspection alone.
 3. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces once the bridges exist.
 4. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.

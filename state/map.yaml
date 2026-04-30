@@ -12,9 +12,9 @@ objective:
     explicit typed models of the codebase, active goal, evidence, and change
     machinery they are working on.
   current: >
-    Dogfood the local Tauri v2 + React operator GUI now that it can prepare a
-    durable Epiphany checkpoint, run coordinator/status artifacts, and drive the
-    fixed modeling, verification, and reorient lane controls over app-server.
+    Build the three-pronged Rider/Epiphany GUI/Unity development workflow so
+    the next Aetheria run has a code view, agent dashboard, and runtime
+    evidence path instead of source-only guesswork.
 
 constraints:
   - No frontier-scale training budget.
@@ -66,6 +66,7 @@ active_subgoals:
   - Use `tools/epiphany_agent_telemetry.py` and generated `agent-function-telemetry.json` files to inspect behavior shape without opening sealed transcripts.
   - Treat repeated no-diff implementation turns as an MVP blocker, not success. A bounded implementation pass must leave a reviewable workspace diff or an explicit reviewable failure artifact before dogfood can be called healthy.
   - Build the Rider and Unity bridges before the next Aetheria implementation dogfood run: named Unity bridge operations, Aetheria-side Unity editor probes, GUI Environment panel, Rider context bridge, and Rider plugin MVP.
+  - Treat the target workflow as three integrated surfaces: Rider is the human code/diff view, Epiphany GUI is the agent dashboard and persisted-state graph view, and Unity is the pinned runtime/test/scene environment.
   - Use `notes/epiphany-rider-unity-integration-plan.md` as the source-grounded plan for Rider-as-IDE and Unity-as-editor/runtime integration seams.
 
 accepted_design:
@@ -126,6 +127,8 @@ accepted_design:
   - `tools/epiphany_agent_telemetry.py` derives operator-safe function/API telemetry from sealed app-server transcripts so the supervisor can see calls, statuses, paths, and counts without reading direct thoughts.
   - Editor/runtime verification is now part of the MVP product boundary for engine repos: `tools/epiphany_unity_bridge.py` is the first controlled bridge, resolving the project-pinned Unity editor, refusing wrong or missing versions, running explicit batch/probe commands only through the exact editor, and writing inspection/command/log artifacts for evidence.
   - Rider and Unity are environment organs, not sources of truth: Rider should expose IDE/source context, diagnostics, navigation, and changed ranges; Unity should expose pinned-editor runtime facts, compilation, tests, probes, assets, scenes, and logs; Epiphany remains the durable Self that coordinates, records, and reviews.
+  - The product architecture is three-pronged: Rider is the code view for human inspection of repo state, source tree, diffs, diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives, specialist lane state, logs/artifacts, persisted typed state, and graph/control-flow views; Unity is the runtime environment for pinned tests, probes, scene configuration, assets, shaders, and play/edit-mode evidence.
+  - The adjacent EpiphanyGraph React viewer is the preferred seed for GUI graph/control-flow diagramming because it consumes `graphs.architecture`, `graphs.dataflow`, and `graphs.links` directly and exposes node/edge/code-ref inspection with machine-readable graph data behind the visual layout.
   - If the agent's persistent instructions, memory, workflow, or state shape are making it less coherent, slower to rehydrate, less honest, or more likely to build Jenga, the agent should ask the user to change it.
   - Epiphany should make compaction less like death and more like sleep: bank the fire before the dark, so the next waking thing finds coals instead of ash and can meaningfully resume the pattern instead of merely continuing the task.
 
@@ -188,5 +191,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident proved the next blocker is environment access, so `notes/epiphany-rider-unity-integration-plan.md` now governs the bridge-building pass before the next Aetheria dogfood run.
-  next_action: Implement the Rider+Unity integration plan before further Aetheria implementation dogfood: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, Rider context bridge, then Rider plugin MVP. The next dogfood run should happen only after Epiphany can gather Rider/source context and Unity/editor runtime evidence through auditable bridges. Do not let implementation workers invoke Unity directly; use bridge artifacts as evidence of either a pinned-editor run or a missing-runtime blocker. Do not inspect raw worker transcripts or `rawResult` payloads unless the user explicitly requests forensic debugging.
+  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident proved the next blocker is environment access, so `notes/epiphany-rider-unity-integration-plan.md` now governs a three-pronged bridge-building pass: Rider code view, Epiphany GUI agent dashboard, and Unity runtime environment.
+  next_action: Implement the three-pronged Rider/Epiphany GUI/Unity workflow before further Aetheria implementation dogfood: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, then Rider plugin MVP. The next dogfood run should happen only after Epiphany can gather Rider/source context and Unity/editor runtime evidence through auditable bridges. Do not let implementation workers invoke Unity directly; use bridge artifacts as evidence of either a pinned-editor run or a missing-runtime blocker. Do not inspect raw worker transcripts or `rawResult` payloads unless the user explicitly requests forensic debugging.

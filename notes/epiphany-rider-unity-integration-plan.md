@@ -33,6 +33,22 @@ The plan assumes current public seams rather than folklore:
 These seams are enough. We do not need to build a magical all-knowing IDE worm.
 We need a few sober pipes that tell the truth.
 
+Local graph-view grounding:
+
+- The adjacent `E:\Projects\EpiphanyGraph\web\epiphany-graph-viewer` package
+  already exports a React `EpiphanyGraphViewer` component for the typed
+  Epiphany graph state shape:
+  - `graphs.architecture`
+  - `graphs.dataflow`
+  - `graphs.links`
+- That viewer provides `elkjs` layout, zoom/pan, zoom-gated detail, node/edge
+  inspection, typed architecture/dataflow cross-link browsing, validation
+  issues, and an `onCodeRefSelect` callback.
+
+That is the right seed for Epiphany GUI graph and control-flow diagramming.
+Do not reinvent the graph viewer in the dashboard unless the existing component
+fails a concrete product need.
+
 ## Design Thesis
 
 Rider and Unity should not become Epiphany's brain.
@@ -60,6 +76,121 @@ No hidden source of truth. No autonomous IDE macro circus. No Unity process
 summoned from PATH because somebody got enthusiastic. Tiny buttons, hard
 receipts.
 
+## Three-Pronged Development Architecture
+
+The practical product shape is three tightly integrated panes over one
+development workflow:
+
+```mermaid
+flowchart LR
+    Human["Human operator"]
+    Rider["Rider\nCode view"]
+    GUI["Epiphany GUI\nAgent dashboard"]
+    Unity["Unity\nRuntime environment"]
+    Epiphany["Epiphany app-server/core\nSelf, memory, coordinator"]
+    State["Typed state + evidence + artifacts"]
+
+    Human --> GUI
+    Human --> Rider
+    Human --> Unity
+    GUI <--> Epiphany
+    Rider <--> Epiphany
+    Unity <--> Epiphany
+    Epiphany <--> State
+    GUI <--> State
+```
+
+### Rider: Code View
+
+Rider is the place where the human inspects the actual repository body.
+
+It should expose:
+
+- source tree and solution/project structure
+- current file, selection, symbol, and caret context
+- diffs, changed files, changed ranges, branch/changelist facts
+- diagnostics and inspections
+- navigation from Epiphany findings to `path:line` code refs
+- human review of source changes before they are trusted
+
+Rider's job is not to become the agent dashboard. It is the code view: the
+human's high-fidelity window into what is really in the repo. When Epiphany
+needs source context, Rider can send a selected slice. When the human needs to
+audit a claim, Rider opens the file, diff, or symbol. The code body stays
+visible instead of becoming a rumor in a chat transcript.
+
+### Epiphany GUI: Agent Dashboard
+
+The Epiphany GUI is the agent dashboard and operator control room.
+
+It should let the user:
+
+- set or revise the objective
+- inspect coordinator/CRRC recommendations
+- inspect modeling/checkpoint, implementation, verification/review, and
+  reorientation lane state
+- launch bounded specialist work through existing authority surfaces
+- review findings and explicit acceptance gates
+- view sealed logs and artifact manifests without opening raw worker thought
+  streams
+- inspect persisted typed state: objective, graph, frontier, checkpoint,
+  scratch, evidence, jobs, and environment status
+- visualize architecture/dataflow/control-flow state with the
+  `EpiphanyGraphViewer` React component from the adjacent EpiphanyGraph repo
+
+The GUI is not a second IDE and not a source of truth. It is the living
+dashboard over Epiphany's durable Self. It should make agent state, role
+ownership, evidence gaps, graph shape, and next safe actions visible enough
+that the user can operate the system without becoming a terminal hostage.
+
+### Unity: Runtime Environment
+
+Unity is the living runtime environment.
+
+It should expose:
+
+- project-pinned editor identity and package state
+- asset database refresh and compilation status
+- edit-mode and play-mode tests
+- scene, prefab, material, shader, and ScriptableObject facts
+- targeted runtime probes
+- logs, screenshots, probe JSON, and test results as artifacts
+- scene configuration inspection and explicit bridge-owned scene/probe actions
+
+Unity's job is to answer runtime questions. It is not the coordinator, not the
+IDE, and not a place where agents get to freehand process launches. Runtime
+truth comes from the pinned Unity bridge and its artifacts, or it does not
+count.
+
+### Full Workflow Contract
+
+The three panes should behave like one agent-enabled development surface:
+
+```text
+Human sets objective in Epiphany GUI
+-> Rider contributes source/diff/selection context
+-> modeling grows typed architecture/dataflow/control-flow state
+-> Epiphany GUI renders the graph, lanes, evidence, and next action
+-> implementation edits source through the normal coding harness
+-> Rider exposes the actual diff and diagnostics for inspection
+-> Unity bridge runs pinned compilation, probes, tests, and scene fact capture
+-> verifier reviews source + runtime evidence
+-> coordinator routes continue, regather, reorient, or review
+-> durable state records the accepted truth
+```
+
+Tight integration does not mean every tool can do everything. It means each
+surface does its own job cleanly and hands typed receipts to Epiphany:
+
+- Rider receipts are source/diff/diagnostic/context artifacts.
+- Epiphany GUI receipts are objective, lane, graph, evidence, and acceptance
+  records.
+- Unity receipts are compile/test/probe/runtime artifacts.
+
+The agent sees projected facts and asks for bounded operations. The human sees
+the code, the agent state, and the runtime truth without having to stitch
+together three half-lit rooms by hand. That is the product.
+
 ## Existing Baseline
 
 Already landed:
@@ -83,22 +214,27 @@ Current Aetheria truth:
 
 ## Architecture Overview
 
-The integration has four processes/surfaces:
+The integration has five processes/surfaces:
 
 ```text
 Rider Plugin (Kotlin/IntelliJ frontend)
   -> local Epiphany IPC client
+  -> source/diff/diagnostic/context artifacts
   -> Epiphany app-server / GUI action bridge
-  -> typed Epiphany state + artifacts
 
 Unity Editor Package (C# Editor assembly)
   -> JSON artifact writer / local bridge endpoint
-  -> Epiphany Unity bridge CLI
-  -> typed Epiphany state + artifacts
+  -> pinned Epiphany Unity bridge CLI
+  -> runtime/test/probe artifacts
 
 Epiphany GUI (Tauri/React)
   -> app-server APIs + artifact index
   -> operator actions and review gates
+  -> persisted state, specialist state, logs, and graph/control-flow diagrams
+
+Epiphany Graph Viewer (React package from EpiphanyGraph)
+  -> typed architecture/dataflow graph rendering
+  -> node/edge/code-ref inspection and cross-link browsing
 
 Epiphany core/app-server
   -> durable state, coordinator, CRRC, roles, graph/evidence, launch/readback
@@ -119,6 +255,7 @@ Rider may:
 - open files and navigate to code refs from Epiphany findings
 - expose diagnostics, inspections, solution/project metadata, changed ranges,
   and local VCS state as read-only facts
+- expose the human-auditable source tree and diffs for the active repo
 - run explicitly chosen IDE actions when the operator clicks them
 - display reviewable patches, findings, and artifact links
 
@@ -128,6 +265,7 @@ Rider must not:
 - silently apply code edits
 - launch arbitrary specialists
 - own durable Epiphany state
+- become the primary agent dashboard
 - replace the Tauri operator GUI until the plugin proves it has the missing
   ergonomics
 - read sealed worker transcripts or raw result payloads
@@ -161,6 +299,8 @@ Epiphany may:
 - ingest artifacts as evidence
 - route implementation back to modeling or verification when facts are stale
 - stop implementation when the editor/runtime bridge is blocked
+- render persisted state, specialist status, evidence, logs, and graph views in
+  the GUI
 
 Epiphany must not:
 
@@ -169,6 +309,7 @@ Epiphany must not:
 - infer Unity truth from source alone when the task depends on editor/runtime
   behavior
 - auto-promote semantic findings from IDE or Unity output
+- hide the real repo diff or runtime artifact behind polished dashboard copy
 
 ## Rider Integration
 
@@ -683,6 +824,34 @@ The GUI must make "Unity exact editor missing" visually impossible to miss.
 This is for the user, which is to say it is for us, because apparently we enjoy
 discovering old editors by summoning them from the basement.
 
+Add a dedicated **Graph** or **Map** view using the adjacent EpiphanyGraph
+viewer component:
+
+```tsx
+import { EpiphanyGraphViewer } from "@epiphanygraph/epiphany-graph-viewer";
+```
+
+The GUI should pass the persisted typed graph state directly:
+
+```ts
+{
+  architecture: epiphanyState.graphs.architecture,
+  dataflow: epiphanyState.graphs.dataflow,
+  links: epiphanyState.graphs.links
+}
+```
+
+Required behavior:
+
+- show architecture and dataflow/control-flow graph tabs or segmented controls
+- surface validation issues from malformed graph state
+- show selected node, edge, code refs, and linked architecture/dataflow nodes
+- call Rider/open-file integration from `onCodeRefSelect`
+- keep graph data machine-readable and queryable; the layout is a view, not the
+  truth
+- use focused subgraphs for dense regions rather than dumping a whole repo
+  hairball into the user's lap and calling it insight
+
 ## Dataflow Examples
 
 ### Source-Only Change
@@ -759,6 +928,16 @@ Rider changed ranges or git diff touches frontier files
 - Surface latest Unity bridge status and artifact.
 - Add buttons for named bridge operations.
 - Keep artifacts visible and sealed logs separate from summaries.
+
+### Slice 4b: GUI Graph Dashboard
+
+- Pull in or vendor the adjacent `@epiphanygraph/epiphany-graph-viewer`
+  component.
+- Render persisted `graphs.architecture`, `graphs.dataflow`, and `graphs.links`
+  in the Epiphany GUI.
+- Wire `onCodeRefSelect` to the Rider bridge/open-file path.
+- Add graph health and validation status near coordinator/modeling lane state.
+- Keep raw graph payloads accessible as artifacts or JSON for exact reasoning.
 
 ### Slice 5: Rider Bridge CLI
 

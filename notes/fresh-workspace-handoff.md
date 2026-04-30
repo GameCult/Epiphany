@@ -367,14 +367,23 @@ runtime execution until Unity `6000.1.10f1` is installed. The detailed
 next-environment plan now lives in
 `notes/epiphany-rider-unity-integration-plan.md`: Rider is the
 IDE/source-context organ, Unity is the editor/runtime fact organ, and Epiphany
-remains the durable coordinator/Self. Build the plan in slices before the next
-run: named Unity bridge operations, Aetheria-side Unity editor package probes,
-GUI Environment panel, Rider context bridge, and Rider plugin MVP. The next
-Aetheria dogfood pass should happen only after Epiphany can gather Rider/source
-context and Unity/editor runtime evidence through auditable bridges. The
-implementation lane may inspect source and may use bridge artifacts as evidence,
-but it must not launch Unity directly or use installed `6000.4.2f1` as a
-substitute. Read only operator-safe projections; do not open raw worker
+remains the durable coordinator/Self. The intended product workflow is
+three-pronged: Rider is the human code view for repo state, source tree, diffs,
+diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives,
+specialist lane state, logs/artifacts, persisted state, and graph/control-flow
+views; Unity is the pinned runtime environment for tests, probes, scene
+configuration, assets, shaders, and play/edit-mode evidence. Build that plan in
+slices before the next run: named Unity bridge operations, Aetheria-side Unity
+editor package probes, GUI Environment panel, EpiphanyGraph-backed GUI graph
+dashboard, Rider context bridge, and Rider plugin MVP. The adjacent
+`E:\Projects\EpiphanyGraph\web\epiphany-graph-viewer` component consumes
+`graphs.architecture`, `graphs.dataflow`, and `graphs.links` directly and is
+the preferred seed for GUI graph/control-flow diagramming. The next Aetheria
+dogfood pass should happen only after Epiphany can gather Rider/source context
+and Unity/editor runtime evidence through auditable bridges. The implementation
+lane may inspect source and may use bridge artifacts as evidence, but it must
+not launch Unity directly or use installed `6000.4.2f1` as a substitute. Read
+only operator-safe projections; do not open raw worker
 transcripts, direct worker messages, or `rawResult` payloads unless the user
 explicitly asks for forensic debugging. Use generated function/API telemetry
 for call-shape visibility without sungazing. CRRC is not a specialist-agent
