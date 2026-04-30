@@ -267,6 +267,7 @@ Rules now in force:
 - `tools/epiphany_prepare_compaction.py` is the pre-compaction persistence check; run it before and after imminent-compaction persistence passes.
 - this handoff is a compact re-entry packet.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.
+- `notes/epiphany-rider-unity-integration-plan.md` is the detailed Rider-as-IDE and Unity-as-editor/runtime integration plan.
 - `notes/epiphany-core-harness-surfaces.md` is the stable surface contract.
 - `notes/epiphany-current-algorithmic-map.md` is the source-grounded control-flow map.
 
@@ -362,19 +363,23 @@ bounded browser-fallback controls. A live bridge probe also proved
 
 The next real move is not more direct Aetheria implementation by the supervisor.
 The first Unity bridge is landed, and it correctly blocks Aetheria runtime
-execution until Unity `6000.1.10f1` is installed. Resume dogfood through
-Epiphany's GUI/coordinator/fixed lanes with the bridge in the loop: the
-implementation lane may inspect the source and may use bridge artifacts as
-evidence, but it must not launch Unity directly or use the installed
-`6000.4.2f1` editor as a substitute. Read only operator-safe projections; do
-not open raw worker transcripts, direct worker messages, or `rawResult`
-payloads unless the user explicitly asks for forensic debugging. Use generated
-function/API telemetry for call-shape visibility without sungazing. CRRC is not
-a specialist-agent persona; the reorient-worker it may launch is the
-specialist. Do not turn the coordinator into a broad hidden dispatcher,
-arbitrary marketplace, alternate job backend, automatic semantic acceptance
-path, target-repo implementation worker, direct-thought feed, random editor
-launcher, or GUI-as-source-of-truth.
+execution until Unity `6000.1.10f1` is installed. The detailed next-environment
+plan now lives in `notes/epiphany-rider-unity-integration-plan.md`: Rider is
+the IDE/source-context organ, Unity is the editor/runtime fact organ, and
+Epiphany remains the durable coordinator/Self. Resume dogfood through
+Epiphany's GUI/coordinator/fixed lanes with the bridge in the loop; then build
+the plan in slices: named Unity bridge operations, Aetheria-side Unity editor
+package probes, GUI Environment panel, Rider context bridge, and Rider plugin
+MVP. The implementation lane may inspect source and may use bridge artifacts as
+evidence, but it must not launch Unity directly or use installed `6000.4.2f1`
+as a substitute. Read only operator-safe projections; do not open raw worker
+transcripts, direct worker messages, or `rawResult` payloads unless the user
+explicitly asks for forensic debugging. Use generated function/API telemetry
+for call-shape visibility without sungazing. CRRC is not a specialist-agent
+persona; the reorient-worker it may launch is the specialist. Do not turn the
+coordinator into a broad hidden dispatcher, arbitrary marketplace, alternate
+job backend, automatic semantic acceptance path, target-repo implementation
+worker, direct-thought feed, random editor launcher, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,

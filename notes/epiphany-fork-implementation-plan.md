@@ -251,6 +251,11 @@ batch/quit/projectPath command wrapper, and writes inspection/command/log
 artifacts. On this machine Aetheria is correctly blocked: only Unity
 `6000.4.2f1` is installed.
 
+The detailed environment plan now lives in
+`notes/epiphany-rider-unity-integration-plan.md`. Its opinionated cut is Rider
+as the IDE/source-context organ, Unity as the editor/runtime fact organ, and
+Epiphany as the durable coordinator/Self.
+
 ## Phase 6 Direction
 
 Phase 6 should grow observable harness state outward from the typed spine.
@@ -258,9 +263,10 @@ Phase 6 should grow observable harness state outward from the typed spine.
 Useful candidates:
 
 1. Dogfood the first Unity editor/runtime bridge in the implementation lane. The bridge can inspect pins, refuse wrong/missing editors, and run exact-editor batch/probe commands; it still needs real Aetheria use before richer engine probes are justified.
-2. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces.
-3. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-4. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
+2. Build the Rider+Unity environment plan in slices: named Unity bridge operations, Aetheria-side Unity editor package probes, GUI Environment panel, Rider context bridge, then Rider plugin MVP.
+3. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces.
+4. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
+5. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
 
 Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
