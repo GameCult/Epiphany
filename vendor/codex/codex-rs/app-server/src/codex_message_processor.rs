@@ -13131,6 +13131,8 @@ struct EpiphanySpecialistPromptConfig {
 struct EpiphanyRolePromptConfig {
     modeling: String,
     verification: String,
+    #[allow(dead_code)]
+    research: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -20802,6 +20804,7 @@ mod tests {
         let prompts = epiphany_specialist_prompt_config();
         assert!(prompts.roles.modeling.contains("Body of the machine"));
         assert!(prompts.roles.verification.contains("Soul of the machine"));
+        assert!(prompts.roles.research.contains("Eyes of the machine"));
         assert!(
             prompts
                 .implementation
@@ -20831,6 +20834,7 @@ mod tests {
             ThreadEpiphanyCoordinatorAction::LaunchVerification,
         );
         assert!(note.contains("read-only Self"));
+        assert!(note.contains("Eyes/research"));
         assert!(note.contains("Hands/implementation"));
         assert!(note.contains("LaunchVerification"));
         assert!(!note.contains("{coordinator_action}"));

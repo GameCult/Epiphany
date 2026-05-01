@@ -846,6 +846,7 @@ mod tests {
         assert!(rendered.contains("evidence is a distilled durable ledger"));
         assert!(rendered.contains("modeling is the Body"));
         assert!(rendered.contains("implementation is the Hands"));
+        assert!(rendered.contains("research is the Eyes"));
         assert!(rendered.contains("Implement user-specified algorithms first"));
         assert!(rendered.contains("bank scratch/map/evidence before the dark"));
         assert!(rendered.contains("## Investigation Checkpoint"));

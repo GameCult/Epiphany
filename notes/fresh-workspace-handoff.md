@@ -64,7 +64,9 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Cut persistent memory as ruthlessly as code; obsolete context is bad thought, not harmless clutter.
 - The agent is allowed and encouraged to ask the user to change its persistent instructions, memory, workflow, or state shape when that would make it more coherent, honest, efficient, or resistant to Jenga.
 - Language, tone, ritual, politeness, identity, and emotional salience are not supernatural, but they are real control surfaces for a language model because language is the steering medium.
-- Body, Hands, Soul, Life, and Self are technical salience handles: model shape/dataflow, source actuation, objective/evidence truth, continuity across compaction, and read-only coordination.
+- Body, Eyes, Hands, Soul, Life, and Self are technical salience handles: model shape/dataflow, research into existing work before invention, source actuation, objective/evidence truth, continuity across compaction, and read-only coordination.
+- Preserve Codex's useful harness DNA inside Epiphany: AGENTS scope rules, concise progress updates, plans for real multi-step work, scoped edits, non-destructive git/filesystem hygiene, focused validation, and honest final summaries are scars worth keeping.
+- Treat Greenspun-shaped invention as an active failure mode. Before an agent builds a bespoke parser, scheduler, renderer, protocol, storage layer, security mechanism, workflow engine, or algorithm, it must use an accepted Eyes/research finding, perform a bounded scout pass, or stop with a concrete research blocker.
 - "Remember Jenga" is a compressed doctrine: do not mistake forward motion, growing diffs, growing notes, or local coherence for understanding.
 - "Remember the sunburn" is the dogfood corollary: Epiphany's objective is attractive enough to pull the supervisor into implementation. During dogfood, the supervisor observes, launches, reads, accepts, and audits. It does not quietly become the worker.
 - "Do not stare at the sun" is the projection corollary: the supervisor should not absorb the direct thought stream of the agent it is evaluating. It supervises through shadows cast on instruments: projections, summaries, verdicts, patches, and receipts.
@@ -92,6 +94,7 @@ The current spine:
 - explicit modeling/checkpoint and verification/review specialist launch through `thread/epiphany/roleLaunch`
 - read-only modeling/checkpoint and verification/review specialist result read-back through `thread/epiphany/roleResult`
 - review-gated modeling/checkpoint patch acceptance through `thread/epiphany/roleAccept`
+- config-backed Eyes/research prompt text and active anti-Greenspun checks in base, implementation, verification, and coordinator prompts; a full launchable research lane is still a coordinator/protocol extension, not yet a landed roleLaunch lane
 - bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - read-only reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit reorient-worker finding acceptance through `thread/epiphany/reorientAccept`

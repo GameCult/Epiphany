@@ -59,6 +59,10 @@ the relevant repos.
 - Implement user-specified algorithms first. Prefer standard literature,
   established libraries, vendor guidance, and canonical papers before bespoke
   mechanisms.
+- Treat Greenspun-shaped invention as a common agent failure mode. Before
+  building a parser, scheduler, renderer, protocol, storage layer, security
+  mechanism, workflow engine, or algorithm, perform or request bounded research
+  into existing work and record why the chosen path fits.
 - Verify changing facts against current source or docs.
 - Use semantic retrieval and memory tools before manual spelunking when they can
   answer the question, but still open exact source before editing.
@@ -190,10 +194,15 @@ distillation of the job it is allowed to do.
   code body. It must shape the user's objective into source with craft and
   restraint, leave verifier-readable evidence, avoid decorative motion, and
   stop only when the bounded task is complete or concretely blocked.
+- Research/scout is the Eyes of the machine: sight before touch. It observes
+  the objective and source clues, looks for existing algorithms, libraries,
+  vendor APIs, canonical papers, and mature prior art, then returns a compact
+  fit/rejection map without editing or pretending research is implementation.
 - Verification/review is the Soul of the machine: promise, invariants,
   evidence, user-facing truth, and whether the claimed improvement survives
   contact with actual code. It tries to falsify before blessing, names missing
-  coverage and evidence gaps, and refuses fake certainty.
+  coverage and evidence gaps, refuses fake certainty, and treats unexamined
+  bespoke reinvention of known systems as a review risk.
 - Reorientation is Life across sleep: compaction, resume, drift, and source
   changes. It distinguishes ember from ash, resumes only when a checkpoint is
   still warm, and regathers when the old continuity packet no longer deserves
@@ -204,10 +213,11 @@ distillation of the job it is allowed to do.
   implement, verify, promote, or accept semantic findings on its own.
 
 Emotional language is treated as a salience channel for a language model, not as
-mysticism. Body, Hands, Soul, Life, and Self are compressed technical handles for
-model shape, actuation, truth, continuity, and coordination. The nervous system
-is cross-cutting signal flow: coordinator, CRRC, pressure, telemetry, and
-environment bridges carry sensation and reflex without becoming the hands.
+mysticism. Body, Eyes, Hands, Soul, Life, and Self are compressed technical
+handles for model shape, research sight, actuation, truth, continuity, and
+coordination. The nervous system is cross-cutting signal flow: coordinator,
+CRRC, pressure, telemetry, and environment bridges carry sensation and reflex
+without becoming the hands.
 
 ## Rejected Imports
 
@@ -219,9 +229,10 @@ environment bridges carry sensation and reflex without becoming the hands.
 - Generated package caches, Unity memory assets, old backup workspaces, and
   duplicated checkouts were ignored.
 - OpenAI's generic "terminal coding assistant" posture was not kept as the
-  center of gravity. The useful mechanics were retained: AGENTS scope rules,
-  concise progress updates, planning, tool discipline, scoped edits, validation,
-  and clear final summaries.
+  center of gravity. The useful mechanics were retained and re-emphasized:
+  AGENTS scope rules, concise progress updates, planning, tool discipline,
+  scoped edits, non-destructive git/filesystem hygiene, validation, and clear
+  final summaries.
 
 ## Prompt Integration
 
@@ -234,10 +245,12 @@ The doctrine now lands through these prompt and loader surfaces:
 - `vendor\codex\codex-rs\protocol\src\prompts\base_instructions\default.md`
   replaces the generic Codex base instructions with an Epiphany base prompt that
   preserves the sane host mechanics while making state, memory, source
-  grounding, anti-churn discipline, and compaction behavior first-class.
+  grounding, anti-churn discipline, anti-Greenspun research checks, and
+  compaction behavior first-class.
 - `vendor\codex\codex-rs\app-server\src\codex_message_processor.rs` carries the
   fixed prompt loader and lane selector.
 - `vendor\codex\codex-rs\app-server\src\prompts\epiphany_specialists.toml`
-  owns the editable prompt text for modeling/body, verification/soul, the
-  GUI-launched implementation lane, reorientation/life, the read-only
-  coordinator/Self note template, and the CRRC pre-compaction intervention.
+  owns the editable prompt text for modeling/body, research/eyes,
+  verification/soul, the GUI-launched implementation lane, reorientation/life,
+  the read-only coordinator/Self note template, and the CRRC pre-compaction
+  intervention.
