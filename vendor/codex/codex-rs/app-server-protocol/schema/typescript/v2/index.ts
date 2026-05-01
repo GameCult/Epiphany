@@ -343,6 +343,7 @@ export type { ThreadEpiphanyJobStatus } from "./ThreadEpiphanyJobStatus";
 export type { ThreadEpiphanyJobsSource } from "./ThreadEpiphanyJobsSource";
 export type { ThreadEpiphanyJobsUpdatedNotification } from "./ThreadEpiphanyJobsUpdatedNotification";
 export type { ThreadEpiphanyJobsUpdatedSource } from "./ThreadEpiphanyJobsUpdatedSource";
+export type { ThreadEpiphanyPlanningSummary } from "./ThreadEpiphanyPlanningSummary";
 export type { ThreadEpiphanyPressure } from "./ThreadEpiphanyPressure";
 export type { ThreadEpiphanyPressureBasis } from "./ThreadEpiphanyPressureBasis";
 export type { ThreadEpiphanyPressureLevel } from "./ThreadEpiphanyPressureLevel";

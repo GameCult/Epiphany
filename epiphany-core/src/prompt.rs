@@ -11,6 +11,7 @@ use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
+use codex_protocol::protocol::EpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanyThreadState;
 use std::collections::HashSet;
@@ -23,6 +24,7 @@ const EDGE_LIMIT: usize = 2;
 const LINK_LIMIT: usize = 3;
 const OBSERVATION_LIMIT: usize = 3;
 const EVIDENCE_LIMIT: usize = 3;
+const PLANNING_LIMIT: usize = 3;
 const CODE_REF_LIMIT: usize = 2;
 const DIRTY_PATH_LIMIT: usize = 4;
 const EPIPHANY_STATE_INTRO: &str = include_str!("prompts/epiphany_state_intro.md");
@@ -34,6 +36,9 @@ pub fn render_epiphany_state(state: &EpiphanyThreadState) -> String {
     sections.push(render_overview(state));
     sections.push(EPIPHANY_DOCTRINE_SECTION.trim_end().to_string());
 
+    if let Some(planning) = render_planning(&state.planning) {
+        sections.push(planning);
+    }
     if let Some(subgoals) = render_subgoals(state) {
         sections.push(subgoals);
     }
@@ -117,6 +122,86 @@ fn render_subgoals(state: &EpiphanyThreadState) -> Option<String> {
     push_omitted_count(&mut lines, state.subgoals.len(), SUBGOAL_LIMIT, "subgoals");
 
     Some(format!("## Subgoals\n{}", lines.join("\n")))
+}
+
+fn render_planning(planning: &EpiphanyPlanningState) -> Option<String> {
+    if planning.is_empty() {
+        return None;
+    }
+
+    let mut lines = vec![format!(
+        "- Counts: {} captures, {} backlog items, {} roadmap streams, {} objective drafts",
+        planning.captures.len(),
+        planning.backlog_items.len(),
+        planning.roadmap_streams.len(),
+        planning.objective_drafts.len()
+    )];
+    lines.push(
+        "- Boundary: planning records are not the active objective until explicit human adoption."
+            .to_string(),
+    );
+
+    for draft in planning.objective_drafts.iter().take(PLANNING_LIMIT) {
+        lines.push(format!(
+            "- Objective draft `{}` [{}]: {}",
+            draft.id,
+            draft.status,
+            compact_text(&draft.title)
+        ));
+        if !draft.acceptance_criteria.is_empty() {
+            lines.push(format!(
+                "  acceptance: {}",
+                draft
+                    .acceptance_criteria
+                    .iter()
+                    .take(2)
+                    .map(|criterion| compact_text(criterion))
+                    .collect::<Vec<_>>()
+                    .join(" | ")
+            ));
+        }
+    }
+    push_omitted_count(
+        &mut lines,
+        planning.objective_drafts.len(),
+        PLANNING_LIMIT,
+        "objective drafts",
+    );
+
+    for item in planning.backlog_items.iter().take(PLANNING_LIMIT) {
+        lines.push(format!(
+            "- Backlog `{}` [{} / {} / {}]: {}",
+            item.id,
+            item.status,
+            item.priority.value,
+            item.horizon,
+            compact_text(&item.title)
+        ));
+    }
+    push_omitted_count(
+        &mut lines,
+        planning.backlog_items.len(),
+        PLANNING_LIMIT,
+        "backlog items",
+    );
+
+    for capture in planning.captures.iter().take(PLANNING_LIMIT) {
+        lines.push(format!(
+            "- Capture `{}` [{} via {}]: {}",
+            capture.id,
+            capture.status,
+            capture.source.kind,
+            compact_text(&capture.title)
+        ));
+    }
+    push_omitted_count(
+        &mut lines,
+        planning.captures.len(),
+        PLANNING_LIMIT,
+        "captures",
+    );
+
+    Some(format!("## Planning\n{}", lines.join("\n")))
 }
 
 fn render_invariants(state: &EpiphanyThreadState) -> Option<String> {

@@ -7871,6 +7871,97 @@
         ],
         "type": "object"
       },
+      "EpiphanyBacklogItem": {
+        "properties": {
+          "acceptance_sketch": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "duplicate_of": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "evidence_refs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "horizon": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lane_hints": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "priority": {
+            "$ref": "#/definitions/v2/EpiphanyPlanningPriority"
+          },
+          "product_area": {
+            "type": "string"
+          },
+          "source_refs": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyPlanningSourceRef"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "confidence",
+          "horizon",
+          "id",
+          "kind",
+          "priority",
+          "product_area",
+          "status",
+          "summary",
+          "title"
+        ],
+        "type": "object"
+      },
       "EpiphanyChurnState": {
         "properties": {
           "diff_pressure": {
@@ -8405,6 +8496,131 @@
         ],
         "type": "object"
       },
+      "EpiphanyObjectiveDraft": {
+        "properties": {
+          "acceptance_criteria": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dependencies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "evidence_required": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "lane_plan": {
+            "$ref": "#/definitions/v2/EpiphanyObjectiveDraftLanePlan"
+          },
+          "review_gates": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "$ref": "#/definitions/v2/EpiphanyObjectiveDraftScope"
+          },
+          "source_item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "lane_plan",
+          "scope",
+          "status",
+          "summary",
+          "title"
+        ],
+        "type": "object"
+      },
+      "EpiphanyObjectiveDraftLanePlan": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "eyes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hands": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imagination": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "life": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "soul": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "EpiphanyObjectiveDraftScope": {
+        "properties": {
+          "excludes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "includes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "EpiphanyObservation": {
         "properties": {
           "code_refs": {
@@ -8438,6 +8654,277 @@
           "status",
           "summary"
         ],
+        "type": "object"
+      },
+      "EpiphanyPlanningCapture": {
+        "properties": {
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "confidence": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/EpiphanyPlanningSourceRef"
+          },
+          "speaker": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "confidence",
+          "id",
+          "source",
+          "status",
+          "title"
+        ],
+        "type": "object"
+      },
+      "EpiphanyPlanningPriority": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "confidence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "effort": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "impact": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "unblocks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "urgency": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "rationale",
+          "value"
+        ],
+        "type": "object"
+      },
+      "EpiphanyPlanningSourceRef": {
+        "properties": {
+          "assignees": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "author": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "closed_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "database_id": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "external_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "imported_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_pull_request": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "issue_number": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "kind": {
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "milestone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "node_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "uri": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "EpiphanyPlanningState": {
+        "properties": {
+          "backlog_items": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyBacklogItem"
+            },
+            "type": "array"
+          },
+          "captures": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyPlanningCapture"
+            },
+            "type": "array"
+          },
+          "objective_drafts": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyObjectiveDraft"
+            },
+            "type": "array"
+          },
+          "roadmap_streams": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyRoadmapStream"
+            },
+            "type": "array"
+          },
+          "workspace_root": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "EpiphanyRetrievalShardSummary": {
@@ -8556,6 +9043,53 @@
           "indexing"
         ],
         "type": "string"
+      },
+      "EpiphanyRoadmapStream": {
+        "properties": {
+          "blocked_by": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "item_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "near_term_focus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "review_cadence": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "status",
+          "title"
+        ],
+        "type": "object"
       },
       "EpiphanyScratchPad": {
         "properties": {
@@ -8701,6 +9235,9 @@
               "$ref": "#/definitions/v2/EpiphanyObservation"
             },
             "type": "array"
+          },
+          "planning": {
+            "$ref": "#/definitions/v2/EpiphanyPlanningState"
           },
           "recent_evidence": {
             "items": {
@@ -15678,6 +16215,71 @@
         ],
         "type": "string"
       },
+      "ThreadEpiphanyPlanningSummary": {
+        "properties": {
+          "activeObjective": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "backlogItemCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "captureCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "draftObjectiveCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "githubIssueCaptureCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "objectiveDraftCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "pendingCaptureCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "readyBacklogItemCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          },
+          "roadmapStreamCount": {
+            "format": "uint32",
+            "minimum": 0.0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "backlogItemCount",
+          "captureCount",
+          "draftObjectiveCount",
+          "githubIssueCaptureCount",
+          "note",
+          "objectiveDraftCount",
+          "pendingCaptureCount",
+          "readyBacklogItemCount",
+          "roadmapStreamCount"
+        ],
+        "type": "object"
+      },
       "ThreadEpiphanyPressure": {
         "properties": {
           "basis": {
@@ -16184,6 +16786,12 @@
               "null"
             ]
           },
+          "evidenceGaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "evidenceIds": {
             "items": {
               "type": "string"
@@ -16220,7 +16828,19 @@
               "null"
             ]
           },
+          "openQuestions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "rawResult": true,
+          "risks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "roleId": {
             "$ref": "#/definitions/v2/ThreadEpiphanyRoleId"
           },
@@ -16228,6 +16848,16 @@
             "type": [
               "string",
               "null"
+            ]
+          },
+          "statePatch": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanyUpdatePatch"
+              },
+              {
+                "type": "null"
+              }
             ]
           },
           "summary": {
@@ -16446,12 +17076,14 @@
           "retrieve",
           "distill",
           "context",
+          "planning",
           "graphQuery",
           "jobs",
           "roles",
           "coordinator",
           "roleLaunch",
           "roleResult",
+          "roleAccept",
           "jobLaunch",
           "jobInterrupt",
           "freshness",
@@ -16816,7 +17448,8 @@
           "observations",
           "evidence",
           "churn",
-          "mode"
+          "mode",
+          "planning"
         ],
         "type": "string"
       },
@@ -16860,7 +17493,8 @@
           "promote",
           "jobLaunch",
           "jobInterrupt",
-          "reorientAccept"
+          "reorientAccept",
+          "roleAccept"
         ],
         "type": "string"
       },
@@ -16967,6 +17601,16 @@
               "$ref": "#/definitions/v2/EpiphanyObservation"
             },
             "type": "array"
+          },
+          "planning": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/EpiphanyPlanningState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scratch": {
             "anyOf": [

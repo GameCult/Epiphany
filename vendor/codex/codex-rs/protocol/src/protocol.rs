@@ -3035,6 +3035,9 @@ pub struct EpiphanyThreadState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "EpiphanyModeState | null")]
     pub mode: Option<EpiphanyModeState>,
+    #[serde(default, skip_serializing_if = "EpiphanyPlanningState::is_empty")]
+    #[ts(type = "EpiphanyPlanningState")]
+    pub planning: EpiphanyPlanningState,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub last_updated_turn_id: Option<String>,
@@ -3394,6 +3397,262 @@ pub struct EpiphanyModeState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "ModeKind | null")]
     pub kind: Option<ModeKind>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyPlanningState {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub workspace_root: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyPlanningCapture>")]
+    pub captures: Vec<EpiphanyPlanningCapture>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyBacklogItem>")]
+    pub backlog_items: Vec<EpiphanyBacklogItem>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyRoadmapStream>")]
+    pub roadmap_streams: Vec<EpiphanyRoadmapStream>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyObjectiveDraft>")]
+    pub objective_drafts: Vec<EpiphanyObjectiveDraft>,
+}
+
+impl EpiphanyPlanningState {
+    pub fn is_empty(&self) -> bool {
+        self.workspace_root.is_none()
+            && self.captures.is_empty()
+            && self.backlog_items.is_empty()
+            && self.roadmap_streams.is_empty()
+            && self.objective_drafts.is_empty()
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyPlanningCapture {
+    pub id: String,
+    pub title: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub body: Option<String>,
+    pub confidence: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub speaker: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub tags: Vec<String>,
+    pub source: EpiphanyPlanningSourceRef,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub created_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyPlanningSourceRef {
+    pub kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub provider: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub external_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub repo: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "number | null")]
+    pub issue_number: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub node_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "bigint | null")]
+    pub database_id: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub state: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub labels: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub milestone: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub assignees: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub author: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub created_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub updated_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub closed_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "boolean | null")]
+    pub is_pull_request: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub imported_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyBacklogItem {
+    pub id: String,
+    pub title: String,
+    pub kind: String,
+    pub summary: String,
+    pub status: String,
+    pub horizon: String,
+    pub priority: EpiphanyPlanningPriority,
+    pub confidence: String,
+    pub product_area: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub lane_hints: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub dependencies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub blockers: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub acceptance_sketch: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub evidence_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyPlanningSourceRef>")]
+    pub source_refs: Vec<EpiphanyPlanningSourceRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub duplicate_of: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub updated_at: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyPlanningPriority {
+    pub value: String,
+    pub rationale: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub impact: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub urgency: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub confidence: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub effort: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub unblocks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub blocks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub reason: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyRoadmapStream {
+    pub id: String,
+    pub title: String,
+    pub purpose: String,
+    pub status: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub item_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub near_term_focus: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub blocked_by: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub review_cadence: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyObjectiveDraft {
+    pub id: String,
+    pub title: String,
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub source_item_ids: Vec<String>,
+    pub scope: EpiphanyObjectiveDraftScope,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub acceptance_criteria: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub evidence_required: Vec<String>,
+    pub lane_plan: EpiphanyObjectiveDraftLanePlan,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub dependencies: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub risks: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub review_gates: Vec<String>,
+    pub status: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyObjectiveDraftScope {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub includes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub excludes: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyObjectiveDraftLanePlan {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub imagination: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub eyes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub body: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub hands: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub soul: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub life: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]

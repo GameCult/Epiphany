@@ -35,7 +35,7 @@ The rule is:
 
 | Surface | Kind | Status | Role |
 | --- | --- | --- | --- |
-| `EpiphanyThreadState` | protocol/core state | landed | Authoritative typed model of objective, subgoals, invariants, graphs, retrieval, investigation checkpoint, evidence, scratch, churn, and mode. |
+| `EpiphanyThreadState` | protocol/core state | landed | Authoritative typed model of objective, subgoals, invariants, graphs, retrieval, planning, investigation checkpoint, evidence, scratch, churn, and mode. |
 | `RolloutItem::EpiphanyState` | persistence | landed | Durable snapshot for resume, fork, rollback, and compaction-safe reconstruction. |
 | `<epiphany_state>` prompt fragment | prompt input | landed | Bounded developer-context summary rendered from typed state, including the durable investigation packet when present. |
 | `Thread.epiphanyState` | client read | landed | Typed state on hydrated thread payloads. |
@@ -57,6 +57,7 @@ The rule is:
 | `thread/epiphany/freshness` | read-only reflection | landed, live-smoked | Retrieval and graph freshness lens derived from retrieval summaries plus graph frontier/churn state, with watcher-backed invalidation inputs for loaded threads. |
 | `thread/epiphany/context` | read-only reflection | landed, live-smoked | Targeted state shard for graph nodes/edges, active frontier, graph checkpoint, investigation checkpoint, observations, and evidence. |
 | `thread/epiphany/graphQuery` | read-only reflection | landed, live-smoked | Bounded graph traversal over authoritative typed state: explicit nodes/edges, path/symbol matches, edge-kind matches, neighbor walks, and frontier neighborhoods with architecture/dataflow links. |
+| `thread/epiphany/planning` | read-only reflection | landed, live-smoked | Typed planning projection over captures, backlog items, roadmap streams, Objective Drafts, GitHub source refs, and active-objective separation without adopting work. |
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
 | `thread/epiphany/reorient` | read-only policy reflection | landed, live-smoked | Bounded CRRC reorientation verdict derived from checkpoint, freshness, watcher, and pressure signals; returns resume vs regather without acting on the decision. |
 | `thread/epiphany/crrc` | read-only coordinator reflection | landed, live-smoked | Composes pressure, reorientation verdict, bound worker status/result, and available actions into one recommendation without launching, accepting, compacting, or mutating state. |
@@ -86,6 +87,7 @@ The following must stay read-only:
 - `thread/epiphany/freshness`
 - `thread/epiphany/context`
 - `thread/epiphany/graphQuery`
+- `thread/epiphany/planning`
 - `thread/epiphany/pressure`
 - `thread/epiphany/reorient`
 - `thread/epiphany/crrc`
@@ -96,7 +98,7 @@ license to mutate map/evidence/churn state as a side effect.
 
 ## Reflection Authority
 
-Scene, jobs, freshness, context, graphQuery, reorient, CRRC, and GUI surfaces may compress state for humans and
+Scene, jobs, freshness, context, graphQuery, planning, reorient, CRRC, and GUI surfaces may compress state for humans and
 clients. They may not invent canonical understanding.
 
 Reflection surfaces should:
@@ -122,6 +124,7 @@ The important categories are:
 - architecture/dataflow graphs
 - graph frontier and checkpoint
 - retrieval summary
+- planning captures, backlog items, roadmap streams, and Objective Drafts
 - investigation checkpoint
 - job bindings
 - scratch
@@ -146,13 +149,13 @@ Metaphor is compression after source context. It is not decoration for guesses.
 
 These are not landed yet:
 
-- richer evidence UI and graph steering beyond the landed context and graph traversal reads
+- richer evidence UI, graph steering, planning GUI, and explicit objective adoption beyond the landed read-only projections
 - automatic watcher-driven graph/retrieval/invariant invalidation policy on top of the landed freshness reflection
 - automatic tool-output observation promotion
 - typed turn intent before broad mutation
 - hard mutation gates for stale map or violated invariants
-- role-scoped specialist-agent registry and scheduling
-- automatic runtime Compact-Rehydrate-Reorient-Continue execution beyond the landed read-only coordinator recommendation
+- broader role-scoped specialist-agent registry and scheduling beyond the fixed lanes
+- broader runtime Compact-Rehydrate-Reorient-Continue execution beyond the landed safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
 
 Do not implement these as one blob. Each needs a bounded surface, a write rule,
 and a verification story.
@@ -183,10 +186,11 @@ Out of scope for the MVP:
 - a second job backend unless the current `agent_jobs` adapter blocks read-back
   or interruption
 
-The first read-back, acceptance, read-only coordinator, and dogfood CLI blockers
-are landed. The current MVP blocker is role ownership: making implementation,
-modeling/checkpoint maintenance, and verification/review visible as distinct
-bounded work lanes without building an arbitrary specialist marketplace.
+The first read-back, acceptance, read-only coordinator, dogfood CLI, fixed role
+lanes, and read-only planning projection blockers are landed. The current MVP
+blocker is making planning operational for the human: GUI Planning view,
+explicit capture/objective adoption actions, and Imagination synthesis without
+letting future-shape work become implementation authority by accident.
 
 ## Job And Progress Surface Direction
 

@@ -11,7 +11,8 @@ import type { EpiphanyInvestigationCheckpoint } from "../EpiphanyInvestigationCh
 import type { EpiphanyJobBinding } from "../EpiphanyJobBinding";
 import type { EpiphanyModeState } from "../EpiphanyModeState";
 import type { EpiphanyObservation } from "../EpiphanyObservation";
+import type { EpiphanyPlanningState } from "../EpiphanyPlanningState";
 import type { EpiphanyScratchPad } from "../EpiphanyScratchPad";
 import type { EpiphanySubgoal } from "../EpiphanySubgoal";
 
-export type ThreadEpiphanyUpdatePatch = { objective?: string | null, activeSubgoalId?: string | null, subgoals?: Array<EpiphanySubgoal> | null, invariants?: Array<EpiphanyInvariant> | null, graphs?: EpiphanyGraphs | null, graphFrontier?: EpiphanyGraphFrontier | null, graphCheckpoint?: EpiphanyGraphCheckpoint | null, scratch?: EpiphanyScratchPad | null, investigationCheckpoint?: EpiphanyInvestigationCheckpoint | null, jobBindings?: Array<EpiphanyJobBinding> | null, observations?: Array<EpiphanyObservation>, evidence?: Array<EpiphanyEvidenceRecord>, churn?: EpiphanyChurnState | null, mode?: EpiphanyModeState | null, };
+export type ThreadEpiphanyUpdatePatch = { objective?: string | null, activeSubgoalId?: string | null, subgoals?: Array<EpiphanySubgoal> | null, invariants?: Array<EpiphanyInvariant> | null, graphs?: EpiphanyGraphs | null, graphFrontier?: EpiphanyGraphFrontier | null, graphCheckpoint?: EpiphanyGraphCheckpoint | null, scratch?: EpiphanyScratchPad | null, investigationCheckpoint?: EpiphanyInvestigationCheckpoint | null, jobBindings?: Array<EpiphanyJobBinding> | null, observations?: Array<EpiphanyObservation>, evidence?: Array<EpiphanyEvidenceRecord>, churn?: EpiphanyChurnState | null, mode?: EpiphanyModeState | null, planning?: EpiphanyPlanningState | null, };

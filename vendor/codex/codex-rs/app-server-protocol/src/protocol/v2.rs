@@ -73,6 +73,7 @@ use codex_protocol::protocol::EpiphanyJobBinding as CoreEpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
+use codex_protocol::protocol::EpiphanyPlanningState as CoreEpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus as CoreEpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyScratchPad as CoreEpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanySubgoal as CoreEpiphanySubgoal;
@@ -3996,6 +3997,7 @@ pub enum ThreadEpiphanySceneAction {
     Retrieve,
     Distill,
     Context,
+    Planning,
     GraphQuery,
     Jobs,
     Roles,
@@ -4671,6 +4673,45 @@ pub struct ThreadEpiphanyContextParams {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub include_linked_evidence: Option<bool>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyPlanningParams {
+    pub thread_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyPlanningResponse {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyContextSource,
+    pub state_status: ThreadEpiphanyContextStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub planning: CoreEpiphanyPlanningState,
+    pub summary: ThreadEpiphanyPlanningSummary,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyPlanningSummary {
+    pub capture_count: u32,
+    pub pending_capture_count: u32,
+    pub github_issue_capture_count: u32,
+    pub backlog_item_count: u32,
+    pub ready_backlog_item_count: u32,
+    pub roadmap_stream_count: u32,
+    pub objective_draft_count: u32,
+    pub draft_objective_count: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub active_objective: Option<String>,
+    pub note: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -5361,6 +5402,9 @@ pub struct ThreadEpiphanyUpdatePatch {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub mode: Option<CoreEpiphanyModeState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub planning: Option<CoreEpiphanyPlanningState>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -5413,6 +5457,7 @@ pub enum ThreadEpiphanyStateUpdatedField {
     Evidence,
     Churn,
     Mode,
+    Planning,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]

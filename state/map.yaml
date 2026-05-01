@@ -12,9 +12,9 @@ objective:
     explicit typed models of the codebase, active goal, evidence, and change
     machinery they are working on.
   current: >
-    Build the three-pronged Rider/Epiphany GUI/Unity development workflow so
-    the next Aetheria run has a code view, agent dashboard, and runtime
-    evidence path instead of source-only guesswork.
+    Make Epiphany's planning substrate real in the harness: durable captures,
+    backlog items, roadmap streams, Objective Drafts, and explicit human
+    adoption boundaries before those ideas become implementation objectives.
 
 constraints:
   - No frontier-scale training budget.
@@ -57,7 +57,7 @@ data_flow:
 
 active_subgoals:
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
-  - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, roleResult, freshness, context, graphQuery, pressure, reorient, crrc, coordinator, and reorientResult.
+  - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, roleResult, freshness, context, graphQuery, planning, pressure, reorient, crrc, coordinator, and reorientResult.
   - Keep the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention ready for the next bridge-equipped dogfood run.
   - Preserve review gates for semantic findings; automatic CRRC may compact or launch the fixed reorient-worker, but not accept or promote.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
@@ -66,6 +66,7 @@ active_subgoals:
   - Use `tools/epiphany_agent_telemetry.py` and generated `agent-function-telemetry.json` files to inspect behavior shape without opening sealed transcripts.
   - Treat repeated no-diff implementation turns as an MVP blocker, not success. A bounded implementation pass must leave a reviewable workspace diff or an explicit reviewable failure artifact before dogfood can be called healthy.
   - Build the Rider and Unity bridges before the next Aetheria implementation dogfood run: the Aetheria-side resident Unity editor package, named Unity bridge operation planner, and GUI Environment panel are now landed; next build the EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, and Rider plugin MVP.
+  - Wire the newly landed planning state into the actual product loop: GUI Planning view, explicit capture/objective adoption actions, and Imagination planning synthesis remain the next organs after the read-only planning projection.
   - Treat the target workflow as three integrated surfaces: Rider is the human code/diff view, Epiphany GUI is the agent dashboard and persisted-state graph view, and Unity is the pinned runtime/test/scene environment.
   - Use `notes/epiphany-rider-unity-integration-plan.md` as the source-grounded plan for Rider-as-IDE and Unity-as-editor/runtime integration seams.
 
@@ -73,9 +74,9 @@ accepted_design:
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
   - Authoritative Epiphany state lives in Codex protocol/core session and rollout state.
   - The prompt reads typed state through a bounded `<epiphany_state>` developer fragment.
-  - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/freshness`, targeted state shards through `thread/epiphany/context`, bounded graph traversal through `thread/epiphany/graphQuery`, runtime pressure through `thread/epiphany/pressure`, bounded CRRC reorientation verdicts through `thread/epiphany/reorient`, read-only CRRC next-action recommendations through `thread/epiphany/crrc`, role ownership through `thread/epiphany/roles`, reviewable role output through `thread/epiphany/roleResult`, and live bound-job progress through `thread/epiphany/jobsUpdated`.
+  - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/freshness`, targeted state shards through `thread/epiphany/context`, bounded graph traversal through `thread/epiphany/graphQuery`, durable planning projection through `thread/epiphany/planning`, runtime pressure through `thread/epiphany/pressure`, bounded CRRC reorientation verdicts through `thread/epiphany/reorient`, read-only CRRC next-action recommendations through `thread/epiphany/crrc`, role ownership through `thread/epiphany/roles`, reviewable role output through `thread/epiphany/roleResult`, and live bound-job progress through `thread/epiphany/jobsUpdated`.
   - Durable typed state writes route through `thread/epiphany/update`, accepted `thread/epiphany/promote`, `thread/epiphany/reorientAccept`, `thread/epiphany/roleAccept`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/reorientLaunch`, and `thread/epiphany/roleLaunch` authority surfaces when they mutate state or `job_bindings`.
-  - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/pressure`, and `thread/epiphany/reorient` stay read-only.
+  - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`, and `thread/epiphany/reorient` stay read-only.
   - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
   - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
   - `epiphany-core` owns prompt rendering, rollout replay helpers, retrieval/indexing, distillation, proposal, and promotion policy where possible.
@@ -134,6 +135,7 @@ accepted_design:
   - Rider and Unity are environment organs, not sources of truth: Rider should expose IDE/source context, diagnostics, navigation, and changed ranges; Unity should expose pinned-editor runtime facts, compilation, tests, probes, assets, scenes, and logs; Epiphany remains the durable Self that coordinates, records, and reviews.
   - The product architecture is three-pronged: Rider is the code view for human inspection of repo state, source tree, diffs, diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives, specialist lane state, logs/artifacts, persisted typed state, and graph/control-flow views; Unity is the runtime environment for pinned tests, probes, scene configuration, assets, shaders, and play/edit-mode evidence.
   - Epiphany needs a workspace-scoped planning substrate separate from the active objective: conversation captures, inbox, normalized backlog, roadmap streams, objective drafts, and explicit objective adoption are distinct states. The active objective remains the bounded run contract; chat and imported issues are planning inputs until reviewed and promoted. `notes/epiphany-planning-substrate.md` defines the product model, including GitHub Issues import semantics.
+  - The first runtime planning slice is landed inside `EpiphanyThreadState`: typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub source refs are revision-gated through `thread/epiphany/update`, rendered into prompts when present, and reflected read-only through `thread/epiphany/planning`.
   - The planning/future-shape role is Imagination: it can synthesize captures, backlog shape, roadmap streams, and Objective Drafts while Eyes scouts outside reality, but its output remains planning state until explicit human adoption.
   - Unity integration must be editor-resident, not text-archeology-only: scene files, prefabs, materials, shaders, ScriptableObjects, asset GUIDs, prefab overrides, and serialized component fields should be inspected through a Unity Editor package using Unity APIs, with narrow mutation preview/apply commands and artifact receipts.
   - The first resident Unity editor package now lives in the Aetheria branch `codex/epiphany-unity-editor-bridge`: `Assets/Editor/Epiphany/EpiphanyEditorBridge.cs` exposes editor-resident inspect, compilation, scene, prefab, serialized-object, and reference-search probes with JSON/Markdown artifacts. Epiphany's Unity bridge detects that package and plans named probe/test commands through `GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe`, while runtime execution remains blocked until the exact project-pinned Unity editor is present.
@@ -150,7 +152,7 @@ landed_baseline:
     - Phase 3: typed client read surface through `Thread.epiphanyState`.
     - Phase 4: hybrid retrieval plus explicit Qdrant indexing with BM25 fallback.
     - Phase 5: typed update/distill/propose/promote/read/notification control plane.
-    - Phase 6: read-only scene, job/progress, freshness with watcher-backed invalidation inputs, targeted context, graph traversal, current-context pressure, reorientation policy, and CRRC coordinator recommendation surfaces, plus durable investigation checkpointing for compaction-safe planning, live bound-job progress notifications, a thin launcher seam in durable job bindings, explicit launch/interrupt authority over that seam, and a bounded reorient-guided worker launch surface.
+    - Phase 6: read-only scene, job/progress, freshness with watcher-backed invalidation inputs, targeted context, graph traversal, durable planning projection, current-context pressure, reorientation policy, and CRRC coordinator recommendation surfaces, plus durable investigation checkpointing for compaction-safe planning, live bound-job progress notifications, a thin launcher seam in durable job bindings, explicit launch/interrupt authority over that seam, and a bounded reorient-guided worker launch surface.
     - Phase 6 read-back: read-only reorient-worker result reflection through `thread/epiphany/reorientResult`.
     - Phase 6 acceptance: explicit reorient-worker finding acceptance through `thread/epiphany/reorientAccept`.
     - Phase 6 dogfood view: first CLI operator status over scene/pressure/reorient/jobs/result/CRRC.
@@ -165,6 +167,7 @@ landed_baseline:
     - Phase 6 GUI operator shell: Tauri v2 + React console under `apps/epiphany-gui` over the existing status bridge and artifact bundles, with visual smoke, durable checkpoint preparation, fixed lane launch/read-back controls, and explicit review-gated reorient acceptance.
     - Phase 6 Unity runtime bridge: `tools/epiphany_unity_bridge.py` plus GUI Inspect Unity action resolve pinned Unity editors, reject wrong/missing versions, and write runtime artifacts before engine assumptions are treated as testable.
     - Planning substrate design: `notes/epiphany-planning-substrate.md` formalizes conversation capture, inbox, backlog, roadmap streams, objective drafts, explicit adoption, the Imagination planning role, and GitHub Issues import.
+    - Phase 6 planning substrate runtime slice: typed planning state in `EpiphanyThreadState`, prompt rendering, revision-gated update validation, read-only `thread/epiphany/planning`, scene action reflection, generated schemas, and live planning smoke coverage.
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
     - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
@@ -174,6 +177,7 @@ landed_baseline:
     - Use `tools/epiphany_phase6_invalidation_smoke.py` before modifying watcher-backed invalidation behavior inside freshness reflection.
     - Use `tools/epiphany_phase6_context_smoke.py` before modifying targeted context-shard behavior.
     - Use `tools/epiphany_phase6_graph_query_smoke.py` before modifying graph traversal behavior.
+    - Use `tools/epiphany_phase6_planning_smoke.py` before modifying planning state or the read-only planning projection.
     - Use `tools/epiphany_phase6_pressure_smoke.py` before modifying context-pressure reflection behavior.
     - Use `tools/epiphany_phase6_reorient_smoke.py` before modifying bounded CRRC reorientation policy behavior.
     - Use `tools/epiphany_phase6_reorient_launch_smoke.py` before modifying the bounded reorient-guided worker launch surface.
@@ -203,5 +207,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident proved the next blocker is environment access, so `notes/epiphany-rider-unity-integration-plan.md` now governs a three-pronged bridge-building pass: Rider code view, Epiphany GUI agent dashboard, and Unity runtime environment, with Unity integration treated as a resident editor package rather than text-only file inspection. The planning substrate is now formalized with Imagination as the planning/future-shape role and GitHub Issues import landing in captures before backlog or objective adoption.
-  next_action: Continue the three-pronged Rider/Epiphany GUI/Unity workflow before further Aetheria implementation dogfood: the Aetheria resident Unity editor package, named Unity bridge operation planner, and GUI Environment panel are landed; next build the EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, then Rider plugin MVP. The next dogfood run should happen only after Epiphany can gather Rider/source context and Unity/editor runtime evidence through auditable bridges. Do not let implementation workers invoke Unity directly or refactor Unity-owned serialized scene/prefab state as raw text when an editor API path exists; use bridge artifacts as evidence of either a pinned-editor run, runtime/editor facts, or a missing-runtime blocker. Do not inspect raw worker transcripts or `rawResult` payloads unless the user explicitly requests forensic debugging.
+  summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident proved the next blocker is environment access, so `notes/epiphany-rider-unity-integration-plan.md` governs the Rider/Epiphany GUI/Unity workflow. The planning substrate is no longer just doctrine: typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub source refs now live in Epiphany state, render into prompts, validate through revision-gated updates, and project through read-only `thread/epiphany/planning`.
+  next_action: Build the GUI Planning view and explicit planning write/adoption flow over the landed read-only projection, then add the Imagination planning synthesis lane. Keep active objective adoption human-gated: captures, backlog items, roadmap streams, GitHub Issues, and Objective Drafts are planning material until explicitly adopted. After the planning loop is visible, return to the EpiphanyGraph dashboard, Rider context bridge, and Rider plugin MVP before another Aetheria implementation dogfood run.

@@ -417,6 +417,7 @@ fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {
             name: "epiphany".to_string(),
             kind: Some(ModeKind::Default),
         }),
+        planning: Default::default(),
         last_updated_turn_id: Some("phase2-turn".to_string()),
     }
 }

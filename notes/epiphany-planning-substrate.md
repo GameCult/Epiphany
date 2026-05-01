@@ -386,16 +386,18 @@ Imagination may propose. The human adopts. The Coordinator routes.
 
 ## Implementation Slices
 
-1. **Documented model**: this note.
-2. **Local planning store**: add durable planning captures, backlog items,
-   roadmap streams, and objective drafts to Epiphany state or a sibling planning
-   store with read/write APIs.
+1. **Documented model**: this note. Landed.
+2. **Local planning store**: landed first inside `EpiphanyThreadState` with
+   typed captures, backlog items, roadmap streams, Objective Drafts, optional
+   workspace root, and GitHub source refs. The current write path is
+   revision-gated `thread/epiphany/update`; extracting a workspace-shared store
+   remains a later scaling choice.
 3. **Imagination role surface**: add a prompt-backed planning/future-shape role
    that can synthesize captures, backlog, roadmap streams, and objective drafts
    alongside Eyes research without gaining adoption or implementation authority.
-4. **Read-only planning projection**: add `thread/epiphany/planning` so GUI can
-   render captures, backlog, roadmap, objective drafts, and active objective
-   links without scraping files.
+4. **Read-only planning projection**: landed as `thread/epiphany/planning` so
+   GUI can render captures, backlog, roadmap, objective drafts, and active
+   objective separation without scraping files or mutating state.
 5. **Chat capture flow**: let the Self propose captures from conversation,
    requiring human confirmation for durable planning writes.
 6. **Objective draft/adoption flow**: add explicit draft creation and
@@ -411,8 +413,9 @@ Imagination may propose. The human adopts. The Coordinator routes.
 
 ## Open Questions
 
-- Does planning live inside `EpiphanyThreadState`, or should it be a workspace
-  planning store shared across threads?
+- Planning currently lives inside `EpiphanyThreadState` for the MVP. A
+  workspace-shared planning store is still plausible once multiple threads need
+  the same backlog without copying state.
 - Should GitHub import default to open issues only, or include closed issues as
   historical decisions?
 - How should roadmaps from repo docs be imported without turning every heading
@@ -422,5 +425,7 @@ Imagination may propose. The human adopts. The Coordinator routes.
 - How much priority scoring should be computed versus manually ranked by the
   human?
 
-My current bias: make planning workspace-scoped, import GitHub Issues into
-captures first, and keep adoption of active objectives explicit.
+My current bias after the first implementation slice: keep the MVP storage in
+typed thread state with a workspace root marker, import GitHub Issues into
+captures first, keep adoption explicit, and only extract a workspace planning
+store when repeated cross-thread copying becomes a real wound.

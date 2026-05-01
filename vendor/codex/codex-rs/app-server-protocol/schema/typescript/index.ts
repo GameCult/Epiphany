@@ -29,6 +29,7 @@ export type { EpiphanyJobBinding } from "./EpiphanyJobBinding";
 export type { EpiphanyJobKind } from "./EpiphanyJobKind";
 export type { EpiphanyModeState } from "./EpiphanyModeState";
 export type { EpiphanyObservation } from "./EpiphanyObservation";
+export type { EpiphanyPlanningState } from "./EpiphanyPlanningState";
 export type { EpiphanyRetrievalStatus } from "./EpiphanyRetrievalStatus";
 export type { EpiphanyScratchPad } from "./EpiphanyScratchPad";
 export type { EpiphanySubgoal } from "./EpiphanySubgoal";

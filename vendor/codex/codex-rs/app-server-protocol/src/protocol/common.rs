@@ -381,6 +381,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanyContextParams,
         response: v2::ThreadEpiphanyContextResponse,
     },
+    #[experimental("thread/epiphany/planning")]
+    ThreadEpiphanyPlanning => "thread/epiphany/planning" {
+        params: v2::ThreadEpiphanyPlanningParams,
+        response: v2::ThreadEpiphanyPlanningResponse,
+    },
     #[experimental("thread/epiphany/graphQuery")]
     ThreadEpiphanyGraphQuery => "thread/epiphany/graphQuery" {
         params: v2::ThreadEpiphanyGraphQueryParams,
@@ -1755,6 +1760,7 @@ mod tests {
                         v2::ThreadEpiphanySceneAction::Retrieve,
                         v2::ThreadEpiphanySceneAction::Distill,
                         v2::ThreadEpiphanySceneAction::Context,
+                        v2::ThreadEpiphanySceneAction::Planning,
                         v2::ThreadEpiphanySceneAction::Jobs,
                         v2::ThreadEpiphanySceneAction::Roles,
                         v2::ThreadEpiphanySceneAction::Coordinator,
@@ -2655,6 +2661,178 @@ mod tests {
                     },
                     "missing": {
                         "graphNodeIds": ["missing-node"]
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_planning_response() -> Result<()> {
+        let github_source = codex_protocol::protocol::EpiphanyPlanningSourceRef {
+            kind: "github_issue".to_string(),
+            provider: Some("github".to_string()),
+            repo: Some("GameCult/Epiphany".to_string()),
+            issue_number: Some(42),
+            url: Some("https://github.com/GameCult/Epiphany/issues/42".to_string()),
+            labels: vec!["gui".to_string()],
+            imported_at: Some("2026-05-01T05:00:00Z".to_string()),
+            ..Default::default()
+        };
+        let response = ClientResponse::ThreadEpiphanyPlanning {
+            request_id: RequestId::Integer(9),
+            response: v2::ThreadEpiphanyPlanningResponse {
+                thread_id: "thr_123".to_string(),
+                source: v2::ThreadEpiphanyContextSource::Live,
+                state_status: v2::ThreadEpiphanyContextStateStatus::Ready,
+                state_revision: Some(5),
+                planning: codex_protocol::protocol::EpiphanyPlanningState {
+                    captures: vec![codex_protocol::protocol::EpiphanyPlanningCapture {
+                        id: "capture-github-42".to_string(),
+                        title: "Import issue backlog".to_string(),
+                        confidence: "medium".to_string(),
+                        status: "new".to_string(),
+                        source: github_source.clone(),
+                        ..Default::default()
+                    }],
+                    backlog_items: vec![codex_protocol::protocol::EpiphanyBacklogItem {
+                        id: "backlog-planning-api".to_string(),
+                        title: "Expose planning projection".to_string(),
+                        kind: "feature".to_string(),
+                        summary: "Make planning state queryable by the GUI.".to_string(),
+                        status: "ready".to_string(),
+                        horizon: "now".to_string(),
+                        priority: codex_protocol::protocol::EpiphanyPlanningPriority {
+                            value: "p1".to_string(),
+                            rationale: "Unblocks the planning GUI.".to_string(),
+                            ..Default::default()
+                        },
+                        confidence: "high".to_string(),
+                        product_area: "gui".to_string(),
+                        lane_hints: vec!["imagination".to_string()],
+                        source_refs: vec![github_source],
+                        ..Default::default()
+                    }],
+                    objective_drafts: vec![codex_protocol::protocol::EpiphanyObjectiveDraft {
+                        id: "objdraft-planning-api".to_string(),
+                        title: "Build planning API slice".to_string(),
+                        summary: "Land typed planning state and read-only projection.".to_string(),
+                        source_item_ids: vec!["backlog-planning-api".to_string()],
+                        scope: codex_protocol::protocol::EpiphanyObjectiveDraftScope {
+                            includes: vec!["thread/epiphany/planning".to_string()],
+                            excludes: vec!["GUI planning table".to_string()],
+                        },
+                        acceptance_criteria: vec![
+                            "Projection returns planning counts.".to_string(),
+                        ],
+                        lane_plan: codex_protocol::protocol::EpiphanyObjectiveDraftLanePlan {
+                            imagination: Some("Shape backlog and objective draft.".to_string()),
+                            hands: Some("Wire protocol and app-server read.".to_string()),
+                            ..Default::default()
+                        },
+                        review_gates: vec!["Human adoption required".to_string()],
+                        status: "draft".to_string(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                summary: v2::ThreadEpiphanyPlanningSummary {
+                    capture_count: 1,
+                    pending_capture_count: 1,
+                    github_issue_capture_count: 1,
+                    backlog_item_count: 1,
+                    ready_backlog_item_count: 1,
+                    roadmap_stream_count: 0,
+                    objective_draft_count: 1,
+                    draft_objective_count: 1,
+                    active_objective: Some("Current adopted work".to_string()),
+                    note: "Planning substrate is available.".to_string(),
+                },
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(9));
+        assert_eq!(response.method(), "thread/epiphany/planning");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/planning",
+                "id": 9,
+                "response": {
+                    "threadId": "thr_123",
+                    "source": "live",
+                    "stateStatus": "ready",
+                    "stateRevision": 5,
+                    "planning": {
+                        "captures": [{
+                            "id": "capture-github-42",
+                            "title": "Import issue backlog",
+                            "confidence": "medium",
+                            "status": "new",
+                            "source": {
+                                "kind": "github_issue",
+                                "provider": "github",
+                                "repo": "GameCult/Epiphany",
+                                "issue_number": 42,
+                                "url": "https://github.com/GameCult/Epiphany/issues/42",
+                                "labels": ["gui"],
+                                "imported_at": "2026-05-01T05:00:00Z"
+                            }
+                        }],
+                        "backlog_items": [{
+                            "id": "backlog-planning-api",
+                            "title": "Expose planning projection",
+                            "kind": "feature",
+                            "summary": "Make planning state queryable by the GUI.",
+                            "status": "ready",
+                            "horizon": "now",
+                            "priority": {
+                                "value": "p1",
+                                "rationale": "Unblocks the planning GUI."
+                            },
+                            "confidence": "high",
+                            "product_area": "gui",
+                            "lane_hints": ["imagination"],
+                            "source_refs": [{
+                                "kind": "github_issue",
+                                "provider": "github",
+                                "repo": "GameCult/Epiphany",
+                                "issue_number": 42,
+                                "url": "https://github.com/GameCult/Epiphany/issues/42",
+                                "labels": ["gui"],
+                                "imported_at": "2026-05-01T05:00:00Z"
+                            }]
+                        }],
+                        "objective_drafts": [{
+                            "id": "objdraft-planning-api",
+                            "title": "Build planning API slice",
+                            "summary": "Land typed planning state and read-only projection.",
+                            "source_item_ids": ["backlog-planning-api"],
+                            "scope": {
+                                "includes": ["thread/epiphany/planning"],
+                                "excludes": ["GUI planning table"]
+                            },
+                            "acceptance_criteria": ["Projection returns planning counts."],
+                            "lane_plan": {
+                                "imagination": "Shape backlog and objective draft.",
+                                "hands": "Wire protocol and app-server read."
+                            },
+                            "review_gates": ["Human adoption required"],
+                            "status": "draft"
+                        }]
+                    },
+                    "summary": {
+                        "captureCount": 1,
+                        "pendingCaptureCount": 1,
+                        "githubIssueCaptureCount": 1,
+                        "backlogItemCount": 1,
+                        "readyBacklogItemCount": 1,
+                        "roadmapStreamCount": 0,
+                        "objectiveDraftCount": 1,
+                        "draftObjectiveCount": 1,
+                        "activeObjective": "Current adopted work",
+                        "note": "Planning substrate is available."
                     }
                 }
             }),
@@ -4606,6 +4784,18 @@ mod tests {
         };
         let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
         assert_eq!(reason, Some("thread/epiphany/context"));
+    }
+
+    #[test]
+    fn thread_epiphany_planning_is_marked_experimental() {
+        let request = ClientRequest::ThreadEpiphanyPlanning {
+            request_id: RequestId::Integer(1),
+            params: v2::ThreadEpiphanyPlanningParams {
+                thread_id: "thr_123".to_string(),
+            },
+        };
+        let reason = crate::experimental_api::ExperimentalApi::experimental_reason(&request);
+        assert_eq!(reason, Some("thread/epiphany/planning"));
     }
 
     #[test]

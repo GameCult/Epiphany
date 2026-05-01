@@ -38,6 +38,7 @@ use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
+use codex_protocol::protocol::EpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanyStateItem;
@@ -123,6 +124,7 @@ pub struct EpiphanyStateUpdate {
     pub evidence: Vec<EpiphanyEvidenceRecord>,
     pub churn: Option<EpiphanyChurnState>,
     pub mode: Option<EpiphanyModeState>,
+    pub planning: Option<EpiphanyPlanningState>,
 }
 
 #[derive(Debug, Clone)]
@@ -180,6 +182,7 @@ impl EpiphanyStateUpdate {
             && self.evidence.is_empty()
             && self.churn.is_none()
             && self.mode.is_none()
+            && self.planning.is_none()
     }
 }
 
@@ -1215,6 +1218,9 @@ fn epiphany_state_update_validation_errors(
     if let Some(job_bindings) = update.job_bindings.as_ref() {
         errors.extend(validate_epiphany_job_bindings(job_bindings));
     }
+    if let Some(planning) = update.planning.as_ref() {
+        errors.extend(validate_epiphany_planning_state(planning));
+    }
 
     errors.extend(epiphany_state_replacement_validation_errors(state, update));
     errors
@@ -1283,6 +1289,162 @@ fn validate_epiphany_job_bindings(job_bindings: &[EpiphanyJobBinding]) -> Vec<St
     }
 
     errors
+}
+
+fn validate_epiphany_planning_state(planning: &EpiphanyPlanningState) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut capture_ids = HashSet::<&str>::new();
+    for capture in &planning.captures {
+        require_nonempty_update(&capture.id, "planning.captures.id", &mut errors);
+        require_nonempty_update(&capture.title, "planning.captures.title", &mut errors);
+        require_nonempty_update(
+            &capture.confidence,
+            "planning.captures.confidence",
+            &mut errors,
+        );
+        require_nonempty_update(&capture.status, "planning.captures.status", &mut errors);
+        validate_epiphany_planning_source_ref(
+            &capture.source,
+            "planning.captures.source",
+            &mut errors,
+        );
+        if !capture.id.is_empty() && !capture_ids.insert(capture.id.as_str()) {
+            errors.push(format!("duplicate planning capture id {:?}", capture.id));
+        }
+    }
+
+    let mut backlog_ids = HashSet::<&str>::new();
+    for item in &planning.backlog_items {
+        require_nonempty_update(&item.id, "planning.backlog_items.id", &mut errors);
+        require_nonempty_update(&item.title, "planning.backlog_items.title", &mut errors);
+        require_nonempty_update(&item.kind, "planning.backlog_items.kind", &mut errors);
+        require_nonempty_update(&item.summary, "planning.backlog_items.summary", &mut errors);
+        require_nonempty_update(&item.status, "planning.backlog_items.status", &mut errors);
+        require_nonempty_update(&item.horizon, "planning.backlog_items.horizon", &mut errors);
+        require_nonempty_update(
+            &item.priority.value,
+            "planning.backlog_items.priority.value",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &item.priority.rationale,
+            "planning.backlog_items.priority.rationale",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &item.confidence,
+            "planning.backlog_items.confidence",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &item.product_area,
+            "planning.backlog_items.product_area",
+            &mut errors,
+        );
+        for (index, source_ref) in item.source_refs.iter().enumerate() {
+            validate_epiphany_planning_source_ref(
+                source_ref,
+                &format!("planning.backlog_items.source_refs[{index}]"),
+                &mut errors,
+            );
+        }
+        if !item.id.is_empty() && !backlog_ids.insert(item.id.as_str()) {
+            errors.push(format!("duplicate planning backlog item id {:?}", item.id));
+        }
+    }
+
+    let mut stream_ids = HashSet::<&str>::new();
+    for stream in &planning.roadmap_streams {
+        require_nonempty_update(&stream.id, "planning.roadmap_streams.id", &mut errors);
+        require_nonempty_update(&stream.title, "planning.roadmap_streams.title", &mut errors);
+        require_nonempty_update(
+            &stream.purpose,
+            "planning.roadmap_streams.purpose",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &stream.status,
+            "planning.roadmap_streams.status",
+            &mut errors,
+        );
+        for item_id in &stream.item_ids {
+            if !backlog_ids.contains(item_id.as_str()) {
+                errors.push(format!(
+                    "roadmap stream {:?} references missing backlog item {:?}",
+                    stream.id, item_id
+                ));
+            }
+        }
+        if let Some(near_term_focus) = stream.near_term_focus.as_deref()
+            && !near_term_focus.trim().is_empty()
+            && !backlog_ids.contains(near_term_focus)
+        {
+            errors.push(format!(
+                "roadmap stream {:?} has missing near_term_focus {:?}",
+                stream.id, near_term_focus
+            ));
+        }
+        if !stream.id.is_empty() && !stream_ids.insert(stream.id.as_str()) {
+            errors.push(format!(
+                "duplicate planning roadmap stream id {:?}",
+                stream.id
+            ));
+        }
+    }
+
+    let mut objective_draft_ids = HashSet::<&str>::new();
+    for draft in &planning.objective_drafts {
+        require_nonempty_update(&draft.id, "planning.objective_drafts.id", &mut errors);
+        require_nonempty_update(&draft.title, "planning.objective_drafts.title", &mut errors);
+        require_nonempty_update(
+            &draft.summary,
+            "planning.objective_drafts.summary",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &draft.status,
+            "planning.objective_drafts.status",
+            &mut errors,
+        );
+        if draft.acceptance_criteria.is_empty() {
+            errors.push(format!(
+                "objective draft {:?} must include at least one acceptance criterion",
+                draft.id
+            ));
+        }
+        for item_id in &draft.source_item_ids {
+            if !backlog_ids.contains(item_id.as_str()) {
+                errors.push(format!(
+                    "objective draft {:?} references missing source backlog item {:?}",
+                    draft.id, item_id
+                ));
+            }
+        }
+        if !draft.id.is_empty() && !objective_draft_ids.insert(draft.id.as_str()) {
+            errors.push(format!("duplicate objective draft id {:?}", draft.id));
+        }
+    }
+
+    errors
+}
+
+fn validate_epiphany_planning_source_ref(
+    source_ref: &codex_protocol::protocol::EpiphanyPlanningSourceRef,
+    label: &str,
+    errors: &mut Vec<String>,
+) {
+    require_nonempty_update(&source_ref.kind, &format!("{label}.kind"), errors);
+    if source_ref.kind == "github_issue" {
+        match source_ref.repo.as_deref() {
+            Some(repo) => require_nonempty_update(repo, &format!("{label}.repo"), errors),
+            None => errors.push(format!("{label}.repo is required for github_issue sources")),
+        }
+        if source_ref.issue_number.is_none() {
+            errors.push(format!(
+                "{label}.issue_number is required for github_issue sources"
+            ));
+        }
+    }
 }
 
 fn epiphany_state_replacement_validation_errors(
@@ -1379,6 +1541,9 @@ fn apply_epiphany_state_update(
     if let Some(mode) = update.mode {
         state.mode = Some(mode);
     }
+    if let Some(planning) = update.planning {
+        state.planning = planning;
+    }
 
     prepend_recent(&mut state.observations, update.observations);
     prepend_recent(&mut state.recent_evidence, update.evidence);
@@ -1397,9 +1562,13 @@ fn prepend_recent<T>(items: &mut Vec<T>, mut new_items: Vec<T>) {
 #[cfg(test)]
 mod epiphany_update_tests {
     use super::*;
+    use codex_protocol::protocol::EpiphanyBacklogItem;
     use codex_protocol::protocol::EpiphanyGraph;
     use codex_protocol::protocol::EpiphanyGraphNode;
     use codex_protocol::protocol::EpiphanyJobKind;
+    use codex_protocol::protocol::EpiphanyPlanningCapture;
+    use codex_protocol::protocol::EpiphanyPlanningPriority;
+    use codex_protocol::protocol::EpiphanyPlanningSourceRef;
 
     fn evidence(id: &str) -> EpiphanyEvidenceRecord {
         EpiphanyEvidenceRecord {
@@ -1538,6 +1707,146 @@ mod epiphany_update_tests {
             Some("agent-job-new")
         );
         assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-jobs"));
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_accepts_planning_state() {
+        let update = EpiphanyStateUpdate {
+            planning: Some(EpiphanyPlanningState {
+                captures: vec![EpiphanyPlanningCapture {
+                    id: "capture-github-42".to_string(),
+                    title: "Import issue backlog".to_string(),
+                    confidence: "medium".to_string(),
+                    status: "new".to_string(),
+                    source: EpiphanyPlanningSourceRef {
+                        kind: "github_issue".to_string(),
+                        provider: Some("github".to_string()),
+                        repo: Some("GameCult/Epiphany".to_string()),
+                        issue_number: Some(42),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }],
+                backlog_items: vec![EpiphanyBacklogItem {
+                    id: "backlog-planning-api".to_string(),
+                    title: "Expose planning projection".to_string(),
+                    kind: "feature".to_string(),
+                    summary: "Make planning state queryable by the GUI.".to_string(),
+                    status: "ready".to_string(),
+                    horizon: "now".to_string(),
+                    priority: EpiphanyPlanningPriority {
+                        value: "p1".to_string(),
+                        rationale: "Unblocks planning operations.".to_string(),
+                        ..Default::default()
+                    },
+                    confidence: "high".to_string(),
+                    product_area: "gui".to_string(),
+                    lane_hints: vec!["imagination".to_string()],
+                    ..Default::default()
+                }],
+                roadmap_streams: vec![codex_protocol::protocol::EpiphanyRoadmapStream {
+                    id: "stream-gui".to_string(),
+                    title: "GUI Operator Surface".to_string(),
+                    purpose: "Let the human inspect and steer planning.".to_string(),
+                    status: "active".to_string(),
+                    item_ids: vec!["backlog-planning-api".to_string()],
+                    ..Default::default()
+                }],
+                objective_drafts: vec![codex_protocol::protocol::EpiphanyObjectiveDraft {
+                    id: "objdraft-planning-api".to_string(),
+                    title: "Build planning API slice".to_string(),
+                    summary: "Land typed planning state and read-only projection.".to_string(),
+                    source_item_ids: vec!["backlog-planning-api".to_string()],
+                    acceptance_criteria: vec!["Projection returns planning counts.".to_string()],
+                    status: "draft".to_string(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        assert!(
+            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &update)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_rejects_invalid_planning_state() {
+        let update = EpiphanyStateUpdate {
+            planning: Some(EpiphanyPlanningState {
+                captures: vec![EpiphanyPlanningCapture {
+                    id: "capture-bad-github".to_string(),
+                    title: "Missing repo issue".to_string(),
+                    confidence: "medium".to_string(),
+                    status: "new".to_string(),
+                    source: EpiphanyPlanningSourceRef {
+                        kind: "github_issue".to_string(),
+                        issue_number: None,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }],
+                backlog_items: vec![EpiphanyBacklogItem {
+                    id: "backlog-1".to_string(),
+                    title: "Backlog without priority rationale".to_string(),
+                    kind: "feature".to_string(),
+                    summary: "Invalid on purpose.".to_string(),
+                    status: "ready".to_string(),
+                    horizon: "now".to_string(),
+                    priority: EpiphanyPlanningPriority {
+                        value: "p1".to_string(),
+                        rationale: String::new(),
+                        ..Default::default()
+                    },
+                    confidence: "high".to_string(),
+                    product_area: "gui".to_string(),
+                    ..Default::default()
+                }],
+                roadmap_streams: vec![codex_protocol::protocol::EpiphanyRoadmapStream {
+                    id: "stream-gui".to_string(),
+                    title: "GUI Operator Surface".to_string(),
+                    purpose: "Let the human inspect and steer planning.".to_string(),
+                    status: "active".to_string(),
+                    item_ids: vec!["missing-backlog".to_string()],
+                    ..Default::default()
+                }],
+                objective_drafts: vec![codex_protocol::protocol::EpiphanyObjectiveDraft {
+                    id: "objdraft-empty".to_string(),
+                    title: "Empty acceptance draft".to_string(),
+                    summary: "Invalid on purpose.".to_string(),
+                    source_item_ids: vec!["missing-backlog".to_string()],
+                    status: "draft".to_string(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let errors =
+            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &update);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("repo is required for github_issue"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("priority.rationale"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("references missing backlog item"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("must include at least one acceptance criterion"))
+        );
     }
 
     #[test]

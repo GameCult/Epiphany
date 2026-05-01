@@ -28,7 +28,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` / `thread/epiphany/roleLaunch` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, graphQuery traverses authoritative typed graph neighborhoods and path/symbol matches without mutation, roles project implementation/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleLaunch` can launch only fixed modeling/checkpoint or verification/review specialists, `roleResult` reads those outputs back as reviewable findings without mutation, `thread/epiphany/roleAccept` can apply a reviewed modeling/checkpoint `statePatch` through the existing state validator, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state, `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating, and `thread/epiphany/coordinator` composes those signals into a fixed-lane MVP action recommendation without becoming a writer.
+- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id, `thread/epiphany/jobLaunch` / `thread/epiphany/jobInterrupt` / `thread/epiphany/roleLaunch` now provide explicit bounded authority over that seam, jobs can overlay it onto live runtime `agent_jobs` progress for loaded threads, and `thread/epiphany/jobsUpdated` now translates live `agent_job_progress:{json}` background events into changed launcher-bound notifications without polling or scheduling. Freshness carries watcher-backed invalidation inputs, graphQuery traverses authoritative typed graph neighborhoods and path/symbol matches without mutation, planning projects typed captures/backlog/roadmap/objective drafts without adopting work, roles project implementation/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleLaunch` can launch only fixed modeling/checkpoint or verification/review specialists, `roleResult` reads those outputs back as reviewable findings without mutation, `thread/epiphany/roleAccept` can apply a reviewed modeling/checkpoint `statePatch` through the existing state validator, reorient turns checkpoint plus freshness/pressure/watcher signals into a read-only resume-versus-regather verdict, `thread/epiphany/reorientLaunch` is the explicit runtime consumer over that verdict, `thread/epiphany/reorientResult` reads the launched worker output back as a reviewable finding without mutation or promotion, `thread/epiphany/reorientAccept` explicitly banks completed findings into accepted observation/evidence plus optional scratch/checkpoint state, `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating, and `thread/epiphany/coordinator` composes those signals into a fixed-lane MVP action recommendation without becoming a writer.
 - `tools/epiphany_mvp_status.py` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, pressure, reorient, jobs, roles, modeling/verification role result read-backs, reorient result, and CRRC recommendation as text or JSON.
 - `tools/epiphany_mvp_coordinator.py` is the first auditable fixed-lane coordinator runner. It starts or reads a thread through app-server, follows the harness-native coordinator action, can auto-launch modeling, verification, or reorient-worker jobs, keeps semantic findings review-gated by default, and writes summary, steps, rendered snapshots, transcript, stderr, and final next-action artifacts under `.epiphany-dogfood/coordinator` or a caller-provided artifact directory.
 - Native CRRC automation is now landed only at turn-complete safe boundaries. It may submit `Op::Compact` for coordinator-approved `compactRehydrateReorient` or for a successful pre-compaction checkpoint intervention's pending compact handoff, and it may launch the fixed `reorient-worker` for coordinator-approved `launchReorientWorker`. It does not auto-launch modeling/verification, accept findings, promote evidence, edit implementation code, or keep going after reviewable semantic output.
@@ -50,7 +50,7 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Aetheria dogfood exposed and then landed the first editor/runtime bridge. An implementation worker launched legacy `D:\Unity\Editor\Unity.exe -version` (Unity 5.5.0f3) even though Aetheria pins Unity `6000.1.10f1`; the stray process was killed. `tools/epiphany_unity_bridge.py` now resolves the project-pinned Unity editor, refuses wrong/missing versions, owns `-batchmode`, `-quit`, and `-projectPath`, and writes inspection/command/log artifacts. `tools/epiphany_gui_action.py` points implementation workers at that bridge, and the GUI has an Inspect Unity action.
 - The current Aetheria runtime truth is blocked but legible: the project pins Unity `6000.1.10f1`, this machine currently has Hub editor `6000.4.2f1`, and the bridge wrote `.epiphany-gui/runtime/unity-inspect-1777549218802064800-23832` proving the exact editor is missing. Treat that artifact as the evidence gap until the pinned editor exists.
 - The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
-- The planning substrate is now formalized in `notes/epiphany-planning-substrate.md`. Chat is deliberation, not an objective pipe; ideas and GitHub Issues import into captures/inbox first, normalize into backlog/roadmap, then become Objective Drafts only after review. The planning/future-shape role is Imagination, working beside Eyes, and the active objective changes only through explicit human adoption.
+- The planning substrate is now runtime-backed. Typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub issue source refs live in `EpiphanyThreadState`, validate through revision-gated `thread/epiphany/update`, render into prompts when present, and project read-only through `thread/epiphany/planning`. Chat is deliberation, not an objective pipe; ideas and GitHub Issues remain planning state until explicit human adoption.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -97,7 +97,7 @@ The current spine:
 - read-only modeling/checkpoint and verification/review specialist result read-back through `thread/epiphany/roleResult`
 - review-gated modeling/checkpoint patch acceptance through `thread/epiphany/roleAccept`
 - config-backed Eyes/research prompt text and active anti-Greenspun checks in base, implementation, verification, and coordinator prompts; a full launchable research lane is still a coordinator/protocol extension, not yet a landed roleLaunch lane
-- planning substrate design for captures, backlog, roadmap streams, Objective Drafts, explicit adoption, the Imagination planning role, and GitHub Issues import in `notes/epiphany-planning-substrate.md`; runtime planning APIs and GUI Planning view are not landed yet
+- typed planning state for captures, backlog, roadmap streams, Objective Drafts, explicit adoption boundaries, and GitHub Issues source refs; GUI Planning view, explicit adoption actions, and the Imagination synthesis lane are not landed yet
 - bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
 - read-only reorient-worker result read-back through `thread/epiphany/reorientResult`
 - explicit reorient-worker finding acceptance through `thread/epiphany/reorientAccept`
@@ -111,6 +111,7 @@ The current spine:
 - read-only retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only graph traversal through `thread/epiphany/graphQuery`
+- read-only planning projection through `thread/epiphany/planning`
 - read-only current-context pressure reflection through `thread/epiphany/pressure`
 - read-only CRRC reorientation policy through `thread/epiphany/reorient`
 - read-only CRRC next-action recommendation through `thread/epiphany/crrc`
@@ -126,6 +127,7 @@ The current spine:
 - live watcher-backed invalidation smoke through `tools/epiphany_phase6_invalidation_smoke.py`
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
 - live graph traversal app-server smoke through `tools/epiphany_phase6_graph_query_smoke.py`
+- live planning app-server smoke through `tools/epiphany_phase6_planning_smoke.py`
 - live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
 - live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
 - live reorient-guided worker launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
@@ -148,6 +150,7 @@ The exact current control flow is documented in
 - `thread/epiphany/freshness` is read-only.
 - `thread/epiphany/context` is read-only.
 - `thread/epiphany/graphQuery` is read-only.
+- `thread/epiphany/planning` is read-only.
 - `thread/epiphany/pressure` is read-only.
 - `thread/epiphany/reorient` is read-only.
 - `thread/epiphany/crrc` is read-only.
@@ -209,6 +212,12 @@ For graph traversal behavior changes, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_graph_query_smoke.py'
+```
+
+For planning state/projection behavior changes, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
 ```
 
 For context-pressure reflection behavior changes, run:
@@ -315,6 +324,13 @@ bounded neighbor traversal, and frontier-neighborhood inspection over
 authoritative typed state. It returns graph records, frontier/checkpoint
 identity, matched selectors, and missing ids without mutating or notifying.
 
+The Phase 6 planning substrate runtime slice is also landed. It stores captures,
+backlog items, roadmap streams, Objective Drafts, and GitHub source refs inside
+typed Epiphany state, validates them through the revision-gated update path,
+renders a bounded planning section into prompts, and exposes read-only
+`thread/epiphany/planning` for clients. It does not adopt objectives, launch
+work, or turn imported issues into implementation authority.
+
 The bounded CRRC coordination/policy layer is now also landed as read-only
 `thread/epiphany/reorient`. It consumes the landed pressure, freshness,
 watcher, and investigation-checkpoint signals to decide whether a checkpoint
@@ -414,11 +430,11 @@ worker, direct-thought feed, random editor launcher, or GUI-as-source-of-truth.
 
 Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/freshness`, `thread/epiphany/context`,
-`thread/epiphany/graphQuery`, `thread/epiphany/pressure`, `thread/epiphany/reorient`,
-`thread/epiphany/crrc`, `thread/epiphany/coordinator`,
+`thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`,
+`thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`,
 `tools/epiphany_mvp_status.py`, `tools/epiphany_mvp_coordinator.py`, and
-`tools/epiphany_phase6_graph_query_smoke.py` smokes are now guardrails, not the
-next organs.
+`tools/epiphany_phase6_graph_query_smoke.py` / `tools/epiphany_phase6_planning_smoke.py`
+smokes are now guardrails, not the next organs.
 
 ## Not Yet
 

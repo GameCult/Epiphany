@@ -194,6 +194,9 @@ use codex_app_server_protocol::ThreadEpiphanyJobsResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobsSource;
 use codex_app_server_protocol::ThreadEpiphanyJobsUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyJobsUpdatedSource;
+use codex_app_server_protocol::ThreadEpiphanyPlanningParams;
+use codex_app_server_protocol::ThreadEpiphanyPlanningResponse;
+use codex_app_server_protocol::ThreadEpiphanyPlanningSummary;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
@@ -455,6 +458,7 @@ use codex_protocol::protocol::EpiphanyJobBackendKind as CoreEpiphanyJobBackendKi
 use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyObservation;
+use codex_protocol::protocol::EpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyScratchPad;
@@ -1138,6 +1142,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyContext { request_id, params } => {
                 self.thread_epiphany_context(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyPlanning { request_id, params } => {
+                self.thread_epiphany_planning(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyGraphQuery { request_id, params } => {
@@ -5180,6 +5188,7 @@ impl CodexMessageProcessor {
                 evidence: patch.evidence,
                 churn: patch.churn,
                 mode: patch.mode,
+                planning: patch.planning,
             })
             .await
         {
@@ -5337,6 +5346,51 @@ impl CodexMessageProcessor {
             state_revision,
             context,
             missing,
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_planning(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyPlanningParams,
+    ) {
+        let thread_id = params.thread_id.clone();
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded = self.thread_manager.get_thread(thread_uuid).await.is_ok();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let (state_status, state_revision, planning, summary) =
+            map_epiphany_planning(thread.epiphany_state.as_ref());
+        let response = ThreadEpiphanyPlanningResponse {
+            thread_id,
+            source: if loaded {
+                ThreadEpiphanyContextSource::Live
+            } else {
+                ThreadEpiphanyContextSource::Stored
+            },
+            state_status,
+            state_revision,
+            planning,
+            summary,
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -6616,6 +6670,7 @@ impl CodexMessageProcessor {
             evidence,
             churn: patch.churn,
             mode: patch.mode,
+            planning: patch.planning,
         };
         let epiphany_state = match thread.epiphany_update_state(update).await {
             Ok(epiphany_state) => epiphany_state,
@@ -6705,6 +6760,7 @@ impl CodexMessageProcessor {
             evidence: patch.evidence,
             churn: patch.churn,
             mode: patch.mode,
+            planning: patch.planning,
         };
         let epiphany_state = match thread.epiphany_update_state(update).await {
             Ok(epiphany_state) => epiphany_state,
@@ -13051,6 +13107,7 @@ fn epiphany_scene_available_actions(
         ThreadEpiphanySceneAction::Retrieve,
         ThreadEpiphanySceneAction::Distill,
         ThreadEpiphanySceneAction::Context,
+        ThreadEpiphanySceneAction::Planning,
         ThreadEpiphanySceneAction::GraphQuery,
         ThreadEpiphanySceneAction::Jobs,
         ThreadEpiphanySceneAction::Roles,
@@ -15087,6 +15144,10 @@ fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<S
             "job binding changes are not allowed through modeling role acceptance".to_string(),
         );
     }
+    if patch.planning.is_some() {
+        errors
+            .push("planning changes are not allowed through modeling role acceptance".to_string());
+    }
     if patch.churn.is_some() || patch.mode.is_some() {
         errors.push(
             "churn or mode changes are not allowed through modeling role acceptance".to_string(),
@@ -16227,6 +16288,81 @@ fn map_epiphany_context(
                 .filter(|id| !found_evidence_ids.contains(*id))
                 .cloned()
                 .collect(),
+        },
+    )
+}
+
+fn map_epiphany_planning(
+    state: Option<&EpiphanyThreadState>,
+) -> (
+    ThreadEpiphanyContextStateStatus,
+    Option<u64>,
+    EpiphanyPlanningState,
+    ThreadEpiphanyPlanningSummary,
+) {
+    let Some(state) = state else {
+        return (
+            ThreadEpiphanyContextStateStatus::Missing,
+            None,
+            EpiphanyPlanningState::default(),
+            ThreadEpiphanyPlanningSummary {
+                capture_count: 0,
+                pending_capture_count: 0,
+                github_issue_capture_count: 0,
+                backlog_item_count: 0,
+                ready_backlog_item_count: 0,
+                roadmap_stream_count: 0,
+                objective_draft_count: 0,
+                draft_objective_count: 0,
+                active_objective: None,
+                note: "No authoritative Epiphany state exists for this thread.".to_string(),
+            },
+        );
+    };
+
+    let planning = state.planning.clone();
+    let pending_capture_count = planning
+        .captures
+        .iter()
+        .filter(|capture| capture.status == "new" || capture.status == "inbox")
+        .count() as u32;
+    let github_issue_capture_count = planning
+        .captures
+        .iter()
+        .filter(|capture| capture.source.kind == "github_issue")
+        .count() as u32;
+    let ready_backlog_item_count = planning
+        .backlog_items
+        .iter()
+        .filter(|item| item.status == "ready")
+        .count() as u32;
+    let draft_objective_count = planning
+        .objective_drafts
+        .iter()
+        .filter(|draft| draft.status == "draft")
+        .count() as u32;
+    let note = if planning.is_empty() {
+        "Planning substrate is present but empty; captures, backlog, roadmap streams, and objective drafts have not been written yet."
+    } else {
+        "Planning substrate is available. These records are planning state only until a human explicitly adopts an objective."
+    }
+    .to_string();
+
+    (
+        ThreadEpiphanyContextStateStatus::Ready,
+        Some(state.revision),
+        planning.clone(),
+        ThreadEpiphanyPlanningSummary {
+            capture_count: planning.captures.len() as u32,
+            pending_capture_count,
+            github_issue_capture_count,
+            backlog_item_count: planning.backlog_items.len() as u32,
+            ready_backlog_item_count,
+            roadmap_stream_count: planning.roadmap_streams.len() as u32,
+            objective_draft_count: planning.objective_drafts.len() as u32,
+            draft_objective_count,
+            active_objective: state.objective.clone(),
+            note,
         },
     )
 }
@@ -17524,6 +17660,7 @@ fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatc
         || patch.job_bindings.is_some()
         || patch.churn.is_some()
         || patch.mode.is_some()
+        || patch.planning.is_some()
 }
 
 fn map_epiphany_retrieve_response(
@@ -17637,6 +17774,9 @@ fn epiphany_update_patch_changed_fields(
     }
     if patch.mode.is_some() {
         fields.push(ThreadEpiphanyStateUpdatedField::Mode);
+    }
+    if patch.planning.is_some() {
+        fields.push(ThreadEpiphanyStateUpdatedField::Planning);
     }
     fields
 }
@@ -19109,6 +19249,7 @@ mod tests {
                 ThreadEpiphanySceneAction::Retrieve,
                 ThreadEpiphanySceneAction::Distill,
                 ThreadEpiphanySceneAction::Context,
+                ThreadEpiphanySceneAction::Planning,
                 ThreadEpiphanySceneAction::GraphQuery,
                 ThreadEpiphanySceneAction::Jobs,
                 ThreadEpiphanySceneAction::Roles,
@@ -21609,6 +21750,115 @@ mod tests {
         assert_eq!(context, ThreadEpiphanyContext::default());
         assert_eq!(missing.graph_node_ids, vec!["node-1".to_string()]);
         assert_eq!(missing.observation_ids, vec!["obs-1".to_string()]);
+    }
+
+    #[test]
+    fn map_epiphany_planning_projects_counts_without_mutation() {
+        let github_source = codex_protocol::protocol::EpiphanyPlanningSourceRef {
+            kind: "github_issue".to_string(),
+            provider: Some("github".to_string()),
+            repo: Some("GameCult/Epiphany".to_string()),
+            issue_number: Some(7),
+            ..Default::default()
+        };
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            revision: 12,
+            objective: Some("Current adopted objective".to_string()),
+            planning: codex_protocol::protocol::EpiphanyPlanningState {
+                captures: vec![
+                    codex_protocol::protocol::EpiphanyPlanningCapture {
+                        id: "capture-gh-7".to_string(),
+                        title: "GitHub issue import".to_string(),
+                        confidence: "medium".to_string(),
+                        status: "new".to_string(),
+                        source: github_source.clone(),
+                        ..Default::default()
+                    },
+                    codex_protocol::protocol::EpiphanyPlanningCapture {
+                        id: "capture-chat-1".to_string(),
+                        title: "Human planning note".to_string(),
+                        confidence: "low".to_string(),
+                        status: "triaged".to_string(),
+                        source: codex_protocol::protocol::EpiphanyPlanningSourceRef {
+                            kind: "chat".to_string(),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    },
+                ],
+                backlog_items: vec![codex_protocol::protocol::EpiphanyBacklogItem {
+                    id: "backlog-planning-view".to_string(),
+                    title: "Build planning view".to_string(),
+                    kind: "feature".to_string(),
+                    summary: "Expose planning state to the GUI.".to_string(),
+                    status: "ready".to_string(),
+                    horizon: "now".to_string(),
+                    priority: codex_protocol::protocol::EpiphanyPlanningPriority {
+                        value: "p1".to_string(),
+                        rationale: "Needed before planning can be operated.".to_string(),
+                        ..Default::default()
+                    },
+                    confidence: "high".to_string(),
+                    product_area: "gui".to_string(),
+                    source_refs: vec![github_source],
+                    ..Default::default()
+                }],
+                roadmap_streams: vec![codex_protocol::protocol::EpiphanyRoadmapStream {
+                    id: "stream-gui".to_string(),
+                    title: "GUI Operator Surface".to_string(),
+                    purpose: "Let the human inspect and steer Epiphany.".to_string(),
+                    status: "active".to_string(),
+                    item_ids: vec!["backlog-planning-view".to_string()],
+                    ..Default::default()
+                }],
+                objective_drafts: vec![codex_protocol::protocol::EpiphanyObjectiveDraft {
+                    id: "objdraft-planning-view".to_string(),
+                    title: "Build planning view slice".to_string(),
+                    summary: "Render typed planning state in the GUI.".to_string(),
+                    source_item_ids: vec!["backlog-planning-view".to_string()],
+                    acceptance_criteria: vec!["Planning counts render.".to_string()],
+                    status: "draft".to_string(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let (state_status, state_revision, planning, summary) = map_epiphany_planning(Some(&state));
+
+        assert_eq!(state_status, ThreadEpiphanyContextStateStatus::Ready);
+        assert_eq!(state_revision, Some(12));
+        assert_eq!(planning.captures.len(), 2);
+        assert_eq!(summary.capture_count, 2);
+        assert_eq!(summary.pending_capture_count, 1);
+        assert_eq!(summary.github_issue_capture_count, 1);
+        assert_eq!(summary.backlog_item_count, 1);
+        assert_eq!(summary.ready_backlog_item_count, 1);
+        assert_eq!(summary.roadmap_stream_count, 1);
+        assert_eq!(summary.objective_draft_count, 1);
+        assert_eq!(summary.draft_objective_count, 1);
+        assert_eq!(
+            summary.active_objective.as_deref(),
+            Some("Current adopted objective")
+        );
+        assert!(
+            summary
+                .note
+                .contains("planning state only until a human explicitly adopts")
+        );
+    }
+
+    #[test]
+    fn map_epiphany_planning_reports_missing_state_without_inventing_backlog() {
+        let (state_status, state_revision, planning, summary) = map_epiphany_planning(None);
+
+        assert_eq!(state_status, ThreadEpiphanyContextStateStatus::Missing);
+        assert_eq!(state_revision, None);
+        assert!(planning.is_empty());
+        assert_eq!(summary.capture_count, 0);
+        assert_eq!(summary.backlog_item_count, 0);
+        assert_eq!(summary.active_objective, None);
     }
 
     #[test]

@@ -286,6 +286,13 @@ milestones, assignees, state, timestamps, comments, PR markers, and optional
 Projects v2 metadata without letting GitHub become Epiphany's internal backlog
 schema.
 
+The first runtime slice is now landed: planning state lives in
+`EpiphanyThreadState`, accepts typed captures/backlog/roadmap/objective drafts
+through revision-gated `thread/epiphany/update`, renders into the prompt when
+present, and exposes read-only `thread/epiphany/planning` for GUI clients. The
+remaining product work is GUI presentation, explicit adoption/write actions,
+Imagination synthesis, and real GitHub import.
+
 The planning/future-shape role is **Imagination**. It works beside Eyes: Eyes
 scouts outside reality and existing work, while Imagination shapes captures,
 backlog, roadmap streams, and Objective Drafts ahead of the active run. That
@@ -387,7 +394,7 @@ These remain later work:
 - broader CRRC runtime coordination beyond the landed narrow safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
 - richer editor/runtime bridges beyond the first pinned Unity bridge
 - richer GUI workflows for graph, evidence, job, invariant, and frontier steering after the operator console proves useful
-- workspace-scoped planning substrate APIs and GUI Planning view, including conversation captures, backlog, roadmap streams, Objective Drafts, explicit objective adoption, the Imagination planning role surface, and read-only GitHub Issues import into captures
+- GUI Planning view, explicit planning capture/adoption actions, the Imagination planning role surface, and real GitHub Issues import into typed captures; the first thread-state planning store and read-only projection are landed
 - typed repetitive-work queues and final-answer gates, so the coordinator and GUI can see unfinished batch work before conversational closure pretends it is done
 - stronger coordinator challenge loops for implementation claims, including objective-progress checks and explicit shortcut/embellishment rejection before another implementation turn is treated as successful
 
@@ -438,6 +445,12 @@ Before modifying graph traversal behavior, run:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_graph_query_smoke.py'
+```
+
+Before modifying planning state or projection behavior, run:
+
+```powershell
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
 ```
 
 For app-server protocol changes, expect to run the relevant protocol tests,
