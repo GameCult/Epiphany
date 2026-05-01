@@ -275,6 +275,22 @@ EpiphanyGraph React viewer is the preferred seed for GUI graph diagramming
 because it consumes typed `graphs.architecture`, `graphs.dataflow`, and
 `graphs.links` directly.
 
+The detailed planning substrate now lives in
+`notes/epiphany-planning-substrate.md`. Its cut is deliberately separate from
+the active objective: chat produces captures, captures normalize into backlog
+items, backlog items group into roadmap streams, selected work becomes
+Objective Drafts, and only explicit human adoption turns a draft into
+`objective.current`. The plan anticipates GitHub Issues import by treating
+issues as source records that land in captures first, preserving labels,
+milestones, assignees, state, timestamps, comments, PR markers, and optional
+Projects v2 metadata without letting GitHub become Epiphany's internal backlog
+schema.
+
+The planning/future-shape role is **Imagination**. It works beside Eyes: Eyes
+scouts outside reality and existing work, while Imagination shapes captures,
+backlog, roadmap streams, and Objective Drafts ahead of the active run. That
+work remains non-authoritative until the human explicitly adopts an objective.
+
 ## Phase 6 Direction
 
 Phase 6 should grow observable harness state outward from the typed spine.
@@ -371,6 +387,7 @@ These remain later work:
 - broader CRRC runtime coordination beyond the landed narrow safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
 - richer editor/runtime bridges beyond the first pinned Unity bridge
 - richer GUI workflows for graph, evidence, job, invariant, and frontier steering after the operator console proves useful
+- workspace-scoped planning substrate APIs and GUI Planning view, including conversation captures, backlog, roadmap streams, Objective Drafts, explicit objective adoption, the Imagination planning role surface, and read-only GitHub Issues import into captures
 - typed repetitive-work queues and final-answer gates, so the coordinator and GUI can see unfinished batch work before conversational closure pretends it is done
 - stronger coordinator challenge loops for implementation claims, including objective-progress checks and explicit shortcut/embellishment rejection before another implementation turn is treated as successful
 
