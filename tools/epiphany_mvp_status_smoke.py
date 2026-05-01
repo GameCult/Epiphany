@@ -77,6 +77,15 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         "roles surface should declare read-only derived ownership",
     )
     require(
+        status["planning"]["stateStatus"] == "missing"
+        and status["planning"]["summary"]["captureCount"] == 0,
+        "fresh status smoke should expose empty planning state honestly",
+    )
+    require(
+        "Planning" in rendered and "captures: 0" in rendered,
+        "rendered status should expose the planning section",
+    )
+    require(
         "Role Lanes" in rendered and "Verification / Review" in rendered,
         "rendered status should expose the role lane section",
     )
@@ -92,6 +101,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         "recommendation": status["crrc"]["recommendation"],
         "roles": status["roles"],
         "roleResults": status["roleResults"],
+        "planning": status["planning"],
         "stateStatus": status["scene"]["scene"]["stateStatus"],
         "availableActions": status["scene"]["scene"]["availableActions"],
         "rendered": rendered,

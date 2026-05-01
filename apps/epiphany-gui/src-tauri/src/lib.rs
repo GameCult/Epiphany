@@ -12,6 +12,7 @@ struct StatusRequest {
     cwd: Option<String>,
     codex_home: Option<String>,
     app_server: Option<String>,
+    planning_draft_id: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -116,6 +117,7 @@ fn run_operator_action(
         | "launchVerification"
         | "readVerificationResult"
         | "acceptVerification"
+        | "adoptObjectiveDraft"
         | "launchReorient"
         | "readReorientResult"
         | "acceptReorient"
@@ -347,6 +349,9 @@ fn run_gui_action_bridge(
     }
     if let Some(app_server) = request.app_server {
         command.arg("--app-server").arg(app_server);
+    }
+    if let Some(planning_draft_id) = request.planning_draft_id {
+        command.arg("--planning-draft-id").arg(planning_draft_id);
     }
     let value = run_json_command(command, &action)?;
     Ok(OperatorActionResult {

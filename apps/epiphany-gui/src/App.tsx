@@ -7,6 +7,7 @@ import {
   Eye,
   FileText,
   GitBranch,
+  ListChecks,
   Play,
   RefreshCw,
 } from "lucide-react";
@@ -25,8 +26,9 @@ const actionButtons: Array<{
   requiresModelingPatch?: boolean;
   requiresVerificationResult?: boolean;
   requiresReorientResult?: boolean;
+  requiresPlanningDraft?: boolean;
   requiresContinueImplementation?: boolean;
-  icon: "file" | "check" | "play" | "eye" | "accept" | "runtime";
+  icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" | "plan";
 }> = [
   {
     action: "statusSnapshot",
@@ -55,6 +57,16 @@ const actionButtons: Array<{
     runningLabel: "Preparing",
     title: "Seed durable Epiphany state for this GUI operator thread",
     icon: "accept",
+  },
+  {
+    action: "adoptObjectiveDraft",
+    label: "Adopt Draft",
+    runningLabel: "Adopting",
+    title: "Adopt the selected Objective Draft as the active implementation objective",
+    requiresThread: true,
+    requiresReadyState: true,
+    requiresPlanningDraft: true,
+    icon: "plan",
   },
   {
     action: "continueImplementation",
@@ -166,6 +178,14 @@ function listText(value: unknown, fallback = "none"): string {
   return Array.isArray(value) && value.length > 0 ? value.map(String).join(", ") : fallback;
 }
 
+function objectList(value: unknown): any[] {
+  return Array.isArray(value) ? value.filter((item) => item && typeof item === "object") : [];
+}
+
+function countText(value: unknown): string {
+  return typeof value === "number" ? String(value) : text(value, "0");
+}
+
 function statusClass(value: unknown): string {
   const lower = text(value).toLowerCase();
   if (lower.includes("blocked") || lower.includes("critical") || lower.includes("regather")) return "danger";
@@ -246,6 +266,13 @@ export function App() {
     return [...lanes].sort((a, b) => roleOrder.indexOf(text(a.id)) - roleOrder.indexOf(text(b.id)));
   }, [status]);
   const jobs: any[] = Array.isArray(status?.jobs?.jobs) ? status.jobs.jobs : [];
+  const planningResponse = status?.planning ?? {};
+  const planningState = planningResponse?.planning ?? {};
+  const planningSummary = planningResponse?.summary ?? {};
+  const planningCaptures = objectList(planningState?.captures);
+  const backlogItems = objectList(planningState?.backlog_items ?? planningState?.backlogItems);
+  const roadmapStreams = objectList(planningState?.roadmap_streams ?? planningState?.roadmapStreams);
+  const objectiveDrafts = objectList(planningState?.objective_drafts ?? planningState?.objectiveDrafts);
   const roleResults = status?.roleResults ?? {};
   const reorientResult = status?.reorientResult ?? {};
   const latestArtifact = snapshot?.artifacts?.[0];
@@ -269,11 +296,29 @@ export function App() {
   const canAcceptVerification = text(roleResults?.verification?.status).toLowerCase() === "completed";
   const canAcceptReorient = text(reorientResult?.status).toLowerCase() === "completed";
   const canContinueImplementation = text(coordinator.action).toLowerCase() === "continueimplementation";
+  const selectedDraft = objectiveDrafts.find((draft) => text(draft.id, "") === request.planningDraftId);
+  const selectedDraftStatus = text(selectedDraft?.status).toLowerCase();
+  const canAdoptDraft =
+    Boolean(selectedDraft) && !["adopted", "rejected", "superseded"].includes(selectedDraftStatus);
   const unityBridge = latestRuntimeAudit?.editorBridge;
   const installedEditors = latestRuntimeAudit?.installedEditors ?? [];
   const candidatePaths = latestRuntimeAudit?.candidatePaths ?? [];
   const searchRoots = latestRuntimeAudit?.searchRoots ?? [];
   const unityBridgeReady = latestRuntimeAudit?.status === "ready" && unityBridge?.exists === true;
+
+  useEffect(() => {
+    if (objectiveDrafts.length === 0) return;
+    const draftIds = new Set(objectiveDrafts.map((draft) => text(draft.id, "")).filter(Boolean));
+    setRequest((current) => {
+      if (current.planningDraftId && draftIds.has(current.planningDraftId)) {
+        return current;
+      }
+      const firstDraft =
+        objectiveDrafts.find((draft) => text(draft.status).toLowerCase() === "draft") ?? objectiveDrafts[0];
+      const firstDraftId = text(firstDraft?.id, "");
+      return firstDraftId ? { ...current, planningDraftId: firstDraftId } : current;
+    });
+  }, [objectiveDrafts, setRequest]);
 
   return (
     <main className="shell">
@@ -314,6 +359,7 @@ export function App() {
           const needsModeling = button.requiresModelingPatch && !canAcceptModeling;
           const needsVerification = button.requiresVerificationResult && !canAcceptVerification;
           const needsReorient = button.requiresReorientResult && !canAcceptReorient;
+          const needsPlanningDraft = button.requiresPlanningDraft && !canAdoptDraft;
           const needsImplementation = button.requiresContinueImplementation && !canContinueImplementation;
           const needsNoDiffReview = button.requiresContinueImplementation && implementationNoDiffPending;
           const disabled =
@@ -323,6 +369,7 @@ export function App() {
             needsModeling ||
             needsVerification ||
             needsReorient ||
+            needsPlanningDraft ||
             needsImplementation ||
             needsNoDiffReview;
           const title = needsThread
@@ -335,11 +382,13 @@ export function App() {
                   ? "Read a completed verification result before accepting it"
                   : needsReorient
                     ? "Read a completed reorient result before accepting it"
-                    : needsImplementation
-                      ? "Run the coordinator and clear review gates before continuing implementation"
-                      : needsNoDiffReview
-                        ? "Review the latest no-diff implementation artifact or run another lane before retrying"
-                        : button.title;
+                    : needsPlanningDraft
+                      ? "Select a draft objective that has not already been adopted"
+                      : needsImplementation
+                        ? "Run the coordinator and clear review gates before continuing implementation"
+                        : needsNoDiffReview
+                          ? "Review the latest no-diff implementation artifact or run another lane before retrying"
+                          : button.title;
           return (
             <button
               className="secondaryButton"
@@ -447,6 +496,118 @@ export function App() {
             <PathList title="Search roots" items={searchRoots} />
             <code title={latestRuntimeArtifact?.path}>{text(latestRuntimeArtifact?.path)}</code>
           </article>
+        </div>
+      </section>
+
+      <section className="sectionBand">
+        <SectionHeader title="Planning" icon={<ListChecks size={18} />} />
+        <div className="planningGrid">
+          <article className="environmentCard planningSummary">
+            <div className="cardTopline">
+              <h3>State</h3>
+              <Pill tone={statusClass(planningResponse?.stateStatus)}>
+                {text(planningResponse?.stateStatus, "missing")}
+              </Pill>
+            </div>
+            <dl className="facts environmentFacts">
+              <div><dt>Captures</dt><dd>{countText(planningSummary?.captureCount)}</dd></div>
+              <div><dt>Pending</dt><dd>{countText(planningSummary?.pendingCaptureCount)}</dd></div>
+              <div><dt>Backlog</dt><dd>{countText(planningSummary?.backlogItemCount)}</dd></div>
+              <div><dt>Ready</dt><dd>{countText(planningSummary?.readyBacklogItemCount)}</dd></div>
+              <div><dt>Streams</dt><dd>{countText(planningSummary?.roadmapStreamCount)}</dd></div>
+              <div><dt>Drafts</dt><dd>{countText(planningSummary?.objectiveDraftCount)}</dd></div>
+            </dl>
+            <label className="draftPicker">
+              Objective Draft
+              <select
+                value={request.planningDraftId ?? ""}
+                onChange={(event) =>
+                  setRequest({ ...request, planningDraftId: event.target.value || undefined })
+                }
+                disabled={objectiveDrafts.length === 0}
+              >
+                <option value="">none</option>
+                {objectiveDrafts.map((draft) => (
+                  <option value={text(draft.id, "")} key={text(draft.id)}>
+                    {text(draft.title)} [{text(draft.status)}]
+                  </option>
+                ))}
+              </select>
+            </label>
+            <PathList title="Roadmap" items={roadmapStreams.map((stream) => `${text(stream.id)}: ${text(stream.title)}`)} />
+            {planningSummary?.note && <p className="environmentNote">{text(planningSummary.note)}</p>}
+          </article>
+
+          <div className="planningColumn">
+            <div className="cardTopline planningColumnHeader">
+              <h3>Objective Drafts</h3>
+              <Pill tone={objectiveDrafts.length ? "warn" : "neutral"}>{objectiveDrafts.length}</Pill>
+            </div>
+            {objectiveDrafts.slice(0, 4).map((draft) => (
+              <PlanningItem
+                key={text(draft.id)}
+                title={text(draft.title)}
+                status={text(draft.status)}
+                selected={text(draft.id, "") === request.planningDraftId}
+                body={text(draft.summary)}
+                meta={[
+                  text(draft.id),
+                  `${
+                    Array.isArray(draft.acceptance_criteria ?? draft.acceptanceCriteria)
+                      ? (draft.acceptance_criteria ?? draft.acceptanceCriteria).length
+                      : 0
+                  } checks`,
+                  listText(draft.source_item_ids ?? draft.sourceItemIds),
+                ]}
+              />
+            ))}
+            {objectiveDrafts.length === 0 && <EmptyState label="No objective drafts loaded." />}
+          </div>
+
+          <div className="planningColumn">
+            <div className="cardTopline planningColumnHeader">
+              <h3>Backlog</h3>
+              <Pill tone={backlogItems.length ? "ok" : "neutral"}>{backlogItems.length}</Pill>
+            </div>
+            {backlogItems.slice(0, 4).map((item) => (
+              <PlanningItem
+                key={text(item.id)}
+                title={text(item.title)}
+                status={text(item.status)}
+                body={text(item.summary)}
+                meta={[
+                  text(item.priority?.value),
+                  text(item.horizon),
+                  text(item.product_area ?? item.productArea),
+                ]}
+              />
+            ))}
+            {backlogItems.length === 0 && <EmptyState label="No backlog items loaded." />}
+          </div>
+
+          <div className="planningColumn">
+            <div className="cardTopline planningColumnHeader">
+              <h3>Captures</h3>
+              <Pill tone={planningCaptures.length ? "neutral" : "neutral"}>{planningCaptures.length}</Pill>
+            </div>
+            {planningCaptures.slice(0, 4).map((capture) => {
+              const source = capture.source ?? {};
+              const sourceLabel =
+                source.repo && source.issue_number
+                  ? `${source.repo}#${source.issue_number}`
+                  : text(source.kind);
+              return (
+                <PlanningItem
+                  key={text(capture.id)}
+                  title={text(capture.title)}
+                  status={text(capture.status)}
+                  body={text(capture.body)}
+                  meta={[text(capture.confidence), sourceLabel, listText(capture.tags)]}
+                />
+              );
+            })}
+            {planningCaptures.length === 0 && <EmptyState label="No captures loaded." />}
+          </div>
         </div>
       </section>
 
@@ -560,12 +721,13 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
   );
 }
 
-function ActionIcon({ icon }: { icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" }) {
+function ActionIcon({ icon }: { icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" | "plan" }) {
   if (icon === "file") return <FileText size={16} aria-hidden="true" />;
   if (icon === "check") return <ClipboardCheck size={16} aria-hidden="true" />;
   if (icon === "play") return <Play size={16} aria-hidden="true" />;
   if (icon === "eye") return <Eye size={16} aria-hidden="true" />;
   if (icon === "runtime") return <Database size={16} aria-hidden="true" />;
+  if (icon === "plan") return <ListChecks size={16} aria-hidden="true" />;
   return <CheckCircle2 size={16} aria-hidden="true" />;
 }
 
@@ -593,6 +755,32 @@ function Finding({ title, result, findingKey = "finding" }: { title: string; res
       ) : (
         <p>{text(result?.note, "No finding available.")}</p>
       )}
+    </article>
+  );
+}
+
+function PlanningItem({
+  title,
+  status,
+  body,
+  meta,
+  selected = false,
+}: {
+  title: string;
+  status: string;
+  body: string;
+  meta: string[];
+  selected?: boolean;
+}) {
+  const metaItems = meta.filter((item) => item && item !== "none");
+  return (
+    <article className={`planningItem ${selected ? "selected" : ""}`}>
+      <div className="cardTopline">
+        <h3>{title}</h3>
+        <Pill tone={statusClass(status)}>{status}</Pill>
+      </div>
+      <p>{body}</p>
+      {metaItems.length > 0 && <span className="planningMeta">{metaItems.join(" / ")}</span>}
     </article>
   );
 }

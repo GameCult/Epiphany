@@ -792,6 +792,259 @@ def state_revision(status: dict[str, Any]) -> int | None:
     return scene_revision if isinstance(scene_revision, int) else None
 
 
+def status_epiphany_state(status: dict[str, Any]) -> dict[str, Any]:
+    state = first_present(
+        status,
+        ("read", "thread", "epiphanyState"),
+        ("scene", "scene", "epiphanyState"),
+    )
+    return state if isinstance(state, dict) else {}
+
+
+def status_planning_state(status: dict[str, Any]) -> dict[str, Any]:
+    planning_response = status.get("planning")
+    if isinstance(planning_response, dict):
+        planning = planning_response.get("planning")
+        if isinstance(planning, dict):
+            return planning
+    state = status_epiphany_state(status)
+    planning = state.get("planning")
+    return planning if isinstance(planning, dict) else {}
+
+
+def planning_drafts(planning: dict[str, Any]) -> list[dict[str, Any]]:
+    drafts = planning.get("objective_drafts") or planning.get("objectiveDrafts")
+    if not isinstance(drafts, list):
+        return []
+    return [draft for draft in drafts if isinstance(draft, dict)]
+
+
+def planning_backlog_items(planning: dict[str, Any]) -> list[dict[str, Any]]:
+    items = planning.get("backlog_items") or planning.get("backlogItems")
+    if not isinstance(items, list):
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
+def string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item) for item in value if str(item).strip()]
+
+
+def objective_subgoal_id(draft_id: str) -> str:
+    cleaned = "".join(
+        char if char.isalnum() or char in {"-", "_", "."} else "-"
+        for char in draft_id.strip()
+    ).strip("-")
+    return f"objective-{cleaned or int(time.time())}"
+
+
+def update_or_append_subgoal(
+    state: dict[str, Any],
+    *,
+    subgoal_id: str,
+    title: str,
+    summary: str,
+) -> list[dict[str, Any]]:
+    raw_subgoals = state.get("subgoals")
+    subgoals = deepcopy(raw_subgoals) if isinstance(raw_subgoals, list) else []
+    subgoal = {
+        "id": subgoal_id,
+        "title": title,
+        "status": "active",
+        "summary": summary,
+    }
+    for index, item in enumerate(subgoals):
+        if isinstance(item, dict) and item.get("id") == subgoal_id:
+            subgoals[index] = {**item, **subgoal}
+            return subgoals
+    subgoals.append(subgoal)
+    return subgoals
+
+
+def adoption_note_list(
+    scratch: dict[str, Any],
+    *,
+    draft_id: str,
+    acceptance_criteria: list[str],
+    review_gates: list[str],
+) -> list[str]:
+    notes = [
+        f"Adopted Objective Draft {draft_id} from planning state.",
+        "Acceptance criteria: "
+        + (", ".join(acceptance_criteria[:6]) if acceptance_criteria else "none recorded"),
+        "Review gates: " + (", ".join(review_gates[:6]) if review_gates else "none recorded"),
+    ]
+    existing = scratch.get("notes")
+    if isinstance(existing, list):
+        notes.extend(str(note) for note in existing if str(note).strip())
+    return notes[:20]
+
+
+def adopted_investigation_checkpoint(
+    state: dict[str, Any],
+    *,
+    artifact_dir: Path,
+    evidence_id: str,
+    draft_id: str,
+    title: str,
+    summary: str,
+) -> dict[str, Any]:
+    existing = first_present(
+        state,
+        ("investigation_checkpoint",),
+        ("investigationCheckpoint",),
+    )
+    checkpoint = existing if isinstance(existing, dict) else {}
+    evidence_ids = string_list(
+        checkpoint.get("evidence_ids") or checkpoint.get("evidenceIds")
+    )
+    if evidence_id not in evidence_ids:
+        evidence_ids = [evidence_id, *evidence_ids]
+    return {
+        "checkpoint_id": str(
+            checkpoint.get("checkpoint_id")
+            or checkpoint.get("checkpointId")
+            or f"objective-adoption-{int(time.time())}"
+        ),
+        "kind": "objective_adoption",
+        "disposition": "resume_ready",
+        "focus": title,
+        "summary": f"Human adopted Objective Draft {draft_id}: {summary}",
+        "next_action": (
+            "Run coordinator guidance from the adopted objective; launch modeling "
+            "before implementation if the current graph/checkpoint is insufficient."
+        ),
+        "captured_at_turn_id": f"objective-adoption-{artifact_dir.name}",
+        "evidence_ids": evidence_ids,
+    }
+
+
+def adopt_objective_draft_patch(
+    status: dict[str, Any],
+    *,
+    draft_id: str,
+    cwd: Path,
+    artifact_dir: Path,
+) -> dict[str, Any]:
+    if not draft_id.strip():
+        raise ValueError("adoptObjectiveDraft requires --planning-draft-id")
+    state = status_epiphany_state(status)
+    planning = deepcopy(status_planning_state(status))
+    if not planning:
+        raise ValueError("adoptObjectiveDraft requires existing planning state")
+
+    draft_items = planning_drafts(planning)
+    selected_draft: dict[str, Any] | None = None
+    for draft in draft_items:
+        if draft.get("id") == draft_id:
+            selected_draft = draft
+            break
+    if selected_draft is None:
+        raise ValueError(f"objective draft not found: {draft_id}")
+
+    draft_status = str(selected_draft.get("status") or "").strip().lower()
+    if draft_status in {"adopted", "rejected", "superseded"}:
+        raise ValueError(f"objective draft {draft_id} is {draft_status} and cannot be adopted")
+
+    title = str(selected_draft.get("title") or "").strip()
+    summary = str(selected_draft.get("summary") or "").strip()
+    if not title or not summary:
+        raise ValueError(f"objective draft {draft_id} is missing title or summary")
+
+    generated_at = datetime.now(timezone.utc).isoformat()
+    source_item_ids = string_list(
+        selected_draft.get("source_item_ids") or selected_draft.get("sourceItemIds")
+    )
+    acceptance_criteria = string_list(
+        selected_draft.get("acceptance_criteria")
+        or selected_draft.get("acceptanceCriteria")
+    )
+    review_gates = string_list(
+        selected_draft.get("review_gates") or selected_draft.get("reviewGates")
+    )
+
+    for draft in draft_items:
+        if draft.get("id") == draft_id:
+            draft["status"] = "adopted"
+    backlog_items = planning_backlog_items(planning)
+    for item in backlog_items:
+        if item.get("id") in source_item_ids and str(item.get("status", "")).lower() in {
+            "ready",
+            "triaged",
+            "draft",
+        }:
+            item["status"] = "active"
+            item["updated_at"] = generated_at
+
+    subgoal_id = objective_subgoal_id(draft_id)
+    evidence_id = f"ev-objective-adoption-{artifact_dir.name}"
+    observation_id = f"obs-objective-adoption-{artifact_dir.name}"
+    scratch = deepcopy(state.get("scratch")) if isinstance(state.get("scratch"), dict) else {}
+    scratch.update(
+        {
+            "summary": f"Adopted planning draft {draft_id} as the active objective: {summary}",
+            "hypothesis": summary,
+            "next_probe": (
+                "Use coordinator/modeling guidance to strengthen the graph and "
+                "checkpoint before implementation starts chasing this objective."
+            ),
+            "notes": adoption_note_list(
+                scratch,
+                draft_id=draft_id,
+                acceptance_criteria=acceptance_criteria,
+                review_gates=review_gates,
+            ),
+        }
+    )
+
+    patch = {
+        "objective": title,
+        "activeSubgoalId": subgoal_id,
+        "subgoals": update_or_append_subgoal(
+            state,
+            subgoal_id=subgoal_id,
+            title=title,
+            summary=summary,
+        ),
+        "planning": planning,
+        "scratch": scratch,
+        "investigationCheckpoint": adopted_investigation_checkpoint(
+            state,
+            artifact_dir=artifact_dir,
+            evidence_id=evidence_id,
+            draft_id=draft_id,
+            title=title,
+            summary=summary,
+        ),
+        "observations": [
+            {
+                "id": observation_id,
+                "summary": (
+                    f"Objective Draft {draft_id} was explicitly adopted as the "
+                    "active implementation objective by the operator."
+                ),
+                "source_kind": "planning",
+                "status": "accepted",
+                "evidence_ids": [evidence_id],
+            }
+        ],
+        "evidence": [
+            {
+                "id": evidence_id,
+                "kind": "planning-adoption",
+                "status": "accepted",
+                "summary": (
+                    f"Human-gated planning adoption set active objective to {title!r}; "
+                    f"source items={', '.join(source_item_ids) or 'none'}; cwd={cwd}."
+                ),
+            }
+        ],
+    }
+    return patch
+
+
 def require_thread_id(thread_id: str | None, action: str) -> str:
     if not thread_id:
         raise ValueError(f"{action} requires a persistent thread id")
@@ -858,7 +1111,32 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
             before = collect_status(client, thread_id=thread_id, cwd=cwd, ephemeral=False)
             revision = state_revision(before)
 
-            if args.action in {"launchModeling", "launchVerification"}:
+            if args.action == "adoptObjectiveDraft":
+                if revision is None:
+                    raise ValueError(
+                        "adoptObjectiveDraft requires ready Epiphany state with a revision"
+                    )
+                patch = adopt_objective_draft_patch(
+                    before,
+                    draft_id=args.planning_draft_id or "",
+                    cwd=cwd,
+                    artifact_dir=artifact_dir,
+                )
+                write_json(artifact_dir / "objective-adoption-state-patch.json", patch)
+                response = client.send(
+                    "thread/epiphany/update",
+                    {
+                        "threadId": thread_id,
+                        "expectedRevision": revision,
+                        "patch": patch,
+                    },
+                )
+                write_json(artifact_dir / "objective-adoption-state-update.json", response)
+                summary = (
+                    "Adopted reviewed Objective Draft "
+                    f"{args.planning_draft_id} as the active objective."
+                )
+            elif args.action in {"launchModeling", "launchVerification"}:
                 role_id = "modeling" if args.action == "launchModeling" else "verification"
                 payload: dict[str, Any] = {
                     "threadId": thread_id,
@@ -1112,9 +1390,14 @@ def main() -> int:
             "launchReorient",
             "readReorientResult",
             "acceptReorient",
+            "adoptObjectiveDraft",
             "continueImplementation",
             "prepareCheckpoint",
         ],
+    )
+    parser.add_argument(
+        "--planning-draft-id",
+        help="Objective Draft id to adopt for adoptObjectiveDraft.",
     )
     parser.add_argument(
         "--force",

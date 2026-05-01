@@ -115,6 +115,7 @@ def collect_status(
     reorient = client.send("thread/epiphany/reorient", {"threadId": thread_id})
     jobs = client.send("thread/epiphany/jobs", {"threadId": thread_id})
     roles = client.send("thread/epiphany/roles", {"threadId": thread_id})
+    planning = client.send("thread/epiphany/planning", {"threadId": thread_id})
     role_results = {
         "modeling": client.send(
             "thread/epiphany/roleResult", {"threadId": thread_id, "roleId": "modeling"}
@@ -135,6 +136,7 @@ def collect_status(
         "reorient": reorient,
         "jobs": jobs,
         "roles": roles,
+        "planning": planning,
         "roleResults": role_results,
         "reorientResult": reorient_result,
         "crrc": crrc,
@@ -152,6 +154,10 @@ def render_status(status: dict[str, Any]) -> str:
     result = status["reorientResult"]
     crrc = status["crrc"]
     roles = status["roles"]["roles"]
+    planning_response = status.get("planning") or {}
+    planning_summary = planning_response.get("summary") or {}
+    planning_state = planning_response.get("planning") or {}
+    objective_drafts = planning_state.get("objective_drafts") or []
     role_results = status.get("roleResults") or {}
     recommendation = crrc["recommendation"]
     coordinator = status.get("coordinator") or {}
@@ -185,6 +191,39 @@ def render_status(status: dict[str, Any]) -> str:
                 f"- finding mode: {maybe(finding.get('mode'))}",
                 f"- finding next: {maybe(finding.get('nextSafeMove'))}",
             ]
+        )
+
+    lines.extend(
+        [
+            "",
+            "Planning",
+            (
+                f"- state: {maybe(planning_response.get('stateStatus'))} rev "
+                f"{maybe(planning_response.get('stateRevision'))}"
+            ),
+            (
+                f"- captures: {maybe(planning_summary.get('captureCount'), '0')} "
+                f"(pending {maybe(planning_summary.get('pendingCaptureCount'), '0')}, "
+                f"github {maybe(planning_summary.get('githubIssueCaptureCount'), '0')})"
+            ),
+            (
+                f"- backlog: {maybe(planning_summary.get('backlogItemCount'), '0')} "
+                f"(ready {maybe(planning_summary.get('readyBacklogItemCount'), '0')})"
+            ),
+            (
+                f"- roadmap streams: {maybe(planning_summary.get('roadmapStreamCount'), '0')}; "
+                f"objective drafts: {maybe(planning_summary.get('objectiveDraftCount'), '0')} "
+                f"(draft {maybe(planning_summary.get('draftObjectiveCount'), '0')})"
+            ),
+            f"- active objective: {maybe(planning_summary.get('activeObjective'))}",
+            f"- note: {maybe(planning_summary.get('note'))}",
+        ]
+    )
+    if objective_drafts:
+        draft = objective_drafts[0]
+        lines.append(
+            f"- first draft: {maybe(draft.get('id'))} / {maybe(draft.get('status'))} - "
+            f"{maybe(draft.get('title'))}"
         )
 
     lines.extend(

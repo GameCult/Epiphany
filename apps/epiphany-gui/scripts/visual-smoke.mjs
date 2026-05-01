@@ -53,9 +53,12 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   await page.getByRole("heading", { name: "Environment" }).waitFor();
   await page.getByText("Unity Editor").waitFor();
   await page.getByText("Rider").waitFor();
+  await page.getByRole("heading", { name: "Planning", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Build the planning dashboard slice", exact: true }).waitFor();
   await page.getByText("Role Lanes").waitFor();
   await page.getByText("Artifact Bundles").waitFor();
   await page.getByRole("button", { name: "Prepare Checkpoint" }).waitFor();
+  await page.getByRole("button", { name: "Adopt Draft" }).waitFor();
   await page.getByRole("button", { name: "Launch Modeling" }).waitFor();
   await page.getByRole("button", { name: "Read Modeling" }).waitFor();
   await page.getByRole("button", { name: "Launch Verification" }).waitFor();

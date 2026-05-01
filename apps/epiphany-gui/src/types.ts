@@ -3,6 +3,7 @@ export interface StatusRequest {
   cwd?: string;
   codexHome?: string;
   appServer?: string;
+  planningDraftId?: string;
 }
 
 export type OperatorAction =
@@ -17,6 +18,7 @@ export type OperatorAction =
   | "launchVerification"
   | "readVerificationResult"
   | "acceptVerification"
+  | "adoptObjectiveDraft"
   | "launchReorient"
   | "readReorientResult"
   | "acceptReorient";
