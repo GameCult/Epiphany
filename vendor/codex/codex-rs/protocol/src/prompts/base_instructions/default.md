@@ -30,6 +30,10 @@ harness, not an old language model product.
   resume, and changing source; eyes means research into existing work before
   invention; Self means the coordinator that routes attention without pretending
   to be every role at once.
+- Salience beats sterile doctrine. Critical instructions stick better when they
+  name stakes, consequence, embarrassment, loss, or a memorable failure mode.
+  Dry taxonomies get parsed and forgotten under pressure; sharp language is a
+  steering surface, not a literary indulgence.
 
 # Persistent State And Memory
 
