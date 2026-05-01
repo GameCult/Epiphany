@@ -27,6 +27,7 @@ DEFAULT_RESULT = ROOT / ".epiphany-smoke" / "phase6-role-smoke-result.json"
 DEFAULT_TRANSCRIPT = ROOT / ".epiphany-smoke" / "phase6-role-smoke-transcript.jsonl"
 DEFAULT_STDERR = ROOT / ".epiphany-smoke" / "phase6-role-smoke-server.stderr.log"
 
+IMAGINATION_BINDING_ID = "planning-synthesis-worker"
 MODELING_BINDING_ID = "modeling-checkpoint-worker"
 VERIFICATION_BINDING_ID = "verification-review-worker"
 
@@ -51,7 +52,88 @@ def complete_role_backend_job(
         "frontierNodeIds": [GRAPH_NODE_ID],
         "evidenceIds": evidence_ids or ["ev-checkpoint"],
     }
-    if role_id == "modeling":
+    if role_id == "imagination":
+        result["statePatch"] = {
+            "planning": {
+                "workspace_root": str(ROOT),
+                "captures": [
+                    {
+                        "id": "capture-imagination-smoke",
+                        "title": "Imagination role smoke source",
+                        "body": "Planning synthesis should create reviewable objective drafts without adopting them.",
+                        "confidence": "medium",
+                        "status": "triaged",
+                        "speaker": "smoke",
+                        "tags": ["imagination", "planning"],
+                        "source": {
+                            "kind": "chat",
+                            "uri": "codex://threads/imagination-smoke",
+                        },
+                    }
+                ],
+                "backlog_items": [
+                    {
+                        "id": "backlog-imagination-smoke",
+                        "title": "Accept a planning-only role patch",
+                        "kind": "test",
+                        "summary": "Prove Imagination can grow planning state through review-gated roleAccept.",
+                        "status": "ready",
+                        "horizon": "near",
+                        "priority": {
+                            "value": "medium",
+                            "rationale": "The planning lane needs a durable smoke guard.",
+                        },
+                        "confidence": "medium",
+                        "product_area": "epiphany-control-plane",
+                        "lane_hints": ["imagination", "soul"],
+                        "acceptance_sketch": [
+                            "roleAccept applies planning without adopting the draft."
+                        ],
+                        "source_refs": [
+                            {
+                                "kind": "chat",
+                                "uri": "codex://threads/imagination-smoke",
+                            }
+                        ],
+                    }
+                ],
+                "roadmap_streams": [
+                    {
+                        "id": "stream-imagination-smoke",
+                        "title": "Planning synthesis smoke",
+                        "purpose": "Keep planning proposals review-gated.",
+                        "status": "active",
+                        "item_ids": ["backlog-imagination-smoke"],
+                        "near_term_focus": "backlog-imagination-smoke",
+                    }
+                ],
+                "objective_drafts": [
+                    {
+                        "id": "draft-imagination-smoke",
+                        "title": "Review Imagination planning patch",
+                        "summary": "Accept a planning-only patch and leave adoption to a later human action.",
+                        "source_item_ids": ["backlog-imagination-smoke"],
+                        "scope": {
+                            "includes": ["planning state update"],
+                            "excludes": ["objective adoption", "implementation edits"],
+                        },
+                        "acceptance_criteria": [
+                            "The role accept response changes planning, observations, and evidence only.",
+                            "The draft remains in draft status after acceptance.",
+                        ],
+                        "evidence_required": ["phase6 role smoke"],
+                        "lane_plan": {
+                            "imagination": "synthesize a bounded future shape",
+                            "soul": "verify the patch remains review-gated",
+                        },
+                        "risks": ["accidental objective adoption"],
+                        "review_gates": ["human adoption review"],
+                        "status": "draft",
+                    }
+                ],
+            }
+        }
+    elif role_id == "modeling":
         patch = reorient_patch()
         graphs = patch["graphs"]
         graphs["architecture"]["nodes"].append(
@@ -259,13 +341,105 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             start_index=update_notification_start,
         )
 
+        imagination_launch = launch_role(
+            client,
+            thread_id,
+            role_id="imagination",
+            expected_revision=1,
+        )
+        require(
+            imagination_launch["revision"] == 2,
+            "imagination launch should advance revision",
+        )
+        assert_role_job(
+            imagination_launch["job"],
+            binding_id=IMAGINATION_BINDING_ID,
+            owner_role="epiphany-imagination",
+            authority_scope="epiphany.role.imagination",
+            scope="role-scoped planning synthesis",
+        )
+        imagination_payload = complete_role_backend_job(
+            codex_home,
+            imagination_launch["job"]["backendJobId"],
+            binding_id=IMAGINATION_BINDING_ID,
+            role_id="imagination",
+            verdict="draft-ready",
+        )
+        imagination_result_start = len(client.notifications)
+        imagination_result = client.send(
+            "thread/epiphany/roleResult",
+            {"threadId": thread_id, "roleId": "imagination"},
+        )
+        assert imagination_result is not None
+        assert_role_result(
+            imagination_result,
+            role_id="imagination",
+            binding_id=IMAGINATION_BINDING_ID,
+            payload=imagination_payload,
+            expected_revision=2,
+        )
+        client.require_no_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=imagination_result_start,
+        )
+
+        imagination_roles = client.send("thread/epiphany/roles", {"threadId": thread_id})
+        assert imagination_roles is not None
+        imagination_lane = next(
+            role for role in imagination_roles["roles"] if role["id"] == "imagination"
+        )
+        require(
+            imagination_lane["recommendedAction"] == "roleResult",
+            "roles should point imagination at roleResult while the binding exists",
+        )
+        assert_role_job(
+            job_by_id(imagination_lane["jobs"], IMAGINATION_BINDING_ID),
+            binding_id=IMAGINATION_BINDING_ID,
+            owner_role="epiphany-imagination",
+            authority_scope="epiphany.role.imagination",
+            scope="role-scoped planning synthesis",
+        )
+
+        imagination_accept_start = len(client.notifications)
+        imagination_accept = client.send(
+            "thread/epiphany/roleAccept",
+            {
+                "threadId": thread_id,
+                "roleId": "imagination",
+                "expectedRevision": 2,
+            },
+        )
+        assert imagination_accept is not None
+        require(
+            imagination_accept["changedFields"] == ["observations", "evidence", "planning"],
+            "imagination accept should apply only planning plus audit records",
+        )
+        require(
+            imagination_accept["appliedPatch"]["planning"]["objective_drafts"][0]["status"]
+            == "draft",
+            "imagination accept should leave Objective Drafts review-gated",
+        )
+        imagination_accept_notification = client.wait_for_notification(
+            "thread/epiphany/stateUpdated",
+            start_index=imagination_accept_start,
+            timeout=15.0,
+        )
+        require(
+            imagination_accept_notification["params"]["source"] == "roleAccept",
+            "imagination accept should emit roleAccept state update source",
+        )
+        require(
+            imagination_accept_notification["params"]["revision"] == 3,
+            "imagination accept should advance durable revision",
+        )
+
         modeling_launch = launch_role(
             client,
             thread_id,
             role_id="modeling",
-            expected_revision=1,
+            expected_revision=3,
         )
-        require(modeling_launch["revision"] == 2, "modeling launch should advance revision")
+        require(modeling_launch["revision"] == 4, "modeling launch should advance revision")
         assert_role_job(
             modeling_launch["job"],
             binding_id=MODELING_BINDING_ID,
@@ -291,7 +465,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             role_id="modeling",
             binding_id=MODELING_BINDING_ID,
             payload=modeling_payload,
-            expected_revision=2,
+            expected_revision=4,
         )
         client.require_no_notification(
             "thread/epiphany/stateUpdated",
@@ -321,7 +495,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "threadId": thread_id,
                 "roleId": "modeling",
-                "expectedRevision": 2,
+                "expectedRevision": 4,
             },
         )
         assert modeling_accept is not None
@@ -352,7 +526,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "modeling accept should emit roleAccept state update source",
         )
         require(
-            accept_notification["params"]["revision"] == 3,
+            accept_notification["params"]["revision"] == 5,
             "modeling accept should advance durable revision",
         )
 
@@ -360,10 +534,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             client,
             thread_id,
             role_id="verification",
-            expected_revision=3,
+            expected_revision=5,
         )
         require(
-            verification_launch["revision"] == 4,
+            verification_launch["revision"] == 6,
             "verification launch should advance revision",
         )
         assert_role_job(
@@ -392,7 +566,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             role_id="verification",
             binding_id=VERIFICATION_BINDING_ID,
             payload=verification_payload,
-            expected_revision=4,
+            expected_revision=6,
         )
         client.require_no_notification(
             "thread/epiphany/stateUpdated",
@@ -402,8 +576,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         final_read = client.send("thread/read", {"threadId": thread_id, "includeTurns": False})
         assert final_read is not None
         require(
-            final_read["thread"]["epiphanyState"]["revision"] == 4,
+            final_read["thread"]["epiphanyState"]["revision"] == 6,
             "role result read-back should not mutate durable state",
+        )
+        require(
+            final_read["thread"]["epiphanyState"]["planning"]["objective_drafts"][0]["id"]
+            == "draft-imagination-smoke",
+            "accepted imagination result should grow durable planning state",
         )
         graph_ids = [
             node["id"]
@@ -418,6 +597,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             "threadId": thread_id,
             "codexHome": str(codex_home),
             "workspace": str(workspace),
+            "imaginationRevision": imagination_launch["revision"],
+            "imaginationResultStatus": imagination_result["status"],
+            "imaginationAcceptRevision": imagination_accept["revision"],
+            "imaginationAcceptedDraft": "draft-imagination-smoke",
             "modelingRevision": modeling_launch["revision"],
             "modelingResultStatus": modeling_result["status"],
             "modelingNextSafeMove": modeling_result["finding"]["nextSafeMove"],
@@ -439,7 +622,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Live-smoke explicit Phase 6 modeling/verification role launch and read-back."
+        description="Live-smoke explicit Phase 6 imagination/modeling/verification role launch and read-back."
     )
     parser.add_argument("--app-server", type=Path, default=DEFAULT_APP_SERVER)
     parser.add_argument("--codex-home", type=Path, default=DEFAULT_CODEX_HOME)

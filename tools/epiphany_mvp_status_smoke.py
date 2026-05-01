@@ -69,8 +69,9 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
     )
     lane_ids = [lane["id"] for lane in status["roles"]["roles"]]
     require(
-        lane_ids == ["implementation", "modeling", "verification", "reorientation"],
-        "roles surface should expose the four MVP role lanes",
+        lane_ids
+        == ["implementation", "imagination", "modeling", "verification", "reorientation"],
+        "roles surface should expose the five MVP role lanes",
     )
     require(
         status["roles"]["note"].startswith("Role ownership is derived read-only"),
@@ -91,6 +92,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
     )
     require(
         "Role Findings" in rendered
+        and status["roleResults"]["imagination"]["status"] == "missingState"
         and status["roleResults"]["modeling"]["status"] == "missingState"
         and status["roleResults"]["verification"]["status"] == "missingState",
         "rendered status should expose fixed role result read-back status",

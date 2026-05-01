@@ -14769,6 +14769,7 @@
     "ThreadEpiphanyRoleId": {
       "enum": [
         "implementation",
+        "imagination",
         "modeling",
         "verification",
         "reorientation"

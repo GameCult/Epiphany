@@ -1136,8 +1136,12 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                     "Adopted reviewed Objective Draft "
                     f"{args.planning_draft_id} as the active objective."
                 )
-            elif args.action in {"launchModeling", "launchVerification"}:
-                role_id = "modeling" if args.action == "launchModeling" else "verification"
+            elif args.action in {"launchImagination", "launchModeling", "launchVerification"}:
+                role_id = {
+                    "launchImagination": "imagination",
+                    "launchModeling": "modeling",
+                    "launchVerification": "verification",
+                }[args.action]
                 payload: dict[str, Any] = {
                     "threadId": thread_id,
                     "roleId": role_id,
@@ -1159,12 +1163,32 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                 else:
                     response = launch
                     summary = f"Launched {role_id} role worker without waiting."
-            elif args.action in {"readModelingResult", "readVerificationResult"}:
-                role_id = "modeling" if args.action == "readModelingResult" else "verification"
+            elif args.action in {
+                "readImaginationResult",
+                "readModelingResult",
+                "readVerificationResult",
+            }:
+                role_id = {
+                    "readImaginationResult": "imagination",
+                    "readModelingResult": "modeling",
+                    "readVerificationResult": "verification",
+                }[args.action]
                 response = client.send(
                     "thread/epiphany/roleResult", {"threadId": thread_id, "roleId": role_id}
                 )
                 summary = f"Read {role_id} role result."
+            elif args.action == "acceptImagination":
+                if revision is None:
+                    raise ValueError("acceptImagination requires ready Epiphany state with a revision")
+                response = client.send(
+                    "thread/epiphany/roleAccept",
+                    {
+                        "threadId": thread_id,
+                        "roleId": "imagination",
+                        "expectedRevision": revision,
+                    },
+                )
+                summary = "Accepted reviewed imagination planning patch."
             elif args.action == "acceptModeling":
                 if revision is None:
                     raise ValueError("acceptModeling requires ready Epiphany state with a revision")
@@ -1381,6 +1405,9 @@ def main() -> int:
         "--action",
         required=True,
         choices=[
+            "launchImagination",
+            "readImaginationResult",
+            "acceptImagination",
             "launchModeling",
             "readModelingResult",
             "acceptModeling",

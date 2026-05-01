@@ -87,6 +87,14 @@
           "title": "Implementation"
         },
         {
+          "id": "imagination",
+          "note": "Planning material ready: 2 captures, 1 backlog items, 1 roadmap streams, 1 objective drafts.",
+          "ownerRole": "epiphany-imagination",
+          "recommendedAction": "roleLaunch",
+          "status": "ready",
+          "title": "Imagination / Planning"
+        },
+        {
           "id": "modeling",
           "note": "Checkpoint missing: Re-gather source context before editing.",
           "ownerRole": "epiphany-modeler",
@@ -237,6 +245,12 @@
       }
     },
     "roleResults": {
+      "imagination": {
+        "bindingId": "planning-synthesis-worker",
+        "note": "No authoritative Epiphany state exists for this thread.",
+        "roleId": "imagination",
+        "status": "missingState"
+      },
       "modeling": {
         "bindingId": "modeling-checkpoint-worker",
         "note": "No authoritative Epiphany state exists for this thread.",

@@ -59,6 +59,8 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   await page.getByText("Artifact Bundles").waitFor();
   await page.getByRole("button", { name: "Prepare Checkpoint" }).waitFor();
   await page.getByRole("button", { name: "Adopt Draft" }).waitFor();
+  await page.getByRole("button", { name: "Launch Imagination" }).waitFor();
+  await page.getByRole("button", { name: "Read Imagination" }).waitFor();
   await page.getByRole("button", { name: "Launch Modeling" }).waitFor();
   await page.getByRole("button", { name: "Read Modeling" }).waitFor();
   await page.getByRole("button", { name: "Launch Verification" }).waitFor();
@@ -73,6 +75,8 @@ async function smokeViewport(browser, viewport, screenshotPath) {
     await page.getByText("coordinatorPlan sample completed.").waitFor();
     await page.getByRole("button", { name: "Prepare Checkpoint" }).click();
     await page.getByText("prepareCheckpoint sample completed.").waitFor();
+    await page.getByRole("button", { name: "Read Imagination" }).click();
+    await page.getByText("readImaginationResult sample completed.").waitFor();
     await page.getByRole("button", { name: "Read Modeling" }).click();
     await page.getByText("readModelingResult sample completed.").waitFor();
     await page.getByRole("button", { name: "Read Reorient" }).click();

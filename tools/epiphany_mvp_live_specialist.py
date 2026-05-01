@@ -213,7 +213,12 @@ def main() -> int:
     parser.add_argument("--app-server", type=Path, default=DEFAULT_APP_SERVER)
     parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
     parser.add_argument("--codex-home", type=Path, default=DEFAULT_CODEX_HOME)
-    parser.add_argument("--roles", nargs="+", choices=["modeling", "verification"], default=list(DEFAULT_ROLES))
+    parser.add_argument(
+        "--roles",
+        nargs="+",
+        choices=["imagination", "modeling", "verification"],
+        default=list(DEFAULT_ROLES),
+    )
     parser.add_argument("--max-runtime-seconds", type=int, default=180)
     parser.add_argument("--timeout-seconds", type=int, default=240)
     parser.add_argument("--poll-seconds", type=float, default=5.0)

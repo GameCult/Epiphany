@@ -117,6 +117,9 @@ def collect_status(
     roles = client.send("thread/epiphany/roles", {"threadId": thread_id})
     planning = client.send("thread/epiphany/planning", {"threadId": thread_id})
     role_results = {
+        "imagination": client.send(
+            "thread/epiphany/roleResult", {"threadId": thread_id, "roleId": "imagination"}
+        ),
         "modeling": client.send(
             "thread/epiphany/roleResult", {"threadId": thread_id, "roleId": "modeling"}
         ),
@@ -243,10 +246,15 @@ def render_status(status: dict[str, Any]) -> str:
             "Role Findings",
         ]
     )
-    for role_id in ("modeling", "verification"):
+    role_labels = {
+        "imagination": "Imagination / Planning",
+        "modeling": "Modeling / Checkpoint",
+        "verification": "Verification / Review",
+    }
+    for role_id in ("imagination", "modeling", "verification"):
         role_result = role_results.get(role_id) or {}
         finding = role_result.get("finding")
-        label = "Modeling / Checkpoint" if role_id == "modeling" else "Verification / Review"
+        label = role_labels[role_id]
         lines.append(
             f"- {label}: {maybe(role_result.get('status'))} for "
             f"{maybe(role_result.get('bindingId'))}"

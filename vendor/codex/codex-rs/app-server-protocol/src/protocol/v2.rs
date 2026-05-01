@@ -4197,6 +4197,7 @@ pub enum ThreadEpiphanyRolesSource {
 #[ts(export_to = "v2/")]
 pub enum ThreadEpiphanyRoleId {
     Implementation,
+    Imagination,
     Modeling,
     Verification,
     Reorientation,

@@ -15,7 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 
-const roleOrder = ["implementation", "modeling", "verification", "reorientation"];
+const roleOrder = ["implementation", "imagination", "modeling", "verification", "reorientation"];
 const actionButtons: Array<{
   action: OperatorAction;
   label: string;
@@ -23,6 +23,7 @@ const actionButtons: Array<{
   title: string;
   requiresThread?: boolean;
   requiresReadyState?: boolean;
+  requiresImaginationPatch?: boolean;
   requiresModelingPatch?: boolean;
   requiresVerificationResult?: boolean;
   requiresReorientResult?: boolean;
@@ -77,6 +78,33 @@ const actionButtons: Array<{
     requiresReadyState: true,
     requiresContinueImplementation: true,
     icon: "play",
+  },
+  {
+    action: "launchImagination",
+    label: "Launch Imagination",
+    runningLabel: "Launching",
+    title: "Launch the fixed imagination/planning worker for this thread",
+    requiresThread: true,
+    requiresReadyState: true,
+    icon: "play",
+  },
+  {
+    action: "readImaginationResult",
+    label: "Read Imagination",
+    runningLabel: "Reading",
+    title: "Read the latest imagination/planning finding",
+    requiresThread: true,
+    icon: "eye",
+  },
+  {
+    action: "acceptImagination",
+    label: "Accept Imagination",
+    runningLabel: "Accepting",
+    title: "Accept a reviewed planning-only patch into Epiphany state",
+    requiresThread: true,
+    requiresReadyState: true,
+    requiresImaginationPatch: true,
+    icon: "accept",
   },
   {
     action: "launchModeling",
@@ -290,6 +318,10 @@ export function App() {
     Boolean(latestArtifact?.implementationAudit) && latestArtifact?.implementationAudit?.workspaceChanged === false;
   const readyState = scene.stateStatus === "ready";
   const currentThreadId = request.threadId;
+  const imaginationFinding = roleResults?.imagination?.finding;
+  const canAcceptImagination =
+    text(roleResults?.imagination?.status).toLowerCase() === "completed" &&
+    Boolean(imaginationFinding?.statePatch?.planning);
   const modelingFinding = roleResults?.modeling?.finding;
   const canAcceptModeling =
     text(roleResults?.modeling?.status).toLowerCase() === "completed" && Boolean(modelingFinding?.statePatch);
@@ -356,6 +388,7 @@ export function App() {
         {actionButtons.map((button) => {
           const needsThread = button.requiresThread && !currentThreadId;
           const needsState = button.requiresReadyState && !readyState;
+          const needsImagination = button.requiresImaginationPatch && !canAcceptImagination;
           const needsModeling = button.requiresModelingPatch && !canAcceptModeling;
           const needsVerification = button.requiresVerificationResult && !canAcceptVerification;
           const needsReorient = button.requiresReorientResult && !canAcceptReorient;
@@ -366,6 +399,7 @@ export function App() {
             runningAction !== null ||
             needsThread ||
             needsState ||
+            needsImagination ||
             needsModeling ||
             needsVerification ||
             needsReorient ||
@@ -373,9 +407,11 @@ export function App() {
             needsImplementation ||
             needsNoDiffReview;
           const title = needsThread
-            ? "Prepare a checkpoint or enter a persisted thread id first"
+              ? "Prepare a checkpoint or enter a persisted thread id first"
             : needsState
               ? "Prepare Epiphany state before launching this lane"
+              : needsImagination
+                ? "Read a completed imagination result with a planning patch before accepting it"
               : needsModeling
                 ? "Read a completed modeling result with a state patch before accepting it"
                 : needsVerification
@@ -657,6 +693,7 @@ export function App() {
         <div>
           <SectionHeader title="Findings" icon={<FileText size={18} />} />
           <div className="stack">
+            <Finding title="Imagination / Planning" result={roleResults.imagination} />
             <Finding title="Modeling / Checkpoint" result={roleResults.modeling} />
             <Finding title="Verification / Review" result={roleResults.verification} />
             <Finding title="Reorientation" result={reorientResult} findingKey="finding" />

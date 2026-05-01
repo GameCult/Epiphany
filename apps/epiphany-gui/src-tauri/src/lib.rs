@@ -111,7 +111,10 @@ fn run_operator_action(
         "statusSnapshot" => run_status_snapshot(&repo_root, request),
         "coordinatorPlan" => run_coordinator_plan(&repo_root, request),
         "inspectUnity" => run_unity_inspection(&repo_root, request),
-        "launchModeling"
+        "launchImagination"
+        | "readImaginationResult"
+        | "acceptImagination"
+        | "launchModeling"
         | "readModelingResult"
         | "acceptModeling"
         | "launchVerification"

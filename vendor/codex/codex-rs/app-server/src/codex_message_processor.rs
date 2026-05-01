@@ -5107,6 +5107,28 @@ impl CodexMessageProcessor {
         };
 
         let mut patch = match role_id {
+            ThreadEpiphanyRoleId::Imagination => {
+                let patch = match parse_role_finding_state_patch(&finding) {
+                    Ok(patch) => patch,
+                    Err(message) => {
+                        self.send_invalid_request_error(request_id, message).await;
+                        return;
+                    }
+                };
+                let patch_errors = imagination_role_accept_patch_errors(&patch);
+                if !patch_errors.is_empty() {
+                    self.send_invalid_request_error(
+                        request_id,
+                        format!(
+                            "imagination role state patch is not acceptable: {}",
+                            patch_errors.join("; ")
+                        ),
+                    )
+                    .await;
+                    return;
+                }
+                patch
+            }
             ThreadEpiphanyRoleId::Modeling => {
                 let patch = match parse_role_finding_state_patch(&finding) {
                     Ok(patch) => patch,
@@ -5141,6 +5163,7 @@ impl CodexMessageProcessor {
         };
 
         let accepted_kind = match role_id {
+            ThreadEpiphanyRoleId::Imagination => "planning_synthesis",
             ThreadEpiphanyRoleId::Modeling => "modeling_result",
             ThreadEpiphanyRoleId::Verification => "verification_result",
             ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
@@ -13085,6 +13108,8 @@ fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> Thre
 }
 
 const EPIPHANY_SCENE_RECORD_LIMIT: usize = 5;
+const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
+const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
 const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker";
 const EPIPHANY_MODELING_OWNER_ROLE: &str = "epiphany-modeler";
 const EPIPHANY_VERIFICATION_ROLE_BINDING_ID: &str = "verification-review-worker";
@@ -13139,6 +13164,7 @@ fn epiphany_scene_available_actions(
 
 fn epiphany_role_binding_id(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
     match role_id {
+        ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
         ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
         ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
         ThreadEpiphanyRoleId::Implementation => Err(
@@ -13154,6 +13180,7 @@ fn epiphany_role_binding_id(role_id: ThreadEpiphanyRoleId) -> Result<&'static st
 
 fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
     match role_id {
+        ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
         ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
         ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
@@ -13165,6 +13192,7 @@ fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, St
 fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
     match role_id {
         ThreadEpiphanyRoleId::Implementation => "implementation",
+        ThreadEpiphanyRoleId::Imagination => "imagination",
         ThreadEpiphanyRoleId::Modeling => "modeling",
         ThreadEpiphanyRoleId::Verification => "verification",
         ThreadEpiphanyRoleId::Reorientation => "reorientation",
@@ -13186,6 +13214,7 @@ struct EpiphanySpecialistPromptConfig {
 
 #[derive(Debug, serde::Deserialize)]
 struct EpiphanyRolePromptConfig {
+    imagination: String,
     modeling: String,
     verification: String,
     #[allow(dead_code)]
@@ -13234,6 +13263,12 @@ fn build_epiphany_role_launch_request(
     let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
     let linked_graph_node_ids = epiphany_active_graph_node_ids(Some(state));
     let (scope, authority_scope, instruction, output_schema_json) = match role_id {
+        ThreadEpiphanyRoleId::Imagination => (
+            "role-scoped planning synthesis",
+            "epiphany.role.imagination",
+            build_epiphany_role_launch_instruction(role_id),
+            epiphany_role_launch_output_schema(role_id),
+        ),
         ThreadEpiphanyRoleId::Modeling => (
             "role-scoped modeling/checkpoint maintenance",
             "epiphany.role.modeling",
@@ -13270,6 +13305,7 @@ fn build_epiphany_role_launch_request(
         "recentObservations": state.observations.iter().take(8).collect::<Vec<_>>(),
         "graphFrontier": &state.graph_frontier,
         "graphCheckpoint": &state.graph_checkpoint,
+        "planning": &state.planning,
         "churn": &state.churn,
     });
 
@@ -13292,6 +13328,7 @@ fn build_epiphany_role_launch_request(
 fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> String {
     let prompts = &epiphany_specialist_prompt_config().roles;
     match role_id {
+        ThreadEpiphanyRoleId::Imagination => prompts.imagination.clone(),
         ThreadEpiphanyRoleId::Modeling => prompts.modeling.clone(),
         ThreadEpiphanyRoleId::Verification => prompts.verification.clone(),
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
@@ -13302,6 +13339,9 @@ fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> Stri
 
 fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_json::Value {
     let verdict_enum = match role_id {
+        ThreadEpiphanyRoleId::Imagination => {
+            vec!["draft-ready", "planning-update-needed", "blocked"]
+        }
         ThreadEpiphanyRoleId::Modeling => {
             vec![
                 "checkpoint-ready",
@@ -13359,7 +13399,44 @@ fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_js
         "nextSafeMove",
         "filesInspected",
     ];
-    if role_id == ThreadEpiphanyRoleId::Modeling {
+    if role_id == ThreadEpiphanyRoleId::Imagination {
+        if let Some(map) = properties.as_object_mut() {
+            map.insert(
+                "statePatch".to_string(),
+                serde_json::json!({
+                    "type": "object",
+                    "description": "Required reviewable thread/epiphany/update patch for Imagination. Use only planning plus optional observations/evidence. planning is a full replacement object and must include at least one objective_drafts entry with status draft.",
+                    "required": ["planning"],
+                    "properties": {
+                        "planning": {
+                            "type": "object",
+                            "required": ["objective_drafts"],
+                            "properties": {
+                                "objective_drafts": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": {
+                                        "type": "object",
+                                        "required": ["id", "title", "summary", "acceptance_criteria", "status"],
+                                        "properties": {
+                                            "status": {
+                                                "type": "string",
+                                                "enum": ["draft"]
+                                            }
+                                        },
+                                        "additionalProperties": true
+                                    }
+                                }
+                            },
+                            "additionalProperties": true
+                        }
+                    },
+                    "additionalProperties": true
+                }),
+            );
+        }
+        required.push("statePatch");
+    } else if role_id == ThreadEpiphanyRoleId::Modeling {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
                 "statePatch".to_string(),
@@ -13631,13 +13708,18 @@ fn map_epiphany_role_finding(
         .get("statePatch")
         .cloned()
         .and_then(|patch| serde_json::from_value(patch).ok());
-    let item_error = if role_id == ThreadEpiphanyRoleId::Modeling {
-        merge_epiphany_item_error(
+    let item_error = match role_id {
+        ThreadEpiphanyRoleId::Imagination => merge_epiphany_item_error(
+            item_error,
+            imagination_role_state_patch_error(&raw_result, state_patch.as_ref()),
+        ),
+        ThreadEpiphanyRoleId::Modeling => merge_epiphany_item_error(
             item_error,
             modeling_role_state_patch_error(&raw_result, state_patch.as_ref()),
-        )
-    } else {
-        item_error
+        ),
+        ThreadEpiphanyRoleId::Implementation
+        | ThreadEpiphanyRoleId::Verification
+        | ThreadEpiphanyRoleId::Reorientation => item_error,
     };
     ThreadEpiphanyRoleFinding {
         role_id,
@@ -13695,6 +13777,32 @@ fn modeling_role_state_patch_error(
     }
 }
 
+fn imagination_role_state_patch_error(
+    raw_result: &serde_json::Value,
+    state_patch: Option<&ThreadEpiphanyUpdatePatch>,
+) -> Option<String> {
+    let Some(value) = raw_result.get("statePatch") else {
+        return Some(
+            "imagination result is not reviewable: missing required statePatch".to_string(),
+        );
+    };
+    let Some(patch) = state_patch else {
+        return Some(format!(
+            "imagination result is not reviewable: invalid statePatch ({})",
+            serde_json::from_value::<ThreadEpiphanyUpdatePatch>(value.clone()).unwrap_err()
+        ));
+    };
+    let errors = imagination_role_accept_patch_errors(patch);
+    if errors.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "imagination result is not reviewable: {}",
+            errors.join("; ")
+        ))
+    }
+}
+
 fn epiphany_modeling_finding_has_reviewable_state_patch(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> bool {
@@ -13703,6 +13811,17 @@ fn epiphany_modeling_finding_has_reviewable_state_patch(
             .state_patch
             .as_ref()
             .is_some_and(|patch| modeling_role_accept_patch_errors(patch).is_empty())
+}
+
+#[cfg(test)]
+fn epiphany_imagination_finding_has_reviewable_state_patch(
+    finding: &ThreadEpiphanyRoleFinding,
+) -> bool {
+    finding.role_id == ThreadEpiphanyRoleId::Imagination
+        && finding
+            .state_patch
+            .as_ref()
+            .is_some_and(|patch| imagination_role_accept_patch_errors(patch).is_empty())
 }
 
 fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
@@ -14671,6 +14790,7 @@ fn epiphany_role_finding_accepted_index(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> Option<usize> {
     let accepted_kind = match finding.role_id {
+        ThreadEpiphanyRoleId::Imagination => "planning_synthesis",
         ThreadEpiphanyRoleId::Modeling => "modeling_result",
         ThreadEpiphanyRoleId::Verification => "verification_result",
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
@@ -14714,6 +14834,34 @@ fn map_epiphany_roles(
 ) -> Vec<ThreadEpiphanyRoleLane> {
     let state_present = state.is_some();
     let checkpoint = state.and_then(|state| state.investigation_checkpoint.as_ref());
+    let imagination_jobs = jobs
+        .iter()
+        .filter(|job| job.id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID)
+        .cloned()
+        .collect::<Vec<_>>();
+    let imagination_bound_job = imagination_jobs
+        .iter()
+        .find(|job| job.id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID);
+    let imagination_has_bound_job = imagination_bound_job.is_some();
+    let imagination_status = imagination_bound_job
+        .as_ref()
+        .map(|job| map_epiphany_job_status_to_role_status(job.status))
+        .unwrap_or_else(|| map_epiphany_imagination_role_status(state));
+    let imagination_note = imagination_bound_job
+        .as_ref()
+        .and_then(|job| {
+            job.blocking_reason
+                .clone()
+                .or_else(|| job.progress_note.clone())
+        })
+        .unwrap_or_else(|| render_epiphany_imagination_role_note(state));
+    let imagination_recommended_action = if imagination_has_bound_job {
+        Some(ThreadEpiphanySceneAction::RoleResult)
+    } else if state_present {
+        Some(ThreadEpiphanySceneAction::RoleLaunch)
+    } else {
+        Some(ThreadEpiphanySceneAction::Update)
+    };
     let modeling_jobs = jobs
         .iter()
         .filter(|job| {
@@ -14810,6 +14958,21 @@ fn map_epiphany_roles(
             },
         },
         ThreadEpiphanyRoleLane {
+            id: ThreadEpiphanyRoleId::Imagination,
+            title: "Imagination / Planning".to_string(),
+            owner_role: EPIPHANY_IMAGINATION_OWNER_ROLE.to_string(),
+            status: imagination_status,
+            note: imagination_note,
+            jobs: imagination_jobs,
+            authority_scopes: vec![
+                "thread/epiphany/roleLaunch".to_string(),
+                "thread/epiphany/roleResult".to_string(),
+                "thread/epiphany/roleAccept".to_string(),
+                "thread/epiphany/update".to_string(),
+            ],
+            recommended_action: imagination_recommended_action,
+        },
+        ThreadEpiphanyRoleLane {
             id: ThreadEpiphanyRoleId::Modeling,
             title: "Modeling / Checkpoint".to_string(),
             owner_role: "epiphany-modeler".to_string(),
@@ -14859,6 +15022,37 @@ fn map_epiphany_roles(
             recommended_action: recommendation.recommended_scene_action,
         },
     ]
+}
+
+fn map_epiphany_imagination_role_status(
+    state: Option<&EpiphanyThreadState>,
+) -> ThreadEpiphanyRoleStatus {
+    let Some(state) = state else {
+        return ThreadEpiphanyRoleStatus::Blocked;
+    };
+    if state.planning.is_empty() {
+        ThreadEpiphanyRoleStatus::Needed
+    } else {
+        ThreadEpiphanyRoleStatus::Ready
+    }
+}
+
+fn render_epiphany_imagination_role_note(state: Option<&EpiphanyThreadState>) -> String {
+    let Some(state) = state else {
+        return "No authoritative Epiphany state exists for planning synthesis.".to_string();
+    };
+    let planning = &state.planning;
+    if planning.is_empty() {
+        return "Planning substrate is empty; capture or import backlog material before synthesis."
+            .to_string();
+    }
+    format!(
+        "Planning material ready: {} captures, {} backlog items, {} roadmap streams, {} objective drafts.",
+        planning.captures.len(),
+        planning.backlog_items.len(),
+        planning.roadmap_streams.len(),
+        planning.objective_drafts.len()
+    )
 }
 
 fn map_epiphany_modeling_role_status(
@@ -15118,12 +15312,86 @@ fn parse_role_finding_state_patch(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> Result<ThreadEpiphanyUpdatePatch, String> {
     let Some(value) = finding.raw_result.get("statePatch") else {
-        return Err(
-            "completed modeling role finding did not include a reviewable statePatch".to_string(),
-        );
+        return Err("completed role finding did not include a reviewable statePatch".to_string());
     };
     serde_json::from_value(value.clone())
-        .map_err(|err| format!("completed modeling role finding has invalid statePatch: {err}"))
+        .map_err(|err| format!("completed role finding has invalid statePatch: {err}"))
+}
+
+fn imagination_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
+    let mut errors = Vec::new();
+    if patch.objective.is_some() {
+        errors.push(
+            "objective changes are not allowed through imagination role acceptance".to_string(),
+        );
+    }
+    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
+        errors.push(
+            "subgoal changes are not allowed through imagination role acceptance".to_string(),
+        );
+    }
+    if patch.invariants.is_some() {
+        errors.push(
+            "invariant changes are not allowed through imagination role acceptance".to_string(),
+        );
+    }
+    if patch.graphs.is_some()
+        || patch.graph_frontier.is_some()
+        || patch.graph_checkpoint.is_some()
+        || patch.investigation_checkpoint.is_some()
+    {
+        errors.push(
+            "graph or checkpoint changes are not allowed through imagination role acceptance"
+                .to_string(),
+        );
+    }
+    if patch.scratch.is_some() {
+        errors.push(
+            "scratch changes are not allowed through imagination role acceptance".to_string(),
+        );
+    }
+    if patch.job_bindings.is_some() {
+        errors.push(
+            "job binding changes are not allowed through imagination role acceptance".to_string(),
+        );
+    }
+    if patch.churn.is_some() || patch.mode.is_some() {
+        errors.push(
+            "churn or mode changes are not allowed through imagination role acceptance".to_string(),
+        );
+    }
+    let Some(planning) = patch.planning.as_ref() else {
+        errors.push("statePatch must include planning changes".to_string());
+        return errors;
+    };
+    if planning.objective_drafts.is_empty() {
+        errors.push("planning patch must include at least one objective draft".to_string());
+    }
+    if !planning
+        .objective_drafts
+        .iter()
+        .any(|draft| draft.status.eq_ignore_ascii_case("draft"))
+    {
+        errors.push(
+            "planning patch must include at least one objective draft with status draft"
+                .to_string(),
+        );
+    }
+    for draft in &planning.objective_drafts {
+        if draft.acceptance_criteria.is_empty() {
+            errors.push(format!(
+                "planning objective draft {:?} must include acceptance criteria",
+                draft.id
+            ));
+        }
+        if draft.review_gates.is_empty() {
+            errors.push(format!(
+                "planning objective draft {:?} must include review gates",
+                draft.id
+            ));
+        }
+    }
+    errors
 }
 
 fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
@@ -20175,22 +20443,28 @@ mod tests {
             role_ids,
             vec![
                 ThreadEpiphanyRoleId::Implementation,
+                ThreadEpiphanyRoleId::Imagination,
                 ThreadEpiphanyRoleId::Modeling,
                 ThreadEpiphanyRoleId::Verification,
                 ThreadEpiphanyRoleId::Reorientation,
             ]
         );
         assert_eq!(roles[0].status, ThreadEpiphanyRoleStatus::Ready);
-        assert_eq!(roles[1].status, ThreadEpiphanyRoleStatus::Ready);
-        assert_eq!(roles[2].status, ThreadEpiphanyRoleStatus::Needed);
-        assert_eq!(roles[2].jobs[0].owner_role, "epiphany-verifier");
-        assert_eq!(roles[3].status, ThreadEpiphanyRoleStatus::Ready);
+        assert_eq!(roles[1].status, ThreadEpiphanyRoleStatus::Needed);
+        assert_eq!(roles[2].status, ThreadEpiphanyRoleStatus::Ready);
+        assert_eq!(roles[3].status, ThreadEpiphanyRoleStatus::Needed);
+        assert_eq!(roles[3].jobs[0].owner_role, "epiphany-verifier");
+        assert_eq!(roles[4].status, ThreadEpiphanyRoleStatus::Ready);
     }
 
     fn base_coordinator_roles() -> Vec<ThreadEpiphanyRoleLane> {
         vec![
             coordinator_role(
                 ThreadEpiphanyRoleId::Implementation,
+                ThreadEpiphanyRoleStatus::Ready,
+            ),
+            coordinator_role(
+                ThreadEpiphanyRoleId::Imagination,
                 ThreadEpiphanyRoleStatus::Ready,
             ),
             coordinator_role(
@@ -20943,6 +21217,12 @@ mod tests {
     #[test]
     fn epiphany_specialist_prompt_config_parses() {
         let prompts = epiphany_specialist_prompt_config();
+        assert!(
+            prompts
+                .roles
+                .imagination
+                .contains("Imagination of the machine")
+        );
         assert!(prompts.roles.modeling.contains("Body of the machine"));
         assert!(prompts.roles.verification.contains("Soul of the machine"));
         assert!(prompts.roles.research.contains("Eyes of the machine"));
@@ -20975,6 +21255,7 @@ mod tests {
             ThreadEpiphanyCoordinatorAction::LaunchVerification,
         );
         assert!(note.contains("read-only Self"));
+        assert!(note.contains("Imagination/planning"));
         assert!(note.contains("Eyes/research"));
         assert!(note.contains("Hands/implementation"));
         assert!(note.contains("LaunchVerification"));
@@ -20999,6 +21280,41 @@ mod tests {
             }),
             ..Default::default()
         };
+
+        let imagination = build_epiphany_role_launch_request(
+            "thr_123",
+            ThreadEpiphanyRoleId::Imagination,
+            Some(7),
+            Some(90),
+            &state,
+        )
+        .expect("imagination should have a fixed launch template");
+        assert_eq!(imagination.binding_id, EPIPHANY_IMAGINATION_ROLE_BINDING_ID);
+        assert_eq!(imagination.owner_role, EPIPHANY_IMAGINATION_OWNER_ROLE);
+        assert_eq!(imagination.authority_scope, "epiphany.role.imagination");
+        assert_eq!(imagination.input_json["roleId"], "imagination");
+        assert!(imagination.input_json.get("planning").is_some());
+        assert!(
+            imagination
+                .instruction
+                .contains("Imagination of the machine")
+        );
+        assert!(
+            imagination
+                .instruction
+                .contains("reviewable `thread/epiphany/update` patch")
+        );
+        let imagination_schema = imagination.output_schema_json.as_ref().unwrap();
+        assert!(imagination_schema["properties"].get("statePatch").is_some());
+        assert_eq!(
+            imagination_schema["properties"]["statePatch"]["required"][0],
+            "planning"
+        );
+        assert_eq!(
+            imagination_schema["properties"]["statePatch"]["properties"]["planning"]["properties"]
+                ["objective_drafts"]["minItems"],
+            1
+        );
 
         let modeling = build_epiphany_role_launch_request(
             "thr_123",
@@ -21280,6 +21596,130 @@ mod tests {
         );
         assert!(!epiphany_modeling_finding_has_reviewable_state_patch(
             &invalid_checkpoint_enum
+        ));
+    }
+
+    #[test]
+    fn map_epiphany_role_finding_marks_imagination_without_planning_patch_unreviewable() {
+        let missing_patch = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Imagination,
+            serde_json::json!({
+                "roleId": "imagination",
+                "verdict": "draft-ready",
+                "summary": "A plan was described but no durable planning patch was returned.",
+                "nextSafeMove": "Relaunch imagination with a state patch."
+            }),
+            None,
+            None,
+        );
+
+        assert!(missing_patch.state_patch.is_none());
+        assert!(
+            missing_patch
+                .item_error
+                .as_deref()
+                .is_some_and(|error| error.contains("missing required statePatch"))
+        );
+        assert!(!epiphany_imagination_finding_has_reviewable_state_patch(
+            &missing_patch
+        ));
+
+        let reviewable = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Imagination,
+            serde_json::json!({
+                "roleId": "imagination",
+                "verdict": "draft-ready",
+                "summary": "Planning material was synthesized into a draft objective.",
+                "nextSafeMove": "Review and optionally adopt the draft.",
+                "statePatch": {
+                    "planning": {
+                        "captures": [
+                            {
+                                "id": "capture-imagination-test",
+                                "title": "Planning source",
+                                "confidence": "medium",
+                                "status": "triaged",
+                                "source": {"kind": "chat", "uri": "codex://threads/test"}
+                            }
+                        ],
+                        "backlog_items": [
+                            {
+                                "id": "backlog-imagination-test",
+                                "title": "Synthesized planning seam",
+                                "kind": "feature",
+                                "summary": "Prove Imagination can bank a reviewable objective draft.",
+                                "status": "ready",
+                                "horizon": "near",
+                                "priority": {"value": "medium", "rationale": "Smoke coverage"},
+                                "confidence": "medium",
+                                "product_area": "planning",
+                                "source_refs": [{"kind": "chat", "uri": "codex://threads/test"}]
+                            }
+                        ],
+                        "objective_drafts": [
+                            {
+                                "id": "draft-imagination-test",
+                                "title": "Review Imagination patch",
+                                "summary": "Accept a planning-only role patch after review.",
+                                "source_item_ids": ["backlog-imagination-test"],
+                                "scope": {
+                                    "includes": ["planning"],
+                                    "excludes": ["objective adoption", "implementation"]
+                                },
+                                "acceptance_criteria": ["A planning patch can be accepted without adopting the draft."],
+                                "evidence_required": ["role finding"],
+                                "lane_plan": {"imagination": "synthesize", "soul": "review"},
+                                "risks": ["accidental adoption"],
+                                "review_gates": ["human adoption review"],
+                                "status": "draft"
+                            }
+                        ]
+                    }
+                }
+            }),
+            None,
+            None,
+        );
+
+        assert!(reviewable.item_error.is_none());
+        assert!(epiphany_imagination_finding_has_reviewable_state_patch(
+            &reviewable
+        ));
+
+        let missing_review_gate = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Imagination,
+            serde_json::json!({
+                "roleId": "imagination",
+                "verdict": "draft-ready",
+                "summary": "The draft forgot its gate.",
+                "nextSafeMove": "Add review gates before accepting.",
+                "statePatch": {
+                    "planning": {
+                        "objective_drafts": [
+                            {
+                                "id": "draft-no-gate",
+                                "title": "Ungated draft",
+                                "summary": "This must not be accepted.",
+                                "scope": {},
+                                "acceptance_criteria": ["It has criteria."],
+                                "lane_plan": {},
+                                "status": "draft"
+                            }
+                        ]
+                    }
+                }
+            }),
+            None,
+            None,
+        );
+        assert!(
+            missing_review_gate
+                .item_error
+                .as_deref()
+                .is_some_and(|error| error.contains("review gates"))
+        );
+        assert!(!epiphany_imagination_finding_has_reviewable_state_patch(
+            &missing_review_gate
         ));
     }
 
