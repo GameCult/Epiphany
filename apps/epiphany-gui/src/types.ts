@@ -10,6 +10,7 @@ export type OperatorAction =
   | "statusSnapshot"
   | "coordinatorPlan"
   | "inspectUnity"
+  | "inspectRider"
   | "prepareCheckpoint"
   | "continueImplementation"
   | "launchImagination"
@@ -64,6 +65,29 @@ export interface ArtifactBundle {
       editorPath?: string;
     }>;
     candidatePaths?: string[];
+    searchRoots?: string[];
+  };
+  riderAudit?: {
+    resultPath: string;
+    status: string;
+    workspace?: string;
+    solutionPath?: string;
+    solutionStatus?: string;
+    riderPath?: string;
+    installationCount?: number;
+    note?: string;
+    vcs?: {
+      status?: string;
+      branch?: string;
+      dirty?: boolean;
+      changedFiles?: string[];
+      stagedFiles?: string[];
+      changedRangesKnown?: boolean;
+    };
+    installations?: Array<{
+      path?: string;
+      versionHint?: string;
+    }>;
     searchRoots?: string[];
   };
   modifiedMillis?: number;

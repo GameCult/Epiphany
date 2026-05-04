@@ -21,6 +21,7 @@ from epiphany_mvp_status import sanitize_for_operator
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase6_reorient_launch_smoke import BINDING_ID as REORIENT_BINDING_ID
+from epiphany_rider_bridge import bridge_guidance as rider_bridge_guidance
 from epiphany_unity_bridge import bridge_guidance as unity_bridge_guidance
 
 
@@ -353,6 +354,10 @@ def unity_guidance(cwd: Path) -> str:
     return unity_bridge_guidance(cwd, ROOT)
 
 
+def rider_guidance(cwd: Path) -> str:
+    return rider_bridge_guidance(cwd, ROOT)
+
+
 def first_present(value: dict[str, Any], *paths: tuple[str, ...]) -> Any:
     for path in paths:
         item = nested_get(value, *path)
@@ -436,6 +441,7 @@ def build_implementation_prompt(status: dict[str, Any], cwd: Path) -> str:
         scratch_summary=prompt_text(scratch.get("summary")),
         accepted_evidence="\n".join(evidence_lines),
         unity_guidance=unity_guidance(cwd),
+        rider_guidance=rider_guidance(cwd),
     )
 
 

@@ -51,7 +51,9 @@ Do not trust this file for the exact live HEAD. Always check git.
 - The current Aetheria runtime truth is blocked but legible: the project pins Unity `6000.1.10f1`, this machine currently has Hub editor `6000.4.2f1`, and the bridge wrote `.epiphany-gui/runtime/unity-inspect-1777549218802064800-23832` proving the exact editor is missing. Treat that artifact as the evidence gap until the pinned editor exists.
 - The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
 - The planning loop is now runtime-backed and operator-visible. Typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub issue source refs live in `EpiphanyThreadState`, validate through revision-gated `thread/epiphany/update`, render into prompts when present, project read-only through `thread/epiphany/planning`, render in the GUI Planning panel, can be synthesized by the fixed Imagination/planning lane, and can be explicitly adopted through the artifacted `adoptObjectiveDraft` GUI action. Chat is deliberation, not an objective pipe; ideas and GitHub Issues remain planning state until explicit human adoption.
-- Next real product move: build the EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, and Rider plugin MVP before another Aetheria implementation dogfood run. GitHub Issues import is deferred until the backlog source is fresh enough to deserve Imagination's attention.
+- The bridge/dashboard slice is now landed far enough to test locally. `tools/epiphany_rider_bridge.py` inspects Rider installation, solution, VCS, changed files, and captures file/selection/symbol context into `.epiphany-gui/rider` artifacts; the GUI has Inspect Rider and renders Rider audit artifacts in Environment; the GUI also embeds the adjacent EpiphanyGraph viewer over typed `graphs.architecture`, `graphs.dataflow`, and `graphs.links`.
+- A first Rider plugin scaffold lives under `integrations/rider`: tool window, Refresh status, and Send Context to Epiphany action. It shells through `tools/epiphany_rider_bridge.py` and does not own state. `gradle` is not installed on this machine, so the scaffold is not build-verified yet.
+- Next real product move: build-verify/package the Rider plugin scaffold when Gradle/wrapper support is available, install the Aetheria-pinned Unity `6000.1.10f1` editor, then run the next Aetheria dogfood pass through GUI/Rider/Unity bridge artifacts. GitHub Issues import is deferred until the backlog source is fresh enough to deserve Imagination's attention.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -123,6 +125,8 @@ The current spine:
 - durable investigation checkpoint packet through typed state, prompt, scene, and context
 - distilled shared and config-backed prompt doctrine through the base prompt, rendered Epiphany state prompt files, modeling/Body, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, and CRRC intervention surfaces
 - first Unity runtime bridge through `tools/epiphany_unity_bridge.py`, `tools/epiphany_unity_bridge_smoke.py`, GUI Inspect Unity, runtime artifact listing, and implementation prompt guardrails
+- first Rider source-context bridge through `tools/epiphany_rider_bridge.py`, `tools/epiphany_rider_bridge_smoke.py`, GUI Inspect Rider, Rider artifact listing, implementation prompt guardrails, and a source scaffold under `integrations/rider`
+- first GUI graph dashboard through the adjacent `@epiphanygraph/epiphany-graph-viewer` package over typed Epiphany graph state
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live freshness app-server smoke through `tools/epiphany_phase6_freshness_smoke.py`
@@ -409,7 +413,9 @@ editor-resident probes/tests through
 `GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe`. The GUI Environment
 panel now shows the latest Unity runtime audit, resident package presence,
 execute method, installed/candidate editor paths, search roots, and artifact
-bundle details, with Rider explicitly pending until its bridge exists. Runtime
+bundle details. Rider bridge status now exists too: the GUI can inspect Rider
+installation, solution, VCS branch/dirty state, changed files, installations,
+and source-context artifacts through `tools/epiphany_rider_bridge.py`. Runtime
 execution still correctly blocks until Unity `6000.1.10f1` is installed. The
 detailed next-environment plan now lives in
 `notes/epiphany-rider-unity-integration-plan.md`: Rider is the
@@ -419,17 +425,19 @@ three-pronged: Rider is the human code view for repo state, source tree, diffs,
 diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives,
 specialist lane state, logs/artifacts, persisted state, and graph/control-flow
 views; Unity is the pinned runtime environment for tests, probes, scene
-configuration, assets, shaders, and play/edit-mode evidence. Build the
-remaining slices before the next run: EpiphanyGraph-backed GUI graph dashboard,
-Rider context bridge, and Rider plugin MVP. The Unity package is not optional decoration: scene files, prefabs,
+configuration, assets, shaders, and play/edit-mode evidence. The EpiphanyGraph
+GUI dashboard and Rider bridge CLI are now landed, and the Rider plugin MVP is
+source-scaffolded but not build-verified because Gradle is not on PATH. The
+Unity package is not optional decoration: scene files, prefabs,
 materials, shaders, ScriptableObjects, asset GUIDs, and prefab overrides must be
 inspected from inside the Unity Editor through Unity APIs, not inferred from
 serialized text unless there is no editor-level path. The adjacent
 `E:\Projects\EpiphanyGraph\web\epiphany-graph-viewer` component consumes
 `graphs.architecture`, `graphs.dataflow`, and `graphs.links` directly and is
-the preferred seed for GUI graph/control-flow diagramming. The next Aetheria
-dogfood pass should happen only after Epiphany can gather Rider/source context
-and Unity/editor runtime evidence through auditable bridges. The implementation
+now embedded in the GUI graph dashboard. The next Aetheria dogfood pass should
+happen only after the pinned Unity editor is installed and Epiphany can gather
+Rider/source context plus Unity/editor runtime evidence through auditable
+bridges. The implementation
 lane may inspect source and may use bridge artifacts as evidence, but it must
 not launch Unity directly or use installed `6000.4.2f1` as a substitute. Read
 only operator-safe projections; do not open raw worker

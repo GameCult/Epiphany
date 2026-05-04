@@ -362,6 +362,56 @@ dd {
   min-height: 30px;
 }
 
+.graphBand {
+  display: grid;
+  gap: 12px;
+}
+
+.graphSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, auto);
+  gap: 12px;
+  align-items: end;
+}
+
+.selectedCodeRef {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  border: 1px solid #d9ded5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #3e493f;
+  background: #ffffff;
+  font-size: 0.84rem;
+}
+
+.selectedCodeRef span {
+  color: #667168;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.graphIssues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.graphViewerFrame {
+  min-height: 560px;
+  overflow: hidden;
+  border: 1px solid #d9ded5;
+  border-radius: 8px;
+  background: #07101e;
+}
+
+.embeddedGraphViewer {
+  min-height: 560px;
+}
+
 .draftPicker {
   margin-top: 12px;
 }
@@ -544,6 +594,10 @@ code {
 
   .planningGrid {
     grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+
+  .graphSummary {
+    grid-template-columns: 1fr;
   }
 }
 

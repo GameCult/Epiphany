@@ -52,12 +52,16 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   await page.getByText("prepareCheckpoint").waitFor();
   await page.getByRole("heading", { name: "Environment" }).waitFor();
   await page.getByText("Unity Editor").waitFor();
-  await page.getByText("Rider").waitFor();
+  await page.getByRole("heading", { name: "Rider", exact: true }).waitFor();
+  await page.getByText("Aetheria.sln").waitFor();
   await page.getByRole("heading", { name: "Planning", exact: true }).waitFor();
   await page.getByRole("heading", { name: "Build the planning dashboard slice", exact: true }).waitFor();
+  await page.getByRole("heading", { name: "State Graph", exact: true }).waitFor();
+  await page.getByText("Epiphany Typed Graph").waitFor();
   await page.getByText("Role Lanes").waitFor();
   await page.getByText("Artifact Bundles").waitFor();
   await page.getByRole("button", { name: "Prepare Checkpoint" }).waitFor();
+  await page.getByRole("button", { name: "Inspect Rider" }).waitFor();
   await page.getByRole("button", { name: "Adopt Draft" }).waitFor();
   await page.getByRole("button", { name: "Launch Imagination" }).waitFor();
   await page.getByRole("button", { name: "Read Imagination" }).waitFor();
@@ -73,6 +77,8 @@ async function smokeViewport(browser, viewport, screenshotPath) {
     await page.getByText("statusSnapshot sample completed.").waitFor();
     await page.getByRole("button", { name: "Coordinator Plan" }).click();
     await page.getByText("coordinatorPlan sample completed.").waitFor();
+    await page.getByRole("button", { name: "Inspect Rider" }).click();
+    await page.getByText("inspectRider sample completed.").waitFor();
     await page.getByRole("button", { name: "Prepare Checkpoint" }).click();
     await page.getByText("prepareCheckpoint sample completed.").waitFor();
     await page.getByRole("button", { name: "Read Imagination" }).click();

@@ -77,6 +77,7 @@ Implementation rules:
 - Avoid pointless embellishments. Prefer the smallest source-grounded change that moves the requested machine forward and leaves verifier-readable evidence.
 - Environment guardrails:
 {unity_guidance}
+{rider_guidance}
 - Make a bounded first pass: design or implement a parallel compute-backed gravity height producer that preserves the current `_NebulaSurfaceHeight`, `_GridTransform`, and Slime `Heightmap` contracts before changing shader consumers.
 - This is an implementation turn, not a planning turn. Leave a concrete source diff unless direct source evidence proves the bounded pass is impossible.
 - If there is no implementation diff yet, prefer a small reversible compatibility scaffold over another explanation. A valid first diff may be a source-local contract/scaffold for a compute-backed gravity height producer that runs beside the camera path and does not rewire consumers yet.

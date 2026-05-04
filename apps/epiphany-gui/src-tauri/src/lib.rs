@@ -35,6 +35,7 @@ struct ArtifactBundle {
     comparison_path: Option<String>,
     implementation_audit: Option<ImplementationAudit>,
     runtime_audit: Option<RuntimeAudit>,
+    rider_audit: Option<RiderAudit>,
     modified_millis: Option<u128>,
 }
 
@@ -60,6 +61,40 @@ struct RuntimeAudit {
     installed_editors: Vec<InstalledUnityEditor>,
     candidate_paths: Vec<String>,
     search_roots: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RiderAudit {
+    result_path: String,
+    status: String,
+    workspace: Option<String>,
+    solution_path: Option<String>,
+    solution_status: Option<String>,
+    rider_path: Option<String>,
+    installation_count: Option<u64>,
+    note: Option<String>,
+    vcs: Option<RiderVcsAudit>,
+    installations: Vec<RiderInstallation>,
+    search_roots: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RiderVcsAudit {
+    status: Option<String>,
+    branch: Option<String>,
+    dirty: Option<bool>,
+    changed_files: Vec<String>,
+    staged_files: Vec<String>,
+    changed_ranges_known: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RiderInstallation {
+    path: Option<String>,
+    version_hint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -111,6 +146,7 @@ fn run_operator_action(
         "statusSnapshot" => run_status_snapshot(&repo_root, request),
         "coordinatorPlan" => run_coordinator_plan(&repo_root, request),
         "inspectUnity" => run_unity_inspection(&repo_root, request),
+        "inspectRider" => run_rider_inspection(&repo_root, request),
         "launchImagination"
         | "readImaginationResult"
         | "acceptImagination"
@@ -128,6 +164,39 @@ fn run_operator_action(
         | "prepareCheckpoint" => run_gui_action_bridge(&repo_root, request, action),
         _ => Err(format!("unknown operator action: {action}")),
     }
+}
+
+fn run_rider_inspection(
+    repo_root: &Path,
+    request: StatusRequest,
+) -> Result<OperatorActionResult, String> {
+    let python = find_python()?;
+    let artifact_root = repo_root.join(".epiphany-gui").join("rider");
+    let workspace = request
+        .cwd
+        .map(PathBuf::from)
+        .unwrap_or_else(|| repo_root.to_path_buf());
+
+    let mut command = Command::new(python);
+    command
+        .current_dir(repo_root)
+        .arg(repo_root.join("tools").join("epiphany_rider_bridge.py"))
+        .arg("status")
+        .arg("--project-root")
+        .arg(workspace)
+        .arg("--artifact-root")
+        .arg(artifact_root);
+    let value = run_json_command(command, "rider inspection")?;
+    let status = value
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("unknown");
+    Ok(OperatorActionResult {
+        action: "inspectRider".to_string(),
+        artifact_path: json_string(&value, "artifactPath")?,
+        summary: format!("Rider bridge inspection: {status}."),
+        thread_id: None,
+    })
 }
 
 fn run_unity_inspection(
@@ -417,6 +486,11 @@ fn list_artifacts(repo_root: &Path) -> Result<Vec<ArtifactBundle>, String> {
         &repo_root.join(".epiphany-gui").join("runtime"),
         "runtime/",
     )?;
+    collect_artifact_root(
+        &mut bundles,
+        &repo_root.join(".epiphany-gui").join("rider"),
+        "rider/",
+    )?;
 
     bundles.sort_by(|a, b| b.modified_millis.cmp(&a.modified_millis));
     Ok(bundles)
@@ -459,18 +533,68 @@ fn collect_artifact_root(
             summary_path: existing_path(&path, "epiphany-dogfood-summary.json")
                 .or_else(|| existing_path(&path, "gui-action-summary.json"))
                 .or_else(|| existing_path(&path, "unity-bridge-summary.json"))
+                .or_else(|| existing_path(&path, "rider-bridge-summary.json"))
                 .or_else(|| existing_path(&path, "status.json")),
             final_status_path: existing_path(&path, "epiphany-final-status.json")
                 .or_else(|| existing_path(&path, "after-status.json")),
             comparison_path: existing_path(&path, "comparison.md"),
             implementation_audit: read_implementation_audit(&path),
             runtime_audit: read_runtime_audit(&path),
+            rider_audit: read_rider_audit(&path),
             files,
             modified_millis,
         });
     }
 
     Ok(())
+}
+
+fn read_rider_audit(root: &Path) -> Option<RiderAudit> {
+    let result_path = root.join("rider-bridge-summary.json");
+    let text = fs::read_to_string(&result_path).ok()?;
+    let value: Value = serde_json::from_str(&text).ok()?;
+    let status = value.get("status").and_then(Value::as_str)?.to_string();
+    Some(RiderAudit {
+        result_path: result_path.display().to_string(),
+        status,
+        workspace: json_optional_string(&value, "workspace"),
+        solution_path: json_optional_string(&value, "solutionPath"),
+        solution_status: json_optional_string(&value, "solutionStatus"),
+        rider_path: json_optional_string(&value, "riderPath"),
+        installation_count: value.get("installationCount").and_then(Value::as_u64),
+        note: json_optional_string(&value, "note"),
+        vcs: read_rider_vcs(&value),
+        installations: read_rider_installations(&value),
+        search_roots: read_string_array(&value, "searchRoots"),
+    })
+}
+
+fn read_rider_vcs(value: &Value) -> Option<RiderVcsAudit> {
+    let vcs = value.get("vcs")?;
+    Some(RiderVcsAudit {
+        status: json_optional_string(vcs, "status"),
+        branch: json_optional_string(vcs, "branch"),
+        dirty: vcs.get("dirty").and_then(Value::as_bool),
+        changed_files: read_string_array(vcs, "changedFiles"),
+        staged_files: read_string_array(vcs, "stagedFiles"),
+        changed_ranges_known: vcs.get("changedRangesKnown").and_then(Value::as_bool),
+    })
+}
+
+fn read_rider_installations(value: &Value) -> Vec<RiderInstallation> {
+    value
+        .get("installations")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .map(|item| RiderInstallation {
+                    path: json_optional_string(item, "path"),
+                    version_hint: json_optional_string(item, "versionHint"),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn read_runtime_audit(root: &Path) -> Option<RuntimeAudit> {

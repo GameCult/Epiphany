@@ -219,6 +219,15 @@ Already landed:
 - Epiphany app-server typed state and fixed-lane coordinator.
 - Modeling/checkpoint, verification/review, and reorientation specialist lanes.
 - Tauri + React operator GUI over app-server/status/artifact surfaces.
+- GUI graph dashboard using the adjacent `@epiphanygraph/epiphany-graph-viewer`
+  package over typed `graphs.architecture`, `graphs.dataflow`, and
+  `graphs.links`.
+- `tools/epiphany_rider_bridge.py`, which writes operator-safe Rider
+  installation, solution, VCS, context, and open-ref artifacts.
+- GUI **Inspect Rider** action and Rider artifact listing.
+- `integrations/rider` frontend-only plugin scaffold for a tool window and
+  Send Context to Epiphany action. This scaffold still needs build verification
+  because Gradle is not installed on the current machine.
 - `tools/epiphany_unity_bridge.py`, which:
   - reads `ProjectSettings/ProjectVersion.txt`
   - resolves only the exact project-pinned Unity Hub editor

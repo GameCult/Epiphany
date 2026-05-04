@@ -1,4 +1,5 @@
 import {
+  Boxes,
   AlertTriangle,
   BriefcaseBusiness,
   CheckCircle2,
@@ -8,12 +9,15 @@ import {
   FileText,
   GitBranch,
   ListChecks,
+  Map,
   Play,
   RefreshCw,
 } from "lucide-react";
+import { EpiphanyGraphViewer, validateEpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
 import { useEffect, useMemo, useState } from "react";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
+import type { EpiphanyCodeRef, EpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
 
 const roleOrder = ["implementation", "imagination", "modeling", "verification", "reorientation"];
 const actionButtons: Array<{
@@ -29,7 +33,7 @@ const actionButtons: Array<{
   requiresReorientResult?: boolean;
   requiresPlanningDraft?: boolean;
   requiresContinueImplementation?: boolean;
-  icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" | "plan";
+  icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" | "plan" | "ide";
 }> = [
   {
     action: "statusSnapshot",
@@ -51,6 +55,13 @@ const actionButtons: Array<{
     runningLabel: "Inspecting",
     title: "Resolve the project-pinned Unity editor and write runtime artifacts",
     icon: "runtime",
+  },
+  {
+    action: "inspectRider",
+    label: "Inspect Rider",
+    runningLabel: "Inspecting",
+    title: "Inspect Rider, solution, and source control status through the local bridge",
+    icon: "ide",
   },
   {
     action: "prepareCheckpoint",
@@ -222,6 +233,69 @@ function statusClass(value: unknown): string {
   return "neutral";
 }
 
+const emptyGraphState: EpiphanyGraphsState = {
+  architecture: { nodes: [], edges: [] },
+  dataflow: { nodes: [], edges: [] },
+  links: [],
+};
+
+function normalizeGraphState(value: any): EpiphanyGraphsState {
+  if (!value || typeof value !== "object") return emptyGraphState;
+  return {
+    architecture: normalizeGraph(value.architecture),
+    dataflow: normalizeGraph(value.dataflow),
+    links: objectList(value.links).map((link) => ({
+      dataflow_node_id: text(link.dataflow_node_id ?? link.dataflowNodeId, ""),
+      architecture_node_id: text(link.architecture_node_id ?? link.architectureNodeId, ""),
+      relationship: link.relationship ?? null,
+      code_refs: normalizeCodeRefs(link.code_refs ?? link.codeRefs),
+    })).filter((link) => link.dataflow_node_id && link.architecture_node_id),
+  };
+}
+
+function normalizeGraph(value: any) {
+  return {
+    nodes: objectList(value?.nodes).map((node) => ({
+      id: text(node.id, ""),
+      title: text(node.title ?? node.id, "Untitled node"),
+      purpose: text(node.purpose ?? node.summary, "No purpose recorded."),
+      mechanism: node.mechanism ?? null,
+      metaphor: node.metaphor ?? null,
+      status: node.status ?? null,
+      code_refs: normalizeCodeRefs(node.code_refs ?? node.codeRefs),
+    })).filter((node) => node.id),
+    edges: objectList(value?.edges).map((edge) => ({
+      id: edge.id ?? null,
+      source_id: text(edge.source_id ?? edge.sourceId, ""),
+      target_id: text(edge.target_id ?? edge.targetId, ""),
+      kind: text(edge.kind, "link"),
+      label: edge.label ?? null,
+      mechanism: edge.mechanism ?? null,
+      code_refs: normalizeCodeRefs(edge.code_refs ?? edge.codeRefs),
+    })).filter((edge) => edge.source_id && edge.target_id),
+  };
+}
+
+function normalizeCodeRefs(value: any): EpiphanyCodeRef[] {
+  return objectList(value).map((ref) => ({
+    path: text(ref.path, ""),
+    start_line: typeof ref.start_line === "number" ? ref.start_line : ref.startLine,
+    end_line: typeof ref.end_line === "number" ? ref.end_line : ref.endLine,
+    symbol: ref.symbol ?? null,
+    note: ref.note ?? null,
+  })).filter((ref) => ref.path);
+}
+
+function graphRecordCount(state: EpiphanyGraphsState): number {
+  return state.architecture.nodes.length + state.architecture.edges.length + state.dataflow.nodes.length + state.dataflow.edges.length + state.links.length;
+}
+
+function codeRefLabel(ref: EpiphanyCodeRef): string {
+  const line = ref.start_line ? `:${ref.start_line}` : "";
+  const symbol = ref.symbol ? ` ${ref.symbol}` : "";
+  return `${ref.path}${line}${symbol}`;
+}
+
 function useSnapshot() {
   const [snapshot, setSnapshot] = useState<OperatorSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
@@ -282,6 +356,7 @@ function useSnapshot() {
 
 export function App() {
   const { snapshot, loading, error, request, setRequest, refresh, actionResult, runningAction, runAction } = useSnapshot();
+  const [selectedCodeRef, setSelectedCodeRef] = useState<EpiphanyCodeRef | null>(null);
   const status = snapshot?.status;
   const scene = status?.scene?.scene ?? {};
   const pressure = status?.pressure?.pressure ?? {};
@@ -314,6 +389,11 @@ export function App() {
     [snapshot?.artifacts],
   );
   const latestRuntimeAudit = latestRuntimeArtifact?.runtimeAudit;
+  const latestRiderArtifact = useMemo(
+    () => (snapshot?.artifacts ?? []).find((artifact) => artifact.riderAudit),
+    [snapshot?.artifacts],
+  );
+  const latestRiderAudit = latestRiderArtifact?.riderAudit;
   const implementationNoDiffPending =
     Boolean(latestArtifact?.implementationAudit) && latestArtifact?.implementationAudit?.workspaceChanged === false;
   const readyState = scene.stateStatus === "ready";
@@ -337,6 +417,13 @@ export function App() {
   const candidatePaths = latestRuntimeAudit?.candidatePaths ?? [];
   const searchRoots = latestRuntimeAudit?.searchRoots ?? [];
   const unityBridgeReady = latestRuntimeAudit?.status === "ready" && unityBridge?.exists === true;
+  const epiphanyState = status?.read?.thread?.epiphanyState ?? status?.scene?.scene?.epiphanyState ?? {};
+  const graphState = useMemo(() => normalizeGraphState(epiphanyState?.graphs), [epiphanyState]);
+  const graphIssues = useMemo(() => validateEpiphanyGraphsState(graphState), [graphState]);
+  const graphCount = graphRecordCount(graphState);
+  const riderInstallations = latestRiderAudit?.installations ?? [];
+  const riderSearchRoots = latestRiderAudit?.searchRoots ?? [];
+  const riderChangedFiles = latestRiderAudit?.vcs?.changedFiles ?? [];
 
   useEffect(() => {
     if (objectiveDrafts.length === 0) return;
@@ -507,15 +594,20 @@ export function App() {
           <article className="environmentCard">
             <div className="cardTopline">
               <h3>Rider</h3>
-              <Pill tone="neutral">pending</Pill>
+              <Pill tone={statusClass(latestRiderAudit?.status)}>{text(latestRiderAudit?.status, "unknown")}</Pill>
             </div>
             <dl className="facts environmentFacts">
-              <div><dt>Workspace</dt><dd>{text(request.cwd ?? snapshot?.repoRoot)}</dd></div>
-              <div><dt>Plugin</dt><dd>not wired</dd></div>
-              <div><dt>Diagnostics</dt><dd>pending</dd></div>
-              <div><dt>Diff view</dt><dd>pending</dd></div>
+              <div><dt>Workspace</dt><dd>{text(latestRiderAudit?.workspace ?? request.cwd ?? snapshot?.repoRoot)}</dd></div>
+              <div><dt>Solution</dt><dd>{text(latestRiderAudit?.solutionPath)}</dd></div>
+              <div><dt>Rider</dt><dd>{text(latestRiderAudit?.riderPath, "missing")}</dd></div>
+              <div><dt>Branch</dt><dd>{text(latestRiderAudit?.vcs?.branch)}</dd></div>
+              <div><dt>Dirty</dt><dd>{text(latestRiderAudit?.vcs?.dirty)}</dd></div>
+              <div><dt>Changed</dt><dd>{riderChangedFiles.length}</dd></div>
             </dl>
-            <p className="environmentNote">Bridge pending.</p>
+            <p className="environmentNote">{text(latestRiderAudit?.note, "Run Inspect Rider to capture source-context status.")}</p>
+            <PathList title="Installations" items={riderInstallations.map((installation) => `${text(installation.versionHint)} ${text(installation.path)}`)} />
+            <PathList title="Changed files" items={riderChangedFiles} />
+            <PathList title="Search roots" items={riderSearchRoots} />
           </article>
 
           <article className="environmentCard">
@@ -647,6 +739,45 @@ export function App() {
         </div>
       </section>
 
+      <section className="sectionBand graphBand">
+        <SectionHeader title="State Graph" icon={<Map size={18} />} />
+        <div className="graphSummary">
+          <dl className="facts environmentFacts">
+            <div><dt>Architecture</dt><dd>{graphState.architecture.nodes.length} nodes / {graphState.architecture.edges.length} edges</dd></div>
+            <div><dt>Dataflow</dt><dd>{graphState.dataflow.nodes.length} nodes / {graphState.dataflow.edges.length} edges</dd></div>
+            <div><dt>Links</dt><dd>{graphState.links.length}</dd></div>
+            <div><dt>Issues</dt><dd>{graphIssues.length}</dd></div>
+          </dl>
+          {selectedCodeRef && (
+            <div className="selectedCodeRef">
+              <Boxes size={16} aria-hidden="true" />
+              <span>Selected code ref</span>
+              <code title={codeRefLabel(selectedCodeRef)}>{codeRefLabel(selectedCodeRef)}</code>
+            </div>
+          )}
+        </div>
+        {graphIssues.length > 0 && (
+          <div className="graphIssues">
+            {graphIssues.slice(0, 4).map((issue) => (
+              <Pill tone="warn" key={`${issue.scope}:${issue.message}`}>{issue.scope}: {issue.message}</Pill>
+            ))}
+          </div>
+        )}
+        {graphCount > 0 ? (
+          <div className="graphViewerFrame">
+            <EpiphanyGraphViewer
+              state={graphState}
+              title="Epiphany Typed Graph"
+              className="embeddedGraphViewer"
+              style={{ minHeight: 520 }}
+              onCodeRefSelect={(codeRef) => setSelectedCodeRef(codeRef)}
+            />
+          </div>
+        ) : (
+          <EmptyState label="No graph state loaded. Prepare a checkpoint or accept a modeling patch to grow the map." />
+        )}
+      </section>
+
       <section className="statusGrid" aria-label="Coordinator summary">
         <Panel title="Recommendation" icon={<ClipboardCheck size={18} />}>
           <div className={`actionBanner ${statusClass(coordinator.action ?? crrc.action)}`}>
@@ -758,13 +889,14 @@ function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }
   );
 }
 
-function ActionIcon({ icon }: { icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" | "plan" }) {
+function ActionIcon({ icon }: { icon: "file" | "check" | "play" | "eye" | "accept" | "runtime" | "plan" | "ide" }) {
   if (icon === "file") return <FileText size={16} aria-hidden="true" />;
   if (icon === "check") return <ClipboardCheck size={16} aria-hidden="true" />;
   if (icon === "play") return <Play size={16} aria-hidden="true" />;
   if (icon === "eye") return <Eye size={16} aria-hidden="true" />;
   if (icon === "runtime") return <Database size={16} aria-hidden="true" />;
   if (icon === "plan") return <ListChecks size={16} aria-hidden="true" />;
+  if (icon === "ide") return <GitBranch size={16} aria-hidden="true" />;
   return <CheckCircle2 size={16} aria-hidden="true" />;
 }
 
@@ -825,6 +957,14 @@ function PlanningItem({
 function ArtifactOutcome({ artifact }: { artifact: ArtifactBundle }) {
   const audit = artifact.implementationAudit;
   const runtime = artifact.runtimeAudit;
+  const rider = artifact.riderAudit;
+  if (rider) {
+    return (
+      <Pill tone={rider.status === "ready" || rider.status === "captured" ? "ok" : "warn"}>
+        Rider {rider.status}
+      </Pill>
+    );
+  }
   if (runtime) {
     return (
       <Pill tone={runtime.status === "ready" ? "ok" : "warn"}>

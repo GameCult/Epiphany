@@ -304,8 +304,8 @@ Phase 6 should grow observable harness state outward from the typed spine.
 
 Useful candidates:
 
-1. Build the three-pronged Rider/Epiphany GUI/Unity workflow before the next Aetheria implementation dogfood run: Aetheria-side resident Unity editor package, named Unity bridge operations over that package, GUI Environment panel, EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, then Rider plugin MVP.
-2. Use the next dogfood run to test the bridge-equipped loop, not to discover again that Epiphany cannot prove runtime/editor assumptions from source inspection alone.
+1. Treat the first three-pronged Rider/Epiphany GUI/Unity workflow as landed enough for local bridge testing: Aetheria-side resident Unity editor package, named Unity bridge operations over that package, GUI Environment panel, EpiphanyGraph-backed GUI graph dashboard, Rider context bridge CLI, and a Rider plugin MVP source scaffold now exist.
+2. Before the next Aetheria dogfood run, build-verify or package the Rider plugin scaffold when Gradle/wrapper support is available and install the Aetheria-pinned Unity `6000.1.10f1` editor; do not rediscover that Epiphany cannot prove runtime/editor assumptions from source inspection alone.
 3. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces once the bridges exist.
 4. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
 5. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.

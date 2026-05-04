@@ -1,0 +1,25 @@
+<idea-plugin>
+  <id>dev.epiphany.rider</id>
+  <name>Epiphany</name>
+  <vendor>GameCult</vendor>
+
+  <depends>com.intellij.modules.platform</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <toolWindow
+      id="Epiphany"
+      anchor="right"
+      factoryClass="dev.epiphany.rider.EpiphanyToolWindowFactory" />
+  </extensions>
+
+  <actions>
+    <action
+      id="Epiphany.CaptureContext"
+      class="dev.epiphany.rider.EpiphanyCaptureContextAction"
+      text="Send Context to Epiphany"
+      description="Write the current Rider file and selection as an Epiphany source-context artifact.">
+      <add-to-group group-id="EditorPopupMenu" anchor="last" />
+      <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt E" />
+    </action>
+  </actions>
+</idea-plugin>
