@@ -14,12 +14,140 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { EpiphanyGraphViewer, validateEpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 import type { EpiphanyCodeRef, EpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
 
-const roleOrder = ["implementation", "imagination", "modeling", "verification", "reorientation"];
+const roleOrder = ["implementation", "imagination", "research", "eyes", "modeling", "verification", "reorientation"];
+const constellationSpecs = [
+  {
+    id: "coordinator",
+    laneId: "coordinator",
+    name: "Self",
+    title: "Coordinator",
+    glyph: "S",
+    shape: "core",
+    color: "#f15f45",
+    glow: "#f7bd58",
+    baseX: 49,
+    baseY: 43,
+    driftX: 1.9,
+    driftY: 1.4,
+    phase: 0.2,
+  },
+  {
+    id: "imagination",
+    laneId: "imagination",
+    name: "Imagination",
+    title: "Planner",
+    glyph: "I",
+    shape: "kite",
+    color: "#9f6ee7",
+    glow: "#eb8fc9",
+    baseX: 29,
+    baseY: 25,
+    driftX: 2.3,
+    driftY: 1.6,
+    phase: 1.4,
+  },
+  {
+    id: "research",
+    laneId: "research",
+    name: "Eyes",
+    title: "Research",
+    glyph: "E",
+    shape: "lens",
+    color: "#2877b8",
+    glow: "#63c5da",
+    baseX: 80,
+    baseY: 23,
+    driftX: 2.1,
+    driftY: 1.7,
+    phase: 2.1,
+  },
+  {
+    id: "modeling",
+    laneId: "modeling",
+    name: "Body",
+    title: "Modeling",
+    glyph: "B",
+    shape: "hex",
+    color: "#2f9b67",
+    glow: "#92d876",
+    baseX: 21,
+    baseY: 58,
+    driftX: 1.8,
+    driftY: 1.5,
+    phase: 3.2,
+  },
+  {
+    id: "implementation",
+    laneId: "implementation",
+    name: "Hands",
+    title: "Implementation",
+    glyph: "H",
+    shape: "capsule",
+    color: "#cf5a2f",
+    glow: "#f1ad4e",
+    baseX: 48,
+    baseY: 64,
+    driftX: 2.6,
+    driftY: 1.2,
+    phase: 4.4,
+  },
+  {
+    id: "verification",
+    laneId: "verification",
+    name: "Soul",
+    title: "Verification",
+    glyph: "V",
+    shape: "diamond",
+    color: "#4e63b6",
+    glow: "#a6a9f4",
+    baseX: 78,
+    baseY: 61,
+    driftX: 1.7,
+    driftY: 1.9,
+    phase: 5.2,
+  },
+  {
+    id: "reorientation",
+    laneId: "reorientation",
+    name: "Life",
+    title: "Continuity",
+    glyph: "L",
+    shape: "seed",
+    color: "#148d87",
+    glow: "#58ddc4",
+    baseX: 63,
+    baseY: 29,
+    driftX: 1.4,
+    driftY: 2.2,
+    phase: 6.0,
+  },
+] as const;
+
+const compactConstellationPositions: Record<string, { x: number; y: number }> = {
+  coordinator: { x: 50, y: 10 },
+  imagination: { x: 14, y: 20 },
+  research: { x: 86, y: 20 },
+  reorientation: { x: 50, y: 29 },
+  modeling: { x: 14, y: 38 },
+  verification: { x: 86, y: 38 },
+  implementation: { x: 50, y: 48 },
+};
+
+type ConstellationSpec = (typeof constellationSpecs)[number];
+type ProjectedAgent = ConstellationSpec & {
+  status: string;
+  tone: string;
+  thought: string;
+  detail: string;
+  activity: number;
+  jobs: number;
+  review: string;
+};
 const actionButtons: Array<{
   action: OperatorAction;
   label: string;
@@ -231,6 +359,28 @@ function statusClass(value: unknown): string {
   if (lower.includes("needed") || lower.includes("review") || lower.includes("prepare") || lower.includes("high")) return "warn";
   if (lower.includes("completed") || lower.includes("ready") || lower.includes("continue") || lower.includes("pass")) return "ok";
   return "neutral";
+}
+
+function projectedThought(value: unknown, fallback: string): string {
+  const cleaned = text(value, fallback).replace(/\s+/g, " ").trim();
+  if (cleaned.length <= 136) return cleaned;
+  return `${cleaned.slice(0, 132).trim()}...`;
+}
+
+function projectedActivity(status: unknown, jobCount = 0): number {
+  const lower = text(status).toLowerCase();
+  const jobBoost = Math.min(jobCount * 0.08, 0.24);
+  if (lower.includes("critical") || lower.includes("running") || lower.includes("launch")) return 1;
+  if (lower.includes("blocked") || lower.includes("needed") || lower.includes("regather")) return 0.82 + jobBoost;
+  if (lower.includes("prepare") || lower.includes("review") || lower.includes("ready")) return 0.68 + jobBoost;
+  if (lower.includes("completed") || lower.includes("continue") || lower.includes("pass")) return 0.48 + jobBoost;
+  if (lower.includes("idle")) return 0.24 + jobBoost;
+  return 0.34 + jobBoost;
+}
+
+function findingSummary(result: any): string | undefined {
+  const finding = result?.finding;
+  return finding?.summary ?? finding?.nextSafeMove ?? finding?.mode ?? finding?.verdict ?? result?.note;
 }
 
 const emptyGraphState: EpiphanyGraphsState = {
@@ -570,6 +720,17 @@ export function App() {
         </section>
       )}
 
+      <AgentConstellation
+        roles={roles}
+        roleResults={roleResults}
+        reorientResult={reorientResult}
+        coordinator={coordinator}
+        crrc={crrc}
+        pressure={pressure}
+        reorient={reorient}
+        jobs={jobs}
+      />
+
       <section className="sectionBand">
         <SectionHeader title="Environment" icon={<Database size={18} />} />
         <div className="environmentGrid">
@@ -878,6 +1039,424 @@ function Panel({ title, icon, children }: { title: string; icon: React.ReactNode
       {children}
     </section>
   );
+}
+
+function AgentConstellation({
+  roles,
+  roleResults,
+  reorientResult,
+  coordinator,
+  crrc,
+  pressure,
+  reorient,
+  jobs,
+}: {
+  roles: any[];
+  roleResults: any;
+  reorientResult: any;
+  coordinator: any;
+  crrc: any;
+  pressure: any;
+  reorient: any;
+  jobs: any[];
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState("coordinator");
+  const agents = useMemo<ProjectedAgent[]>(() => {
+    return constellationSpecs.map((spec) => {
+      const lane = roles.find((role) => text(role.id).toLowerCase() === spec.laneId);
+      const result =
+        roleResults?.[spec.laneId] ??
+        (spec.id === "research" ? roleResults?.eyes ?? roleResults?.research : undefined);
+      const ownedJobs = jobs.filter((job) => {
+        const owner = text(job.ownerRole).toLowerCase();
+        const kind = text(job.kind).toLowerCase();
+        return owner.includes(spec.laneId) || owner.includes(spec.id) || kind.includes(spec.laneId);
+      });
+      let status = text(lane?.status ?? result?.status, "idle");
+      let thought = projectedThought(
+        lane?.note ?? findingSummary(result),
+        "Quiet. Waiting for a bounded signal.",
+      );
+      let detail = text(lane?.ownerRole ?? result?.bindingId, spec.title);
+      let review = result?.finding?.statePatch ? "patch review" : "none";
+
+      if (spec.id === "coordinator") {
+        status = text(coordinator?.action ?? crrc?.action, "unknown");
+        thought = projectedThought(
+          coordinator?.reason ?? crrc?.reason,
+          "No coordinator projection loaded yet.",
+        );
+        detail = `target ${text(coordinator?.targetRole ?? crrc?.recommendedSceneAction, "none")}`;
+        review = text(coordinator?.requiresReview, "false") === "true" ? "required" : "not required";
+      } else if (spec.id === "reorientation") {
+        status = text(lane?.status ?? reorient?.action ?? reorientResult?.status, "idle");
+        thought = projectedThought(
+          lane?.note ?? findingSummary(reorientResult) ?? reorient?.nextAction,
+          "Continuity is quiet.",
+        );
+        detail = `pressure ${text(pressure?.level, "unknown")}`;
+        review = text(reorientResult?.status).toLowerCase() === "completed" ? "read result" : "none";
+      } else if (spec.id === "research" && !lane && !result) {
+        status = "idle";
+        thought = "Watching for proven paths before the machine invents one in a shed.";
+        detail = "future lane";
+        review = "none";
+      }
+
+      return {
+        ...spec,
+        status,
+        tone: statusClass(status),
+        thought,
+        detail,
+        activity: Math.min(projectedActivity(status, ownedJobs.length), 1),
+        jobs: ownedJobs.length,
+        review,
+      };
+    });
+  }, [coordinator, crrc, jobs, pressure, reorient, reorientResult, roleResults, roles]);
+  const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const root = rootRef.current;
+    if (!canvas || !root) return;
+    const canvasElement = canvas;
+    const rootElement = root;
+    let frame = 0;
+    const agentData = agents.map((agent) => ({
+      id: agent.id,
+      baseX: agent.baseX,
+      baseY: agent.baseY,
+      driftX: agent.driftX,
+      driftY: agent.driftY,
+      phase: agent.phase,
+      activity: agent.activity,
+      color: hexToRgb(agent.color),
+    }));
+
+    function projectAgent(agent: (typeof agentData)[number], time: number, width: number, height: number) {
+      const compactPosition = width < 540 ? compactConstellationPositions[agent.id] : undefined;
+      const baseX = compactPosition?.x ?? agent.baseX;
+      const baseY = compactPosition?.y ?? agent.baseY;
+      const x =
+        (baseX / 100) * width +
+        Math.sin(time * 0.42 + agent.phase) * agent.driftX * 2.8 +
+        Math.cos(time * 0.19 + agent.phase * 0.7) * agent.activity * 4.5;
+      const y =
+        (baseY / 100) * height +
+        Math.cos(time * 0.35 + agent.phase) * agent.driftY * 3.1 +
+        Math.sin(time * 0.23 + agent.phase * 0.9) * agent.activity * 4;
+      return { ...agent, x, y };
+    }
+
+    function updateProjectedDom(time: number, width: number, height: number) {
+      return agentData.map((agent) => {
+        const projected = projectAgent(agent, time, width, height);
+        const node = rootElement.querySelector<HTMLElement>(`[data-agent-node="${agent.id}"]`);
+        const thought = rootElement.querySelector<HTMLElement>(`[data-agent-thought="${agent.id}"]`);
+        const tilt = Math.sin(time * 0.7 + agent.phase) * 4;
+        for (const element of [node, thought]) {
+          element?.style.setProperty("--agent-x", `${projected.x}px`);
+          element?.style.setProperty("--agent-y", `${projected.y}px`);
+          element?.style.setProperty("--agent-tilt", `${tilt}deg`);
+        }
+        return projected;
+      });
+    }
+
+    function resizeCanvas() {
+      const bounds = canvasElement.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.floor(bounds.width * dpr));
+      const height = Math.max(1, Math.floor(bounds.height * dpr));
+      if (canvasElement.width !== width || canvasElement.height !== height) {
+        canvasElement.width = width;
+        canvasElement.height = height;
+      }
+      return { cssWidth: bounds.width, cssHeight: bounds.height, width, height, dpr };
+    }
+
+    const gl = canvasElement.getContext("webgl2", { alpha: true, antialias: false, preserveDrawingBuffer: true });
+    if (!gl) {
+      const context = canvasElement.getContext("2d");
+      if (!context) return;
+      const drawFallback = (millis: number) => {
+        const time = millis / 1000;
+        const { cssWidth, cssHeight, width, height, dpr } = resizeCanvas();
+        const projected = updateProjectedDom(time, cssWidth, cssHeight);
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+        context.clearRect(0, 0, cssWidth, cssHeight);
+        const haze = context.createLinearGradient(0, 0, cssWidth, cssHeight);
+        haze.addColorStop(0, "rgba(38, 53, 46, 0.66)");
+        haze.addColorStop(0.45, "rgba(30, 36, 60, 0.44)");
+        haze.addColorStop(1, "rgba(80, 57, 35, 0.48)");
+        context.fillStyle = haze;
+        context.fillRect(0, 0, cssWidth, cssHeight);
+        for (const agent of projected) {
+          context.strokeStyle = `rgba(${agent.color.map((channel) => Math.floor(channel * 255)).join(", ")}, ${0.18 + agent.activity * 0.22})`;
+          context.lineWidth = 1.2;
+          for (let ring = 0; ring < 3; ring += 1) {
+            context.beginPath();
+            context.arc(agent.x, agent.y, 26 + ring * 34 + Math.sin(time * 2 + ring + agent.phase) * 8, 0, Math.PI * 2);
+            context.stroke();
+          }
+        }
+        frame = requestAnimationFrame(drawFallback);
+      };
+      frame = requestAnimationFrame(drawFallback);
+      return () => cancelAnimationFrame(frame);
+    }
+
+    const vertexSource = `#version 300 es
+precision highp float;
+out vec2 v_uv;
+const vec2 positions[3] = vec2[3](
+  vec2(-1.0, -1.0),
+  vec2(3.0, -1.0),
+  vec2(-1.0, 3.0)
+);
+void main() {
+  vec2 position = positions[gl_VertexID];
+  v_uv = position * 0.5 + 0.5;
+  gl_Position = vec4(position, 0.0, 1.0);
+}`;
+    const fragmentSource = `#version 300 es
+precision highp float;
+in vec2 v_uv;
+out vec4 out_color;
+uniform vec2 u_resolution;
+uniform float u_time;
+uniform vec2 u_agents[7];
+uniform float u_activity[7];
+uniform vec3 u_colors[7];
+uniform int u_count;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i + vec2(0.0, 0.0)), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
+  for (int octave = 0; octave < 5; octave += 1) {
+    value += amplitude * noise(p);
+    p *= 2.04;
+    amplitude *= 0.52;
+  }
+  return value;
+}
+
+void main() {
+  vec2 uv = v_uv;
+  vec2 aspect = vec2(u_resolution.x / max(u_resolution.y, 1.0), 1.0);
+  float slow = fbm(uv * vec2(2.4, 1.8) + vec2(u_time * 0.026, -u_time * 0.018));
+  float fine = fbm(uv * 8.0 + slow + vec2(-u_time * 0.055, u_time * 0.04));
+  vec3 color = mix(vec3(0.045, 0.075, 0.068), vec3(0.17, 0.12, 0.18), slow);
+  color += vec3(0.05, 0.045, 0.028) * fine;
+  float alpha = 0.88;
+
+  for (int i = 0; i < 7; i += 1) {
+    if (i >= u_count) {
+      break;
+    }
+    vec2 agent = u_agents[i] / u_resolution;
+    vec2 delta = (uv - agent) * aspect;
+    float radius = length(delta);
+    float pulse = sin(radius * 46.0 - u_time * (2.0 + u_activity[i] * 2.4) + float(i) * 0.9);
+    float wake = smoothstep(0.34, 0.0, radius) * (0.45 + 0.55 * pulse) * u_activity[i];
+    float ember = exp(-radius * 18.0) * (0.45 + u_activity[i] * 0.72);
+    color += u_colors[i] * (wake * 0.13 + ember * 0.42);
+    alpha += wake * 0.03;
+  }
+
+  float vignette = smoothstep(0.82, 0.18, distance(uv, vec2(0.5)));
+  color *= 0.78 + vignette * 0.44;
+  out_color = vec4(color, clamp(alpha, 0.0, 0.96));
+}`;
+
+    const program = createConstellationProgram(gl, vertexSource, fragmentSource);
+    if (!program) return;
+    const resolutionLocation = gl.getUniformLocation(program, "u_resolution");
+    const timeLocation = gl.getUniformLocation(program, "u_time");
+    const agentsLocation = gl.getUniformLocation(program, "u_agents");
+    const activityLocation = gl.getUniformLocation(program, "u_activity");
+    const colorsLocation = gl.getUniformLocation(program, "u_colors");
+    const countLocation = gl.getUniformLocation(program, "u_count");
+    const vao = gl.createVertexArray();
+    const colorBuffer = new Float32Array(7 * 3);
+    for (let index = 0; index < agentData.length; index += 1) {
+      colorBuffer.set(agentData[index].color, index * 3);
+    }
+    const activityBuffer = new Float32Array(7);
+    const positionBuffer = new Float32Array(7 * 2);
+
+    const draw = (millis: number) => {
+      const time = millis / 1000;
+      const { cssWidth, cssHeight, width, height, dpr } = resizeCanvas();
+      const projected = updateProjectedDom(time, cssWidth, cssHeight);
+      for (let index = 0; index < projected.length; index += 1) {
+        positionBuffer[index * 2] = projected[index].x * dpr;
+        positionBuffer[index * 2 + 1] = (cssHeight - projected[index].y) * dpr;
+        activityBuffer[index] = projected[index].activity;
+      }
+      gl.viewport(0, 0, width, height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.useProgram(program);
+      gl.bindVertexArray(vao);
+      gl.uniform2f(resolutionLocation, width, height);
+      gl.uniform1f(timeLocation, time);
+      gl.uniform1i(countLocation, projected.length);
+      gl.uniform2fv(agentsLocation, positionBuffer);
+      gl.uniform1fv(activityLocation, activityBuffer);
+      gl.uniform3fv(colorsLocation, colorBuffer);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      frame = requestAnimationFrame(draw);
+    };
+
+    frame = requestAnimationFrame(draw);
+    return () => {
+      cancelAnimationFrame(frame);
+      gl.deleteVertexArray(vao);
+      gl.deleteProgram(program);
+    };
+  }, [agents]);
+
+  return (
+    <section className="sectionBand agentConstellation" aria-label="Agent state overview">
+      <div className="constellationHeader">
+        <SectionHeader title="Agent State" icon={<Boxes size={18} />} />
+        <div className="constellationSignals" aria-label="Global signals">
+          <Pill tone={statusClass(coordinator?.action ?? crrc?.action)}>
+            {text(coordinator?.action ?? crrc?.action, "unknown")}
+          </Pill>
+          <Pill tone={statusClass(pressure?.level)}>pressure {text(pressure?.level, "unknown")}</Pill>
+          <Pill tone={statusClass(reorient?.action)}>continuity {text(reorient?.action, "unknown")}</Pill>
+        </div>
+      </div>
+      <div className="agentStage" ref={rootRef}>
+        <canvas ref={canvasRef} className="agentSmokeCanvas" aria-hidden="true" />
+        <div className="agentStageVignette" aria-hidden="true" />
+        {agents.map((agent) => (
+          <button
+            className={`agentCharacter ${agent.shape} ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
+            key={agent.id}
+            type="button"
+            data-agent-node={agent.id}
+            onClick={() => setSelectedAgentId(agent.id)}
+            title={`${agent.name}: ${agent.thought}`}
+            style={
+              {
+                "--agent-x": `${agent.baseX}%`,
+                "--agent-y": `${agent.baseY}%`,
+                "--agent-color": agent.color,
+                "--agent-glow": agent.glow,
+                "--agent-activity": agent.activity,
+                "--agent-bubble-opacity": 0.38 + agent.activity * 0.28,
+              } as React.CSSProperties
+            }
+          >
+            <span className="agentGlyph" aria-hidden="true">{agent.glyph}</span>
+            <span className="agentCaption">
+              <strong>{agent.name}</strong>
+              <span>{agent.status}</span>
+            </span>
+          </button>
+        ))}
+        {agents.map((agent) => (
+          <div
+            className={`thoughtBubble ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
+            key={`${agent.id}-thought`}
+            data-agent-thought={agent.id}
+            style={
+              {
+                "--agent-x": `${agent.baseX}%`,
+                "--agent-y": `${agent.baseY}%`,
+                "--agent-color": agent.color,
+                "--agent-glow": agent.glow,
+                "--agent-activity": agent.activity,
+                "--agent-bubble-opacity": 0.38 + agent.activity * 0.28,
+              } as React.CSSProperties
+            }
+          >
+            <strong>{agent.name}</strong>
+            <span>{agent.thought}</span>
+          </div>
+        ))}
+        <div className="constellationInspector">
+          <div>
+            <span>{selectedAgent.title}</span>
+            <strong>{selectedAgent.name}</strong>
+            <p>{selectedAgent.thought}</p>
+          </div>
+          <dl className="facts compact">
+            <div><dt>Status</dt><dd><Pill tone={selectedAgent.tone}>{selectedAgent.status}</Pill></dd></div>
+            <div><dt>Detail</dt><dd>{selectedAgent.detail}</dd></div>
+            <div><dt>Jobs</dt><dd>{selectedAgent.jobs}</dd></div>
+            <div><dt>Review</dt><dd>{selectedAgent.review}</dd></div>
+          </dl>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function createConstellationProgram(gl: WebGL2RenderingContext, vertexSource: string, fragmentSource: string) {
+  const vertexShader = compileConstellationShader(gl, gl.VERTEX_SHADER, vertexSource);
+  const fragmentShader = compileConstellationShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+  if (!vertexShader || !fragmentShader) return null;
+  const program = gl.createProgram();
+  if (!program) return null;
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  gl.deleteShader(vertexShader);
+  gl.deleteShader(fragmentShader);
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    gl.deleteProgram(program);
+    return null;
+  }
+  return program;
+}
+
+function compileConstellationShader(gl: WebGL2RenderingContext, type: number, source: string) {
+  const shader = gl.createShader(type);
+  if (!shader) return null;
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    gl.deleteShader(shader);
+    return null;
+  }
+  return shader;
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  const normalized = hex.replace("#", "");
+  const value = Number.parseInt(normalized.length === 3
+    ? normalized.split("").map((char) => `${char}${char}`).join("")
+    : normalized, 16);
+  return [
+    ((value >> 16) & 255) / 255,
+    ((value >> 8) & 255) / 255,
+    (value & 255) / 255,
+  ];
 }
 
 function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }) {

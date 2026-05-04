@@ -49,7 +49,38 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   const page = await browser.newPage({ viewport });
   await page.goto(url, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Operator Console" }).waitFor();
-  await page.getByText("prepareCheckpoint").waitFor();
+  await page.getByRole("heading", { name: "Agent State", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Self prepareCheckpoint" }).waitFor();
+  await page.locator(".agentSmokeCanvas").waitFor();
+  await page.waitForTimeout(350);
+  const canvasProbe = await page.locator(".agentSmokeCanvas").evaluate((canvas) => {
+    if (!(canvas instanceof HTMLCanvasElement) || canvas.width === 0 || canvas.height === 0) {
+      return { nonBlank: false, reason: "canvas has no drawable dimensions" };
+    }
+    const gl = canvas.getContext("webgl2");
+    if (gl) {
+      const width = Math.min(6, canvas.width);
+      const height = Math.min(6, canvas.height);
+      const pixels = new Uint8Array(width * height * 4);
+      gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+      return {
+        nonBlank: pixels.some((value) => value !== 0),
+        reason: "webgl2 sample",
+      };
+    }
+    const context = canvas.getContext("2d");
+    if (!context) return { nonBlank: false, reason: "no readable canvas context" };
+    const width = Math.min(6, canvas.width);
+    const height = Math.min(6, canvas.height);
+    const pixels = context.getImageData(0, 0, width, height).data;
+    return {
+      nonBlank: Array.from(pixels).some((value) => value !== 0),
+      reason: "2d sample",
+    };
+  });
+  if (!canvasProbe.nonBlank) {
+    throw new Error(`agent smoke canvas did not render: ${canvasProbe.reason}`);
+  }
   await page.getByRole("heading", { name: "Environment" }).waitFor();
   await page.getByText("Unity Editor").waitFor();
   await page.getByRole("heading", { name: "Rider", exact: true }).waitFor();
