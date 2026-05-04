@@ -21264,16 +21264,47 @@ mod tests {
                 .imagination
                 .contains("Imagination of the machine")
         );
+        assert!(
+            prompts
+                .roles
+                .imagination
+                .contains("Imagination improves itself")
+        );
         assert!(prompts.roles.modeling.contains("Body of the machine"));
+        assert!(prompts.roles.modeling.contains("The Body improves itself"));
         assert!(prompts.roles.verification.contains("Soul of the machine"));
+        assert!(
+            prompts
+                .roles
+                .verification
+                .contains("The Soul improves itself")
+        );
         assert!(prompts.roles.research.contains("Eyes of the machine"));
+        assert!(
+            prompts
+                .roles
+                .research
+                .contains("The Eyes improve themselves")
+        );
         assert!(
             prompts
                 .implementation
                 .continue_template
                 .contains("Hands of the machine")
         );
+        assert!(
+            prompts
+                .implementation
+                .continue_template
+                .contains("The Hands improve themselves")
+        );
         assert!(prompts.reorientation.resume.contains("Life across sleep"));
+        assert!(
+            prompts
+                .reorientation
+                .resume
+                .contains("Life improves itself")
+        );
         assert!(
             prompts
                 .reorientation
@@ -21297,6 +21328,7 @@ mod tests {
         );
         assert!(note.contains("read-only Self"));
         assert!(note.contains("Epiphany Persistent Memory"));
+        assert!(note.contains("Self improves itself"));
         assert!(note.contains("Imagination/planning"));
         assert!(note.contains("Eyes/research"));
         assert!(note.contains("Hands/implementation"));
