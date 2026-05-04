@@ -412,6 +412,379 @@ dd {
   min-height: 560px;
 }
 
+body:has(.immersiveShell) {
+  overflow: hidden;
+  background: #07110e;
+}
+
+.immersiveShell {
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  min-width: 320px;
+  min-height: 720px;
+  overflow: hidden;
+  color: #f7fff7;
+  background: #07110e;
+}
+
+.immersiveConstellation {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.immersiveConstellation .agentStage {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 16% 22%, rgba(47, 155, 103, 0.34), transparent 32%),
+    radial-gradient(circle at 82% 18%, rgba(79, 99, 182, 0.32), transparent 30%),
+    radial-gradient(circle at 62% 78%, rgba(207, 90, 47, 0.32), transparent 32%),
+    linear-gradient(135deg, #07110e, #171124 46%, #16241d);
+  box-shadow: none;
+}
+
+.immersiveConstellation .agentStageVignette {
+  background:
+    linear-gradient(90deg, rgba(5, 10, 8, 0.62), transparent 32%, transparent 64%, rgba(5, 10, 8, 0.58)),
+    linear-gradient(180deg, rgba(6, 11, 9, 0.64), transparent 22%, rgba(3, 7, 6, 0.72)),
+    radial-gradient(circle at 50% 48%, transparent 26%, rgba(3, 7, 6, 0.38) 100%);
+}
+
+.immersiveConstellation .constellationInspector {
+  right: 24px;
+  bottom: 24px;
+  left: auto;
+  width: min(560px, 38vw);
+  color: #172018;
+}
+
+.hudGrid {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(224, 255, 225, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(224, 255, 225, 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.8), transparent 72%);
+}
+
+.immersiveTopbar,
+.deckRail,
+.diegeticPanel,
+.hudToastStack {
+  position: absolute;
+  z-index: 8;
+}
+
+.immersiveTopbar {
+  top: 18px;
+  right: 24px;
+  left: 24px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  pointer-events: none;
+}
+
+.operatorIdentity {
+  max-width: min(760px, 48vw);
+  border-left: 3px solid rgba(147, 216, 118, 0.76);
+  padding-left: 13px;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.54);
+}
+
+.operatorIdentity .eyebrow {
+  color: rgba(232, 255, 234, 0.78);
+}
+
+.operatorIdentity h1 {
+  color: #f7fff7;
+}
+
+.operatorIdentity span {
+  display: block;
+  max-width: 100%;
+  margin-top: 6px;
+  overflow: hidden;
+  color: rgba(239, 255, 241, 0.74);
+  font-size: 0.84rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.operatorTopControls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  max-width: 560px;
+  pointer-events: auto;
+}
+
+.operatorTopControls .primaryButton {
+  border-color: rgba(209, 241, 214, 0.42);
+  background: rgba(36, 77, 58, 0.82);
+  backdrop-filter: blur(12px);
+}
+
+.deckRail {
+  top: 152px;
+  bottom: 24px;
+  left: 24px;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  width: 96px;
+}
+
+.deckRail button,
+.subdeckTabs button {
+  border: 1px solid rgba(219, 238, 216, 0.28);
+  color: rgba(244, 255, 245, 0.78);
+  background: rgba(10, 19, 16, 0.66);
+  backdrop-filter: blur(12px);
+  cursor: pointer;
+}
+
+.deckRail button {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  min-height: 72px;
+  border-radius: 8px;
+  padding: 9px 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.deckRail button.active,
+.subdeckTabs button.active {
+  border-color: rgba(247, 189, 88, 0.72);
+  color: #fff8df;
+  background: rgba(116, 71, 36, 0.72);
+  box-shadow: 0 0 24px rgba(241, 173, 78, 0.18);
+}
+
+.diegeticPanel {
+  top: 152px;
+  bottom: 24px;
+  left: 136px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(720px, 44vw);
+  min-width: 460px;
+  overflow: hidden;
+  border: 1px solid rgba(219, 238, 216, 0.32);
+  border-radius: 8px;
+  background: rgba(8, 17, 14, 0.72);
+  box-shadow: 0 22px 62px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(16px);
+}
+
+.diegeticPanel.widePanel {
+  right: 24px;
+  width: auto;
+  min-width: 0;
+}
+
+.deckHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  border-bottom: 1px solid rgba(219, 238, 216, 0.18);
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.deckHeader span {
+  color: rgba(216, 235, 214, 0.66);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.deckHeader h2 {
+  margin-top: 2px;
+  color: #f7fff7;
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+
+.subdeckTabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.subdeckTabs button {
+  min-height: 32px;
+  border-radius: 999px;
+  padding: 0 11px;
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.deckBody {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+  scrollbar-color: rgba(212, 236, 211, 0.32) transparent;
+}
+
+.hudActionGrid,
+.hudFormGrid,
+.signalStack {
+  display: grid;
+  gap: 10px;
+}
+
+.hudActionGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hudActionButton {
+  width: 100%;
+  min-width: 0;
+  border-color: rgba(219, 238, 216, 0.36);
+  color: #f5fff5;
+  background: rgba(244, 255, 245, 0.08);
+}
+
+.hudActionButton:disabled {
+  color: rgba(228, 242, 228, 0.48);
+  background: rgba(244, 255, 245, 0.045);
+}
+
+.hudResult {
+  margin-top: 12px;
+  color: rgba(240, 255, 241, 0.82);
+}
+
+.hudFormGrid {
+  grid-template-columns: 1fr;
+}
+
+.diegeticPanel label {
+  color: rgba(232, 255, 234, 0.78);
+}
+
+.diegeticPanel input,
+.diegeticPanel select {
+  border-color: rgba(219, 238, 216, 0.28);
+  color: #f7fff7;
+  background: rgba(244, 255, 245, 0.1);
+}
+
+.diegeticPanel input::placeholder {
+  color: rgba(232, 255, 234, 0.48);
+}
+
+.diegeticPanel .environmentCard,
+.diegeticPanel .planningItem,
+.diegeticPanel .laneCard,
+.diegeticPanel .findingCard,
+.diegeticPanel .jobRow,
+.diegeticPanel .artifactTable,
+.diegeticPanel .selectedCodeRef,
+.diegeticPanel .emptyState {
+  border-color: rgba(219, 238, 216, 0.24);
+  color: #f7fff7;
+  background: rgba(244, 255, 245, 0.09);
+  box-shadow: none;
+}
+
+.diegeticPanel h3,
+.diegeticPanel dd,
+.diegeticPanel strong {
+  color: #f7fff7;
+}
+
+.diegeticPanel p,
+.diegeticPanel .reason,
+.diegeticPanel .environmentNote,
+.diegeticPanel .laneCard p,
+.diegeticPanel .findingCard p,
+.diegeticPanel .jobRow span,
+.diegeticPanel .owner,
+.diegeticPanel .pathList span,
+.diegeticPanel code,
+.diegeticPanel .planningMeta {
+  color: rgba(237, 255, 239, 0.72);
+}
+
+.diegeticPanel dt,
+.diegeticPanel .pathList strong,
+.diegeticPanel .selectedCodeRef span {
+  color: rgba(218, 239, 215, 0.58);
+}
+
+.diegeticPanel .artifactHeader {
+  color: rgba(218, 239, 215, 0.68);
+  background: rgba(244, 255, 245, 0.1);
+}
+
+.diegeticPanel .artifactRow + .artifactRow {
+  border-top-color: rgba(219, 238, 216, 0.16);
+}
+
+.hudEnvironmentGrid,
+.hudPlanningGrid {
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+}
+
+.hudCardGrid {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+}
+
+.hudGraphBand .graphViewerFrame {
+  height: min(62vh, 620px);
+  min-height: 360px;
+}
+
+.hudGraphBand .embeddedGraphViewer {
+  min-height: 100%;
+}
+
+.hudToastStack {
+  top: 96px;
+  right: 24px;
+  display: grid;
+  gap: 8px;
+  width: min(520px, 34vw);
+  pointer-events: none;
+}
+
+.hudToast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  border: 1px solid rgba(219, 238, 216, 0.28);
+  border-radius: 8px;
+  padding: 9px 11px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.24);
+  backdrop-filter: blur(14px);
+}
+
+.hudToast span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .agentConstellation {
   display: grid;
   gap: 12px;
@@ -923,6 +1296,19 @@ code {
   .thoughtBubble {
     width: min(224px, 34vw);
   }
+
+  .diegeticPanel {
+    width: min(640px, calc(100vw - 172px));
+    min-width: 0;
+  }
+
+  .diegeticPanel.widePanel {
+    right: 14px;
+  }
+
+  .hudToastStack {
+    width: min(460px, 42vw);
+  }
 }
 
 @media (max-width: 640px) {
@@ -956,6 +1342,102 @@ code {
   .artifactRow {
     gap: 4px;
     padding: 10px 12px;
+  }
+
+  .immersiveShell {
+    min-height: 100dvh;
+  }
+
+  .immersiveTopbar {
+    top: 8px;
+    right: 8px;
+    left: 8px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .operatorIdentity {
+    max-width: none;
+    padding-left: 10px;
+  }
+
+  .operatorIdentity h1 {
+    font-size: 1.5rem;
+  }
+
+  .operatorIdentity span {
+    display: none;
+  }
+
+  .operatorTopControls {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .operatorTopControls .pill {
+    font-size: 0.7rem;
+  }
+
+  .deckRail {
+    top: auto;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    width: auto;
+  }
+
+  .deckRail button {
+    min-height: 52px;
+    padding: 6px 4px;
+    font-size: 0.62rem;
+  }
+
+  .diegeticPanel,
+  .diegeticPanel.widePanel {
+    top: 174px;
+    right: 8px;
+    bottom: 70px;
+    left: 8px;
+    width: auto;
+    min-width: 0;
+  }
+
+  .deckHeader {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .subdeckTabs {
+    justify-content: flex-start;
+  }
+
+  .subdeckTabs button {
+    min-height: 29px;
+    padding: 0 9px;
+    font-size: 0.65rem;
+  }
+
+  .deckBody {
+    padding: 10px;
+  }
+
+  .hudActionGrid,
+  .hudEnvironmentGrid,
+  .hudPlanningGrid,
+  .hudCardGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .hudToastStack,
+  .immersiveConstellation .constellationInspector {
+    display: none;
+  }
+
+  .immersiveConstellation .agentStage {
+    height: 100%;
+    min-height: 100%;
   }
 
   .agentStage {
@@ -1000,6 +1482,10 @@ code {
     width: min(280px, calc(100vw - 52px));
     max-height: none;
     transform: translate(-50%, 0);
+  }
+
+  .immersiveConstellation .thoughtBubble.selected {
+    display: none;
   }
 
   .constellationInspector {

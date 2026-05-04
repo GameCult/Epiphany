@@ -49,7 +49,7 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   const page = await browser.newPage({ viewport });
   await page.goto(url, { waitUntil: "networkidle" });
   await page.getByRole("heading", { name: "Operator Console" }).waitFor();
-  await page.getByRole("heading", { name: "Agent State", exact: true }).waitFor();
+  await page.locator(".immersiveShell").waitFor();
   await page.getByRole("button", { name: "Self prepareCheckpoint" }).waitFor();
   await page.locator(".agentSmokeCanvas").waitFor();
   await page.waitForTimeout(350);
@@ -81,16 +81,10 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   if (!canvasProbe.nonBlank) {
     throw new Error(`agent smoke canvas did not render: ${canvasProbe.reason}`);
   }
-  await page.getByRole("heading", { name: "Environment" }).waitFor();
-  await page.getByText("Unity Editor").waitFor();
-  await page.getByRole("heading", { name: "Rider", exact: true }).waitFor();
-  await page.getByText("Aetheria.sln").waitFor();
-  await page.getByRole("heading", { name: "Planning", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "Build the planning dashboard slice", exact: true }).waitFor();
-  await page.getByRole("heading", { name: "State Graph", exact: true }).waitFor();
-  await page.getByText("Epiphany Typed Graph").waitFor();
-  await page.getByText("Role Lanes").waitFor();
-  await page.getByText("Artifact Bundles").waitFor();
+  await page.getByRole("button", { name: "Command" }).waitFor();
+  await page.getByRole("button", { name: "State" }).waitFor();
+  await page.getByRole("button", { name: "Agents" }).waitFor();
+  await page.getByRole("button", { name: "Artifacts" }).waitFor();
   await page.getByRole("button", { name: "Prepare Checkpoint" }).waitFor();
   await page.getByRole("button", { name: "Inspect Rider" }).waitFor();
   await page.getByRole("button", { name: "Adopt Draft" }).waitFor();
@@ -103,6 +97,25 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   await page.getByRole("button", { name: "Launch Reorient" }).waitFor();
   await page.getByRole("button", { name: "Read Reorient" }).waitFor();
   await page.getByRole("button", { name: "Accept Reorient" }).waitFor();
+  await page.getByRole("button", { name: "State" }).click();
+  await page.getByRole("button", { name: "environment" }).waitFor();
+  await page.getByText("Unity Editor").waitFor();
+  await page.getByRole("heading", { name: "Rider", exact: true }).waitFor();
+  await page.getByText("Aetheria.sln").waitFor();
+  await page.getByRole("button", { name: "planning" }).click();
+  await page.getByRole("heading", { name: "Build the planning dashboard slice", exact: true }).waitFor();
+  await page.getByRole("button", { name: "graph" }).click();
+  await page.getByText("Epiphany Typed Graph").waitFor();
+  await page.getByRole("button", { name: "Agents" }).click();
+  await page.getByRole("button", { name: "lanes" }).waitFor();
+  await page.getByRole("heading", { name: "Implementation", exact: true }).waitFor();
+  await page.getByRole("button", { name: "findings" }).click();
+  await page.getByRole("heading", { name: "Imagination / Planning", exact: true }).waitFor();
+  await page.getByRole("button", { name: "jobs" }).click();
+  await page.getByText("retrieval-index").waitFor();
+  await page.getByRole("button", { name: "Artifacts" }).click();
+  await page.getByText("runtime/unity-inspect-sample").waitFor();
+  await page.getByRole("button", { name: "Command" }).click();
   if (viewport.width >= 900) {
     await page.getByRole("button", { name: "Status Snapshot" }).click();
     await page.getByText("statusSnapshot sample completed.").waitFor();
@@ -124,15 +137,35 @@ async function smokeViewport(browser, viewport, screenshotPath) {
   const result = await page.evaluate(() => {
     const elements = Array.from(document.querySelectorAll("h1, h2, h3, p, dd, code, button, input, .pill"));
     const overlaps = [];
+    function isPaintedAtSample(element, rect) {
+      const style = window.getComputedStyle(element);
+      if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) {
+        return false;
+      }
+      const points = [
+        [rect.left + rect.width / 2, rect.top + rect.height / 2],
+        [rect.left + Math.min(8, rect.width / 2), rect.top + rect.height / 2],
+        [rect.right - Math.min(8, rect.width / 2), rect.top + rect.height / 2],
+        [rect.left + rect.width / 2, rect.top + Math.min(8, rect.height / 2)],
+        [rect.left + rect.width / 2, rect.bottom - Math.min(8, rect.height / 2)],
+      ];
+      return points.some(([x, y]) => {
+        if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) return false;
+        const hit = document.elementFromPoint(x, y);
+        return hit === element || Boolean(hit && element.contains(hit));
+      });
+    }
     for (let index = 0; index < elements.length; index += 1) {
       const left = elements[index];
       const a = elements[index].getBoundingClientRect();
       if (a.width === 0 || a.height === 0) continue;
+      if (!isPaintedAtSample(left, a)) continue;
       for (let other = index + 1; other < elements.length; other += 1) {
         const right = elements[other];
         if (left.contains(right) || right.contains(left)) continue;
         const b = elements[other].getBoundingClientRect();
         if (b.width === 0 || b.height === 0) continue;
+        if (!isPaintedAtSample(right, b)) continue;
         const x = Math.min(a.right, b.right) - Math.max(a.left, b.left);
         const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
         if (x > 2 && y > 2) {
