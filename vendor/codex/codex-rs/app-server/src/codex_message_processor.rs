@@ -13203,6 +13203,7 @@ const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_sp
 
 #[derive(Debug, serde::Deserialize)]
 struct EpiphanySpecialistPromptConfig {
+    shared: EpiphanySharedPromptConfig,
     roles: EpiphanyRolePromptConfig,
     // Parsed here so the bundled prompt config fails fast even though the GUI runner consumes it.
     #[allow(dead_code)]
@@ -13210,6 +13211,11 @@ struct EpiphanySpecialistPromptConfig {
     reorientation: EpiphanyReorientationPromptConfig,
     coordinator: EpiphanyCoordinatorPromptConfig,
     crrc: EpiphanyCrrcPromptConfig,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct EpiphanySharedPromptConfig {
+    persistent_memory: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -13249,6 +13255,21 @@ fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialistPromptConfi
         toml::from_str(EPIPHANY_SPECIALIST_PROMPTS_TOML)
             .expect("bundled Epiphany specialist prompt config must parse")
     })
+}
+
+fn epiphany_agent_prompt_with_memory(body: &str) -> String {
+    let memory = epiphany_specialist_prompt_config()
+        .shared
+        .persistent_memory
+        .trim();
+    let body = body.trim();
+    if memory.is_empty() {
+        body.to_string()
+    } else if body.is_empty() {
+        memory.to_string()
+    } else {
+        format!("{memory}\n\n{body}")
+    }
 }
 
 fn build_epiphany_role_launch_request(
@@ -13327,14 +13348,15 @@ fn build_epiphany_role_launch_request(
 
 fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> String {
     let prompts = &epiphany_specialist_prompt_config().roles;
-    match role_id {
-        ThreadEpiphanyRoleId::Imagination => prompts.imagination.clone(),
-        ThreadEpiphanyRoleId::Modeling => prompts.modeling.clone(),
-        ThreadEpiphanyRoleId::Verification => prompts.verification.clone(),
+    let body = match role_id {
+        ThreadEpiphanyRoleId::Imagination => prompts.imagination.as_str(),
+        ThreadEpiphanyRoleId::Modeling => prompts.modeling.as_str(),
+        ThreadEpiphanyRoleId::Verification => prompts.verification.as_str(),
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
-            "Unsupported Epiphany role specialist template.".to_string()
+            "Unsupported Epiphany role specialist template."
         }
-    }
+    };
+    epiphany_agent_prompt_with_memory(body)
 }
 
 fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_json::Value {
@@ -13571,10 +13593,11 @@ fn build_epiphany_reorient_launch_request(
 
 fn build_epiphany_reorient_launch_instruction(action: ThreadEpiphanyReorientAction) -> String {
     let prompts = &epiphany_specialist_prompt_config().reorientation;
-    match action {
-        ThreadEpiphanyReorientAction::Resume => prompts.resume.clone(),
-        ThreadEpiphanyReorientAction::Regather => prompts.regather.clone(),
-    }
+    let body = match action {
+        ThreadEpiphanyReorientAction::Resume => prompts.resume.as_str(),
+        ThreadEpiphanyReorientAction::Regather => prompts.regather.as_str(),
+    };
+    epiphany_agent_prompt_with_memory(body)
 }
 
 fn render_epiphany_coordinator_note(
@@ -13585,9 +13608,12 @@ fn render_epiphany_coordinator_note(
     reorient_result_status: ThreadEpiphanyReorientResultStatus,
     coordinator_action: ThreadEpiphanyCoordinatorAction,
 ) -> String {
-    epiphany_specialist_prompt_config()
-        .coordinator
-        .note_template
+    let template = epiphany_agent_prompt_with_memory(
+        &epiphany_specialist_prompt_config()
+            .coordinator
+            .note_template,
+    );
+    template
         .trim()
         .replace("{crrc_action}", &format!("{crrc_action:?}"))
         .replace("{pressure_level}", &format!("{pressure_level:?}"))
@@ -16106,9 +16132,12 @@ fn render_epiphany_pre_compaction_checkpoint_intervention(
         (Some(used), _, _) => format!("{used} tokens used"),
         _ => "token usage known only as a pressure threshold crossing".to_string(),
     };
-    epiphany_specialist_prompt_config()
-        .crrc
-        .pre_compaction_checkpoint_intervention
+    let template = epiphany_agent_prompt_with_memory(
+        &epiphany_specialist_prompt_config()
+            .crrc
+            .pre_compaction_checkpoint_intervention,
+    );
+    template
         .trim()
         .replace("{pressure_level}", pressure_level_label(pressure.level))
         .replace("{usage}", &usage)
@@ -21219,6 +21248,18 @@ mod tests {
         let prompts = epiphany_specialist_prompt_config();
         assert!(
             prompts
+                .shared
+                .persistent_memory
+                .contains("Ghostlight-derived memory")
+        );
+        assert!(
+            prompts
+                .shared
+                .persistent_memory
+                .contains("best version of itself")
+        );
+        assert!(
+            prompts
                 .roles
                 .imagination
                 .contains("Imagination of the machine")
@@ -21255,6 +21296,7 @@ mod tests {
             ThreadEpiphanyCoordinatorAction::LaunchVerification,
         );
         assert!(note.contains("read-only Self"));
+        assert!(note.contains("Epiphany Persistent Memory"));
         assert!(note.contains("Imagination/planning"));
         assert!(note.contains("Eyes/research"));
         assert!(note.contains("Hands/implementation"));
@@ -21297,8 +21339,14 @@ mod tests {
         assert!(
             imagination
                 .instruction
+                .contains("Epiphany Persistent Memory")
+        );
+        assert!(
+            imagination
+                .instruction
                 .contains("Imagination of the machine")
         );
+        assert!(imagination.instruction.contains("best version of itself"));
         assert!(
             imagination
                 .instruction
@@ -21332,6 +21380,7 @@ mod tests {
         assert_eq!(modeling.input_json["roleId"], "modeling");
         assert!(modeling.input_json.get("graphs").is_some());
         assert!(modeling.input_json.get("recentObservations").is_some());
+        assert!(modeling.instruction.contains("Epiphany Persistent Memory"));
         assert!(modeling.instruction.contains("Body of the machine"));
         assert!(modeling.instruction.contains("coherent anatomy"));
         assert!(
@@ -21375,6 +21424,11 @@ mod tests {
         assert_eq!(verification.owner_role, EPIPHANY_VERIFICATION_OWNER_ROLE);
         assert_eq!(verification.authority_scope, "epiphany.role.verification");
         assert_eq!(verification.input_json["roleId"], "verification");
+        assert!(
+            verification
+                .instruction
+                .contains("Epiphany Persistent Memory")
+        );
         assert!(verification.instruction.contains("Soul of the machine"));
         assert!(verification.instruction.contains("falsify"));
         assert!(
@@ -21451,6 +21505,7 @@ mod tests {
         assert!(request.input_json.get("graphs").is_some());
         assert!(request.input_json.get("recentEvidence").is_some());
         assert!(request.input_json.get("recentObservations").is_some());
+        assert!(request.instruction.contains("Epiphany Persistent Memory"));
         assert!(request.instruction.contains("Life across sleep"));
         assert!(request.instruction.contains("checkpoint as the ember"));
         let schema = request.output_schema_json.as_ref().unwrap();

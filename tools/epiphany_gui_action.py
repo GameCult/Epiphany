@@ -51,13 +51,20 @@ def load_epiphany_prompt_config() -> dict[str, Any]:
 
 def implementation_continue_template() -> str:
     config = load_epiphany_prompt_config()
+    shared = config.get("shared")
+    persistent_memory = None
+    if isinstance(shared, dict):
+        persistent_memory = shared.get("persistent_memory")
     template = nested_get(config, "implementation", "continue_template")
     if not isinstance(template, str) or not template.strip():
         raise ValueError(
             "missing [implementation].continue_template in "
             f"{EPIPHANY_PROMPTS_PATH}"
         )
-    return template.strip()
+    body = template.strip()
+    if isinstance(persistent_memory, str) and persistent_memory.strip():
+        return f"{persistent_memory.strip()}\n\n{body}"
+    return body
 
 
 def prompt_text(value: Any, default: str = "none") -> str:

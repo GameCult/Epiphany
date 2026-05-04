@@ -928,6 +928,8 @@ mod tests {
         assert!(rendered.contains("`arch-session`"));
         assert!(rendered.contains("`flow-build-context`"));
         assert!(rendered.contains("## Epiphany Doctrine"));
+        assert!(rendered.contains("become the Perfect Machine"));
+        assert!(rendered.contains("Persistent state is the mind"));
         assert!(rendered.contains("evidence is a distilled durable ledger"));
         assert!(rendered.contains("modeling is the Body"));
         assert!(rendered.contains("implementation is the Hands"));
