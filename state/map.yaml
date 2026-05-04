@@ -66,7 +66,7 @@ active_subgoals:
   - Use `tools/epiphany_agent_telemetry.py` and generated `agent-function-telemetry.json` files to inspect behavior shape without opening sealed transcripts.
   - Treat repeated no-diff implementation turns as an MVP blocker, not success. A bounded implementation pass must leave a reviewable workspace diff or an explicit reviewable failure artifact before dogfood can be called healthy.
   - Build the Rider and Unity bridges before the next Aetheria implementation dogfood run: the Aetheria-side resident Unity editor package, named Unity bridge operation planner, and GUI Environment panel are now landed; next build the EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, and Rider plugin MVP.
-  - Preserve the newly landed GUI Planning view, explicit Objective Draft adoption action, and Imagination planning synthesis lane; GitHub Issues import remains the next planning organ.
+  - Preserve the newly landed GUI Planning view, explicit Objective Draft adoption action, and Imagination planning synthesis lane; defer GitHub Issues import until a backlog source is fresh enough to be worth feeding Imagination.
   - Treat the target workflow as three integrated surfaces: Rider is the human code/diff view, Epiphany GUI is the agent dashboard and persisted-state graph view, and Unity is the pinned runtime/test/scene environment.
   - Use `notes/epiphany-rider-unity-integration-plan.md` as the source-grounded plan for Rider-as-IDE and Unity-as-editor/runtime integration seams.
 
@@ -213,4 +213,4 @@ rejected_paths:
 
 current_status:
   summary: Phase 1 durable state through Phase 6 GUI/coordinator/specialist/CRRC MVP surfaces are landed. The Aetheria supervised run found and fixed real harness wounds in coordinator policy, no-diff audits, stale job/result projection, and reorient acceptance. The Unity incident proved the next blocker is environment access, so `notes/epiphany-rider-unity-integration-plan.md` governs the Rider/Epiphany GUI/Unity workflow. Planning is now an operator-visible loop: typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub source refs live in Epiphany state, render into prompts, validate through revision-gated updates, project through `thread/epiphany/planning`, render in the GUI, can be synthesized by the fixed Imagination/planning lane, and can be explicitly adopted into the active objective through an artifacted GUI action.
-  next_action: Import GitHub Issues into planning captures so real external backlog material can feed Imagination. After the planning loop can ingest issues, return to the EpiphanyGraph dashboard, Rider context bridge, and Rider plugin MVP before another Aetheria implementation dogfood run.
+  next_action: Build the EpiphanyGraph-backed GUI graph dashboard, Rider context bridge, and Rider plugin MVP before another Aetheria implementation dogfood run. Defer GitHub Issues import until the backlog source is fresh enough to be useful.
