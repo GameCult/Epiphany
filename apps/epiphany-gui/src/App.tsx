@@ -919,7 +919,11 @@ function Finding({ title, result, findingKey = "finding" }: { title: string; res
             <div><dt>Verdict</dt><dd>{text(finding.verdict ?? finding.mode)}</dd></div>
             <div><dt>Next</dt><dd>{text(finding.nextSafeMove)}</dd></div>
             <div><dt>Patch</dt><dd>{finding.statePatch ? "available" : "none"}</dd></div>
+            <div><dt>Self Memory</dt><dd>{text(finding.selfPersistence?.status, "none")}</dd></div>
           </dl>
+          {finding.selfPersistence?.reasons?.length ? (
+            <p>{finding.selfPersistence.reasons.join("; ")}</p>
+          ) : null}
         </>
       ) : (
         <p>{text(result?.note, "No finding available.")}</p>

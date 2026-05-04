@@ -267,6 +267,19 @@ def render_status(status: dict[str, Any]) -> str:
                 "  state patch: "
                 + ("available" if isinstance(finding.get("statePatch"), dict) else "none")
             )
+            self_persistence = finding.get("selfPersistence") or {}
+            if self_persistence:
+                lines.append(
+                    "  self persistence: "
+                    + maybe(self_persistence.get("status"))
+                    + " for "
+                    + maybe(self_persistence.get("targetAgentId"))
+                )
+                if self_persistence.get("reasons"):
+                    lines.append(
+                        "  self persistence reasons: "
+                        + "; ".join(map(str, self_persistence["reasons"]))
+                    )
             if finding.get("openQuestions"):
                 lines.append(f"  open questions: {', '.join(map(str, finding['openQuestions']))}")
             if finding.get("evidenceGaps"):

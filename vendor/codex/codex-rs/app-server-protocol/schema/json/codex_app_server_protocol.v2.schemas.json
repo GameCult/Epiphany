@@ -14737,6 +14737,17 @@
             "null"
           ]
         },
+        "selfPatch": true,
+        "selfPersistence": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadEpiphanyRoleSelfPersistenceReview"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "statePatch": {
           "anyOf": [
             {
@@ -14836,6 +14847,43 @@
         "completed",
         "failed",
         "cancelled"
+      ],
+      "type": "string"
+    },
+    "ThreadEpiphanyRoleSelfPersistenceReview": {
+      "properties": {
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/definitions/ThreadEpiphanyRoleSelfPersistenceStatus"
+        },
+        "targetAgentId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "targetPath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "ThreadEpiphanyRoleSelfPersistenceStatus": {
+      "enum": [
+        "missing",
+        "accepted",
+        "rejected"
       ],
       "type": "string"
     },

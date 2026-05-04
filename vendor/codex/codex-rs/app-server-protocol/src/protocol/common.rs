@@ -2273,6 +2273,8 @@ mod tests {
                     evidence_gaps: Vec::new(),
                     risks: Vec::new(),
                     state_patch: None,
+                    self_patch: None,
+                    self_persistence: None,
                     job_error: None,
                     item_error: None,
                     raw_result: json!({
@@ -2362,6 +2364,8 @@ mod tests {
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
             state_patch: Some(patch.clone()),
+            self_patch: None,
+            self_persistence: None,
             job_error: None,
             item_error: None,
             raw_result: json!({

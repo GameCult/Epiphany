@@ -4436,6 +4436,12 @@ pub struct ThreadEpiphanyRoleFinding {
     #[ts(optional = nullable)]
     pub state_patch: Option<ThreadEpiphanyUpdatePatch>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable, type = "unknown")]
+    pub self_patch: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub self_persistence: Option<ThreadEpiphanyRoleSelfPersistenceReview>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub job_error: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -4443,6 +4449,30 @@ pub struct ThreadEpiphanyRoleFinding {
     pub item_error: Option<String>,
     #[ts(type = "unknown")]
     pub raw_result: serde_json::Value,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleSelfPersistenceReview {
+    pub status: ThreadEpiphanyRoleSelfPersistenceStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub target_agent_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub target_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reasons: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyRoleSelfPersistenceStatus {
+    Missing,
+    Accepted,
+    Rejected,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]

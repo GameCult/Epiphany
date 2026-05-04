@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from epiphany_mvp_coordinator import DEFAULT_APP_SERVER
+from epiphany_mvp_coordinator import DEFAULT_AGENT_MEMORY_DIR
 from epiphany_mvp_coordinator import run_coordinator
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase5_smoke import require
@@ -46,6 +47,7 @@ def coordinator_args(
         cwd=ROOT,
         codex_home=artifact_dir / "codex-home",
         artifact_dir=artifact_dir,
+        agent_memory_dir=artifact_root / "agent-memory",
         mode=mode,
         max_steps=max_steps,
         poll_seconds=0.1,
@@ -97,6 +99,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     artifact_root = args.artifact_root.resolve()
     reset_artifact_root(artifact_root)
+    shutil.copytree(DEFAULT_AGENT_MEMORY_DIR, artifact_root / "agent-memory")
 
     cold = run_coordinator(
         coordinator_args(app_server=app_server, artifact_root=artifact_root, name="cold")
@@ -142,6 +145,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     require_artifacts(verification)
     require_operator_safe(verification)
+    require(
+        "mem-body-phase6-role-smoke"
+        in (artifact_root / "agent-memory" / "body.agent-state.json").read_text(encoding="utf-8"),
+        "auto-review coordinator smoke should apply accepted selfPatch to isolated agent memory",
+    )
 
     drift = run_coordinator(
         coordinator_args(

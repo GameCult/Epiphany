@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from epiphany_agent_telemetry import write_transcript_telemetry
+from epiphany_agent_memory import apply_self_patch
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -27,6 +28,7 @@ from epiphany_unity_bridge import bridge_guidance as unity_bridge_guidance
 
 DEFAULT_CODEX_HOME = ROOT / ".epiphany-gui" / "codex-home"
 DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-gui" / "actions"
+DEFAULT_AGENT_MEMORY_DIR = ROOT / "state" / "agents"
 EPIPHANY_PROMPTS_PATH = (
     ROOT
     / "vendor"
@@ -39,6 +41,36 @@ EPIPHANY_PROMPTS_PATH = (
 )
 TERMINAL_ROLE_STATUSES = {"completed", "failed", "cancelled"}
 TERMINAL_REORIENT_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def maybe_apply_role_self_patch(
+    response: dict[str, Any], *, agent_memory_dir: Path
+) -> dict[str, Any] | None:
+    finding = response.get("finding")
+    if not isinstance(finding, dict):
+        return None
+    self_patch = finding.get("selfPatch")
+    review = finding.get("selfPersistence")
+    if not isinstance(self_patch, dict) or not isinstance(review, dict):
+        return None
+    if review.get("status") != "accepted":
+        return {
+            "status": "rejected",
+            "targetAgentId": review.get("targetAgentId"),
+            "targetPath": review.get("targetPath"),
+            "reasons": review.get("reasons") or ["coordinator refused the selfPatch"],
+            "applied": False,
+        }
+    role_id = response.get("roleId")
+    if not isinstance(role_id, str) or not role_id:
+        return {
+            "status": "rejected",
+            "reasons": ["roleAccept response did not include a roleId for selfPatch application"],
+            "applied": False,
+        }
+    result = apply_self_patch(role_id, self_patch, agent_dir=agent_memory_dir)
+    result["appliedFromRoleAccept"] = True
+    return result
 
 
 def load_epiphany_prompt_config() -> dict[str, Any]:
@@ -1201,6 +1233,11 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                         "expectedRevision": revision,
                     },
                 )
+                self_memory = maybe_apply_role_self_patch(
+                    response, agent_memory_dir=args.agent_memory_dir
+                )
+                if self_memory is not None:
+                    response["selfMemoryApply"] = self_memory
                 summary = "Accepted reviewed imagination planning patch."
             elif args.action == "acceptModeling":
                 if revision is None:
@@ -1213,6 +1250,11 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                         "expectedRevision": revision,
                     },
                 )
+                self_memory = maybe_apply_role_self_patch(
+                    response, agent_memory_dir=args.agent_memory_dir
+                )
+                if self_memory is not None:
+                    response["selfMemoryApply"] = self_memory
                 summary = "Accepted reviewed modeling graph/checkpoint patch."
             elif args.action == "acceptVerification":
                 if revision is None:
@@ -1225,6 +1267,11 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
                         "expectedRevision": revision,
                     },
                 )
+                self_memory = maybe_apply_role_self_patch(
+                    response, agent_memory_dir=args.agent_memory_dir
+                )
+                if self_memory is not None:
+                    response["selfMemoryApply"] = self_memory
                 summary = "Accepted reviewed verification finding."
             elif args.action == "launchReorient":
                 payload = {"threadId": thread_id, "maxRuntimeSeconds": args.max_runtime_seconds}
@@ -1410,6 +1457,7 @@ def main() -> int:
     parser.add_argument("--cwd", type=Path, default=ROOT)
     parser.add_argument("--thread-id")
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)
+    parser.add_argument("--agent-memory-dir", type=Path, default=DEFAULT_AGENT_MEMORY_DIR)
     parser.add_argument("--max-runtime-seconds", type=int, default=180)
     parser.add_argument("--timeout-seconds", type=int, default=300)
     parser.add_argument("--poll-seconds", type=float, default=5.0)

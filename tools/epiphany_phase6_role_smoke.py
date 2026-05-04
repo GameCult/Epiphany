@@ -169,6 +169,18 @@ def complete_role_backend_job(
                 "next_action": "Verify the accepted graph node is visible in durable Epiphany state.",
             },
         }
+        result["selfPatch"] = {
+            "agentId": "epiphany.body",
+            "reason": "The Body should remember role smoke graph growth must stay bounded and source-grounded.",
+            "semanticMemories": [
+                {
+                    "memoryId": "mem-body-phase6-role-smoke",
+                    "summary": "A modeling lane self-memory request can accompany a project statePatch when it improves future graph/checkpoint judgment without storing project truth.",
+                    "salience": 0.72,
+                    "confidence": 0.88,
+                }
+            ],
+        }
     now = int(time.time())
     db_path = locate_state_db(codex_home)
     connection = sqlite3.connect(db_path)
@@ -297,6 +309,16 @@ def assert_role_result(
         == f"Review the {role_id} finding before mutating Epiphany state.",
         f"{role_id} result should project next safe move",
     )
+    if isinstance(payload.get("selfPatch"), dict):
+        self_persistence = result["finding"].get("selfPersistence") or {}
+        require(
+            self_persistence.get("status") == "accepted",
+            f"{role_id} selfPatch should be accepted by the coordinator review",
+        )
+        require(
+            isinstance(result["finding"].get("selfPatch"), dict),
+            f"{role_id} result should expose the structured selfPatch request",
+        )
 
 
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
@@ -515,6 +537,10 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             modeling_accept["appliedPatch"]["graphs"]["architecture"]["nodes"][-1]["id"]
             == "accepted-modeling-node",
             "modeling accept should apply the reviewed graph patch",
+        )
+        require(
+            modeling_accept["finding"]["selfPersistence"]["status"] == "accepted",
+            "modeling accept should carry the accepted self-memory review",
         )
         accept_notification = client.wait_for_notification(
             "thread/epiphany/stateUpdated",

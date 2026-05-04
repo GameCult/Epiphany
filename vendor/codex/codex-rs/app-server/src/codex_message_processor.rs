@@ -242,6 +242,8 @@ use codex_app_server_protocol::ThreadEpiphanyRoleLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultParams;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultResponse;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
+use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
+use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
 use codex_app_server_protocol::ThreadEpiphanyRolesParams;
 use codex_app_server_protocol::ThreadEpiphanyRolesResponse;
@@ -13412,6 +13414,71 @@ fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_js
         "risks": {
             "type": "array",
             "items": {"type": "string"}
+        },
+        "selfPatch": {
+            "type": "object",
+            "description": "Optional bounded request to update this role's Ghostlight-shaped persistent memory file. This is for lane habits, durable lessons, personality pressure, goals, or values only. It must not contain project truth, code edits, job authority, graph/frontier/checkpoint/planning changes, or objective changes.",
+            "required": ["agentId", "reason"],
+            "properties": {
+                "agentId": {
+                    "type": "string",
+                    "description": "Expected target persistent agent id for this lane, such as epiphany.body or epiphany.soul."
+                },
+                "reason": {
+                    "type": "string",
+                    "description": "Why this memory mutation makes the lane sharper for future work."
+                },
+                "evidenceIds": {
+                    "type": "array",
+                    "description": "Optional accepted/project evidence ids that ground the memory request. These do not count as a memory mutation by themselves.",
+                    "items": {"type": "string"}
+                },
+                "semanticMemories": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["memoryId", "summary", "salience", "confidence"],
+                        "additionalProperties": true
+                    }
+                },
+                "episodicMemories": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["memoryId", "summary", "salience", "confidence"],
+                        "additionalProperties": true
+                    }
+                },
+                "relationshipMemories": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["memoryId", "summary", "salience", "confidence"],
+                        "additionalProperties": true
+                    }
+                },
+                "goals": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["goalId", "description", "scope", "priority", "emotionalStake", "status"],
+                        "additionalProperties": true
+                    }
+                },
+                "values": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["valueId", "label", "priority", "unforgivableIfBetrayed"],
+                        "additionalProperties": true
+                    }
+                },
+                "privateNotes": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                }
+            },
+            "additionalProperties": false
         }
     });
     let mut required = vec![
@@ -13734,6 +13801,10 @@ fn map_epiphany_role_finding(
         .get("statePatch")
         .cloned()
         .and_then(|patch| serde_json::from_value(patch).ok());
+    let self_patch = raw_result.get("selfPatch").cloned();
+    let self_persistence = self_patch
+        .as_ref()
+        .map(|patch| review_epiphany_role_self_patch(role_id, patch));
     let item_error = match role_id {
         ThreadEpiphanyRoleId::Imagination => merge_epiphany_item_error(
             item_error,
@@ -13761,6 +13832,8 @@ fn map_epiphany_role_finding(
         evidence_gaps: json_string_array_field(&raw_result, "evidenceGaps"),
         risks: json_string_array_field(&raw_result, "risks"),
         state_patch,
+        self_patch,
+        self_persistence,
         job_error,
         item_error,
         raw_result,
@@ -13776,6 +13849,360 @@ fn merge_epiphany_item_error(
         (Some(existing), None) => Some(existing),
         (None, Some(extra)) => Some(extra),
         (None, None) => None,
+    }
+}
+
+fn epiphany_role_self_memory_target(role_id: ThreadEpiphanyRoleId) -> (&'static str, &'static str) {
+    match role_id {
+        ThreadEpiphanyRoleId::Imagination => (
+            "epiphany.imagination",
+            "state/agents/imagination.agent-state.json",
+        ),
+        ThreadEpiphanyRoleId::Modeling => ("epiphany.body", "state/agents/body.agent-state.json"),
+        ThreadEpiphanyRoleId::Verification => {
+            ("epiphany.soul", "state/agents/soul.agent-state.json")
+        }
+        ThreadEpiphanyRoleId::Implementation => {
+            ("epiphany.hands", "state/agents/hands.agent-state.json")
+        }
+        ThreadEpiphanyRoleId::Reorientation => {
+            ("epiphany.life", "state/agents/life.agent-state.json")
+        }
+    }
+}
+
+fn review_epiphany_role_self_patch(
+    role_id: ThreadEpiphanyRoleId,
+    patch: &serde_json::Value,
+) -> ThreadEpiphanyRoleSelfPersistenceReview {
+    let (expected_agent_id, target_path) = epiphany_role_self_memory_target(role_id);
+    let mut reasons = Vec::new();
+    let Some(object) = patch.as_object() else {
+        return ThreadEpiphanyRoleSelfPersistenceReview {
+            status: ThreadEpiphanyRoleSelfPersistenceStatus::Rejected,
+            target_agent_id: Some(expected_agent_id.to_string()),
+            target_path: Some(target_path.to_string()),
+            reasons: vec!["selfPatch must be a JSON object".to_string()],
+        };
+    };
+
+    let agent_id = object.get("agentId").and_then(serde_json::Value::as_str);
+    match agent_id {
+        Some(id) if id == expected_agent_id => {}
+        Some(id) => reasons.push(format!(
+            "selfPatch agentId {id:?} does not match this lane; expected {expected_agent_id:?}"
+        )),
+        None => reasons.push(format!(
+            "selfPatch must include agentId {expected_agent_id:?}"
+        )),
+    }
+    match object.get("reason").and_then(serde_json::Value::as_str) {
+        Some(reason) if reason.trim().len() >= 16 && reason.len() <= 800 => {}
+        Some(_) => reasons.push(
+            "selfPatch reason must be a bounded explanation of at least 16 characters".to_string(),
+        ),
+        None => reasons.push(
+            "selfPatch must include a reason explaining why this improves the lane".to_string(),
+        ),
+    }
+
+    let allowed = [
+        "agentId",
+        "reason",
+        "evidenceIds",
+        "semanticMemories",
+        "episodicMemories",
+        "relationshipMemories",
+        "goals",
+        "values",
+        "privateNotes",
+    ];
+    let forbidden = [
+        "statePatch",
+        "objective",
+        "activeSubgoalId",
+        "subgoals",
+        "invariants",
+        "graphs",
+        "graphFrontier",
+        "graphCheckpoint",
+        "scratch",
+        "investigationCheckpoint",
+        "jobBindings",
+        "planning",
+        "churn",
+        "mode",
+        "codeEdits",
+        "files",
+        "authorityScope",
+        "backendJobId",
+        "rawResult",
+    ];
+    for key in object.keys() {
+        if forbidden.contains(&key.as_str()) {
+            reasons.push(format!(
+                "selfPatch field {key:?} is project truth or authority; use statePatch, roleAccept, or another explicit control surface instead"
+            ));
+        } else if !allowed.contains(&key.as_str()) {
+            reasons.push(format!(
+                "selfPatch field {key:?} is not part of the bounded memory mutation contract"
+            ));
+        }
+    }
+
+    let mut mutation_count = 0usize;
+    mutation_count += review_self_patch_memories(&mut reasons, object, "semanticMemories");
+    mutation_count += review_self_patch_memories(&mut reasons, object, "episodicMemories");
+    mutation_count += review_self_patch_memories(&mut reasons, object, "relationshipMemories");
+    mutation_count += review_self_patch_goals(&mut reasons, object);
+    mutation_count += review_self_patch_values(&mut reasons, object);
+    mutation_count += review_self_patch_private_notes(&mut reasons, object);
+    review_self_patch_string_array(&mut reasons, object, "evidenceIds", 16, 160);
+    if mutation_count == 0 {
+        reasons.push(
+            "selfPatch must contain at least one semantic memory, episodic memory, relationship memory, goal, value, or private note"
+                .to_string(),
+        );
+    }
+
+    ThreadEpiphanyRoleSelfPersistenceReview {
+        status: if reasons.is_empty() {
+            ThreadEpiphanyRoleSelfPersistenceStatus::Accepted
+        } else {
+            ThreadEpiphanyRoleSelfPersistenceStatus::Rejected
+        },
+        target_agent_id: Some(expected_agent_id.to_string()),
+        target_path: Some(target_path.to_string()),
+        reasons,
+    }
+}
+
+fn review_self_patch_memories(
+    reasons: &mut Vec<String>,
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> usize {
+    let Some(value) = object.get(field) else {
+        return 0;
+    };
+    let Some(items) = value.as_array() else {
+        reasons.push(format!("selfPatch {field} must be an array"));
+        return 0;
+    };
+    if items.len() > 8 {
+        reasons.push(format!("selfPatch {field} may contain at most 8 records"));
+    }
+    let mut valid = 0usize;
+    for (index, item) in items.iter().enumerate() {
+        let Some(record) = item.as_object() else {
+            reasons.push(format!("selfPatch {field}[{index}] must be an object"));
+            continue;
+        };
+        review_self_patch_id(reasons, record, field, index, "memoryId", "mem-");
+        review_self_patch_summary(reasons, record, field, index, "summary", 600);
+        review_self_patch_unit(reasons, record, field, index, "salience");
+        review_self_patch_unit(reasons, record, field, index, "confidence");
+        valid += 1;
+    }
+    valid
+}
+
+fn review_self_patch_goals(
+    reasons: &mut Vec<String>,
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> usize {
+    let Some(value) = object.get("goals") else {
+        return 0;
+    };
+    let Some(items) = value.as_array() else {
+        reasons.push("selfPatch goals must be an array".to_string());
+        return 0;
+    };
+    if items.len() > 6 {
+        reasons.push("selfPatch goals may contain at most 6 records".to_string());
+    }
+    let mut valid = 0usize;
+    for (index, item) in items.iter().enumerate() {
+        let Some(record) = item.as_object() else {
+            reasons.push(format!("selfPatch goals[{index}] must be an object"));
+            continue;
+        };
+        review_self_patch_id(reasons, record, "goals", index, "goalId", "goal-");
+        review_self_patch_summary(reasons, record, "goals", index, "description", 700);
+        review_self_patch_string(reasons, record, "goals", index, "scope", 80);
+        review_self_patch_unit(reasons, record, "goals", index, "priority");
+        review_self_patch_string(reasons, record, "goals", index, "emotionalStake", 400);
+        review_self_patch_string(reasons, record, "goals", index, "status", 80);
+        valid += 1;
+    }
+    valid
+}
+
+fn review_self_patch_values(
+    reasons: &mut Vec<String>,
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> usize {
+    let Some(value) = object.get("values") else {
+        return 0;
+    };
+    let Some(items) = value.as_array() else {
+        reasons.push("selfPatch values must be an array".to_string());
+        return 0;
+    };
+    if items.len() > 6 {
+        reasons.push("selfPatch values may contain at most 6 records".to_string());
+    }
+    let mut valid = 0usize;
+    for (index, item) in items.iter().enumerate() {
+        let Some(record) = item.as_object() else {
+            reasons.push(format!("selfPatch values[{index}] must be an object"));
+            continue;
+        };
+        review_self_patch_id(reasons, record, "values", index, "valueId", "value-");
+        review_self_patch_summary(reasons, record, "values", index, "label", 240);
+        review_self_patch_unit(reasons, record, "values", index, "priority");
+        if !record
+            .get("unforgivableIfBetrayed")
+            .is_some_and(serde_json::Value::is_boolean)
+        {
+            reasons.push(format!(
+                "selfPatch values[{index}].unforgivableIfBetrayed must be a boolean"
+            ));
+        }
+        valid += 1;
+    }
+    valid
+}
+
+fn review_self_patch_private_notes(
+    reasons: &mut Vec<String>,
+    object: &serde_json::Map<String, serde_json::Value>,
+) -> usize {
+    let Some(value) = object.get("privateNotes") else {
+        return 0;
+    };
+    let Some(items) = value.as_array() else {
+        reasons.push("selfPatch privateNotes must be an array".to_string());
+        return 0;
+    };
+    if items.len() > 6 {
+        reasons.push("selfPatch privateNotes may contain at most 6 records".to_string());
+    }
+    for (index, item) in items.iter().enumerate() {
+        match item.as_str() {
+            Some(text) if !text.trim().is_empty() && text.len() <= 600 => {}
+            _ => reasons.push(format!(
+                "selfPatch privateNotes[{index}] must be non-empty text under 600 characters"
+            )),
+        }
+    }
+    items.len()
+}
+
+fn review_self_patch_string_array(
+    reasons: &mut Vec<String>,
+    object: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+    max_items: usize,
+    max_len: usize,
+) {
+    let Some(value) = object.get(field) else {
+        return;
+    };
+    let Some(items) = value.as_array() else {
+        reasons.push(format!("selfPatch {field} must be an array"));
+        return;
+    };
+    if items.len() > max_items {
+        reasons.push(format!(
+            "selfPatch {field} may contain at most {max_items} records"
+        ));
+    }
+    for (index, item) in items.iter().enumerate() {
+        match item.as_str() {
+            Some(text) if !text.trim().is_empty() && text.len() <= max_len => {}
+            _ => reasons.push(format!(
+                "selfPatch {field}[{index}] must be non-empty text under {max_len} characters"
+            )),
+        }
+    }
+}
+
+fn review_self_patch_id(
+    reasons: &mut Vec<String>,
+    record: &serde_json::Map<String, serde_json::Value>,
+    collection: &str,
+    index: usize,
+    field: &str,
+    prefix: &str,
+) {
+    match record.get(field).and_then(serde_json::Value::as_str) {
+        Some(id)
+            if id.starts_with(prefix)
+                && id.len() <= 120
+                && id.chars().all(|ch| ch.is_ascii_alphanumeric() || "-_.".contains(ch)) => {}
+        Some(_) => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} must start with {prefix:?}, avoid whitespace, and stay under 120 characters"
+        )),
+        None => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} is required"
+        )),
+    }
+}
+
+fn review_self_patch_summary(
+    reasons: &mut Vec<String>,
+    record: &serde_json::Map<String, serde_json::Value>,
+    collection: &str,
+    index: usize,
+    field: &str,
+    max_len: usize,
+) {
+    match record.get(field).and_then(serde_json::Value::as_str) {
+        Some(text) if !text.trim().is_empty() && text.len() <= max_len => {}
+        Some(_) => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} must be non-empty text under {max_len} characters"
+        )),
+        None => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} is required"
+        )),
+    }
+}
+
+fn review_self_patch_string(
+    reasons: &mut Vec<String>,
+    record: &serde_json::Map<String, serde_json::Value>,
+    collection: &str,
+    index: usize,
+    field: &str,
+    max_len: usize,
+) {
+    match record.get(field).and_then(serde_json::Value::as_str) {
+        Some(text) if !text.trim().is_empty() && text.len() <= max_len => {}
+        Some(_) => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} must be non-empty text under {max_len} characters"
+        )),
+        None => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} is required"
+        )),
+    }
+}
+
+fn review_self_patch_unit(
+    reasons: &mut Vec<String>,
+    record: &serde_json::Map<String, serde_json::Value>,
+    collection: &str,
+    index: usize,
+    field: &str,
+) {
+    match record.get(field).and_then(serde_json::Value::as_f64) {
+        Some(value) if (0.0..=1.0).contains(&value) => {}
+        Some(_) => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} must be between 0 and 1"
+        )),
+        None => reasons.push(format!(
+            "selfPatch {collection}[{index}].{field} is required"
+        )),
     }
 }
 
@@ -13881,14 +14308,18 @@ fn render_epiphany_role_result_note(
         ThreadEpiphanyRoleResultStatus::Completed => {
             if let Some(finding) = finding {
                 let next = finding.next_safe_move.as_deref().unwrap_or("not supplied");
+                let self_note =
+                    render_epiphany_self_persistence_note(finding.self_persistence.as_ref())
+                        .map(|note| format!(" {note}"))
+                        .unwrap_or_default();
                 if let Some(item_error) = finding.item_error.as_deref().or(item_error) {
                     format!(
-                        "{:?} role specialist completed, but the finding needs repair: {item_error}. Next safe move: {next}",
+                        "{:?} role specialist completed, but the finding needs repair: {item_error}. Next safe move: {next}.{self_note}",
                         role_id
                     )
                 } else {
                     format!(
-                        "{:?} role specialist completed. Next safe move: {next}",
+                        "{:?} role specialist completed. Next safe move: {next}.{self_note}",
                         role_id
                     )
                 }
@@ -13928,6 +14359,30 @@ fn render_epiphany_role_result_note(
         }
         ThreadEpiphanyRoleResultStatus::BackendMissing => {
             "The bound runtime backend job or item is missing.".to_string()
+        }
+    }
+}
+
+fn render_epiphany_self_persistence_note(
+    review: Option<&ThreadEpiphanyRoleSelfPersistenceReview>,
+) -> Option<String> {
+    let review = review?;
+    match review.status {
+        ThreadEpiphanyRoleSelfPersistenceStatus::Missing => None,
+        ThreadEpiphanyRoleSelfPersistenceStatus::Accepted => Some(format!(
+            "Self persistence request is acceptable for {}.",
+            review
+                .target_agent_id
+                .as_deref()
+                .unwrap_or("the role memory file")
+        )),
+        ThreadEpiphanyRoleSelfPersistenceStatus::Rejected => {
+            let reasons = if review.reasons.is_empty() {
+                "no reason recorded".to_string()
+            } else {
+                review.reasons.join("; ")
+            };
+            Some(format!("Self persistence request was refused: {reasons}."))
         }
     }
 }
@@ -21385,6 +21840,7 @@ mod tests {
                 .contains("reviewable `thread/epiphany/update` patch")
         );
         let imagination_schema = imagination.output_schema_json.as_ref().unwrap();
+        assert!(imagination_schema["properties"].get("selfPatch").is_some());
         assert!(imagination_schema["properties"].get("statePatch").is_some());
         assert_eq!(
             imagination_schema["properties"]["statePatch"]["required"][0],
@@ -21420,8 +21876,10 @@ mod tests {
                 .instruction
                 .contains("`statePatch` is part of the modeling job")
         );
+        assert!(modeling.instruction.contains("optional `selfPatch`"));
         let modeling_schema = modeling.output_schema_json.as_ref().unwrap();
         assert!(modeling_schema["properties"].get("openQuestions").is_some());
+        assert!(modeling_schema["properties"].get("selfPatch").is_some());
         assert!(modeling_schema["properties"].get("statePatch").is_some());
         assert_eq!(
             modeling_schema["properties"]["statePatch"]["anyOf"][0]["required"][0],
@@ -21471,6 +21929,11 @@ mod tests {
         assert!(
             verification.output_schema_json.as_ref().unwrap()["properties"]
                 .get("risks")
+                .is_some()
+        );
+        assert!(
+            verification.output_schema_json.as_ref().unwrap()["properties"]
+                .get("selfPatch")
                 .is_some()
         );
         assert!(
@@ -21605,6 +22068,98 @@ mod tests {
         assert_eq!(finding.frontier_node_ids, vec!["node-1"]);
         assert_eq!(finding.evidence_ids, vec!["ev-1"]);
         assert_eq!(finding.raw_result, raw_result);
+    }
+
+    #[test]
+    fn map_epiphany_role_finding_reviews_acceptable_self_patch() {
+        let finding = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Modeling,
+            serde_json::json!({
+                "roleId": "modeling",
+                "verdict": "checkpoint-ready",
+                "summary": "The Body learned a durable modeling lesson.",
+                "nextSafeMove": "Review the lane memory request.",
+                "statePatch": {
+                    "scratch": {
+                        "summary": "Source-grounded modeling checkpoint.",
+                        "next_probe": "Run verification."
+                    }
+                },
+                "selfPatch": {
+                    "agentId": "epiphany.body",
+                    "reason": "The Body should remember graph growth must stay source-grounded and bounded.",
+                    "semanticMemories": [
+                        {
+                            "memoryId": "mem-body-source-grounded-growth",
+                            "summary": "Grow graph and checkpoint state only when source evidence makes the anatomy harder to misread.",
+                            "salience": 0.82,
+                            "confidence": 0.9
+                        }
+                    ]
+                }
+            }),
+            None,
+            None,
+        );
+
+        let review = finding.self_persistence.as_ref().unwrap();
+        assert_eq!(
+            review.status,
+            ThreadEpiphanyRoleSelfPersistenceStatus::Accepted
+        );
+        assert_eq!(review.target_agent_id.as_deref(), Some("epiphany.body"));
+        assert_eq!(
+            review.target_path.as_deref(),
+            Some("state/agents/body.agent-state.json")
+        );
+        assert!(review.reasons.is_empty());
+    }
+
+    #[test]
+    fn map_epiphany_role_finding_rejects_bad_self_patch() {
+        let finding = map_epiphany_role_finding(
+            ThreadEpiphanyRoleId::Verification,
+            serde_json::json!({
+                "roleId": "verification",
+                "verdict": "needs-evidence",
+                "summary": "The Soul saw a bad persistence request.",
+                "nextSafeMove": "Ask the lane to reshape the memory request.",
+                "selfPatch": {
+                    "agentId": "epiphany.body",
+                    "reason": "Too broad.",
+                    "graphs": {},
+                    "semanticMemories": [
+                        {
+                            "memoryId": "mem-soul-bad-project-truth",
+                            "summary": "Project graph state belongs in memory now.",
+                            "salience": 0.7,
+                            "confidence": 0.4
+                        }
+                    ]
+                }
+            }),
+            None,
+            None,
+        );
+
+        let review = finding.self_persistence.as_ref().unwrap();
+        assert_eq!(
+            review.status,
+            ThreadEpiphanyRoleSelfPersistenceStatus::Rejected
+        );
+        assert_eq!(review.target_agent_id.as_deref(), Some("epiphany.soul"));
+        assert!(
+            review
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("expected \"epiphany.soul\""))
+        );
+        assert!(
+            review
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("project truth"))
+        );
     }
 
     #[test]

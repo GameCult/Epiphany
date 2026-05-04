@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from epiphany_agent_telemetry import write_transcript_telemetry
+from epiphany_agent_memory import apply_self_patch
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -27,6 +28,7 @@ from epiphany_phase6_role_smoke import complete_role_backend_job
 
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-dogfood" / "coordinator"
 DEFAULT_CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+DEFAULT_AGENT_MEMORY_DIR = ROOT / "state" / "agents"
 TERMINAL_ROLE_STATUSES = {"completed", "failed", "cancelled"}
 TERMINAL_REORIENT_STATUSES = {"completed", "failed", "cancelled"}
 STOP_ACTIONS = {
@@ -37,6 +39,36 @@ STOP_ACTIONS = {
     "reviewVerificationResult",
     "continueImplementation",
 }
+
+
+def maybe_apply_role_self_patch(
+    response: dict[str, Any], *, agent_memory_dir: Path
+) -> dict[str, Any] | None:
+    finding = response.get("finding")
+    if not isinstance(finding, dict):
+        return None
+    self_patch = finding.get("selfPatch")
+    review = finding.get("selfPersistence")
+    if not isinstance(self_patch, dict) or not isinstance(review, dict):
+        return None
+    if review.get("status") != "accepted":
+        return {
+            "status": "rejected",
+            "targetAgentId": review.get("targetAgentId"),
+            "targetPath": review.get("targetPath"),
+            "reasons": review.get("reasons") or ["coordinator refused the selfPatch"],
+            "applied": False,
+        }
+    role_id = response.get("roleId")
+    if not isinstance(role_id, str) or not role_id:
+        return {
+            "status": "rejected",
+            "reasons": ["roleAccept response did not include a roleId for selfPatch application"],
+            "applied": False,
+        }
+    result = apply_self_patch(role_id, self_patch, agent_dir=agent_memory_dir)
+    result["appliedFromRoleAccept"] = True
+    return result
 
 
 def reset_artifact_dir(path: Path) -> None:
@@ -409,6 +441,11 @@ def run_coordinator(args: argparse.Namespace) -> dict[str, Any]:
                         "expectedRevision": revision,
                     },
                 )
+                self_memory = maybe_apply_role_self_patch(
+                    accepted, agent_memory_dir=args.agent_memory_dir
+                )
+                if self_memory is not None:
+                    accepted["selfMemoryApply"] = self_memory
                 step["events"].append(
                     {
                         "type": "roleAccept",
@@ -714,6 +751,7 @@ def main() -> int:
     parser.add_argument("--cwd", type=Path, default=ROOT)
     parser.add_argument("--codex-home", type=Path, default=DEFAULT_CODEX_HOME)
     parser.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
+    parser.add_argument("--agent-memory-dir", type=Path, default=DEFAULT_AGENT_MEMORY_DIR)
     parser.add_argument("--mode", choices=["plan", "run"], default="plan")
     parser.add_argument("--max-steps", type=int, default=4)
     parser.add_argument("--poll-seconds", type=float, default=5.0)

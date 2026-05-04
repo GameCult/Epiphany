@@ -367,6 +367,8 @@ export type { ThreadEpiphanyRoleFinding } from "./ThreadEpiphanyRoleFinding";
 export type { ThreadEpiphanyRoleId } from "./ThreadEpiphanyRoleId";
 export type { ThreadEpiphanyRoleLane } from "./ThreadEpiphanyRoleLane";
 export type { ThreadEpiphanyRoleResultStatus } from "./ThreadEpiphanyRoleResultStatus";
+export type { ThreadEpiphanyRoleSelfPersistenceReview } from "./ThreadEpiphanyRoleSelfPersistenceReview";
+export type { ThreadEpiphanyRoleSelfPersistenceStatus } from "./ThreadEpiphanyRoleSelfPersistenceStatus";
 export type { ThreadEpiphanyRoleStatus } from "./ThreadEpiphanyRoleStatus";
 export type { ThreadEpiphanyRolesSource } from "./ThreadEpiphanyRolesSource";
 export type { ThreadEpiphanyScene } from "./ThreadEpiphanyScene";
