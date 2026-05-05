@@ -40,6 +40,7 @@ GHOSTLIGHT_PARTICIPANT_STATUSES = {"active", "blocked", "withdrawn", "incapacita
 
 ROLE_ORDER = [
     "coordinator",
+    "face",
     "imagination",
     "research",
     "modeling",
@@ -50,6 +51,7 @@ ROLE_ORDER = [
 
 DISPLAY_NAMES = {
     "coordinator": "Self",
+    "face": "Face",
     "imagination": "Imagination",
     "research": "Eyes",
     "modeling": "Body",
@@ -60,6 +62,7 @@ DISPLAY_NAMES = {
 
 INITIATIVE_SPEEDS = {
     "coordinator": 1.28,
+    "face": 1.12,
     "imagination": 0.82,
     "research": 0.78,
     "modeling": 0.92,
@@ -70,6 +73,7 @@ INITIATIVE_SPEEDS = {
 
 REACTION_BIAS = {
     "coordinator": 0.88,
+    "face": 0.84,
     "imagination": 0.54,
     "research": 0.62,
     "modeling": 0.74,
@@ -80,6 +84,7 @@ REACTION_BIAS = {
 
 INTERRUPT_THRESHOLD = {
     "coordinator": 0.42,
+    "face": 0.52,
     "imagination": 0.64,
     "research": 0.58,
     "modeling": 0.5,
@@ -90,6 +95,8 @@ INTERRUPT_THRESHOLD = {
 
 WORK_ACTIONS = {
     "prepareCheckpoint": "coordinator",
+    "surfaceAgentThoughts": "face",
+    "discordAquariumChat": "face",
     "continueImplementation": "implementation",
     "launchImagination": "imagination",
     "readImaginationResult": "imagination",
@@ -170,6 +177,7 @@ def participant_constraints(role_id: str) -> list[str]:
     ]
     role_specific = {
         "coordinator": "Routes and reviews; must not implement, verify, or accept its own comfort.",
+        "face": "Publicly translates agent thought into #aquarium only; must not moderate or speak outside the room.",
         "imagination": "Synthesizes futures; must not adopt objectives.",
         "research": "Scouts known work; must not turn research into procrastination.",
         "modeling": "Grows source-grounded maps and checkpoints; must not edit implementation code.",

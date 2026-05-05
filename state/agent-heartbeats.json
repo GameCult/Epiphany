@@ -146,6 +146,25 @@
       ],
       "last_action_id": null,
       "last_woke_at": null
+    },
+    {
+      "agent_id": "epiphany.face",
+      "role_id": "face",
+      "display_name": "Face",
+      "initiative_speed": 1.12,
+      "next_ready_at": 5.357143,
+      "reaction_bias": 0.84,
+      "interrupt_threshold": 0.52,
+      "current_load": 0.0,
+      "status": "active",
+      "constraints": [
+        "Runs Ghostlight-shaped persistent role memory.",
+        "May improve lane memory when awake and idle.",
+        "Project truth belongs in EpiphanyThreadState, not role memory.",
+        "Publicly translates agent thought into #aquarium only; must not moderate or speak outside the room."
+      ],
+      "last_action_id": "heartbeat.face.work",
+      "last_woke_at": "2026-05-05T12:30:31+00:00"
     }
   ],
   "history": [
@@ -174,6 +193,19 @@
       "workRole": null,
       "sceneClock": 0.0,
       "nextReadyAt": 1.5625
+    },
+    {
+      "ts": "2026-05-05T12:30:31+00:00",
+      "scheduleId": "epiphany-heartbeat-face",
+      "selectedRole": "face",
+      "selectedAgentId": "epiphany.face",
+      "actionId": "heartbeat.face.work",
+      "actionType": "role_work",
+      "coordinatorAction": "surfaceAgentThoughts",
+      "targetRole": null,
+      "workRole": "face",
+      "sceneClock": 0.0,
+      "nextReadyAt": 5.357143
     }
   ]
 }

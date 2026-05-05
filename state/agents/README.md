@@ -13,16 +13,23 @@ transcripts, and authority requests belong on their explicit Epiphany control
 surfaces instead.
 
 All standing lanes use the same Ghostlight-shaped protocol, including the
-coordinator/Self. The heartbeat scheduler in `tools/epiphany_agent_heartbeat.py`
-borrows Ghostlight initiative timing: each lane carries speed, readiness,
-reaction bias, interrupt threshold, load, status, and constraints. The harness
-sets a target heartbeat rate, pending coordinator work may pull its owning lane
-through a reaction window, and otherwise the earliest ready lane wins the slot.
+coordinator/Self and Face. Face is the public interactive surface for Epiphany
+agents: it translates useful agent thought-weather into #aquarium chat or drafts
+and is not a moderator. The heartbeat scheduler in
+`tools/epiphany_agent_heartbeat.py` borrows Ghostlight initiative timing: each
+lane carries speed, readiness, reaction bias, interrupt threshold, load, status,
+and constraints. The harness sets a target heartbeat rate, pending coordinator
+work may pull its owning lane through a reaction window, and otherwise the
+earliest ready lane wins the slot.
 
 If a heartbeat wakes a lane and there is no coordinator-approved work for it,
 the lane must ruminate on its own role and distill memory rather than invent
 project work. Bounded rumination can write a normal `selfPatch`; the coordinator
 review rules still apply.
+
+Face's Discord boundary lives in `state/face-discord.json`: it may interact only
+through #aquarium. If the channel id is not configured, Face must write candidate
+chat artifacts through `tools/epiphany_face_discord.py draft` instead of posting.
 
 Use:
 
@@ -31,4 +38,6 @@ Use:
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' tick --coordinator-action continueImplementation --urgency 0.95 --apply-rumination
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' smoke
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_face_discord.py' draft --content 'Face notices the organs are arguing about evidence again.'
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_face_discord.py' smoke
 ```

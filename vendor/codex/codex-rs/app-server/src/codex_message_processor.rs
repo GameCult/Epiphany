@@ -13227,6 +13227,8 @@ struct EpiphanyRolePromptConfig {
     verification: String,
     #[allow(dead_code)]
     research: String,
+    #[allow(dead_code)]
+    face: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -21735,6 +21737,8 @@ mod tests {
                 .contains("The Soul improves itself")
         );
         assert!(prompts.roles.research.contains("Eyes of the machine"));
+        assert!(prompts.roles.face.contains("Epiphany Face"));
+        assert!(prompts.roles.face.contains("#aquarium"));
         assert!(
             prompts
                 .roles
