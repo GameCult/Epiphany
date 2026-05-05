@@ -449,10 +449,7 @@ body:has(.immersiveShell) {
 }
 
 .immersiveConstellation .agentStageVignette {
-  background:
-    linear-gradient(90deg, rgba(5, 10, 8, 0.62), transparent 32%, transparent 64%, rgba(5, 10, 8, 0.58)),
-    linear-gradient(180deg, rgba(6, 11, 9, 0.64), transparent 22%, rgba(3, 7, 6, 0.72)),
-    radial-gradient(circle at 50% 48%, transparent 26%, rgba(3, 7, 6, 0.38) 100%);
+  display: none;
 }
 
 .immersiveConstellation .constellationInspector {
@@ -834,6 +831,17 @@ body:has(.immersiveShell) {
 .agentSmokeCanvas {
   z-index: 0;
   display: block;
+  cursor: crosshair;
+}
+
+.simulationOnlyControls {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .agentStageVignette {
