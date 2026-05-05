@@ -1216,6 +1216,7 @@ function AgentConstellation({
   isActionBlocked?: (action: OperatorAction) => boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const crispCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const optionByKeyRef = useRef(new globalThis.Map<string, AquariumOption>());
   const rendererRef = useRef<AquariumRenderer | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState("coordinator");
@@ -1297,8 +1298,9 @@ function AgentConstellation({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const crispCanvas = crispCanvasRef.current;
     if (!canvas) return;
-    const renderer = createAquariumRenderer(canvas);
+    const renderer = createAquariumRenderer(canvas, crispCanvas);
     rendererRef.current = renderer;
     return () => {
       renderer.dispose();
@@ -1360,6 +1362,11 @@ function AgentConstellation({
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
           onClick={handleCanvasClick}
+        />
+        <canvas
+          ref={crispCanvasRef}
+          className="agentCrispCanvas"
+          aria-hidden="true"
         />
         <div className="agentStageVignette" aria-hidden="true" />
         {variant === "band" ? (

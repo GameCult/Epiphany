@@ -821,6 +821,7 @@ body:has(.immersiveShell) {
 }
 
 .agentSmokeCanvas,
+.agentCrispCanvas,
 .agentStageVignette {
   position: absolute;
   inset: 0;
@@ -832,6 +833,12 @@ body:has(.immersiveShell) {
   z-index: 0;
   display: block;
   cursor: crosshair;
+}
+
+.agentCrispCanvas {
+  z-index: 2;
+  display: block;
+  pointer-events: none;
 }
 
 .simulationOnlyControls {

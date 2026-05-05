@@ -129,16 +129,16 @@ uniform float uActivity[7];
 uniform int uCount;
 uniform float uAspect;
 void main() {
-  vec2 velocity = texture(uVelocity, vUv).xy * 0.982;
+  vec2 velocity = texture(uVelocity, vUv).xy * 0.994;
   for (int i = 0; i < 7; i += 1) {
     if (i >= uCount) break;
     vec2 agent = uAgents[i].xy;
     vec2 delta = vUv - agent;
     delta.x *= uAspect;
-    float influence = exp(-dot(delta, delta) * 58.0);
-    vec2 tangent = normalize(vec2(-delta.y, delta.x) + 0.0001) * (0.55 + uActivity[i] * 1.15);
-    vec2 push = uAgents[i].zw * 0.16 + tangent;
-    velocity += push * influence * (0.045 + uActivity[i] * 0.075);
+    float influence = exp(-dot(delta, delta) * 42.0);
+    vec2 tangent = normalize(vec2(-delta.y, delta.x) + 0.0001) * (28.0 + uActivity[i] * 42.0);
+    vec2 push = uAgents[i].zw * 2.8 + tangent;
+    velocity += push * influence * (0.18 + uActivity[i] * 0.24);
   }
   outColor = vec4(velocity, 0.0, 1.0);
 }`;
@@ -240,7 +240,7 @@ void main() {
   vec4 source = texture(uSource, vUv);
   vec3 base = max(dye.rgb, vec3(0.004, 0.008, 0.006));
   vec3 color = base + source.rgb * source.a * uGain;
-  outColor = vec4(min(color, vec3(0.72)), 1.0);
+  outColor = vec4(min(color, vec3(0.86)), 1.0);
 }`;
 
 const displayShader = `#version 300 es
@@ -255,12 +255,14 @@ void main() {
   outColor = vec4(color * 0.92, 1.0);
 }`;
 
-export function createAquariumRenderer(canvas: HTMLCanvasElement): AquariumRenderer {
+export function createAquariumRenderer(canvas: HTMLCanvasElement): AquariumRenderer;
+export function createAquariumRenderer(canvas: HTMLCanvasElement, crispCanvas: HTMLCanvasElement | null): AquariumRenderer;
+export function createAquariumRenderer(canvas: HTMLCanvasElement, crispCanvas: HTMLCanvasElement | null = null): AquariumRenderer {
   const gl = canvas.getContext("webgl2", { alpha: false, antialias: false, preserveDrawingBuffer: true });
   if (!gl || !gl.getExtension("EXT_color_buffer_float")) {
-    return new CanvasAquariumRenderer(canvas);
+    return new CanvasAquariumRenderer(canvas, crispCanvas);
   }
-  return new WebglAquariumRenderer(canvas, gl);
+  return new WebglAquariumRenderer(canvas, gl, crispCanvas);
 }
 
 class WebglAquariumRenderer implements AquariumRenderer {
@@ -284,12 +286,15 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private sourceTexture: WebGLTexture | null = null;
   private velocity: DoubleTarget | null = null;
 
-  constructor(private canvas: HTMLCanvasElement, private gl: WebGL2RenderingContext) {
+  private crispContext: CanvasRenderingContext2D | null = null;
+
+  constructor(private canvas: HTMLCanvasElement, private gl: WebGL2RenderingContext, private crispCanvas: HTMLCanvasElement | null) {
     const sourceContext = this.sourceCanvas.getContext("2d");
     if (!sourceContext) {
       throw new Error("Aquarium source canvas could not be created.");
     }
     this.sourceContext = sourceContext;
+    this.crispContext = crispCanvas?.getContext("2d") ?? null;
     this.programs = {
       advect: compileProgram(gl, vertexShader, advectShader),
       curl: compileProgram(gl, vertexShader, curlShader),
@@ -346,6 +351,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.uploadSource();
     this.stepFluid(projected);
     this.display();
+    this.drawCrispOverlay(projected, activeAgent);
     this.raf = requestAnimationFrame(this.render);
   };
 
@@ -357,6 +363,10 @@ class WebglAquariumRenderer implements AquariumRenderer {
     if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
       this.canvas.width = displayWidth;
       this.canvas.height = displayHeight;
+    }
+    if (this.crispCanvas && (this.crispCanvas.width !== displayWidth || this.crispCanvas.height !== displayHeight)) {
+      this.crispCanvas.width = displayWidth;
+      this.crispCanvas.height = displayHeight;
     }
     const scale = this.frame.variant === "fullscreen" ? 0.56 : 0.7;
     const width = Math.max(256, Math.min(960, Math.floor(displayWidth * scale)));
@@ -513,18 +523,36 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.save();
     ctx.translate(agent.x, agent.y);
     ctx.rotate(Math.atan2(agent.vy, agent.vx || 0.001) * 0.12);
-    ctx.globalAlpha = 0.045 + agent.activity * 0.032 + (hot ? 0.032 : 0);
+    ctx.globalCompositeOperation = "lighter";
+    for (let index = 0; index < 3; index += 1) {
+      const lag = 11 + index * 9;
+      const radius = size * (0.42 - index * 0.06);
+      ctx.globalAlpha = 0.075 + agent.activity * 0.045 - index * 0.014;
+      ctx.fillStyle = index === 0 ? agent.color : agent.glow;
+      ctx.beginPath();
+      ctx.arc(-agent.vx * lag - index * 3, -agent.vy * lag + index * 2, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 0.04 + agent.activity * 0.024;
+    ctx.strokeStyle = agent.glow;
+    ctx.lineWidth = 1.8 + agent.activity * 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-agent.vx * 7, -agent.vy * 7);
+    ctx.quadraticCurveTo(-agent.vx * 16, -agent.vy * 8, -agent.vx * 24, -agent.vy * 18);
+    ctx.stroke();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.globalAlpha = 0.025 + agent.activity * 0.018 + (hot ? 0.016 : 0);
     ctx.shadowColor = agent.glow;
-    ctx.shadowBlur = 10 + agent.activity * 12;
+    ctx.shadowBlur = 8 + agent.activity * 10;
     ctx.fillStyle = agent.color;
     drawAgentPath(ctx, agent.shape, size);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = hot ? 0.14 : 0.075;
+    ctx.globalAlpha = hot ? 0.09 : 0.045;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = hot ? 1.8 : 1;
     ctx.stroke();
-    ctx.globalAlpha = hot ? 0.24 : 0.13;
+    ctx.globalAlpha = hot ? 0.095 : 0.042;
     ctx.fillStyle = "#fffaf0";
     ctx.font = `900 ${Math.max(10, size * 0.42)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "center";
@@ -533,13 +561,13 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.restore();
 
     ctx.save();
-    ctx.globalAlpha = hot ? 0.105 : 0.055;
-    ctx.fillStyle = "rgba(5, 12, 9, 0.8)";
-    ctx.strokeStyle = hexAlpha(agent.color, hot ? 0.6 : 0.32);
+    ctx.globalAlpha = hot ? 0.038 : 0.018;
+    ctx.fillStyle = agent.color;
+    ctx.strokeStyle = hexAlpha(agent.glow, hot ? 0.5 : 0.26);
     roundedRect(ctx, agent.x - 40, agent.y + size * 0.72, 80, 34, 7);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = agent.glow;
     ctx.font = "900 10px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText(agent.name, agent.x, agent.y + size * 0.72 + 13);
@@ -553,23 +581,13 @@ class WebglAquariumRenderer implements AquariumRenderer {
     const x = clamp(agent.x + (agent.x > this.simWidth * 0.68 ? -boxWidth - 36 : 36), 14, this.simWidth - boxWidth - 14);
     const y = clamp(agent.y - 78, 12, this.simHeight - 116);
     ctx.save();
-    ctx.globalAlpha = 0.055;
-    ctx.fillStyle = "#f8fcf2";
-    ctx.strokeStyle = agent.color;
+    ctx.globalAlpha = 0.018;
+    ctx.strokeStyle = agent.glow;
     ctx.shadowColor = agent.glow;
-    ctx.shadowBlur = 6;
+    ctx.shadowBlur = 5;
     roundedRect(ctx, x, y, boxWidth, 82, 9);
-    ctx.fill();
     ctx.stroke();
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = 0.16;
-    ctx.fillStyle = agent.color;
-    ctx.font = "900 10px Inter, system-ui, sans-serif";
-    ctx.fillText(agent.name.toUpperCase(), x + 10, y + 10);
-    ctx.globalAlpha = 0.12;
-    ctx.fillStyle = "#172018";
-    ctx.font = "800 12px Inter, system-ui, sans-serif";
-    wrapCanvasText(ctx, agent.thought, x + 10, y + 27, boxWidth - 20, 15, 3);
     ctx.restore();
   }
 
@@ -592,15 +610,12 @@ class WebglAquariumRenderer implements AquariumRenderer {
       if (!option.disabled) {
         this.hotOptions.push({ x, y, radius: 32, key: option.key });
       }
-      ctx.globalAlpha = option.disabled ? 0.028 : hot ? 0.125 : 0.065;
-      ctx.fillStyle = option.disabled ? "rgba(8, 14, 12, 0.6)" : hot ? agent.color : "rgba(8, 14, 12, 0.82)";
-      ctx.strokeStyle = option.disabled ? "rgba(226, 245, 225, 0.14)" : hexAlpha(agent.glow, hot ? 0.78 : 0.48);
+      ctx.globalAlpha = option.disabled ? 0.008 : hot ? 0.04 : 0.018;
+      ctx.fillStyle = option.disabled ? agent.glow : agent.color;
+      ctx.strokeStyle = option.disabled ? hexAlpha(agent.glow, 0.12) : hexAlpha(agent.glow, hot ? 0.62 : 0.32);
       roundedRect(ctx, x - 37, y - 15, 74, 30, 15);
       ctx.fill();
       ctx.stroke();
-      ctx.globalAlpha = option.disabled ? 0.055 : hot ? 0.23 : 0.145;
-      ctx.fillStyle = "#ffffff";
-      ctx.fillText(option.label.toUpperCase(), x, y + 1);
     }
     ctx.restore();
   }
@@ -608,7 +623,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private drawDeckSource(ctx: CanvasRenderingContext2D) {
     if (!this.frame.activeLabel) return;
     ctx.save();
-    ctx.globalAlpha = 0.022;
+    ctx.globalAlpha = 0.005;
     ctx.fillStyle = "#f7bd58";
     ctx.font = `900 ${Math.max(30, Math.min(this.simWidth, this.simHeight) * 0.1)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "right";
@@ -628,8 +643,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   private stepFluid(projected: ProjectedAgent[]) {
     if (!this.velocity || !this.dye || !this.pressure || !this.divergence || !this.curl || !this.sourceTexture) return;
-    const dt = 0.046;
-    this.runAdvect(this.velocity.read.texture, this.velocity.read.texture, this.velocity.write, dt, 0.986);
+    const dt = 0.021;
+    this.runAdvect(this.velocity.read.texture, this.velocity.read.texture, this.velocity.write, dt, 0.993);
     this.velocity.swap();
     this.runVelocitySplat(projected);
     this.runCurl();
@@ -637,7 +652,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.runDivergence();
     this.runPressure();
     this.runGradientSubtract();
-    this.runAdvect(this.velocity.read.texture, this.dye.read.texture, this.dye.write, dt, 0.982);
+    this.runAdvect(this.velocity.read.texture, this.dye.read.texture, this.dye.write, dt, 0.9991);
     this.dye.swap();
     this.runInject();
   }
@@ -662,8 +677,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const agent = projected[index];
       this.agentsUniform[index * 4] = agent.x / this.simWidth;
       this.agentsUniform[index * 4 + 1] = 1 - agent.y / this.simHeight;
-      this.agentsUniform[index * 4 + 2] = agent.vx * 0.07;
-      this.agentsUniform[index * 4 + 3] = -agent.vy * 0.07;
+      this.agentsUniform[index * 4 + 2] = agent.vx * 1.45;
+      this.agentsUniform[index * 4 + 3] = -agent.vy * 1.45;
       this.activity[index] = agent.activity;
     }
     this.drawTo(this.velocity.write, this.programs.velocitySplat, (gl, program) => {
@@ -694,7 +709,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       gl.uniform1i(gl.getUniformLocation(program, "uVelocity"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uCurl"), 1);
       gl.uniform2f(gl.getUniformLocation(program, "uTexelSize"), 1 / this.simWidth, 1 / this.simHeight);
-      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), 1.15);
+      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), 24.0);
       gl.uniform1f(gl.getUniformLocation(program, "uDt"), dt);
     });
     this.velocity.swap();
@@ -711,7 +726,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   private runPressure() {
     if (!this.pressure || !this.divergence) return;
-    for (let index = 0; index < 14; index += 1) {
+    for (let index = 0; index < 24; index += 1) {
       this.drawTo(this.pressure.write, this.programs.pressure, (gl, program) => {
         this.bindTexture(0, this.pressure?.read.texture ?? null);
         this.bindTexture(1, this.divergence?.texture ?? null);
@@ -742,8 +757,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.bindTexture(1, this.sourceTexture);
       gl.uniform1i(gl.getUniformLocation(program, "uDye"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uSource"), 1);
-      gl.uniform1f(gl.getUniformLocation(program, "uGain"), 0.13);
-      gl.uniform1f(gl.getUniformLocation(program, "uDissipation"), 0.983);
+      gl.uniform1f(gl.getUniformLocation(program, "uGain"), 0.055);
+      gl.uniform1f(gl.getUniformLocation(program, "uDissipation"), 0.9988);
     });
     this.dye.swap();
   }
@@ -757,6 +772,131 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.bindTexture(0, this.dye.read.texture);
     gl.uniform1i(gl.getUniformLocation(this.programs.display, "uDye"), 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  private drawCrispOverlay(projected: ProjectedAgent[], activeAgent?: ProjectedAgent) {
+    if (!this.crispCanvas || !this.crispContext || !this.simWidth || !this.simHeight) return;
+    const ctx = this.crispContext;
+    const scaleX = this.crispCanvas.width / this.simWidth;
+    const scaleY = this.crispCanvas.height / this.simHeight;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.crispCanvas.width, this.crispCanvas.height);
+    ctx.scale(scaleX, scaleY);
+    for (const agent of projected) {
+      const hot = agent.id === activeAgent?.id || agent.id === this.frame.selectedAgentId;
+      this.drawCrispAgent(ctx, agent, hot);
+    }
+    if (activeAgent) {
+      this.drawCrispThought(ctx, activeAgent);
+      this.drawCrispOptions(ctx, activeAgent);
+    }
+    this.drawCrispDeck(ctx);
+    ctx.restore();
+  }
+
+  private drawCrispAgent(ctx: CanvasRenderingContext2D, agent: ProjectedAgent, hot: boolean) {
+    const size = 24 + agent.activity * 13 + (hot ? 5 : 0);
+    ctx.save();
+    ctx.translate(agent.x, agent.y);
+    ctx.rotate(Math.atan2(agent.vy, agent.vx || 0.001) * 0.14);
+    ctx.globalAlpha = hot ? 0.92 : 0.74;
+    ctx.shadowColor = agent.glow;
+    ctx.shadowBlur = hot ? 18 : 10;
+    ctx.fillStyle = agent.color;
+    drawAgentPath(ctx, agent.shape, size);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = hot ? "rgba(255, 255, 255, 0.84)" : "rgba(255, 255, 255, 0.54)";
+    ctx.lineWidth = hot ? 1.9 : 1.1;
+    ctx.stroke();
+    ctx.fillStyle = "#fffaf0";
+    ctx.font = `900 ${Math.max(10, size * 0.43)}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(agent.glyph, 0, 1);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = hot ? 0.82 : 0.62;
+    ctx.fillStyle = "rgba(5, 12, 9, 0.72)";
+    ctx.strokeStyle = hexAlpha(agent.color, hot ? 0.76 : 0.42);
+    roundedRect(ctx, agent.x - 42, agent.y + size * 0.74, 84, 34, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(247, 255, 247, 0.94)";
+    ctx.font = "900 10px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(agent.name, agent.x, agent.y + size * 0.74 + 13);
+    ctx.fillStyle = "rgba(226, 245, 225, 0.74)";
+    ctx.font = "900 8px Inter, system-ui, sans-serif";
+    ctx.fillText(agent.status.slice(0, 16).toUpperCase(), agent.x, agent.y + size * 0.74 + 26);
+    ctx.restore();
+  }
+
+  private drawCrispThought(ctx: CanvasRenderingContext2D, agent: ProjectedAgent) {
+    const boxWidth = Math.min(260, Math.max(160, this.simWidth * 0.23));
+    const x = clamp(agent.x + (agent.x > this.simWidth * 0.68 ? -boxWidth - 36 : 36), 14, this.simWidth - boxWidth - 14);
+    const y = clamp(agent.y - 78, 12, this.simHeight - 116);
+    ctx.save();
+    ctx.globalAlpha = 0.78;
+    ctx.fillStyle = "rgba(248, 252, 242, 0.82)";
+    ctx.strokeStyle = hexAlpha(agent.color, 0.72);
+    ctx.shadowColor = agent.glow;
+    ctx.shadowBlur = 12;
+    roundedRect(ctx, x, y, boxWidth, 82, 9);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = agent.color;
+    ctx.font = "900 10px Inter, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(agent.name.toUpperCase(), x + 10, y + 10);
+    ctx.fillStyle = "#172018";
+    ctx.font = "800 12px Inter, system-ui, sans-serif";
+    wrapCanvasText(ctx, agent.thought, x + 10, y + 27, boxWidth - 20, 15, 3);
+    ctx.restore();
+  }
+
+  private drawCrispOptions(ctx: CanvasRenderingContext2D, agent: ProjectedAgent) {
+    const options = agent.options ?? [];
+    if (!options.length) return;
+    const radius = this.simWidth < 540 ? 64 : 86;
+    const arc = Math.min(Math.PI * 1.2, Math.max(Math.PI * 0.7, options.length * 0.34));
+    const start = -Math.PI / 2 - arc / 2;
+    ctx.save();
+    ctx.font = "900 9px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let index = 0; index < options.length; index += 1) {
+      const option = options[index];
+      const angle = start + (arc * (index + 0.5)) / options.length;
+      const x = clamp(agent.x + Math.cos(angle) * radius, 42, this.simWidth - 42);
+      const y = clamp(agent.y + Math.sin(angle) * radius, 48, this.simHeight - 48);
+      const hot = this.pointer.active && distance(this.pointer.x, this.pointer.y, x, y) < 32;
+      ctx.globalAlpha = option.disabled ? 0.34 : hot ? 0.9 : 0.72;
+      ctx.fillStyle = option.disabled ? "rgba(8, 14, 12, 0.68)" : hot ? agent.color : "rgba(8, 14, 12, 0.78)";
+      ctx.strokeStyle = option.disabled ? "rgba(226, 245, 225, 0.22)" : hexAlpha(agent.glow, hot ? 0.9 : 0.58);
+      roundedRect(ctx, x - 37, y - 15, 74, 30, 15);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = option.disabled ? "rgba(236, 246, 235, 0.42)" : "#ffffff";
+      ctx.fillText(option.label.toUpperCase(), x, y + 1);
+    }
+    ctx.restore();
+  }
+
+  private drawCrispDeck(ctx: CanvasRenderingContext2D) {
+    if (!this.frame.activeLabel) return;
+    ctx.save();
+    ctx.globalAlpha = 0.16;
+    ctx.fillStyle = "#f7bd58";
+    ctx.font = `900 ${Math.max(30, Math.min(this.simWidth, this.simHeight) * 0.1)}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "bottom";
+    ctx.fillText(this.frame.activeLabel.toUpperCase(), this.simWidth - 14, this.simHeight - 10);
+    ctx.restore();
   }
 
   private drawTo(target: FluidTarget, program: WebGLProgram, uniforms: (gl: WebGL2RenderingContext, program: WebGLProgram) => void) {
@@ -782,7 +922,7 @@ class CanvasAquariumRenderer implements AquariumRenderer {
   private pointer = { active: false, x: 0, y: 0 };
   private raf = 0;
 
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(private canvas: HTMLCanvasElement, private crispCanvas: HTMLCanvasElement | null = null) {
     this.raf = requestAnimationFrame(this.render);
   }
 
