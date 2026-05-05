@@ -22,10 +22,38 @@ export interface AquariumAgentFrame {
   options: AquariumOptionFrame[];
 }
 
+export interface AquariumUiButtonFrame {
+  key: string;
+  label: string;
+  disabled?: boolean;
+  tone?: string;
+}
+
+export interface AquariumUiStatusFrame {
+  label: string;
+  tone?: string;
+}
+
+export interface AquariumUiFrame {
+  eyebrow: string;
+  title: string;
+  reason: string;
+  activeDeckLabel: string;
+  activeSubdeck: string;
+  statuses: AquariumUiStatusFrame[];
+  deckButtons: AquariumUiButtonFrame[];
+  subdeckButtons: AquariumUiButtonFrame[];
+  actionButtons: AquariumUiButtonFrame[];
+  panelTitle: string;
+  panelLines: string[];
+  alert?: string;
+}
+
 export interface AquariumFrame {
   agents: AquariumAgentFrame[];
   selectedAgentId: string;
   activeLabel?: string;
+  ui?: AquariumUiFrame;
   variant: "band" | "fullscreen";
 }
 
@@ -34,6 +62,8 @@ export interface AquariumRenderer {
   dispose(): void;
   pickAgent(): string | null;
   pickOption(): string | null;
+  pointerDownClient(clientX: number, clientY: number): void;
+  pointerUp(): void;
   setFrame(frame: AquariumFrame): void;
   setPointerClient(clientX: number, clientY: number): void;
 }
@@ -68,6 +98,37 @@ interface HotZone {
   y: number;
   radius: number;
   key: string;
+  height?: number;
+  width?: number;
+}
+
+type FluidParamKey =
+  | "timeScale"
+  | "curlStrength"
+  | "swirlForce"
+  | "splatForce"
+  | "splatRadius"
+  | "velocityDissipation"
+  | "dyeDissipation"
+  | "injectionGain"
+  | "sourceOpacity";
+
+type FluidParams = Record<FluidParamKey, number>;
+
+interface FluidParamDefinition {
+  key: FluidParamKey;
+  label: string;
+  min: number;
+  max: number;
+  decimals: number;
+}
+
+interface FluidParamZone {
+  key: "toggle" | "reset" | FluidParamKey;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
 const fullscreenPositions: Record<string, { x: number; y: number }> = {
@@ -89,6 +150,32 @@ const compactPositions: Record<string, { x: number; y: number }> = {
   verification: { x: 86, y: 52 },
   implementation: { x: 50, y: 61 },
 };
+
+const fluidParamStorageKey = "epiphany:aquarium-fluid-params:v1";
+
+const defaultFluidParams: FluidParams = {
+  timeScale: 0.021,
+  curlStrength: 24,
+  swirlForce: 42,
+  splatForce: 2.8,
+  splatRadius: 42,
+  velocityDissipation: 0.993,
+  dyeDissipation: 0.9991,
+  injectionGain: 0.055,
+  sourceOpacity: 1,
+};
+
+const fluidParamDefinitions: FluidParamDefinition[] = [
+  { key: "timeScale", label: "Time", min: 0.006, max: 0.05, decimals: 3 },
+  { key: "curlStrength", label: "Curl", min: 0, max: 48, decimals: 1 },
+  { key: "swirlForce", label: "Swirl", min: 0, max: 72, decimals: 1 },
+  { key: "splatForce", label: "Push", min: 0, max: 6, decimals: 2 },
+  { key: "splatRadius", label: "Ink Size", min: 16, max: 90, decimals: 0 },
+  { key: "velocityDissipation", label: "Motion Hold", min: 0.96, max: 0.999, decimals: 3 },
+  { key: "dyeDissipation", label: "Ink Hold", min: 0.985, max: 0.9998, decimals: 4 },
+  { key: "injectionGain", label: "Ink Feed", min: 0.01, max: 0.16, decimals: 3 },
+  { key: "sourceOpacity", label: "Object Ink", min: 0.2, max: 1.8, decimals: 2 },
+];
 
 const vertexShader = `#version 300 es
 precision highp float;
@@ -128,16 +215,20 @@ uniform vec4 uAgents[7];
 uniform float uActivity[7];
 uniform int uCount;
 uniform float uAspect;
+uniform float uSplatForce;
+uniform float uSplatRadius;
+uniform float uSwirlForce;
+uniform float uVelocityDamping;
 void main() {
-  vec2 velocity = texture(uVelocity, vUv).xy * 0.994;
+  vec2 velocity = texture(uVelocity, vUv).xy * uVelocityDamping;
   for (int i = 0; i < 7; i += 1) {
     if (i >= uCount) break;
     vec2 agent = uAgents[i].xy;
     vec2 delta = vUv - agent;
     delta.x *= uAspect;
-    float influence = exp(-dot(delta, delta) * 42.0);
-    vec2 tangent = normalize(vec2(-delta.y, delta.x) + 0.0001) * (28.0 + uActivity[i] * 42.0);
-    vec2 push = uAgents[i].zw * 2.8 + tangent;
+    float influence = exp(-dot(delta, delta) * uSplatRadius);
+    vec2 tangent = normalize(vec2(-delta.y, delta.x) + 0.0001) * (uSwirlForce * 0.64 + uActivity[i] * uSwirlForce);
+    vec2 push = uAgents[i].zw * uSplatForce + tangent;
     velocity += push * influence * (0.18 + uActivity[i] * 0.24);
   }
   outColor = vec4(velocity, 0.0, 1.0);
@@ -255,6 +346,34 @@ void main() {
   outColor = vec4(color * 0.92, 1.0);
 }`;
 
+function loadFluidParams(): FluidParams {
+  if (typeof window === "undefined") return { ...defaultFluidParams };
+  try {
+    const raw = window.localStorage.getItem(fluidParamStorageKey);
+    if (!raw) return { ...defaultFluidParams };
+    const parsed = JSON.parse(raw) as Partial<FluidParams>;
+    return normalizeFluidParams(parsed);
+  } catch {
+    return { ...defaultFluidParams };
+  }
+}
+
+function normalizeFluidParams(value: Partial<FluidParams>): FluidParams {
+  const next = { ...defaultFluidParams };
+  for (const definition of fluidParamDefinitions) {
+    const candidate = value[definition.key];
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      next[definition.key] = clamp(candidate, definition.min, definition.max);
+    }
+  }
+  return next;
+}
+
+function saveFluidParams(params: FluidParams) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(fluidParamStorageKey, JSON.stringify(params));
+}
+
 export function createAquariumRenderer(canvas: HTMLCanvasElement): AquariumRenderer;
 export function createAquariumRenderer(canvas: HTMLCanvasElement, crispCanvas: HTMLCanvasElement | null): AquariumRenderer;
 export function createAquariumRenderer(canvas: HTMLCanvasElement, crispCanvas: HTMLCanvasElement | null = null): AquariumRenderer {
@@ -270,7 +389,11 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private agentsUniform = new Float32Array(7 * 4);
   private curl: FluidTarget | null = null;
   private dye: DoubleTarget | null = null;
+  private draggingFluidParam: FluidParamKey | null = null;
   private divergence: FluidTarget | null = null;
+  private fluidPanelPinned = false;
+  private fluidParams = loadFluidParams();
+  private fluidParamZones: FluidParamZone[] = [];
   private frame: AquariumFrame = { agents: [], selectedAgentId: "coordinator", variant: "fullscreen" };
   private hotAgents: HotZone[] = [];
   private hotOptions: HotZone[] = [];
@@ -284,6 +407,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private sourceCanvas = document.createElement("canvas");
   private sourceContext: CanvasRenderingContext2D;
   private sourceTexture: WebGLTexture | null = null;
+  private time = 0;
   private velocity: DoubleTarget | null = null;
 
   private crispContext: CanvasRenderingContext2D | null = null;
@@ -318,12 +442,15 @@ class WebglAquariumRenderer implements AquariumRenderer {
   }
 
   pickAgent() {
-    const hit = this.hotAgents.find((zone) => distance(zone.x, zone.y, this.pointer.x, this.pointer.y) <= zone.radius);
+    const hit = this.hotAgents.find((zone) => hitZone(zone, this.pointer.x, this.pointer.y));
     return hit?.key ?? null;
   }
 
   pickOption() {
-    const hit = this.hotOptions.find((zone) => distance(zone.x, zone.y, this.pointer.x, this.pointer.y) <= zone.radius);
+    if (this.fluidParamZones.some((zone) => pointInRect(this.pointer.x, this.pointer.y, zone))) {
+      return null;
+    }
+    const hit = this.hotOptions.find((zone) => hitZone(zone, this.pointer.x, this.pointer.y));
     return hit?.key ?? null;
   }
 
@@ -336,6 +463,30 @@ class WebglAquariumRenderer implements AquariumRenderer {
     const x = ((clientX - rect.left) / Math.max(rect.width, 1)) * this.simWidth;
     const y = ((clientY - rect.top) / Math.max(rect.height, 1)) * this.simHeight;
     this.pointer = { active: true, x, y };
+    if (this.draggingFluidParam) {
+      this.updateFluidParamFromPointer(this.draggingFluidParam, x);
+    }
+  }
+
+  pointerDownClient(clientX: number, clientY: number) {
+    this.setPointerClient(clientX, clientY);
+    const zone = this.fluidParamZones.find((candidate) => pointInRect(this.pointer.x, this.pointer.y, candidate));
+    if (!zone) return;
+    if (zone.key === "toggle") {
+      this.fluidPanelPinned = !this.fluidPanelPinned;
+      return;
+    }
+    if (zone.key === "reset") {
+      this.fluidParams = { ...defaultFluidParams };
+      saveFluidParams(this.fluidParams);
+      return;
+    }
+    this.draggingFluidParam = zone.key;
+    this.updateFluidParamFromPointer(zone.key, this.pointer.x);
+  }
+
+  pointerUp() {
+    this.draggingFluidParam = null;
   }
 
   private render = (millis: number) => {
@@ -345,13 +496,14 @@ class WebglAquariumRenderer implements AquariumRenderer {
       return;
     }
     const time = millis / 1000;
+    this.time = time;
     const projected = this.projectAgents(time);
     const activeAgent = this.nearestAgent(projected) ?? projected.find((agent) => agent.id === this.frame.selectedAgentId) ?? projected[0];
-    this.drawSource(projected, activeAgent);
+    this.drawSource(projected, activeAgent, time);
     this.uploadSource();
     this.stepFluid(projected);
     this.display();
-    this.drawCrispOverlay(projected, activeAgent);
+    this.drawCrispOverlay(projected, activeAgent, time);
     this.raf = requestAnimationFrame(this.render);
   };
 
@@ -453,8 +605,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const pointerPull = this.pointer.active ? this.pointerPull(agent, state.x, state.y) : { x: 0, y: 0 };
       const swim = this.frame.variant === "fullscreen" ? 22 + activity * 76 : 8 + activity * 22;
       const cadence = 0.13 + activity * 0.28;
-      const targetX = base.x + Math.sin(time * cadence + agent.phase * 1.7) * swim + pointerPull.x;
-      const targetY = base.y + Math.cos(time * (cadence * 0.82) + agent.phase) * swim * 0.64 + pointerPull.y;
+      const targetX = base.x + chirplet(time, agent.phase * 1.7, cadence, 0.018 + activity * 0.026, 9) * swim + pointerPull.x;
+      const targetY = base.y + chirplet(time, agent.phase + 1.1, cadence * 0.82, -0.014 - activity * 0.018, 8) * swim * 0.64 + pointerPull.y;
       const follow = 0.0032 + activity * 0.0065;
       state.vx = state.vx * 0.94 + (targetX - state.x) * follow;
       state.vy = state.vy * 0.94 + (targetY - state.y) * follow;
@@ -500,7 +652,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     return best;
   }
 
-  private drawSource(projected: ProjectedAgent[], activeAgent?: ProjectedAgent) {
+  private drawSource(projected: ProjectedAgent[], activeAgent: ProjectedAgent | undefined, time: number) {
     const ctx = this.sourceContext;
     ctx.clearRect(0, 0, this.simWidth, this.simHeight);
     this.hotOptions = [];
@@ -515,11 +667,13 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.drawOptionsSource(ctx, activeAgent);
     }
     this.drawDeckSource(ctx);
+    this.drawOperatorSource(ctx, time);
     ctx.restore();
   }
 
   private drawAgentSource(ctx: CanvasRenderingContext2D, agent: ProjectedAgent, hot: boolean) {
     const size = 23 + agent.activity * 12 + (hot ? 4 : 0);
+    const ink = this.fluidParams.sourceOpacity;
     ctx.save();
     ctx.translate(agent.x, agent.y);
     ctx.rotate(Math.atan2(agent.vy, agent.vx || 0.001) * 0.12);
@@ -527,13 +681,13 @@ class WebglAquariumRenderer implements AquariumRenderer {
     for (let index = 0; index < 3; index += 1) {
       const lag = 11 + index * 9;
       const radius = size * (0.42 - index * 0.06);
-      ctx.globalAlpha = 0.075 + agent.activity * 0.045 - index * 0.014;
+      ctx.globalAlpha = (0.075 + agent.activity * 0.045 - index * 0.014) * ink;
       ctx.fillStyle = index === 0 ? agent.color : agent.glow;
       ctx.beginPath();
       ctx.arc(-agent.vx * lag - index * 3, -agent.vy * lag + index * 2, radius, 0, Math.PI * 2);
       ctx.fill();
     }
-    ctx.globalAlpha = 0.04 + agent.activity * 0.024;
+    ctx.globalAlpha = (0.04 + agent.activity * 0.024) * ink;
     ctx.strokeStyle = agent.glow;
     ctx.lineWidth = 1.8 + agent.activity * 1.2;
     ctx.beginPath();
@@ -541,18 +695,18 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.quadraticCurveTo(-agent.vx * 16, -agent.vy * 8, -agent.vx * 24, -agent.vy * 18);
     ctx.stroke();
     ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 0.025 + agent.activity * 0.018 + (hot ? 0.016 : 0);
+    ctx.globalAlpha = (0.025 + agent.activity * 0.018 + (hot ? 0.016 : 0)) * ink;
     ctx.shadowColor = agent.glow;
     ctx.shadowBlur = 8 + agent.activity * 10;
     ctx.fillStyle = agent.color;
     drawAgentPath(ctx, agent.shape, size);
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.globalAlpha = hot ? 0.09 : 0.045;
+    ctx.globalAlpha = (hot ? 0.09 : 0.045) * ink;
     ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = hot ? 1.8 : 1;
     ctx.stroke();
-    ctx.globalAlpha = hot ? 0.095 : 0.042;
+    ctx.globalAlpha = (hot ? 0.095 : 0.042) * ink;
     ctx.fillStyle = "#fffaf0";
     ctx.font = `900 ${Math.max(10, size * 0.42)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "center";
@@ -561,7 +715,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.restore();
 
     ctx.save();
-    ctx.globalAlpha = hot ? 0.038 : 0.018;
+    ctx.globalAlpha = (hot ? 0.038 : 0.018) * ink;
     ctx.fillStyle = agent.color;
     ctx.strokeStyle = hexAlpha(agent.glow, hot ? 0.5 : 0.26);
     roundedRect(ctx, agent.x - 40, agent.y + size * 0.72, 80, 34, 7);
@@ -581,7 +735,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     const x = clamp(agent.x + (agent.x > this.simWidth * 0.68 ? -boxWidth - 36 : 36), 14, this.simWidth - boxWidth - 14);
     const y = clamp(agent.y - 78, 12, this.simHeight - 116);
     ctx.save();
-    ctx.globalAlpha = 0.018;
+    ctx.globalAlpha = 0.018 * this.fluidParams.sourceOpacity;
     ctx.strokeStyle = agent.glow;
     ctx.shadowColor = agent.glow;
     ctx.shadowBlur = 5;
@@ -610,7 +764,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       if (!option.disabled) {
         this.hotOptions.push({ x, y, radius: 32, key: option.key });
       }
-      ctx.globalAlpha = option.disabled ? 0.008 : hot ? 0.04 : 0.018;
+      ctx.globalAlpha = (option.disabled ? 0.008 : hot ? 0.04 : 0.018) * this.fluidParams.sourceOpacity;
       ctx.fillStyle = option.disabled ? agent.glow : agent.color;
       ctx.strokeStyle = option.disabled ? hexAlpha(agent.glow, 0.12) : hexAlpha(agent.glow, hot ? 0.62 : 0.32);
       roundedRect(ctx, x - 37, y - 15, 74, 30, 15);
@@ -623,12 +777,35 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private drawDeckSource(ctx: CanvasRenderingContext2D) {
     if (!this.frame.activeLabel) return;
     ctx.save();
-    ctx.globalAlpha = 0.005;
+    ctx.globalAlpha = 0.005 * this.fluidParams.sourceOpacity;
     ctx.fillStyle = "#f7bd58";
     ctx.font = `900 ${Math.max(30, Math.min(this.simWidth, this.simHeight) * 0.1)}px Inter, system-ui, sans-serif`;
     ctx.textAlign = "right";
     ctx.textBaseline = "bottom";
     ctx.fillText(this.frame.activeLabel.toUpperCase(), this.simWidth - 14, this.simHeight - 10);
+    ctx.restore();
+  }
+
+  private drawOperatorSource(ctx: CanvasRenderingContext2D, time: number) {
+    if (!this.frame.ui) return;
+    const layout = this.operatorLayout(time);
+    const ink = this.fluidParams.sourceOpacity;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "rgba(247, 189, 88, 0.72)";
+    ctx.fillStyle = "rgba(247, 189, 88, 0.22)";
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.012 * ink;
+    roundedRect(ctx, layout.topbar.x, layout.topbar.y, layout.topbar.width, layout.topbar.height, 10);
+    ctx.stroke();
+    ctx.globalAlpha = 0.01 * ink;
+    roundedRect(ctx, layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height, 10);
+    ctx.stroke();
+    for (const button of [...layout.deckButtons, ...layout.subdeckButtons, ...layout.actionButtons]) {
+      ctx.globalAlpha = button.disabled ? 0.004 * ink : 0.011 * ink;
+      roundedRect(ctx, button.x, button.y, button.width, button.height, button.height / 2);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -643,8 +820,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   private stepFluid(projected: ProjectedAgent[]) {
     if (!this.velocity || !this.dye || !this.pressure || !this.divergence || !this.curl || !this.sourceTexture) return;
-    const dt = 0.021;
-    this.runAdvect(this.velocity.read.texture, this.velocity.read.texture, this.velocity.write, dt, 0.993);
+    const dt = this.fluidParams.timeScale;
+    this.runAdvect(this.velocity.read.texture, this.velocity.read.texture, this.velocity.write, dt, this.fluidParams.velocityDissipation);
     this.velocity.swap();
     this.runVelocitySplat(projected);
     this.runCurl();
@@ -652,7 +829,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.runDivergence();
     this.runPressure();
     this.runGradientSubtract();
-    this.runAdvect(this.velocity.read.texture, this.dye.read.texture, this.dye.write, dt, 0.9991);
+    this.runAdvect(this.velocity.read.texture, this.dye.read.texture, this.dye.write, dt, this.fluidParams.dyeDissipation);
     this.dye.swap();
     this.runInject();
   }
@@ -688,6 +865,10 @@ class WebglAquariumRenderer implements AquariumRenderer {
       gl.uniform1fv(gl.getUniformLocation(program, "uActivity"), this.activity);
       gl.uniform1i(gl.getUniformLocation(program, "uCount"), Math.min(7, projected.length));
       gl.uniform1f(gl.getUniformLocation(program, "uAspect"), this.simWidth / Math.max(this.simHeight, 1));
+      gl.uniform1f(gl.getUniformLocation(program, "uSplatForce"), this.fluidParams.splatForce);
+      gl.uniform1f(gl.getUniformLocation(program, "uSplatRadius"), this.fluidParams.splatRadius);
+      gl.uniform1f(gl.getUniformLocation(program, "uSwirlForce"), this.fluidParams.swirlForce);
+      gl.uniform1f(gl.getUniformLocation(program, "uVelocityDamping"), this.fluidParams.velocityDissipation);
     });
     this.velocity.swap();
   }
@@ -709,7 +890,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       gl.uniform1i(gl.getUniformLocation(program, "uVelocity"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uCurl"), 1);
       gl.uniform2f(gl.getUniformLocation(program, "uTexelSize"), 1 / this.simWidth, 1 / this.simHeight);
-      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), 24.0);
+      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), this.fluidParams.curlStrength);
       gl.uniform1f(gl.getUniformLocation(program, "uDt"), dt);
     });
     this.velocity.swap();
@@ -757,8 +938,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.bindTexture(1, this.sourceTexture);
       gl.uniform1i(gl.getUniformLocation(program, "uDye"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uSource"), 1);
-      gl.uniform1f(gl.getUniformLocation(program, "uGain"), 0.055);
-      gl.uniform1f(gl.getUniformLocation(program, "uDissipation"), 0.9988);
+      gl.uniform1f(gl.getUniformLocation(program, "uGain"), this.fluidParams.injectionGain);
+      gl.uniform1f(gl.getUniformLocation(program, "uDissipation"), this.fluidParams.dyeDissipation);
     });
     this.dye.swap();
   }
@@ -774,7 +955,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
-  private drawCrispOverlay(projected: ProjectedAgent[], activeAgent?: ProjectedAgent) {
+  private drawCrispOverlay(projected: ProjectedAgent[], activeAgent: ProjectedAgent | undefined, time: number) {
     if (!this.crispCanvas || !this.crispContext || !this.simWidth || !this.simHeight) return;
     const ctx = this.crispContext;
     const scaleX = this.crispCanvas.width / this.simWidth;
@@ -792,6 +973,186 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.drawCrispOptions(ctx, activeAgent);
     }
     this.drawCrispDeck(ctx);
+    this.drawOperatorUi(ctx, time);
+    this.drawFluidPanel(ctx, time);
+    ctx.restore();
+  }
+
+  private operatorLayout(time: number) {
+    const mobile = this.simWidth < 430;
+    const wobble = chirplet(time, 0.9, 1.2, 0.08, 4);
+    const topbar = {
+      x: mobile ? 10 : 14,
+      y: 12 + wobble * 1.8,
+      width: this.simWidth - (mobile ? 20 : 28),
+      height: mobile ? 154 : 68,
+    };
+    const deckWidth = mobile ? this.simWidth - 20 : 78;
+    const deckX = mobile ? 10 : 14;
+    const deckY = mobile ? topbar.y + topbar.height + 8 : topbar.y + topbar.height + 22;
+    const deckButtons = (this.frame.ui?.deckButtons ?? []).map((button, index) => ({
+      ...button,
+      x: mobile ? deckX + index * ((deckWidth - 6) / 4) : deckX,
+      y: mobile ? deckY : deckY + index * 46,
+      width: mobile ? (deckWidth - 18) / 4 : deckWidth,
+      height: mobile ? 36 : 38,
+    }));
+    const panel = {
+      x: mobile ? 10 : deckX + deckWidth + 14,
+      y: mobile ? deckY + 48 : deckY,
+      width: mobile ? this.simWidth - 20 : Math.min(360, this.simWidth * 0.48),
+      height: mobile ? Math.min(370, this.simHeight - deckY - 60) : Math.min(384, this.simHeight - deckY - 22),
+    };
+    let subdeckX = panel.x + 16;
+    const subdeckButtons = (this.frame.ui?.subdeckButtons ?? []).map((button) => {
+      const width = Math.min(98, Math.max(62, button.label.length * 6.2 + 22));
+      const positioned = {
+        ...button,
+        x: subdeckX,
+        y: panel.y + 48,
+        width,
+        height: 24,
+      };
+      subdeckX += width + 8;
+      return positioned;
+    });
+    const actionButtons = (this.frame.ui?.actionButtons ?? []).map((button, index) => {
+      const columns = mobile ? 1 : 2;
+      const gap = 8;
+      const width = (panel.width - 32 - gap * (columns - 1)) / columns;
+      const x = panel.x + 16 + (index % columns) * (width + gap);
+      const y = panel.y + 92 + Math.floor(index / columns) * 32;
+      return { ...button, x, y, width, height: 26 };
+    });
+    return { actionButtons, deckButtons, panel, subdeckButtons, topbar };
+  }
+
+  private drawOperatorUi(ctx: CanvasRenderingContext2D, time: number) {
+    const ui = this.frame.ui;
+    if (!ui) return;
+    const layout = this.operatorLayout(time);
+    const bounce = chirplet(time, 2.7, 1.4, -0.06, 5);
+    const mobile = this.simWidth < 430;
+    ctx.save();
+    ctx.textBaseline = "top";
+    ctx.lineJoin = "round";
+
+    ctx.globalAlpha = mobile ? 0.96 : 0.82;
+    ctx.fillStyle = mobile ? "rgba(5, 12, 9, 0.9)" : "rgba(5, 12, 9, 0.72)";
+    ctx.strokeStyle = "rgba(219, 238, 216, 0.34)";
+    ctx.shadowColor = "rgba(146, 216, 118, 0.28)";
+    ctx.shadowBlur = 16;
+    roundedRect(ctx, layout.topbar.x, layout.topbar.y, layout.topbar.width, layout.topbar.height, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#b9d8b5";
+    ctx.font = "900 8px Inter, system-ui, sans-serif";
+    ctx.fillText(ui.eyebrow.toUpperCase(), layout.topbar.x + 14, layout.topbar.y + 10);
+    ctx.fillStyle = "#fbfff8";
+    ctx.font = `${mobile ? 20 : 24}px Inter, system-ui, sans-serif`;
+    ctx.fillText(ui.title, layout.topbar.x + 14, layout.topbar.y + 24);
+    ctx.fillStyle = "rgba(226, 245, 225, 0.78)";
+    ctx.font = "800 9px Inter, system-ui, sans-serif";
+    wrapCanvasText(ctx, ui.reason, layout.topbar.x + 14, layout.topbar.y + (mobile ? 51 : 51), mobile ? layout.topbar.width - 28 : layout.topbar.width * 0.58, 12, mobile ? 2 : 1);
+
+    const pillY = mobile ? layout.topbar.y + 92 : layout.topbar.y + 14;
+    ui.statuses.slice(0, mobile ? 2 : 3).forEach((status, index) => {
+      const width = mobile ? layout.topbar.width - 28 : Math.min(112, Math.max(62, status.label.length * 5.8 + 20));
+      const x = mobile
+        ? layout.topbar.x + 14
+        : layout.topbar.x + layout.topbar.width - width - 12 - index * (width + 8);
+      const y = mobile ? pillY + index * 26 : pillY;
+      this.drawCrispButton(ctx, { key: "", label: status.label, disabled: false, tone: status.tone, x, y, width, height: 24 }, false, time + index);
+    });
+
+    for (const [index, button] of layout.deckButtons.entries()) {
+      const hot = this.pointer.active && hitZone({ ...button, radius: 0, key: button.key }, this.pointer.x, this.pointer.y);
+      this.hotOptions.push({ x: button.x, y: button.y, width: button.width, height: button.height, radius: 0, key: button.key });
+      this.drawCrispButton(ctx, button, hot, time + index * 0.7);
+    }
+
+    ctx.globalAlpha = mobile ? 0.94 : 0.82;
+    ctx.fillStyle = mobile ? "rgba(5, 12, 9, 0.88)" : "rgba(5, 12, 9, 0.76)";
+    ctx.strokeStyle = "rgba(219, 238, 216, 0.32)";
+    ctx.shadowColor = "rgba(88, 221, 196, 0.18)";
+    ctx.shadowBlur = 18;
+    roundedRect(ctx, layout.panel.x, layout.panel.y + bounce * 2.4, layout.panel.width, layout.panel.height, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#b9d8b5";
+    ctx.font = "900 8px Inter, system-ui, sans-serif";
+    ctx.fillText(ui.activeDeckLabel.toUpperCase(), layout.panel.x + 16, layout.panel.y + 15 + bounce * 2.4);
+    ctx.fillStyle = "#fbfff8";
+    ctx.font = "900 16px Inter, system-ui, sans-serif";
+    ctx.fillText(ui.activeSubdeck, layout.panel.x + 16, layout.panel.y + 28 + bounce * 2.4);
+
+    for (const [index, button] of layout.subdeckButtons.entries()) {
+      const hot = this.pointer.active && hitZone({ ...button, radius: 0, key: button.key }, this.pointer.x, this.pointer.y);
+      this.hotOptions.push({ x: button.x, y: button.y, width: button.width, height: button.height, radius: 0, key: button.key });
+      this.drawCrispButton(ctx, button, hot, time + index * 0.45);
+    }
+
+    if (layout.actionButtons.length > 0) {
+      for (const [index, button] of layout.actionButtons.entries()) {
+        const hot = this.pointer.active && hitZone({ ...button, radius: 0, key: button.key }, this.pointer.x, this.pointer.y);
+        this.hotOptions.push({ x: button.x, y: button.y, width: button.width, height: button.height, radius: 0, key: button.key });
+        this.drawCrispButton(ctx, button, hot, time + index * 0.32);
+      }
+    } else {
+      ctx.fillStyle = "rgba(226, 245, 225, 0.8)";
+      ctx.font = "800 10px Inter, system-ui, sans-serif";
+      ui.panelLines.slice(0, 10).forEach((line, index) => {
+        wrapCanvasText(ctx, line, layout.panel.x + 16, layout.panel.y + 88 + index * 25, layout.panel.width - 32, 13, 2);
+      });
+    }
+
+    if (layout.actionButtons.length > 0 && ui.panelLines.length > 0) {
+      ctx.fillStyle = "rgba(226, 245, 225, 0.72)";
+      ctx.font = "800 9px Inter, system-ui, sans-serif";
+      const startY = layout.panel.y + 92 + Math.ceil(layout.actionButtons.length / (this.simWidth < 430 ? 1 : 2)) * 32 + 8;
+      ui.panelLines.slice(0, 3).forEach((line, index) => {
+        wrapCanvasText(ctx, line, layout.panel.x + 16, startY + index * 18, layout.panel.width - 32, 12, 1);
+      });
+    }
+
+    if (ui.alert && !mobile) {
+      ctx.globalAlpha = 0.84;
+      ctx.fillStyle = "rgba(255, 244, 203, 0.86)";
+      ctx.strokeStyle = "rgba(247, 189, 88, 0.6)";
+      const alertWidth = Math.min(300, layout.topbar.width * 0.42);
+      const alertX = layout.topbar.x + layout.topbar.width - alertWidth - 12;
+      const alertY = layout.topbar.y + layout.topbar.height + 10;
+      roundedRect(ctx, alertX, alertY, alertWidth, 30, 7);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#70410f";
+      ctx.font = "900 9px Inter, system-ui, sans-serif";
+      wrapCanvasText(ctx, ui.alert, alertX + 10, alertY + 9, alertWidth - 20, 11, 1);
+    }
+
+    ctx.restore();
+  }
+
+  private drawCrispButton(ctx: CanvasRenderingContext2D, button: AquariumUiButtonFrame & { x: number; y: number; width: number; height: number }, hot: boolean, time: number) {
+    const pulse = chirplet(time, 0.5, 1.8, 0.09, 3);
+    const disabled = Boolean(button.disabled);
+    const toneColor = toneColorFor(button.tone);
+    ctx.save();
+    ctx.translate(0, hot && !disabled ? pulse * 1.8 : 0);
+    ctx.globalAlpha = disabled ? 0.36 : hot ? 0.94 : 0.78;
+    ctx.fillStyle = hot && !disabled ? hexAlpha(toneColor, 0.32) : "rgba(8, 14, 12, 0.78)";
+    ctx.strokeStyle = disabled ? "rgba(226, 245, 225, 0.16)" : hexAlpha(toneColor, hot ? 0.9 : 0.5);
+    roundedRect(ctx, button.x, button.y, button.width, button.height, Math.min(16, button.height / 2));
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = disabled ? "rgba(236, 246, 235, 0.42)" : "#fbfff8";
+    ctx.font = `900 ${button.width < 70 ? 7 : 9}px Inter, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(button.label.toUpperCase().slice(0, button.width < 70 ? 9 : 18), button.x + button.width / 2, button.y + button.height / 2 + 0.5);
     ctx.restore();
   }
 
@@ -899,6 +1260,114 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.restore();
   }
 
+  private drawFluidPanel(ctx: CanvasRenderingContext2D, time: number) {
+    this.fluidParamZones = [];
+    const iconSize = 32;
+    const iconX = this.simWidth - iconSize - 16;
+    const iconY = this.simHeight - iconSize - 16;
+    const iconZone: FluidParamZone = { key: "toggle", x: iconX, y: iconY, width: iconSize, height: iconSize };
+    this.fluidParamZones.push(iconZone);
+    const nearIcon = this.pointer.active && pointInInflatedRect(this.pointer.x, this.pointer.y, iconZone, 54);
+    const open = this.fluidPanelPinned || nearIcon || this.draggingFluidParam !== null;
+    const pulse = chirplet(time, 1.8, 2.4, 0.18, 2.8);
+
+    ctx.save();
+    ctx.globalAlpha = open ? 0.94 : 0.66;
+    ctx.fillStyle = open ? "rgba(247, 189, 88, 0.24)" : "rgba(8, 14, 12, 0.76)";
+    ctx.strokeStyle = "rgba(247, 189, 88, 0.76)";
+    ctx.shadowColor = "rgba(247, 189, 88, 0.42)";
+    ctx.shadowBlur = open ? 18 : 10;
+    roundedRect(ctx, iconX + pulse * 1.2, iconY - pulse * 1.2, iconSize, iconSize, 11);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#fff4cb";
+    ctx.font = "900 16px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("≈", iconX + iconSize / 2 + pulse * 1.2, iconY + iconSize / 2 - pulse * 1.2);
+
+    if (!open) {
+      ctx.restore();
+      return;
+    }
+
+    const panelWidth = Math.min(292, this.simWidth - 24);
+    const panelHeight = Math.min(342, this.simHeight - 48);
+    const panelX = clamp(iconX - panelWidth + iconSize, 12, this.simWidth - panelWidth - 12);
+    const panelY = clamp(iconY - panelHeight - 12 + chirplet(time, 0.2, 1.15, -0.05, 4) * 4, 12, this.simHeight - panelHeight - 12);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "rgba(5, 12, 9, 0.82)";
+    ctx.strokeStyle = "rgba(247, 189, 88, 0.48)";
+    ctx.shadowColor = "rgba(88, 221, 196, 0.22)";
+    ctx.shadowBlur = 20;
+    roundedRect(ctx, panelX, panelY, panelWidth, panelHeight, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#f7bd58";
+    ctx.font = "900 9px Inter, system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("FLUID PARAMETERS", panelX + 14, panelY + 12);
+    ctx.fillStyle = "rgba(226, 245, 225, 0.76)";
+    ctx.font = "800 9px Inter, system-ui, sans-serif";
+    ctx.fillText(this.fluidPanelPinned ? "pinned; drag rails" : "hover; click icon to pin", panelX + 14, panelY + 27);
+
+    const railX = panelX + 104;
+    const railWidth = panelWidth - 124;
+    fluidParamDefinitions.forEach((definition, index) => {
+      const y = panelY + 52 + index * 27;
+      const value = this.fluidParams[definition.key];
+      const t = (value - definition.min) / (definition.max - definition.min);
+      const hot = this.pointer.active && this.pointer.x >= railX - 4 && this.pointer.x <= railX + railWidth + 4 && this.pointer.y >= y - 5 && this.pointer.y <= y + 13;
+      this.fluidParamZones.push({ key: definition.key, x: railX - 5, y: y - 6, width: railWidth + 10, height: 18 });
+      ctx.fillStyle = hot ? "#fbfff8" : "rgba(226, 245, 225, 0.82)";
+      ctx.font = "900 8px Inter, system-ui, sans-serif";
+      ctx.fillText(definition.label.toUpperCase(), panelX + 14, y - 4);
+      ctx.fillStyle = "rgba(226, 245, 225, 0.42)";
+      ctx.fillRect(railX, y + 3, railWidth, 3);
+      ctx.fillStyle = hot ? "#58ddc4" : "#f7bd58";
+      ctx.fillRect(railX, y + 3, railWidth * t, 3);
+      ctx.beginPath();
+      ctx.arc(railX + railWidth * t, y + 4.5 + chirplet(time, index, 2.1, 0.03, 3) * 0.8, hot ? 5 : 3.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(251, 255, 248, 0.76)";
+      ctx.font = "800 8px Inter, system-ui, sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(value.toFixed(definition.decimals), panelX + panelWidth - 14, y - 4);
+      ctx.textAlign = "left";
+    });
+
+    const resetZone: FluidParamZone = { key: "reset", x: panelX + panelWidth - 82, y: panelY + panelHeight - 34, width: 66, height: 22 };
+    this.fluidParamZones.push(resetZone);
+    const resetHot = this.pointer.active && pointInRect(this.pointer.x, this.pointer.y, resetZone);
+    ctx.globalAlpha = resetHot ? 0.94 : 0.72;
+    ctx.fillStyle = resetHot ? "rgba(241, 95, 69, 0.26)" : "rgba(8, 14, 12, 0.74)";
+    ctx.strokeStyle = "rgba(241, 95, 69, 0.56)";
+    roundedRect(ctx, resetZone.x, resetZone.y, resetZone.width, resetZone.height, 11);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#fbfff8";
+    ctx.font = "900 8px Inter, system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("RESET", resetZone.x + resetZone.width / 2, resetZone.y + resetZone.height / 2);
+    ctx.restore();
+  }
+
+  private updateFluidParamFromPointer(key: FluidParamKey, pointerX: number) {
+    const zone = this.fluidParamZones.find((candidate) => candidate.key === key);
+    const definition = fluidParamDefinitions.find((candidate) => candidate.key === key);
+    if (!zone || !definition) return;
+    const t = clamp((pointerX - zone.x) / Math.max(zone.width, 1), 0, 1);
+    this.fluidParams = {
+      ...this.fluidParams,
+      [key]: definition.min + t * (definition.max - definition.min),
+    };
+    saveFluidParams(this.fluidParams);
+  }
+
   private drawTo(target: FluidTarget, program: WebGLProgram, uniforms: (gl: WebGL2RenderingContext, program: WebGLProgram) => void) {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
@@ -935,7 +1404,7 @@ class CanvasAquariumRenderer implements AquariumRenderer {
   }
 
   pickAgent() {
-    return this.hotAgents.find((zone) => distance(zone.x, zone.y, this.pointer.x, this.pointer.y) <= zone.radius)?.key ?? null;
+    return this.hotAgents.find((zone) => hitZone(zone, this.pointer.x, this.pointer.y))?.key ?? null;
   }
 
   pickOption() {
@@ -953,6 +1422,14 @@ class CanvasAquariumRenderer implements AquariumRenderer {
       x: ((clientX - rect.left) / Math.max(rect.width, 1)) * this.canvas.width,
       y: ((clientY - rect.top) / Math.max(rect.height, 1)) * this.canvas.height,
     };
+  }
+
+  pointerDownClient(clientX: number, clientY: number) {
+    this.setPointerClient(clientX, clientY);
+  }
+
+  pointerUp() {
+    // The 2D fallback has no draggable fluid parameters.
   }
 
   private render = (millis: number) => {
@@ -1015,6 +1492,35 @@ function compileShader(gl: WebGL2RenderingContext, type: number, source: string)
     throw new Error(`WebGL shader compile failed: ${info}`);
   }
   return shader;
+}
+
+function hitZone(zone: HotZone, x: number, y: number) {
+  if (zone.width !== undefined && zone.height !== undefined) {
+    return x >= zone.x && x <= zone.x + zone.width && y >= zone.y && y <= zone.y + zone.height;
+  }
+  return distance(zone.x, zone.y, x, y) <= zone.radius;
+}
+
+function pointInRect(x: number, y: number, rect: FluidParamZone) {
+  return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
+}
+
+function pointInInflatedRect(x: number, y: number, rect: FluidParamZone, inflate: number) {
+  return x >= rect.x - inflate && x <= rect.x + rect.width + inflate && y >= rect.y - inflate && y <= rect.y + rect.height + inflate;
+}
+
+function chirplet(time: number, phase: number, frequency: number, chirp: number, period: number) {
+  const local = ((time + phase) % period + period) % period;
+  const centered = local - period / 2;
+  const envelope = 0.28 + 0.72 * Math.exp(-(centered * centered) / (period * period * 0.18));
+  return Math.sin(phase + frequency * local + chirp * local * local) * envelope;
+}
+
+function toneColorFor(tone?: string) {
+  if (tone === "danger") return "#f15f45";
+  if (tone === "warn") return "#f7bd58";
+  if (tone === "ok") return "#58ddc4";
+  return "#92d876";
 }
 
 function drawAgentPath(ctx: CanvasRenderingContext2D, shape: string, size: number) {

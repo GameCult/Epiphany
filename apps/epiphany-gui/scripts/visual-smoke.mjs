@@ -8,6 +8,7 @@ const artifactDir = resolve(root, ".epiphany-gui");
 const desktopScreenshotPath = resolve(artifactDir, "operator-console-smoke-desktop.png");
 const mobileScreenshotPath = resolve(artifactDir, "operator-console-smoke-mobile.png");
 const url = "http://127.0.0.1:1420";
+const fluidStorageKey = "epiphany:aquarium-fluid-params:v1";
 
 await mkdir(artifactDir, { recursive: true });
 
@@ -28,14 +29,15 @@ try {
     channel: "msedge",
     headless: true,
   });
-  await smokeViewport(browser, { width: 1366, height: 900 }, desktopScreenshotPath);
-  await smokeViewport(browser, { width: 390, height: 844 }, mobileScreenshotPath);
+  const desktop = await smokeViewport(browser, { width: 1366, height: 900 }, desktopScreenshotPath, true);
+  const mobile = await smokeViewport(browser, { width: 390, height: 844 }, mobileScreenshotPath, false);
   await browser.close();
   console.log(
     JSON.stringify(
       {
         ok: true,
         screenshots: [desktopScreenshotPath, mobileScreenshotPath],
+        probes: { desktop, mobile },
       },
       null,
       2,
@@ -45,22 +47,74 @@ try {
   await server.close();
 }
 
-async function smokeViewport(browser, viewport, screenshotPath) {
+async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPanel) {
   const page = await browser.newPage({ viewport });
   await page.goto(url, { waitUntil: "networkidle" });
-  await page.getByRole("heading", { name: "Operator Console" }).waitFor();
+  await page.locator("h1").filter({ hasText: "Operator Console" }).waitFor({ state: "attached" });
   await page.locator(".immersiveShell").waitFor();
-  await page.getByRole("button", { name: "Self prepareCheckpoint" }).waitFor();
   await page.locator(".agentSmokeCanvas").waitFor();
-  await page.waitForTimeout(350);
-  const canvasProbe = await page.locator(".agentSmokeCanvas").evaluate((canvas) => {
+  await page.locator(".agentCrispCanvas").waitFor();
+  await page.waitForTimeout(700);
+
+  const smokeProbe = await probeCanvas(page, ".agentSmokeCanvas");
+  const crispProbe = await probeCanvas(page, ".agentCrispCanvas");
+  if (!smokeProbe.nonBlank) {
+    throw new Error(`agent smoke canvas did not render: ${smokeProbe.reason}`);
+  }
+  if (!crispProbe.nonBlank) {
+    throw new Error(`agent crisp canvas did not render: ${crispProbe.reason}`);
+  }
+
+  const hiddenSurface = await page.evaluate(() => {
+    return [".immersiveTopbar", ".deckRail", ".diegeticPanel", ".hudToastStack"].every((selector) => {
+      const element = document.querySelector(selector);
+      if (!element) return false;
+      const style = window.getComputedStyle(element);
+      return style.opacity === "0" && style.pointerEvents === "none";
+    });
+  });
+  if (!hiddenSurface) {
+    throw new Error("static operator overlays are still visible or interactive");
+  }
+
+  let persistedParams = null;
+  if (exerciseFluidPanel) {
+    await page.evaluate((key) => window.localStorage.removeItem(key), fluidStorageKey);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator(".agentSmokeCanvas").waitFor();
+    await page.waitForTimeout(700);
+    await page.mouse.click(viewport.width - 48, viewport.height - 48);
+    await page.waitForTimeout(120);
+    await page.mouse.move(viewport.width - 360, 276);
+    await page.mouse.down();
+    await page.mouse.move(viewport.width - 118, 276, { steps: 8 });
+    await page.mouse.up();
+    persistedParams = await page.evaluate((key) => window.localStorage.getItem(key), fluidStorageKey);
+    if (!persistedParams || !persistedParams.includes("timeScale")) {
+      throw new Error("fluid parameter panel did not persist changed parameters");
+    }
+  }
+
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+  const result = await page.evaluate(() => ({
+    horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+  }));
+  await page.close();
+  if (result.horizontalOverflow) {
+    throw new Error(`visual smoke found horizontal overflow at ${viewport.width}x${viewport.height}`);
+  }
+  return { smokeProbe, crispProbe, persistedParams };
+}
+
+async function probeCanvas(page, selector) {
+  return page.locator(selector).evaluate((canvas) => {
     if (!(canvas instanceof HTMLCanvasElement) || canvas.width === 0 || canvas.height === 0) {
       return { nonBlank: false, reason: "canvas has no drawable dimensions" };
     }
     const gl = canvas.getContext("webgl2");
     if (gl) {
-      const width = Math.min(6, canvas.width);
-      const height = Math.min(6, canvas.height);
+      const width = Math.min(12, canvas.width);
+      const height = Math.min(12, canvas.height);
       const pixels = new Uint8Array(width * height * 4);
       gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
       return {
@@ -70,125 +124,16 @@ async function smokeViewport(browser, viewport, screenshotPath) {
     }
     const context = canvas.getContext("2d");
     if (!context) return { nonBlank: false, reason: "no readable canvas context" };
-    const width = Math.min(6, canvas.width);
-    const height = Math.min(6, canvas.height);
-    const pixels = context.getImageData(0, 0, width, height).data;
+    const width = Math.min(64, canvas.width);
+    const height = Math.min(64, canvas.height);
+    const centerX = Math.max(0, Math.floor(canvas.width / 2 - width / 2));
+    const centerY = Math.max(0, Math.floor(canvas.height / 2 - height / 2));
+    const pixels = context.getImageData(centerX, centerY, width, height).data;
     return {
       nonBlank: Array.from(pixels).some((value) => value !== 0),
       reason: "2d sample",
     };
   });
-  if (!canvasProbe.nonBlank) {
-    throw new Error(`agent smoke canvas did not render: ${canvasProbe.reason}`);
-  }
-  await page.getByRole("button", { name: "Command" }).waitFor();
-  await page.getByRole("button", { name: "State" }).waitFor();
-  await page.getByRole("button", { name: "Agents" }).waitFor();
-  await page.getByRole("button", { name: "Artifacts" }).waitFor();
-  await page.getByRole("button", { name: "Prepare Checkpoint" }).waitFor();
-  await page.getByRole("button", { name: "Inspect Rider" }).waitFor();
-  await page.getByRole("button", { name: "Adopt Draft" }).waitFor();
-  await page.getByRole("button", { name: "Launch Imagination" }).waitFor();
-  await page.getByRole("button", { name: "Read Imagination" }).waitFor();
-  await page.getByRole("button", { name: "Launch Modeling" }).waitFor();
-  await page.getByRole("button", { name: "Read Modeling" }).waitFor();
-  await page.getByRole("button", { name: "Launch Verification" }).waitFor();
-  await page.getByRole("button", { name: "Read Verification" }).waitFor();
-  await page.getByRole("button", { name: "Launch Reorient" }).waitFor();
-  await page.getByRole("button", { name: "Read Reorient" }).waitFor();
-  await page.getByRole("button", { name: "Accept Reorient" }).waitFor();
-  await page.getByRole("button", { name: "State" }).click();
-  await page.getByRole("button", { name: "environment" }).waitFor();
-  await page.getByText("Unity Editor").waitFor();
-  await page.getByRole("heading", { name: "Rider", exact: true }).waitFor();
-  await page.getByText("Aetheria.sln").waitFor();
-  await page.getByRole("button", { name: "planning" }).click();
-  await page.getByRole("heading", { name: "Build the planning dashboard slice", exact: true }).waitFor();
-  await page.getByRole("button", { name: "graph" }).click();
-  await page.getByText("Epiphany Typed Graph").waitFor();
-  await page.getByRole("button", { name: "Agents" }).click();
-  await page.getByRole("button", { name: "lanes" }).waitFor();
-  await page.getByRole("heading", { name: "Implementation", exact: true }).waitFor();
-  await page.getByRole("button", { name: "findings" }).click();
-  await page.getByRole("heading", { name: "Imagination / Planning", exact: true }).waitFor();
-  await page.getByRole("button", { name: "jobs" }).click();
-  await page.getByText("retrieval-index").waitFor();
-  await page.getByRole("button", { name: "Artifacts" }).click();
-  await page.getByText("runtime/unity-inspect-sample").waitFor();
-  await page.getByRole("button", { name: "Command" }).click();
-  if (viewport.width >= 900) {
-    await page.getByRole("button", { name: "Status Snapshot" }).click();
-    await page.getByText("statusSnapshot sample completed.").waitFor();
-    await page.getByRole("button", { name: "Coordinator Plan" }).click();
-    await page.getByText("coordinatorPlan sample completed.").waitFor();
-    await page.getByRole("button", { name: "Inspect Rider" }).click();
-    await page.getByText("inspectRider sample completed.").waitFor();
-    await page.getByRole("button", { name: "Prepare Checkpoint" }).click();
-    await page.getByText("prepareCheckpoint sample completed.").waitFor();
-    await page.getByRole("button", { name: "Read Imagination" }).click();
-    await page.getByText("readImaginationResult sample completed.").waitFor();
-    await page.getByRole("button", { name: "Read Modeling" }).click();
-    await page.getByText("readModelingResult sample completed.").waitFor();
-    await page.getByRole("button", { name: "Read Reorient" }).click();
-    await page.getByText("readReorientResult sample completed.").waitFor();
-  }
-  await page.screenshot({ path: screenshotPath, fullPage: true });
-
-  const result = await page.evaluate(() => {
-    const elements = Array.from(document.querySelectorAll("h1, h2, h3, p, dd, code, button, input, .pill"));
-    const overlaps = [];
-    function isPaintedAtSample(element, rect) {
-      const style = window.getComputedStyle(element);
-      if (style.visibility === "hidden" || style.display === "none" || Number(style.opacity) === 0) {
-        return false;
-      }
-      const points = [
-        [rect.left + rect.width / 2, rect.top + rect.height / 2],
-        [rect.left + Math.min(8, rect.width / 2), rect.top + rect.height / 2],
-        [rect.right - Math.min(8, rect.width / 2), rect.top + rect.height / 2],
-        [rect.left + rect.width / 2, rect.top + Math.min(8, rect.height / 2)],
-        [rect.left + rect.width / 2, rect.bottom - Math.min(8, rect.height / 2)],
-      ];
-      return points.some(([x, y]) => {
-        if (x < 0 || y < 0 || x > window.innerWidth || y > window.innerHeight) return false;
-        const hit = document.elementFromPoint(x, y);
-        return hit === element || Boolean(hit && element.contains(hit));
-      });
-    }
-    for (let index = 0; index < elements.length; index += 1) {
-      const left = elements[index];
-      const a = elements[index].getBoundingClientRect();
-      if (a.width === 0 || a.height === 0) continue;
-      if (!isPaintedAtSample(left, a)) continue;
-      for (let other = index + 1; other < elements.length; other += 1) {
-        const right = elements[other];
-        if (left.contains(right) || right.contains(left)) continue;
-        const b = elements[other].getBoundingClientRect();
-        if (b.width === 0 || b.height === 0) continue;
-        if (!isPaintedAtSample(right, b)) continue;
-        const x = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-        const y = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-        if (x > 2 && y > 2) {
-          overlaps.push({
-            left: left.textContent?.trim() || left.getAttribute("placeholder") || left.tagName,
-            right: right.textContent?.trim() || right.getAttribute("placeholder") || right.tagName,
-          });
-        }
-      }
-    }
-    return {
-      overlaps,
-      horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-    };
-  });
-
-  await page.close();
-  if (result.horizontalOverflow) {
-    throw new Error(`visual smoke found horizontal overflow at ${viewport.width}x${viewport.height}`);
-  }
-  if (result.overlaps.length > 0) {
-    throw new Error(`visual smoke found overlapping text/control boxes: ${JSON.stringify(result.overlaps)}`);
-  }
 }
 
 async function waitForServer(target) {

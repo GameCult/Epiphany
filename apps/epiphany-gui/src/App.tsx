@@ -19,7 +19,7 @@ import { createAquariumRenderer } from "./aquariumFluid";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 import type { EpiphanyCodeRef, EpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
-import type { AquariumOptionFrame, AquariumRenderer } from "./aquariumFluid";
+import type { AquariumOptionFrame, AquariumRenderer, AquariumUiFrame } from "./aquariumFluid";
 
 const roleOrder = ["implementation", "imagination", "research", "eyes", "modeling", "verification", "reorientation"];
 const constellationSpecs = [
@@ -392,6 +392,10 @@ function text(value: unknown, fallback = "none"): string {
   return fallback;
 }
 
+function displayLabel(value: unknown, fallback = "none"): string {
+  return text(value, fallback).replace(/([a-z])([A-Z])/g, "$1 $2");
+}
+
 function listText(value: unknown, fallback = "none"): string {
   return Array.isArray(value) && value.length > 0 ? value.map(String).join(", ") : fallback;
 }
@@ -726,6 +730,107 @@ export function App() {
       </button>
     );
   });
+  const aquariumPanelLines = (() => {
+    if (activeDeck === "command" && activeSubdeck === "run") {
+      return [
+        text(actionResult?.summary, "Choose a bounded operation; review gates stay explicit."),
+        text(actionResult?.artifactPath, "No fresh artifact path."),
+      ];
+    }
+    if (activeDeck === "command" && activeSubdeck === "connection") {
+      return [
+        `Thread: ${text(status?.threadId)}`,
+        `State: ${text(scene.stateStatus)} rev ${text(scene.revision)}`,
+        `Repo: ${text(snapshot?.repoRoot)}`,
+        `Draft: ${text(request.planningDraftId)}`,
+      ];
+    }
+    if (activeDeck === "command" && activeSubdeck === "signals") {
+      return [
+        `Action: ${text(coordinator.action ?? crrc.action, "unknown")}`,
+        `Target: ${text(coordinator.targetRole ?? crrc.recommendedSceneAction)}`,
+        `Review: ${text(coordinator.requiresReview)}`,
+        `Pressure: ${text(pressure.level)}`,
+        `Reorient: ${text(reorient.action)} / ${text(reorient.nextAction)}`,
+      ];
+    }
+    if (activeDeck === "state" && activeSubdeck === "environment") {
+      return [
+        `Unity: ${unityBridgeReady ? "bridge ready" : text(latestRuntimeAudit?.status, "unknown")}`,
+        `Editor: ${text(latestRuntimeAudit?.editorPath, "missing")}`,
+        `Rider: ${text(latestRiderAudit?.status, "unknown")}`,
+        `Solution: ${text(latestRiderAudit?.solutionPath)}`,
+        `Changed files: ${riderChangedFiles.length}`,
+      ];
+    }
+    if (activeDeck === "state" && activeSubdeck === "planning") {
+      return [
+        `Captures: ${countText(planningSummary?.captureCount)} / pending ${countText(planningSummary?.pendingCaptureCount)}`,
+        `Backlog: ${countText(planningSummary?.backlogItemCount)} / ready ${countText(planningSummary?.readyBacklogItemCount)}`,
+        `Drafts: ${countText(planningSummary?.objectiveDraftCount)}`,
+        text(selectedDraft?.title, "No draft objective selected."),
+      ];
+    }
+    if (activeDeck === "state" && activeSubdeck === "graph") {
+      return [
+        `Architecture: ${graphState.architecture.nodes.length} nodes / ${graphState.architecture.edges.length} edges`,
+        `Dataflow: ${graphState.dataflow.nodes.length} nodes / ${graphState.dataflow.edges.length} edges`,
+        `Links: ${graphState.links.length}`,
+        `Issues: ${graphIssues.length}`,
+      ];
+    }
+    if (activeDeck === "agents" && activeSubdeck === "lanes") {
+      return roles.slice(0, 8).map((role) => `${text(role.title)}: ${text(role.status)} / ${text(role.note)}`);
+    }
+    if (activeDeck === "agents" && activeSubdeck === "findings") {
+      return [
+        `Imagination: ${text(roleResults.imagination?.status)}`,
+        `Modeling: ${text(roleResults.modeling?.status)}`,
+        `Verification: ${text(roleResults.verification?.status)}`,
+        `Reorient: ${text(reorientResult?.status)}`,
+      ];
+    }
+    if (activeDeck === "agents" && activeSubdeck === "jobs") {
+      return jobs.length ? jobs.slice(0, 8).map((job) => `${text(job.id)}: ${text(job.status)} / ${text(job.kind)}`) : ["No jobs loaded."];
+    }
+    return (snapshot?.artifacts ?? []).length
+      ? (snapshot?.artifacts ?? []).slice(0, 8).map((artifact) => `${artifact.name}: ${artifact.files.length} files`)
+      : ["No dogfood artifact bundles found."];
+  })();
+  const aquariumUi: AquariumUiFrame = {
+    eyebrow: "Epiphany MVP",
+    title: "Operator Console",
+    reason: text(coordinator.reason ?? crrc.reason, "No recommendation loaded yet."),
+    activeDeckLabel: activeDeckTitle,
+    activeSubdeck,
+    statuses: [
+      { label: displayLabel(coordinator.action ?? crrc.action, "unknown"), tone: statusClass(coordinator.action ?? crrc.action) },
+      { label: `pressure ${text(pressure.level, "unknown")}`, tone: statusClass(pressure.level) },
+      { label: `continuity ${text(reorient.action, "unknown")}`, tone: statusClass(reorient.action) },
+    ],
+    deckButtons: (Object.keys(deckSubmenus) as DeckId[]).map((deck) => ({
+      key: `ui:deck:${deck}`,
+      label: deckLabels[deck],
+      tone: activeDeck === deck ? "warn" : "neutral",
+    })),
+    subdeckButtons: deckSubmenus[activeDeck].map((subdeck) => ({
+      key: `ui:subdeck:${activeDeck}:${subdeck}`,
+      label: subdeck,
+      tone: activeSubdeck === subdeck ? "warn" : "neutral",
+    })),
+    actionButtons:
+      activeDeck === "command" && activeSubdeck === "run"
+        ? actionButtons.map((button) => ({
+            key: `ui:action:${button.action}`,
+            label: runningAction === button.action ? button.runningLabel : button.label,
+            disabled: actionBlocked(button.action),
+            tone: actionBlocked(button.action) ? "neutral" : "ok",
+          }))
+        : [],
+    panelTitle: `${activeDeckTitle} / ${activeSubdeck}`,
+    panelLines: aquariumPanelLines,
+    alert: error ?? (latestRuntimeAudit ? `Unity: ${text(latestRuntimeAudit.projectVersion)} is ${text(latestRuntimeAudit.status)}.` : undefined),
+  };
 
   useEffect(() => {
     if (objectiveDrafts.length === 0) return;
@@ -755,6 +860,7 @@ export function App() {
         variant="fullscreen"
         activeDeck={activeDeck}
         activeSubdeck={activeSubdeck}
+        ui={aquariumUi}
         onAgentOption={handleAquariumOption}
         isActionBlocked={actionBlocked}
       />
@@ -1198,6 +1304,7 @@ function AgentConstellation({
   variant = "band",
   activeDeck,
   activeSubdeck,
+  ui,
   onAgentOption,
   isActionBlocked,
 }: {
@@ -1212,12 +1319,14 @@ function AgentConstellation({
   variant?: "band" | "fullscreen";
   activeDeck?: DeckId;
   activeSubdeck?: string;
+  ui?: AquariumUiFrame;
   onAgentOption?: (option: AquariumOption) => void;
   isActionBlocked?: (action: OperatorAction) => boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const crispCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const optionByKeyRef = useRef(new globalThis.Map<string, AquariumOption>());
+  const uiOptionByKeyRef = useRef(new globalThis.Map<string, AquariumOption>());
   const rendererRef = useRef<AquariumRenderer | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState("coordinator");
   const agents = useMemo<ProjectedAgent[]>(() => {
@@ -1297,6 +1406,29 @@ function AgentConstellation({
   }, [agents, isActionBlocked]);
 
   useEffect(() => {
+    const uiOptions = new globalThis.Map<string, AquariumOption>();
+    for (const button of ui?.deckButtons ?? []) {
+      const deck = button.key.split(":")[2] as DeckId | undefined;
+      if (deck && deck in deckLabels) {
+        uiOptions.set(button.key, { label: button.label, deck });
+      }
+    }
+    for (const button of ui?.subdeckButtons ?? []) {
+      const [, , deck, subdeck] = button.key.split(":");
+      if (deck && subdeck && deck in deckLabels) {
+        uiOptions.set(button.key, { label: button.label, deck: deck as DeckId, subdeck });
+      }
+    }
+    for (const button of ui?.actionButtons ?? []) {
+      const action = button.key.split(":")[2] as OperatorAction | undefined;
+      if (action) {
+        uiOptions.set(button.key, { label: button.label, action });
+      }
+    }
+    uiOptionByKeyRef.current = uiOptions;
+  }, [ui]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     const crispCanvas = crispCanvasRef.current;
     if (!canvas) return;
@@ -1313,22 +1445,36 @@ function AgentConstellation({
       activeLabel: activeDeck ? `${deckLabels[activeDeck]} / ${activeSubdeck ?? ""}` : undefined,
       agents: aquariumAgents,
       selectedAgentId,
+      ui,
       variant,
     });
-  }, [activeDeck, activeSubdeck, aquariumAgents, selectedAgentId, variant]);
+  }, [activeDeck, activeSubdeck, aquariumAgents, selectedAgentId, ui, variant]);
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     rendererRef.current?.setPointerClient(event.clientX, event.clientY);
   }
 
+  function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    rendererRef.current?.pointerDownClient(event.clientX, event.clientY);
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    rendererRef.current?.pointerUp();
+  }
+
   function handlePointerLeave() {
     rendererRef.current?.clearPointer();
+    rendererRef.current?.pointerUp();
   }
 
   function handleCanvasClick() {
     const optionKey = rendererRef.current?.pickOption();
     if (optionKey) {
-      const option = optionByKeyRef.current.get(optionKey);
+      const option = optionByKeyRef.current.get(optionKey) ?? uiOptionByKeyRef.current.get(optionKey);
       if (option) {
         onAgentOption?.(option);
       }
@@ -1359,8 +1505,10 @@ function AgentConstellation({
           ref={canvasRef}
           className="agentSmokeCanvas"
           aria-hidden="true"
+          onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
+          onPointerUp={handlePointerUp}
           onClick={handleCanvasClick}
         />
         <canvas
