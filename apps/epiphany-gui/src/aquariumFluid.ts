@@ -126,6 +126,7 @@ interface FluidParamDefinition {
   min: number;
   max: number;
   decimals: number;
+  scale?: "linear" | "log";
 }
 
 interface FluidParamZone {
@@ -174,7 +175,7 @@ const defaultFluidParams: FluidParams = {
 };
 
 const fluidParamDefinitions: FluidParamDefinition[] = [
-  { key: "timeScale", label: "Time", min: 0.004, max: 0.16, decimals: 3 },
+  { key: "timeScale", label: "Speed", min: 0.004, max: 0.16, decimals: 3, scale: "log" },
   { key: "curlStrength", label: "Curl", min: 0, max: 180, decimals: 0 },
   { key: "swirlForce", label: "Swirl", min: 0, max: 220, decimals: 0 },
   { key: "splatForce", label: "Push", min: 0, max: 24, decimals: 1 },
@@ -1384,7 +1385,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     fluidParamDefinitions.forEach((definition, index) => {
       const y = panelY + 52 + index * rowGap;
       const value = this.fluidParams[definition.key];
-      const t = (value - definition.min) / (definition.max - definition.min);
+      const t = fluidParamToUnit(definition, value);
       const hot = this.pointer.active && this.pointer.x >= railX - 4 && this.pointer.x <= railX + railWidth + 4 && this.pointer.y >= y - 5 && this.pointer.y <= y + 13;
       this.fluidParamZones.push({ key: definition.key, x: railX - 5, y: y - 6, width: railWidth + 10, height: 18 });
       ctx.fillStyle = hot ? "#fbfff8" : "rgba(226, 245, 225, 0.82)";
@@ -1428,7 +1429,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     const t = clamp((pointerX - zone.x) / Math.max(zone.width, 1), 0, 1);
     this.fluidParams = {
       ...this.fluidParams,
-      [key]: definition.min + t * (definition.max - definition.min),
+      [key]: fluidParamFromUnit(definition, t),
     };
     this.paramImpulse = Math.max(this.paramImpulse, 1);
     this.lastFluidParamChanged = key;
@@ -1602,6 +1603,26 @@ function paramColorFor(key: FluidParamKey | null) {
 
 function splatFalloff(radius: number) {
   return clamp(74088 / Math.max(radius * radius, 1), 3, 1200);
+}
+
+function fluidParamToUnit(definition: FluidParamDefinition, value: number) {
+  const clamped = clamp(value, definition.min, definition.max);
+  if (definition.scale === "log") {
+    const min = Math.max(definition.min, Number.EPSILON);
+    const max = Math.max(definition.max, min * 1.0001);
+    return clamp(Math.log(clamped / min) / Math.log(max / min), 0, 1);
+  }
+  return clamp((clamped - definition.min) / Math.max(definition.max - definition.min, Number.EPSILON), 0, 1);
+}
+
+function fluidParamFromUnit(definition: FluidParamDefinition, unit: number) {
+  const t = clamp(unit, 0, 1);
+  if (definition.scale === "log") {
+    const min = Math.max(definition.min, Number.EPSILON);
+    const max = Math.max(definition.max, min * 1.0001);
+    return min * Math.pow(max / min, t);
+  }
+  return definition.min + t * (definition.max - definition.min);
 }
 
 function lerp(from: number, to: number, t: number) {
