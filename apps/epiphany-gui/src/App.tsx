@@ -1517,60 +1517,65 @@ function AgentConstellation({
           aria-hidden="true"
         />
         <div className="agentStageVignette" aria-hidden="true" />
-        {variant === "band" ? (
-          agents.map((agent) => (
-            <button
-              className={`agentCharacter ${agent.shape} ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
-              key={agent.id}
-              type="button"
-              data-agent-node={agent.id}
-              onClick={() => setSelectedAgentId(agent.id)}
-              title={`${agent.name}: ${agent.thought}`}
-              style={
-                {
-                  "--agent-x": `${agent.baseX}%`,
-                  "--agent-y": `${agent.baseY}%`,
-                  "--agent-color": agent.color,
-                  "--agent-glow": agent.glow,
-                  "--agent-activity": agent.activity,
-                  "--agent-bubble-opacity": 0.38 + agent.activity * 0.28,
-                } as React.CSSProperties
-              }
-            >
-              <span className="agentGlyph" aria-hidden="true">{agent.glyph}</span>
-              <span className="agentCaption">
-                <strong>{agent.name}</strong>
-                <span>{agent.status}</span>
-              </span>
-            </button>
-          ))
-        ) : (
-          <div className="simulationOnlyControls">
-            {agents.map((agent) => (
-              <button
-                type="button"
-                key={agent.id}
-                onClick={() => setSelectedAgentId(agent.id)}
-                aria-label={`${agent.name} ${agent.status}`}
-              />
-            ))}
+        {agents.map((agent) => (
+          <button
+            className={`agentCharacter ${agent.shape} ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
+            key={agent.id}
+            type="button"
+            data-agent-node={agent.id}
+            onClick={() => setSelectedAgentId(agent.id)}
+            title={`${agent.name}: ${agent.thought}`}
+            style={
+              {
+                "--agent-x": `${agent.baseX}%`,
+                "--agent-y": `${agent.baseY}%`,
+                "--agent-color": agent.color,
+                "--agent-glow": agent.glow,
+                "--agent-activity": agent.activity,
+                "--agent-bubble-opacity": 0.38 + agent.activity * 0.28,
+              } as React.CSSProperties
+            }
+          >
+            <span className="agentGlyph" aria-hidden="true">{agent.glyph}</span>
+            <span className="agentCaption">
+              <strong>{agent.name}</strong>
+              <span>{agent.status}</span>
+            </span>
+          </button>
+        ))}
+        {agents.map((agent) => (
+          <div
+            className={`thoughtBubble ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
+            key={`${agent.id}-thought`}
+            data-agent-thought={agent.id}
+            style={
+              {
+                "--agent-x": `${agent.baseX}%`,
+                "--agent-y": `${agent.baseY}%`,
+                "--agent-color": agent.color,
+                "--agent-glow": agent.glow,
+                "--agent-activity": agent.activity,
+                "--agent-bubble-opacity": 0.38 + agent.activity * 0.28,
+              } as React.CSSProperties
+            }
+          >
+            <strong>{agent.name}</strong>
+            <span>{agent.thought}</span>
           </div>
-        )}
-        {variant === "band" && (
-          <div className="constellationInspector">
-            <div>
-              <span>{selectedAgent.title}</span>
-              <strong>{selectedAgent.name}</strong>
-              <p>{selectedAgent.thought}</p>
-            </div>
-            <dl className="facts compact">
-              <div><dt>Status</dt><dd><Pill tone={selectedAgent.tone}>{selectedAgent.status}</Pill></dd></div>
-              <div><dt>Detail</dt><dd>{selectedAgent.detail}</dd></div>
-              <div><dt>Jobs</dt><dd>{selectedAgent.jobs}</dd></div>
-              <div><dt>Review</dt><dd>{selectedAgent.review}</dd></div>
-            </dl>
+        ))}
+        <div className="constellationInspector">
+          <div>
+            <span>{selectedAgent.title}</span>
+            <strong>{selectedAgent.name}</strong>
+            <p>{selectedAgent.thought}</p>
           </div>
-        )}
+          <dl className="facts compact">
+            <div><dt>Status</dt><dd><Pill tone={selectedAgent.tone}>{selectedAgent.status}</Pill></dd></div>
+            <div><dt>Detail</dt><dd>{selectedAgent.detail}</dd></div>
+            <div><dt>Jobs</dt><dd>{selectedAgent.jobs}</dd></div>
+            <div><dt>Review</dt><dd>{selectedAgent.review}</dd></div>
+          </dl>
+        </div>
       </div>
     </section>
   );

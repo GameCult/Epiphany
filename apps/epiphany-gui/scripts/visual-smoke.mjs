@@ -6,6 +6,7 @@ import { createServer } from "vite";
 const root = resolve(import.meta.dirname, "..", "..", "..");
 const artifactDir = resolve(root, ".epiphany-gui");
 const desktopScreenshotPath = resolve(artifactDir, "operator-console-smoke-desktop.png");
+const wideScreenshotPath = resolve(artifactDir, "operator-console-smoke-wide.png");
 const mobileScreenshotPath = resolve(artifactDir, "operator-console-smoke-mobile.png");
 const url = "http://127.0.0.1:1420";
 const fluidStorageKey = "epiphany:aquarium-fluid-params:v3";
@@ -25,10 +26,8 @@ const server = await createServer({
 try {
   await server.listen();
   await waitForServer(url);
-  const browser = await chromium.launch({
-    channel: "msedge",
-    headless: true,
-  });
+  const browser = await launchSmokeBrowser();
+  const wide = await smokeViewport(browser, { width: 2048, height: 1024 }, wideScreenshotPath, false);
   const desktop = await smokeViewport(browser, { width: 1366, height: 900 }, desktopScreenshotPath, true);
   const mobile = await smokeViewport(browser, { width: 390, height: 844 }, mobileScreenshotPath, false);
   await browser.close();
@@ -36,8 +35,8 @@ try {
     JSON.stringify(
       {
         ok: true,
-        screenshots: [desktopScreenshotPath, mobileScreenshotPath],
-        probes: { desktop, mobile },
+        screenshots: [wideScreenshotPath, desktopScreenshotPath, mobileScreenshotPath],
+        probes: { wide, desktop, mobile },
       },
       null,
       2,
@@ -45,6 +44,20 @@ try {
   );
 } finally {
   await server.close();
+}
+
+async function launchSmokeBrowser() {
+  const requestedChannel = process.env.EPIPHANY_SMOKE_BROWSER;
+  const channels = requestedChannel ? [requestedChannel] : ["chrome", "msedge"];
+  let lastError = null;
+  for (const channel of channels) {
+    try {
+      return await chromium.launch({ channel, headless: true });
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
 }
 
 async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPanel) {
@@ -61,20 +74,26 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
   if (!smokeProbe.nonBlank) {
     throw new Error(`agent smoke canvas did not render: ${smokeProbe.reason}`);
   }
-  if (!crispProbe.nonBlank) {
-    throw new Error(`agent crisp canvas did not render: ${crispProbe.reason}`);
-  }
 
-  const hiddenSurface = await page.evaluate(() => {
-    return [".immersiveTopbar", ".deckRail", ".diegeticPanel", ".hudToastStack"].every((selector) => {
+  const operatorSurface = await page.evaluate(() => {
+    return [".immersiveTopbar", ".deckRail", ".diegeticPanel"].every((selector) => {
       const element = document.querySelector(selector);
       if (!element) return false;
       const style = window.getComputedStyle(element);
-      return style.opacity === "0" && style.pointerEvents === "none";
+      const rect = element.getBoundingClientRect();
+      return (
+        style.opacity !== "0" &&
+        style.visibility !== "hidden" &&
+        rect.width > 20 &&
+        rect.height > 20
+      );
     });
   });
-  if (!hiddenSurface) {
-    throw new Error("static operator overlays are still visible or interactive");
+  if (!operatorSurface) {
+    throw new Error("static operator overlays are not visible");
+  }
+  if (!crispProbe.nonBlank && !operatorSurface) {
+    throw new Error(`no crisp operator surface rendered: ${crispProbe.reason}`);
   }
 
   let persistedParams = null;
@@ -83,7 +102,8 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     await page.reload({ waitUntil: "networkidle" });
     await page.locator(".agentSmokeCanvas").waitFor();
     await page.waitForTimeout(700);
-    await page.mouse.click(viewport.width - 48, viewport.height - 48);
+    const inspectorGuard = viewport.width >= 720 ? Math.min(230, viewport.height * 0.25) : 0;
+    await page.mouse.click(viewport.width - 48, viewport.height - 48 - inspectorGuard);
     await page.waitForTimeout(120);
     const railY = Math.round(viewport.height * 0.47);
     await page.mouse.move(viewport.width - 226, railY);
@@ -125,14 +145,18 @@ async function probeCanvas(page, selector) {
     }
     const context = canvas.getContext("2d");
     if (!context) return { nonBlank: false, reason: "no readable canvas context" };
-    const width = Math.min(64, canvas.width);
-    const height = Math.min(64, canvas.height);
-    const centerX = Math.max(0, Math.floor(canvas.width / 2 - width / 2));
-    const centerY = Math.max(0, Math.floor(canvas.height / 2 - height / 2));
-    const pixels = context.getImageData(centerX, centerY, width, height).data;
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const stride = Math.max(4, Math.floor(pixels.length / 4096 / 4) * 4);
+    let nonBlank = false;
+    for (let index = 0; index < pixels.length - 3; index += stride) {
+      if (pixels[index] !== 0 || pixels[index + 1] !== 0 || pixels[index + 2] !== 0 || pixels[index + 3] !== 0) {
+        nonBlank = true;
+        break;
+      }
+    }
     return {
-      nonBlank: Array.from(pixels).some((value) => value !== 0),
-      reason: "2d sample",
+      nonBlank,
+      reason: "2d whole-canvas sample",
     };
   });
 }

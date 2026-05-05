@@ -472,22 +472,6 @@ body:has(.immersiveShell) {
   mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.8), transparent 72%);
 }
 
-.immersiveShell .hudGrid,
-.immersiveShell .immersiveTopbar,
-.immersiveShell .deckRail,
-.immersiveShell .diegeticPanel,
-.immersiveShell .hudToastStack {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0 0 0 0) !important;
-  clip-path: inset(50%) !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
 .immersiveTopbar,
 .deckRail,
 .diegeticPanel,

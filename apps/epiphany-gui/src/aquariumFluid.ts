@@ -888,8 +888,6 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.drawThoughtSource(ctx, activeAgent);
       this.drawOptionsSource(ctx, activeAgent);
     }
-    this.drawDeckSource(ctx);
-    this.drawOperatorSource(ctx, time);
     this.drawParameterImpulseSource(ctx, time);
     ctx.restore();
   }
@@ -1189,16 +1187,18 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.crispCanvas.width, this.crispCanvas.height);
     ctx.scale(scaleX, scaleY);
-    for (const agent of projected) {
-      const hot = agent.id === activeAgent?.id || agent.id === this.frame.selectedAgentId;
-      this.drawCrispAgent(ctx, agent, hot);
+    if (this.frame.variant !== "fullscreen") {
+      for (const agent of projected) {
+        const hot = agent.id === activeAgent?.id || agent.id === this.frame.selectedAgentId;
+        this.drawCrispAgent(ctx, agent, hot);
+      }
+      if (activeAgent) {
+        this.drawCrispThought(ctx, activeAgent);
+        this.drawCrispOptions(ctx, activeAgent);
+      }
+      this.drawCrispDeck(ctx);
+      this.drawOperatorUi(ctx, time);
     }
-    if (activeAgent) {
-      this.drawCrispThought(ctx, activeAgent);
-      this.drawCrispOptions(ctx, activeAgent);
-    }
-    this.drawCrispDeck(ctx);
-    this.drawOperatorUi(ctx, time);
     this.drawFluidPanel(ctx, time);
     ctx.restore();
   }
@@ -1489,8 +1489,11 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private drawFluidPanel(ctx: CanvasRenderingContext2D, time: number) {
     this.fluidParamZones = [];
     const iconSize = 32;
+    const inspectorGuard = this.frame.variant === "fullscreen" && this.simWidth >= 720
+      ? Math.min(230, this.simHeight * 0.25)
+      : 0;
     const iconX = this.simWidth - iconSize - 16;
-    const iconY = this.simHeight - iconSize - 16;
+    const iconY = this.simHeight - iconSize - 16 - inspectorGuard;
     const iconZone: FluidParamZone = { key: "toggle", x: iconX, y: iconY, width: iconSize, height: iconSize };
     this.fluidParamZones.push(iconZone);
     const nearIcon = this.pointer.active && pointInInflatedRect(this.pointer.x, this.pointer.y, iconZone, 54);
