@@ -9,3 +9,4 @@ apps/epiphany-gui/src-tauri/target/
 .epiphany-gui/
 .epiphany-smoke/
 .epiphany-dogfood/
+.epiphany-heartbeats/
