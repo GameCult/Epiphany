@@ -144,6 +144,7 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
         audio.humBands >= 7 &&
         audio.lastBurstChirpDrivers >= 6 &&
         audio.spectral?.chirpDrivers === 6 &&
+        audio.spectral?.reactiveFlushes >= 1 &&
         audio.spectral?.vocalAgents >= 7 &&
         audio.spectral?.queuedFrames >= 2048 &&
         audio.lastBurst;

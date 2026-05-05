@@ -1760,8 +1760,9 @@ const agentRegisters: Record<string, number> = {
 
 const partialRatios = buildPartialRatios(0);
 const audioChunkFrames = 2048;
-const audioQueueTargetChunks = 8;
+const audioQueueTargetChunks = 4;
 const audioSpectrumBins = 96;
+const mathTau = Math.PI * 2;
 
 const audioSpectrumShader = `#version 300 es
 precision highp float;
@@ -1956,20 +1957,22 @@ function vocalProfileFor(id: string) {
 
 function vocalChirpControls(agent: ProjectedAgent, time: number): VocalControls {
   const calm = 1 - agent.chirps.panic;
-  const glottis = chirplet(time, agent.phase + 0.2, 0.24 + agent.activity * 0.18, 0.006, 8.4);
-  const tongue = chirplet(time, agent.phase * 1.7 + 0.6, 0.18 + agent.chirps.expression * 0.12, -0.004, 11.2);
-  const lips = chirplet(time, agent.phase * 2.3 + 1.1, 0.13 + agent.chirps.acknowledgement * 0.28, 0.009, 7.6);
-  const throat = chirplet(time, agent.phase * 3.1 + 0.4, 0.1 + calm * 0.06, -0.003, 13.8);
-  const vibrato = chirplet(time, agent.phase * 4.6 + 2.0, 4.8 + agent.chirps.panic * 3.4, 0.018, 2.8);
-  const string = chirplet(time, agent.phase * 5.9 + agent.chirps.acknowledgement, 1.4 + agent.chirps.panic * 2.5, -0.028, 3.6);
+  const hoverCalm = 1 - agent.hover * 0.88;
+  const glottis = vocalPeriodicChirplet(time, agent.phase + 0.2, 0.2 + agent.activity * 0.16, 0.09, 8.4, 0.085) * hoverCalm;
+  const tongue = vocalPeriodicChirplet(time, agent.phase * 1.7 + 0.6, 0.16 + agent.chirps.expression * 0.1, -0.06, 11.2, 0.075) * hoverCalm;
+  const lips = vocalPeriodicChirplet(time, agent.phase * 2.3 + 1.1, 0.12 + agent.chirps.acknowledgement * 0.2, 0.12, 7.6, 0.09) * hoverCalm;
+  const throat = vocalPeriodicChirplet(time, agent.phase * 3.1 + 0.4, 0.08 + calm * 0.05, -0.04, 13.8, 0.07) * hoverCalm;
+  const vibrato = vocalPeriodicChirplet(time, agent.phase * 4.6 + 2.0, 4.6 + agent.chirps.panic * 3.2, 0.45, 2.8, 0.06) * hoverCalm;
+  const string = vocalPeriodicChirplet(time, agent.phase * 5.9 + agent.chirps.acknowledgement, 1.2 + agent.chirps.panic * 2.4, -0.6, 3.6, 0.075) * hoverCalm;
+  const pulseEnergy = Math.max(Math.abs(glottis), Math.abs(tongue), Math.abs(lips), Math.abs(throat), Math.abs(vibrato), Math.abs(string));
   return {
-    breath: clamp(0.22 + agent.activity * 0.28 + Math.abs(throat) * 0.16 + agent.chirps.panic * 0.42, 0.08, 1),
-    glottisPitch: glottis * 0.7 + agent.chirps.tangential * 0.24 + agent.chirps.acknowledgement * 0.55,
+    breath: clamp(0.025 + agent.activity * 0.06 + pulseEnergy * 0.2 + agent.chirps.panic * 0.24 + agent.chirps.acknowledgement * 0.28, 0.01, 1),
+    glottisPitch: glottis * 0.95 + agent.chirps.tangential * 0.08 * hoverCalm + agent.chirps.acknowledgement * 0.58,
     lips: lips * 0.8 + agent.chirps.acknowledgement * 0.2,
     string: Math.abs(string) * (0.3 + agent.chirps.panic * 0.7 + agent.chirps.acknowledgement * 0.6),
-    tenseness: clamp(0.34 + agent.chirps.expression * 0.18 + agent.chirps.panic * 0.46 + agent.chirps.acknowledgement * 0.18, 0.12, 1),
+    tenseness: clamp(0.22 + pulseEnergy * 0.22 + agent.chirps.expression * 0.1 + agent.chirps.panic * 0.46 + agent.chirps.acknowledgement * 0.18, 0.08, 1),
     throat: throat * 0.7 - agent.chirps.panic * 0.18,
-    tongue: tongue * 0.85 + agent.chirps.radial * 0.22,
+    tongue: tongue * 0.85 + agent.chirps.radial * 0.08 * hoverCalm,
     vibrato,
   };
 }
@@ -1994,6 +1997,31 @@ function vocalFormantEnvelope(frequency: number, formants: VocalFormant[]) {
     gain += Math.exp(-0.5 * distance * distance) * formant.gain;
   }
   return gain;
+}
+
+function vocalPeriodicChirplet(time: number, phase: number, frequency: number, chirp: number, period: number, width: number) {
+  const local = ((time + phase) % period + period) % period;
+  const centered = local - period / 2;
+  const sigma = period * width;
+  const envelope = Math.exp(-0.5 * (centered / sigma) * (centered / sigma));
+  if (envelope < 0.0008) return 0;
+  return Math.sin(phase + mathTau * (frequency * local + chirp * local * local)) * envelope;
+}
+
+function vocalOneShotChirplet(localSeconds: number, centerSeconds: number, widthSeconds: number, phase: number, frequency: number, chirp: number) {
+  const centered = localSeconds - centerSeconds;
+  const envelope = Math.exp(-0.5 * (centered / widthSeconds) * (centered / widthSeconds));
+  if (envelope < 0.0008) return 0;
+  return Math.sin(phase + mathTau * (frequency * centered + chirp * centered * centered)) * envelope;
+}
+
+function vocalEventEnvelope(localSeconds: number, durationSeconds: number, action: AgentSoundAction) {
+  if (localSeconds < 0 || localSeconds > durationSeconds) return 0;
+  const x = clamp(localSeconds / Math.max(0.001, durationSeconds), 0, 1);
+  const attack = clamp(x / (action === "notification" ? 0.035 : 0.055), 0, 1);
+  const tail = Math.exp(-x * (action === "notification" ? 3.2 : action === "selected" ? 4.2 : 5.6));
+  const release = Math.sin(Math.PI * x) ** 0.38;
+  return attack * tail * release;
 }
 
 function hashString(value: string) {
@@ -2038,6 +2066,7 @@ class BufferedGpuSpectrumOutput {
   private program: WebGLProgram | null = null;
   private queue: Float32Array[] = [];
   private queueOffset = 0;
+  private reactiveFlushes = 0;
   private sampleCursor = 0;
   private texture: WebGLTexture | null = null;
 
@@ -2063,11 +2092,15 @@ class BufferedGpuSpectrumOutput {
       queuedFrames: this.queue.reduce((total, chunk) => total + chunk.length, -this.queueOffset),
       bursts: this.burstEvents.length,
       chirpDrivers: 6,
+      reactiveFlushes: this.reactiveFlushes,
       vocalAgents: this.lastAgents.length,
     };
   }
 
   triggerBurst(agent: AquariumAgentFrame, action: AgentSoundAction) {
+    this.queue = [];
+    this.queueOffset = 0;
+    this.reactiveFlushes += 1;
     this.burstEvents.push({
       action,
       agent,
@@ -2075,7 +2108,7 @@ class BufferedGpuSpectrumOutput {
       seed: hashString(`${agent.id}:${action}:${agent.status}:${this.sampleCursor}`),
       startSample: this.sampleCursor,
     });
-    this.fillQueue(3);
+    this.fillQueue(audioQueueTargetChunks);
   }
 
   update(agents: ProjectedAgent[], _time: number) {
@@ -2197,10 +2230,12 @@ class BufferedGpuSpectrumOutput {
 
   private writeVocalAgentBins(bin: number, agent: ProjectedAgent, startSample: number) {
     const profile = vocalProfileFor(agent.id);
-    const controls = vocalChirpControls(agent, startSample / this.context.sampleRate);
+    const controls = vocalChirpControls(agent, (startSample + audioChunkFrames * 0.5) / this.context.sampleRate);
     const formants = morphFormants(profile.formants, controls);
     const basePitch = profile.f0 * (1 + controls.glottisPitch * 0.035 + controls.vibrato * 0.018 + agent.chirps.acknowledgement * 0.018);
-    const intensity = 0.004 + controls.breath * 0.006 + controls.tenseness * 0.004 + agent.chirps.panic * 0.014;
+    const pulseEnergy = Math.max(Math.abs(controls.glottisPitch), Math.abs(controls.tongue), Math.abs(controls.lips), Math.abs(controls.vibrato), controls.string);
+    const hoverQuiet = lerp(1, 0.18, agent.hover);
+    const intensity = (0.00025 + controls.breath * 0.0012 + pulseEnergy * 0.0036 + agent.chirps.acknowledgement * 0.0048 + agent.chirps.panic * 0.004) * hoverQuiet;
     for (let harmonic = 1; harmonic <= profile.harmonics && bin < audioSpectrumBins; harmonic += 1) {
       const frequency = basePitch * harmonic * (1 + controls.throat * 0.002 * harmonic);
       if (frequency > 14000) break;
@@ -2222,31 +2257,39 @@ class BufferedGpuSpectrumOutput {
   }
 
   private writeVocalExcitationBins(bin: number, event: SpectralBurst, startSample: number) {
-    const local = (startSample - event.startSample) / Math.max(1, event.durationSamples);
-    if (local < -0.08 || local > 1.08) return bin;
+    const localSeconds = (startSample + audioChunkFrames * 0.5 - event.startSample) / this.context.sampleRate;
+    const durationSeconds = event.durationSamples / this.context.sampleRate;
+    const envelope = vocalEventEnvelope(localSeconds, durationSeconds, event.action);
+    if (envelope <= 0.0008) return bin;
     const profile = vocalProfileFor(event.agent.id);
     const random = mulberry32(event.seed);
-    const envelope = Math.exp(-Math.max(0, local) * (event.action === "notification" ? 3.2 : event.action === "selected" ? 4.7 : 6.2)) *
-      Math.sin(Math.PI * clamp(local + 0.04, 0, 1));
-    const actionShift = event.action === "notification" ? 0.62 : event.action === "selected" ? 0.22 : -0.16;
+    const driverSeconds = durationSeconds * 0.62;
+    const glottis = vocalOneShotChirplet(localSeconds, driverSeconds * 0.16, driverSeconds * 0.08, random() * mathTau, 7.5, 22);
+    const tongue = vocalOneShotChirplet(localSeconds, driverSeconds * 0.24, driverSeconds * 0.1, random() * mathTau, 5.6, -18);
+    const lips = vocalOneShotChirplet(localSeconds, driverSeconds * 0.34, driverSeconds * 0.11, random() * mathTau, 4.4, 13);
+    const throat = vocalOneShotChirplet(localSeconds, driverSeconds * 0.45, driverSeconds * 0.12, random() * mathTau, 3.2, -10);
+    const vibrato = vocalOneShotChirplet(localSeconds, driverSeconds * 0.58, driverSeconds * 0.13, random() * mathTau, 9.4, 28);
+    const string = vocalOneShotChirplet(localSeconds, driverSeconds * 0.72, driverSeconds * 0.14, random() * mathTau, 6.8, -24);
     const controls = {
-      glottisPitch: envelope * (event.action === "notification" ? 0.8 : 0.38),
-      tenseness: event.action === "notification" ? 0.9 : 0.62,
-      breath: 0.25 + envelope * 0.42,
-      tongue: actionShift,
-      lips: event.action === "touch" ? 0.5 : -0.18,
-      throat: event.action === "notification" ? -0.38 : 0.12,
-      vibrato: envelope * (event.action === "notification" ? 1.0 : 0.56),
-      string: envelope,
+      glottisPitch: glottis * (event.action === "notification" ? 1.1 : 0.72),
+      tenseness: clamp(0.34 + envelope * (event.action === "notification" ? 0.48 : 0.3), 0.08, 1),
+      breath: envelope * (event.action === "notification" ? 0.95 : 0.72),
+      tongue: tongue * (event.action === "notification" ? 0.82 : 0.58),
+      lips: lips * 0.58 + (event.action === "touch" ? envelope * 0.2 : -envelope * 0.08),
+      throat: throat * 0.55 + (event.action === "notification" ? -envelope * 0.18 : envelope * 0.08),
+      vibrato: vibrato * (event.action === "notification" ? 0.7 : 0.42),
+      string: Math.abs(string) * (event.action === "notification" ? 1.0 : 0.64),
     };
     const formants = morphFormants(profile.formants, controls);
-    const count = event.action === "notification" ? 28 : event.action === "selected" ? 20 : 14;
-    for (let index = 0; index < count && bin < audioSpectrumBins; index += 1) {
-      const harmonic = 1 + index * (event.action === "selected" ? 0.52 : 0.74) + random() * 0.12;
-      const frequency = clamp(profile.f0 * harmonic * (1 + controls.glottisPitch * 0.08), 50, 15000);
+    const basePitch = profile.f0 * (1 + controls.glottisPitch * 0.09 + controls.vibrato * 0.035);
+    const drive = envelope * (event.action === "notification" ? 0.08 : event.action === "selected" ? 0.064 : 0.05);
+    const harmonics = Math.min(profile.harmonics + (event.action === "notification" ? 8 : 4), 24);
+    for (let harmonic = 1; harmonic <= harmonics && bin < audioSpectrumBins; harmonic += 1) {
+      const frequency = clamp(basePitch * harmonic * (1 + controls.throat * 0.002 * harmonic), 50, 15000);
       const tract = vocalFormantEnvelope(frequency, formants);
-      const amplitude = envelope * (event.action === "notification" ? 0.04 : 0.028) * tract / Math.sqrt(index + 1);
-      this.writeBin(bin, frequency, amplitude, random() * Math.PI * 2, (random() - 0.5) * 0.18 + controls.vibrato * 0.026);
+      const sourceTilt = 1 / Math.pow(harmonic, 0.94 + controls.tenseness * 0.32);
+      const amplitude = drive * tract * sourceTilt * (0.72 + controls.string * 0.38);
+      this.writeBin(bin, frequency, amplitude, random() * mathTau, controls.vibrato * 0.04 + controls.glottisPitch * 0.018);
       bin += 1;
     }
     return bin;
