@@ -140,8 +140,7 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     await page.waitForFunction(() => {
       const audio = window.__epiphanyAquariumAudio;
       return audio?.state === "running" &&
-        audio.voiceCount >= 7 &&
-        audio.humBands >= 7 &&
+        audio.vocalAgentCount >= 7 &&
         audio.lastBurstChirpDrivers >= 6 &&
         audio.spectral?.chirpDrivers === 6 &&
         audio.spectral?.reactiveFlushes >= 1 &&

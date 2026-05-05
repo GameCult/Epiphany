@@ -1727,25 +1727,6 @@ class WebglAquariumRenderer implements AquariumRenderer {
   }
 }
 
-type VoicePartial = {
-  oscillator: OscillatorNode;
-  gain: GainNode;
-  ratio: number;
-  weight: number;
-  phase: number;
-  shimmer: number;
-};
-
-type AgentVoice = {
-  filter: BiquadFilterNode;
-  gain: GainNode;
-  noise: AudioBufferSourceNode;
-  noiseGain: GainNode;
-  panner: StereoPannerNode;
-  partials: VoicePartial[];
-  statusFingerprint: string;
-};
-
 export type AgentSoundAction = "touch" | "selected" | "notification";
 
 const agentRegisters: Record<string, number> = {
@@ -1758,7 +1739,6 @@ const agentRegisters: Record<string, number> = {
   verification: 440.0,
 };
 
-const partialRatios = buildPartialRatios(0);
 const audioChunkFrames = 2048;
 const audioQueueTargetChunks = 4;
 const audioSpectrumBins = 96;
@@ -1796,47 +1776,8 @@ void main() {
   );
 }`;
 
-function buildPartialRatios(count: number) {
-  const intervals = [1, 9 / 8, 6 / 5, 5 / 4, 4 / 3, 45 / 32, 3 / 2, 8 / 5, 5 / 3, 9 / 5, 15 / 8];
-  const ratios: number[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const octave = 2 ** Math.floor(index / intervals.length);
-    const interval = intervals[index % intervals.length];
-    const drift = 1 + Math.sin(index * 12.9898) * 0.0035;
-    ratios.push(octave * interval * drift);
-  }
-  return ratios.filter((ratio) => ratio < 22);
-}
-
 function chirpDriverCountFor(action: AgentSoundAction) {
   return action === "notification" ? 8 : action === "selected" ? 7 : 6;
-}
-
-function makeNoiseLoopBuffer(context: AudioContext, agent: AquariumAgentFrame) {
-  const sampleRate = context.sampleRate;
-  const length = sampleRate * 2;
-  const data = new Float32Array(length);
-  const random = mulberry32(hashString(`${agent.id}:hum:${agent.phase}`));
-  let pink = 0;
-  for (let index = 0; index < length; index += 1) {
-    const white = random() * 2 - 1;
-    pink = pink * 0.986 + white * 0.014;
-    const shimmer = Math.sin((index / sampleRate) * Math.PI * 2 * (agentRegisters[agent.id] ?? 261.63) * (1 + (index % 13) * 0.004));
-    data[index] = white * 0.34 + pink * 1.8 + shimmer * 0.035;
-  }
-  let peak = 0;
-  for (let index = 0; index < data.length; index += 1) {
-    peak = Math.max(peak, Math.abs(data[index]));
-  }
-  if (peak > 0) {
-    const scale = 0.72 / peak;
-    for (let index = 0; index < data.length; index += 1) {
-      data[index] *= scale;
-    }
-  }
-  const buffer = context.createBuffer(1, length, sampleRate);
-  buffer.copyToChannel(data, 0);
-  return buffer;
 }
 
 type VocalControls = {
@@ -2311,11 +2252,12 @@ class BufferedGpuSpectrumOutput {
 class AquariumSoundscape {
   private compressor: DynamicsCompressorNode;
   private context: AudioContext;
+  private lastAgents: ProjectedAgent[] = [];
   private master: GainNode;
   private lastBurstChirpDrivers = 0;
   private pendingBursts: Array<{ action: AgentSoundAction; agent: AquariumAgentFrame }> = [];
   private spectralOutput: BufferedGpuSpectrumOutput;
-  private voices = new Map<string, AgentVoice>();
+  private statusFingerprints = new Map<string, string>();
 
   constructor() {
     this.context = new AudioContext();
@@ -2345,71 +2287,25 @@ class AquariumSoundscape {
   }
 
   dispose() {
-    for (const voice of this.voices.values()) {
-      for (const partial of voice.partials) {
-        partial.oscillator.stop();
-        partial.oscillator.disconnect();
-        partial.gain.disconnect();
-      }
-      voice.filter.disconnect();
-      voice.gain.disconnect();
-      voice.noise.stop();
-      voice.noise.disconnect();
-      voice.noiseGain.disconnect();
-      voice.panner.disconnect();
-    }
-    this.voices.clear();
+    this.statusFingerprints.clear();
     this.spectralOutput.dispose();
     void this.context.close();
   }
 
   update(agents: ProjectedAgent[], time: number) {
-    if (this.context.state === "suspended") {
-      agents.forEach((agent) => this.voiceFor(agent));
-      this.spectralOutput.update(agents, time);
-      this.publishDebugState();
-      return;
-    }
+    this.lastAgents = agents;
     this.spectralOutput.update(agents, time);
-    const now = this.context.currentTime;
+    const liveAgentIds = new Set(agents.map((agent) => agent.id));
+    for (const agentId of this.statusFingerprints.keys()) {
+      if (!liveAgentIds.has(agentId)) this.statusFingerprints.delete(agentId);
+    }
     for (const agent of agents) {
-      try {
-        const voice = this.voiceFor(agent);
-        const fingerprint = `${agent.status}|${agent.thought.slice(0, 64)}`;
-        if (voice.statusFingerprint && voice.statusFingerprint !== fingerprint) {
-          this.triggerBurst(agent, "notification");
-        }
-        voice.statusFingerprint = fingerprint;
-        const register = agentRegisters[agent.id] ?? 261.63;
-        const energy = clamp(
-          0.22 +
-            agent.activity * 0.12 +
-            agent.chirps.expression * 0.1 +
-            agent.chirps.panic * 0.42 +
-            agent.chirps.acknowledgement * 0.36,
-          0,
-          1,
-        );
-        voice.gain.gain.setTargetAtTime(0, now, 0.08);
-        voice.noiseGain.gain.setTargetAtTime(0, now, 0.12);
-        voice.filter.frequency.setTargetAtTime(clamp(register * (4.6 + agent.chirps.glowPulse * 1.2 + agent.chirps.panic * 4.2), 60, 18000), now, 0.12);
-        voice.filter.Q.setTargetAtTime(0.22 + agent.chirps.panic * 1.8 + agent.hover * 0.32, now, 0.1);
-        voice.panner.pan.setTargetAtTime(clamp((agent.baseX / 100) * 2 - 1, -0.86, 0.86), now, 0.18);
-        voice.partials.forEach((partial, index) => {
-          const spectralMotion = layeredChirps(time, [
-            [partial.phase + agent.phase, 0.22 + index * 0.11, 0.004 + index * 0.002, 8.4 - index * 0.3, 0.4],
-            [partial.phase * 1.7 + agent.chirps.acknowledgement, 0.8 + index * 0.27, -0.018, 3.2 + index * 0.18, 0.18 + agent.chirps.acknowledgement * 0.45],
-            [partial.phase * 2.4 + agent.chirps.panic, 2.8 + index * 0.62, 0.04 + agent.chirps.panic * 0.06, 1.6, agent.chirps.panic * 0.38],
-          ]);
-          const acknowledgementLift = agent.chirps.acknowledgement * (index === 0 ? 0.16 : 0.06);
-          const frequency = clamp(register * partial.ratio * (1 + spectralMotion * (0.012 + partial.shimmer * 0.02) + agent.chirps.radial * 0.01 + acknowledgementLift), 28, 16000);
-          const partialGain = (0.0025 + energy * 0.01) * partial.weight * (0.52 + Math.abs(spectralMotion) * 0.72 + agent.chirps.acknowledgement * 1.3 + agent.chirps.panic * 0.85);
-          partial.oscillator.frequency.setTargetAtTime(frequency, now, 0.045);
-          partial.gain.gain.setTargetAtTime(partialGain, now, 0.055);
-        });
-      } catch (error) {
-        this.publishDebugState(undefined, String(error));
+      const fingerprint = `${agent.status}|${agent.thought.slice(0, 64)}`;
+      const previous = this.statusFingerprints.get(agent.id);
+      if (this.context.state !== "suspended" && previous && previous !== fingerprint) {
+        this.triggerBurst(agent, "notification");
       }
+      this.statusFingerprints.set(agent.id, fingerprint);
     }
     this.publishDebugState();
   }
@@ -2427,49 +2323,6 @@ class AquariumSoundscape {
     this.publishDebugState(action);
   }
 
-  private voiceFor(agent: ProjectedAgent): AgentVoice {
-    const existing = this.voices.get(agent.id);
-    if (existing) return existing;
-    const gain = this.context.createGain();
-    const noise = this.context.createBufferSource();
-    const noiseGain = this.context.createGain();
-    const filter = this.context.createBiquadFilter();
-    const panner = this.context.createStereoPanner();
-    filter.type = "lowpass";
-    gain.gain.value = 0;
-    noise.buffer = makeNoiseLoopBuffer(this.context, agent);
-    noise.loop = true;
-    noiseGain.gain.value = 0;
-    noise.connect(noiseGain);
-    noiseGain.connect(filter);
-    gain.connect(filter);
-    filter.connect(panner);
-    panner.connect(this.master);
-    noise.start();
-    const partials = partialRatios.map((ratio, index) => {
-      const oscillator = this.context.createOscillator();
-      const partialGain = this.context.createGain();
-      oscillator.type = index % 5 === 0 ? "sine" : index % 5 === 1 ? "triangle" : index % 5 === 2 ? "sawtooth" : "square";
-      oscillator.frequency.value = (agentRegisters[agent.id] ?? 261.63) * ratio;
-      partialGain.gain.value = 0;
-      oscillator.connect(partialGain);
-      partialGain.connect(gain);
-      oscillator.start();
-      return {
-        oscillator,
-        gain: partialGain,
-        ratio,
-        weight: 1 / Math.pow(1 + index * 0.18, 1.12),
-        phase: agent.phase * (1.2 + index * 0.47) + index * 0.91,
-        shimmer: ((index * 13) % 17) / 17,
-      };
-    });
-    const voice = { filter, gain, noise, noiseGain, panner, partials, statusFingerprint: "" };
-    this.voices.set(agent.id, voice);
-    this.publishDebugState();
-    return voice;
-  }
-
   private flushPendingBursts() {
     if (this.context.state === "suspended" || !this.pendingBursts.length) return;
     const bursts = this.pendingBursts.splice(0, this.pendingBursts.length).slice(-8);
@@ -2481,13 +2334,10 @@ class AquariumSoundscape {
   private publishDebugState(lastBurst?: AgentSoundAction, error?: string) {
     (window as any).__epiphanyAquariumAudio = {
       state: this.context.state,
-      voiceCount: this.voices.size,
-      partialCount: this.voices.size * partialRatios.length,
-      humBands: this.voices.size,
+      vocalAgentCount: this.lastAgents.length,
       pendingBursts: this.pendingBursts.length,
       lastBurst: lastBurst ?? (window as any).__epiphanyAquariumAudio?.lastBurst ?? null,
       lastBurstChirpDrivers: this.lastBurstChirpDrivers,
-      lastBurstChirps: this.lastBurstChirpDrivers,
       masterGain: this.master.gain.value,
       spectral: this.spectralOutput.stats(),
       error: error ?? null,
