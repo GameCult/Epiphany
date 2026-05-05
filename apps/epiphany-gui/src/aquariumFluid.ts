@@ -151,30 +151,30 @@ const compactPositions: Record<string, { x: number; y: number }> = {
   implementation: { x: 50, y: 61 },
 };
 
-const fluidParamStorageKey = "epiphany:aquarium-fluid-params:v1";
+const fluidParamStorageKey = "epiphany:aquarium-fluid-params:v2";
 
 const defaultFluidParams: FluidParams = {
-  timeScale: 0.021,
-  curlStrength: 24,
-  swirlForce: 42,
-  splatForce: 2.8,
-  splatRadius: 42,
-  velocityDissipation: 0.993,
-  dyeDissipation: 0.9991,
-  injectionGain: 0.055,
-  sourceOpacity: 1,
+  timeScale: 0.032,
+  curlStrength: 64,
+  swirlForce: 90,
+  splatForce: 7.5,
+  splatRadius: 54,
+  velocityDissipation: 0.996,
+  dyeDissipation: 0.9994,
+  injectionGain: 0.075,
+  sourceOpacity: 1.15,
 };
 
 const fluidParamDefinitions: FluidParamDefinition[] = [
-  { key: "timeScale", label: "Time", min: 0.006, max: 0.05, decimals: 3 },
-  { key: "curlStrength", label: "Curl", min: 0, max: 48, decimals: 1 },
-  { key: "swirlForce", label: "Swirl", min: 0, max: 72, decimals: 1 },
-  { key: "splatForce", label: "Push", min: 0, max: 6, decimals: 2 },
-  { key: "splatRadius", label: "Ink Size", min: 16, max: 90, decimals: 0 },
-  { key: "velocityDissipation", label: "Motion Hold", min: 0.96, max: 0.999, decimals: 3 },
-  { key: "dyeDissipation", label: "Ink Hold", min: 0.985, max: 0.9998, decimals: 4 },
-  { key: "injectionGain", label: "Ink Feed", min: 0.01, max: 0.16, decimals: 3 },
-  { key: "sourceOpacity", label: "Object Ink", min: 0.2, max: 1.8, decimals: 2 },
+  { key: "timeScale", label: "Time", min: 0.004, max: 0.16, decimals: 3 },
+  { key: "curlStrength", label: "Curl", min: 0, max: 180, decimals: 0 },
+  { key: "swirlForce", label: "Swirl", min: 0, max: 220, decimals: 0 },
+  { key: "splatForce", label: "Push", min: 0, max: 24, decimals: 1 },
+  { key: "splatRadius", label: "Ink Size", min: 8, max: 140, decimals: 0 },
+  { key: "velocityDissipation", label: "Motion Hold", min: 0.9, max: 0.9995, decimals: 4 },
+  { key: "dyeDissipation", label: "Ink Hold", min: 0.94, max: 0.9999, decimals: 4 },
+  { key: "injectionGain", label: "Ink Feed", min: 0, max: 0.5, decimals: 3 },
+  { key: "sourceOpacity", label: "Object Ink", min: 0, max: 4, decimals: 2 },
 ];
 
 const vertexShader = `#version 300 es
@@ -397,7 +397,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private frame: AquariumFrame = { agents: [], selectedAgentId: "coordinator", variant: "fullscreen" };
   private hotAgents: HotZone[] = [];
   private hotOptions: HotZone[] = [];
+  private lastFluidParamChanged: FluidParamKey | null = null;
   private motion = new Map<string, MotionState>();
+  private paramImpulse = 0;
   private pointer = { active: false, x: 0, y: 0 };
   private pressure: DoubleTarget | null = null;
   private programs: Record<string, WebGLProgram>;
@@ -479,6 +481,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
     if (zone.key === "reset") {
       this.fluidParams = { ...defaultFluidParams };
       saveFluidParams(this.fluidParams);
+      this.paramImpulse = 1;
+      this.lastFluidParamChanged = "injectionGain";
+      this.seedDye();
       return;
     }
     this.draggingFluidParam = zone.key;
@@ -668,6 +673,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     }
     this.drawDeckSource(ctx);
     this.drawOperatorSource(ctx, time);
+    this.drawParameterImpulseSource(ctx, time);
     ctx.restore();
   }
 
@@ -809,6 +815,32 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.restore();
   }
 
+  private drawParameterImpulseSource(ctx: CanvasRenderingContext2D, time: number) {
+    if (this.paramImpulse <= 0 || this.frame.agents.length === 0) return;
+    const color = paramColorFor(this.lastFluidParamChanged);
+    const pulse = this.paramImpulse;
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 18 + pulse * 22;
+    for (const [index, agent] of this.frame.agents.entries()) {
+      const state = this.motion.get(agent.id);
+      if (!state) continue;
+      const wave = 0.65 + 0.35 * chirplet(time, index * 0.8, 2.6, 0.08, 2.8);
+      ctx.globalAlpha = pulse * (0.035 + agent.activity * 0.018) * wave;
+      ctx.beginPath();
+      ctx.arc(state.x, state.y, 18 + pulse * 44 + index * 2, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = pulse * (0.025 + agent.activity * 0.015);
+      ctx.beginPath();
+      ctx.arc(state.x - state.vx * 18, state.y - state.vy * 18, 8 + pulse * 20, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   private uploadSource() {
     const gl = this.gl;
     if (!this.sourceTexture) return;
@@ -832,6 +864,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.runAdvect(this.velocity.read.texture, this.dye.read.texture, this.dye.write, dt, this.fluidParams.dyeDissipation);
     this.dye.swap();
     this.runInject();
+    this.paramImpulse = Math.max(0, this.paramImpulse * 0.9 - 0.01);
   }
 
   private runAdvect(velocity: WebGLTexture, source: WebGLTexture, target: FluidTarget, dt: number, dissipation: number) {
@@ -865,9 +898,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
       gl.uniform1fv(gl.getUniformLocation(program, "uActivity"), this.activity);
       gl.uniform1i(gl.getUniformLocation(program, "uCount"), Math.min(7, projected.length));
       gl.uniform1f(gl.getUniformLocation(program, "uAspect"), this.simWidth / Math.max(this.simHeight, 1));
-      gl.uniform1f(gl.getUniformLocation(program, "uSplatForce"), this.fluidParams.splatForce);
-      gl.uniform1f(gl.getUniformLocation(program, "uSplatRadius"), this.fluidParams.splatRadius);
-      gl.uniform1f(gl.getUniformLocation(program, "uSwirlForce"), this.fluidParams.swirlForce);
+      gl.uniform1f(gl.getUniformLocation(program, "uSplatForce"), this.fluidParams.splatForce * (1 + this.paramImpulse * 2.5));
+      gl.uniform1f(gl.getUniformLocation(program, "uSplatRadius"), splatFalloff(this.fluidParams.splatRadius));
+      gl.uniform1f(gl.getUniformLocation(program, "uSwirlForce"), this.fluidParams.swirlForce * (1 + this.paramImpulse * 1.4));
       gl.uniform1f(gl.getUniformLocation(program, "uVelocityDamping"), this.fluidParams.velocityDissipation);
     });
     this.velocity.swap();
@@ -890,7 +923,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       gl.uniform1i(gl.getUniformLocation(program, "uVelocity"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uCurl"), 1);
       gl.uniform2f(gl.getUniformLocation(program, "uTexelSize"), 1 / this.simWidth, 1 / this.simHeight);
-      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), this.fluidParams.curlStrength);
+      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), this.fluidParams.curlStrength * (1 + this.paramImpulse * 1.8));
       gl.uniform1f(gl.getUniformLocation(program, "uDt"), dt);
     });
     this.velocity.swap();
@@ -938,7 +971,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.bindTexture(1, this.sourceTexture);
       gl.uniform1i(gl.getUniformLocation(program, "uDye"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uSource"), 1);
-      gl.uniform1f(gl.getUniformLocation(program, "uGain"), this.fluidParams.injectionGain);
+      gl.uniform1f(gl.getUniformLocation(program, "uGain"), this.fluidParams.injectionGain * (1 + this.paramImpulse * 1.7));
       gl.uniform1f(gl.getUniformLocation(program, "uDissipation"), this.fluidParams.dyeDissipation);
     });
     this.dye.swap();
@@ -1365,6 +1398,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
       ...this.fluidParams,
       [key]: definition.min + t * (definition.max - definition.min),
     };
+    this.paramImpulse = Math.max(this.paramImpulse, 1);
+    this.lastFluidParamChanged = key;
     saveFluidParams(this.fluidParams);
   }
 
@@ -1521,6 +1556,19 @@ function toneColorFor(tone?: string) {
   if (tone === "warn") return "#f7bd58";
   if (tone === "ok") return "#58ddc4";
   return "#92d876";
+}
+
+function paramColorFor(key: FluidParamKey | null) {
+  if (key === "curlStrength" || key === "swirlForce") return "#9f6ee7";
+  if (key === "splatForce" || key === "splatRadius") return "#58ddc4";
+  if (key === "injectionGain" || key === "sourceOpacity") return "#f7bd58";
+  if (key === "dyeDissipation") return "#92d876";
+  if (key === "velocityDissipation") return "#63c5da";
+  return "#f15f45";
+}
+
+function splatFalloff(radius: number) {
+  return clamp(74088 / Math.max(radius * radius, 1), 3, 1200);
 }
 
 function drawAgentPath(ctx: CanvasRenderingContext2D, shape: string, size: number) {

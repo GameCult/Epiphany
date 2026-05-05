@@ -8,7 +8,7 @@ const artifactDir = resolve(root, ".epiphany-gui");
 const desktopScreenshotPath = resolve(artifactDir, "operator-console-smoke-desktop.png");
 const mobileScreenshotPath = resolve(artifactDir, "operator-console-smoke-mobile.png");
 const url = "http://127.0.0.1:1420";
-const fluidStorageKey = "epiphany:aquarium-fluid-params:v1";
+const fluidStorageKey = "epiphany:aquarium-fluid-params:v2";
 
 await mkdir(artifactDir, { recursive: true });
 
