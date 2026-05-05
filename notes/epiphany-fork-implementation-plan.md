@@ -86,7 +86,7 @@ The landed machine now has:
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, sealed app-server transcript diagnostics, operator-safe final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
-- first Phase 6 GUI operator shell under `apps/epiphany-gui`, a Tauri v2 + React console over the existing status bridge, dogfood artifacts, and GUI action artifacts, with durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
+- first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - first Unity editor/runtime bridge through `tools/epiphany_unity_bridge.py`, `tools/epiphany_unity_bridge_smoke.py`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
 - prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-core/src/prompts/`, while modeling/Body, research/Eyes, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, and CRRC templates live in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`
 - prompt-level anti-Greenspun guardrails: Epiphany keeps Codex's useful operator discipline and requires a bounded research/scout check before agents invent bespoke versions of known algorithms, parsers, schedulers, renderers, protocols, storage layers, security mechanisms, or workflow engines
@@ -314,20 +314,27 @@ Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
 is a regression guardrail, not a ritual drum circle for summoning more tiny
 hardening slices.
 
-## GUI Operator Plan
+## Aquarium Operator Plan
 
-Build the MVP GUI as a local Tauri v2 + React operator console.
+Build the MVP operator UI as a local Tauri v2 + React/WebGL Aquarium in
+`E:\Projects\EpiphanyAquarium`.
 
-The GUI is not the source of truth. It is a desktop window over the same
+Aquarium is not the source of truth. It is a desktop window over the same
 app-server surfaces already proved by the CLI status, coordinator, dogfood, and
 live-specialist runners. Its job is to make the single-user loop usable without
-terminal handling, not to invent a parallel state model.
+terminal handling, not to invent a parallel state model. EpiphanyAgent owns the
+harness, typed state, coordinator policy, and bridge tools; Aquarium owns the
+interface organism, visual/audio interaction grammar, and its own local
+pseudo-Epiphany state.
 
-Initial shape:
+Current shape:
 
-1. Scaffold `apps/epiphany-gui` as a Tauri v2 app with a React frontend.
+1. Maintain `E:\Projects\EpiphanyAquarium` as the UI repo with `AGENTS.md`,
+   `state/map.yaml`, `state/memory.json`, scratch/evidence, and interface
+   doctrine.
 2. Start by consuming existing app-server JSON-RPC surfaces rather than adding new protocol unless the UI exposes a real missing primitive.
-3. Make the first screen an operator console, not a landing page:
+3. Make the default screen an aquarium of interactive objects, not a static
+   admin panel:
    - active thread and workspace
    - coordinator recommendation and reason
    - pressure, CRRC, and reorientation status
@@ -347,7 +354,7 @@ Initial shape:
    - launch fixed reorient-worker when recommended
    - accept a completed reorientation finding after review
    - open artifact folder/file
-5. Keep semantic acceptance gated. The GUI may launch bounded work and display
+5. Keep semantic acceptance gated. Aquarium may launch bounded work and display
    findings, but it must not auto-promote evidence, auto-accept worker output,
    invent arbitrary specialists, or continue implementation after unresolved
    drift.
@@ -357,7 +364,8 @@ Implementation slices:
 1. **Read-only shell**: scaffold Tauri/React, connect to app-server through the
    existing MVP status bridge, render the same data as
    `tools/epiphany_mvp_status.py`, and provide artifact bundle links. This
-   slice is landed under `apps/epiphany-gui`.
+   slice landed first under `apps/epiphany-gui` and is now extracted to
+   `E:\Projects\EpiphanyAquarium`.
 2. **Bounded operator actions**: status snapshot, coordinator-plan, Unity
    runtime inspection, durable checkpoint preparation, roleLaunch, roleResult,
    reorientLaunch, reorientResult, and explicit reorientAccept flows are
@@ -365,7 +373,7 @@ Implementation slices:
    evidence or continue implementation after semantic findings.
 3. **Dogfood launcher**: wrap `tools/epiphany_mvp_dogfood.py` and
    `tools/epiphany_mvp_coordinator.py` as explicit operator actions that write
-   artifact bundles and stream progress/status into the GUI.
+   artifact bundles and stream progress/status into Aquarium.
 4. **Usability pass**: make the current recommendation, blocked lane, pending
    review, and next safe action visually obvious enough that the user can test
    the product without reading sealed transcripts unless the user explicitly asks for forensic debugging.
@@ -375,9 +383,10 @@ Verification:
 - Keep the existing CLI smokes as backend guardrails.
 - Keep `tools/epiphany_unity_bridge_smoke.py` for Unity bridge regressions.
 - Keep `npm run smoke:visual` for browser-layout regressions and bounded
-  browser-fallback action clicks.
-- For native GUI changes, run `npm run build`, `cargo fmt --check`,
-  `cargo check`, and `npm run tauri -- build --debug --no-bundle`.
+  browser-fallback action clicks in `E:\Projects\EpiphanyAquarium`.
+- For native Aquarium changes, run `npm run build`, `cargo fmt --check`,
+  `cargo check`, and `npm run tauri -- build --debug --no-bundle` from
+  `E:\Projects\EpiphanyAquarium`.
 - Use live bridge probes when action lifecycle changes; the current
   `prepareCheckpoint -> readModelingResult` probe proved a checkpoint-created
   thread can be resumed by a later process.
