@@ -126,7 +126,8 @@ interface FluidParamDefinition {
   min: number;
   max: number;
   decimals: number;
-  scale?: "linear" | "log";
+  scale?: "linear" | "log" | "softLog" | "persistenceLog";
+  softMin?: number;
 }
 
 interface FluidParamZone {
@@ -175,17 +176,17 @@ const defaultFluidParams: FluidParams = {
 };
 
 const fluidParamDefinitions: FluidParamDefinition[] = [
-  { key: "timeScale", label: "Flow Speed", min: 0.004, max: 0.16, decimals: 3, scale: "log" },
-  { key: "curlStrength", label: "Eddy Curl", min: 0, max: 180, decimals: 0 },
-  { key: "swirlForce", label: "Wake Swirl", min: 0, max: 220, decimals: 0 },
-  { key: "splatForce", label: "Wake Force", min: 0, max: 24, decimals: 1 },
-  { key: "splatRadius", label: "Wake Radius", min: 8, max: 140, decimals: 0 },
-  { key: "velocityDissipation", label: "Flow Persistence", min: 0.9, max: 0.9995, decimals: 4 },
-  { key: "dyeDissipation", label: "Ink Persistence", min: 0.94, max: 0.9999, decimals: 4 },
-  { key: "injectionGain", label: "Ink Gain", min: 0, max: 0.5, decimals: 3 },
-  { key: "sourceOpacity", label: "Emitter Strength", min: 0, max: 4, decimals: 2 },
-  { key: "acesExposure", label: "Exposure", min: 0.35, max: 3.2, decimals: 2 },
-  { key: "acesGlow", label: "Glow", min: 0, max: 2.6, decimals: 2 },
+  { key: "timeScale", label: "Flow Speed", min: 0, max: 0.16, decimals: 5, scale: "softLog", softMin: 0.000001 },
+  { key: "curlStrength", label: "Eddy Curl", min: 0, max: 180, decimals: 1, scale: "softLog", softMin: 0.1 },
+  { key: "swirlForce", label: "Wake Swirl", min: 0, max: 220, decimals: 1, scale: "softLog", softMin: 0.1 },
+  { key: "splatForce", label: "Wake Force", min: 0, max: 24, decimals: 2, scale: "softLog", softMin: 0.02 },
+  { key: "splatRadius", label: "Wake Radius", min: 1, max: 180, decimals: 1, scale: "log" },
+  { key: "velocityDissipation", label: "Flow Persistence", min: 0.05, max: 0.9998, decimals: 4, scale: "persistenceLog" },
+  { key: "dyeDissipation", label: "Ink Persistence", min: 0.05, max: 0.99995, decimals: 4, scale: "persistenceLog" },
+  { key: "injectionGain", label: "Ink Gain", min: 0, max: 0.5, decimals: 4, scale: "softLog", softMin: 0.0005 },
+  { key: "sourceOpacity", label: "Emitter Strength", min: 0, max: 4, decimals: 3, scale: "softLog", softMin: 0.004 },
+  { key: "acesExposure", label: "Exposure", min: 0.1, max: 4.5, decimals: 2, scale: "log" },
+  { key: "acesGlow", label: "Glow", min: 0, max: 2.6, decimals: 2, scale: "softLog", softMin: 0.003 },
   { key: "acesSaturation", label: "Saturation", min: 0.35, max: 2.2, decimals: 2 },
 ];
 
@@ -1612,6 +1613,18 @@ function fluidParamToUnit(definition: FluidParamDefinition, value: number) {
     const max = Math.max(definition.max, min * 1.0001);
     return clamp(Math.log(clamped / min) / Math.log(max / min), 0, 1);
   }
+  if (definition.scale === "softLog") {
+    if (clamped <= definition.min) return 0;
+    const min = softLogMin(definition);
+    const max = Math.max(definition.max, min * 1.0001);
+    return clamp(Math.log(Math.max(clamped, min) / min) / Math.log(max / min), 0, 1);
+  }
+  if (definition.scale === "persistenceLog") {
+    const maxLoss = Math.max(1 - definition.min, Number.EPSILON);
+    const minLoss = Math.max(1 - definition.max, Number.EPSILON);
+    const loss = clamp(1 - clamped, minLoss, maxLoss);
+    return clamp(Math.log(maxLoss / loss) / Math.log(maxLoss / minLoss), 0, 1);
+  }
   return clamp((clamped - definition.min) / Math.max(definition.max - definition.min, Number.EPSILON), 0, 1);
 }
 
@@ -1622,7 +1635,24 @@ function fluidParamFromUnit(definition: FluidParamDefinition, unit: number) {
     const max = Math.max(definition.max, min * 1.0001);
     return min * Math.pow(max / min, t);
   }
+  if (definition.scale === "softLog") {
+    if (t <= 0) return definition.min;
+    const min = softLogMin(definition);
+    const max = Math.max(definition.max, min * 1.0001);
+    return min * Math.pow(max / min, t);
+  }
+  if (definition.scale === "persistenceLog") {
+    const maxLoss = Math.max(1 - definition.min, Number.EPSILON);
+    const minLoss = Math.max(1 - definition.max, Number.EPSILON);
+    const loss = maxLoss * Math.pow(minLoss / maxLoss, t);
+    return clamp(1 - loss, definition.min, definition.max);
+  }
   return definition.min + t * (definition.max - definition.min);
+}
+
+function softLogMin(definition: FluidParamDefinition) {
+  if (definition.softMin !== undefined) return Math.max(definition.softMin, Number.EPSILON);
+  return Math.max(definition.max / 4096, Number.EPSILON);
 }
 
 function lerp(from: number, to: number, t: number) {
