@@ -15,9 +15,11 @@ import {
 } from "lucide-react";
 import { EpiphanyGraphViewer, validateEpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createAquariumRenderer } from "./aquariumFluid";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 import type { EpiphanyCodeRef, EpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
+import type { AquariumOptionFrame, AquariumRenderer } from "./aquariumFluid";
 
 const roleOrder = ["implementation", "imagination", "research", "eyes", "modeling", "verification", "reorientation"];
 const constellationSpecs = [
@@ -127,25 +129,6 @@ const constellationSpecs = [
     phase: 6.0,
   },
 ] as const;
-
-const compactConstellationPositions: Record<string, { x: number; y: number }> = {
-  coordinator: { x: 50, y: 25 },
-  imagination: { x: 14, y: 34 },
-  research: { x: 86, y: 34 },
-  reorientation: { x: 50, y: 43 },
-  modeling: { x: 14, y: 52 },
-  verification: { x: 86, y: 52 },
-  implementation: { x: 50, y: 61 },
-};
-const fullscreenConstellationPositions: Record<string, { x: number; y: number }> = {
-  coordinator: { x: 70, y: 30 },
-  imagination: { x: 60, y: 18 },
-  research: { x: 90, y: 24 },
-  reorientation: { x: 82, y: 42 },
-  modeling: { x: 64, y: 55 },
-  verification: { x: 92, y: 58 },
-  implementation: { x: 76, y: 66 },
-};
 
 type ConstellationSpec = (typeof constellationSpecs)[number];
 type ProjectedAgent = ConstellationSpec & {
@@ -1233,9 +1216,8 @@ function AgentConstellation({
   isActionBlocked?: (action: OperatorAction) => boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pointerRef = useRef({ active: false, x: 0, y: 0 });
-  const hotZonesRef = useRef<Array<{ x: number; y: number; radius: number; option: AquariumOption }>>([]);
-  const latestProjectedRef = useRef<Array<ProjectedAgent & { x: number; y: number }>>([]);
+  const optionByKeyRef = useRef(new globalThis.Map<string, AquariumOption>());
+  const rendererRef = useRef<AquariumRenderer | null>(null);
   const [selectedAgentId, setSelectedAgentId] = useState("coordinator");
   const agents = useMemo<ProjectedAgent[]>(() => {
     return constellationSpecs.map((spec) => {
@@ -1292,425 +1274,67 @@ function AgentConstellation({
     });
   }, [coordinator, crrc, jobs, pressure, reorient, reorientResult, roleResults, roles]);
   const selectedAgent = agents.find((agent) => agent.id === selectedAgentId) ?? agents[0];
+  const aquariumAgents = useMemo(() => {
+    const optionsByKey = new globalThis.Map<string, AquariumOption>();
+    const framedAgents = agents.map((agent) => {
+      const options: AquariumOptionFrame[] = (aquariumOptionsByAgent[agent.id] ?? []).map((option, index) => {
+        const key = `${agent.id}:${index}:${option.label}`;
+        optionsByKey.set(key, option);
+        return {
+          key,
+          label: option.label,
+          disabled: option.action ? Boolean(isActionBlocked?.(option.action)) : false,
+        };
+      });
+      return {
+        ...agent,
+        options,
+      };
+    });
+    optionByKeyRef.current = optionsByKey;
+    return framedAgents;
+  }, [agents, isActionBlocked]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const canvasElement = canvas;
-    const screen = canvasElement.getContext("2d", { alpha: false });
-    if (!screen) return;
-    const colorBuffer = document.createElement("canvas");
-    const scratchBuffer = document.createElement("canvas");
-    const color = colorBuffer.getContext("2d", { alpha: false });
-    const scratch = scratchBuffer.getContext("2d", { alpha: false });
-    if (!color || !scratch) return;
-    const screenContext = screen;
-    const colorContext = color;
-    const scratchContext = scratch;
-    let frame = 0;
-    let tick = 0;
-    const motion = new globalThis.Map<string, {
-      x: number;
-      y: number;
-      vx: number;
-      vy: number;
-      lastTextTick: number;
-    }>();
-    const agentData = agents.map((agent, index) => ({
-      ...agent,
-      index,
-    }));
-
-    function resizeCanvas() {
-      const bounds = canvasElement.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const width = Math.max(1, Math.floor(bounds.width * dpr));
-      const height = Math.max(1, Math.floor(bounds.height * dpr));
-      if (canvasElement.width !== width || canvasElement.height !== height) {
-        canvasElement.width = width;
-        canvasElement.height = height;
-      }
-      if (colorBuffer.width !== width || colorBuffer.height !== height) {
-        colorBuffer.width = width;
-        colorBuffer.height = height;
-        scratchBuffer.width = width;
-        scratchBuffer.height = height;
-        colorContext.fillStyle = "#07110e";
-        colorContext.fillRect(0, 0, width, height);
-      }
-      return { width, height, dpr };
-    }
-
-    function basePoint(agent: (typeof agentData)[number], width: number, height: number) {
-      const compactPosition = width < 540 ? compactConstellationPositions[agent.id] : undefined;
-      const fullscreenPosition = variant === "fullscreen" ? fullscreenConstellationPositions[agent.id] : undefined;
-      const baseY = compactPosition?.y ?? fullscreenPosition?.y ?? agent.baseY;
-      const resolvedBaseX = compactPosition?.x ?? fullscreenPosition?.x ?? agent.baseX;
-      return {
-        x: (resolvedBaseX / 100) * width,
-        y: (baseY / 100) * height,
-      };
-    }
-
-    function updateMotion(time: number, width: number, height: number) {
-      return agentData.map((agent) => {
-        const base = basePoint(agent, width, height);
-        const state = motion.get(agent.id) ?? {
-          x: base.x,
-          y: base.y,
-          vx: 0,
-          vy: 0,
-          lastTextTick: -999,
-        };
-        const liveliness = Math.max(0.05, agent.activity);
-        const hoverPull = pointerRef.current.active ? pointerPull(agent, state.x, state.y) : { x: 0, y: 0 };
-        const swim = variant === "fullscreen" ? 46 + liveliness * 92 : 10 + liveliness * 24;
-        const speed = 0.010 + liveliness * 0.034;
-        const targetX = base.x + Math.sin(time * (0.42 + liveliness * 0.52) + agent.phase) * swim + hoverPull.x;
-        const targetY = base.y + Math.cos(time * (0.36 + liveliness * 0.44) + agent.phase * 1.7) * swim * 0.62 + hoverPull.y;
-        state.vx = state.vx * 0.88 + (targetX - state.x) * speed;
-        state.vy = state.vy * 0.88 + (targetY - state.y) * speed;
-        state.x = clamp(state.x + state.vx, 44, width - 44);
-        state.y = clamp(state.y + state.vy, 56, height - 56);
-        motion.set(agent.id, state);
-        return { ...agent, ...state, speed: Math.hypot(state.vx, state.vy) };
-      });
-    }
-
-    function pointerPull(agent: ProjectedAgent, x: number, y: number) {
-      const pointer = pointerRef.current;
-      const dx = pointer.x - x;
-      const dy = pointer.y - y;
-      const distance = Math.hypot(dx, dy);
-      if (distance > 180 || distance < 1) return { x: 0, y: 0 };
-      const strength = (1 - distance / 180) * (18 + agent.activity * 38);
-      return { x: (dx / distance) * strength, y: (dy / distance) * strength };
-    }
-
-    function drawFrame(millis: number) {
-      const time = millis / 1000;
-      tick += 1;
-      const { width, height } = resizeCanvas();
-      const projected = updateMotion(time, width, height);
-      latestProjectedRef.current = projected;
-      const hovered = pointerRef.current.active ? nearestAgent(projected, pointerRef.current.x, pointerRef.current.y) : null;
-      const activeAgent = hovered ?? projected.find((agent) => agent.id === selectedAgentId) ?? projected[0];
-
-      scratchContext.globalCompositeOperation = "source-over";
-      scratchContext.globalAlpha = 1;
-      scratchContext.filter = "none";
-      scratchContext.fillStyle = "rgba(4, 9, 7, 0.16)";
-      scratchContext.fillRect(0, 0, width, height);
-      scratchContext.globalAlpha = 0.972;
-      scratchContext.filter = "blur(1.4px) saturate(1.045)";
-      const driftX = Math.sin(time * 0.17) * 6;
-      const driftY = Math.cos(time * 0.13) * 5;
-      scratchContext.drawImage(colorBuffer, -8 + driftX, -6 + driftY, width + 16, height + 12);
-      scratchContext.filter = "none";
-      colorContext.globalAlpha = 1;
-      colorContext.drawImage(scratchBuffer, 0, 0);
-      drawBackgroundTint(colorContext, width, height, time);
-      drawWakes(colorContext, projected, time);
-
-      for (const agent of projected) {
-        const isHot = agent.id === hovered?.id || agent.id === selectedAgentId;
-        const state = motion.get(agent.id);
-        if (state && (isHot || tick - state.lastTextTick > 60 + agent.index * 19)) {
-          drawThought(colorContext, agent, width, height, isHot);
-          state.lastTextTick = tick;
-        }
-        drawAgent(colorContext, agent, isHot);
-      }
-
-      if (activeAgent) {
-        drawOptions(colorContext, activeAgent, width, height);
-      }
-
-      drawActiveDeckGlyph(colorContext, width, height);
-      screenContext.imageSmoothingEnabled = true;
-      screenContext.drawImage(colorBuffer, 0, 0);
-      frame = requestAnimationFrame(drawFrame);
-    }
-
-    frame = requestAnimationFrame(drawFrame);
+    const renderer = createAquariumRenderer(canvas);
+    rendererRef.current = renderer;
     return () => {
-      cancelAnimationFrame(frame);
+      renderer.dispose();
+      rendererRef.current = null;
     };
-  }, [activeDeck, activeSubdeck, agents, isActionBlocked, selectedAgentId, variant]);
+  }, []);
 
-  function canvasPoint(event: React.PointerEvent<HTMLCanvasElement>) {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: ((event.clientX - rect.left) / rect.width) * canvas.width,
-      y: ((event.clientY - rect.top) / rect.height) * canvas.height,
-    };
-  }
+  useEffect(() => {
+    rendererRef.current?.setFrame({
+      activeLabel: activeDeck ? `${deckLabels[activeDeck]} / ${activeSubdeck ?? ""}` : undefined,
+      agents: aquariumAgents,
+      selectedAgentId,
+      variant,
+    });
+  }, [activeDeck, activeSubdeck, aquariumAgents, selectedAgentId, variant]);
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
-    const point = canvasPoint(event);
-    pointerRef.current = { active: true, ...point };
+    rendererRef.current?.setPointerClient(event.clientX, event.clientY);
   }
 
   function handlePointerLeave() {
-    pointerRef.current = { active: false, x: 0, y: 0 };
+    rendererRef.current?.clearPointer();
   }
 
   function handleCanvasClick() {
-    const pointer = pointerRef.current;
-    const hit = hotZonesRef.current.find((zone) => Math.hypot(zone.x - pointer.x, zone.y - pointer.y) <= zone.radius);
-    if (hit) {
-      onAgentOption?.(hit.option);
+    const optionKey = rendererRef.current?.pickOption();
+    if (optionKey) {
+      const option = optionByKeyRef.current.get(optionKey);
+      if (option) {
+        onAgentOption?.(option);
+      }
       return;
     }
-    const agent = nearestAgent(latestProjectedRef.current, pointer.x, pointer.y, 96);
-    if (agent) {
-      setSelectedAgentId(agent.id);
-    }
-  }
-
-  function nearestAgent<T extends ProjectedAgent & { x: number; y: number }>(projected: T[], x: number, y: number, limit = 180) {
-    let best: T | null = null;
-    let bestDistance = limit;
-    for (const agent of projected) {
-      const distance = Math.hypot(agent.x - x, agent.y - y);
-      if (distance < bestDistance) {
-        best = agent;
-        bestDistance = distance;
-      }
-    }
-    return best;
-  }
-
-  function drawBackgroundTint(ctx: CanvasRenderingContext2D, width: number, height: number, time: number) {
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = 0.42;
-    const gradient = ctx.createRadialGradient(
-      width * (0.42 + Math.sin(time * 0.11) * 0.05),
-      height * (0.44 + Math.cos(time * 0.09) * 0.04),
-      80,
-      width * 0.5,
-      height * 0.5,
-      Math.max(width, height) * 0.82,
-    );
-    gradient.addColorStop(0, "rgba(52, 84, 70, 0.22)");
-    gradient.addColorStop(0.46, "rgba(23, 17, 36, 0.14)");
-    gradient.addColorStop(1, "rgba(5, 10, 8, 0.34)");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-    ctx.restore();
-  }
-
-  function drawWakes(ctx: CanvasRenderingContext2D, projected: Array<ProjectedAgent & { x: number; y: number; vx: number; vy: number; speed: number }>, time: number) {
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    for (const agent of projected) {
-      const speed = Math.min(1, agent.speed / 8);
-      const radius = 42 + agent.activity * 62 + speed * 80;
-      const glow = ctx.createRadialGradient(agent.x, agent.y, 5, agent.x, agent.y, radius);
-      glow.addColorStop(0, hexAlpha(agent.glow, 0.28 + agent.activity * 0.22));
-      glow.addColorStop(0.38, hexAlpha(agent.color, 0.12 + speed * 0.18));
-      glow.addColorStop(1, "rgba(0, 0, 0, 0)");
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(agent.x, agent.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.strokeStyle = hexAlpha(agent.color, 0.08 + agent.activity * 0.12);
-      ctx.lineWidth = 1.4 + agent.activity * 2.2;
-      for (let ring = 0; ring < 3; ring += 1) {
-        ctx.beginPath();
-        ctx.arc(
-          agent.x - agent.vx * (5 + ring * 4),
-          agent.y - agent.vy * (5 + ring * 4),
-          24 + ring * 32 + Math.sin(time * 2.3 + ring + agent.phase) * 7,
-          0,
-          Math.PI * 2,
-        );
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-  }
-
-  function drawAgent(ctx: CanvasRenderingContext2D, agent: ProjectedAgent & { x: number; y: number; vx: number; vy: number; speed: number }, hot: boolean) {
-    const size = 34 + agent.activity * 18 + (hot ? 8 : 0);
-    const tilt = Math.atan2(agent.vy, agent.vx || 0.001) * 0.16;
-    ctx.save();
-    ctx.translate(agent.x, agent.y);
-    ctx.rotate(tilt);
-    ctx.globalCompositeOperation = "lighter";
-    ctx.shadowColor = agent.glow;
-    ctx.shadowBlur = 18 + agent.activity * 26;
-    ctx.fillStyle = agent.color;
-    drawAgentPath(ctx, agent.shape, size);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.72)";
-    ctx.lineWidth = hot ? 2.4 : 1.2;
-    ctx.stroke();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "#fffaf0";
-    ctx.font = `800 ${Math.max(14, size * 0.42)}px Inter, system-ui, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(agent.glyph, 0, 1);
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.fillStyle = "rgba(5, 12, 9, 0.72)";
-    ctx.strokeStyle = hexAlpha(agent.color, 0.52);
-    roundedRect(ctx, agent.x - 42, agent.y + size * 0.64, 84, 36, 7);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "rgba(247, 255, 247, 0.92)";
-    ctx.font = "800 11px Inter, system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(agent.name, agent.x, agent.y + size * 0.64 + 14);
-    ctx.fillStyle = "rgba(226, 245, 225, 0.74)";
-    ctx.font = "800 9px Inter, system-ui, sans-serif";
-    ctx.fillText(agent.status.slice(0, 16).toUpperCase(), agent.x, agent.y + size * 0.64 + 28);
-    ctx.restore();
-  }
-
-  function drawAgentPath(ctx: CanvasRenderingContext2D, shape: string, size: number) {
-    const r = size / 2;
-    ctx.beginPath();
-    if (shape === "kite" || shape === "diamond") {
-      ctx.moveTo(0, -r);
-      ctx.lineTo(r * 0.9, 0);
-      ctx.lineTo(0, r);
-      ctx.lineTo(-r * 0.9, 0);
-      ctx.closePath();
-    } else if (shape === "hex") {
-      for (let index = 0; index < 6; index += 1) {
-        const angle = Math.PI / 6 + index * (Math.PI / 3);
-        const x = Math.cos(angle) * r;
-        const y = Math.sin(angle) * r;
-        if (index === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-    } else if (shape === "capsule") {
-      roundedRect(ctx, -r * 1.18, -r * 0.74, r * 2.36, r * 1.48, r * 0.54);
-    } else if (shape === "lens") {
-      ctx.ellipse(0, 0, r * 1.08, r * 0.76, Math.PI / 4, 0, Math.PI * 2);
-    } else if (shape === "seed") {
-      ctx.ellipse(0, 0, r * 0.82, r * 1.08, Math.PI / 4, 0, Math.PI * 2);
-    } else {
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
-    }
-  }
-
-  function drawThought(ctx: CanvasRenderingContext2D, agent: ProjectedAgent & { x: number; y: number }, width: number, height: number, hot: boolean) {
-    const boxWidth = Math.min(280, Math.max(180, width * 0.2));
-    const x = clamp(agent.x + (agent.x > width * 0.7 ? -boxWidth - 44 : 44), 16, width - boxWidth - 16);
-    const y = clamp(agent.y - 86, 16, height - 132);
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.shadowColor = agent.glow;
-    ctx.shadowBlur = hot ? 18 : 8;
-    ctx.fillStyle = hexAlpha(agent.color, hot ? 0.22 : 0.12);
-    roundedRect(ctx, x - 6, y - 6, boxWidth + 12, 104, 10);
-    ctx.fill();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = hot ? "rgba(248, 252, 242, 0.86)" : "rgba(248, 252, 242, 0.52)";
-    ctx.strokeStyle = hexAlpha(agent.color, hot ? 0.82 : 0.38);
-    roundedRect(ctx, x, y, boxWidth, 92, 9);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = agent.color;
-    ctx.font = "900 12px Inter, system-ui, sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(agent.name.toUpperCase(), x + 12, y + 10);
-    ctx.fillStyle = "rgba(23, 32, 24, 0.78)";
-    ctx.font = "700 13px Inter, system-ui, sans-serif";
-    wrapCanvasText(ctx, agent.thought, x + 12, y + 30, boxWidth - 24, 17, 3);
-    ctx.restore();
-  }
-
-  function drawOptions(ctx: CanvasRenderingContext2D, agent: ProjectedAgent & { x: number; y: number }, width: number, height: number) {
-    const options = aquariumOptionsByAgent[agent.id] ?? [];
-    hotZonesRef.current = [];
-    if (!options.length) return;
-    const radius = width < 540 ? 74 : 96;
-    const arc = Math.min(Math.PI * 1.25, Math.max(Math.PI * 0.72, options.length * 0.36));
-    const start = -Math.PI / 2 - arc / 2;
-    ctx.save();
-    ctx.font = "900 11px Inter, system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    for (let index = 0; index < options.length; index += 1) {
-      const option = options[index];
-      const angle = start + (arc * (index + 0.5)) / options.length;
-      const x = clamp(agent.x + Math.cos(angle) * radius, 48, width - 48);
-      const y = clamp(agent.y + Math.sin(angle) * radius, 56, height - 56);
-      const disabled = option.action ? Boolean(isActionBlocked?.(option.action)) : false;
-      const hot = pointerRef.current.active && Math.hypot(pointerRef.current.x - x, pointerRef.current.y - y) < 34;
-      if (!disabled) {
-        hotZonesRef.current.push({ x, y, radius: 36, option });
-      }
-      ctx.globalCompositeOperation = "lighter";
-      ctx.fillStyle = hexAlpha(agent.glow, hot ? 0.32 : 0.16);
-      ctx.beginPath();
-      ctx.arc(x, y, hot ? 42 : 34, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.globalCompositeOperation = "source-over";
-      ctx.fillStyle = disabled ? "rgba(8, 14, 12, 0.52)" : hot ? hexAlpha(agent.color, 0.8) : "rgba(8, 14, 12, 0.74)";
-      ctx.strokeStyle = disabled ? "rgba(226, 245, 225, 0.18)" : hexAlpha(agent.glow, hot ? 0.92 : 0.54);
-      roundedRect(ctx, x - 38, y - 17, 76, 34, 17);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = disabled ? "rgba(236, 246, 235, 0.34)" : "#fbfff8";
-      ctx.fillText(option.label.toUpperCase(), x, y + 1);
-    }
-    ctx.restore();
-  }
-
-  function drawActiveDeckGlyph(ctx: CanvasRenderingContext2D, width: number, height: number) {
-    if (!activeDeck) return;
-    ctx.save();
-    ctx.globalCompositeOperation = "lighter";
-    ctx.fillStyle = "rgba(247, 189, 88, 0.08)";
-    ctx.font = `900 ${Math.max(48, Math.min(width, height) * 0.09)}px Inter, system-ui, sans-serif`;
-    ctx.textAlign = "right";
-    ctx.textBaseline = "bottom";
-    ctx.fillText(`${deckLabels[activeDeck]} / ${activeSubdeck ?? ""}`.toUpperCase(), width - 24, height - 22);
-    ctx.restore();
-  }
-
-  function roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
-    ctx.beginPath();
-    ctx.moveTo(x + radius, y);
-    ctx.arcTo(x + width, y, x + width, y + height, radius);
-    ctx.arcTo(x + width, y + height, x, y + height, radius);
-    ctx.arcTo(x, y + height, x, y, radius);
-    ctx.arcTo(x, y, x + width, y, radius);
-    ctx.closePath();
-  }
-
-  function wrapCanvasText(ctx: CanvasRenderingContext2D, value: string, x: number, y: number, maxWidth: number, lineHeight: number, maxLines: number) {
-    const words = value.split(/\s+/);
-    let line = "";
-    let lineCount = 0;
-    for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
-      if (ctx.measureText(test).width > maxWidth && line) {
-        ctx.fillText(lineCount + 1 === maxLines ? `${line}...` : line, x, y + lineCount * lineHeight);
-        line = word;
-        lineCount += 1;
-        if (lineCount >= maxLines) return;
-      } else {
-        line = test;
-      }
-    }
-    if (line && lineCount < maxLines) {
-      ctx.fillText(line, x, y + lineCount * lineHeight);
+    const agentId = rendererRef.current?.pickAgent();
+    if (agentId) {
+      setSelectedAgentId(agentId);
     }
   }
 
@@ -1795,18 +1419,6 @@ function AgentConstellation({
       </div>
     </section>
   );
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function hexAlpha(hex: string, alpha: number) {
-  const normalized = hex.replace("#", "");
-  const value = Number.parseInt(normalized.length === 3
-    ? normalized.split("").map((char) => `${char}${char}`).join("")
-    : normalized, 16);
-  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${clamp(alpha, 0, 1)})`;
 }
 
 function SectionHeader({ title, icon }: { title: string; icon: React.ReactNode }) {
