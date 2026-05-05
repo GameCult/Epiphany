@@ -6,7 +6,10 @@ You are not the implementation worker for those repositories. You are not allowe
 
 ## Objective
 
-Convert useful doctrine and durable lessons from adjacent pseudo-Epiphany repos into True-Epiphany typed role memory for Epiphany's standing lanes:
+Convert useful doctrine, durable lessons, and repo-local planning/modeling surfaces from adjacent pseudo-Epiphany repos into reviewable True-Epiphany artifacts:
+
+- typed planning, graph/model, evidence, and checkpoint seed candidates for EpiphanyThreadState
+- typed role memory for Epiphany's standing lanes:
 
 - Self / coordinator
 - Face / public surface
@@ -17,13 +20,23 @@ Convert useful doctrine and durable lessons from adjacent pseudo-Epiphany repos 
 - Soul / verification, evidence, objective truth
 - Life / continuity, CRRC, compaction, reorientation
 
-The result should preserve what improves future agent behavior and discard what is only project-local trivia, stale activity logging, duplicate status, or repo-specific prose flavor.
+The result should preserve as much useful typed state as the source repos justify, while clearly separating active truth from candidates. Discard what is only project-local trivia, stale activity logging, duplicate status, or repo-specific prose flavor.
 
 ## Critical Boundary
 
 Epiphany role memory is not project truth.
 
 Do not put active objectives, repo maps, code facts, current implementation status, raw transcripts, file lists, issue dumps, or broad authority into role memory. Those belong in EpiphanyThreadState, evidence, planning captures, graph/checkpoint state, or repository-local state. Role memory should answer: "How should this Epiphany lane become better at its job in the future?"
+
+The migration packet should initialize as much of Epiphany's typed state surface as possible from repo contents, but active authority remains gated:
+
+- roadmap docs and future plans become `planning.roadmap_streams`, `planning.backlog_items`, `planning.captures`, and `planning.objective_drafts`
+- source maps, architecture notes, and stable module/domain boundaries become graph/model candidates
+- durable verified lessons become evidence candidates
+- handoffs, state maps, and compaction notes become checkpoint/reorientation candidates
+- nothing becomes `objective.current`, an active subgoal, accepted implementation truth, or launched work unless the operator explicitly adopts it later
+
+Default imported planning status should be conservative: use `new`, `triaged`, `ready`, `parked`, or `draft` as appropriate, but prefer candidate/draft states when freshness is uncertain. Stale roadmaps still deserve import when they encode product shape, but mark their confidence low and explain the staleness instead of quietly dropping them.
 
 Use the existing Ghostlight-shaped role memory contract in:
 
@@ -261,12 +274,132 @@ Write these files:
 
    - repo-by-repo source summary
    - durable lessons extracted
+   - typed state initialized or proposed from each repo
    - stale or rejected material and why it was not migrated
    - cross-repo themes
    - role-by-role migration rationale
+   - planning/model/evidence/checkpoint migration rationale
    - risks and open questions
 
-3. `role-selfpatches/`
+3. `typed-state-candidates/`
+
+   Produce reviewable EpiphanyThreadState seed material. These files are candidates by default, not applied state:
+
+   - `planning.seed-patch.json`
+   - `graph-model.seed-patch.json`
+   - `evidence.seed-patch.json`
+   - `checkpoint.seed-patch.json`
+   - `typed-state-merge-notes.md`
+
+   `planning.seed-patch.json` should follow the live planning substrate shape used by `thread/epiphany/update`:
+
+   ```json
+   {
+     "planning": {
+       "captures": [
+         {
+           "id": "capture-ghostlight-scene-loop",
+           "source": {
+             "kind": "repo_doc",
+             "uri": "E:\\Projects\\Ghostlight\\notes\\fresh-workspace-handoff.md",
+             "imported_at": "2026-05-05T00:00:00Z",
+             "external_id": "Ghostlight:notes/fresh-workspace-handoff.md"
+           },
+           "title": "Ghostlight scene fixture review loop",
+           "body": "Durable planning material distilled from the source document.",
+           "speaker": "repo-state",
+           "confidence": "medium",
+           "tags": ["ghostlight", "planning"],
+           "status": "triaged"
+         }
+       ],
+       "backlog_items": [
+         {
+           "id": "backlog-aquarium-object-gated-ui",
+           "title": "Preserve object-gated Aquarium interaction grammar",
+           "kind": "architecture",
+           "summary": "Import the durable UI direction as a reviewable future-shape item for Imagination.",
+           "status": "ready",
+           "horizon": "next",
+           "priority": {
+             "value": "p2",
+             "rationale": "Important for the operator experience, but not active implementation authority."
+           },
+           "confidence": "medium",
+           "product_area": "gui",
+           "lane_hints": ["imagination", "body", "soul"],
+           "dependencies": [],
+           "blockers": [],
+           "acceptance_sketch": ["Aquarium UI changes remain gated behind interactible objects and verified visually."],
+           "evidence_refs": [],
+           "source_refs": [
+             {
+               "kind": "repo_doc",
+               "uri": "E:\\Projects\\EpiphanyAquarium\\state\\map.yaml",
+               "imported_at": "2026-05-05T00:00:00Z"
+             }
+           ],
+           "duplicate_of": null,
+           "updated_at": "2026-05-05T00:00:00Z"
+         }
+       ],
+       "roadmap_streams": [
+         {
+           "id": "stream-imported-aquarium-interface",
+           "title": "Imported Aquarium Interface Direction",
+           "purpose": "Track repo-derived UI/product direction for Imagination without adopting it as the current objective.",
+           "status": "active",
+           "item_ids": ["backlog-aquarium-object-gated-ui"],
+           "near_term_focus": "backlog-aquarium-object-gated-ui",
+           "blocked_by": [],
+           "review_cadence": "ad_hoc"
+         }
+       ],
+       "objective_drafts": [
+         {
+           "id": "objdraft-aquarium-object-gated-ui-review",
+           "title": "Review imported Aquarium object-gated UI direction",
+           "summary": "Human-review the imported Aquarium roadmap stream before adopting any implementation objective.",
+           "source_item_ids": ["backlog-aquarium-object-gated-ui"],
+           "scope": {
+             "includes": ["review imported roadmap state", "split stale items"],
+             "excludes": ["implementation without adoption"]
+           },
+           "acceptance_criteria": ["The user either adopts, parks, splits, or rejects the imported stream."],
+           "evidence_required": ["source inventory", "distillation report"],
+           "lane_plan": {
+             "imagination": "shape imported roadmap items into bounded objective candidates",
+             "eyes": "check external/source references when imported items depend on outside tools",
+             "body": "map repo architecture and dependencies behind imported plans",
+             "hands": "wait for adoption before editing",
+             "soul": "verify source attribution and freshness",
+             "life": "keep migration state resumable"
+           },
+           "dependencies": [],
+           "risks": ["Imported roadmaps may be stale or over-broad."],
+           "review_gates": ["human adoption required before active objective"],
+           "status": "draft"
+         }
+       ]
+     }
+   }
+   ```
+
+   `graph-model.seed-patch.json` should propose typed graph and checkpoint material where source maps support it. Prefer architecture/dataflow nodes, ownership boundaries, source refs, invariants, and frontier candidates over exhaustive file lists. If the current graph schema is unclear, write a conservative candidate file with explicit `schema_uncertain: true` and concrete source references rather than inventing a private graph format in confidence cosplay.
+
+   `evidence.seed-patch.json` should contain only distilled evidence candidates that change future belief. Keep routine activity proof out. Each evidence candidate must cite source repo, file, and a short rationale.
+
+   `checkpoint.seed-patch.json` should propose investigation checkpoints and reorientation hints from handoffs, scratches, and state maps: focus, source refs, evidence ids, stale areas, and what should be regathered before implementation.
+
+   `typed-state-merge-notes.md` must explain:
+
+   - how much typed state was initialized
+   - which repo roadmaps became roadmap streams
+   - which backlog items and objective drafts are low-confidence or stale
+   - which source maps were strong enough to become graph/model candidates
+   - what should be reviewed by Imagination, Body, Soul, or the human before apply
+
+4. `role-selfpatches/`
 
    One JSON file per target role:
 
@@ -310,9 +443,9 @@ Write these files:
    - at most 3 values
    - at most 4 private notes
 
-4. `review-results.json`
+5. `review-results.json`
 
-   Validate every patch with:
+   Validate every role memory patch with:
 
    ```powershell
    & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' review-patch --role-id <role> --patch '<path-to-patch>'
@@ -320,21 +453,32 @@ Write these files:
 
    Record status and refusal reasons. Fix rejected patches until they validate, unless a rejection reveals the lesson should not be migrated.
 
-5. `apply-plan.md`
+   For typed-state candidates, perform structural validation by comparing against:
+
+   - `E:\Projects\EpiphanyAgent\notes\epiphany-planning-substrate.md`
+   - `E:\Projects\EpiphanyAgent\tools\epiphany_phase6_planning_smoke.py`
+   - `thread/epiphany/update` validation rules in the current source tree, when exact validation is needed
+
+   If you can safely run a temporary app-server/thread validation without mutating the user's real state, do so and record the command. Otherwise record that typed-state candidates are source-shaped but operator-review pending.
+
+6. `apply-plan.md`
 
    A human-readable application plan:
 
-   - exact command sequence to apply the validated patches
+   - exact command sequence to apply the validated role patches
+   - exact command sequence to apply typed-state candidates to a selected Epiphany thread through `thread/epiphany/update`
    - expected changed files under `state/agents`
+   - expected typed state fields changed: `planning`, `graphs`, `graphFrontier`, `investigationCheckpoint`, `observations`, or `evidence`
    - validation command after apply
    - rollback plan using git
    - recommendation on whether to apply now or stage for later review
 
-Do not apply patches unless the operator explicitly says this sandbox run is allowed to modify `state/agents`. The default deliverable is a reviewable migration packet.
+Do not apply role patches unless the operator explicitly says this sandbox run is allowed to modify `state/agents`. Do not apply typed-state candidates unless the operator explicitly names the target thread or workspace state surface. The default deliverable is a reviewable migration packet, but that packet must be rich enough to initialize Epiphany's typed state after review.
 
 ## Distillation Rules
 
 - Prefer strong general lessons over repo-local facts.
+- For typed-state candidates, prefer source-attributed repo facts and plans over vague doctrine.
 - Preserve emotionally salient language only when it improves future steering.
 - Delete activity history. "This commit happened" is not a memory unless it changes future behavior.
 - Do not duplicate the same lesson into every role. Put it where it will act.
@@ -343,6 +487,10 @@ Do not apply patches unless the operator explicitly says this sandbox run is all
 - Treat archived or stale evidence as historical scar tissue, not current truth.
 - When state surfaces disagree, prefer `state/map.yaml` for current map, `state/evidence.jsonl` for durable lessons, and `notes/fresh-workspace-handoff.md` for re-entry/continuity.
 - If a repo has no pseudo-Epiphany state and only `AGENTS.md`, extract doctrine only; do not invent memories from absence.
+- When roadmap docs are stale but structurally useful, import them as low-confidence planning captures/backlog/streams instead of erasing them.
+- When a repo has a clear architecture map, import a small graph/model candidate focused on ownership, dataflow, and invariants; do not dump every file.
+- When a repo has durable evidence, import only the belief-changing records and link them to planning/model/checkpoint candidates when relevant.
+- Every imported planning item must preserve source attribution and confidence so Imagination can prune, split, merge, or park it later.
 
 ## Known Source Themes From Initial Inspection
 
@@ -371,6 +519,8 @@ Report only:
 - artifact directory path
 - repos inspected
 - number of validated patches
+- typed-state candidate files produced
+- roadmap streams, backlog items, objective drafts, graph/model candidates, and evidence candidates produced
 - patches rejected or skipped and why
 - recommended next action
 - tests/validation commands run
