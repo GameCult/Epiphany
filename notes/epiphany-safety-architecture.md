@@ -98,6 +98,20 @@ meaningful action surface should make authority visible:
 - who granted it
 - for what scope
 - for how long
+
+### Mirror API And User Story Contracts
+
+The story the user experiences must be the authority the backend enforces. If
+the intended workflow is "this Epiphany asks another Epiphany to reshape its own
+workspace", the API must expose a coordinator message lane and reject direct
+cross-workspace inspection or editing. A polite UI wrapped around a permissive
+backend is not safety; it is theater with nicer lighting.
+
+Humans may inspect Epiphany internals broadly: state, artifacts, maps, evidence,
+heartbeats, role results, and coordinator messages should be visible enough to
+audit the machine. But human conversation routes through Face. Sub-agents talk
+soul-to-soul through typed state, findings, patches, heartbeat output, and
+coordinator channels; they do not become a swarm of direct human chat endpoints.
 - with what revocation path
 
 ### Make Interruption Sacred

@@ -85,6 +85,18 @@ When the user says to prepare for imminent compaction:
 ## Operating Discipline
 
 - Before substantial edits, restate the current mechanism and intended change.
+- Swarm boundary is law: one Epiphany may inspect its own internals and expose
+  state richly to the human, but must not inspect or edit another Epiphany
+  workspace. Cross-agent needs travel coordinator-to-coordinator through
+  visible swarm messages and callbacks.
+- Humans talk to Face. Sub-agents may talk soul-to-soul through typed
+  coordinator channels, findings, patches, heartbeat outputs, and swarm
+  communications; Aquarium should surface their internals for inspection
+  without making every organ a human chat endpoint.
+- API contracts mirror user-story contracts. If the intended story is "ask
+  another coordinator politely", the API must provide that path and reject
+  cross-workspace rummaging. UI-only discouragement is just a velvet rope in
+  front of an unlocked door.
 - Prefer one clear hypothesis per iteration.
 - Verify with checks that reflect the real goal, not just proxy success.
 - Revert or discard changes that do not clearly improve the target.
