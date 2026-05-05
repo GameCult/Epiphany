@@ -89,6 +89,7 @@ export interface AquariumRenderer {
   setFrame(frame: AquariumFrame): void;
   setHoveredAgent(id: string | null): void;
   setPointerClient(clientX: number, clientY: number): void;
+  triggerInterfaceHit(kind?: string): void;
   wakeSoundscape(): void;
 }
 
@@ -691,6 +692,10 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.ensureSoundscape();
   }
 
+  triggerInterfaceHit(kind = "control") {
+    this.ensureSoundscape()?.triggerInterfaceHit(kind);
+  }
+
   setPointerClient(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect();
     const x = ((clientX - rect.left) / Math.max(rect.width, 1)) * this.simWidth;
@@ -706,6 +711,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.ensureSoundscape();
     const zone = this.fluidParamZones.find((candidate) => pointInRect(this.pointer.x, this.pointer.y, candidate));
     if (!zone) return;
+    this.triggerInterfaceHit(`fluid-${zone.key}`);
     if (zone.key === "toggle") {
       this.fluidPanelPinned = !this.fluidPanelPinned;
       return;
@@ -2362,6 +2368,7 @@ class BufferedGpuSpectrumOutput {
 class AquariumSoundscape {
   private compressor: DynamicsCompressorNode;
   private context: AudioContext;
+  private interfaceHitCount = 0;
   private lastAgents: ProjectedAgent[] = [];
   private master: GainNode;
   private lastBurstChirpDrivers = 0;
@@ -2433,6 +2440,18 @@ class AquariumSoundscape {
     this.publishDebugState(action);
   }
 
+  triggerInterfaceHit(kind: string) {
+    if (this.context.state === "suspended") {
+      void this.context.resume().then(() => {
+        this.playInterfaceResonator(kind);
+        this.publishDebugState();
+      });
+      return;
+    }
+    this.playInterfaceResonator(kind);
+    this.publishDebugState();
+  }
+
   private flushPendingBursts() {
     if (this.context.state === "suspended" || !this.pendingBursts.length) return;
     const bursts = this.pendingBursts.splice(0, this.pendingBursts.length).slice(-8);
@@ -2448,11 +2467,75 @@ class AquariumSoundscape {
       pendingBursts: this.pendingBursts.length,
       lastBurst: lastBurst ?? (window as any).__epiphanyAquariumAudio?.lastBurst ?? null,
       lastBurstChirpDrivers: this.lastBurstChirpDrivers,
+      interfaceHitCount: this.interfaceHitCount,
       masterGain: this.master.gain.value,
       spectral: this.spectralOutput.stats(),
       error: error ?? null,
     };
   }
+
+  private playInterfaceResonator(kind: string) {
+    const now = this.context.currentTime;
+    const duration = kind.includes("panel") ? 0.32 : kind.includes("menu") ? 0.24 : 0.18;
+    const seed = hashString(`${kind}:${this.interfaceHitCount}`);
+    const random = mulberry32(seed);
+    const noise = this.context.createBuffer(1, Math.ceil(this.context.sampleRate * duration), this.context.sampleRate);
+    const data = noise.getChannelData(0);
+    for (let index = 0; index < data.length; index += 1) {
+      data[index] = random() * 2 - 1;
+    }
+    const source = this.context.createBufferSource();
+    const body = this.context.createGain();
+    const output = this.context.createGain();
+    source.buffer = noise;
+    body.gain.setValueAtTime(1, now);
+    body.gain.exponentialRampToValueAtTime(0.001, now + duration);
+    output.gain.setValueAtTime(0.0001, now);
+    output.gain.exponentialRampToValueAtTime(kind.includes("disabled") ? 0.045 : 0.085, now + 0.006);
+    output.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    const profile = interfaceHarmonicProfile(kind, seed);
+    for (const [index, frequency] of profile.entries()) {
+      const resonator = this.context.createBiquadFilter();
+      const gain = this.context.createGain();
+      resonator.type = "bandpass";
+      resonator.frequency.setValueAtTime(frequency, now);
+      resonator.Q.setValueAtTime(9 + index * 2.2 + random() * 5, now);
+      gain.gain.setValueAtTime((kind.includes("primary") ? 0.12 : 0.085) / Math.pow(index + 1, 0.72), now);
+      source.connect(resonator);
+      resonator.connect(gain);
+      gain.connect(body);
+    }
+    body.connect(output);
+    output.connect(this.master);
+    source.start(now);
+    source.stop(now + duration);
+    source.onended = () => {
+      source.disconnect();
+      body.disconnect();
+      output.disconnect();
+    };
+    this.interfaceHitCount += 1;
+  }
+}
+
+function interfaceHarmonicProfile(kind: string, seed: number) {
+  const random = mulberry32(seed ^ 0x9e3779b9);
+  const root = kind.includes("deck")
+    ? 146.83
+    : kind.includes("subdeck")
+      ? 196
+      : kind.includes("playlist")
+        ? 261.63
+        : kind.includes("primary")
+          ? 329.63
+          : 220;
+  const profile = kind.includes("panel")
+    ? [1, 1.5, 2, 2.5, 3, 4.5]
+    : kind.includes("disabled")
+      ? [1, 1.33, 2, 2.66]
+      : [1, 2, 3, 5, 8];
+  return profile.map((ratio, index) => root * ratio * (1 + (random() - 0.5) * 0.012 * (index + 1)));
 }
 
 class CanvasAquariumRenderer implements AquariumRenderer {
@@ -2495,6 +2578,10 @@ class CanvasAquariumRenderer implements AquariumRenderer {
   }
 
   wakeSoundscape() {
+    // The 2D fallback has no soundscape.
+  }
+
+  triggerInterfaceHit(_kind?: string) {
     // The 2D fallback has no soundscape.
   }
 

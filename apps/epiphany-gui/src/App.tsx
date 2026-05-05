@@ -805,10 +805,11 @@ export function App() {
       <button
         className="secondaryButton hudActionButton"
         onClick={() => void runAction(button.action)}
-        disabled={disabled}
-        title={title}
-        key={button.action}
-      >
+      disabled={disabled}
+      title={title}
+      data-interface-sound={disabled ? "action-disabled" : "action-primary"}
+      key={button.action}
+    >
         <ActionIcon icon={button.icon} />
         {runningAction === button.action ? button.runningLabel : button.label}
       </button>
@@ -930,27 +931,9 @@ export function App() {
     });
   }, [objectiveDrafts, setRequest]);
 
-  return (
-    <main className="immersiveShell">
-      <AgentConstellation
-        roles={roles}
-        roleResults={roleResults}
-        reorientResult={reorientResult}
-        coordinator={coordinator}
-        crrc={crrc}
-        pressure={pressure}
-        reorient={reorient}
-        jobs={jobs}
-        variant="fullscreen"
-        activeDeck={activeDeck}
-        activeSubdeck={activeSubdeck}
-        ui={aquariumUi}
-        harmonyFrame={harmony.frame}
-        onAgentOption={handleAquariumOption}
-        isActionBlocked={actionBlocked}
-      />
+  const operatorSurface = (
+    <>
       <div className="hudGrid" aria-hidden="true" />
-
       <header className="immersiveTopbar">
         <div className="operatorIdentity">
           <p className="eyebrow">Epiphany MVP</p>
@@ -963,7 +946,13 @@ export function App() {
           </Pill>
           <Pill tone={statusClass(pressure.level)}>pressure {text(pressure.level, "unknown")}</Pill>
           <Pill tone={statusClass(reorient.action)}>continuity {text(reorient.action, "unknown")}</Pill>
-          <button className="primaryButton" onClick={() => void refresh()} disabled={loading} title="Refresh status">
+          <button
+            className="primaryButton"
+            onClick={() => void refresh()}
+            disabled={loading}
+            title="Refresh status"
+            data-interface-sound={loading ? "primary-disabled" : "primary-refresh"}
+          >
             <RefreshCw size={16} aria-hidden="true" />
             {loading ? "Refreshing" : "Refresh"}
           </button>
@@ -983,6 +972,7 @@ export function App() {
             type="button"
             className={activeDeck === deck ? "active" : ""}
             onClick={() => selectDeck(deck)}
+            data-interface-sound="deck-menu"
             key={deck}
           >
             {deck === "command" && <ClipboardCheck size={17} aria-hidden="true" />}
@@ -1006,6 +996,7 @@ export function App() {
                 type="button"
                 className={activeSubdeck === subdeck ? "active" : ""}
                 onClick={() => selectSubdeck(activeDeck, subdeck)}
+                data-interface-sound="subdeck-menu"
                 key={subdeck}
               >
                 {subdeck}
@@ -1371,6 +1362,29 @@ export function App() {
           </section>
         )}
       </aside>
+    </>
+  );
+
+  return (
+    <main className="immersiveShell">
+      <AgentConstellation
+        roles={roles}
+        roleResults={roleResults}
+        reorientResult={reorientResult}
+        coordinator={coordinator}
+        crrc={crrc}
+        pressure={pressure}
+        reorient={reorient}
+        jobs={jobs}
+        variant="fullscreen"
+        activeDeck={activeDeck}
+        activeSubdeck={activeSubdeck}
+        ui={aquariumUi}
+        harmonyFrame={harmony.frame}
+        operatorSurface={operatorSurface}
+        onAgentOption={handleAquariumOption}
+        isActionBlocked={actionBlocked}
+      />
     </main>
   );
 }
@@ -1399,15 +1413,15 @@ function PlaylistControl({
 }) {
   return (
     <details className="playlistControl">
-      <summary title={frame?.sourcePath ?? error ?? "Loading classical MIDI harmony"}>
+      <summary title={frame?.sourcePath ?? error ?? "Loading classical MIDI harmony"} data-interface-sound="playlist-panel">
         <span>Harmony</span>
         <strong>{loading ? "loading" : frame?.chordLabel ?? "silent"}</strong>
       </summary>
       <div className="playlistBody">
         <p title={frame?.sourcePath ?? undefined}>{error ?? frame?.sourceName ?? "Finding a classical MIDI file."}</p>
         <div className="playlistButtons">
-          <button type="button" onClick={() => void onNext()} disabled={loading}>Shuffle Song</button>
-          <button type="button" onClick={() => void onChangeFolder()} disabled={loading}>Folder</button>
+          <button type="button" onClick={() => void onNext()} disabled={loading} data-interface-sound="playlist-next">Shuffle Song</button>
+          <button type="button" onClick={() => void onChangeFolder()} disabled={loading} data-interface-sound="playlist-folder">Folder</button>
         </div>
       </div>
     </details>
@@ -1428,6 +1442,7 @@ function AgentConstellation({
   activeSubdeck,
   ui,
   harmonyFrame,
+  operatorSurface,
   onAgentOption,
   isActionBlocked,
 }: {
@@ -1444,6 +1459,7 @@ function AgentConstellation({
   activeSubdeck?: string;
   ui?: AquariumUiFrame;
   harmonyFrame: AquariumHarmonyFrame | null;
+  operatorSurface?: React.ReactNode;
   onAgentOption?: (option: AquariumOption) => void;
   isActionBlocked?: (action: OperatorAction) => boolean;
 }) {
@@ -1691,6 +1707,24 @@ function AgentConstellation({
     };
   }
 
+  function handleInterfacePointerDown(event: React.PointerEvent<HTMLElement>) {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.closest(".agentCharacter")) return;
+    const control = target.closest("button, summary, input, select, [data-interface-sound]");
+    if (!(control instanceof HTMLElement)) return;
+    const disabled =
+      control instanceof HTMLButtonElement || control instanceof HTMLInputElement || control instanceof HTMLSelectElement
+        ? control.disabled
+        : false;
+    const explicitKind = control.dataset.interfaceSound;
+    const kind =
+      explicitKind ??
+      (control.closest(".diegeticPanel") ? "panel-control" : control.closest(".deckRail") ? "deck-menu" : "control");
+    rendererRef.current?.wakeSoundscape();
+    rendererRef.current?.triggerInterfaceHit(disabled ? `${kind}-disabled` : kind);
+  }
+
   function handleCanvasClick() {
     const optionKey = rendererRef.current?.pickOption();
     if (optionKey) {
@@ -1726,6 +1760,9 @@ function AgentConstellation({
         </div>
       )}
       <div className="agentStage">
+        <div className="aquariumOperatorLayer" onPointerDownCapture={handleInterfacePointerDown}>
+          {operatorSurface}
+        </div>
         <canvas
           ref={canvasRef}
           className="agentSmokeCanvas"
@@ -1750,7 +1787,6 @@ function AgentConstellation({
             type="button"
             data-agent-node={agent.id}
             onClick={() => {
-              rendererRef.current?.acknowledgeAgent(agent.id, "selected");
               setSelectedAgentId(agent.id);
             }}
             onPointerEnter={(event) => handleAgentPointerEnter(agent.id, event)}
@@ -1837,6 +1873,7 @@ function AgentConstellation({
                   key={option.key}
                   disabled={option.disabled}
                   title={option.label}
+                  data-interface-sound={option.disabled ? "agent-option-disabled" : "agent-option"}
                   style={optionPositionStyle(index, options.length)}
                   onClick={(event) => handleOptionClick(event, option.key)}
                 >

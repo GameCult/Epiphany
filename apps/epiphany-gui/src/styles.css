@@ -472,6 +472,21 @@ body:has(.immersiveShell) {
   mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.8), transparent 72%);
 }
 
+.aquariumOperatorLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+
+.aquariumOperatorLayer > * {
+  pointer-events: auto;
+}
+
+.aquariumOperatorLayer .hudGrid {
+  pointer-events: none;
+}
+
 .immersiveTopbar,
 .deckRail,
 .diegeticPanel,

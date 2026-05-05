@@ -77,7 +77,7 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
 
   const operatorSurface = await page.evaluate(() => {
     return [".immersiveTopbar", ".deckRail", ".diegeticPanel"].every((selector) => {
-      const element = document.querySelector(selector);
+      const element = document.querySelector(`.agentStage ${selector}`);
       if (!element) return false;
       const style = window.getComputedStyle(element);
       const rect = element.getBoundingClientRect();
@@ -194,6 +194,12 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
       const audio = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
       throw new Error(`aquarium audio did not wake correctly: ${JSON.stringify(audio)}`, { cause: error });
     }
+    audioProbe = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
+    await page.locator(".deckRail button").nth(1).click();
+    await page.waitForFunction(() => {
+      const audio = window.__epiphanyAquariumAudio;
+      return audio?.state === "running" && audio.interfaceHitCount >= 1;
+    }, null, { timeout: 5000 });
     audioProbe = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
   }
 
