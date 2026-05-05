@@ -995,6 +995,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   private drawSource(projected: ProjectedAgent[], activeAgent: ProjectedAgent | undefined, time: number) {
     const ctx = this.sourceContext;
+    const paintAgentChrome = this.frame.variant !== "fullscreen";
     ctx.clearRect(0, 0, this.simWidth, this.simHeight);
     this.hotOptions = [];
     ctx.save();
@@ -1003,33 +1004,42 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const hot = agent.id === activeAgent?.id || agent.id === this.frame.selectedAgentId;
       this.drawAgentSource(ctx, agent, hot);
     }
-    if (activeAgent) {
+    if (activeAgent && paintAgentChrome) {
       this.drawThoughtSource(ctx, activeAgent);
-      this.drawOptionsSource(ctx, activeAgent);
+    }
+    if (activeAgent) {
+      this.drawOptionsSource(ctx, activeAgent, paintAgentChrome);
     }
     this.drawParameterImpulseSource(ctx, time);
     ctx.restore();
   }
 
   private drawAgentSource(ctx: CanvasRenderingContext2D, agent: ProjectedAgent, hot: boolean) {
-    const size = 22 + agent.activity * 10 + agent.chirps.expression * 4 + (hot ? 4 : 0);
+    const fullscreen = this.frame.variant === "fullscreen";
+    const size = fullscreen
+      ? 46 + agent.activity * 7 + agent.chirps.expression * 3 + (hot ? 2 : 0)
+      : 22 + agent.activity * 10 + agent.chirps.expression * 4 + (hot ? 4 : 0);
     const ink = this.fluidParams.sourceOpacity * agent.emissionPulse * agent.chirps.inkPulse;
     const distortion = agent.chirps.distortion + (hot ? 0.02 : 0);
+    const layers = fullscreen ? 1 : 4;
     ctx.save();
     ctx.translate(agent.x, agent.y);
     ctx.rotate(Math.atan2(agent.vy, agent.vx || 0.001) * 0.12);
     ctx.globalCompositeOperation = "lighter";
     ctx.fillStyle = agent.color;
-    for (let index = 0; index < 4; index += 1) {
-      const lag = 4 + index * 6;
-      const layerSize = size * (1 + index * 0.18);
+    for (let index = 0; index < layers; index += 1) {
+      const lag = fullscreen ? 0 : 4 + index * 6;
+      const layerSize = fullscreen ? size : size * (1 + index * 0.18);
       const pulse =
         0.68 +
         agent.chirps.glowPulse * 0.14 +
         chirplet(this.time, agent.phase + index * 0.61, 0.28 + agent.chirps.expression * 0.24, 0.025, 6.5) * 0.24;
+      const alphaBase = fullscreen
+        ? 0.01 + agent.activity * 0.012 + (hot ? 0.003 : 0)
+        : 0.024 + agent.activity * 0.028 + (hot ? 0.015 : 0) - index * 0.003;
       ctx.save();
-      ctx.translate(-agent.vx * lag - index * 1.5, -agent.vy * lag + index);
-      ctx.globalAlpha = clamp((0.024 + agent.activity * 0.028 + (hot ? 0.015 : 0) - index * 0.003) * ink * pulse, 0, 0.42);
+      ctx.translate(fullscreen ? 0 : -agent.vx * lag - index * 1.5, fullscreen ? 0 : -agent.vy * lag + index);
+      ctx.globalAlpha = clamp(alphaBase * ink * pulse, 0, fullscreen ? 0.09 : 0.42);
       drawDistortedAgentPath(ctx, agent.shape, layerSize, this.time * 0.18 + index * 0.9, agent.phase + index * 0.37, distortion + index * 0.018);
       ctx.fill();
       ctx.restore();
@@ -1052,16 +1062,18 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.restore();
   }
 
-  private drawOptionsSource(ctx: CanvasRenderingContext2D, agent: ProjectedAgent) {
+  private drawOptionsSource(ctx: CanvasRenderingContext2D, agent: ProjectedAgent, paint = true) {
     const options = agent.options ?? [];
     if (!options.length) return;
     const radius = this.simWidth < 540 ? 64 : 86;
     const arc = Math.min(Math.PI * 1.2, Math.max(Math.PI * 0.7, options.length * 0.34));
     const start = -Math.PI / 2 - arc / 2;
-    ctx.save();
-    ctx.font = "900 9px Inter, system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
+    if (paint) {
+      ctx.save();
+      ctx.font = "900 9px Inter, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+    }
     for (let index = 0; index < options.length; index += 1) {
       const option = options[index];
       const angle = start + (arc * (index + 0.5)) / options.length;
@@ -1071,6 +1083,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       if (!option.disabled) {
         this.hotOptions.push({ x, y, radius: 32, key: option.key });
       }
+      if (!paint) continue;
       ctx.globalAlpha = (option.disabled ? 0.008 : hot ? 0.04 : 0.018) * this.fluidParams.sourceOpacity;
       ctx.fillStyle = option.disabled ? agent.glow : agent.color;
       ctx.strokeStyle = option.disabled ? hexAlpha(agent.glow, 0.12) : hexAlpha(agent.glow, hot ? 0.62 : 0.32);
@@ -1078,7 +1091,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
       ctx.fill();
       ctx.stroke();
     }
-    ctx.restore();
+    if (paint) {
+      ctx.restore();
+    }
   }
 
   private drawDeckSource(ctx: CanvasRenderingContext2D) {
