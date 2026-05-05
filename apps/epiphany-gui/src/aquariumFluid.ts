@@ -88,7 +88,42 @@ interface MotionState {
   vy: number;
 }
 
+interface AgentPersonality {
+  angle: number;
+  radius: number;
+  eccentricity: number;
+  orbitSpeed: number;
+  radialTempo: number;
+  tangentialTempo: number;
+  expressiveness: number;
+  glowTempo: number;
+  inkTempo: number;
+  precision: number;
+  hoverStillness: number;
+}
+
+interface AgentStateVector {
+  activity: number;
+  blocked: number;
+  ready: number;
+  review: number;
+  urgency: number;
+}
+
+interface AgentChirpMatrix {
+  angle: number;
+  distortion: number;
+  expression: number;
+  glowPulse: number;
+  hoverDamping: number;
+  inkPulse: number;
+  orbitRadius: number;
+  radial: number;
+  tangential: number;
+}
+
 interface ProjectedAgent extends AquariumAgentFrame, MotionState {
+  chirps: AgentChirpMatrix;
   index: number;
   emissionPulse: number;
   hover: number;
@@ -139,7 +174,7 @@ interface FluidParamZone {
 }
 
 const fullscreenPositions: Record<string, { x: number; y: number }> = {
-  coordinator: { x: 72, y: 34 },
+  coordinator: { x: 60, y: 42 },
   imagination: { x: 60, y: 19 },
   research: { x: 90, y: 24 },
   reorientation: { x: 83, y: 43 },
@@ -156,6 +191,100 @@ const compactPositions: Record<string, { x: number; y: number }> = {
   modeling: { x: 14, y: 52 },
   verification: { x: 86, y: 52 },
   implementation: { x: 50, y: 61 },
+};
+
+const agentPersonalities: Record<string, AgentPersonality> = {
+  coordinator: {
+    angle: -0.36,
+    radius: 0,
+    eccentricity: 0.04,
+    orbitSpeed: 0.012,
+    radialTempo: 0.18,
+    tangentialTempo: 0.14,
+    expressiveness: 0.34,
+    glowTempo: 0.34,
+    inkTempo: 0.22,
+    precision: 0.82,
+    hoverStillness: 0.9,
+  },
+  imagination: {
+    angle: -2.22,
+    radius: 0.72,
+    eccentricity: 0.2,
+    orbitSpeed: 0.026,
+    radialTempo: 0.42,
+    tangentialTempo: 0.38,
+    expressiveness: 1.16,
+    glowTempo: 0.9,
+    inkTempo: 0.72,
+    precision: 0.34,
+    hoverStillness: 0.82,
+  },
+  research: {
+    angle: -0.76,
+    radius: 0.78,
+    eccentricity: 0.1,
+    orbitSpeed: 0.018,
+    radialTempo: 0.28,
+    tangentialTempo: 0.22,
+    expressiveness: 0.62,
+    glowTempo: 0.46,
+    inkTempo: 0.33,
+    precision: 0.92,
+    hoverStillness: 0.9,
+  },
+  reorientation: {
+    angle: 0.1,
+    radius: 0.48,
+    eccentricity: 0.16,
+    orbitSpeed: 0.014,
+    radialTempo: 0.24,
+    tangentialTempo: 0.2,
+    expressiveness: 0.74,
+    glowTempo: 0.56,
+    inkTempo: 0.42,
+    precision: 0.74,
+    hoverStillness: 0.86,
+  },
+  modeling: {
+    angle: 2.34,
+    radius: 0.62,
+    eccentricity: 0.08,
+    orbitSpeed: 0.015,
+    radialTempo: 0.2,
+    tangentialTempo: 0.18,
+    expressiveness: 0.46,
+    glowTempo: 0.38,
+    inkTempo: 0.3,
+    precision: 0.88,
+    hoverStillness: 0.92,
+  },
+  verification: {
+    angle: 1.02,
+    radius: 0.7,
+    eccentricity: 0.12,
+    orbitSpeed: 0.017,
+    radialTempo: 0.26,
+    tangentialTempo: 0.2,
+    expressiveness: 0.56,
+    glowTempo: 0.42,
+    inkTempo: 0.28,
+    precision: 0.96,
+    hoverStillness: 0.94,
+  },
+  implementation: {
+    angle: 1.74,
+    radius: 0.84,
+    eccentricity: 0.06,
+    orbitSpeed: 0.022,
+    radialTempo: 0.36,
+    tangentialTempo: 0.3,
+    expressiveness: 0.88,
+    glowTempo: 0.62,
+    inkTempo: 0.58,
+    precision: 0.6,
+    hoverStillness: 0.8,
+  },
 };
 
 const fluidParamStorageKey = "epiphany:aquarium-fluid-params:v3";
@@ -656,31 +785,58 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   private projectAgents(time: number): ProjectedAgent[] {
     this.hotAgents = [];
+    const selfAgent = this.frame.agents.find((agent) => agent.id === "coordinator") ?? this.frame.agents[0];
+    const selfBase = selfAgent ? this.basePoint(selfAgent) : { x: this.simWidth * 0.5, y: this.simHeight * 0.42 };
+    let selfAnchor = this.motion.get("coordinator") ?? { x: selfBase.x, y: selfBase.y, vx: 0, vy: 0 };
+    const orbitScale = Math.min(this.simWidth, this.simHeight) * (this.simWidth < 540 ? 0.3 : 0.32);
     return this.frame.agents.map((agent, index) => {
       const base = this.basePoint(agent);
       const state = this.motion.get(agent.id) ?? { x: base.x, y: base.y, vx: 0, vy: 0 };
-      const activity = Math.max(0.04, agent.activity);
+      const personality = personalityFor(agent.id);
+      const stateVector = projectAgentState(agent);
+      const activity = Math.max(0.04, stateVector.activity);
       const hover = this.pointer.active ? hoverInfluence(state.x, state.y, this.pointer.x, this.pointer.y, 104) : 0;
-      const hoverMotion = lerp(1, 0.14, hover);
-      const hoverFrequency = lerp(1, 0.24, hover);
+      const chirps = projectChirpMatrix(agent, personality, stateVector, time, hover);
       const pull = this.pointer.active ? this.pointerPull(agent, state.x, state.y) : { x: 0, y: 0 };
-      const pointerPull = { x: pull.x * lerp(1, 0.12, hover), y: pull.y * lerp(1, 0.12, hover) };
-      const swim = (this.frame.variant === "fullscreen" ? 22 + activity * 76 : 8 + activity * 22) * hoverMotion;
-      const cadence = (0.13 + activity * 0.28) * hoverFrequency;
-      const xChirp = chirplet(time, agent.phase * 1.7, cadence, 0.018 + activity * 0.026, 9);
-      const yChirp = chirplet(time, agent.phase + 1.1, cadence * 0.82, -0.014 - activity * 0.018, 8);
-      const targetX = base.x + xChirp * swim + pointerPull.x;
-      const targetY = base.y + yChirp * swim * 0.64 + pointerPull.y;
-      const follow = (0.0032 + activity * 0.0065) * lerp(1, 0.38, hover);
+      const pointerPull = { x: pull.x * lerp(1, 0.08, hover), y: pull.y * lerp(1, 0.08, hover) };
+      const orbitRadius = orbitScale * chirps.orbitRadius;
+      const angle = chirps.angle;
+      const normalX = Math.cos(angle);
+      const normalY = Math.sin(angle);
+      const tangentX = -normalY;
+      const tangentY = normalX;
+      const swim = (this.frame.variant === "fullscreen" ? 18 + activity * 66 : 7 + activity * 20) * chirps.expression;
+      const target =
+        agent.id === "coordinator"
+          ? {
+              x: base.x + chirps.radial * swim * 0.26 + pointerPull.x,
+              y: base.y + chirps.tangential * swim * 0.18 + pointerPull.y,
+            }
+          : {
+              x:
+                selfAnchor.x +
+                normalX * orbitRadius * (1 + personality.eccentricity) +
+                (normalX * chirps.radial + tangentX * chirps.tangential) * swim +
+                pointerPull.x,
+              y:
+                selfAnchor.y +
+                normalY * orbitRadius * (0.78 - personality.eccentricity * 0.18) +
+                (normalY * chirps.radial + tangentY * chirps.tangential) * swim * 0.72 +
+                pointerPull.y,
+            };
+      const follow = (0.0026 + activity * 0.006 + personality.expressiveness * 0.0018 + stateVector.urgency * 0.003) * chirps.hoverDamping;
       const damping = lerp(0.94, 0.78, hover);
-      state.vx = state.vx * damping + (targetX - state.x) * follow;
-      state.vy = state.vy * damping + (targetY - state.y) * follow;
+      state.vx = state.vx * damping + (target.x - state.x) * follow;
+      state.vy = state.vy * damping + (target.y - state.y) * follow;
       state.x = clamp(state.x + state.vx, 42, this.simWidth - 42);
       state.y = clamp(state.y + state.vy, 50, this.simHeight - 50);
       this.motion.set(agent.id, state);
+      if (agent.id === "coordinator") {
+        selfAnchor = state;
+      }
       this.hotAgents.push({ x: state.x, y: state.y, radius: 54, key: agent.id });
-      const emissionPulse = (0.5 + Math.abs(xChirp) * 0.28 + Math.abs(yChirp) * 0.22) * lerp(1, 0.44, hover);
-      return { ...agent, ...state, emissionPulse, hover, index, speed: Math.hypot(state.vx, state.vy) };
+      const emissionPulse = chirps.inkPulse * lerp(1, 0.5, hover);
+      return { ...agent, ...state, chirps, emissionPulse, hover, index, speed: Math.hypot(state.vx, state.vy) };
     });
   }
 
@@ -739,9 +895,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
   }
 
   private drawAgentSource(ctx: CanvasRenderingContext2D, agent: ProjectedAgent, hot: boolean) {
-    const size = 23 + agent.activity * 12 + (hot ? 4 : 0);
-    const ink = this.fluidParams.sourceOpacity * agent.emissionPulse;
-    const distortion = 0.08 + agent.activity * 0.035 + (hot ? 0.025 : 0);
+    const size = 22 + agent.activity * 10 + agent.chirps.expression * 4 + (hot ? 4 : 0);
+    const ink = this.fluidParams.sourceOpacity * agent.emissionPulse * agent.chirps.inkPulse;
+    const distortion = agent.chirps.distortion + (hot ? 0.02 : 0);
     ctx.save();
     ctx.translate(agent.x, agent.y);
     ctx.rotate(Math.atan2(agent.vy, agent.vx || 0.001) * 0.12);
@@ -750,7 +906,10 @@ class WebglAquariumRenderer implements AquariumRenderer {
     for (let index = 0; index < 4; index += 1) {
       const lag = 4 + index * 6;
       const layerSize = size * (1 + index * 0.18);
-      const pulse = 0.74 + chirplet(this.time, agent.phase + index * 0.61, 0.4 + agent.activity * 0.32, 0.025, 6.5) * 0.26;
+      const pulse =
+        0.68 +
+        agent.chirps.glowPulse * 0.14 +
+        chirplet(this.time, agent.phase + index * 0.61, 0.28 + agent.chirps.expression * 0.24, 0.025, 6.5) * 0.24;
       ctx.save();
       ctx.translate(-agent.vx * lag - index * 1.5, -agent.vy * lag + index);
       ctx.globalAlpha = clamp((0.024 + agent.activity * 0.028 + (hot ? 0.015 : 0) - index * 0.003) * ink * pulse, 0, 0.42);
@@ -854,11 +1013,11 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const state = this.motion.get(agent.id);
       if (!state) continue;
       const wave = 0.65 + 0.35 * chirplet(time, index * 0.8, 2.6, 0.08, 2.8);
-      ctx.globalAlpha = pulse * (0.035 + agent.activity * 0.018) * wave;
+      ctx.globalAlpha = pulse * (0.03 + agent.activity * 0.016) * wave;
       ctx.beginPath();
       ctx.arc(state.x, state.y, 18 + pulse * 44 + index * 2, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.globalAlpha = pulse * (0.025 + agent.activity * 0.015);
+      ctx.globalAlpha = pulse * (0.02 + agent.activity * 0.012);
       ctx.beginPath();
       ctx.arc(state.x - state.vx * 18, state.y - state.vy * 18, 8 + pulse * 20, 0, Math.PI * 2);
       ctx.fill();
@@ -918,7 +1077,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.agentsUniform[index * 4 + 1] = 1 - agent.y / this.simHeight;
       this.agentsUniform[index * 4 + 2] = agent.vx * 1.45;
       this.agentsUniform[index * 4 + 3] = -agent.vy * 1.45;
-      this.activity[index] = agent.activity;
+      this.activity[index] = clamp(agent.activity * 0.72 + agent.chirps.expression * 0.18 + agent.chirps.inkPulse * 0.1, 0, 1.6);
     }
     this.drawTo(this.velocity.write, this.programs.velocitySplat, (gl, program) => {
       this.bindTexture(0, this.velocity?.read.texture ?? null);
@@ -1223,19 +1382,20 @@ class WebglAquariumRenderer implements AquariumRenderer {
   }
 
   private drawCrispAgent(ctx: CanvasRenderingContext2D, agent: ProjectedAgent, hot: boolean) {
-    const size = 24 + agent.activity * 13 + (hot ? 5 : 0);
+    const glowPulse = agent.chirps.glowPulse;
+    const size = 23 + agent.activity * 10 + agent.chirps.expression * 4 + (hot ? 5 : 0);
     ctx.save();
     ctx.translate(agent.x, agent.y);
     ctx.rotate(Math.atan2(agent.vy, agent.vx || 0.001) * 0.14);
-    ctx.globalAlpha = hot ? 0.92 : 0.74;
+    ctx.globalAlpha = clamp((hot ? 0.88 : 0.68) + glowPulse * 0.08, 0.4, 0.98);
     ctx.shadowColor = agent.glow;
-    ctx.shadowBlur = hot ? 18 : 10;
+    ctx.shadowBlur = (hot ? 16 : 8) * glowPulse;
     ctx.fillStyle = agent.color;
-    drawDistortedAgentPath(ctx, agent.shape, size, this.time * 0.18, agent.phase, 0.045 + agent.activity * 0.016 + (hot ? 0.014 : 0));
+    drawDistortedAgentPath(ctx, agent.shape, size, this.time * 0.18, agent.phase, agent.chirps.distortion * 0.62 + (hot ? 0.014 : 0));
     ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.strokeStyle = hot ? "rgba(255, 255, 255, 0.84)" : "rgba(255, 255, 255, 0.54)";
-    ctx.lineWidth = hot ? 1.9 : 1.1;
+    ctx.strokeStyle = hot ? hexAlpha("#ffffff", clamp(0.62 + glowPulse * 0.14, 0, 0.92)) : hexAlpha("#ffffff", clamp(0.38 + glowPulse * 0.1, 0, 0.68));
+    ctx.lineWidth = (hot ? 1.7 : 1) + glowPulse * 0.22;
     ctx.stroke();
     ctx.fillStyle = "#fffaf0";
     ctx.font = `900 ${Math.max(10, size * 0.43)}px Inter, system-ui, sans-serif`;
@@ -1576,6 +1736,85 @@ function pointInRect(x: number, y: number, rect: FluidParamZone) {
 
 function pointInInflatedRect(x: number, y: number, rect: FluidParamZone, inflate: number) {
   return x >= rect.x - inflate && x <= rect.x + rect.width + inflate && y >= rect.y - inflate && y <= rect.y + rect.height + inflate;
+}
+
+function personalityFor(id: string) {
+  return agentPersonalities[id] ?? agentPersonalities.coordinator;
+}
+
+function projectAgentState(agent: AquariumAgentFrame): AgentStateVector {
+  const status = agent.status.toLowerCase();
+  const activity = clamp(agent.activity, 0, 1);
+  const blocked = statusSignal(status, ["blocked", "missing", "failed", "error", "unknown", "needed", "regather"]);
+  const ready = statusSignal(status, ["ready", "ok", "clear", "completed", "captured", "continue"]);
+  const review = statusSignal(status, ["review", "accept", "findings", "patch", "required"]);
+  const urgency = clamp(
+    activity * 0.62 +
+      blocked * 0.28 +
+      review * 0.2 +
+      statusSignal(status, ["critical", "high", "prepare", "launch", "running", "active"]) * 0.26,
+    0,
+    1,
+  );
+  return { activity, blocked, ready, review, urgency };
+}
+
+function statusSignal(status: string, needles: string[]) {
+  return needles.some((needle) => status.includes(needle)) ? 1 : 0;
+}
+
+function projectChirpMatrix(
+  agent: AquariumAgentFrame,
+  personality: AgentPersonality,
+  state: AgentStateVector,
+  time: number,
+  hover: number,
+): AgentChirpMatrix {
+  const hoverAmount = hover * personality.hoverStillness;
+  const hoverFrequency = lerp(1, 0.18, hoverAmount);
+  const hoverAmplitude = lerp(1, 0.12, hoverAmount);
+  const heat = clamp(state.activity * 0.52 + state.urgency * 0.3 + state.review * 0.16 + state.blocked * 0.2, 0, 1);
+  const expressiveGain = (0.58 + personality.expressiveness * 0.72 + heat * 0.58) * hoverAmplitude;
+  const radial = chirplet(
+    time,
+    agent.phase + personality.angle * 0.41,
+    personality.radialTempo * hoverFrequency * (1 + heat * 0.55),
+    0.012 + personality.expressiveness * 0.02 + state.urgency * 0.018,
+    8.5 - personality.expressiveness * 1.3,
+  );
+  const tangential = chirplet(
+    time,
+    agent.phase * 1.73 + personality.angle,
+    personality.tangentialTempo * hoverFrequency * (1 + state.activity * 0.7),
+    -0.016 - personality.precision * 0.012,
+    7.2 + personality.precision * 1.8,
+  );
+  const flicker = chirplet(
+    time,
+    agent.phase * 2.37 + state.review * 0.9,
+    personality.glowTempo * hoverFrequency * (1.05 + heat),
+    0.03 + state.blocked * 0.04,
+    4.8 - heat * 1.4,
+  );
+  const ink = chirplet(
+    time,
+    agent.phase * 2.91 + state.urgency,
+    personality.inkTempo * hoverFrequency * (0.95 + state.activity * 1.1),
+    -0.018 + personality.expressiveness * 0.025,
+    6.4 - personality.expressiveness * 1.1,
+  );
+  const orbitDrift = time * personality.orbitSpeed * hoverFrequency * (0.75 + state.activity * 0.65 + state.urgency * 0.34);
+  return {
+    angle: personality.angle + orbitDrift + tangential * 0.18 * expressiveGain + state.blocked * 0.08 - state.review * 0.06,
+    distortion: clamp(0.035 + personality.expressiveness * 0.055 + heat * 0.045 + Math.abs(flicker) * 0.026, 0.018, 0.18),
+    expression: clamp(expressiveGain, 0.12, 1.9),
+    glowPulse: clamp(0.62 + Math.abs(flicker) * 0.55 + heat * 0.46 + state.review * 0.18 + state.ready * 0.08, 0.34, 2.15),
+    hoverDamping: lerp(1, 0.34, hoverAmount),
+    inkPulse: clamp(0.38 + Math.abs(ink) * 0.72 + heat * 0.5 + state.blocked * 0.1, 0.06, 2.2),
+    orbitRadius: clamp(personality.radius * lerp(1.04, 0.82, state.blocked) * lerp(1, 1.1, state.ready), 0, 1.1),
+    radial: radial * expressiveGain,
+    tangential: tangential * expressiveGain,
+  };
 }
 
 function chirplet(time: number, phase: number, frequency: number, chirp: number, period: number) {
