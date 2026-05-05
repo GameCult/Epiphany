@@ -90,6 +90,8 @@ interface MotionState {
 
 interface ProjectedAgent extends AquariumAgentFrame, MotionState {
   index: number;
+  emissionPulse: number;
+  hover: number;
   speed: number;
 }
 
@@ -111,7 +113,10 @@ type FluidParamKey =
   | "velocityDissipation"
   | "dyeDissipation"
   | "injectionGain"
-  | "sourceOpacity";
+  | "sourceOpacity"
+  | "acesExposure"
+  | "acesGlow"
+  | "acesSaturation";
 
 type FluidParams = Record<FluidParamKey, number>;
 
@@ -151,7 +156,7 @@ const compactPositions: Record<string, { x: number; y: number }> = {
   implementation: { x: 50, y: 61 },
 };
 
-const fluidParamStorageKey = "epiphany:aquarium-fluid-params:v2";
+const fluidParamStorageKey = "epiphany:aquarium-fluid-params:v3";
 
 const defaultFluidParams: FluidParams = {
   timeScale: 0.032,
@@ -163,6 +168,9 @@ const defaultFluidParams: FluidParams = {
   dyeDissipation: 0.9994,
   injectionGain: 0.075,
   sourceOpacity: 1.15,
+  acesExposure: 1.32,
+  acesGlow: 0.82,
+  acesSaturation: 1.16,
 };
 
 const fluidParamDefinitions: FluidParamDefinition[] = [
@@ -175,6 +183,15 @@ const fluidParamDefinitions: FluidParamDefinition[] = [
   { key: "dyeDissipation", label: "Ink Hold", min: 0.94, max: 0.9999, decimals: 4 },
   { key: "injectionGain", label: "Ink Feed", min: 0, max: 0.5, decimals: 3 },
   { key: "sourceOpacity", label: "Object Ink", min: 0, max: 4, decimals: 2 },
+  { key: "acesExposure", label: "ACES Exposure", min: 0.35, max: 3.2, decimals: 2 },
+  { key: "acesGlow", label: "ACES Glow", min: 0, max: 2.6, decimals: 2 },
+  { key: "acesSaturation", label: "ACES Saturation", min: 0.35, max: 2.2, decimals: 2 },
+];
+
+const fluidForceScales = [
+  { radius: 2.25, force: 0.42, curl: 0.52, inject: 0.28 },
+  { radius: 0.94, force: 0.76, curl: 0.82, inject: 0.36 },
+  { radius: 0.38, force: 0.58, curl: 1.28, inject: 0.42 },
 ];
 
 const vertexShader = `#version 300 es
@@ -327,11 +344,12 @@ uniform sampler2D uSource;
 uniform float uGain;
 uniform float uDissipation;
 void main() {
-  vec4 dye = texture(uDye, vUv) * uDissipation;
+  vec4 dye = texture(uDye, vUv);
   vec4 source = texture(uSource, vUv);
-  vec3 base = max(dye.rgb, vec3(0.004, 0.008, 0.006));
-  vec3 color = base + source.rgb * source.a * uGain;
-  outColor = vec4(min(color, vec3(0.86)), 1.0);
+  float sourceWeight = source.a * uGain;
+  vec3 color = max(dye.rgb, vec3(0.0)) * uDissipation + source.rgb * sourceWeight;
+  float density = max(dye.a, 0.0) * uDissipation + sourceWeight;
+  outColor = vec4(min(color, vec3(32.0)), min(density, 48.0));
 }`;
 
 const displayShader = `#version 300 es
@@ -339,11 +357,44 @@ precision highp float;
 in vec2 vUv;
 out vec4 outColor;
 uniform sampler2D uDye;
+uniform vec2 uTexelSize;
+uniform float uExposure;
+uniform float uGlow;
+uniform float uSaturation;
+vec3 acesFilm(vec3 x) {
+  const float a = 2.51;
+  const float b = 0.03;
+  const float c = 2.43;
+  const float d = 0.59;
+  const float e = 0.14;
+  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+vec3 gradeSaturation(vec3 color, float saturation) {
+  float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  return mix(vec3(luma), color, saturation);
+}
 void main() {
-  vec3 color = texture(uDye, vUv).rgb;
-  color = color / (1.0 + color * 1.85);
-  color = pow(max(color, vec3(0.0)), vec3(1.04));
-  outColor = vec4(color * 0.92, 1.0);
+  vec4 dye = texture(uDye, vUv);
+  vec3 color = max(dye.rgb, vec3(0.0));
+  float density = max(dye.a, 0.0);
+  vec3 glowColor = color;
+  float glowDensity = density;
+  glowColor += texture(uDye, vUv + vec2(uTexelSize.x * 2.5, 0.0)).rgb;
+  glowColor += texture(uDye, vUv - vec2(uTexelSize.x * 2.5, 0.0)).rgb;
+  glowColor += texture(uDye, vUv + vec2(0.0, uTexelSize.y * 2.5)).rgb;
+  glowColor += texture(uDye, vUv - vec2(0.0, uTexelSize.y * 2.5)).rgb;
+  glowDensity += texture(uDye, vUv + vec2(uTexelSize.x * 4.5, uTexelSize.y * 4.5)).a;
+  glowDensity += texture(uDye, vUv + vec2(-uTexelSize.x * 4.5, uTexelSize.y * 4.5)).a;
+  glowDensity += texture(uDye, vUv + vec2(uTexelSize.x * 4.5, -uTexelSize.y * 4.5)).a;
+  glowDensity += texture(uDye, vUv + vec2(-uTexelSize.x * 4.5, -uTexelSize.y * 4.5)).a;
+  glowColor /= 5.0;
+  glowDensity /= 5.0;
+  float glow = smoothstep(0.04, 3.8, glowDensity) * uGlow;
+  color = color * uExposure + glowColor * glow * 0.55;
+  color = acesFilm(color);
+  color = gradeSaturation(color, uSaturation);
+  color = pow(max(color, vec3(0.0)), vec3(0.92));
+  outColor = vec4(color, 1.0);
 }`;
 
 function loadFluidParams(): FluidParams {
@@ -525,9 +576,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
       this.crispCanvas.width = displayWidth;
       this.crispCanvas.height = displayHeight;
     }
-    const scale = this.frame.variant === "fullscreen" ? 0.56 : 0.7;
-    const width = Math.max(256, Math.min(960, Math.floor(displayWidth * scale)));
-    const height = Math.max(192, Math.min(640, Math.floor(displayHeight * scale)));
+    const scale = this.frame.variant === "fullscreen" ? 0.72 : 0.76;
+    const width = Math.max(256, Math.min(1280, Math.floor(displayWidth * scale)));
+    const height = Math.max(192, Math.min(820, Math.floor(displayHeight * scale)));
     if (width === this.simWidth && height === this.simHeight) return;
     this.simWidth = width;
     this.simHeight = height;
@@ -607,19 +658,27 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const base = this.basePoint(agent);
       const state = this.motion.get(agent.id) ?? { x: base.x, y: base.y, vx: 0, vy: 0 };
       const activity = Math.max(0.04, agent.activity);
-      const pointerPull = this.pointer.active ? this.pointerPull(agent, state.x, state.y) : { x: 0, y: 0 };
-      const swim = this.frame.variant === "fullscreen" ? 22 + activity * 76 : 8 + activity * 22;
-      const cadence = 0.13 + activity * 0.28;
-      const targetX = base.x + chirplet(time, agent.phase * 1.7, cadence, 0.018 + activity * 0.026, 9) * swim + pointerPull.x;
-      const targetY = base.y + chirplet(time, agent.phase + 1.1, cadence * 0.82, -0.014 - activity * 0.018, 8) * swim * 0.64 + pointerPull.y;
-      const follow = 0.0032 + activity * 0.0065;
-      state.vx = state.vx * 0.94 + (targetX - state.x) * follow;
-      state.vy = state.vy * 0.94 + (targetY - state.y) * follow;
+      const hover = this.pointer.active ? hoverInfluence(state.x, state.y, this.pointer.x, this.pointer.y, 104) : 0;
+      const hoverMotion = lerp(1, 0.14, hover);
+      const hoverFrequency = lerp(1, 0.24, hover);
+      const pull = this.pointer.active ? this.pointerPull(agent, state.x, state.y) : { x: 0, y: 0 };
+      const pointerPull = { x: pull.x * lerp(1, 0.12, hover), y: pull.y * lerp(1, 0.12, hover) };
+      const swim = (this.frame.variant === "fullscreen" ? 22 + activity * 76 : 8 + activity * 22) * hoverMotion;
+      const cadence = (0.13 + activity * 0.28) * hoverFrequency;
+      const xChirp = chirplet(time, agent.phase * 1.7, cadence, 0.018 + activity * 0.026, 9);
+      const yChirp = chirplet(time, agent.phase + 1.1, cadence * 0.82, -0.014 - activity * 0.018, 8);
+      const targetX = base.x + xChirp * swim + pointerPull.x;
+      const targetY = base.y + yChirp * swim * 0.64 + pointerPull.y;
+      const follow = (0.0032 + activity * 0.0065) * lerp(1, 0.38, hover);
+      const damping = lerp(0.94, 0.78, hover);
+      state.vx = state.vx * damping + (targetX - state.x) * follow;
+      state.vy = state.vy * damping + (targetY - state.y) * follow;
       state.x = clamp(state.x + state.vx, 42, this.simWidth - 42);
       state.y = clamp(state.y + state.vy, 50, this.simHeight - 50);
       this.motion.set(agent.id, state);
       this.hotAgents.push({ x: state.x, y: state.y, radius: 54, key: agent.id });
-      return { ...agent, ...state, index, speed: Math.hypot(state.vx, state.vy) };
+      const emissionPulse = (0.5 + Math.abs(xChirp) * 0.28 + Math.abs(yChirp) * 0.22) * lerp(1, 0.44, hover);
+      return { ...agent, ...state, emissionPulse, hover, index, speed: Math.hypot(state.vx, state.vy) };
     });
   }
 
@@ -679,60 +738,24 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   private drawAgentSource(ctx: CanvasRenderingContext2D, agent: ProjectedAgent, hot: boolean) {
     const size = 23 + agent.activity * 12 + (hot ? 4 : 0);
-    const ink = this.fluidParams.sourceOpacity;
+    const ink = this.fluidParams.sourceOpacity * agent.emissionPulse;
+    const distortion = 0.08 + agent.activity * 0.035 + (hot ? 0.025 : 0);
     ctx.save();
     ctx.translate(agent.x, agent.y);
     ctx.rotate(Math.atan2(agent.vy, agent.vx || 0.001) * 0.12);
     ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < 3; index += 1) {
-      const lag = 11 + index * 9;
-      const radius = size * (0.42 - index * 0.06);
-      ctx.globalAlpha = (0.075 + agent.activity * 0.045 - index * 0.014) * ink;
-      ctx.fillStyle = index === 0 ? agent.color : agent.glow;
-      ctx.beginPath();
-      ctx.arc(-agent.vx * lag - index * 3, -agent.vy * lag + index * 2, radius, 0, Math.PI * 2);
+    ctx.fillStyle = agent.color;
+    for (let index = 0; index < 4; index += 1) {
+      const lag = 4 + index * 6;
+      const layerSize = size * (1 + index * 0.18);
+      const pulse = 0.74 + chirplet(this.time, agent.phase + index * 0.61, 0.4 + agent.activity * 0.32, 0.025, 6.5) * 0.26;
+      ctx.save();
+      ctx.translate(-agent.vx * lag - index * 1.5, -agent.vy * lag + index);
+      ctx.globalAlpha = clamp((0.024 + agent.activity * 0.028 + (hot ? 0.015 : 0) - index * 0.003) * ink * pulse, 0, 0.42);
+      drawDistortedAgentPath(ctx, agent.shape, layerSize, this.time * 0.18 + index * 0.9, agent.phase + index * 0.37, distortion + index * 0.018);
       ctx.fill();
+      ctx.restore();
     }
-    ctx.globalAlpha = (0.04 + agent.activity * 0.024) * ink;
-    ctx.strokeStyle = agent.glow;
-    ctx.lineWidth = 1.8 + agent.activity * 1.2;
-    ctx.beginPath();
-    ctx.moveTo(-agent.vx * 7, -agent.vy * 7);
-    ctx.quadraticCurveTo(-agent.vx * 16, -agent.vy * 8, -agent.vx * 24, -agent.vy * 18);
-    ctx.stroke();
-    ctx.globalCompositeOperation = "source-over";
-    ctx.globalAlpha = (0.025 + agent.activity * 0.018 + (hot ? 0.016 : 0)) * ink;
-    ctx.shadowColor = agent.glow;
-    ctx.shadowBlur = 8 + agent.activity * 10;
-    ctx.fillStyle = agent.color;
-    drawAgentPath(ctx, agent.shape, size);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.globalAlpha = (hot ? 0.09 : 0.045) * ink;
-    ctx.strokeStyle = "#ffffff";
-    ctx.lineWidth = hot ? 1.8 : 1;
-    ctx.stroke();
-    ctx.globalAlpha = (hot ? 0.095 : 0.042) * ink;
-    ctx.fillStyle = "#fffaf0";
-    ctx.font = `900 ${Math.max(10, size * 0.42)}px Inter, system-ui, sans-serif`;
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(agent.glyph, 0, 1);
-    ctx.restore();
-
-    ctx.save();
-    ctx.globalAlpha = (hot ? 0.038 : 0.018) * ink;
-    ctx.fillStyle = agent.color;
-    ctx.strokeStyle = hexAlpha(agent.glow, hot ? 0.5 : 0.26);
-    roundedRect(ctx, agent.x - 40, agent.y + size * 0.72, 80, 34, 7);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = agent.glow;
-    ctx.font = "900 10px Inter, system-ui, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(agent.name, agent.x, agent.y + size * 0.72 + 13);
-    ctx.font = "900 8px Inter, system-ui, sans-serif";
-    ctx.fillText(agent.status.slice(0, 16).toUpperCase(), agent.x, agent.y + size * 0.72 + 26);
     ctx.restore();
   }
 
@@ -852,18 +875,22 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   private stepFluid(projected: ProjectedAgent[]) {
     if (!this.velocity || !this.dye || !this.pressure || !this.divergence || !this.curl || !this.sourceTexture) return;
-    const dt = this.fluidParams.timeScale;
-    this.runAdvect(this.velocity.read.texture, this.velocity.read.texture, this.velocity.write, dt, this.fluidParams.velocityDissipation);
-    this.velocity.swap();
-    this.runVelocitySplat(projected);
-    this.runCurl();
-    this.runVorticity(dt);
-    this.runDivergence();
-    this.runPressure();
-    this.runGradientSubtract();
-    this.runAdvect(this.velocity.read.texture, this.dye.read.texture, this.dye.write, dt, this.fluidParams.dyeDissipation);
-    this.dye.swap();
-    this.runInject();
+    const dt = this.fluidParams.timeScale / fluidForceScales.length;
+    const velocityDissipation = Math.pow(this.fluidParams.velocityDissipation, 1 / fluidForceScales.length);
+    const dyeDissipation = Math.pow(this.fluidParams.dyeDissipation, 1 / fluidForceScales.length);
+    for (const scale of fluidForceScales) {
+      this.runAdvect(this.velocity.read.texture, this.velocity.read.texture, this.velocity.write, dt, velocityDissipation);
+      this.velocity.swap();
+      this.runVelocitySplat(projected, scale.radius, scale.force, scale.curl, velocityDissipation);
+      this.runCurl();
+      this.runVorticity(dt, scale.curl);
+      this.runDivergence();
+      this.runPressure(12);
+      this.runGradientSubtract();
+      this.runAdvect(this.velocity.read.texture, this.dye.read.texture, this.dye.write, dt, dyeDissipation);
+      this.dye.swap();
+      this.runInject(scale.inject);
+    }
     this.paramImpulse = Math.max(0, this.paramImpulse * 0.9 - 0.01);
   }
 
@@ -879,7 +906,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     });
   }
 
-  private runVelocitySplat(projected: ProjectedAgent[]) {
+  private runVelocitySplat(projected: ProjectedAgent[], radiusScale = 1, forceScale = 1, swirlScale = 1, damping = this.fluidParams.velocityDissipation) {
     if (!this.velocity) return;
     this.agentsUniform.fill(0);
     this.activity.fill(0);
@@ -898,10 +925,10 @@ class WebglAquariumRenderer implements AquariumRenderer {
       gl.uniform1fv(gl.getUniformLocation(program, "uActivity"), this.activity);
       gl.uniform1i(gl.getUniformLocation(program, "uCount"), Math.min(7, projected.length));
       gl.uniform1f(gl.getUniformLocation(program, "uAspect"), this.simWidth / Math.max(this.simHeight, 1));
-      gl.uniform1f(gl.getUniformLocation(program, "uSplatForce"), this.fluidParams.splatForce * (1 + this.paramImpulse * 2.5));
-      gl.uniform1f(gl.getUniformLocation(program, "uSplatRadius"), splatFalloff(this.fluidParams.splatRadius));
-      gl.uniform1f(gl.getUniformLocation(program, "uSwirlForce"), this.fluidParams.swirlForce * (1 + this.paramImpulse * 1.4));
-      gl.uniform1f(gl.getUniformLocation(program, "uVelocityDamping"), this.fluidParams.velocityDissipation);
+      gl.uniform1f(gl.getUniformLocation(program, "uSplatForce"), this.fluidParams.splatForce * forceScale * (1 + this.paramImpulse * 2.5));
+      gl.uniform1f(gl.getUniformLocation(program, "uSplatRadius"), splatFalloff(this.fluidParams.splatRadius * radiusScale));
+      gl.uniform1f(gl.getUniformLocation(program, "uSwirlForce"), this.fluidParams.swirlForce * swirlScale * (1 + this.paramImpulse * 1.4));
+      gl.uniform1f(gl.getUniformLocation(program, "uVelocityDamping"), damping);
     });
     this.velocity.swap();
   }
@@ -915,7 +942,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     });
   }
 
-  private runVorticity(dt: number) {
+  private runVorticity(dt: number, strengthScale = 1) {
     if (!this.velocity || !this.curl) return;
     this.drawTo(this.velocity.write, this.programs.vorticity, (gl, program) => {
       this.bindTexture(0, this.velocity?.read.texture ?? null);
@@ -923,7 +950,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
       gl.uniform1i(gl.getUniformLocation(program, "uVelocity"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uCurl"), 1);
       gl.uniform2f(gl.getUniformLocation(program, "uTexelSize"), 1 / this.simWidth, 1 / this.simHeight);
-      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), this.fluidParams.curlStrength * (1 + this.paramImpulse * 1.8));
+      gl.uniform1f(gl.getUniformLocation(program, "uCurlStrength"), this.fluidParams.curlStrength * strengthScale * (1 + this.paramImpulse * 1.8));
       gl.uniform1f(gl.getUniformLocation(program, "uDt"), dt);
     });
     this.velocity.swap();
@@ -938,9 +965,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
     });
   }
 
-  private runPressure() {
+  private runPressure(iterations = 24) {
     if (!this.pressure || !this.divergence) return;
-    for (let index = 0; index < 24; index += 1) {
+    for (let index = 0; index < iterations; index += 1) {
       this.drawTo(this.pressure.write, this.programs.pressure, (gl, program) => {
         this.bindTexture(0, this.pressure?.read.texture ?? null);
         this.bindTexture(1, this.divergence?.texture ?? null);
@@ -964,14 +991,14 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.velocity.swap();
   }
 
-  private runInject() {
+  private runInject(gainScale = 1) {
     if (!this.dye || !this.sourceTexture) return;
     this.drawTo(this.dye.write, this.programs.inject, (gl, program) => {
       this.bindTexture(0, this.dye?.read.texture ?? null);
       this.bindTexture(1, this.sourceTexture);
       gl.uniform1i(gl.getUniformLocation(program, "uDye"), 0);
       gl.uniform1i(gl.getUniformLocation(program, "uSource"), 1);
-      gl.uniform1f(gl.getUniformLocation(program, "uGain"), this.fluidParams.injectionGain * (1 + this.paramImpulse * 1.7));
+      gl.uniform1f(gl.getUniformLocation(program, "uGain"), this.fluidParams.injectionGain * gainScale * (1 + this.paramImpulse * 1.7));
       gl.uniform1f(gl.getUniformLocation(program, "uDissipation"), this.fluidParams.dyeDissipation);
     });
     this.dye.swap();
@@ -985,6 +1012,10 @@ class WebglAquariumRenderer implements AquariumRenderer {
     gl.useProgram(this.programs.display);
     this.bindTexture(0, this.dye.read.texture);
     gl.uniform1i(gl.getUniformLocation(this.programs.display, "uDye"), 0);
+    gl.uniform2f(gl.getUniformLocation(this.programs.display, "uTexelSize"), 1 / this.simWidth, 1 / this.simHeight);
+    gl.uniform1f(gl.getUniformLocation(this.programs.display, "uExposure"), this.fluidParams.acesExposure);
+    gl.uniform1f(gl.getUniformLocation(this.programs.display, "uGlow"), this.fluidParams.acesGlow);
+    gl.uniform1f(gl.getUniformLocation(this.programs.display, "uSaturation"), this.fluidParams.acesSaturation);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }
 
@@ -1198,7 +1229,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.shadowColor = agent.glow;
     ctx.shadowBlur = hot ? 18 : 10;
     ctx.fillStyle = agent.color;
-    drawAgentPath(ctx, agent.shape, size);
+    drawDistortedAgentPath(ctx, agent.shape, size, this.time * 0.18, agent.phase, 0.045 + agent.activity * 0.016 + (hot ? 0.014 : 0));
     ctx.fill();
     ctx.shadowBlur = 0;
     ctx.strokeStyle = hot ? "rgba(255, 255, 255, 0.84)" : "rgba(255, 255, 255, 0.54)";
@@ -1325,8 +1356,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
       return;
     }
 
-    const panelWidth = Math.min(292, this.simWidth - 24);
-    const panelHeight = Math.min(342, this.simHeight - 48);
+    const panelWidth = Math.min(318, this.simWidth - 24);
+    const panelHeight = Math.min(426, this.simHeight - 48);
     const panelX = clamp(iconX - panelWidth + iconSize, 12, this.simWidth - panelWidth - 12);
     const panelY = clamp(iconY - panelHeight - 12 + chirplet(time, 0.2, 1.15, -0.05, 4) * 4, 12, this.simHeight - panelHeight - 12);
     ctx.globalAlpha = 0.9;
@@ -1347,10 +1378,11 @@ class WebglAquariumRenderer implements AquariumRenderer {
     ctx.font = "800 9px Inter, system-ui, sans-serif";
     ctx.fillText(this.fluidPanelPinned ? "pinned; drag rails" : "hover; click icon to pin", panelX + 14, panelY + 27);
 
-    const railX = panelX + 104;
-    const railWidth = panelWidth - 124;
+    const rowGap = panelHeight < 390 ? 23 : 27;
+    const railX = panelX + 122;
+    const railWidth = panelWidth - 142;
     fluidParamDefinitions.forEach((definition, index) => {
-      const y = panelY + 52 + index * 27;
+      const y = panelY + 52 + index * rowGap;
       const value = this.fluidParams[definition.key];
       const t = (value - definition.min) / (definition.max - definition.min);
       const hot = this.pointer.active && this.pointer.x >= railX - 4 && this.pointer.x <= railX + railWidth + 4 && this.pointer.y >= y - 5 && this.pointer.y <= y + 13;
@@ -1562,6 +1594,7 @@ function paramColorFor(key: FluidParamKey | null) {
   if (key === "curlStrength" || key === "swirlForce") return "#9f6ee7";
   if (key === "splatForce" || key === "splatRadius") return "#58ddc4";
   if (key === "injectionGain" || key === "sourceOpacity") return "#f7bd58";
+  if (key === "acesExposure" || key === "acesGlow" || key === "acesSaturation") return "#fbfff8";
   if (key === "dyeDissipation") return "#92d876";
   if (key === "velocityDissipation") return "#63c5da";
   return "#f15f45";
@@ -1569,6 +1602,149 @@ function paramColorFor(key: FluidParamKey | null) {
 
 function splatFalloff(radius: number) {
   return clamp(74088 / Math.max(radius * radius, 1), 3, 1200);
+}
+
+function lerp(from: number, to: number, t: number) {
+  return from + (to - from) * clamp(t, 0, 1);
+}
+
+function hoverInfluence(x: number, y: number, pointerX: number, pointerY: number, radius: number) {
+  return 1 - clamp(distance(x, y, pointerX, pointerY) / Math.max(radius, 1), 0, 1);
+}
+
+function drawDistortedAgentPath(
+  ctx: CanvasRenderingContext2D,
+  shape: string,
+  size: number,
+  time: number,
+  phase: number,
+  amount: number,
+) {
+  const points = shapeOutlinePoints(shape, size, 72);
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const angle = Math.atan2(point.y, point.x);
+    const radialNoise = perlin3(point.x * 0.036 + phase * 9.7, point.y * 0.036 - phase * 4.3, time * 0.38 + phase);
+    const fineNoise = perlin3(point.x * 0.092 - phase * 3.1, point.y * 0.092 + phase * 7.4, time * 0.72 + 17.0);
+    const radial = 1 + (radialNoise * 0.72 + fineNoise * 0.28) * amount;
+    const tangent = fineNoise * amount * size * 0.055;
+    const x = point.x * radial + Math.cos(angle + Math.PI / 2) * tangent;
+    const y = point.y * radial + Math.sin(angle + Math.PI / 2) * tangent;
+    if (index === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.closePath();
+}
+
+function shapeOutlinePoints(shape: string, size: number, segments: number) {
+  const r = size / 2;
+  if (shape === "kite" || shape === "diamond") {
+    return samplePolygon(
+      [
+        { x: 0, y: -r },
+        { x: r * 0.9, y: 0 },
+        { x: 0, y: r },
+        { x: -r * 0.9, y: 0 },
+      ],
+      segments,
+    );
+  }
+  if (shape === "hex") {
+    const vertices = Array.from({ length: 6 }, (_, index) => {
+      const angle = Math.PI / 6 + index * (Math.PI / 3);
+      return { x: Math.cos(angle) * r, y: Math.sin(angle) * r };
+    });
+    return samplePolygon(vertices, segments);
+  }
+  if (shape === "capsule") return superellipsePoints(r * 1.18, r * 0.74, 3.6, segments);
+  if (shape === "lens") return ellipsePoints(r * 1.08, r * 0.76, Math.PI / 4, segments);
+  if (shape === "seed") return ellipsePoints(r * 0.82, r * 1.08, Math.PI / 4, segments);
+  return ellipsePoints(r, r, 0, segments);
+}
+
+function samplePolygon(vertices: { x: number; y: number }[], segments: number) {
+  const points: { x: number; y: number }[] = [];
+  const stepsPerEdge = Math.max(3, Math.ceil(segments / vertices.length));
+  for (let index = 0; index < vertices.length; index += 1) {
+    const from = vertices[index];
+    const to = vertices[(index + 1) % vertices.length];
+    for (let step = 0; step < stepsPerEdge; step += 1) {
+      const t = step / stepsPerEdge;
+      points.push({ x: lerp(from.x, to.x, t), y: lerp(from.y, to.y, t) });
+    }
+  }
+  return points;
+}
+
+function ellipsePoints(rx: number, ry: number, rotation: number, segments: number) {
+  const points: { x: number; y: number }[] = [];
+  const cosRotation = Math.cos(rotation);
+  const sinRotation = Math.sin(rotation);
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2;
+    const x = Math.cos(angle) * rx;
+    const y = Math.sin(angle) * ry;
+    points.push({ x: x * cosRotation - y * sinRotation, y: x * sinRotation + y * cosRotation });
+  }
+  return points;
+}
+
+function superellipsePoints(rx: number, ry: number, exponent: number, segments: number) {
+  const points: { x: number; y: number }[] = [];
+  for (let index = 0; index < segments; index += 1) {
+    const angle = (index / segments) * Math.PI * 2;
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    points.push({
+      x: Math.sign(cos) * Math.pow(Math.abs(cos), 2 / exponent) * rx,
+      y: Math.sign(sin) * Math.pow(Math.abs(sin), 2 / exponent) * ry,
+    });
+  }
+  return points;
+}
+
+function perlin3(x: number, y: number, z: number) {
+  const x0 = Math.floor(x);
+  const y0 = Math.floor(y);
+  const z0 = Math.floor(z);
+  const xf = x - x0;
+  const yf = y - y0;
+  const zf = z - z0;
+  const u = fade(xf);
+  const v = fade(yf);
+  const w = fade(zf);
+  const n000 = grad3(hash3(x0, y0, z0), xf, yf, zf);
+  const n100 = grad3(hash3(x0 + 1, y0, z0), xf - 1, yf, zf);
+  const n010 = grad3(hash3(x0, y0 + 1, z0), xf, yf - 1, zf);
+  const n110 = grad3(hash3(x0 + 1, y0 + 1, z0), xf - 1, yf - 1, zf);
+  const n001 = grad3(hash3(x0, y0, z0 + 1), xf, yf, zf - 1);
+  const n101 = grad3(hash3(x0 + 1, y0, z0 + 1), xf - 1, yf, zf - 1);
+  const n011 = grad3(hash3(x0, y0 + 1, z0 + 1), xf, yf - 1, zf - 1);
+  const n111 = grad3(hash3(x0 + 1, y0 + 1, z0 + 1), xf - 1, yf - 1, zf - 1);
+  const x00 = lerp(n000, n100, u);
+  const x10 = lerp(n010, n110, u);
+  const x01 = lerp(n001, n101, u);
+  const x11 = lerp(n011, n111, u);
+  const y0Mix = lerp(x00, x10, v);
+  const y1Mix = lerp(x01, x11, v);
+  return lerp(y0Mix, y1Mix, w);
+}
+
+function fade(t: number) {
+  return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function hash3(x: number, y: number, z: number) {
+  let h = Math.imul(x, 374761393) ^ Math.imul(y, 668265263) ^ Math.imul(z, 2147483647);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return h ^ (h >>> 16);
+}
+
+function grad3(hash: number, x: number, y: number, z: number) {
+  const h = hash & 15;
+  const u = h < 8 ? x : y;
+  const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+  return ((h & 1) === 0 ? u : -u) + ((h & 2) === 0 ? v : -v);
 }
 
 function drawAgentPath(ctx: CanvasRenderingContext2D, shape: string, size: number) {

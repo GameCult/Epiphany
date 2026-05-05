@@ -8,7 +8,7 @@ const artifactDir = resolve(root, ".epiphany-gui");
 const desktopScreenshotPath = resolve(artifactDir, "operator-console-smoke-desktop.png");
 const mobileScreenshotPath = resolve(artifactDir, "operator-console-smoke-mobile.png");
 const url = "http://127.0.0.1:1420";
-const fluidStorageKey = "epiphany:aquarium-fluid-params:v2";
+const fluidStorageKey = "epiphany:aquarium-fluid-params:v3";
 
 await mkdir(artifactDir, { recursive: true });
 
@@ -85,9 +85,10 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     await page.waitForTimeout(700);
     await page.mouse.click(viewport.width - 48, viewport.height - 48);
     await page.waitForTimeout(120);
-    await page.mouse.move(viewport.width - 360, 276);
+    const railY = Math.round(viewport.height * 0.47);
+    await page.mouse.move(viewport.width - 226, railY);
     await page.mouse.down();
-    await page.mouse.move(viewport.width - 118, 276, { steps: 8 });
+    await page.mouse.move(viewport.width - 46, railY, { steps: 8 });
     await page.mouse.up();
     persistedParams = await page.evaluate((key) => window.localStorage.getItem(key), fluidStorageKey);
     if (!persistedParams || !persistedParams.includes("timeScale")) {
