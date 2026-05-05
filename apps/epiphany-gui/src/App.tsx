@@ -16,10 +16,12 @@ import {
 import { EpiphanyGraphViewer, validateEpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAquariumRenderer } from "./aquariumFluid";
+import { createHarmonyRuntime, loadNextHarmony, loadShuffledDefaultHarmony, pickHarmonyFolder } from "./midiHarmony";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 import type { EpiphanyCodeRef, EpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
 import type { AquariumAgentProjection, AquariumOptionFrame, AquariumRenderer, AquariumUiFrame } from "./aquariumFluid";
+import type { AquariumHarmonyFrame, HarmonyRuntime, HarmonySource, MidiCorpusFile } from "./midiHarmony";
 
 const roleOrder = ["implementation", "imagination", "research", "eyes", "modeling", "verification", "reorientation"];
 const constellationSpecs = [
@@ -129,6 +131,7 @@ const constellationSpecs = [
     phase: 6.0,
   },
 ] as const;
+const harmonyAgentIds = constellationSpecs.map((agent) => agent.id);
 
 type ConstellationSpec = (typeof constellationSpecs)[number];
 type ProjectedAgent = ConstellationSpec & {
@@ -561,8 +564,87 @@ function useSnapshot() {
   return { snapshot, loading, error, request, setRequest, refresh, actionResult, runningAction, runAction };
 }
 
+function useMidiHarmony() {
+  const runtimeRef = useRef<HarmonyRuntime | null>(null);
+  const [files, setFiles] = useState<MidiCorpusFile[]>([]);
+  const [frame, setFrame] = useState<AquariumHarmonyFrame | null>(null);
+  const [source, setSource] = useState<HarmonySource | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const installSource = useCallback((nextSource: HarmonySource) => {
+    const runtime = createHarmonyRuntime(nextSource, harmonyAgentIds);
+    runtimeRef.current = runtime;
+    setSource(nextSource);
+    setFrame(runtime.frame);
+  }, []);
+
+  const loadDefault = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const loaded = await loadShuffledDefaultHarmony(harmonyAgentIds);
+      setFiles(loaded.files);
+      installSource(loaded.source);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [installSource]);
+
+  const nextSong = useCallback(async () => {
+    if (!files.length) {
+      await loadDefault();
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const loaded = await loadNextHarmony(files, harmonyAgentIds, source?.sourcePath);
+      installSource(loaded.source);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [files, installSource, loadDefault, source?.sourcePath]);
+
+  const changeFolder = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const loaded = await pickHarmonyFolder(harmonyAgentIds);
+      setFiles(loaded.files);
+      installSource(loaded.source);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [installSource]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => void loadDefault(), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [loadDefault]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      const runtime = runtimeRef.current;
+      if (runtime) {
+        setFrame(runtime.next());
+      }
+    }, 1650);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  return { changeFolder, error, files, frame, loading, nextSong, source };
+}
+
 export function App() {
   const { snapshot, loading, error, request, setRequest, refresh, actionResult, runningAction, runAction } = useSnapshot();
+  const harmony = useMidiHarmony();
   const [selectedCodeRef, setSelectedCodeRef] = useState<EpiphanyCodeRef | null>(null);
   const [activeDeck, setActiveDeck] = useState<DeckId>("command");
   const [subdeckByDeck, setSubdeckByDeck] = useState<Record<DeckId, string>>({
@@ -863,6 +945,7 @@ export function App() {
         activeDeck={activeDeck}
         activeSubdeck={activeSubdeck}
         ui={aquariumUi}
+        harmonyFrame={harmony.frame}
         onAgentOption={handleAquariumOption}
         isActionBlocked={actionBlocked}
       />
@@ -884,6 +967,13 @@ export function App() {
             <RefreshCw size={16} aria-hidden="true" />
             {loading ? "Refreshing" : "Refresh"}
           </button>
+          <PlaylistControl
+            error={harmony.error}
+            frame={harmony.frame}
+            loading={harmony.loading}
+            onChangeFolder={harmony.changeFolder}
+            onNext={harmony.nextSong}
+          />
         </div>
       </header>
 
@@ -1294,6 +1384,36 @@ function Panel({ title, icon, children }: { title: string; icon: React.ReactNode
   );
 }
 
+function PlaylistControl({
+  error,
+  frame,
+  loading,
+  onChangeFolder,
+  onNext,
+}: {
+  error: string | null;
+  frame: AquariumHarmonyFrame | null;
+  loading: boolean;
+  onChangeFolder: () => void | Promise<void>;
+  onNext: () => void | Promise<void>;
+}) {
+  return (
+    <details className="playlistControl">
+      <summary title={frame?.sourcePath ?? error ?? "Loading classical MIDI harmony"}>
+        <span>Harmony</span>
+        <strong>{loading ? "loading" : frame?.chordLabel ?? "silent"}</strong>
+      </summary>
+      <div className="playlistBody">
+        <p title={frame?.sourcePath ?? undefined}>{error ?? frame?.sourceName ?? "Finding a classical MIDI file."}</p>
+        <div className="playlistButtons">
+          <button type="button" onClick={() => void onNext()} disabled={loading}>Shuffle Song</button>
+          <button type="button" onClick={() => void onChangeFolder()} disabled={loading}>Folder</button>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function AgentConstellation({
   roles,
   roleResults,
@@ -1307,6 +1427,7 @@ function AgentConstellation({
   activeDeck,
   activeSubdeck,
   ui,
+  harmonyFrame,
   onAgentOption,
   isActionBlocked,
 }: {
@@ -1322,6 +1443,7 @@ function AgentConstellation({
   activeDeck?: DeckId;
   activeSubdeck?: string;
   ui?: AquariumUiFrame;
+  harmonyFrame: AquariumHarmonyFrame | null;
   onAgentOption?: (option: AquariumOption) => void;
   isActionBlocked?: (action: OperatorAction) => boolean;
 }) {
@@ -1402,12 +1524,13 @@ function AgentConstellation({
       });
       return {
         ...agent,
+        harmony: harmonyFrame?.agentVoices[agent.id],
         options,
       };
     });
     optionByKeyRef.current = optionsByKey;
     return framedAgents;
-  }, [agents, isActionBlocked]);
+  }, [agents, harmonyFrame, isActionBlocked]);
 
   useEffect(() => {
     const uiOptions = new globalThis.Map<string, AquariumOption>();
@@ -1600,6 +1723,12 @@ function AgentConstellation({
             onPointerDown={() => handleAgentPointerDown(agent.id)}
             onPointerMove={handleAgentPointerMove}
             onPointerLeave={handleAgentPointerLeave}
+            onMouseEnter={(event) => {
+              rendererRef.current?.setPointerClient(event.clientX, event.clientY);
+              rendererRef.current?.setHoveredAgent(agent.id);
+            }}
+            onMouseMove={(event) => rendererRef.current?.setPointerClient(event.clientX, event.clientY)}
+            onMouseLeave={handleAgentPointerLeave}
             title={`${agent.name}: ${agent.thought}`}
             style={
               {

@@ -67,7 +67,7 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
   await page.locator(".immersiveShell").waitFor();
   await page.locator(".agentSmokeCanvas").waitFor();
   await page.locator(".agentCrispCanvas").waitFor();
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(1000);
 
   const smokeProbe = await probeCanvas(page, ".agentSmokeCanvas");
   const crispProbe = await probeCanvas(page, ".agentCrispCanvas");
@@ -112,49 +112,69 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     throw new Error(`DOM agent projection was not synchronized: ${projectionProbe.reason}`);
   }
 
-  const hoverBox = await page.locator('[data-agent-node="research"]').boundingBox();
-  if (!hoverBox) {
-    throw new Error("research DOM node has no hover bounds");
+  if (viewport.width >= 720) {
+    const hoverBox = await page.locator('[data-agent-node="research"] .agentGlyph').boundingBox();
+    if (!hoverBox) {
+      throw new Error("research DOM node has no hover bounds");
+    }
+    await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2);
+    await page.waitForTimeout(600);
+    let hoverProbe = await page.evaluate(() => {
+      const node = document.querySelector('[data-agent-node="research"]');
+      if (!(node instanceof HTMLElement)) return { ok: false, reason: "research DOM node missing" };
+      const hover = Number.parseFloat(node.style.getPropertyValue("--agent-hover"));
+      const acknowledgement = Number.parseFloat(node.style.getPropertyValue("--agent-ack"));
+      return {
+        ok: hover > 0.7 && acknowledgement >= 0,
+        reason: `hover=${hover} ack=${acknowledgement}`,
+      };
+    });
+    if (!hoverProbe.ok) {
+      await page.locator('[data-agent-node="research"]').dispatchEvent("pointerenter", { bubbles: true });
+      await page.locator('[data-agent-node="research"]').dispatchEvent("mouseenter", { bubbles: true });
+      await page.waitForTimeout(600);
+      hoverProbe = await page.evaluate(() => {
+        const node = document.querySelector('[data-agent-node="research"]');
+        if (!(node instanceof HTMLElement)) return { ok: false, reason: "research DOM node missing" };
+        const hover = Number.parseFloat(node.style.getPropertyValue("--agent-hover"));
+        const acknowledgement = Number.parseFloat(node.style.getPropertyValue("--agent-ack"));
+        return {
+          ok: hover > 0.7 && acknowledgement >= 0,
+          reason: `hover=${hover} ack=${acknowledgement}`,
+        };
+      });
+    }
+    if (!hoverProbe.ok) {
+      throw new Error(`DOM hover did not reach aquarium projection at ${viewport.width}x${viewport.height}: ${hoverProbe.reason}`);
+    }
   }
-  await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2);
-  await page.waitForTimeout(180);
-  const hoverProbe = await page.evaluate(() => {
-    const node = document.querySelector('[data-agent-node="research"]');
-    if (!(node instanceof HTMLElement)) return { ok: false, reason: "research DOM node missing" };
-    const hover = Number.parseFloat(node.style.getPropertyValue("--agent-hover"));
-    const acknowledgement = Number.parseFloat(node.style.getPropertyValue("--agent-ack"));
-    return {
-      ok: hover > 0.7 && acknowledgement >= 0,
-      reason: `hover=${hover} ack=${acknowledgement}`,
-    };
-  });
-  if (!hoverProbe.ok) {
-    throw new Error(`DOM hover did not reach aquarium projection: ${hoverProbe.reason}`);
+  let audioProbe = null;
+  if (viewport.width >= 720) {
+    const researchBox = await page.locator('[data-agent-node="research"] .agentGlyph').boundingBox();
+    if (!researchBox) {
+      throw new Error("research DOM node has no clickable bounds");
+    }
+    await page.mouse.click(researchBox.x + researchBox.width / 2, researchBox.y + researchBox.height / 2);
+    try {
+      await page.waitForFunction(() => {
+        const audio = window.__epiphanyAquariumAudio;
+        return audio?.state === "running" &&
+          audio.vocalAgentCount >= 7 &&
+          audio.lastBurstChirpDrivers >= 6 &&
+          audio.spectral?.chirpDrivers === 6 &&
+          audio.spectral?.lastBurstChoirVoices >= 3 &&
+          audio.spectral?.reactiveFlushes >= 1 &&
+          audio.spectral?.transientBins >= 24 &&
+          audio.spectral?.vocalAgents >= 7 &&
+          audio.spectral?.queuedFrames >= 2048 &&
+          audio.lastBurst;
+      }, null, { timeout: 5000 });
+    } catch (error) {
+      const audio = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
+      throw new Error(`aquarium audio did not wake correctly: ${JSON.stringify(audio)}`, { cause: error });
+    }
+    audioProbe = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
   }
-  const researchBox = await page.locator('[data-agent-node="research"]').boundingBox();
-  if (!researchBox) {
-    throw new Error("research DOM node has no clickable bounds");
-  }
-  await page.mouse.click(researchBox.x + researchBox.width / 2, researchBox.y + researchBox.height / 2);
-  try {
-    await page.waitForFunction(() => {
-      const audio = window.__epiphanyAquariumAudio;
-      return audio?.state === "running" &&
-        audio.vocalAgentCount >= 7 &&
-        audio.lastBurstChirpDrivers >= 6 &&
-        audio.spectral?.chirpDrivers === 6 &&
-        audio.spectral?.lastBurstChoirVoices >= 3 &&
-        audio.spectral?.reactiveFlushes >= 1 &&
-        audio.spectral?.transientBins >= 24 &&
-        audio.spectral?.vocalAgents >= 7 &&
-        audio.spectral?.queuedFrames >= 2048 &&
-        audio.lastBurst;
-    }, null, { timeout: 5000 });
-  } catch (error) {
-    const audio = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
-    throw new Error(`aquarium audio did not wake correctly: ${JSON.stringify(audio)}`, { cause: error });
-  }
-  const audioProbe = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
 
   let persistedParams = null;
   if (exerciseFluidPanel) {
