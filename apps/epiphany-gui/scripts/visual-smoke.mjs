@@ -142,7 +142,9 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
       return audio?.state === "running" &&
         audio.voiceCount >= 7 &&
         audio.humBands >= 7 &&
-        audio.lastBurstChirps >= 280 &&
+        audio.lastBurstChirpDrivers >= 6 &&
+        audio.spectral?.chirpDrivers === 6 &&
+        audio.spectral?.vocalAgents >= 7 &&
         audio.spectral?.queuedFrames >= 2048 &&
         audio.lastBurst;
     }, null, { timeout: 5000 });

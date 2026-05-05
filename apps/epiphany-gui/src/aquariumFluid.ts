@@ -1762,8 +1762,6 @@ const partialRatios = buildPartialRatios(0);
 const audioChunkFrames = 2048;
 const audioQueueTargetChunks = 8;
 const audioSpectrumBins = 96;
-const cyclicTempoClasses = 12;
-const metricalTempoFactors = [4, 8 / 3, 3, 2, 4 / 3, 3 / 2, 1, 2 / 3, 3 / 4, 1 / 2, 1 / 3];
 
 const audioSpectrumShader = `#version 300 es
 precision highp float;
@@ -1809,60 +1807,8 @@ function buildPartialRatios(count: number) {
   return ratios.filter((ratio) => ratio < 22);
 }
 
-function chirpCountFor(action: AgentSoundAction) {
-  return action === "notification" ? 420 : action === "selected" ? 340 : 280;
-}
-
-function makeChirpBurstBuffer(context: AudioContext, agent: AquariumAgentFrame, action: AgentSoundAction) {
-  const sampleRate = context.sampleRate;
-  const duration = action === "notification" ? 1.25 : action === "selected" ? 1.05 : 0.82;
-  const length = Math.ceil(sampleRate * duration);
-  const data = new Float32Array(length);
-  const register = agentRegisters[agent.id] ?? 261.63;
-  const seed = hashString(`${agent.id}:${action}:${agent.status}:${agent.phase}`);
-  const random = mulberry32(seed);
-  const chirpCount = chirpCountFor(action);
-  const brightness = action === "notification" ? 2.2 : action === "selected" ? 1.2 : 1.7;
-  const roughness = action === "notification" ? 0.42 : action === "selected" ? 0.16 : 0.28;
-  const direction = action === "notification" ? -1 : 1;
-  for (let chirpIndex = 0; chirpIndex < chirpCount; chirpIndex += 1) {
-    const harmonic = 1 + (chirpIndex % 17) * (action === "selected" ? 0.5 : 0.72);
-    const harmonicFold = 1 + Math.floor(chirpIndex / 17) * 0.11;
-    const start = Math.floor(length * Math.pow(random(), action === "notification" ? 0.72 : 1.18) * 0.86);
-    const chirpDuration = Math.floor(sampleRate * (0.035 + random() * (action === "notification" ? 0.22 : 0.16)));
-    const end = Math.min(length, start + chirpDuration);
-    const f0 = clamp(register * harmonic * harmonicFold * (0.6 + random() * brightness), 48, 15000);
-    const sweep = 1 + direction * (0.18 + random() * (action === "notification" ? 2.8 : 1.6));
-    const f1 = clamp(f0 * sweep, 42, 16000);
-    const chirp = (random() - 0.5) * (action === "notification" ? 8 : 4);
-    const amp = (0.004 + random() * 0.01) / Math.sqrt(1 + chirpIndex * 0.018);
-    let phase = random() * Math.PI * 2;
-    for (let sample = start; sample < end; sample += 1) {
-      const local = (sample - start) / Math.max(1, end - start);
-      const envelope = Math.sin(Math.PI * local) ** (action === "notification" ? 1.2 : 1.7);
-      const curved = local * local * (3 - 2 * local);
-      const frequency = f0 + (f1 - f0) * curved + chirp * local * local * register;
-      phase += (Math.PI * 2 * frequency) / sampleRate;
-      const pure = Math.sin(phase);
-      const bright = Math.sin(phase * 2.01 + chirpIndex) * 0.28 + Math.sin(phase * 3.97) * 0.14;
-      const rasp = (random() - 0.5) * roughness;
-      data[sample] += (pure + bright + rasp) * envelope * amp;
-    }
-  }
-  let peak = 0;
-  for (let index = 0; index < data.length; index += 1) {
-    peak = Math.max(peak, Math.abs(data[index]));
-  }
-  const targetPeak = action === "notification" ? 0.9 : 0.76;
-  if (peak > 0) {
-    const scale = targetPeak / peak;
-    for (let index = 0; index < data.length; index += 1) {
-      data[index] *= scale;
-    }
-  }
-  const buffer = context.createBuffer(1, length, sampleRate);
-  buffer.copyToChannel(data, 0);
-  return { buffer, chirpCount };
+function chirpDriverCountFor(action: AgentSoundAction) {
+  return action === "notification" ? 8 : action === "selected" ? 7 : 6;
 }
 
 function makeNoiseLoopBuffer(context: AudioContext, agent: AquariumAgentFrame) {
@@ -1892,15 +1838,27 @@ function makeNoiseLoopBuffer(context: AudioContext, agent: AquariumAgentFrame) {
   return buffer;
 }
 
+type VocalControls = {
+  breath: number;
+  glottisPitch: number;
+  lips: number;
+  string: number;
+  tenseness: number;
+  throat: number;
+  tongue: number;
+  vibrato: number;
+};
+
 type VocalFormant = {
-  frequency: number;
   bandwidth: number;
+  frequency: number;
   gain: number;
 };
 
 type VocalProfile = {
   f0: number;
   formants: VocalFormant[];
+  harmonics: number;
   phase: number;
   softness: number;
 };
@@ -1908,50 +1866,55 @@ type VocalProfile = {
 const vocalProfiles: Record<string, VocalProfile> = {
   coordinator: {
     f0: 174.61,
+    harmonics: 18,
     phase: 0.2,
-    softness: 0.62,
+    softness: 0.68,
     formants: [
-      { frequency: 620, bandwidth: 95, gain: 1.05 },
-      { frequency: 1040, bandwidth: 150, gain: 0.82 },
-      { frequency: 2460, bandwidth: 260, gain: 0.46 },
-      { frequency: 3650, bandwidth: 420, gain: 0.24 },
+      { frequency: 620, bandwidth: 90, gain: 1.0 },
+      { frequency: 1040, bandwidth: 150, gain: 0.8 },
+      { frequency: 2460, bandwidth: 260, gain: 0.42 },
+      { frequency: 3650, bandwidth: 420, gain: 0.22 },
     ],
   },
   imagination: {
     f0: 523.25,
+    harmonics: 13,
     phase: 1.8,
-    softness: 0.44,
+    softness: 0.42,
     formants: [
-      { frequency: 340, bandwidth: 70, gain: 0.78 },
+      { frequency: 340, bandwidth: 70, gain: 0.74 },
       { frequency: 2300, bandwidth: 230, gain: 1.0 },
-      { frequency: 3050, bandwidth: 330, gain: 0.5 },
-      { frequency: 4300, bandwidth: 520, gain: 0.26 },
+      { frequency: 3050, bandwidth: 330, gain: 0.48 },
+      { frequency: 4300, bandwidth: 520, gain: 0.24 },
     ],
   },
   research: {
     f0: 659.25,
+    harmonics: 11,
     phase: 2.6,
-    softness: 0.5,
+    softness: 0.48,
     formants: [
-      { frequency: 300, bandwidth: 75, gain: 0.72 },
-      { frequency: 870, bandwidth: 130, gain: 0.9 },
-      { frequency: 2240, bandwidth: 250, gain: 0.54 },
+      { frequency: 300, bandwidth: 75, gain: 0.7 },
+      { frequency: 870, bandwidth: 130, gain: 0.92 },
+      { frequency: 2240, bandwidth: 250, gain: 0.52 },
       { frequency: 3500, bandwidth: 430, gain: 0.24 },
     ],
   },
   reorientation: {
     f0: 392,
+    harmonics: 15,
     phase: 3.4,
-    softness: 0.58,
+    softness: 0.56,
     formants: [
-      { frequency: 430, bandwidth: 85, gain: 0.92 },
+      { frequency: 430, bandwidth: 85, gain: 0.9 },
       { frequency: 1200, bandwidth: 170, gain: 0.84 },
-      { frequency: 2600, bandwidth: 280, gain: 0.45 },
+      { frequency: 2600, bandwidth: 280, gain: 0.44 },
       { frequency: 3900, bandwidth: 480, gain: 0.22 },
     ],
   },
   modeling: {
     f0: 246.94,
+    harmonics: 18,
     phase: 4.2,
     softness: 0.72,
     formants: [
@@ -1963,21 +1926,23 @@ const vocalProfiles: Record<string, VocalProfile> = {
   },
   implementation: {
     f0: 329.63,
+    harmonics: 16,
     phase: 5.0,
     softness: 0.46,
     formants: [
-      { frequency: 520, bandwidth: 90, gain: 0.86 },
+      { frequency: 520, bandwidth: 90, gain: 0.84 },
       { frequency: 1500, bandwidth: 210, gain: 0.9 },
-      { frequency: 2700, bandwidth: 280, gain: 0.46 },
+      { frequency: 2700, bandwidth: 280, gain: 0.44 },
       { frequency: 4100, bandwidth: 520, gain: 0.22 },
     ],
   },
   verification: {
     f0: 440,
+    harmonics: 14,
     phase: 5.8,
     softness: 0.66,
     formants: [
-      { frequency: 270, bandwidth: 65, gain: 0.82 },
+      { frequency: 270, bandwidth: 65, gain: 0.8 },
       { frequency: 720, bandwidth: 120, gain: 0.92 },
       { frequency: 2200, bandwidth: 250, gain: 0.5 },
       { frequency: 3400, bandwidth: 430, gain: 0.24 },
@@ -1989,66 +1954,41 @@ function vocalProfileFor(id: string) {
   return vocalProfiles[id] ?? vocalProfiles.coordinator;
 }
 
-function reverseCyclicTempogram(agent: Pick<ProjectedAgent, "activity" | "phase" | "chirps">, activity: number, panic: number, acknowledgement: number) {
-  const bins = new Float32Array(cyclicTempoClasses);
-  const baseTempo = 44 + activity * 96 + panic * 132 + acknowledgement * 48;
-  const width = 0.86 - panic * 0.32 + acknowledgement * 0.12;
-  for (const factor of metricalTempoFactors) {
-    const tempo = baseTempo * factor;
-    const classPosition = cyclicTempoClass(tempo);
-    const factorWeight = 1 / Math.sqrt(1 + Math.abs(Math.log2(factor)));
-    for (let index = 0; index < bins.length; index += 1) {
-      const distance = cyclicClassDistance(index, classPosition, cyclicTempoClasses);
-      bins[index] += Math.exp(-(distance * distance) / (2 * width * width)) * factorWeight;
-    }
-  }
-  const bodyPulse = 0.35 + Math.abs(agent.chirps.radial ?? 0) * 0.22 + Math.abs(agent.chirps.tangential ?? 0) * 0.18;
-  for (let index = 0; index < bins.length; index += 1) {
-    bins[index] *= bodyPulse * (0.72 + Math.sin(agent.phase + index * 0.7) * 0.08);
-  }
-  let peak = 0;
-  for (const value of bins) peak = Math.max(peak, value);
-  if (peak > 0) {
-    for (let index = 0; index < bins.length; index += 1) {
-      bins[index] = bins[index] / peak;
-    }
-  }
-  return bins;
+function vocalChirpControls(agent: ProjectedAgent, time: number): VocalControls {
+  const calm = 1 - agent.chirps.panic;
+  const glottis = chirplet(time, agent.phase + 0.2, 0.24 + agent.activity * 0.18, 0.006, 8.4);
+  const tongue = chirplet(time, agent.phase * 1.7 + 0.6, 0.18 + agent.chirps.expression * 0.12, -0.004, 11.2);
+  const lips = chirplet(time, agent.phase * 2.3 + 1.1, 0.13 + agent.chirps.acknowledgement * 0.28, 0.009, 7.6);
+  const throat = chirplet(time, agent.phase * 3.1 + 0.4, 0.1 + calm * 0.06, -0.003, 13.8);
+  const vibrato = chirplet(time, agent.phase * 4.6 + 2.0, 4.8 + agent.chirps.panic * 3.4, 0.018, 2.8);
+  const string = chirplet(time, agent.phase * 5.9 + agent.chirps.acknowledgement, 1.4 + agent.chirps.panic * 2.5, -0.028, 3.6);
+  return {
+    breath: clamp(0.22 + agent.activity * 0.28 + Math.abs(throat) * 0.16 + agent.chirps.panic * 0.42, 0.08, 1),
+    glottisPitch: glottis * 0.7 + agent.chirps.tangential * 0.24 + agent.chirps.acknowledgement * 0.55,
+    lips: lips * 0.8 + agent.chirps.acknowledgement * 0.2,
+    string: Math.abs(string) * (0.3 + agent.chirps.panic * 0.7 + agent.chirps.acknowledgement * 0.6),
+    tenseness: clamp(0.34 + agent.chirps.expression * 0.18 + agent.chirps.panic * 0.46 + agent.chirps.acknowledgement * 0.18, 0.12, 1),
+    throat: throat * 0.7 - agent.chirps.panic * 0.18,
+    tongue: tongue * 0.85 + agent.chirps.radial * 0.22,
+    vibrato,
+  };
 }
 
-function cyclicTempoClass(tempoBpm: number) {
-  const reference = 60;
-  const cycles = ((Math.log2(Math.max(tempoBpm, 1) / reference) % 1) + 1) % 1;
-  return cycles * cyclicTempoClasses;
+function morphFormants(formants: VocalFormant[], controls: Pick<VocalControls, "lips" | "throat" | "tongue">) {
+  return formants.map((formant, index) => {
+    const tongueShift = controls.tongue * (index === 0 ? -0.08 : 0.08 + index * 0.025);
+    const lipShift = controls.lips * -(0.06 + index * 0.035);
+    const throatShift = controls.throat * (0.05 - index * 0.018);
+    return {
+      frequency: formant.frequency * (1 + tongueShift + lipShift + throatShift),
+      bandwidth: formant.bandwidth * (1 + Math.abs(controls.tongue) * 0.22 + Math.abs(controls.lips) * 0.18),
+      gain: formant.gain * (1 + controls.tongue * (index === 1 ? 0.16 : 0.05) - Math.abs(controls.throat) * 0.04),
+    };
+  });
 }
 
-function cyclicClassDistance(index: number, position: number, modulo: number) {
-  const direct = Math.abs(index - position);
-  return Math.min(direct, modulo - direct);
-}
-
-function tempoClassToHz(tempogram: Float32Array, offset: number) {
-  let weighted = 0;
-  let total = 0;
-  for (let index = 0; index < tempogram.length; index += 1) {
-    const weight = tempogram[index];
-    const classTempo = 60 * 2 ** (index / tempogram.length);
-    weighted += classTempo * weight * (1 + ((index + offset) % 3) * 0.08);
-    total += weight;
-  }
-  return (total > 0 ? weighted / total : 90) / 60;
-}
-
-function morphFormants(formants: VocalFormant[], shift: number) {
-  return formants.map((formant, index) => ({
-    frequency: formant.frequency * (1 + shift * (0.08 + index * 0.035)),
-    bandwidth: formant.bandwidth * (1 + Math.abs(shift) * 0.28),
-    gain: formant.gain * (1 + shift * (index === 1 ? 0.18 : 0.06)),
-  }));
-}
-
-function formantEnvelope(frequency: number, formants: VocalFormant[]) {
-  let gain = 0.035;
+function vocalFormantEnvelope(frequency: number, formants: VocalFormant[]) {
+  let gain = 0.025;
   for (const formant of formants) {
     const distance = (frequency - formant.frequency) / Math.max(formant.bandwidth, 1);
     gain += Math.exp(-0.5 * distance * distance) * formant.gain;
@@ -2122,7 +2062,7 @@ class BufferedGpuSpectrumOutput {
       mode: this.mode,
       queuedFrames: this.queue.reduce((total, chunk) => total + chunk.length, -this.queueOffset),
       bursts: this.burstEvents.length,
-      tempoClasses: cyclicTempoClasses,
+      chirpDrivers: 6,
       vocalAgents: this.lastAgents.length,
     };
   }
@@ -2250,71 +2190,63 @@ class BufferedGpuSpectrumOutput {
       bin = this.writeVocalAgentBins(bin, agent, startSample);
     }
     for (const event of this.burstEvents) {
-      bin = this.writeEventVocalExcitation(bin, event, startSample);
+      bin = this.writeVocalExcitationBins(bin, event, startSample);
     }
     this.binCount = bin;
   }
 
   private writeVocalAgentBins(bin: number, agent: ProjectedAgent, startSample: number) {
     const profile = vocalProfileFor(agent.id);
-    const tempogram = reverseCyclicTempogram(agent, agent.activity, agent.chirps.panic, agent.chirps.acknowledgement);
-    const tempEnergy = tempogram.reduce((total, value) => total + value, 0) / tempogram.length;
-    const vowelShift = clamp(agent.chirps.radial * 0.18 + agent.chirps.tangential * 0.12 + agent.chirps.panic * 0.34 + agent.chirps.acknowledgement * 0.28, -0.45, 0.65);
-    const formants = morphFormants(profile.formants, vowelShift);
-    const base = profile.f0 * (1 + agent.chirps.tangential * 0.006 + agent.chirps.acknowledgement * 0.025);
-    const breath = 0.0018 + agent.activity * 0.0018 + agent.chirps.panic * 0.009;
-    const harmonics = 13;
-    for (let harmonic = 1; harmonic <= harmonics && bin < audioSpectrumBins; harmonic += 1) {
-      const frequency = base * harmonic;
-      if (frequency > 13500) break;
-      const tempoClass = tempogram[harmonic % tempogram.length];
-      const formant = formantEnvelope(frequency, formants);
-      const glottalTilt = 1 / Math.pow(harmonic, 1.18 + profile.softness * 0.38);
-      const amplitude = (0.004 + tempEnergy * 0.012 + breath) * glottalTilt * formant * (0.56 + tempoClass * 1.4);
-      const tempoHz = tempoClassToHz(tempogram, harmonic + Math.floor(agent.phase));
-      const chirp = tempoHz * (0.0018 + agent.chirps.panic * 0.006 + agent.chirps.acknowledgement * 0.004);
-      this.writeBin(bin, frequency, amplitude, profile.phase + agent.phase * harmonic + startSample * 0.000001 * harmonic, chirp);
+    const controls = vocalChirpControls(agent, startSample / this.context.sampleRate);
+    const formants = morphFormants(profile.formants, controls);
+    const basePitch = profile.f0 * (1 + controls.glottisPitch * 0.035 + controls.vibrato * 0.018 + agent.chirps.acknowledgement * 0.018);
+    const intensity = 0.004 + controls.breath * 0.006 + controls.tenseness * 0.004 + agent.chirps.panic * 0.014;
+    for (let harmonic = 1; harmonic <= profile.harmonics && bin < audioSpectrumBins; harmonic += 1) {
+      const frequency = basePitch * harmonic * (1 + controls.throat * 0.002 * harmonic);
+      if (frequency > 14000) break;
+      const sourceTilt = 1 / Math.pow(harmonic, 1.08 + controls.tenseness * 0.22 + profile.softness * 0.18);
+      const tract = vocalFormantEnvelope(frequency, formants);
+      const stringMotion = controls.string * (0.08 / Math.sqrt(harmonic));
+      const amplitude = intensity * sourceTilt * tract * (0.55 + controls.tongue * 0.22 + controls.lips * 0.18 + stringMotion);
+      const chirp = controls.vibrato * 0.018 + controls.glottisPitch * 0.006 + agent.chirps.panic * 0.035;
+      this.writeBin(bin, frequency, amplitude, profile.phase + agent.phase * harmonic + startSample * 0.0000008 * harmonic, chirp);
       bin += 1;
     }
-    const breathBands = [0.65, 1.2, 2.1, 3.7];
-    for (let index = 0; index < breathBands.length && bin < audioSpectrumBins; index += 1) {
-      const center = formants[Math.min(index, formants.length - 1)].frequency * breathBands[index];
-      const tempoClass = tempogram[(index * 3 + Math.floor(agent.phase)) % tempogram.length];
-      this.writeBin(bin, clamp(center, 120, 12000), breath * (0.18 + tempoClass * 0.6), profile.phase * (index + 2.3), tempoClass * 0.012);
+    for (let index = 0; index < formants.length && bin < audioSpectrumBins; index += 1) {
+      const formant = formants[index];
+      const breathAmplitude = (0.0009 + controls.breath * 0.003 + agent.chirps.panic * 0.005) * formant.gain;
+      this.writeBin(bin, formant.frequency, breathAmplitude, profile.phase * (index + 2.1), controls.tongue * 0.012 + controls.lips * 0.01);
       bin += 1;
     }
     return bin;
   }
 
-  private writeEventVocalExcitation(bin: number, event: SpectralBurst, startSample: number) {
+  private writeVocalExcitationBins(bin: number, event: SpectralBurst, startSample: number) {
     const local = (startSample - event.startSample) / Math.max(1, event.durationSamples);
-    if (local < -0.08 || local > 1.1) return bin;
+    if (local < -0.08 || local > 1.08) return bin;
     const profile = vocalProfileFor(event.agent.id);
-    const envelope = Math.exp(-Math.max(0, local) * (event.action === "notification" ? 3.2 : event.action === "selected" ? 4.8 : 6.4)) *
-      Math.sin(Math.PI * clamp(local + 0.04, 0, 1));
     const random = mulberry32(event.seed);
-    const fakeAgent = {
-      ...event.agent,
-      chirps: {
-        acknowledgement: event.action === "touch" ? envelope : 0.4 * envelope,
-        panic: event.action === "notification" ? 0.9 : 0.25,
-        radial: envelope * 0.8,
-        tangential: envelope * 0.5,
-      },
-      activity: event.action === "notification" ? 0.9 : 0.55,
-    } as ProjectedAgent;
-    const tempogram = reverseCyclicTempogram(fakeAgent, fakeAgent.activity, fakeAgent.chirps.panic, fakeAgent.chirps.acknowledgement);
-    const formants = morphFormants(profile.formants, event.action === "notification" ? 0.55 : event.action === "selected" ? 0.16 : -0.22);
-    const count = event.action === "notification" ? 30 : event.action === "selected" ? 22 : 16;
+    const envelope = Math.exp(-Math.max(0, local) * (event.action === "notification" ? 3.2 : event.action === "selected" ? 4.7 : 6.2)) *
+      Math.sin(Math.PI * clamp(local + 0.04, 0, 1));
+    const actionShift = event.action === "notification" ? 0.62 : event.action === "selected" ? 0.22 : -0.16;
+    const controls = {
+      glottisPitch: envelope * (event.action === "notification" ? 0.8 : 0.38),
+      tenseness: event.action === "notification" ? 0.9 : 0.62,
+      breath: 0.25 + envelope * 0.42,
+      tongue: actionShift,
+      lips: event.action === "touch" ? 0.5 : -0.18,
+      throat: event.action === "notification" ? -0.38 : 0.12,
+      vibrato: envelope * (event.action === "notification" ? 1.0 : 0.56),
+      string: envelope,
+    };
+    const formants = morphFormants(profile.formants, controls);
+    const count = event.action === "notification" ? 28 : event.action === "selected" ? 20 : 14;
     for (let index = 0; index < count && bin < audioSpectrumBins; index += 1) {
-      const harmonic = 1 + index * (event.action === "selected" ? 0.55 : 0.82) + random() * 0.16;
-      const base = profile.f0 * harmonic * (1 + random() * 0.018);
-      const tempoClass = tempogram[index % tempogram.length];
-      const formant = formantEnvelope(base, formants);
-      const stringDamping = Math.exp(-index * 0.055) * envelope;
-      const amplitude = stringDamping * (event.action === "notification" ? 0.052 : 0.036) * formant * (0.32 + tempoClass);
-      const chirp = (random() - 0.5) * (event.action === "notification" ? 0.34 : 0.18) + tempoClass * 0.03;
-      this.writeBin(bin, clamp(base, 60, 15000), amplitude, random() * Math.PI * 2, chirp);
+      const harmonic = 1 + index * (event.action === "selected" ? 0.52 : 0.74) + random() * 0.12;
+      const frequency = clamp(profile.f0 * harmonic * (1 + controls.glottisPitch * 0.08), 50, 15000);
+      const tract = vocalFormantEnvelope(frequency, formants);
+      const amplitude = envelope * (event.action === "notification" ? 0.04 : 0.028) * tract / Math.sqrt(index + 1);
+      this.writeBin(bin, frequency, amplitude, random() * Math.PI * 2, (random() - 0.5) * 0.18 + controls.vibrato * 0.026);
       bin += 1;
     }
     return bin;
@@ -2337,8 +2269,7 @@ class AquariumSoundscape {
   private compressor: DynamicsCompressorNode;
   private context: AudioContext;
   private master: GainNode;
-  private burstCache = new Map<string, AudioBuffer>();
-  private lastBurstChirps = 0;
+  private lastBurstChirpDrivers = 0;
   private pendingBursts: Array<{ action: AgentSoundAction; agent: AquariumAgentFrame }> = [];
   private spectralOutput: BufferedGpuSpectrumOutput;
   private voices = new Map<string, AgentVoice>();
@@ -2418,7 +2349,7 @@ class AquariumSoundscape {
         );
         voice.gain.gain.setTargetAtTime(0, now, 0.08);
         voice.noiseGain.gain.setTargetAtTime(0, now, 0.12);
-      voice.filter.frequency.setTargetAtTime(clamp(register * (4.6 + agent.chirps.glowPulse * 1.2 + agent.chirps.panic * 4.2), 60, 18000), now, 0.12);
+        voice.filter.frequency.setTargetAtTime(clamp(register * (4.6 + agent.chirps.glowPulse * 1.2 + agent.chirps.panic * 4.2), 60, 18000), now, 0.12);
         voice.filter.Q.setTargetAtTime(0.22 + agent.chirps.panic * 1.8 + agent.hover * 0.32, now, 0.1);
         voice.panner.pan.setTargetAtTime(clamp((agent.baseX / 100) * 2 - 1, -0.86, 0.86), now, 0.18);
         voice.partials.forEach((partial, index) => {
@@ -2448,7 +2379,7 @@ class AquariumSoundscape {
       this.resume();
       return;
     }
-    this.lastBurstChirps = chirpCountFor(action);
+    this.lastBurstChirpDrivers = chirpDriverCountFor(action);
     this.spectralOutput.triggerBurst(agent, action);
     this.publishDebugState(action);
   }
@@ -2512,7 +2443,8 @@ class AquariumSoundscape {
       humBands: this.voices.size,
       pendingBursts: this.pendingBursts.length,
       lastBurst: lastBurst ?? (window as any).__epiphanyAquariumAudio?.lastBurst ?? null,
-      lastBurstChirps: this.lastBurstChirps,
+      lastBurstChirpDrivers: this.lastBurstChirpDrivers,
+      lastBurstChirps: this.lastBurstChirpDrivers,
       masterGain: this.master.gain.value,
       spectral: this.spectralOutput.stats(),
       error: error ?? null,
