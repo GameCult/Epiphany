@@ -1006,8 +1006,6 @@ class WebglAquariumRenderer implements AquariumRenderer {
     }
     if (activeAgent && paintAgentChrome) {
       this.drawThoughtSource(ctx, activeAgent);
-    }
-    if (activeAgent) {
       this.drawOptionsSource(ctx, activeAgent, paintAgentChrome);
     }
     this.drawParameterImpulseSource(ctx, time);

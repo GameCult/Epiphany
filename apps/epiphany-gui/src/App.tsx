@@ -1454,7 +1454,9 @@ function AgentConstellation({
   const rendererRef = useRef<AquariumRenderer | null>(null);
   const agentNodeRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
   const thoughtNodeRefs = useRef(new globalThis.Map<string, HTMLDivElement>());
+  const optionHaloNodeRefs = useRef(new globalThis.Map<string, HTMLDivElement>());
   const [selectedAgentId, setSelectedAgentId] = useState("coordinator");
+  const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const agents = useMemo<ProjectedAgent[]>(() => {
     return constellationSpecs.map((spec) => {
       const lane = roles.find((role) => text(role.id).toLowerCase() === spec.laneId);
@@ -1583,10 +1585,19 @@ function AgentConstellation({
     }
   }, []);
 
+  const bindOptionHaloNode = useCallback((id: string, node: HTMLDivElement | null) => {
+    if (node) {
+      optionHaloNodeRefs.current.set(id, node);
+    } else {
+      optionHaloNodeRefs.current.delete(id);
+    }
+  }, []);
+
   const applyProjectionFrame = useCallback((projections: AquariumAgentProjection[]) => {
     for (const projection of projections) {
       const agentNode = agentNodeRefs.current.get(projection.id);
       const thoughtNode = thoughtNodeRefs.current.get(projection.id);
+      const optionHaloNode = optionHaloNodeRefs.current.get(projection.id);
       const properties: Array<[string, string]> = [
         ["--agent-x", `${projection.xPercent}%`],
         ["--agent-y", `${projection.yPercent}%`],
@@ -1603,7 +1614,9 @@ function AgentConstellation({
       for (const [name, value] of properties) {
         agentNode?.style.setProperty(name, value);
         thoughtNode?.style.setProperty(name, value);
+        optionHaloNode?.style.setProperty(name, value);
       }
+      optionHaloNode?.toggleAttribute("data-agent-hot", projection.hover > 0.2);
     }
   }, []);
 
@@ -1640,6 +1653,7 @@ function AgentConstellation({
   }
 
   function handleAgentPointerEnter(agentId: string, event: React.PointerEvent<HTMLElement>) {
+    setHoveredAgentId(agentId);
     rendererRef.current?.setPointerClient(event.clientX, event.clientY);
     rendererRef.current?.setHoveredAgent(agentId);
   }
@@ -1649,12 +1663,32 @@ function AgentConstellation({
   }
 
   function handleAgentPointerLeave() {
+    setHoveredAgentId(null);
     rendererRef.current?.setHoveredAgent(null);
   }
 
   function handleAgentPointerDown(agentId: string) {
     rendererRef.current?.wakeSoundscape();
     rendererRef.current?.acknowledgeAgent(agentId, "touch");
+  }
+
+  function handleOptionClick(event: React.MouseEvent<HTMLButtonElement>, optionKey: string) {
+    event.stopPropagation();
+    const option = optionByKeyRef.current.get(optionKey);
+    if (option) {
+      onAgentOption?.(option);
+    }
+  }
+
+  function optionPositionStyle(index: number, count: number): React.CSSProperties {
+    const arc = Math.min(Math.PI * 1.2, Math.max(Math.PI * 0.7, count * 0.34));
+    const start = -Math.PI / 2 - arc / 2;
+    const angle = start + (arc * (index + 0.5)) / Math.max(count, 1);
+    const radius = 92;
+    return {
+      left: `calc(50% + ${Math.cos(angle) * radius}px)`,
+      top: `calc(50% + ${Math.sin(angle) * radius}px)`,
+    };
   }
 
   function handleCanvasClick() {
@@ -1724,6 +1758,7 @@ function AgentConstellation({
             onPointerMove={handleAgentPointerMove}
             onPointerLeave={handleAgentPointerLeave}
             onMouseEnter={(event) => {
+              setHoveredAgentId(agent.id);
               rendererRef.current?.setPointerClient(event.clientX, event.clientY);
               rendererRef.current?.setHoveredAgent(agent.id);
             }}
@@ -1769,6 +1804,48 @@ function AgentConstellation({
             <span>{agent.thought}</span>
           </div>
         ))}
+        {aquariumAgents.map((agent) => {
+          const options = agent.options ?? [];
+          if (!options.length) return null;
+          const open = selectedAgentId === agent.id || hoveredAgentId === agent.id;
+          return (
+            <div
+              className={`agentOptionHalo ${agent.tone} ${open ? "open" : ""}`}
+              key={`${agent.id}-options`}
+              ref={(node) => bindOptionHaloNode(agent.id, node)}
+              data-agent-options={agent.id}
+              onPointerEnter={(event) => {
+                setHoveredAgentId(agent.id);
+                rendererRef.current?.setPointerClient(event.clientX, event.clientY);
+                rendererRef.current?.setHoveredAgent(agent.id);
+              }}
+              onPointerMove={(event) => rendererRef.current?.setPointerClient(event.clientX, event.clientY)}
+              onPointerLeave={handleAgentPointerLeave}
+              style={
+                {
+                  "--agent-x": `${agent.baseX}%`,
+                  "--agent-y": `${agent.baseY}%`,
+                  "--agent-color": agent.color,
+                  "--agent-glow": agent.glow,
+                } as React.CSSProperties
+              }
+            >
+              {options.map((option, index) => (
+                <button
+                  type="button"
+                  className="agentOptionButton"
+                  key={option.key}
+                  disabled={option.disabled}
+                  title={option.label}
+                  style={optionPositionStyle(index, options.length)}
+                  onClick={(event) => handleOptionClick(event, option.key)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          );
+        })}
         <div className="constellationInspector">
           <div>
             <span>{selectedAgent.title}</span>

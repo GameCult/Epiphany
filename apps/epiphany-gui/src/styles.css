@@ -936,7 +936,8 @@ body:has(.immersiveShell) {
 }
 
 .agentCharacter,
-.thoughtBubble {
+.thoughtBubble,
+.agentOptionHalo {
   left: var(--agent-x);
   top: var(--agent-y);
 }
@@ -1115,6 +1116,81 @@ body:has(.immersiveShell) {
   line-height: 1.28;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
+}
+
+.agentOptionHalo {
+  position: absolute;
+  z-index: 6;
+  width: 220px;
+  height: 220px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
+  pointer-events: none;
+  contain: layout style;
+  transform:
+    translate(-50%, -50%)
+    rotate(calc(var(--agent-tilt, 0deg) * 0.18))
+    scale(calc(0.92 + var(--agent-hover, 0) * 0.04));
+  transition:
+    opacity 150ms ease,
+    filter 150ms ease,
+    transform 150ms ease;
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--agent-glow) 34%, transparent));
+}
+
+.agentStage .agentOptionHalo.open,
+.agentStage .agentOptionHalo[data-agent-hot] {
+  opacity: 1 !important;
+}
+
+.agentOptionButton {
+  appearance: none;
+  position: absolute;
+  display: block;
+  pointer-events: auto;
+  min-width: 74px;
+  height: 29px;
+  border: 1px solid color-mix(in srgb, var(--agent-glow) 58%, rgba(255, 255, 255, 0.36));
+  border-radius: 999px;
+  padding: 0 12px;
+  color: #fbfff8;
+  background:
+    radial-gradient(circle at 32% 20%, rgba(255, 255, 255, 0.18), transparent 18px),
+    color-mix(in srgb, var(--agent-color) 56%, rgba(5, 12, 9, 0.74));
+  box-shadow:
+    0 0 16px color-mix(in srgb, var(--agent-color) 28%, transparent),
+    inset 0 -7px 12px rgba(3, 8, 6, 0.26);
+  cursor: pointer;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+  text-shadow: 0 1px 7px rgba(3, 8, 6, 0.76);
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+}
+
+.agentOptionButton:hover,
+.agentOptionButton:focus-visible {
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow:
+    0 0 24px color-mix(in srgb, var(--agent-glow) 52%, transparent),
+    inset 0 -7px 12px rgba(3, 8, 6, 0.2);
+  outline: none;
+  transform: translate(-50%, -50%) scale(1.04);
+}
+
+.agentOptionButton:disabled {
+  cursor: default;
+  opacity: 0.38;
 }
 
 .constellationInspector {

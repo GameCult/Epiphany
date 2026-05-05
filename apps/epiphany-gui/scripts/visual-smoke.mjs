@@ -147,6 +147,27 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     if (!hoverProbe.ok) {
       throw new Error(`DOM hover did not reach aquarium projection at ${viewport.width}x${viewport.height}: ${hoverProbe.reason}`);
     }
+    const optionProbe = await page.evaluate(() => {
+      const halo = document.querySelector('[data-agent-options="research"]');
+      if (!(halo instanceof HTMLElement)) return { ok: false, reason: "research options missing" };
+      const style = window.getComputedStyle(halo);
+      const buttons = [...halo.querySelectorAll("button")].filter((button) => button instanceof HTMLButtonElement);
+      const labels = buttons.map((button) => button.textContent?.trim()).filter(Boolean);
+      const firstRect = buttons[0]?.getBoundingClientRect();
+      const firstStyle = buttons[0] ? window.getComputedStyle(buttons[0]) : null;
+      return {
+        ok:
+          style.opacity !== "0" &&
+          firstStyle?.pointerEvents !== "none" &&
+          labels.includes("State") &&
+          labels.includes("Artifacts") &&
+          Boolean(firstRect && firstRect.width > 20 && firstRect.height > 16),
+        reason: `opacity=${style.opacity} haloPointer=${style.pointerEvents} buttonPointer=${firstStyle?.pointerEvents} labels=${labels.join(",")}`,
+      };
+    });
+    if (!optionProbe.ok) {
+      throw new Error(`DOM agent options did not open for research: ${optionProbe.reason}`);
+    }
   }
   let audioProbe = null;
   if (viewport.width >= 720) {
