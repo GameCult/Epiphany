@@ -933,7 +933,6 @@ export function App() {
 
   const operatorSurface = (
     <>
-      <div className="hudGrid" aria-hidden="true" />
       <header className="immersiveTopbar">
         <div className="operatorIdentity">
           <p className="eyebrow">Epiphany MVP</p>
@@ -1471,7 +1470,8 @@ function AgentConstellation({
   const agentNodeRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
   const thoughtNodeRefs = useRef(new globalThis.Map<string, HTMLDivElement>());
   const optionHaloNodeRefs = useRef(new globalThis.Map<string, HTMLDivElement>());
-  const [selectedAgentId, setSelectedAgentId] = useState("coordinator");
+  const focusSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [hoveredAgentId, setHoveredAgentId] = useState<string | null>(null);
   const agents = useMemo<ProjectedAgent[]>(() => {
     return constellationSpecs.map((spec) => {
@@ -1614,6 +1614,7 @@ function AgentConstellation({
       const agentNode = agentNodeRefs.current.get(projection.id);
       const thoughtNode = thoughtNodeRefs.current.get(projection.id);
       const optionHaloNode = optionHaloNodeRefs.current.get(projection.id);
+      const focusSurfaceNode = (selectedAgentId ?? hoveredAgentId) === projection.id ? focusSurfaceRef.current : null;
       const properties: Array<[string, string]> = [
         ["--agent-x", `${projection.xPercent}%`],
         ["--agent-y", `${projection.yPercent}%`],
@@ -1631,17 +1632,19 @@ function AgentConstellation({
         agentNode?.style.setProperty(name, value);
         thoughtNode?.style.setProperty(name, value);
         optionHaloNode?.style.setProperty(name, value);
+        focusSurfaceNode?.style.setProperty(name, value);
       }
+      thoughtNode?.toggleAttribute("data-agent-hot", projection.hover > 0.35);
       optionHaloNode?.toggleAttribute("data-agent-hot", projection.hover > 0.2);
     }
-  }, []);
+  }, [hoveredAgentId, selectedAgentId]);
 
   useEffect(() => {
     rendererRef.current?.setFrame({
       activeLabel: activeDeck ? `${deckLabels[activeDeck]} / ${activeSubdeck ?? ""}` : undefined,
       agents: aquariumAgents,
       onProjectionFrame: applyProjectionFrame,
-      selectedAgentId,
+      selectedAgentId: selectedAgentId ?? "",
       ui,
       variant,
     });
@@ -1737,8 +1740,12 @@ function AgentConstellation({
     const agentId = rendererRef.current?.pickAgent();
     if (agentId) {
       setSelectedAgentId(agentId);
+    } else {
+      setSelectedAgentId(null);
     }
   }
+  const focusedAgentId = selectedAgentId;
+  const focusedAgent = focusedAgentId ? aquariumAgents.find((agent) => agent.id === focusedAgentId) : null;
 
   return (
     <section
@@ -1760,9 +1767,6 @@ function AgentConstellation({
         </div>
       )}
       <div className="agentStage">
-        <div className="aquariumOperatorLayer" onPointerDownCapture={handleInterfacePointerDown}>
-          {operatorSurface}
-        </div>
         <canvas
           ref={canvasRef}
           className="agentSmokeCanvas"
@@ -1779,6 +1783,26 @@ function AgentConstellation({
           aria-hidden="true"
         />
         <div className="agentStageVignette" aria-hidden="true" />
+        {operatorSurface && focusedAgent && (
+          <div
+            className={`agentFocusSurface ${selectedAgentId === focusedAgent.id ? "locked" : "preview"} ${
+              focusedAgent.baseX > 62 ? "anchorLeft" : focusedAgent.baseX < 38 ? "anchorRight" : "anchorCenter"
+            } ${focusedAgent.baseY > 58 ? "anchorUp" : "anchorDown"}`}
+            ref={focusSurfaceRef}
+            data-agent-focus={focusedAgent.id}
+            onPointerDownCapture={handleInterfacePointerDown}
+            style={
+              {
+                "--agent-x": `${focusedAgent.baseX}%`,
+                "--agent-y": `${focusedAgent.baseY}%`,
+                "--agent-color": focusedAgent.color,
+                "--agent-glow": focusedAgent.glow,
+              } as React.CSSProperties
+            }
+          >
+            {operatorSurface}
+          </div>
+        )}
         {agents.map((agent) => (
           <button
             className={`agentCharacter ${agent.shape} ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
@@ -1883,19 +1907,21 @@ function AgentConstellation({
             </div>
           );
         })}
-        <div className="constellationInspector">
-          <div>
-            <span>{selectedAgent.title}</span>
-            <strong>{selectedAgent.name}</strong>
-            <p>{selectedAgent.thought}</p>
+        {variant !== "fullscreen" && (
+          <div className="constellationInspector">
+            <div>
+              <span>{selectedAgent.title}</span>
+              <strong>{selectedAgent.name}</strong>
+              <p>{selectedAgent.thought}</p>
+            </div>
+            <dl className="facts compact">
+              <div><dt>Status</dt><dd><Pill tone={selectedAgent.tone}>{selectedAgent.status}</Pill></dd></div>
+              <div><dt>Detail</dt><dd>{selectedAgent.detail}</dd></div>
+              <div><dt>Jobs</dt><dd>{selectedAgent.jobs}</dd></div>
+              <div><dt>Review</dt><dd>{selectedAgent.review}</dd></div>
+            </dl>
           </div>
-          <dl className="facts compact">
-            <div><dt>Status</dt><dd><Pill tone={selectedAgent.tone}>{selectedAgent.status}</Pill></dd></div>
-            <div><dt>Detail</dt><dd>{selectedAgent.detail}</dd></div>
-            <div><dt>Jobs</dt><dd>{selectedAgent.jobs}</dd></div>
-            <div><dt>Review</dt><dd>{selectedAgent.review}</dd></div>
-          </dl>
-        </div>
+        )}
       </div>
     </section>
   );

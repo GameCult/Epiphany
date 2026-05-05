@@ -63,8 +63,8 @@ async function launchSmokeBrowser() {
 async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPanel) {
   const page = await browser.newPage({ viewport });
   await page.goto(url, { waitUntil: "networkidle" });
-  await page.locator("h1").filter({ hasText: "Operator Console" }).waitFor({ state: "attached" });
   await page.locator(".immersiveShell").waitFor();
+  await page.locator('[data-agent-node="coordinator"]').waitFor({ state: "attached" });
   await page.locator(".agentSmokeCanvas").waitFor();
   await page.locator(".agentCrispCanvas").waitFor();
   await page.waitForTimeout(1000);
@@ -75,25 +75,9 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     throw new Error(`agent smoke canvas did not render: ${smokeProbe.reason}`);
   }
 
-  const operatorSurface = await page.evaluate(() => {
-    return [".immersiveTopbar", ".deckRail", ".diegeticPanel"].every((selector) => {
-      const element = document.querySelector(`.agentStage ${selector}`);
-      if (!element) return false;
-      const style = window.getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return (
-        style.opacity !== "0" &&
-        style.visibility !== "hidden" &&
-        rect.width > 20 &&
-        rect.height > 20
-      );
-    });
-  });
-  if (!operatorSurface) {
-    throw new Error("static operator overlays are not visible");
-  }
-  if (!crispProbe.nonBlank && !operatorSurface) {
-    throw new Error(`no crisp operator surface rendered: ${crispProbe.reason}`);
+  const quietSurface = await page.evaluate(() => !document.querySelector(".agentFocusSurface"));
+  if (!quietSurface) {
+    throw new Error("operator surface rendered before an aquarium object was selected");
   }
 
   const projectionProbe = await page.evaluate(() => {
@@ -176,6 +160,24 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
       throw new Error("research DOM node has no clickable bounds");
     }
     await page.mouse.click(researchBox.x + researchBox.width / 2, researchBox.y + researchBox.height / 2);
+    const operatorSurface = await page.evaluate(() => {
+      const focus = document.querySelector('.agentStage [data-agent-focus="research"]');
+      if (!(focus instanceof HTMLElement)) return { ok: false, reason: "research focus surface missing" };
+      const style = window.getComputedStyle(focus);
+      const surfaces = [".immersiveTopbar", ".deckRail", ".diegeticPanel"].every((selector) => {
+        const element = focus.querySelector(selector);
+        if (!(element instanceof HTMLElement)) return false;
+        const rect = element.getBoundingClientRect();
+        return rect.width > 20 && rect.height > 20;
+      });
+      return {
+        ok: style.opacity !== "0" && style.visibility !== "hidden" && surfaces,
+        reason: `opacity=${style.opacity} visibility=${style.visibility} surfaces=${surfaces}`,
+      };
+    });
+    if (!operatorSurface.ok) {
+      throw new Error(`agent-owned operator surface did not open: ${operatorSurface.reason}`);
+    }
     try {
       await page.waitForFunction(() => {
         const audio = window.__epiphanyAquariumAudio;
@@ -195,7 +197,7 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
       throw new Error(`aquarium audio did not wake correctly: ${JSON.stringify(audio)}`, { cause: error });
     }
     audioProbe = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
-    await page.locator(".deckRail button").nth(1).click();
+    await page.locator('[data-agent-focus="research"] .deckRail button').nth(1).dispatchEvent("pointerdown", { bubbles: true });
     await page.waitForFunction(() => {
       const audio = window.__epiphanyAquariumAudio;
       return audio?.state === "running" && audio.interfaceHitCount >= 1;

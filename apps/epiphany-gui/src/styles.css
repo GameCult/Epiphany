@@ -472,27 +472,121 @@ body:has(.immersiveShell) {
   mask-image: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.8), transparent 72%);
 }
 
-.aquariumOperatorLayer {
-  position: absolute;
-  inset: 0;
-  z-index: 7;
-  pointer-events: none;
-}
-
-.aquariumOperatorLayer > * {
-  pointer-events: auto;
-}
-
-.aquariumOperatorLayer .hudGrid {
-  pointer-events: none;
-}
-
 .immersiveTopbar,
 .deckRail,
 .diegeticPanel,
 .hudToastStack {
   position: absolute;
   z-index: 8;
+}
+
+.agentFocusSurface {
+  position: absolute;
+  left: var(--agent-x);
+  top: var(--agent-y);
+  z-index: 7;
+  display: grid;
+  grid-template-areas:
+    "top top"
+    "rail panel"
+    "toast panel";
+  grid-template-columns: 86px minmax(360px, min(680px, 44vw));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  max-height: min(78vh, 820px);
+  opacity: 0;
+  pointer-events: auto;
+  transform: translate(var(--focus-x, -12%), var(--focus-y, -8%)) scale(0.94);
+  transform-origin: 18% 12%;
+  transition:
+    opacity 170ms ease,
+    filter 170ms ease,
+    transform 170ms ease;
+  filter: drop-shadow(0 0 22px color-mix(in srgb, var(--agent-glow) 32%, transparent));
+}
+
+.agentFocusSurface.preview,
+.agentFocusSurface.locked {
+  opacity: 1;
+  transform: translate(var(--focus-x, -12%), var(--focus-y, -8%)) scale(1);
+}
+
+.agentFocusSurface.anchorLeft {
+  --focus-x: -92%;
+}
+
+.agentFocusSurface.anchorRight {
+  --focus-x: 10%;
+}
+
+.agentFocusSurface.anchorCenter {
+  --focus-x: -48%;
+}
+
+.agentFocusSurface.anchorUp {
+  --focus-y: -86%;
+}
+
+.agentFocusSurface.anchorDown {
+  --focus-y: -10%;
+}
+
+.agentFocusSurface .immersiveTopbar,
+.agentFocusSurface .deckRail,
+.agentFocusSurface .diegeticPanel,
+.agentFocusSurface .hudToastStack {
+  position: relative;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  z-index: auto;
+}
+
+.agentFocusSurface .immersiveTopbar {
+  grid-area: top;
+  align-items: center;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(219, 238, 216, 0.28);
+  border-radius: 10px;
+  background: rgba(8, 17, 14, 0.74);
+  backdrop-filter: blur(16px);
+}
+
+.agentFocusSurface .deckRail {
+  grid-area: rail;
+  width: auto;
+  align-content: start;
+}
+
+.agentFocusSurface .diegeticPanel {
+  grid-area: panel;
+  width: min(680px, 44vw);
+  min-width: 360px;
+  max-height: min(66vh, 700px);
+}
+
+.agentFocusSurface .hudToastStack {
+  grid-area: toast;
+  width: auto;
+}
+
+.agentFocusSurface .operatorIdentity {
+  max-width: min(420px, 34vw);
+}
+
+.agentFocusSurface .operatorTopControls {
+  max-width: min(360px, 32vw);
+}
+
+.agentFocusSurface .deckRail button {
+  min-height: 60px;
+}
+
+.agentFocusSurface .deckBody {
+  max-height: calc(min(66vh, 700px) - 68px);
 }
 
 .immersiveTopbar {
@@ -1087,17 +1181,29 @@ body:has(.immersiveShell) {
   color: #172018;
   background: rgba(249, 252, 246, 0.88);
   box-shadow: 0 14px 30px rgba(6, 11, 9, 0.26);
-  opacity: var(--agent-bubble-opacity, 0.62);
+  opacity: 0;
   pointer-events: none;
   transform:
     translate(-10%, -142%)
     rotate(var(--agent-bubble-tilt, 0deg))
-    scale(var(--agent-scale, 1));
+    scale(calc(var(--agent-scale, 1) * 0.96));
   animation: thoughtDrift 7600ms ease-in-out infinite;
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.thoughtBubble.selected,
+.thoughtBubble[data-agent-hot] {
+  z-index: 4;
+  opacity: var(--agent-bubble-opacity, 0.62);
+  transform:
+    translate(-10%, -142%)
+    rotate(var(--agent-bubble-tilt, 0deg))
+    scale(var(--agent-scale, 1));
 }
 
 .thoughtBubble.selected {
-  z-index: 4;
   opacity: 1;
 }
 
