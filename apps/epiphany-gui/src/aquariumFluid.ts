@@ -1752,7 +1752,21 @@ uniform float uSampleRate;
 uniform float uStartSample;
 uniform int uBinCount;
 uniform vec4 uBins[${audioSpectrumBins}];
+uniform vec4 uShapes[${audioSpectrumBins}];
 const float TAU = 6.283185307179586;
+float binEnvelope(float sampleIndex, vec4 shape) {
+  if (shape.x < 0.0) {
+    return 1.0;
+  }
+  float local = (sampleIndex - shape.x) / max(shape.y, 1.0);
+  if (local < 0.0 || local > 1.0) {
+    return 0.0;
+  }
+  float attack = smoothstep(0.0, max(shape.z, 0.001), local);
+  float body = pow(max(sin(local * 3.141592653589793), 0.0), 0.28);
+  float tail = exp(-local * shape.w);
+  return attack * body * tail;
+}
 float renderSample(float sampleIndex) {
   float t = sampleIndex / uSampleRate;
   float value = 0.0;
@@ -1761,8 +1775,10 @@ float renderSample(float sampleIndex) {
       break;
     }
     vec4 bin = uBins[index];
-    float phase = bin.z + TAU * (bin.x * t + bin.w * t * t);
-    value += sin(phase) * bin.y;
+    vec4 shape = uShapes[index];
+    float localT = shape.x < 0.0 ? (sampleIndex - uStartSample) / uSampleRate : max(0.0, (sampleIndex - shape.x) / uSampleRate);
+    float phase = bin.z + TAU * (bin.x * t + bin.w * localT * localT);
+    value += sin(phase) * bin.y * binEnvelope(sampleIndex, shape);
   }
   return tanh(value * 0.82);
 }
@@ -1989,7 +2005,15 @@ type SpectralBurst = {
   action: AgentSoundAction;
   agent: AquariumAgentFrame;
   durationSamples: number;
+  gain: number;
   seed: number;
+  startSample: number;
+};
+
+type SpectralBinShape = {
+  attackPortion: number;
+  decay: number;
+  durationSamples: number;
   startSample: number;
 };
 
@@ -2001,6 +2025,8 @@ class BufferedGpuSpectrumOutput {
   private fbo: WebGLFramebuffer | null = null;
   private gl: WebGL2RenderingContext | null = null;
   private lastAgents: ProjectedAgent[] = [];
+  private lastBurstChoirVoices = 0;
+  private lastTransientGain = 0;
   private mode: "gpu" | "cpu" = "cpu";
   private pixelBuffer = new Float32Array(audioChunkFrames);
   private processor: ScriptProcessorNode;
@@ -2008,8 +2034,10 @@ class BufferedGpuSpectrumOutput {
   private queue: Float32Array[] = [];
   private queueOffset = 0;
   private reactiveFlushes = 0;
+  private shapes = new Float32Array(audioSpectrumBins * 4);
   private sampleCursor = 0;
   private texture: WebGLTexture | null = null;
+  private transientBinCount = 0;
 
   constructor(private context: AudioContext, destination: AudioNode) {
     this.processor = context.createScriptProcessor(audioChunkFrames, 0, 1);
@@ -2033,7 +2061,10 @@ class BufferedGpuSpectrumOutput {
       queuedFrames: this.queue.reduce((total, chunk) => total + chunk.length, -this.queueOffset),
       bursts: this.burstEvents.length,
       chirpDrivers: 6,
+      lastBurstChoirVoices: this.lastBurstChoirVoices,
+      lastTransientGain: this.lastTransientGain,
       reactiveFlushes: this.reactiveFlushes,
+      transientBins: this.transientBinCount,
       vocalAgents: this.lastAgents.length,
     };
   }
@@ -2042,14 +2073,26 @@ class BufferedGpuSpectrumOutput {
     this.queue = [];
     this.queueOffset = 0;
     this.reactiveFlushes += 1;
-    this.burstEvents.push({
+    const choir = this.choirFor(agent);
+    this.lastBurstChoirVoices = choir.length;
+    this.lastTransientGain = action === "notification" ? 1.55 : action === "selected" ? 1.35 : 1.2;
+    const durationSeconds = action === "notification" ? 0.78 : action === "selected" ? 0.54 : 0.38;
+    choir.forEach((voice, index) => this.burstEvents.push({
       action,
-      agent,
-      durationSamples: Math.floor(this.context.sampleRate * (action === "notification" ? 1.4 : action === "selected" ? 1.05 : 0.82)),
-      seed: hashString(`${agent.id}:${action}:${agent.status}:${this.sampleCursor}`),
-      startSample: this.sampleCursor,
-    });
+      agent: voice,
+      durationSamples: Math.floor(this.context.sampleRate * durationSeconds),
+      gain: this.lastTransientGain * (index === 0 ? 1 : 0.62 / Math.sqrt(index + 1)),
+      seed: hashString(`${voice.id}:${agent.id}:${action}:${voice.status}:${this.sampleCursor}:${index}`),
+      startSample: this.sampleCursor + Math.floor(this.context.sampleRate * (index === 0 ? 0 : 0.018 + index * 0.017)),
+    }));
     this.fillQueue(audioQueueTargetChunks);
+  }
+
+  private choirFor(agent: AquariumAgentFrame) {
+    const agents = this.lastAgents.length ? this.lastAgents : [agent as ProjectedAgent];
+    const target = agents.find((candidate) => candidate.id === agent.id) ?? agent;
+    const others = agents.filter((candidate) => candidate.id !== agent.id);
+    return [target, ...others].slice(0, 7);
   }
 
   update(agents: ProjectedAgent[], _time: number) {
@@ -2134,6 +2177,7 @@ class BufferedGpuSpectrumOutput {
     gl.uniform1f(gl.getUniformLocation(this.program, "uStartSample"), this.sampleCursor);
     gl.uniform1i(gl.getUniformLocation(this.program, "uBinCount"), this.currentBinCount());
     gl.uniform4fv(gl.getUniformLocation(this.program, "uBins"), this.bins);
+    gl.uniform4fv(gl.getUniformLocation(this.program, "uShapes"), this.shapes);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.readPixels(0, 0, audioChunkFrames / 4, 1, gl.RGBA, gl.FLOAT, this.pixelBuffer);
     return new Float32Array(this.pixelBuffer);
@@ -2149,7 +2193,9 @@ class BufferedGpuSpectrumOutput {
       let value = 0;
       for (let bin = 0; bin < binCount; bin += 1) {
         const offset = bin * 4;
-        value += Math.sin(this.bins[offset + 2] + Math.PI * 2 * (this.bins[offset] * t + this.bins[offset + 3] * t * t)) * this.bins[offset + 1];
+        const shape = this.binEnvelope(sampleIndex, offset);
+        const localT = this.shapes[offset] < 0 ? (sampleIndex - this.sampleCursor) / sampleRate : Math.max(0, (sampleIndex - this.shapes[offset]) / sampleRate);
+        value += Math.sin(this.bins[offset + 2] + mathTau * (this.bins[offset] * t + this.bins[offset + 3] * localT * localT)) * this.bins[offset + 1] * shape;
       }
       chunk[frame] = Math.tanh(value * 0.82);
     }
@@ -2159,12 +2205,15 @@ class BufferedGpuSpectrumOutput {
 
   private writeBins(startSample: number) {
     this.bins.fill(0);
+    this.shapes.fill(-1);
     let bin = 0;
-    for (const agent of this.lastAgents) {
-      bin = this.writeVocalAgentBins(bin, agent, startSample);
-    }
+    const transientStartBin = bin;
     for (const event of this.burstEvents) {
       bin = this.writeVocalExcitationBins(bin, event, startSample);
+    }
+    this.transientBinCount = bin - transientStartBin;
+    for (const agent of this.lastAgents) {
+      bin = this.writeVocalAgentBins(bin, agent, startSample);
     }
     this.binCount = bin;
   }
@@ -2176,8 +2225,9 @@ class BufferedGpuSpectrumOutput {
     const basePitch = profile.f0 * (1 + controls.glottisPitch * 0.035 + controls.vibrato * 0.018 + agent.chirps.acknowledgement * 0.018);
     const pulseEnergy = Math.max(Math.abs(controls.glottisPitch), Math.abs(controls.tongue), Math.abs(controls.lips), Math.abs(controls.vibrato), controls.string);
     const hoverQuiet = lerp(1, 0.18, agent.hover);
-    const intensity = (0.00025 + controls.breath * 0.0012 + pulseEnergy * 0.0036 + agent.chirps.acknowledgement * 0.0048 + agent.chirps.panic * 0.004) * hoverQuiet;
-    for (let harmonic = 1; harmonic <= profile.harmonics && bin < audioSpectrumBins; harmonic += 1) {
+    const intensity = (0.00003 + controls.breath * 0.00018 + pulseEnergy * 0.00048 + agent.chirps.acknowledgement * 0.00075 + agent.chirps.panic * 0.0008) * hoverQuiet;
+    const backgroundHarmonics = Math.min(profile.harmonics, 5);
+    for (let harmonic = 1; harmonic <= backgroundHarmonics && bin < audioSpectrumBins; harmonic += 1) {
       const frequency = basePitch * harmonic * (1 + controls.throat * 0.002 * harmonic);
       if (frequency > 14000) break;
       const sourceTilt = 1 / Math.pow(harmonic, 1.08 + controls.tenseness * 0.22 + profile.softness * 0.18);
@@ -2188,9 +2238,9 @@ class BufferedGpuSpectrumOutput {
       this.writeBin(bin, frequency, amplitude, profile.phase + agent.phase * harmonic + startSample * 0.0000008 * harmonic, chirp);
       bin += 1;
     }
-    for (let index = 0; index < formants.length && bin < audioSpectrumBins; index += 1) {
+    for (let index = 0; index < Math.min(formants.length, 2) && bin < audioSpectrumBins; index += 1) {
       const formant = formants[index];
-      const breathAmplitude = (0.0009 + controls.breath * 0.003 + agent.chirps.panic * 0.005) * formant.gain;
+      const breathAmplitude = (0.00005 + controls.breath * 0.00018 + agent.chirps.panic * 0.00045) * formant.gain * hoverQuiet;
       this.writeBin(bin, formant.frequency, breathAmplitude, profile.phase * (index + 2.1), controls.tongue * 0.012 + controls.lips * 0.01);
       bin += 1;
     }
@@ -2198,19 +2248,21 @@ class BufferedGpuSpectrumOutput {
   }
 
   private writeVocalExcitationBins(bin: number, event: SpectralBurst, startSample: number) {
-    const localSeconds = (startSample + audioChunkFrames * 0.5 - event.startSample) / this.context.sampleRate;
+    const chunkEndSample = startSample + audioChunkFrames;
+    const eventEndSample = event.startSample + event.durationSamples;
+    if (chunkEndSample < event.startSample || startSample > eventEndSample) return bin;
+    const localSeconds = clamp((startSample + audioChunkFrames * 0.5 - event.startSample) / this.context.sampleRate, 0, event.durationSamples / this.context.sampleRate);
     const durationSeconds = event.durationSamples / this.context.sampleRate;
     const envelope = vocalEventEnvelope(localSeconds, durationSeconds, event.action);
-    if (envelope <= 0.0008) return bin;
     const profile = vocalProfileFor(event.agent.id);
     const random = mulberry32(event.seed);
-    const driverSeconds = durationSeconds * 0.62;
-    const glottis = vocalOneShotChirplet(localSeconds, driverSeconds * 0.16, driverSeconds * 0.08, random() * mathTau, 7.5, 22);
-    const tongue = vocalOneShotChirplet(localSeconds, driverSeconds * 0.24, driverSeconds * 0.1, random() * mathTau, 5.6, -18);
-    const lips = vocalOneShotChirplet(localSeconds, driverSeconds * 0.34, driverSeconds * 0.11, random() * mathTau, 4.4, 13);
-    const throat = vocalOneShotChirplet(localSeconds, driverSeconds * 0.45, driverSeconds * 0.12, random() * mathTau, 3.2, -10);
-    const vibrato = vocalOneShotChirplet(localSeconds, driverSeconds * 0.58, driverSeconds * 0.13, random() * mathTau, 9.4, 28);
-    const string = vocalOneShotChirplet(localSeconds, driverSeconds * 0.72, driverSeconds * 0.14, random() * mathTau, 6.8, -24);
+    const driverSeconds = durationSeconds * 0.54;
+    const glottis = vocalOneShotChirplet(localSeconds, driverSeconds * 0.1, driverSeconds * 0.052, random() * mathTau, 10.5, 54);
+    const tongue = vocalOneShotChirplet(localSeconds, driverSeconds * 0.18, driverSeconds * 0.064, random() * mathTau, 7.6, -38);
+    const lips = vocalOneShotChirplet(localSeconds, driverSeconds * 0.28, driverSeconds * 0.072, random() * mathTau, 6.2, 30);
+    const throat = vocalOneShotChirplet(localSeconds, driverSeconds * 0.4, driverSeconds * 0.078, random() * mathTau, 4.6, -22);
+    const vibrato = vocalOneShotChirplet(localSeconds, driverSeconds * 0.54, driverSeconds * 0.086, random() * mathTau, 13.2, 62);
+    const string = vocalOneShotChirplet(localSeconds, driverSeconds * 0.7, driverSeconds * 0.095, random() * mathTau, 9.8, -48);
     const controls = {
       glottisPitch: glottis * (event.action === "notification" ? 1.1 : 0.72),
       tenseness: clamp(0.34 + envelope * (event.action === "notification" ? 0.48 : 0.3), 0.08, 1),
@@ -2223,14 +2275,20 @@ class BufferedGpuSpectrumOutput {
     };
     const formants = morphFormants(profile.formants, controls);
     const basePitch = profile.f0 * (1 + controls.glottisPitch * 0.09 + controls.vibrato * 0.035);
-    const drive = envelope * (event.action === "notification" ? 0.08 : event.action === "selected" ? 0.064 : 0.05);
-    const harmonics = Math.min(profile.harmonics + (event.action === "notification" ? 8 : 4), 24);
+    const drive = event.gain * envelope * (event.action === "notification" ? 0.34 : event.action === "selected" ? 0.28 : 0.24);
+    const harmonics = event.action === "notification" ? 14 : event.action === "selected" ? 12 : 10;
+    const shape = {
+      attackPortion: event.action === "notification" ? 0.018 : 0.022,
+      decay: event.action === "notification" ? 12 : event.action === "selected" ? 15 : 18,
+      durationSamples: event.durationSamples,
+      startSample: event.startSample,
+    };
     for (let harmonic = 1; harmonic <= harmonics && bin < audioSpectrumBins; harmonic += 1) {
       const frequency = clamp(basePitch * harmonic * (1 + controls.throat * 0.002 * harmonic), 50, 15000);
       const tract = vocalFormantEnvelope(frequency, formants);
       const sourceTilt = 1 / Math.pow(harmonic, 0.94 + controls.tenseness * 0.32);
       const amplitude = drive * tract * sourceTilt * (0.72 + controls.string * 0.38);
-      this.writeBin(bin, frequency, amplitude, random() * mathTau, controls.vibrato * 0.04 + controls.glottisPitch * 0.018);
+      this.writeBin(bin, frequency, amplitude, random() * mathTau, controls.vibrato * 0.22 + controls.glottisPitch * 0.08, shape);
       bin += 1;
     }
     return bin;
@@ -2240,12 +2298,29 @@ class BufferedGpuSpectrumOutput {
     return Math.min(audioSpectrumBins, Math.max(0, this.binCount));
   }
 
-  private writeBin(index: number, frequency: number, amplitude: number, phase: number, chirp: number) {
+  private binEnvelope(sampleIndex: number, offset: number) {
+    const shapeStart = this.shapes[offset];
+    if (shapeStart < 0) return 1;
+    const local = (sampleIndex - shapeStart) / Math.max(this.shapes[offset + 1], 1);
+    if (local < 0 || local > 1) return 0;
+    const attack = smoothstep(0, Math.max(this.shapes[offset + 2], 0.001), local);
+    const body = Math.max(Math.sin(Math.PI * local), 0) ** 0.28;
+    const tail = Math.exp(-local * this.shapes[offset + 3]);
+    return attack * body * tail;
+  }
+
+  private writeBin(index: number, frequency: number, amplitude: number, phase: number, chirp: number, shape?: SpectralBinShape) {
     const offset = index * 4;
     this.bins[offset] = clamp(frequency, 18, 16000);
     this.bins[offset + 1] = amplitude;
     this.bins[offset + 2] = phase;
     this.bins[offset + 3] = chirp;
+    if (shape) {
+      this.shapes[offset] = shape.startSample;
+      this.shapes[offset + 1] = shape.durationSamples;
+      this.shapes[offset + 2] = shape.attackPortion;
+      this.shapes[offset + 3] = shape.decay;
+    }
   }
 }
 
@@ -2695,6 +2770,11 @@ function softLogMin(definition: FluidParamDefinition) {
 
 function lerp(from: number, to: number, t: number) {
   return from + (to - from) * clamp(t, 0, 1);
+}
+
+function smoothstep(edge0: number, edge1: number, value: number) {
+  const t = clamp((value - edge0) / Math.max(edge1 - edge0, 0.000001), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 function hoverInfluence(x: number, y: number, pointerX: number, pointerY: number, radius: number) {

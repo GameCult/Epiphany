@@ -143,7 +143,9 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
         audio.vocalAgentCount >= 7 &&
         audio.lastBurstChirpDrivers >= 6 &&
         audio.spectral?.chirpDrivers === 6 &&
+        audio.spectral?.lastBurstChoirVoices >= 3 &&
         audio.spectral?.reactiveFlushes >= 1 &&
+        audio.spectral?.transientBins >= 24 &&
         audio.spectral?.vocalAgents >= 7 &&
         audio.spectral?.queuedFrames >= 2048 &&
         audio.lastBurst;
