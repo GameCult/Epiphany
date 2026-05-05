@@ -127,6 +127,26 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
   if (!hoverProbe.ok) {
     throw new Error(`DOM hover did not reach aquarium projection: ${hoverProbe.reason}`);
   }
+  const researchBox = await page.locator('[data-agent-node="research"]').boundingBox();
+  if (!researchBox) {
+    throw new Error("research DOM node has no clickable bounds");
+  }
+  await page.mouse.click(researchBox.x + researchBox.width / 2, researchBox.y + researchBox.height / 2);
+  try {
+    await page.waitForFunction(() => {
+      const audio = window.__epiphanyAquariumAudio;
+      return audio?.state === "running" &&
+        audio.voiceCount >= 7 &&
+        audio.humBands >= 7 &&
+        audio.lastBurstChirps >= 280 &&
+        audio.spectral?.queuedFrames >= 2048 &&
+        audio.lastBurst;
+    }, null, { timeout: 5000 });
+  } catch (error) {
+    const audio = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
+    throw new Error(`aquarium audio did not wake correctly: ${JSON.stringify(audio)}`, { cause: error });
+  }
+  const audioProbe = await page.evaluate(() => window.__epiphanyAquariumAudio ?? null);
 
   let persistedParams = null;
   if (exerciseFluidPanel) {
@@ -156,7 +176,7 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
   if (result.horizontalOverflow) {
     throw new Error(`visual smoke found horizontal overflow at ${viewport.width}x${viewport.height}`);
   }
-  return { smokeProbe, crispProbe, persistedParams };
+  return { smokeProbe, crispProbe, audioProbe, persistedParams };
 }
 
 async function probeCanvas(page, selector) {

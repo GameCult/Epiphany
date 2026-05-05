@@ -1529,6 +1529,11 @@ function AgentConstellation({
     rendererRef.current?.setHoveredAgent(null);
   }
 
+  function handleAgentPointerDown(agentId: string) {
+    rendererRef.current?.wakeSoundscape();
+    rendererRef.current?.acknowledgeAgent(agentId, "touch");
+  }
+
   function handleCanvasClick() {
     const optionKey = rendererRef.current?.pickOption();
     if (optionKey) {
@@ -1545,7 +1550,12 @@ function AgentConstellation({
   }
 
   return (
-    <section className={`${variant === "fullscreen" ? "immersiveConstellation" : "sectionBand agentConstellation"}`} aria-label="Agent state overview">
+    <section
+      className={`${variant === "fullscreen" ? "immersiveConstellation" : "sectionBand agentConstellation"}`}
+      aria-label="Agent state overview"
+      onPointerDownCapture={() => rendererRef.current?.wakeSoundscape()}
+      onKeyDownCapture={() => rendererRef.current?.wakeSoundscape()}
+    >
       {variant === "band" && (
         <div className="constellationHeader">
           <SectionHeader title="Agent State" icon={<Boxes size={18} />} />
@@ -1583,10 +1593,11 @@ function AgentConstellation({
             type="button"
             data-agent-node={agent.id}
             onClick={() => {
-              rendererRef.current?.acknowledgeAgent(agent.id);
+              rendererRef.current?.acknowledgeAgent(agent.id, "selected");
               setSelectedAgentId(agent.id);
             }}
             onPointerEnter={(event) => handleAgentPointerEnter(agent.id, event)}
+            onPointerDown={() => handleAgentPointerDown(agent.id)}
             onPointerMove={handleAgentPointerMove}
             onPointerLeave={handleAgentPointerLeave}
             title={`${agent.name}: ${agent.thought}`}

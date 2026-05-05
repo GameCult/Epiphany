@@ -70,7 +70,7 @@ export interface AquariumFrame {
 }
 
 export interface AquariumRenderer {
-  acknowledgeAgent(id: string): void;
+  acknowledgeAgent(id: string, action?: AgentSoundAction): void;
   clearPointer(): void;
   dispose(): void;
   pickAgent(): string | null;
@@ -80,6 +80,7 @@ export interface AquariumRenderer {
   setFrame(frame: AquariumFrame): void;
   setHoveredAgent(id: string | null): void;
   setPointerClient(clientX: number, clientY: number): void;
+  wakeSoundscape(): void;
 }
 
 interface FluidTarget {
@@ -667,13 +668,17 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   setHoveredAgent(id: string | null) {
     if (id && id !== this.hoveredAgentId) {
-      this.acknowledgeAgent(id);
+      this.acknowledgeAgent(id, "touch");
     }
     this.hoveredAgentId = id;
   }
 
-  acknowledgeAgent(id: string) {
+  acknowledgeAgent(id: string, action: AgentSoundAction = "selected") {
     this.acknowledgements.set(id, this.time || performance.now() / 1000);
+    this.ensureSoundscape()?.triggerBurst(this.agentById(id), action);
+  }
+
+  wakeSoundscape() {
     this.ensureSoundscape();
   }
 
@@ -927,10 +932,14 @@ class WebglAquariumRenderer implements AquariumRenderer {
     );
   }
 
+  private agentById(id: string) {
+    return this.frame.agents.find((agent) => agent.id === id);
+  }
+
   private ensureSoundscape() {
     if (this.soundscape) {
       this.soundscape.resume();
-      return;
+      return this.soundscape;
     }
     try {
       this.soundscape = new AquariumSoundscape();
@@ -938,6 +947,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
     } catch {
       this.soundscape = null;
     }
+    return this.soundscape;
   }
 
   private basePoint(agent: AquariumAgentFrame) {
@@ -1723,13 +1733,20 @@ type VoicePartial = {
   ratio: number;
   weight: number;
   phase: number;
+  shimmer: number;
 };
 
 type AgentVoice = {
   filter: BiquadFilterNode;
   gain: GainNode;
+  noise: AudioBufferSourceNode;
+  noiseGain: GainNode;
+  panner: StereoPannerNode;
   partials: VoicePartial[];
+  statusFingerprint: string;
 };
+
+export type AgentSoundAction = "touch" | "selected" | "notification";
 
 const agentRegisters: Record<string, number> = {
   coordinator: 174.61,
@@ -1741,24 +1758,402 @@ const agentRegisters: Record<string, number> = {
   verification: 440.0,
 };
 
-const partialRatios = [1, 1.498, 2.01, 2.73, 3.97, 5.33];
+const partialRatios = buildPartialRatios(10);
+const audioChunkFrames = 2048;
+const audioQueueTargetChunks = 8;
+const audioSpectrumBins = 96;
+
+const audioSpectrumShader = `#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 outColor;
+uniform float uSampleRate;
+uniform float uStartSample;
+uniform int uBinCount;
+uniform vec4 uBins[${audioSpectrumBins}];
+const float TAU = 6.283185307179586;
+float renderSample(float sampleIndex) {
+  float t = sampleIndex / uSampleRate;
+  float value = 0.0;
+  for (int index = 0; index < ${audioSpectrumBins}; index += 1) {
+    if (index >= uBinCount) {
+      break;
+    }
+    vec4 bin = uBins[index];
+    float phase = bin.z + TAU * (bin.x * t + bin.w * t * t);
+    value += sin(phase) * bin.y;
+  }
+  return tanh(value * 0.82);
+}
+void main() {
+  float base = uStartSample + floor(gl_FragCoord.x - 0.5) * 4.0;
+  outColor = vec4(
+    renderSample(base),
+    renderSample(base + 1.0),
+    renderSample(base + 2.0),
+    renderSample(base + 3.0)
+  );
+}`;
+
+function buildPartialRatios(count: number) {
+  const intervals = [1, 9 / 8, 6 / 5, 5 / 4, 4 / 3, 45 / 32, 3 / 2, 8 / 5, 5 / 3, 9 / 5, 15 / 8];
+  const ratios: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const octave = 2 ** Math.floor(index / intervals.length);
+    const interval = intervals[index % intervals.length];
+    const drift = 1 + Math.sin(index * 12.9898) * 0.0035;
+    ratios.push(octave * interval * drift);
+  }
+  return ratios.filter((ratio) => ratio < 22);
+}
+
+function chirpCountFor(action: AgentSoundAction) {
+  return action === "notification" ? 420 : action === "selected" ? 340 : 280;
+}
+
+function makeChirpBurstBuffer(context: AudioContext, agent: AquariumAgentFrame, action: AgentSoundAction) {
+  const sampleRate = context.sampleRate;
+  const duration = action === "notification" ? 1.25 : action === "selected" ? 1.05 : 0.82;
+  const length = Math.ceil(sampleRate * duration);
+  const data = new Float32Array(length);
+  const register = agentRegisters[agent.id] ?? 261.63;
+  const seed = hashString(`${agent.id}:${action}:${agent.status}:${agent.phase}`);
+  const random = mulberry32(seed);
+  const chirpCount = chirpCountFor(action);
+  const brightness = action === "notification" ? 2.2 : action === "selected" ? 1.2 : 1.7;
+  const roughness = action === "notification" ? 0.42 : action === "selected" ? 0.16 : 0.28;
+  const direction = action === "notification" ? -1 : 1;
+  for (let chirpIndex = 0; chirpIndex < chirpCount; chirpIndex += 1) {
+    const harmonic = 1 + (chirpIndex % 17) * (action === "selected" ? 0.5 : 0.72);
+    const harmonicFold = 1 + Math.floor(chirpIndex / 17) * 0.11;
+    const start = Math.floor(length * Math.pow(random(), action === "notification" ? 0.72 : 1.18) * 0.86);
+    const chirpDuration = Math.floor(sampleRate * (0.035 + random() * (action === "notification" ? 0.22 : 0.16)));
+    const end = Math.min(length, start + chirpDuration);
+    const f0 = clamp(register * harmonic * harmonicFold * (0.6 + random() * brightness), 48, 15000);
+    const sweep = 1 + direction * (0.18 + random() * (action === "notification" ? 2.8 : 1.6));
+    const f1 = clamp(f0 * sweep, 42, 16000);
+    const chirp = (random() - 0.5) * (action === "notification" ? 8 : 4);
+    const amp = (0.004 + random() * 0.01) / Math.sqrt(1 + chirpIndex * 0.018);
+    let phase = random() * Math.PI * 2;
+    for (let sample = start; sample < end; sample += 1) {
+      const local = (sample - start) / Math.max(1, end - start);
+      const envelope = Math.sin(Math.PI * local) ** (action === "notification" ? 1.2 : 1.7);
+      const curved = local * local * (3 - 2 * local);
+      const frequency = f0 + (f1 - f0) * curved + chirp * local * local * register;
+      phase += (Math.PI * 2 * frequency) / sampleRate;
+      const pure = Math.sin(phase);
+      const bright = Math.sin(phase * 2.01 + chirpIndex) * 0.28 + Math.sin(phase * 3.97) * 0.14;
+      const rasp = (random() - 0.5) * roughness;
+      data[sample] += (pure + bright + rasp) * envelope * amp;
+    }
+  }
+  let peak = 0;
+  for (let index = 0; index < data.length; index += 1) {
+    peak = Math.max(peak, Math.abs(data[index]));
+  }
+  const targetPeak = action === "notification" ? 0.9 : 0.76;
+  if (peak > 0) {
+    const scale = targetPeak / peak;
+    for (let index = 0; index < data.length; index += 1) {
+      data[index] *= scale;
+    }
+  }
+  const buffer = context.createBuffer(1, length, sampleRate);
+  buffer.copyToChannel(data, 0);
+  return { buffer, chirpCount };
+}
+
+function makeNoiseLoopBuffer(context: AudioContext, agent: AquariumAgentFrame) {
+  const sampleRate = context.sampleRate;
+  const length = sampleRate * 2;
+  const data = new Float32Array(length);
+  const random = mulberry32(hashString(`${agent.id}:hum:${agent.phase}`));
+  let pink = 0;
+  for (let index = 0; index < length; index += 1) {
+    const white = random() * 2 - 1;
+    pink = pink * 0.986 + white * 0.014;
+    const shimmer = Math.sin((index / sampleRate) * Math.PI * 2 * (agentRegisters[agent.id] ?? 261.63) * (1 + (index % 13) * 0.004));
+    data[index] = white * 0.34 + pink * 1.8 + shimmer * 0.035;
+  }
+  let peak = 0;
+  for (let index = 0; index < data.length; index += 1) {
+    peak = Math.max(peak, Math.abs(data[index]));
+  }
+  if (peak > 0) {
+    const scale = 0.72 / peak;
+    for (let index = 0; index < data.length; index += 1) {
+      data[index] *= scale;
+    }
+  }
+  const buffer = context.createBuffer(1, length, sampleRate);
+  buffer.copyToChannel(data, 0);
+  return buffer;
+}
+
+function hashString(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function mulberry32(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state += 0x6d2b79f5;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type SpectralBurst = {
+  action: AgentSoundAction;
+  agent: AquariumAgentFrame;
+  durationSamples: number;
+  seed: number;
+  startSample: number;
+};
+
+class BufferedGpuSpectrumOutput {
+  private bins = new Float32Array(audioSpectrumBins * 4);
+  private binCount = 0;
+  private burstEvents: SpectralBurst[] = [];
+  private cpuPhase = 0;
+  private fbo: WebGLFramebuffer | null = null;
+  private gl: WebGL2RenderingContext | null = null;
+  private lastAgents: ProjectedAgent[] = [];
+  private mode: "gpu" | "cpu" = "cpu";
+  private pixelBuffer = new Float32Array(audioChunkFrames);
+  private processor: ScriptProcessorNode;
+  private program: WebGLProgram | null = null;
+  private queue: Float32Array[] = [];
+  private queueOffset = 0;
+  private sampleCursor = 0;
+  private texture: WebGLTexture | null = null;
+
+  constructor(private context: AudioContext, destination: AudioNode) {
+    this.processor = context.createScriptProcessor(audioChunkFrames, 0, 1);
+    this.processor.onaudioprocess = (event) => this.pump(event.outputBuffer.getChannelData(0));
+    this.processor.connect(destination);
+    this.initGpu();
+  }
+
+  dispose() {
+    this.processor.disconnect();
+    if (this.gl) {
+      if (this.texture) this.gl.deleteTexture(this.texture);
+      if (this.fbo) this.gl.deleteFramebuffer(this.fbo);
+      if (this.program) this.gl.deleteProgram(this.program);
+    }
+  }
+
+  stats() {
+    return {
+      mode: this.mode,
+      queuedFrames: this.queue.reduce((total, chunk) => total + chunk.length, -this.queueOffset),
+      bursts: this.burstEvents.length,
+    };
+  }
+
+  triggerBurst(agent: AquariumAgentFrame, action: AgentSoundAction) {
+    this.burstEvents.push({
+      action,
+      agent,
+      durationSamples: Math.floor(this.context.sampleRate * (action === "notification" ? 1.4 : action === "selected" ? 1.05 : 0.82)),
+      seed: hashString(`${agent.id}:${action}:${agent.status}:${this.sampleCursor}`),
+      startSample: this.sampleCursor,
+    });
+    this.fillQueue(3);
+  }
+
+  update(agents: ProjectedAgent[], _time: number) {
+    this.lastAgents = agents;
+    this.fillQueue(2);
+  }
+
+  private initGpu() {
+    const canvas = document.createElement("canvas");
+    canvas.width = audioChunkFrames / 4;
+    canvas.height = 1;
+    const gl = canvas.getContext("webgl2", { antialias: false, preserveDrawingBuffer: false });
+    if (!gl || !gl.getExtension("EXT_color_buffer_float")) return;
+    const texture = gl.createTexture();
+    const fbo = gl.createFramebuffer();
+    if (!texture || !fbo) return;
+    const program = compileProgram(gl, vertexShader, audioSpectrumShader);
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, audioChunkFrames / 4, 1, 0, gl.RGBA, gl.FLOAT, null);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+    if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) return;
+    this.gl = gl;
+    this.texture = texture;
+    this.fbo = fbo;
+    this.program = program;
+    this.mode = "gpu";
+  }
+
+  private pump(output: Float32Array) {
+    let written = 0;
+    while (written < output.length) {
+      const chunk = this.queue[0];
+      if (!chunk) {
+        output.fill(0, written);
+        break;
+      }
+      const available = chunk.length - this.queueOffset;
+      const count = Math.min(output.length - written, available);
+      output.set(chunk.subarray(this.queueOffset, this.queueOffset + count), written);
+      written += count;
+      this.queueOffset += count;
+      if (this.queueOffset >= chunk.length) {
+        this.queue.shift();
+        this.queueOffset = 0;
+      }
+    }
+    if (this.queue.length < audioQueueTargetChunks / 2) {
+      window.setTimeout(() => this.fillQueue(2), 0);
+    }
+  }
+
+  private fillQueue(maxChunks: number) {
+    if (!this.lastAgents.length) return;
+    let generated = 0;
+    while (this.queue.length < audioQueueTargetChunks && generated < maxChunks) {
+      this.queue.push(this.renderChunk());
+      generated += 1;
+    }
+    const oldestLiveSample = this.sampleCursor - audioChunkFrames * audioQueueTargetChunks;
+    this.burstEvents = this.burstEvents.filter((event) => event.startSample + event.durationSamples > oldestLiveSample);
+  }
+
+  private renderChunk() {
+    this.writeBins(this.sampleCursor);
+    const chunk = this.mode === "gpu" ? this.renderChunkGpu() : this.renderChunkCpu();
+    this.sampleCursor += audioChunkFrames;
+    return chunk;
+  }
+
+  private renderChunkGpu() {
+    if (!this.gl || !this.program || !this.fbo) return this.renderChunkCpu();
+    const gl = this.gl;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo);
+    gl.viewport(0, 0, audioChunkFrames / 4, 1);
+    gl.useProgram(this.program);
+    gl.uniform1f(gl.getUniformLocation(this.program, "uSampleRate"), this.context.sampleRate);
+    gl.uniform1f(gl.getUniformLocation(this.program, "uStartSample"), this.sampleCursor);
+    gl.uniform1i(gl.getUniformLocation(this.program, "uBinCount"), this.currentBinCount());
+    gl.uniform4fv(gl.getUniformLocation(this.program, "uBins"), this.bins);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.readPixels(0, 0, audioChunkFrames / 4, 1, gl.RGBA, gl.FLOAT, this.pixelBuffer);
+    return new Float32Array(this.pixelBuffer);
+  }
+
+  private renderChunkCpu() {
+    const chunk = new Float32Array(audioChunkFrames);
+    const sampleRate = this.context.sampleRate;
+    const binCount = this.currentBinCount();
+    for (let frame = 0; frame < chunk.length; frame += 1) {
+      const sampleIndex = this.sampleCursor + frame;
+      const t = sampleIndex / sampleRate;
+      let value = 0;
+      for (let bin = 0; bin < binCount; bin += 1) {
+        const offset = bin * 4;
+        value += Math.sin(this.bins[offset + 2] + Math.PI * 2 * (this.bins[offset] * t + this.bins[offset + 3] * t * t)) * this.bins[offset + 1];
+      }
+      chunk[frame] = Math.tanh(value * 0.82);
+    }
+    this.cpuPhase += chunk.length;
+    return chunk;
+  }
+
+  private writeBins(startSample: number) {
+    this.bins.fill(0);
+    let bin = 0;
+    for (const agent of this.lastAgents) {
+      const register = agentRegisters[agent.id] ?? 261.63;
+      const energy = 0.0025 + agent.activity * 0.003 + agent.chirps.expression * 0.003 + agent.chirps.panic * 0.018;
+      const ratios = [0.5, 1, 1.5, 2, 2.75, 4, 6, 9];
+      for (let index = 0; index < ratios.length && bin < audioSpectrumBins; index += 1) {
+        const ratio = ratios[index] * (1 + Math.sin(agent.phase + index) * 0.006);
+        this.writeBin(bin, register * ratio, energy / (1 + index * 0.32), agent.phase * (index + 1.7), agent.chirps.radial * 0.012 + agent.chirps.panic * 0.09);
+        bin += 1;
+      }
+    }
+    for (const event of this.burstEvents) {
+      const local = (startSample - event.startSample) / Math.max(1, event.durationSamples);
+      if (local < -0.2 || local > 1.1) continue;
+      const register = agentRegisters[event.agent.id] ?? 261.63;
+      const envelope = Math.max(0, Math.sin(Math.PI * clamp(local, 0, 1)));
+      const random = mulberry32(event.seed);
+      const count = event.action === "notification" ? 24 : event.action === "selected" ? 18 : 14;
+      for (let index = 0; index < count && bin < audioSpectrumBins; index += 1) {
+        const harmonic = 1 + index * (event.action === "selected" ? 0.62 : 0.9) + random() * 0.18;
+        const amp = envelope * (event.action === "notification" ? 0.045 : 0.032) / Math.sqrt(index + 1);
+        const chirp = (random() - 0.5) * (event.action === "notification" ? 0.7 : 0.38);
+        this.writeBin(bin, clamp(register * harmonic, 42, 15000), amp, random() * Math.PI * 2, chirp);
+        bin += 1;
+      }
+    }
+    this.binCount = bin;
+  }
+
+  private currentBinCount() {
+    return Math.min(audioSpectrumBins, Math.max(0, this.binCount));
+  }
+
+  private writeBin(index: number, frequency: number, amplitude: number, phase: number, chirp: number) {
+    const offset = index * 4;
+    this.bins[offset] = clamp(frequency, 18, 16000);
+    this.bins[offset + 1] = amplitude;
+    this.bins[offset + 2] = phase;
+    this.bins[offset + 3] = chirp;
+  }
+}
 
 class AquariumSoundscape {
+  private compressor: DynamicsCompressorNode;
   private context: AudioContext;
   private master: GainNode;
+  private burstCache = new Map<string, AudioBuffer>();
+  private lastBurstChirps = 0;
+  private pendingBursts: Array<{ action: AgentSoundAction; agent: AquariumAgentFrame }> = [];
+  private spectralOutput: BufferedGpuSpectrumOutput;
   private voices = new Map<string, AgentVoice>();
 
   constructor() {
     this.context = new AudioContext();
+    this.compressor = this.context.createDynamicsCompressor();
     this.master = this.context.createGain();
-    this.master.gain.value = 0.055;
-    this.master.connect(this.context.destination);
+    this.compressor.threshold.value = -20;
+    this.compressor.knee.value = 18;
+    this.compressor.ratio.value = 7;
+    this.compressor.attack.value = 0.006;
+    this.compressor.release.value = 0.22;
+    this.master.gain.value = 0.28;
+    this.master.connect(this.compressor);
+    this.compressor.connect(this.context.destination);
+    this.spectralOutput = new BufferedGpuSpectrumOutput(this.context, this.master);
   }
 
   resume() {
     if (this.context.state === "suspended") {
-      void this.context.resume();
+      void this.context.resume().then(() => {
+        this.flushPendingBursts();
+        this.publishDebugState();
+      });
+      return;
     }
+    this.flushPendingBursts();
+    this.publishDebugState();
   }
 
   dispose() {
@@ -1770,57 +2165,137 @@ class AquariumSoundscape {
       }
       voice.filter.disconnect();
       voice.gain.disconnect();
+      voice.noise.stop();
+      voice.noise.disconnect();
+      voice.noiseGain.disconnect();
+      voice.panner.disconnect();
     }
     this.voices.clear();
+    this.spectralOutput.dispose();
     void this.context.close();
   }
 
   update(agents: ProjectedAgent[], time: number) {
-    if (this.context.state === "suspended") return;
+    if (this.context.state === "suspended") {
+      agents.forEach((agent) => this.voiceFor(agent));
+      this.spectralOutput.update(agents, time);
+      this.publishDebugState();
+      return;
+    }
+    this.spectralOutput.update(agents, time);
     const now = this.context.currentTime;
     for (const agent of agents) {
-      const voice = this.voiceFor(agent);
-      const register = agentRegisters[agent.id] ?? 261.63;
-      const energy = clamp(
-        0.03 +
-          agent.activity * 0.08 +
-          agent.chirps.expression * 0.055 +
-          agent.chirps.panic * 0.26 +
-          agent.chirps.acknowledgement * 0.72,
-        0,
-        1,
-      );
-      voice.gain.gain.setTargetAtTime(energy * 0.018, now, 0.08);
-      voice.filter.frequency.setTargetAtTime(register * (3.8 + agent.chirps.glowPulse * 0.8 + agent.chirps.panic * 2.2), now, 0.12);
-      voice.filter.Q.setTargetAtTime(0.42 + agent.chirps.panic * 1.2 + agent.hover * 0.32, now, 0.1);
-      voice.partials.forEach((partial, index) => {
-        const spectralMotion = layeredChirps(time, [
-          [partial.phase + agent.phase, 0.22 + index * 0.11, 0.004 + index * 0.002, 8.4 - index * 0.3, 0.4],
-          [partial.phase * 1.7 + agent.chirps.acknowledgement, 0.8 + index * 0.27, -0.018, 3.2 + index * 0.18, 0.18 + agent.chirps.acknowledgement * 0.45],
-          [partial.phase * 2.4 + agent.chirps.panic, 2.8 + index * 0.62, 0.04 + agent.chirps.panic * 0.06, 1.6, agent.chirps.panic * 0.38],
-        ]);
-        const acknowledgementLift = agent.chirps.acknowledgement * (index === 0 ? 0.16 : 0.06);
-        const frequency = register * partial.ratio * (1 + spectralMotion * 0.018 + agent.chirps.radial * 0.012 + acknowledgementLift);
-        const partialGain = energy * partial.weight * (0.22 + Math.abs(spectralMotion) * 0.28 + agent.chirps.acknowledgement * 0.45);
-        partial.oscillator.frequency.setTargetAtTime(frequency, now, 0.045);
-        partial.gain.gain.setTargetAtTime(partialGain * 0.018, now, 0.055);
-      });
+      try {
+        const voice = this.voiceFor(agent);
+        const fingerprint = `${agent.status}|${agent.thought.slice(0, 64)}`;
+        if (voice.statusFingerprint && voice.statusFingerprint !== fingerprint) {
+          this.triggerBurst(agent, "notification");
+        }
+        voice.statusFingerprint = fingerprint;
+        const register = agentRegisters[agent.id] ?? 261.63;
+        const energy = clamp(
+          0.22 +
+            agent.activity * 0.12 +
+            agent.chirps.expression * 0.1 +
+            agent.chirps.panic * 0.42 +
+            agent.chirps.acknowledgement * 0.36,
+          0,
+          1,
+        );
+      voice.gain.gain.setTargetAtTime(0.16 + energy * 0.42, now, 0.08);
+      voice.noiseGain.gain.setTargetAtTime(0.018 + energy * 0.046 + agent.chirps.panic * 0.08, now, 0.12);
+      voice.filter.frequency.setTargetAtTime(clamp(register * (4.6 + agent.chirps.glowPulse * 1.2 + agent.chirps.panic * 4.2), 60, 18000), now, 0.12);
+        voice.filter.Q.setTargetAtTime(0.22 + agent.chirps.panic * 1.8 + agent.hover * 0.32, now, 0.1);
+        voice.panner.pan.setTargetAtTime(clamp((agent.baseX / 100) * 2 - 1, -0.86, 0.86), now, 0.18);
+        voice.partials.forEach((partial, index) => {
+          const spectralMotion = layeredChirps(time, [
+            [partial.phase + agent.phase, 0.22 + index * 0.11, 0.004 + index * 0.002, 8.4 - index * 0.3, 0.4],
+            [partial.phase * 1.7 + agent.chirps.acknowledgement, 0.8 + index * 0.27, -0.018, 3.2 + index * 0.18, 0.18 + agent.chirps.acknowledgement * 0.45],
+            [partial.phase * 2.4 + agent.chirps.panic, 2.8 + index * 0.62, 0.04 + agent.chirps.panic * 0.06, 1.6, agent.chirps.panic * 0.38],
+          ]);
+          const acknowledgementLift = agent.chirps.acknowledgement * (index === 0 ? 0.16 : 0.06);
+          const frequency = clamp(register * partial.ratio * (1 + spectralMotion * (0.012 + partial.shimmer * 0.02) + agent.chirps.radial * 0.01 + acknowledgementLift), 28, 16000);
+          const partialGain = (0.0025 + energy * 0.01) * partial.weight * (0.52 + Math.abs(spectralMotion) * 0.72 + agent.chirps.acknowledgement * 1.3 + agent.chirps.panic * 0.85);
+          partial.oscillator.frequency.setTargetAtTime(frequency, now, 0.045);
+          partial.gain.gain.setTargetAtTime(partialGain, now, 0.055);
+        });
+      } catch (error) {
+        this.publishDebugState(undefined, String(error));
+      }
     }
+    this.publishDebugState();
+  }
+
+  triggerBurst(agent: AquariumAgentFrame | undefined, action: AgentSoundAction) {
+    if (!agent) return;
+    if (this.context.state === "suspended") {
+      this.pendingBursts.push({ agent, action });
+      this.publishDebugState();
+      this.resume();
+      return;
+    }
+    const cacheKey = `${agent.id}:${action}`;
+    let buffer = this.burstCache.get(cacheKey);
+    if (!buffer) {
+      const generated = makeChirpBurstBuffer(this.context, agent, action);
+      buffer = generated.buffer;
+      this.burstCache.set(cacheKey, buffer);
+      this.lastBurstChirps = generated.chirpCount;
+    } else {
+      this.lastBurstChirps = chirpCountFor(action);
+    }
+    this.spectralOutput.triggerBurst(agent, action);
+    const source = this.context.createBufferSource();
+    const gain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    const panner = this.context.createStereoPanner();
+    const now = this.context.currentTime;
+    source.buffer = buffer;
+    filter.type = action === "notification" ? "highpass" : action === "selected" ? "peaking" : "bandpass";
+    filter.frequency.value = (agentRegisters[agent.id] ?? 261.63) * (action === "notification" ? 2.6 : action === "selected" ? 3.4 : 4.6);
+    filter.Q.value = action === "notification" ? 0.78 : action === "selected" ? 1.4 : 1.1;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(action === "notification" ? 0.22 : action === "selected" ? 0.2 : 0.18, now + 0.035);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + buffer.duration);
+    panner.pan.value = clamp((agent.baseX / 100) * 2 - 1, -0.88, 0.88);
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(panner);
+    panner.connect(this.master);
+    source.start(now);
+    source.stop(now + buffer.duration + 0.02);
+    source.addEventListener("ended", () => {
+      source.disconnect();
+      filter.disconnect();
+      gain.disconnect();
+      panner.disconnect();
+    }, { once: true });
+    this.publishDebugState(action);
   }
 
   private voiceFor(agent: ProjectedAgent): AgentVoice {
     const existing = this.voices.get(agent.id);
     if (existing) return existing;
     const gain = this.context.createGain();
+    const noise = this.context.createBufferSource();
+    const noiseGain = this.context.createGain();
     const filter = this.context.createBiquadFilter();
-    filter.type = "bandpass";
+    const panner = this.context.createStereoPanner();
+    filter.type = "lowpass";
     gain.gain.value = 0;
+    noise.buffer = makeNoiseLoopBuffer(this.context, agent);
+    noise.loop = true;
+    noiseGain.gain.value = 0;
+    noise.connect(noiseGain);
+    noiseGain.connect(filter);
     gain.connect(filter);
-    filter.connect(this.master);
+    filter.connect(panner);
+    panner.connect(this.master);
+    noise.start();
     const partials = partialRatios.map((ratio, index) => {
       const oscillator = this.context.createOscillator();
       const partialGain = this.context.createGain();
-      oscillator.type = index % 3 === 0 ? "sine" : index % 3 === 1 ? "triangle" : "sawtooth";
+      oscillator.type = index % 5 === 0 ? "sine" : index % 5 === 1 ? "triangle" : index % 5 === 2 ? "sawtooth" : "square";
       oscillator.frequency.value = (agentRegisters[agent.id] ?? 261.63) * ratio;
       partialGain.gain.value = 0;
       oscillator.connect(partialGain);
@@ -1830,13 +2305,38 @@ class AquariumSoundscape {
         oscillator,
         gain: partialGain,
         ratio,
-        weight: 1 / (1 + index * 0.86),
+        weight: 1 / Math.pow(1 + index * 0.18, 1.12),
         phase: agent.phase * (1.2 + index * 0.47) + index * 0.91,
+        shimmer: ((index * 13) % 17) / 17,
       };
     });
-    const voice = { filter, gain, partials };
+    const voice = { filter, gain, noise, noiseGain, panner, partials, statusFingerprint: "" };
     this.voices.set(agent.id, voice);
+    this.publishDebugState();
     return voice;
+  }
+
+  private flushPendingBursts() {
+    if (this.context.state === "suspended" || !this.pendingBursts.length) return;
+    const bursts = this.pendingBursts.splice(0, this.pendingBursts.length).slice(-8);
+    bursts.forEach(({ agent, action }, index) => {
+      window.setTimeout(() => this.triggerBurst(agent, action), index * 55);
+    });
+  }
+
+  private publishDebugState(lastBurst?: AgentSoundAction, error?: string) {
+    (window as any).__epiphanyAquariumAudio = {
+      state: this.context.state,
+      voiceCount: this.voices.size,
+      partialCount: this.voices.size * partialRatios.length,
+      humBands: this.voices.size,
+      pendingBursts: this.pendingBursts.length,
+      lastBurst: lastBurst ?? (window as any).__epiphanyAquariumAudio?.lastBurst ?? null,
+      lastBurstChirps: this.lastBurstChirps,
+      masterGain: this.master.gain.value,
+      spectral: this.spectralOutput.stats(),
+      error: error ?? null,
+    };
   }
 }
 
@@ -1851,7 +2351,7 @@ class CanvasAquariumRenderer implements AquariumRenderer {
     this.raf = requestAnimationFrame(this.render);
   }
 
-  acknowledgeAgent(_id: string) {
+  acknowledgeAgent(_id: string, _action?: AgentSoundAction) {
     // The WebGL renderer owns the audio/reactive chirp system; fallback stays quiet.
   }
 
@@ -1877,6 +2377,10 @@ class CanvasAquariumRenderer implements AquariumRenderer {
 
   setHoveredAgent(id: string | null) {
     this.hoveredAgentId = id;
+  }
+
+  wakeSoundscape() {
+    // The 2D fallback has no soundscape.
   }
 
   setPointerClient(clientX: number, clientY: number) {
