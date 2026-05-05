@@ -175,18 +175,18 @@ const defaultFluidParams: FluidParams = {
 };
 
 const fluidParamDefinitions: FluidParamDefinition[] = [
-  { key: "timeScale", label: "Speed", min: 0.004, max: 0.16, decimals: 3, scale: "log" },
-  { key: "curlStrength", label: "Curl", min: 0, max: 180, decimals: 0 },
-  { key: "swirlForce", label: "Swirl", min: 0, max: 220, decimals: 0 },
-  { key: "splatForce", label: "Push", min: 0, max: 24, decimals: 1 },
-  { key: "splatRadius", label: "Ink Size", min: 8, max: 140, decimals: 0 },
-  { key: "velocityDissipation", label: "Motion Hold", min: 0.9, max: 0.9995, decimals: 4 },
-  { key: "dyeDissipation", label: "Ink Hold", min: 0.94, max: 0.9999, decimals: 4 },
-  { key: "injectionGain", label: "Ink Feed", min: 0, max: 0.5, decimals: 3 },
-  { key: "sourceOpacity", label: "Object Ink", min: 0, max: 4, decimals: 2 },
-  { key: "acesExposure", label: "ACES Exposure", min: 0.35, max: 3.2, decimals: 2 },
-  { key: "acesGlow", label: "ACES Glow", min: 0, max: 2.6, decimals: 2 },
-  { key: "acesSaturation", label: "ACES Saturation", min: 0.35, max: 2.2, decimals: 2 },
+  { key: "timeScale", label: "Flow Speed", min: 0.004, max: 0.16, decimals: 3, scale: "log" },
+  { key: "curlStrength", label: "Eddy Curl", min: 0, max: 180, decimals: 0 },
+  { key: "swirlForce", label: "Wake Swirl", min: 0, max: 220, decimals: 0 },
+  { key: "splatForce", label: "Wake Force", min: 0, max: 24, decimals: 1 },
+  { key: "splatRadius", label: "Wake Radius", min: 8, max: 140, decimals: 0 },
+  { key: "velocityDissipation", label: "Flow Persistence", min: 0.9, max: 0.9995, decimals: 4 },
+  { key: "dyeDissipation", label: "Ink Persistence", min: 0.94, max: 0.9999, decimals: 4 },
+  { key: "injectionGain", label: "Ink Gain", min: 0, max: 0.5, decimals: 3 },
+  { key: "sourceOpacity", label: "Emitter Strength", min: 0, max: 4, decimals: 2 },
+  { key: "acesExposure", label: "Exposure", min: 0.35, max: 3.2, decimals: 2 },
+  { key: "acesGlow", label: "Glow", min: 0, max: 2.6, decimals: 2 },
+  { key: "acesSaturation", label: "Saturation", min: 0.35, max: 2.2, decimals: 2 },
 ];
 
 const fluidForceScales = [
