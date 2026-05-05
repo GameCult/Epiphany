@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = ROOT / "state" / "face-discord.json"
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-face"
 DISCORD_API = "https://discord.com/api/v10"
+CHAT_SCHEMA_VERSION = "epiphany.face_chat.v0"
+BUBBLE_SCHEMA_VERSION = "epiphany.face_bubble.v0"
 
 
 def now_stamp() -> str:
@@ -42,6 +44,37 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
+def latest_face_artifacts(artifact_dir: Path, *, limit: int = 8) -> list[dict[str, Any]]:
+    if not artifact_dir.exists():
+        return []
+    items: list[dict[str, Any]] = []
+    for path in sorted(artifact_dir.glob("face-*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+        try:
+            payload = load_json(path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        items.append(
+            {
+                "path": str(path),
+                "name": path.name,
+                "modifiedAt": datetime.fromtimestamp(
+                    path.stat().st_mtime, timezone.utc
+                ).replace(microsecond=0).isoformat(),
+                "schemaVersion": payload.get("schema_version"),
+                "status": payload.get("status"),
+                "reason": payload.get("reason"),
+                "content": payload.get("content"),
+                "bubble": payload.get("bubble"),
+                "source": payload.get("source"),
+            }
+        )
+        if len(items) >= limit:
+            break
+    return items
+
+
 def allowed_channel_id(config: dict[str, Any]) -> str | None:
     explicit = config.get("allowed_channel_id")
     if isinstance(explicit, str) and explicit.strip():
@@ -64,7 +97,7 @@ def bot_token(config: dict[str, Any]) -> str | None:
 
 def draft_payload(content: str, *, config: dict[str, Any], status: str, reason: str) -> dict[str, Any]:
     return {
-        "schema_version": "epiphany.face_chat.v0",
+        "schema_version": CHAT_SCHEMA_VERSION,
         "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "status": status,
         "reason": reason,
@@ -77,6 +110,49 @@ def draft_payload(content: str, *, config: dict[str, Any], status: str, reason: 
 def write_draft(content: str, *, config: dict[str, Any], artifact_dir: Path, status: str, reason: str) -> Path:
     payload = draft_payload(content, config=config, status=status, reason=reason)
     path = artifact_dir / f"face-chat-{now_stamp()}-{uuid4().hex[:8]}.json"
+    write_json(path, payload)
+    return path
+
+
+def bubble_payload(
+    content: str,
+    *,
+    source: str,
+    status: str = "ready",
+    mood: str = "attentive",
+    target: str = "aquarium",
+) -> dict[str, Any]:
+    return {
+        "schema_version": BUBBLE_SCHEMA_VERSION,
+        "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "status": status,
+        "source": source,
+        "target": target,
+        "role_id": "face",
+        "agent_id": "face",
+        "display_name": "Face",
+        "mood": mood,
+        "content": content.strip(),
+        "bubble": {
+            "kind": "agent-chat",
+            "anchorRoleId": "face",
+            "opensIn": "aquarium",
+            "requiresDiscord": False,
+            "ttlSeconds": 90,
+        },
+    }
+
+
+def write_bubble(
+    content: str,
+    *,
+    artifact_dir: Path,
+    source: str,
+    status: str = "ready",
+    mood: str = "attentive",
+) -> Path:
+    payload = bubble_payload(content, source=source, status=status, mood=mood)
+    path = artifact_dir / f"face-bubble-{now_stamp()}-{uuid4().hex[:8]}.json"
     write_json(path, payload)
     return path
 
@@ -114,6 +190,20 @@ def run_draft(args: argparse.Namespace) -> dict[str, Any]:
         reason="drafted without posting",
     )
     return {"ok": True, "posted": False, "draftPath": str(path)}
+
+
+def run_bubble(args: argparse.Namespace) -> dict[str, Any]:
+    content = read_text_arg(args.content)
+    if not content.strip():
+        raise ValueError("Face bubble content is empty")
+    path = write_bubble(
+        content,
+        artifact_dir=args.artifact_dir,
+        source=args.source,
+        status=args.status,
+        mood=args.mood,
+    )
+    return {"ok": True, "posted": False, "bubblePath": str(path), "bubble": load_json(path)}
 
 
 def run_post(args: argparse.Namespace) -> dict[str, Any]:
@@ -184,6 +274,15 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
                 content="Face notices Body and Soul disagree about evidence shape.",
             )
         )
+        bubble = run_bubble(
+            argparse.Namespace(
+                artifact_dir=tmp_dir,
+                content="Face opens an Aquarium bubble even while Discord is unavailable.",
+                source="smoke/face",
+                status="ready",
+                mood="attentive",
+            )
+        )
         blocked = run_post(
             argparse.Namespace(
                 config=config_path,
@@ -203,12 +302,15 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         )
         ok = (
             draft["ok"]
+            and bubble["ok"]
+            and bubble["bubble"]["schema_version"] == BUBBLE_SCHEMA_VERSION
+            and bubble["bubble"]["bubble"]["requiresDiscord"] is False
             and not blocked["ok"]
             and blocked["blocked"] == "missing-channel-id"
             and not wrong["ok"]
             and wrong["blocked"] == "wrong-channel"
         )
-        return {"ok": ok, "draft": draft, "blocked": blocked, "wrongChannel": wrong}
+        return {"ok": ok, "draft": draft, "bubble": bubble, "blocked": blocked, "wrongChannel": wrong}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -221,6 +323,12 @@ def build_parser() -> argparse.ArgumentParser:
         sub.add_argument("--content", help="Content string or path. Reads stdin when omitted.")
         if command == "post":
             sub.add_argument("--channel-id", help="Must match configured #aquarium channel id if supplied.")
+    bubble = subparsers.add_parser("bubble")
+    bubble.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
+    bubble.add_argument("--content", help="Content string or path. Reads stdin when omitted.")
+    bubble.add_argument("--source", default="epiphany/face")
+    bubble.add_argument("--status", default="ready")
+    bubble.add_argument("--mood", default="attentive")
     smoke = subparsers.add_parser("smoke")
     smoke.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     return parser
@@ -232,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "draft":
             result = run_draft(args)
+        elif args.command == "bubble":
+            result = run_bubble(args)
         elif args.command == "post":
             result = run_post(args)
         elif args.command == "smoke":

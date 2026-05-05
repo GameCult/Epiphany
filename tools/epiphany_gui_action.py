@@ -13,8 +13,17 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from epiphany_agent_heartbeat import DEFAULT_ARTIFACT_DIR as DEFAULT_HEARTBEAT_ARTIFACT_DIR
+from epiphany_agent_heartbeat import DEFAULT_HEARTBEAT_STATE
+from epiphany_agent_heartbeat import DISPLAY_NAMES as HEARTBEAT_DISPLAY_NAMES
+from epiphany_agent_heartbeat import ROLE_ORDER as HEARTBEAT_ROLE_ORDER
+from epiphany_agent_heartbeat import heartbeat_status
+from epiphany_agent_heartbeat import run_tick as run_heartbeat_tick
 from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_agent_memory import apply_self_patch
+from epiphany_face_discord import DEFAULT_ARTIFACT_DIR as DEFAULT_FACE_ARTIFACT_DIR
+from epiphany_face_discord import latest_face_artifacts
+from epiphany_face_discord import write_bubble
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -1101,9 +1110,94 @@ def is_unresumable_empty_thread_error(error: RuntimeError) -> bool:
     return "no rollout found for thread id" in message or "thread not loaded" in message
 
 
+def heartbeat_bubble_text(event: dict[str, Any]) -> str:
+    role_id = str(event.get("selectedRole") or "unknown")
+    display = HEARTBEAT_DISPLAY_NAMES.get(role_id, role_id)
+    action_type = event.get("actionType") or "heartbeat"
+    coordinator_action = event.get("coordinatorAction") or "idle cadence"
+    if action_type == "ruminate_memory":
+        return f"{display} won an idle heartbeat and is distilling its own role memory."
+    return f"{display} caught heartbeat work for {coordinator_action}."
+
+
+def run_local_surface_action(args: argparse.Namespace, *, artifact_dir: Path) -> dict[str, Any]:
+    if args.action == "heartbeatStatus":
+        response = heartbeat_status(
+            state_file=args.heartbeat_state_file,
+            artifact_dir=args.heartbeat_artifact_dir,
+        )
+        summary = "Read the Ghostlight heartbeat initiative status."
+    elif args.action == "runHeartbeat":
+        schedule_id = f"epiphany-gui-heartbeat-{time.time_ns()}-{os.getpid()}"
+        response = run_heartbeat_tick(
+            argparse.Namespace(
+                state_file=args.heartbeat_state_file,
+                artifact_dir=args.heartbeat_artifact_dir,
+                agent_dir=args.agent_memory_dir,
+                target_heartbeat_rate=args.target_heartbeat_rate,
+                coordinator_action=args.heartbeat_coordinator_action,
+                target_role=args.heartbeat_target_role,
+                urgency=args.heartbeat_urgency,
+                apply_rumination=args.apply_rumination,
+                schedule_id=schedule_id,
+                source_scene_ref="epiphany/gui/heartbeat",
+            )
+        )
+        event = response.get("event") or {}
+        bubble_path = write_bubble(
+            heartbeat_bubble_text(event),
+            artifact_dir=args.face_artifact_dir,
+            source=f"heartbeat/{schedule_id}",
+            status="ready",
+            mood="awake",
+        )
+        response["faceBubblePath"] = str(bubble_path)
+        response["faceBubble"] = json.loads(bubble_path.read_text(encoding="utf-8"))
+        summary = "Ran one heartbeat slot and emitted a Face bubble for Aquarium."
+    elif args.action == "faceBubble":
+        content = args.face_content
+        if not content:
+            current = heartbeat_status(
+                state_file=args.heartbeat_state_file,
+                artifact_dir=args.heartbeat_artifact_dir,
+            )
+            latest = current.get("latestEvent") or {}
+            content = heartbeat_bubble_text(latest) if latest else "Face is listening. No heartbeat event has spoken yet."
+        bubble_path = write_bubble(
+            content,
+            artifact_dir=args.face_artifact_dir,
+            source=args.face_source,
+            status="ready",
+            mood=args.face_mood,
+        )
+        response = {
+            "ok": True,
+            "bubblePath": str(bubble_path),
+            "bubble": json.loads(bubble_path.read_text(encoding="utf-8")),
+            "latestFaceArtifacts": latest_face_artifacts(args.face_artifact_dir),
+        }
+        summary = "Created a Discord-independent Face bubble for Aquarium."
+    else:
+        raise ValueError(f"unsupported local surface action: {args.action}")
+
+    write_json(artifact_dir / "action-response.json", response)
+    result = {
+        "action": args.action,
+        "artifactPath": str(artifact_dir),
+        "summary": summary,
+        "threadId": args.thread_id or "",
+        "response": response,
+        "sealedArtifactManifest": [],
+        "telemetryPath": None,
+    }
+    write_json(artifact_dir / "gui-action-summary.json", result)
+    return result
+
+
 def run_action(args: argparse.Namespace) -> dict[str, Any]:
     thread_id = args.thread_id or ""
-    if args.action != "prepareCheckpoint":
+    local_surface_actions = {"heartbeatStatus", "runHeartbeat", "faceBubble"}
+    if args.action not in {"prepareCheckpoint", *local_surface_actions}:
         thread_id = require_thread_id(args.thread_id, args.action)
     codex_home = args.codex_home.resolve()
     artifact_dir = args.artifact_root.resolve() / f"{args.action}-{time.time_ns()}-{os.getpid()}"
@@ -1113,6 +1207,9 @@ def run_action(args: argparse.Namespace) -> dict[str, Any]:
     cwd = args.cwd.resolve()
     codex_home.mkdir(parents=True, exist_ok=True)
     artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.action in local_surface_actions:
+        return run_local_surface_action(args, artifact_dir=artifact_dir)
 
     with AppServerClient(args.app_server.resolve(), codex_home, transcript_path, stderr_path) as client:
         client.send(
@@ -1481,8 +1578,22 @@ def main() -> int:
             "adoptObjectiveDraft",
             "continueImplementation",
             "prepareCheckpoint",
+            "heartbeatStatus",
+            "runHeartbeat",
+            "faceBubble",
         ],
     )
+    parser.add_argument("--heartbeat-state-file", type=Path, default=DEFAULT_HEARTBEAT_STATE)
+    parser.add_argument("--heartbeat-artifact-dir", type=Path, default=DEFAULT_HEARTBEAT_ARTIFACT_DIR)
+    parser.add_argument("--face-artifact-dir", type=Path, default=DEFAULT_FACE_ARTIFACT_DIR)
+    parser.add_argument("--target-heartbeat-rate", type=float, default=1.0)
+    parser.add_argument("--heartbeat-coordinator-action", default="surfaceAgentThoughts")
+    parser.add_argument("--heartbeat-target-role", choices=HEARTBEAT_ROLE_ORDER)
+    parser.add_argument("--heartbeat-urgency", type=float, default=0.8)
+    parser.add_argument("--apply-rumination", action="store_true")
+    parser.add_argument("--face-content", help="Content for faceBubble. Defaults to latest heartbeat event.")
+    parser.add_argument("--face-source", default="epiphany/gui/faceBubble")
+    parser.add_argument("--face-mood", default="attentive")
     parser.add_argument(
         "--planning-draft-id",
         help="Objective Draft id to adopt for adoptObjectiveDraft.",

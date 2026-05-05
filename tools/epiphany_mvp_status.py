@@ -6,7 +6,12 @@ import os
 from pathlib import Path
 from typing import Any
 
+from epiphany_agent_heartbeat import DEFAULT_ARTIFACT_DIR as DEFAULT_HEARTBEAT_ARTIFACT_DIR
+from epiphany_agent_heartbeat import DEFAULT_HEARTBEAT_STATE
+from epiphany_agent_heartbeat import heartbeat_status
 from epiphany_agent_telemetry import write_transcript_telemetry
+from epiphany_face_discord import DEFAULT_ARTIFACT_DIR as DEFAULT_FACE_ARTIFACT_DIR
+from epiphany_face_discord import latest_face_artifacts
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import DEFAULT_APP_SERVER
 from epiphany_phase5_smoke import ROOT
@@ -130,6 +135,16 @@ def collect_status(
     reorient_result = client.send("thread/epiphany/reorientResult", {"threadId": thread_id})
     crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
     coordinator = client.send("thread/epiphany/coordinator", {"threadId": thread_id})
+    heartbeat = heartbeat_status(
+        state_file=DEFAULT_HEARTBEAT_STATE,
+        artifact_dir=DEFAULT_HEARTBEAT_ARTIFACT_DIR,
+    )
+    face = {
+        "status": "ready",
+        "artifactDir": str(DEFAULT_FACE_ARTIFACT_DIR),
+        "latestArtifacts": latest_face_artifacts(DEFAULT_FACE_ARTIFACT_DIR),
+        "availableActions": ["faceBubble"],
+    }
 
     status = {
         "threadId": thread_id,
@@ -144,6 +159,8 @@ def collect_status(
         "reorientResult": reorient_result,
         "crrc": crrc,
         "coordinator": coordinator,
+        "heartbeat": heartbeat,
+        "face": face,
     }
     return status
 
@@ -164,6 +181,8 @@ def render_status(status: dict[str, Any]) -> str:
     role_results = status.get("roleResults") or {}
     recommendation = crrc["recommendation"]
     coordinator = status.get("coordinator") or {}
+    heartbeat = status.get("heartbeat") or {}
+    face = status.get("face") or {}
     checkpoint = scene.get("investigationCheckpoint") or {}
 
     lines = [
@@ -186,6 +205,29 @@ def render_status(status: dict[str, Any]) -> str:
         f"- next: {reorient['nextAction']}",
         f"- result: {result['status']} for {result['bindingId']}",
     ]
+
+    latest_heartbeat = heartbeat.get("latestEvent") or {}
+    latest_face = (face.get("latestArtifacts") or [{}])[0]
+    lines.extend(
+        [
+            "",
+            "Heartbeat",
+            (
+                f"- status: {maybe(heartbeat.get('status'))}; "
+                f"clock {maybe(heartbeat.get('sceneClock'))}; "
+                f"rate {maybe(heartbeat.get('targetHeartbeatRate'))}"
+            ),
+            (
+                f"- latest: {maybe(latest_heartbeat.get('selectedRole'))} / "
+                f"{maybe(latest_heartbeat.get('actionType'))} / "
+                f"{maybe(latest_heartbeat.get('coordinatorAction'))}"
+            ),
+            "",
+            "Face",
+            f"- latest artifact: {maybe(latest_face.get('name'))}",
+            f"- latest content: {maybe(latest_face.get('content'))}",
+        ]
+    )
 
     finding = result.get("finding")
     if finding:

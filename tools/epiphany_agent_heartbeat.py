@@ -18,6 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_HEARTBEAT_STATE = ROOT / "state" / "agent-heartbeats.json"
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-heartbeats"
 SCHEMA_VERSION = "epiphany.agent_heartbeat.v0"
+STATUS_SCHEMA_VERSION = "epiphany.agent_heartbeat_status.v0"
 INITIATIVE_SCHEMA_VERSION = "ghostlight.initiative_schedule.v0"
 GHOSTLIGHT_ACTION_TYPES = {
     "speak",
@@ -128,6 +129,54 @@ def write_json(path: Path, value: Any) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=False) + "\n", encoding="utf-8")
 
 
+def latest_json_artifacts(artifact_dir: Path, *, limit: int = 8) -> list[dict[str, Any]]:
+    if not artifact_dir.exists():
+        return []
+    artifacts: list[dict[str, Any]] = []
+    for path in sorted(artifact_dir.glob("*.json"), key=lambda item: item.stat().st_mtime, reverse=True):
+        try:
+            payload = load_json(path)
+        except (OSError, json.JSONDecodeError):
+            continue
+        artifacts.append(
+            {
+                "path": str(path),
+                "name": path.name,
+                "modifiedAt": datetime.fromtimestamp(
+                    path.stat().st_mtime, timezone.utc
+                ).replace(microsecond=0).isoformat(),
+                "schemaVersion": payload.get("schema_version") if isinstance(payload, dict) else None,
+                "kind": path.suffixes[-2].lstrip(".") if len(path.suffixes) > 1 else "json",
+                "summary": artifact_summary(payload),
+            }
+        )
+        if len(artifacts) >= limit:
+            break
+    return artifacts
+
+
+def artifact_summary(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {"type": type(payload).__name__}
+    event = payload if payload.get("actionId") else payload.get("event")
+    selection = payload.get("next_actor_selection") or payload.get("nextActorSelection")
+    if isinstance(event, dict):
+        return {
+            "selectedRole": event.get("selectedRole"),
+            "actionType": event.get("actionType"),
+            "actionId": event.get("actionId"),
+            "coordinatorAction": event.get("coordinatorAction"),
+        }
+    if isinstance(selection, dict):
+        return {
+            "selectionKind": selection.get("selection_kind") or selection.get("selectionKind"),
+            "selectedActorId": selection.get("selected_actor_id") or selection.get("selectedActorId"),
+        }
+    return {
+        "keys": sorted(str(key) for key in payload.keys())[:8],
+    }
+
+
 def default_state(*, target_heartbeat_rate: float = 1.0) -> dict[str, Any]:
     return {
         "schema_version": SCHEMA_VERSION,
@@ -203,6 +252,71 @@ def load_state(path: Path, *, target_heartbeat_rate: float) -> dict[str, Any]:
         if role_id not in present:
             state.setdefault("participants", []).append(default_state()["participants"][ROLE_ORDER.index(role_id)])
     return state
+
+
+def heartbeat_status(
+    *,
+    state_file: Path = DEFAULT_HEARTBEAT_STATE,
+    artifact_dir: Path = DEFAULT_ARTIFACT_DIR,
+    target_heartbeat_rate: float = 0.0,
+    artifact_limit: int = 8,
+) -> dict[str, Any]:
+    if not state_file.exists():
+        return {
+            "schema_version": STATUS_SCHEMA_VERSION,
+            "ok": True,
+            "status": "missing",
+            "stateFile": str(state_file),
+            "artifactDir": str(artifact_dir),
+            "targetHeartbeatRate": target_heartbeat_rate if target_heartbeat_rate > 0 else None,
+            "sceneClock": None,
+            "participants": [],
+            "latestEvent": None,
+            "history": [],
+            "latestArtifacts": latest_json_artifacts(artifact_dir, limit=artifact_limit),
+            "availableActions": ["init", "tick", "status"],
+        }
+    state = load_json(state_file)
+    if state.get("schema_version") != SCHEMA_VERSION:
+        raise ValueError(f"{state_file} has wrong schema_version")
+    participants = []
+    for participant in state.get("participants", []):
+        if not isinstance(participant, dict):
+            continue
+        participants.append(
+            {
+                "agentId": participant.get("agent_id"),
+                "roleId": participant.get("role_id"),
+                "displayName": participant.get("display_name"),
+                "initiativeSpeed": participant.get("initiative_speed"),
+                "nextReadyAt": participant.get("next_ready_at"),
+                "reactionBias": participant.get("reaction_bias"),
+                "interruptThreshold": participant.get("interrupt_threshold"),
+                "currentLoad": participant.get("current_load"),
+                "status": participant.get("status"),
+                "lastActionId": participant.get("last_action_id"),
+                "lastWokeAt": participant.get("last_woke_at"),
+            }
+        )
+    history = [
+        item
+        for item in state.get("history", [])[-artifact_limit:]
+        if isinstance(item, dict)
+    ]
+    return {
+        "schema_version": STATUS_SCHEMA_VERSION,
+        "ok": True,
+        "status": "ready",
+        "stateFile": str(state_file),
+        "artifactDir": str(artifact_dir),
+        "targetHeartbeatRate": state.get("target_heartbeat_rate"),
+        "sceneClock": state.get("scene_clock"),
+        "participants": participants,
+        "latestEvent": history[-1] if history else None,
+        "history": history,
+        "latestArtifacts": latest_json_artifacts(artifact_dir, limit=artifact_limit),
+        "availableActions": ["init", "tick", "status"],
+    }
 
 
 def work_role_for_action(action: str | None, target_role: str | None) -> str | None:
@@ -504,6 +618,15 @@ def run_tick(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def run_status(args: argparse.Namespace) -> dict[str, Any]:
+    return heartbeat_status(
+        state_file=args.state_file,
+        artifact_dir=args.artifact_dir,
+        target_heartbeat_rate=args.target_heartbeat_rate,
+        artifact_limit=args.limit,
+    )
+
+
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     with TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
@@ -632,6 +755,12 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--state-file", type=Path, default=DEFAULT_HEARTBEAT_STATE)
     init.add_argument("--target-heartbeat-rate", type=float, default=1.0)
 
+    status = subparsers.add_parser("status")
+    status.add_argument("--state-file", type=Path, default=DEFAULT_HEARTBEAT_STATE)
+    status.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
+    status.add_argument("--target-heartbeat-rate", type=float, default=0.0)
+    status.add_argument("--limit", type=int, default=8)
+
     smoke = subparsers.add_parser("smoke")
     smoke.add_argument("--agent-dir", type=Path, default=DEFAULT_AGENT_DIR)
 
@@ -649,6 +778,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "tick":
             print(json.dumps(run_tick(args), indent=2))
+            return 0
+        if args.command == "status":
+            print(json.dumps(run_status(args), indent=2))
             return 0
         if args.command == "smoke":
             result = run_smoke(args)

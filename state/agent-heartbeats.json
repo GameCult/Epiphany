@@ -1,7 +1,7 @@
 {
   "schema_version": "epiphany.agent_heartbeat.v0",
   "target_heartbeat_rate": 1.0,
-  "scene_clock": 0.0,
+  "scene_clock": 5.357143,
   "selection_policy": {
     "mode": "readiness_queue",
     "reaction_precedence": true,
@@ -152,7 +152,7 @@
       "role_id": "face",
       "display_name": "Face",
       "initiative_speed": 1.12,
-      "next_ready_at": 5.357143,
+      "next_ready_at": 10.714286,
       "reaction_bias": 0.84,
       "interrupt_threshold": 0.52,
       "current_load": 0.0,
@@ -164,7 +164,7 @@
         "Publicly translates agent thought into #aquarium only; must not moderate or speak outside the room."
       ],
       "last_action_id": "heartbeat.face.work",
-      "last_woke_at": "2026-05-05T12:30:31+00:00"
+      "last_woke_at": "2026-05-05T12:40:47+00:00"
     }
   ],
   "history": [
@@ -206,6 +206,19 @@
       "workRole": "face",
       "sceneClock": 0.0,
       "nextReadyAt": 5.357143
+    },
+    {
+      "ts": "2026-05-05T12:40:47+00:00",
+      "scheduleId": "epiphany-gui-heartbeat-1777984847982915800-2820",
+      "selectedRole": "face",
+      "selectedAgentId": "epiphany.face",
+      "actionId": "heartbeat.face.work",
+      "actionType": "role_work",
+      "coordinatorAction": "surfaceAgentThoughts",
+      "targetRole": null,
+      "workRole": "face",
+      "sceneClock": 5.357143,
+      "nextReadyAt": 10.714286
     }
   ]
 }

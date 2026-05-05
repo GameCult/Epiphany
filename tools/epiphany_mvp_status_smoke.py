@@ -97,6 +97,18 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         and status["roleResults"]["verification"]["status"] == "missingState",
         "rendered status should expose fixed role result read-back status",
     )
+    require(
+        status["heartbeat"]["schema_version"] == "epiphany.agent_heartbeat_status.v0",
+        "status view should expose heartbeat initiative status for Aquarium",
+    )
+    require(
+        status["face"]["availableActions"] == ["faceBubble"],
+        "status view should expose Face bubble action for Aquarium",
+    )
+    require(
+        "Heartbeat" in rendered and "Face" in rendered,
+        "rendered status should expose heartbeat and Face sections",
+    )
 
     result = {
         "threadId": status["threadId"],
@@ -104,6 +116,8 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
         "roles": status["roles"],
         "roleResults": status["roleResults"],
         "planning": status["planning"],
+        "heartbeat": status["heartbeat"],
+        "face": status["face"],
         "stateStatus": status["scene"]["scene"]["stateStatus"],
         "availableActions": status["scene"]["scene"]["availableActions"],
         "rendered": rendered,
