@@ -112,7 +112,11 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     throw new Error(`DOM agent projection was not synchronized: ${projectionProbe.reason}`);
   }
 
-  await page.locator('[data-agent-node="research"]').hover();
+  const hoverBox = await page.locator('[data-agent-node="research"]').boundingBox();
+  if (!hoverBox) {
+    throw new Error("research DOM node has no hover bounds");
+  }
+  await page.mouse.move(hoverBox.x + hoverBox.width / 2, hoverBox.y + hoverBox.height / 2);
   await page.waitForTimeout(180);
   const hoverProbe = await page.evaluate(() => {
     const node = document.querySelector('[data-agent-node="research"]');
