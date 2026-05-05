@@ -96,6 +96,38 @@ async function smokeViewport(browser, viewport, screenshotPath, exerciseFluidPan
     throw new Error(`no crisp operator surface rendered: ${crispProbe.reason}`);
   }
 
+  const projectionProbe = await page.evaluate(() => {
+    const node = document.querySelector('[data-agent-node="coordinator"]');
+    if (!(node instanceof HTMLElement)) return { ok: false, reason: "coordinator DOM node missing" };
+    const style = node.style;
+    const x = style.getPropertyValue("--agent-x");
+    const y = style.getPropertyValue("--agent-y");
+    const glow = Number.parseFloat(style.getPropertyValue("--agent-glow-pulse"));
+    return {
+      ok: x.endsWith("%") && y.endsWith("%") && Number.isFinite(glow),
+      reason: `x=${x} y=${y} glow=${glow}`,
+    };
+  });
+  if (!projectionProbe.ok) {
+    throw new Error(`DOM agent projection was not synchronized: ${projectionProbe.reason}`);
+  }
+
+  await page.locator('[data-agent-node="research"]').hover();
+  await page.waitForTimeout(180);
+  const hoverProbe = await page.evaluate(() => {
+    const node = document.querySelector('[data-agent-node="research"]');
+    if (!(node instanceof HTMLElement)) return { ok: false, reason: "research DOM node missing" };
+    const hover = Number.parseFloat(node.style.getPropertyValue("--agent-hover"));
+    const acknowledgement = Number.parseFloat(node.style.getPropertyValue("--agent-ack"));
+    return {
+      ok: hover > 0.7 && acknowledgement >= 0,
+      reason: `hover=${hover} ack=${acknowledgement}`,
+    };
+  });
+  if (!hoverProbe.ok) {
+    throw new Error(`DOM hover did not reach aquarium projection: ${hoverProbe.reason}`);
+  }
+
   let persistedParams = null;
   if (exerciseFluidPanel) {
     await page.evaluate((key) => window.localStorage.removeItem(key), fluidStorageKey);

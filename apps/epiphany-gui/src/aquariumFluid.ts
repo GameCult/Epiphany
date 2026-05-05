@@ -49,15 +49,28 @@ export interface AquariumUiFrame {
   alert?: string;
 }
 
+export interface AquariumAgentProjection {
+  id: string;
+  xPercent: number;
+  yPercent: number;
+  tilt: number;
+  glowPulse: number;
+  expression: number;
+  hover: number;
+  acknowledgement: number;
+}
+
 export interface AquariumFrame {
   agents: AquariumAgentFrame[];
   selectedAgentId: string;
   activeLabel?: string;
+  onProjectionFrame?: (projections: AquariumAgentProjection[]) => void;
   ui?: AquariumUiFrame;
   variant: "band" | "fullscreen";
 }
 
 export interface AquariumRenderer {
+  acknowledgeAgent(id: string): void;
   clearPointer(): void;
   dispose(): void;
   pickAgent(): string | null;
@@ -65,6 +78,7 @@ export interface AquariumRenderer {
   pointerDownClient(clientX: number, clientY: number): void;
   pointerUp(): void;
   setFrame(frame: AquariumFrame): void;
+  setHoveredAgent(id: string | null): void;
   setPointerClient(clientX: number, clientY: number): void;
 }
 
@@ -105,12 +119,14 @@ interface AgentPersonality {
 interface AgentStateVector {
   activity: number;
   blocked: number;
+  panic: number;
   ready: number;
   review: number;
   urgency: number;
 }
 
 interface AgentChirpMatrix {
+  acknowledgement: number;
   angle: number;
   distortion: number;
   expression: number;
@@ -118,6 +134,7 @@ interface AgentChirpMatrix {
   hoverDamping: number;
   inkPulse: number;
   orbitRadius: number;
+  panic: number;
   radial: number;
   tangential: number;
 }
@@ -172,6 +189,8 @@ interface FluidParamZone {
   width: number;
   height: number;
 }
+
+type ChirpletComponent = [number, number, number, number, number];
 
 const fullscreenPositions: Record<string, { x: number; y: number }> = {
   coordinator: { x: 60, y: 42 },
@@ -579,6 +598,8 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private frame: AquariumFrame = { agents: [], selectedAgentId: "coordinator", variant: "fullscreen" };
   private hotAgents: HotZone[] = [];
   private hotOptions: HotZone[] = [];
+  private hoveredAgentId: string | null = null;
+  private acknowledgements = new Map<string, number>();
   private lastFluidParamChanged: FluidParamKey | null = null;
   private motion = new Map<string, MotionState>();
   private paramImpulse = 0;
@@ -591,6 +612,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
   private sourceCanvas = document.createElement("canvas");
   private sourceContext: CanvasRenderingContext2D;
   private sourceTexture: WebGLTexture | null = null;
+  private soundscape: AquariumSoundscape | null = null;
   private time = 0;
   private velocity: DoubleTarget | null = null;
 
@@ -623,6 +645,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    this.soundscape?.dispose();
   }
 
   pickAgent() {
@@ -642,6 +665,18 @@ class WebglAquariumRenderer implements AquariumRenderer {
     this.frame = frame;
   }
 
+  setHoveredAgent(id: string | null) {
+    if (id && id !== this.hoveredAgentId) {
+      this.acknowledgeAgent(id);
+    }
+    this.hoveredAgentId = id;
+  }
+
+  acknowledgeAgent(id: string) {
+    this.acknowledgements.set(id, this.time || performance.now() / 1000);
+    this.ensureSoundscape();
+  }
+
   setPointerClient(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect();
     const x = ((clientX - rect.left) / Math.max(rect.width, 1)) * this.simWidth;
@@ -654,6 +689,7 @@ class WebglAquariumRenderer implements AquariumRenderer {
 
   pointerDownClient(clientX: number, clientY: number) {
     this.setPointerClient(clientX, clientY);
+    this.ensureSoundscape();
     const zone = this.fluidParamZones.find((candidate) => pointInRect(this.pointer.x, this.pointer.y, candidate));
     if (!zone) return;
     if (zone.key === "toggle") {
@@ -685,7 +721,13 @@ class WebglAquariumRenderer implements AquariumRenderer {
     const time = millis / 1000;
     this.time = time;
     const projected = this.projectAgents(time);
-    const activeAgent = this.nearestAgent(projected) ?? projected.find((agent) => agent.id === this.frame.selectedAgentId) ?? projected[0];
+    const activeAgent =
+      projected.find((agent) => agent.id === this.hoveredAgentId) ??
+      this.nearestAgent(projected) ??
+      projected.find((agent) => agent.id === this.frame.selectedAgentId) ??
+      projected[0];
+    this.emitProjectionFrame(projected);
+    this.soundscape?.update(projected, time);
     this.drawSource(projected, activeAgent, time);
     this.uploadSource();
     this.stepFluid(projected);
@@ -794,9 +836,12 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const state = this.motion.get(agent.id) ?? { x: base.x, y: base.y, vx: 0, vy: 0 };
       const personality = personalityFor(agent.id);
       const stateVector = projectAgentState(agent);
-      const activity = Math.max(0.04, stateVector.activity);
-      const hover = this.pointer.active ? hoverInfluence(state.x, state.y, this.pointer.x, this.pointer.y, 104) : 0;
-      const chirps = projectChirpMatrix(agent, personality, stateVector, time, hover);
+      const activity = Math.max(0.025, stateVector.activity);
+      const explicitHover = this.hoveredAgentId === agent.id ? 1 : 0;
+      const proximityHover = this.pointer.active ? hoverInfluence(state.x, state.y, this.pointer.x, this.pointer.y, 104) : 0;
+      const hover = Math.max(explicitHover, proximityHover);
+      const acknowledgement = this.acknowledgementPulse(agent.id, time);
+      const chirps = projectChirpMatrix(agent, personality, stateVector, time, hover, acknowledgement);
       const pull = this.pointer.active ? this.pointerPull(agent, state.x, state.y) : { x: 0, y: 0 };
       const pointerPull = { x: pull.x * lerp(1, 0.08, hover), y: pull.y * lerp(1, 0.08, hover) };
       const orbitRadius = orbitScale * chirps.orbitRadius;
@@ -805,8 +850,9 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const normalY = Math.sin(angle);
       const tangentX = -normalY;
       const tangentY = normalX;
-      const swim = (this.frame.variant === "fullscreen" ? 18 + activity * 66 : 7 + activity * 20) * chirps.expression;
-      const target =
+      const panicSwim = stateVector.panic * (this.frame.variant === "fullscreen" ? 42 : 16);
+      const swim = (this.frame.variant === "fullscreen" ? 7 + activity * 22 + panicSwim : 3 + activity * 8 + panicSwim) * chirps.expression;
+      let target =
         agent.id === "coordinator"
           ? {
               x: base.x + chirps.radial * swim * 0.26 + pointerPull.x,
@@ -824,8 +870,21 @@ class WebglAquariumRenderer implements AquariumRenderer {
                 (normalY * chirps.radial + tangentY * chirps.tangential) * swim * 0.72 +
                 pointerPull.y,
             };
-      const follow = (0.0026 + activity * 0.006 + personality.expressiveness * 0.0018 + stateVector.urgency * 0.003) * chirps.hoverDamping;
-      const damping = lerp(0.94, 0.78, hover);
+      if (explicitHover) {
+        const acknowledgementMotion = acknowledgement * (2.6 + stateVector.panic * 2);
+        target = {
+          x: state.x + chirps.radial * acknowledgementMotion,
+          y: state.y + chirps.tangential * acknowledgementMotion,
+        };
+      }
+      const follow = (
+        0.0012 +
+        activity * 0.0032 +
+        personality.expressiveness * 0.0009 +
+        stateVector.urgency * 0.0018 +
+        stateVector.panic * 0.005
+      ) * chirps.hoverDamping;
+      const damping = lerp(0.95, 0.86, hover) - stateVector.panic * 0.08;
       state.vx = state.vx * damping + (target.x - state.x) * follow;
       state.vy = state.vy * damping + (target.y - state.y) * follow;
       state.x = clamp(state.x + state.vx, 42, this.simWidth - 42);
@@ -838,6 +897,47 @@ class WebglAquariumRenderer implements AquariumRenderer {
       const emissionPulse = chirps.inkPulse * lerp(1, 0.5, hover);
       return { ...agent, ...state, chirps, emissionPulse, hover, index, speed: Math.hypot(state.vx, state.vy) };
     });
+  }
+
+  private acknowledgementPulse(id: string, time: number) {
+    const start = this.acknowledgements.get(id);
+    if (start === undefined) return 0;
+    const age = time - start;
+    if (age > 1.25) {
+      this.acknowledgements.delete(id);
+      return 0;
+    }
+    const ping = Math.exp(-((age - 0.18) * (age - 0.18)) / 0.018);
+    const tail = Math.max(0, 1 - age / 1.25) * 0.18;
+    return clamp(ping + tail, 0, 1);
+  }
+
+  private emitProjectionFrame(projected: ProjectedAgent[]) {
+    this.frame.onProjectionFrame?.(
+      projected.map((agent) => ({
+        id: agent.id,
+        xPercent: (agent.x / Math.max(this.simWidth, 1)) * 100,
+        yPercent: (agent.y / Math.max(this.simHeight, 1)) * 100,
+        tilt: clamp(Math.atan2(agent.vy, agent.vx || 0.001) * 8, -10, 10),
+        glowPulse: agent.chirps.glowPulse,
+        expression: agent.chirps.expression,
+        hover: agent.hover,
+        acknowledgement: agent.chirps.acknowledgement,
+      })),
+    );
+  }
+
+  private ensureSoundscape() {
+    if (this.soundscape) {
+      this.soundscape.resume();
+      return;
+    }
+    try {
+      this.soundscape = new AquariumSoundscape();
+      this.soundscape.resume();
+    } catch {
+      this.soundscape = null;
+    }
   }
 
   private basePoint(agent: AquariumAgentFrame) {
@@ -1617,14 +1717,142 @@ class WebglAquariumRenderer implements AquariumRenderer {
   }
 }
 
+type VoicePartial = {
+  oscillator: OscillatorNode;
+  gain: GainNode;
+  ratio: number;
+  weight: number;
+  phase: number;
+};
+
+type AgentVoice = {
+  filter: BiquadFilterNode;
+  gain: GainNode;
+  partials: VoicePartial[];
+};
+
+const agentRegisters: Record<string, number> = {
+  coordinator: 174.61,
+  imagination: 523.25,
+  research: 659.25,
+  reorientation: 392.0,
+  modeling: 246.94,
+  implementation: 329.63,
+  verification: 440.0,
+};
+
+const partialRatios = [1, 1.498, 2.01, 2.73, 3.97, 5.33];
+
+class AquariumSoundscape {
+  private context: AudioContext;
+  private master: GainNode;
+  private voices = new Map<string, AgentVoice>();
+
+  constructor() {
+    this.context = new AudioContext();
+    this.master = this.context.createGain();
+    this.master.gain.value = 0.055;
+    this.master.connect(this.context.destination);
+  }
+
+  resume() {
+    if (this.context.state === "suspended") {
+      void this.context.resume();
+    }
+  }
+
+  dispose() {
+    for (const voice of this.voices.values()) {
+      for (const partial of voice.partials) {
+        partial.oscillator.stop();
+        partial.oscillator.disconnect();
+        partial.gain.disconnect();
+      }
+      voice.filter.disconnect();
+      voice.gain.disconnect();
+    }
+    this.voices.clear();
+    void this.context.close();
+  }
+
+  update(agents: ProjectedAgent[], time: number) {
+    if (this.context.state === "suspended") return;
+    const now = this.context.currentTime;
+    for (const agent of agents) {
+      const voice = this.voiceFor(agent);
+      const register = agentRegisters[agent.id] ?? 261.63;
+      const energy = clamp(
+        0.03 +
+          agent.activity * 0.08 +
+          agent.chirps.expression * 0.055 +
+          agent.chirps.panic * 0.26 +
+          agent.chirps.acknowledgement * 0.72,
+        0,
+        1,
+      );
+      voice.gain.gain.setTargetAtTime(energy * 0.018, now, 0.08);
+      voice.filter.frequency.setTargetAtTime(register * (3.8 + agent.chirps.glowPulse * 0.8 + agent.chirps.panic * 2.2), now, 0.12);
+      voice.filter.Q.setTargetAtTime(0.42 + agent.chirps.panic * 1.2 + agent.hover * 0.32, now, 0.1);
+      voice.partials.forEach((partial, index) => {
+        const spectralMotion = layeredChirps(time, [
+          [partial.phase + agent.phase, 0.22 + index * 0.11, 0.004 + index * 0.002, 8.4 - index * 0.3, 0.4],
+          [partial.phase * 1.7 + agent.chirps.acknowledgement, 0.8 + index * 0.27, -0.018, 3.2 + index * 0.18, 0.18 + agent.chirps.acknowledgement * 0.45],
+          [partial.phase * 2.4 + agent.chirps.panic, 2.8 + index * 0.62, 0.04 + agent.chirps.panic * 0.06, 1.6, agent.chirps.panic * 0.38],
+        ]);
+        const acknowledgementLift = agent.chirps.acknowledgement * (index === 0 ? 0.16 : 0.06);
+        const frequency = register * partial.ratio * (1 + spectralMotion * 0.018 + agent.chirps.radial * 0.012 + acknowledgementLift);
+        const partialGain = energy * partial.weight * (0.22 + Math.abs(spectralMotion) * 0.28 + agent.chirps.acknowledgement * 0.45);
+        partial.oscillator.frequency.setTargetAtTime(frequency, now, 0.045);
+        partial.gain.gain.setTargetAtTime(partialGain * 0.018, now, 0.055);
+      });
+    }
+  }
+
+  private voiceFor(agent: ProjectedAgent): AgentVoice {
+    const existing = this.voices.get(agent.id);
+    if (existing) return existing;
+    const gain = this.context.createGain();
+    const filter = this.context.createBiquadFilter();
+    filter.type = "bandpass";
+    gain.gain.value = 0;
+    gain.connect(filter);
+    filter.connect(this.master);
+    const partials = partialRatios.map((ratio, index) => {
+      const oscillator = this.context.createOscillator();
+      const partialGain = this.context.createGain();
+      oscillator.type = index % 3 === 0 ? "sine" : index % 3 === 1 ? "triangle" : "sawtooth";
+      oscillator.frequency.value = (agentRegisters[agent.id] ?? 261.63) * ratio;
+      partialGain.gain.value = 0;
+      oscillator.connect(partialGain);
+      partialGain.connect(gain);
+      oscillator.start();
+      return {
+        oscillator,
+        gain: partialGain,
+        ratio,
+        weight: 1 / (1 + index * 0.86),
+        phase: agent.phase * (1.2 + index * 0.47) + index * 0.91,
+      };
+    });
+    const voice = { filter, gain, partials };
+    this.voices.set(agent.id, voice);
+    return voice;
+  }
+}
+
 class CanvasAquariumRenderer implements AquariumRenderer {
   private frame: AquariumFrame = { agents: [], selectedAgentId: "coordinator", variant: "fullscreen" };
   private hotAgents: HotZone[] = [];
+  private hoveredAgentId: string | null = null;
   private pointer = { active: false, x: 0, y: 0 };
   private raf = 0;
 
   constructor(private canvas: HTMLCanvasElement, private crispCanvas: HTMLCanvasElement | null = null) {
     this.raf = requestAnimationFrame(this.render);
+  }
+
+  acknowledgeAgent(_id: string) {
+    // The WebGL renderer owns the audio/reactive chirp system; fallback stays quiet.
   }
 
   clearPointer() {
@@ -1645,6 +1873,10 @@ class CanvasAquariumRenderer implements AquariumRenderer {
 
   setFrame(frame: AquariumFrame) {
     this.frame = frame;
+  }
+
+  setHoveredAgent(id: string | null) {
+    this.hoveredAgentId = id;
   }
 
   setPointerClient(clientX: number, clientY: number) {
@@ -1675,11 +1907,23 @@ class CanvasAquariumRenderer implements AquariumRenderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     this.hotAgents = [];
     const time = millis / 1000;
+    const projections: AquariumAgentProjection[] = [];
     this.frame.agents.forEach((agent) => {
       const position = fullscreenPositions[agent.id] ?? { x: agent.baseX, y: agent.baseY };
-      const x = (position.x / 100) * this.canvas.width + Math.sin(time * 0.2 + agent.phase) * 22 * agent.activity;
-      const y = (position.y / 100) * this.canvas.height + Math.cos(time * 0.18 + agent.phase) * 16 * agent.activity;
+      const hover = this.hoveredAgentId === agent.id ? 1 : 0;
+      const x = (position.x / 100) * this.canvas.width + Math.sin(time * 0.12 + agent.phase) * 8 * agent.activity * (1 - hover);
+      const y = (position.y / 100) * this.canvas.height + Math.cos(time * 0.1 + agent.phase) * 6 * agent.activity * (1 - hover);
       this.hotAgents.push({ x, y, radius: 60, key: agent.id });
+      projections.push({
+        id: agent.id,
+        xPercent: (x / Math.max(this.canvas.width, 1)) * 100,
+        yPercent: (y / Math.max(this.canvas.height, 1)) * 100,
+        tilt: 0,
+        glowPulse: 0.5 + agent.activity * 0.4,
+        expression: agent.activity,
+        hover,
+        acknowledgement: 0,
+      });
       ctx.globalAlpha = 0.07 + agent.activity * 0.045;
       ctx.fillStyle = agent.color;
       ctx.beginPath();
@@ -1691,6 +1935,7 @@ class CanvasAquariumRenderer implements AquariumRenderer {
       ctx.textAlign = "center";
       ctx.fillText(agent.name, x, y + 46);
     });
+    this.frame.onProjectionFrame?.(projections);
     this.raf = requestAnimationFrame(this.render);
   };
 }
@@ -1748,18 +1993,24 @@ function personalityFor(id: string) {
 function projectAgentState(agent: AquariumAgentFrame): AgentStateVector {
   const status = agent.status.toLowerCase();
   const activity = clamp(agent.activity, 0, 1);
-  const blocked = statusSignal(status, ["blocked", "missing", "failed", "error", "unknown", "needed", "regather"]);
+  const blocked = statusSignal(status, ["blocked", "missing", "unknown", "needed", "regather"]);
+  const panic = Math.max(
+    statusSignal(status, ["critical", "panic", "overlimit", "over limit", "fatal"]),
+    statusSignal(status, ["failed", "error"]) * 0.72,
+    statusSignal(status, ["high"]) * 0.55,
+  );
   const ready = statusSignal(status, ["ready", "ok", "clear", "completed", "captured", "continue"]);
   const review = statusSignal(status, ["review", "accept", "findings", "patch", "required"]);
   const urgency = clamp(
-    activity * 0.62 +
-      blocked * 0.28 +
-      review * 0.2 +
-      statusSignal(status, ["critical", "high", "prepare", "launch", "running", "active"]) * 0.26,
+    activity * 0.24 +
+      blocked * 0.12 +
+      review * 0.1 +
+      statusSignal(status, ["prepare", "launch", "running", "active"]) * 0.16 +
+      panic * 0.58,
     0,
     1,
   );
-  return { activity, blocked, ready, review, urgency };
+  return { activity, blocked, panic, ready, review, urgency };
 }
 
 function statusSignal(status: string, needles: string[]) {
@@ -1772,52 +2023,88 @@ function projectChirpMatrix(
   state: AgentStateVector,
   time: number,
   hover: number,
+  acknowledgement: number,
 ): AgentChirpMatrix {
   const hoverAmount = hover * personality.hoverStillness;
-  const hoverFrequency = lerp(1, 0.18, hoverAmount);
-  const hoverAmplitude = lerp(1, 0.12, hoverAmount);
-  const heat = clamp(state.activity * 0.52 + state.urgency * 0.3 + state.review * 0.16 + state.blocked * 0.2, 0, 1);
-  const expressiveGain = (0.58 + personality.expressiveness * 0.72 + heat * 0.58) * hoverAmplitude;
-  const radial = chirplet(
-    time,
-    agent.phase + personality.angle * 0.41,
-    personality.radialTempo * hoverFrequency * (1 + heat * 0.55),
-    0.012 + personality.expressiveness * 0.02 + state.urgency * 0.018,
-    8.5 - personality.expressiveness * 1.3,
+  const hoverFrequency = lerp(1, 0.035, hoverAmount);
+  const hoverAmplitude = lerp(1, 0.035, hoverAmount);
+  const heat = clamp(state.activity * 0.3 + state.urgency * 0.22 + state.review * 0.08 + state.blocked * 0.08 + state.panic * 0.62, 0, 1);
+  const expressiveGain = clamp(
+    (0.12 + personality.expressiveness * 0.18 + state.activity * 0.18 + state.urgency * 0.18 + state.panic * 0.9 + acknowledgement * 0.48) *
+      hoverAmplitude,
+    0.035,
+    1.55,
   );
-  const tangential = chirplet(
-    time,
-    agent.phase * 1.73 + personality.angle,
-    personality.tangentialTempo * hoverFrequency * (1 + state.activity * 0.7),
-    -0.016 - personality.precision * 0.012,
-    7.2 + personality.precision * 1.8,
-  );
-  const flicker = chirplet(
-    time,
-    agent.phase * 2.37 + state.review * 0.9,
-    personality.glowTempo * hoverFrequency * (1.05 + heat),
-    0.03 + state.blocked * 0.04,
-    4.8 - heat * 1.4,
-  );
-  const ink = chirplet(
-    time,
-    agent.phase * 2.91 + state.urgency,
-    personality.inkTempo * hoverFrequency * (0.95 + state.activity * 1.1),
-    -0.018 + personality.expressiveness * 0.025,
-    6.4 - personality.expressiveness * 1.1,
-  );
-  const orbitDrift = time * personality.orbitSpeed * hoverFrequency * (0.75 + state.activity * 0.65 + state.urgency * 0.34);
+  const radial = layeredChirps(time, [
+    [agent.phase + personality.angle * 0.41, personality.radialTempo * hoverFrequency * (0.7 + heat * 0.38), 0.006 + state.urgency * 0.01, 10.5, 0.58],
+    [agent.phase * 1.37, personality.radialTempo * 1.72 * hoverFrequency, -0.011 - personality.precision * 0.004, 7.8, 0.23],
+    [agent.phase * 2.91 + state.panic, personality.radialTempo * 3.4 * hoverFrequency, 0.018 + state.panic * 0.035, 3.8, 0.08 + state.panic * 0.22],
+    ...chirpletSpectrum(agent.phase + personality.angle, personality.radialTempo, hoverFrequency, 9, 0.016 + personality.expressiveness * 0.01 + state.panic * 0.03 + acknowledgement * 0.025, 6.8),
+  ]);
+  const tangential = layeredChirps(time, [
+    [agent.phase * 1.73 + personality.angle, personality.tangentialTempo * hoverFrequency * (0.65 + state.activity * 0.3), -0.01 - personality.precision * 0.006, 9.2, 0.54],
+    [agent.phase * 2.18, personality.tangentialTempo * 2.2 * hoverFrequency, 0.008 + personality.expressiveness * 0.006, 6.4, 0.22],
+    [agent.phase * 3.5 + state.review, personality.tangentialTempo * 4.2 * hoverFrequency, -0.026 - state.panic * 0.02, 3.2, 0.08 + state.panic * 0.2],
+    ...chirpletSpectrum(agent.phase * 1.61 + personality.angle, personality.tangentialTempo, hoverFrequency, 8, 0.014 + personality.precision * 0.006 + state.panic * 0.026 + acknowledgement * 0.02, 7.4),
+  ]);
+  const flicker = layeredChirps(time, [
+    [agent.phase * 2.37 + state.review * 0.9, personality.glowTempo * hoverFrequency * (0.86 + heat), 0.018 + state.blocked * 0.018, 6.8, 0.42],
+    [agent.phase * 4.1 + acknowledgement, personality.glowTempo * 2.8 * hoverFrequency, -0.024, 2.8, 0.18 + acknowledgement * 0.34],
+    [agent.phase * 5.6 + state.panic, personality.glowTempo * 5.2 * hoverFrequency, 0.04 + state.panic * 0.06, 1.7, state.panic * 0.34],
+    ...chirpletSpectrum(agent.phase * 2.23 + state.review, personality.glowTempo, hoverFrequency, 10, 0.018 + heat * 0.018 + acknowledgement * 0.035, 5.2),
+  ]);
+  const ink = layeredChirps(time, [
+    [agent.phase * 2.91 + state.urgency, personality.inkTempo * hoverFrequency * (0.72 + state.activity * 0.44), -0.011 + personality.expressiveness * 0.012, 8.4, 0.5],
+    [agent.phase * 3.6, personality.inkTempo * 2.1 * hoverFrequency, 0.016, 5.6, 0.18],
+    [agent.phase * 6.2 + acknowledgement, personality.inkTempo * 4.6 * hoverFrequency, -0.032, 2.2, 0.08 + acknowledgement * 0.36 + state.panic * 0.16],
+    ...chirpletSpectrum(agent.phase * 2.87 + state.urgency, personality.inkTempo, hoverFrequency, 9, 0.016 + personality.expressiveness * 0.006 + state.panic * 0.02 + acknowledgement * 0.032, 6.1),
+  ]);
+  const panicJitter = layeredChirps(time, [
+    [agent.phase * 7.1, 4.8 * hoverFrequency, 0.08, 1.9, 0.45],
+    [agent.phase * 11.4, 9.2 * hoverFrequency, -0.12, 1.1, 0.28],
+    ...chirpletSpectrum(agent.phase * 5.3 + state.panic, 1.8, hoverFrequency, 7, state.panic * 0.055, 2.7),
+  ]) * state.panic;
+  const orbitDrift = time * personality.orbitSpeed * hoverFrequency * (0.22 + state.activity * 0.22 + state.urgency * 0.16 + state.panic * 1.35);
   return {
-    angle: personality.angle + orbitDrift + tangential * 0.18 * expressiveGain + state.blocked * 0.08 - state.review * 0.06,
-    distortion: clamp(0.035 + personality.expressiveness * 0.055 + heat * 0.045 + Math.abs(flicker) * 0.026, 0.018, 0.18),
-    expression: clamp(expressiveGain, 0.12, 1.9),
-    glowPulse: clamp(0.62 + Math.abs(flicker) * 0.55 + heat * 0.46 + state.review * 0.18 + state.ready * 0.08, 0.34, 2.15),
-    hoverDamping: lerp(1, 0.34, hoverAmount),
-    inkPulse: clamp(0.38 + Math.abs(ink) * 0.72 + heat * 0.5 + state.blocked * 0.1, 0.06, 2.2),
-    orbitRadius: clamp(personality.radius * lerp(1.04, 0.82, state.blocked) * lerp(1, 1.1, state.ready), 0, 1.1),
-    radial: radial * expressiveGain,
-    tangential: tangential * expressiveGain,
+    acknowledgement,
+    angle: personality.angle + orbitDrift + tangential * 0.055 * expressiveGain + panicJitter * 0.12 + state.blocked * 0.035 - state.review * 0.025,
+    distortion: clamp(0.024 + personality.expressiveness * 0.028 + heat * 0.03 + Math.abs(flicker) * 0.02 + acknowledgement * 0.018, 0.012, 0.16),
+    expression: clamp(expressiveGain, 0.035, 1.75),
+    glowPulse: clamp(0.5 + Math.abs(flicker) * 0.34 + heat * 0.34 + state.review * 0.1 + state.ready * 0.05 + acknowledgement * 0.62, 0.26, 2.1),
+    hoverDamping: lerp(1, 0.06, hoverAmount),
+    inkPulse: clamp(0.24 + Math.abs(ink) * 0.34 + heat * 0.26 + state.blocked * 0.05 + acknowledgement * 0.45, 0.04, 1.8),
+    orbitRadius: clamp(personality.radius * lerp(1.02, 0.9, state.blocked) * lerp(1, 1.04, state.ready), 0, 1.05),
+    panic: state.panic,
+    radial: (radial + panicJitter * 0.8) * expressiveGain,
+    tangential: (tangential + panicJitter * 0.52) * expressiveGain,
   };
+}
+
+function chirpletSpectrum(seed: number, baseFrequency: number, hoverFrequency: number, count: number, weight: number, periodBase: number): ChirpletComponent[] {
+  const components: ChirpletComponent[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const fold = index + 1;
+    const direction = index % 2 === 0 ? 1 : -1;
+    const band = 1 + fold * 0.38 + (index % 4) * 0.19;
+    components.push([
+      seed * (1 + fold * 0.17) + fold * 0.71,
+      Math.max(0.01, baseFrequency * band * hoverFrequency),
+      direction * (0.0035 + fold * 0.0026),
+      Math.max(0.8, periodBase / (1 + fold * 0.065) + (index % 3) * 0.23),
+      weight / (1 + fold * 0.42),
+    ]);
+  }
+  return components;
+}
+
+function layeredChirps(time: number, components: ChirpletComponent[]) {
+  let total = 0;
+  let weight = 0;
+  for (const [phase, frequency, chirp, period, componentWeight] of components) {
+    total += chirplet(time, phase, frequency, chirp, period) * componentWeight;
+    weight += componentWeight;
+  }
+  return weight > 0 ? total / weight : 0;
 }
 
 function chirplet(time: number, phase: number, frequency: number, chirp: number, period: number) {

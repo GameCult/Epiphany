@@ -14,12 +14,12 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { EpiphanyGraphViewer, validateEpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createAquariumRenderer } from "./aquariumFluid";
 import { loadOperatorSnapshot, runOperatorAction } from "./operatorApi";
 import type { ArtifactBundle, OperatorAction, OperatorActionResult, OperatorSnapshot, StatusRequest } from "./types";
 import type { EpiphanyCodeRef, EpiphanyGraphsState } from "@epiphanygraph/epiphany-graph-viewer";
-import type { AquariumOptionFrame, AquariumRenderer, AquariumUiFrame } from "./aquariumFluid";
+import type { AquariumAgentProjection, AquariumOptionFrame, AquariumRenderer, AquariumUiFrame } from "./aquariumFluid";
 
 const roleOrder = ["implementation", "imagination", "research", "eyes", "modeling", "verification", "reorientation"];
 const constellationSpecs = [
@@ -424,13 +424,15 @@ function projectedThought(value: unknown, fallback: string): string {
 
 function projectedActivity(status: unknown, jobCount = 0): number {
   const lower = text(status).toLowerCase();
-  const jobBoost = Math.min(jobCount * 0.08, 0.24);
-  if (lower.includes("critical") || lower.includes("running") || lower.includes("launch")) return 1;
-  if (lower.includes("blocked") || lower.includes("needed") || lower.includes("regather")) return 0.82 + jobBoost;
-  if (lower.includes("prepare") || lower.includes("review") || lower.includes("ready")) return 0.68 + jobBoost;
-  if (lower.includes("completed") || lower.includes("continue") || lower.includes("pass")) return 0.48 + jobBoost;
-  if (lower.includes("idle")) return 0.24 + jobBoost;
-  return 0.34 + jobBoost;
+  const jobBoost = Math.min(jobCount * 0.06, 0.18);
+  if (lower.includes("critical") || lower.includes("panic") || lower.includes("fatal")) return 1;
+  if (lower.includes("failed") || lower.includes("error") || lower.includes("high")) return 0.74 + jobBoost;
+  if (lower.includes("running") || lower.includes("launch") || lower.includes("active")) return 0.58 + jobBoost;
+  if (lower.includes("blocked") || lower.includes("needed") || lower.includes("regather")) return 0.38 + jobBoost;
+  if (lower.includes("prepare") || lower.includes("review") || lower.includes("ready")) return 0.3 + jobBoost;
+  if (lower.includes("completed") || lower.includes("continue") || lower.includes("pass")) return 0.24 + jobBoost;
+  if (lower.includes("idle")) return 0.12 + jobBoost;
+  return 0.22 + jobBoost;
 }
 
 function findingSummary(result: any): string | undefined {
@@ -1328,6 +1330,8 @@ function AgentConstellation({
   const optionByKeyRef = useRef(new globalThis.Map<string, AquariumOption>());
   const uiOptionByKeyRef = useRef(new globalThis.Map<string, AquariumOption>());
   const rendererRef = useRef<AquariumRenderer | null>(null);
+  const agentNodeRefs = useRef(new globalThis.Map<string, HTMLButtonElement>());
+  const thoughtNodeRefs = useRef(new globalThis.Map<string, HTMLDivElement>());
   const [selectedAgentId, setSelectedAgentId] = useState("coordinator");
   const agents = useMemo<ProjectedAgent[]>(() => {
     return constellationSpecs.map((spec) => {
@@ -1440,15 +1444,56 @@ function AgentConstellation({
     };
   }, []);
 
+  const bindAgentNode = useCallback((id: string, node: HTMLButtonElement | null) => {
+    if (node) {
+      agentNodeRefs.current.set(id, node);
+    } else {
+      agentNodeRefs.current.delete(id);
+    }
+  }, []);
+
+  const bindThoughtNode = useCallback((id: string, node: HTMLDivElement | null) => {
+    if (node) {
+      thoughtNodeRefs.current.set(id, node);
+    } else {
+      thoughtNodeRefs.current.delete(id);
+    }
+  }, []);
+
+  const applyProjectionFrame = useCallback((projections: AquariumAgentProjection[]) => {
+    for (const projection of projections) {
+      const agentNode = agentNodeRefs.current.get(projection.id);
+      const thoughtNode = thoughtNodeRefs.current.get(projection.id);
+      const properties: Array<[string, string]> = [
+        ["--agent-x", `${projection.xPercent}%`],
+        ["--agent-y", `${projection.yPercent}%`],
+        ["--agent-tilt", `${projection.tilt}deg`],
+        ["--agent-bubble-tilt", `${projection.tilt * 0.32}deg`],
+        ["--agent-glow-pulse", String(projection.glowPulse)],
+        ["--agent-glow-radius", `${14 + projection.glowPulse * 10}px`],
+        ["--agent-hover-glow", `${projection.hover * (6 + projection.glowPulse * 8)}px`],
+        ["--agent-expression", String(projection.expression)],
+        ["--agent-hover", String(projection.hover)],
+        ["--agent-ack", String(projection.acknowledgement)],
+        ["--agent-scale", String(1 + projection.acknowledgement * 0.035 + projection.hover * 0.018)],
+      ];
+      for (const [name, value] of properties) {
+        agentNode?.style.setProperty(name, value);
+        thoughtNode?.style.setProperty(name, value);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     rendererRef.current?.setFrame({
       activeLabel: activeDeck ? `${deckLabels[activeDeck]} / ${activeSubdeck ?? ""}` : undefined,
       agents: aquariumAgents,
+      onProjectionFrame: applyProjectionFrame,
       selectedAgentId,
       ui,
       variant,
     });
-  }, [activeDeck, activeSubdeck, aquariumAgents, selectedAgentId, ui, variant]);
+  }, [activeDeck, activeSubdeck, applyProjectionFrame, aquariumAgents, selectedAgentId, ui, variant]);
 
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     rendererRef.current?.setPointerClient(event.clientX, event.clientY);
@@ -1469,6 +1514,19 @@ function AgentConstellation({
   function handlePointerLeave() {
     rendererRef.current?.clearPointer();
     rendererRef.current?.pointerUp();
+  }
+
+  function handleAgentPointerEnter(agentId: string, event: React.PointerEvent<HTMLElement>) {
+    rendererRef.current?.setPointerClient(event.clientX, event.clientY);
+    rendererRef.current?.setHoveredAgent(agentId);
+  }
+
+  function handleAgentPointerMove(event: React.PointerEvent<HTMLElement>) {
+    rendererRef.current?.setPointerClient(event.clientX, event.clientY);
+  }
+
+  function handleAgentPointerLeave() {
+    rendererRef.current?.setHoveredAgent(null);
   }
 
   function handleCanvasClick() {
@@ -1521,9 +1579,16 @@ function AgentConstellation({
           <button
             className={`agentCharacter ${agent.shape} ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
             key={agent.id}
+            ref={(node) => bindAgentNode(agent.id, node)}
             type="button"
             data-agent-node={agent.id}
-            onClick={() => setSelectedAgentId(agent.id)}
+            onClick={() => {
+              rendererRef.current?.acknowledgeAgent(agent.id);
+              setSelectedAgentId(agent.id);
+            }}
+            onPointerEnter={(event) => handleAgentPointerEnter(agent.id, event)}
+            onPointerMove={handleAgentPointerMove}
+            onPointerLeave={handleAgentPointerLeave}
             title={`${agent.name}: ${agent.thought}`}
             style={
               {
@@ -1547,6 +1612,7 @@ function AgentConstellation({
           <div
             className={`thoughtBubble ${agent.tone} ${selectedAgentId === agent.id ? "selected" : ""}`}
             key={`${agent.id}-thought`}
+            ref={(node) => bindThoughtNode(agent.id, node)}
             data-agent-thought={agent.id}
             style={
               {
