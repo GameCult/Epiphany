@@ -292,6 +292,28 @@ pub fn validate_agent_memory_store(store_path: impl AsRef<Path>) -> Result<Vec<S
     Ok(errors)
 }
 
+pub fn load_agent_memory_entry_for_role(
+    store_path: impl AsRef<Path>,
+    role_id: &str,
+) -> Result<Option<EpiphanyAgentMemoryEntry>> {
+    let store_path = store_path.as_ref();
+    let agent_id = agent_id_for_role(role_id).map_err(|message| anyhow!(message))?;
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let entry = cache.get::<EpiphanyAgentMemoryEntry>(role_id)?;
+    if let Some(entry) = &entry
+        && entry.agent.agent_id != agent_id
+    {
+        return Err(anyhow!(
+            "{} agent_id {:?} does not match expected {:?}",
+            role_id,
+            entry.agent.agent_id,
+            agent_id
+        ));
+    }
+    Ok(entry)
+}
+
 pub fn review_agent_self_patch(
     role_id: &str,
     patch_value: &Value,

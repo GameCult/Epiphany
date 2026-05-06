@@ -604,7 +604,7 @@ fn collect_coordinator_status(
             "status": "ready",
             "artifactDir": face_dir,
             "latestArtifacts": latest_face.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-            "availableActions": ["faceBubble"],
+            "availableActions": ["faceBubble", "characterTurn"],
         },
     }))
 }

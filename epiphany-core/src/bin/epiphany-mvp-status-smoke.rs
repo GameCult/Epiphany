@@ -305,9 +305,12 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
         .and_then(Value::as_array);
     require(
         face_actions.is_some_and(|items| {
-            items.len() == 1 && items.first().and_then(Value::as_str) == Some("faceBubble")
+            items.iter().any(|item| item.as_str() == Some("faceBubble"))
+                && items
+                    .iter()
+                    .any(|item| item.as_str() == Some("characterTurn"))
         }),
-        "status view should expose Face bubble action for Aquarium",
+        "status view should expose Face bubble and character-turn actions for Aquarium",
     )?;
     require(
         rendered.contains("Heartbeat") && rendered.contains("Face"),
