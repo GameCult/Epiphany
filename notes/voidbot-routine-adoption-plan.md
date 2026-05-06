@@ -81,6 +81,41 @@ The schema should live in annotated Rust structs using serde plus generated JSON
 Schema where useful. MessagePack is canonical. JSON is the window, not the
 house.
 
+## Shared Agent-State Contract
+
+Epiphany should not invent its own rival dossier ontology.
+
+The first shared cross-runtime agent-state payload contract is Ghostlight's
+existing schema:
+
+- payload schema id:
+  `https://github.com/GameCult/Ghostlight/schemas/agent-state.schema.json`
+- payload schema version:
+  `ghostlight.agent_state.v0`
+- intended CultNet document type:
+  `ghostlight.agent-state`
+
+That means role dossiers can travel over CultNet as typed document envelopes
+without translating the inner payload into a second bespoke shape first.
+
+CultNet is not just ergonomic framing. It also carries CultLib-style auth and
+session semantics:
+
+- shared connection key for both peers
+- AES-GCM encrypted auth/session payloads
+- server-side session-signing secret
+- signed verify/reconnect tokens
+
+So the target shape is:
+
+- canonical role/agent state in MessagePack through CultCache-compatible
+  storage
+- typed CultNet document replication for live exchange
+- Ghostlight payload unchanged inside the replicated envelope
+
+If Epiphany later wants narrower working views or role-local projections, those
+should be derived contracts. The shared dossier truth stays Ghostlight-shaped.
+
 Initial document types:
 
 - `epiphany.thread_state`
