@@ -15,8 +15,8 @@ surfaces instead.
 All standing lanes use the same Ghostlight-shaped protocol, including the
 coordinator/Self and Face. Face is the public interactive surface for Epiphany
 agents: it translates useful agent thought-weather into #aquarium chat or drafts
-and is not a moderator. The heartbeat scheduler in
-`tools/epiphany_agent_heartbeat.py` borrows Ghostlight initiative timing: each
+and is not a moderator. The native `epiphany-heartbeat-store` scheduler borrows
+Ghostlight initiative timing: each
 lane carries speed, readiness, reaction bias, interrupt threshold, load, status,
 and constraints. The harness sets a target heartbeat rate, pending coordinator
 work may pull its owning lane through a reaction window, and otherwise the
@@ -29,7 +29,7 @@ review rules still apply.
 
 Face's Discord boundary is still a small TOML configuration seam: it may
 interact only through #aquarium. If the channel id is not configured, Face must
-write candidate chat artifacts through `tools/epiphany_face_discord.py draft`
+write candidate chat artifacts through the native `epiphany-face-discord draft`
 instead of posting.
 
 Use:
@@ -38,7 +38,7 @@ Use:
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- validate --store .\state\agents.msgpack
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- smoke --store .\state\agents.msgpack
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- status --store .\state\agents.msgpack
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' tick --coordinator-action continueImplementation --urgency 0.95 --apply-rumination
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- tick --store .\state\agent-heartbeats.msgpack --artifact-dir .\.epiphany-heartbeats --coordinator-action continueImplementation --urgency 0.95 --agent-store .\state\agents.msgpack --apply-rumination
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- smoke --agent-store .\state\agents.msgpack
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-face-discord -- draft --content 'Face notices the organs are arguing about evidence again.'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-face-discord -- smoke

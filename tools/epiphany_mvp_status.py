@@ -4,20 +4,19 @@ import argparse
 import json
 import os
 from pathlib import Path
+import subprocess
 from typing import Any
 
-from epiphany_agent_heartbeat import DEFAULT_ARTIFACT_DIR as DEFAULT_HEARTBEAT_ARTIFACT_DIR
-from epiphany_agent_heartbeat import DEFAULT_HEARTBEAT_STATE
-from epiphany_agent_heartbeat import heartbeat_status
 from epiphany_agent_telemetry import write_transcript_telemetry
-from epiphany_face_discord import DEFAULT_ARTIFACT_DIR as DEFAULT_FACE_ARTIFACT_DIR
-from epiphany_face_discord import latest_face_artifacts
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import DEFAULT_APP_SERVER
 from epiphany_phase5_smoke import ROOT
 
 
 DEFAULT_CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+DEFAULT_HEARTBEAT_STORE = ROOT / "state" / "agent-heartbeats.msgpack"
+DEFAULT_HEARTBEAT_ARTIFACT_DIR = ROOT / ".epiphany-heartbeats"
+DEFAULT_FACE_ARTIFACT_DIR = ROOT / ".epiphany-face"
 DEFAULT_TRANSCRIPT = ROOT / ".epiphany-status" / "epiphany-mvp-status-transcript.jsonl"
 DEFAULT_STDERR = ROOT / ".epiphany-status" / "epiphany-mvp-status-server.stderr.log"
 SEALED_DIRECT_THOUGHT_KEYS = {
@@ -27,6 +26,53 @@ SEALED_DIRECT_THOUGHT_KEYS = {
     "inputTranscript",
     "activeTranscript",
 }
+
+
+def native_epiphany_bin(bin_name: str, *args: str) -> dict[str, Any]:
+    exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / f"{bin_name}.exe"
+    if exe.exists():
+        command = [str(exe), *args]
+    else:
+        command = [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            bin_name,
+            "--",
+            *args,
+        ]
+    completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or f"{bin_name} failed")
+    return json.loads(completed.stdout)
+
+
+def heartbeat_status(*, artifact_dir: Path = DEFAULT_HEARTBEAT_ARTIFACT_DIR, limit: int = 8) -> dict[str, Any]:
+    return native_epiphany_bin(
+        "epiphany-heartbeat-store",
+        "status",
+        "--store",
+        str(DEFAULT_HEARTBEAT_STORE),
+        "--artifact-dir",
+        str(artifact_dir),
+        "--limit",
+        str(limit),
+    )
+
+
+def latest_face_artifacts(artifact_dir: Path, *, limit: int = 8) -> list[dict[str, Any]]:
+    result = native_epiphany_bin(
+        "epiphany-face-discord",
+        "latest",
+        "--artifact-dir",
+        str(artifact_dir),
+        "--limit",
+        str(limit),
+    )
+    return result.get("latestArtifacts", [])
 
 
 def sealed_direct_thought(key: str, value: Any) -> dict[str, Any]:
@@ -135,10 +181,7 @@ def collect_status(
     reorient_result = client.send("thread/epiphany/reorientResult", {"threadId": thread_id})
     crrc = client.send("thread/epiphany/crrc", {"threadId": thread_id})
     coordinator = client.send("thread/epiphany/coordinator", {"threadId": thread_id})
-    heartbeat = heartbeat_status(
-        state_file=DEFAULT_HEARTBEAT_STATE,
-        artifact_dir=DEFAULT_HEARTBEAT_ARTIFACT_DIR,
-    )
+    heartbeat = heartbeat_status(artifact_dir=DEFAULT_HEARTBEAT_ARTIFACT_DIR)
     face = {
         "status": "ready",
         "artifactDir": str(DEFAULT_FACE_ARTIFACT_DIR),

@@ -13,18 +13,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-from epiphany_agent_heartbeat import DEFAULT_ARTIFACT_DIR as DEFAULT_HEARTBEAT_ARTIFACT_DIR
-from epiphany_agent_heartbeat import DEFAULT_HEARTBEAT_STATE
-from epiphany_agent_heartbeat import DISPLAY_NAMES as HEARTBEAT_DISPLAY_NAMES
-from epiphany_agent_heartbeat import ROLE_ORDER as HEARTBEAT_ROLE_ORDER
-from epiphany_agent_heartbeat import heartbeat_status
-from epiphany_agent_heartbeat import run_tick as run_heartbeat_tick
 from epiphany_agent_telemetry import write_transcript_telemetry
-from epiphany_agent_memory import apply_self_patch
-from epiphany_agent_memory import DEFAULT_AGENT_STORE
-from epiphany_face_discord import DEFAULT_ARTIFACT_DIR as DEFAULT_FACE_ARTIFACT_DIR
-from epiphany_face_discord import latest_face_artifacts
-from epiphany_face_discord import write_bubble
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -38,7 +27,21 @@ from epiphany_unity_bridge import bridge_guidance as unity_bridge_guidance
 
 DEFAULT_CODEX_HOME = ROOT / ".epiphany-gui" / "codex-home"
 DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-gui" / "actions"
-DEFAULT_AGENT_MEMORY_DIR = DEFAULT_AGENT_STORE
+DEFAULT_AGENT_MEMORY_DIR = ROOT / "state" / "agents.msgpack"
+DEFAULT_HEARTBEAT_STORE = ROOT / "state" / "agent-heartbeats.msgpack"
+DEFAULT_HEARTBEAT_ARTIFACT_DIR = ROOT / ".epiphany-heartbeats"
+DEFAULT_FACE_ARTIFACT_DIR = ROOT / ".epiphany-face"
+HEARTBEAT_DISPLAY_NAMES = {
+    "coordinator": "Self",
+    "face": "Face",
+    "imagination": "Imagination",
+    "research": "Eyes",
+    "modeling": "Body",
+    "implementation": "Hands",
+    "verification": "Soul",
+    "reorientation": "Life",
+}
+HEARTBEAT_ROLE_ORDER = list(HEARTBEAT_DISPLAY_NAMES)
 EPIPHANY_PROMPTS_PATH = (
     ROOT
     / "vendor"
@@ -51,6 +54,69 @@ EPIPHANY_PROMPTS_PATH = (
 )
 TERMINAL_ROLE_STATUSES = {"completed", "failed", "cancelled"}
 TERMINAL_REORIENT_STATUSES = {"completed", "failed", "cancelled"}
+
+
+def native_epiphany_bin(bin_name: str, *args: str) -> dict[str, Any]:
+    exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / f"{bin_name}.exe"
+    if exe.exists():
+        command = [str(exe), *args]
+    else:
+        command = [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            bin_name,
+            "--",
+            *args,
+        ]
+    completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or f"{bin_name} failed")
+    return json.loads(completed.stdout)
+
+
+def heartbeat_status(*, store_file: Path, artifact_dir: Path, limit: int = 8) -> dict[str, Any]:
+    return native_epiphany_bin(
+        "epiphany-heartbeat-store",
+        "status",
+        "--store",
+        str(store_file),
+        "--artifact-dir",
+        str(artifact_dir),
+        "--limit",
+        str(limit),
+    )
+
+
+def write_bubble(content: str, *, artifact_dir: Path, source: str, status: str = "ready", mood: str = "attentive") -> Path:
+    response = native_epiphany_bin(
+        "epiphany-face-discord",
+        "bubble",
+        "--artifact-dir",
+        str(artifact_dir),
+        "--content",
+        content,
+        "--source",
+        source,
+        "--status",
+        status,
+        "--mood",
+        mood,
+    )
+    return Path(response["bubblePath"])
+
+
+def latest_face_artifacts(artifact_dir: Path) -> list[dict[str, Any]]:
+    response = native_epiphany_bin(
+        "epiphany-face-discord",
+        "latest",
+        "--artifact-dir",
+        str(artifact_dir),
+    )
+    return response.get("latestArtifacts", [])
 
 
 def maybe_apply_role_self_patch(
@@ -78,7 +144,16 @@ def maybe_apply_role_self_patch(
             "reasons": ["roleAccept response did not include a roleId for selfPatch application"],
             "applied": False,
         }
-    result = apply_self_patch(role_id, self_patch, agent_dir=agent_memory_dir)
+    result = native_epiphany_bin(
+        "epiphany-agent-memory-store",
+        "apply-patch",
+        "--store",
+        str(agent_memory_dir),
+        "--role-id",
+        role_id,
+        "--patch",
+        json.dumps(self_patch),
+    )
     result["appliedFromRoleAccept"] = True
     return result
 
@@ -1124,26 +1199,36 @@ def heartbeat_bubble_text(event: dict[str, Any]) -> str:
 def run_local_surface_action(args: argparse.Namespace, *, artifact_dir: Path) -> dict[str, Any]:
     if args.action == "heartbeatStatus":
         response = heartbeat_status(
-            state_file=args.heartbeat_state_file,
+            store_file=args.heartbeat_store_file,
             artifact_dir=args.heartbeat_artifact_dir,
         )
         summary = "Read the Ghostlight heartbeat initiative status."
     elif args.action == "runHeartbeat":
         schedule_id = f"epiphany-gui-heartbeat-{time.time_ns()}-{os.getpid()}"
-        response = run_heartbeat_tick(
-            argparse.Namespace(
-                state_file=args.heartbeat_state_file,
-                artifact_dir=args.heartbeat_artifact_dir,
-                agent_dir=args.agent_memory_dir,
-                target_heartbeat_rate=args.target_heartbeat_rate,
-                coordinator_action=args.heartbeat_coordinator_action,
-                target_role=args.heartbeat_target_role,
-                urgency=args.heartbeat_urgency,
-                apply_rumination=args.apply_rumination,
-                schedule_id=schedule_id,
-                source_scene_ref="epiphany/gui/heartbeat",
-            )
-        )
+        heartbeat_args = [
+            "tick",
+            "--store",
+            str(args.heartbeat_store_file),
+            "--artifact-dir",
+            str(args.heartbeat_artifact_dir),
+            "--target-heartbeat-rate",
+            str(args.target_heartbeat_rate),
+            "--urgency",
+            str(args.heartbeat_urgency),
+            "--schedule-id",
+            schedule_id,
+            "--source-scene-ref",
+            "epiphany/gui/heartbeat",
+            "--agent-store",
+            str(args.agent_memory_dir),
+        ]
+        if args.heartbeat_coordinator_action:
+            heartbeat_args.extend(["--coordinator-action", args.heartbeat_coordinator_action])
+        if args.heartbeat_target_role:
+            heartbeat_args.extend(["--target-role", args.heartbeat_target_role])
+        if args.apply_rumination:
+            heartbeat_args.append("--apply-rumination")
+        response = native_epiphany_bin("epiphany-heartbeat-store", *heartbeat_args)
         event = response.get("event") or {}
         bubble_path = write_bubble(
             heartbeat_bubble_text(event),
@@ -1159,7 +1244,7 @@ def run_local_surface_action(args: argparse.Namespace, *, artifact_dir: Path) ->
         content = args.face_content
         if not content:
             current = heartbeat_status(
-                state_file=args.heartbeat_state_file,
+                store_file=args.heartbeat_store_file,
                 artifact_dir=args.heartbeat_artifact_dir,
             )
             latest = current.get("latestEvent") or {}
@@ -1584,7 +1669,7 @@ def main() -> int:
             "faceBubble",
         ],
     )
-    parser.add_argument("--heartbeat-state-file", type=Path, default=DEFAULT_HEARTBEAT_STATE)
+    parser.add_argument("--heartbeat-store-file", type=Path, default=DEFAULT_HEARTBEAT_STORE)
     parser.add_argument("--heartbeat-artifact-dir", type=Path, default=DEFAULT_HEARTBEAT_ARTIFACT_DIR)
     parser.add_argument("--face-artifact-dir", type=Path, default=DEFAULT_FACE_ARTIFACT_DIR)
     parser.add_argument("--target-heartbeat-rate", type=float, default=1.0)

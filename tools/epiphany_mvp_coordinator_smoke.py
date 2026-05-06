@@ -3,12 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-from epiphany_agent_memory import project_json_dir
-from epiphany_agent_memory import resolve_store_path
 from epiphany_mvp_coordinator import DEFAULT_APP_SERVER
 from epiphany_mvp_coordinator import DEFAULT_AGENT_MEMORY_DIR
 from epiphany_mvp_coordinator import run_coordinator
@@ -17,6 +16,28 @@ from epiphany_phase5_smoke import require
 
 
 DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-dogfood" / "coordinator-smoke"
+
+
+def native_agent_memory(*args: str) -> dict[str, Any]:
+    exe = Path(r"C:\Users\Meta\.cargo-target-codex") / "debug" / "epiphany-agent-memory-store.exe"
+    if exe.exists():
+        command = [str(exe), *args]
+    else:
+        command = [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            "epiphany-agent-memory-store",
+            "--",
+            *args,
+        ]
+    completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "epiphany-agent-memory-store failed")
+    return json.loads(completed.stdout)
 
 
 def reset_artifact_root(path: Path) -> None:
@@ -103,7 +124,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     artifact_root = args.artifact_root.resolve()
     reset_artifact_root(artifact_root)
     agent_memory_store = artifact_root / "agent-memory.msgpack"
-    shutil.copy2(resolve_store_path(DEFAULT_AGENT_MEMORY_DIR), agent_memory_store)
+    shutil.copy2(DEFAULT_AGENT_MEMORY_DIR, agent_memory_store)
 
     cold = run_coordinator(
         coordinator_args(
@@ -155,7 +176,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_artifacts(verification)
     require_operator_safe(verification)
     projected_memory = artifact_root / "agent-memory-projection"
-    project_json_dir(agent_memory_store, projected_memory)
+    native_agent_memory(
+        "project-json-dir",
+        "--store",
+        str(agent_memory_store),
+        "--output-dir",
+        str(projected_memory),
+    )
     require(
         "mem-body-phase6-role-smoke"
         in (projected_memory / "body.agent-state.json").read_text(encoding="utf-8"),

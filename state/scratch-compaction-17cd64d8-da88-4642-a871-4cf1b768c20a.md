@@ -28,7 +28,7 @@ What was done:
 - Inspected EpiphanyAgent's Ghostlight role memory schema and patch validator:
   - state/agents/README.md
   - state/agents/body.agent-state.json
-  - tools/epiphany_agent_memory.py
+  - native epiphany-agent-memory-store binary
 - Added new documentation file:
   - notes/true-epiphany-memory-migration-sandbox-prompt.md
 
@@ -38,7 +38,7 @@ Important content of the new prompt:
 - It explicitly forbids direct mutation by default.
 - It maps adjacent repo lessons into role-specific memory targets for Self, Face, Imagination, Eyes, Body, Hands, Soul, and Life.
 - It requires source-inventory.json, distillation-report.md, role-selfpatches/*.json, review-results.json, and apply-plan.md.
-- It requires each proposed memory patch to validate via tools/epiphany_agent_memory.py review-patch.
+- It requires each proposed memory patch to validate via native epiphany-agent-memory-store review-patch.
 - It emphasizes project truth versus role memory separation.
 
 Potential remaining work after compaction:

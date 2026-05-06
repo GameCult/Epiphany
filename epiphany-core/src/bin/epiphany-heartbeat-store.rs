@@ -38,6 +38,7 @@ fn main() -> Result<()> {
     let mut action_id: Option<String> = None;
     let mut limit = 8_usize;
     let mut agent_store: Option<PathBuf> = None;
+    let mut apply_rumination = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -60,6 +61,7 @@ fn main() -> Result<()> {
             "--action-id" => action_id = Some(next_value(&mut args, "--action-id")?),
             "--limit" => limit = next_value(&mut args, "--limit")?.parse()?,
             "--agent-store" => agent_store = Some(next_path(&mut args, "--agent-store")?),
+            "--apply-rumination" => apply_rumination = true,
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -84,7 +86,17 @@ fn main() -> Result<()> {
             let store_path = store_path.ok_or_else(|| anyhow!("tick requires --store"))?;
             let artifact_dir =
                 artifact_dir.ok_or_else(|| anyhow!("tick requires --artifact-dir"))?;
-            let result = tick_heartbeat_store(
+            if let Some(agent_store) = &agent_store {
+                let errors = validate_agent_memory_store(agent_store)?;
+                if !errors.is_empty() {
+                    return Err(anyhow!(
+                        "agent memory validation failed: {}",
+                        errors.join("; ")
+                    ));
+                }
+            }
+            let tick_schedule_id = schedule_id.clone();
+            let mut result = tick_heartbeat_store(
                 &store_path,
                 &artifact_dir,
                 HeartbeatTickOptions {
@@ -92,11 +104,17 @@ fn main() -> Result<()> {
                     coordinator_action,
                     target_role,
                     urgency,
-                    schedule_id,
+                    schedule_id: tick_schedule_id,
                     source_scene_ref,
                     defer_completion,
                 },
             )?;
+            if apply_rumination {
+                let agent_store = agent_store
+                    .as_ref()
+                    .ok_or_else(|| anyhow!("--apply-rumination requires --agent-store"))?;
+                apply_rumination_patch(&mut result, agent_store, &artifact_dir, &schedule_id)?;
+            }
             println!("{}", result);
         }
         "complete" => {
@@ -203,7 +221,7 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path>\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store migrate-json --json <path> --store <path> [--projection <path>]\n       epiphany-heartbeat-store project --store <path> --projection <path>\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path>\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store migrate-json --json <path> --store <path> [--projection <path>]\n       epiphany-heartbeat-store project --store <path> --projection <path>\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
 }
 
@@ -336,6 +354,30 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
     });
     let _ = fs::remove_dir_all(&temp_dir);
     Ok(result)
+}
+
+fn apply_rumination_patch(
+    result: &mut serde_json::Value,
+    agent_store: &Path,
+    artifact_dir: &Path,
+    schedule_id: &str,
+) -> Result<()> {
+    if result["rumination"].is_null() {
+        return Ok(());
+    }
+    let Some(patch) = result["rumination"]["selfPatch"].as_object() else {
+        return Ok(());
+    };
+    let role_id = result["rumination"]["roleId"]
+        .as_str()
+        .ok_or_else(|| anyhow!("rumination has no roleId"))?
+        .to_string();
+    let patch = serde_json::Value::Object(patch.clone());
+    let applied = apply_agent_self_patch(&role_id, &patch, agent_store)?;
+    result["rumination"]["result"] = serde_json::to_value(applied)?;
+    result["rumination"]["applied"] = serde_json::Value::Bool(true);
+    write_rumination_artifact(artifact_dir, schedule_id, &result["rumination"])?;
+    Ok(())
 }
 
 fn write_rumination_artifact(

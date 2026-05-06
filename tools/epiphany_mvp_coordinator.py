@@ -4,13 +4,12 @@ import argparse
 import json
 import os
 import shutil
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
 from epiphany_agent_telemetry import write_transcript_telemetry
-from epiphany_agent_memory import apply_self_patch
-from epiphany_agent_memory import DEFAULT_AGENT_STORE
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -29,7 +28,7 @@ from epiphany_phase6_role_smoke import complete_role_backend_job
 
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-dogfood" / "coordinator"
 DEFAULT_CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-DEFAULT_AGENT_MEMORY_DIR = DEFAULT_AGENT_STORE
+DEFAULT_AGENT_MEMORY_DIR = ROOT / "state" / "agents.msgpack"
 TERMINAL_ROLE_STATUSES = {"completed", "failed", "cancelled"}
 TERMINAL_REORIENT_STATUSES = {"completed", "failed", "cancelled"}
 STOP_ACTIONS = {
@@ -40,6 +39,28 @@ STOP_ACTIONS = {
     "reviewVerificationResult",
     "continueImplementation",
 }
+
+
+def native_agent_memory(*args: str) -> dict[str, Any]:
+    exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / "epiphany-agent-memory-store.exe"
+    if exe.exists():
+        command = [str(exe), *args]
+    else:
+        command = [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            "epiphany-agent-memory-store",
+            "--",
+            *args,
+        ]
+    completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "epiphany-agent-memory-store failed")
+    return json.loads(completed.stdout)
 
 
 def maybe_apply_role_self_patch(
@@ -67,7 +88,15 @@ def maybe_apply_role_self_patch(
             "reasons": ["roleAccept response did not include a roleId for selfPatch application"],
             "applied": False,
         }
-    result = apply_self_patch(role_id, self_patch, agent_dir=agent_memory_dir)
+    result = native_agent_memory(
+        "apply-patch",
+        "--store",
+        str(agent_memory_dir),
+        "--role-id",
+        role_id,
+        "--patch",
+        json.dumps(self_patch),
+    )
     result["appliedFromRoleAccept"] = True
     return result
 

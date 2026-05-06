@@ -41,10 +41,10 @@ Default imported planning status should be conservative: use `new`, `triaged`, `
 Use the existing Ghostlight-shaped role memory contract in:
 
 - `E:\Projects\EpiphanyAgent\state\agents\README.md`
-- `E:\Projects\EpiphanyAgent\tools\epiphany_agent_memory.py`
+- native `epiphany-agent-memory-store` binary in `E:\Projects\EpiphanyAgent\epiphany-core`
 - `E:\Projects\EpiphanyAgent\state\agents.msgpack`
 
-All proposed memory mutations must be expressible as bounded `selfPatch` JSON objects accepted by `tools/epiphany_agent_memory.py review-patch`.
+All proposed memory mutations must be expressible as bounded `selfPatch` JSON objects accepted by `epiphany-agent-memory-store review-patch`.
 
 ## Source Repositories To Inspect
 
@@ -448,7 +448,7 @@ Write these files:
    Validate every role memory patch with:
 
    ```powershell
-   & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' review-patch --role-id <role> --patch '<path-to-patch>'
+   cargo run --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- review-patch --store E:\Projects\EpiphanyAgent\state\agents.msgpack --role-id <role> --patch '<path-to-patch>'
    ```
 
    Record status and refusal reasons. Fix rejected patches until they validate, unless a rejection reveals the lesson should not be migrated.
