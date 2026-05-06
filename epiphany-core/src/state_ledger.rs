@@ -1,4 +1,3 @@
-use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use cultcache_rs::CultCache;
@@ -8,7 +7,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
-use std::fs;
 use std::path::Path;
 
 pub const STATE_LEDGER_STORE_TYPE: &str = "epiphany.state_ledger";
@@ -50,42 +48,6 @@ pub struct EpiphanyLedgerEvidenceRecord {
     pub branch: Option<String>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
-}
-
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
-struct BranchProjection {
-    pub branches: Vec<EpiphanyBranchRecord>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
-}
-
-pub fn migrate_state_ledgers_to_cultcache(
-    branches_path: impl AsRef<Path>,
-    evidence_path: impl AsRef<Path>,
-    store_path: impl AsRef<Path>,
-) -> Result<Value> {
-    let branches_path = branches_path.as_ref();
-    let evidence_path = evidence_path.as_ref();
-    let store_path = store_path.as_ref();
-    let branch_raw = fs::read_to_string(branches_path)
-        .with_context(|| format!("failed to read {}", branches_path.display()))?;
-    let branches: BranchProjection = serde_json::from_str(&branch_raw)
-        .with_context(|| format!("failed to decode {}", branches_path.display()))?;
-    let evidence = read_evidence_jsonl(evidence_path)?;
-    let entry = EpiphanyStateLedgerEntry {
-        schema_version: STATE_LEDGER_SCHEMA_VERSION.to_string(),
-        branches: branches.branches,
-        evidence,
-        extra: branches.extra,
-    };
-    let mut cache = state_ledger_cache(store_path)?;
-    cache.put(STATE_LEDGER_KEY, &entry)?;
-    Ok(serde_json::json!({
-        "ok": true,
-        "store": store_path,
-        "branches": entry.branches.len(),
-        "evidence": entry.evidence.len(),
-    }))
 }
 
 pub fn state_ledger_status(store_path: impl AsRef<Path>) -> Result<Value> {
@@ -204,47 +166,6 @@ pub fn close_state_branch(
     }))
 }
 
-pub fn project_state_ledgers_to_json(
-    store_path: impl AsRef<Path>,
-    branches_path: impl AsRef<Path>,
-    evidence_path: impl AsRef<Path>,
-) -> Result<Value> {
-    let entry = load_state_ledger(store_path.as_ref())?;
-    let branches_path = branches_path.as_ref();
-    let evidence_path = evidence_path.as_ref();
-    if let Some(parent) = branches_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(
-        branches_path,
-        format!(
-            "{}\n",
-            serde_json::to_string_pretty(&BranchProjection {
-                branches: entry.branches.clone(),
-                extra: entry.extra.clone(),
-            })?
-        ),
-    )
-    .with_context(|| format!("failed to write {}", branches_path.display()))?;
-    if let Some(parent) = evidence_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let mut lines = String::new();
-    for record in &entry.evidence {
-        lines.push_str(&serde_json::to_string(record)?);
-        lines.push('\n');
-    }
-    fs::write(evidence_path, lines)
-        .with_context(|| format!("failed to write {}", evidence_path.display()))?;
-    Ok(serde_json::json!({
-        "ok": true,
-        "branchesPath": branches_path,
-        "evidencePath": evidence_path,
-        "branches": entry.branches.len(),
-        "evidence": entry.evidence.len(),
-    }))
-}
-
 fn state_ledger_cache(store_path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<EpiphanyStateLedgerEntry>()?;
@@ -259,24 +180,6 @@ fn default_state_ledger() -> EpiphanyStateLedgerEntry {
         evidence: Vec::new(),
         extra: BTreeMap::new(),
     }
-}
-
-fn read_evidence_jsonl(path: &Path) -> Result<Vec<EpiphanyLedgerEvidenceRecord>> {
-    let raw =
-        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
-    let mut records = Vec::new();
-    for (index, line) in raw.lines().enumerate() {
-        if line.trim().is_empty() {
-            continue;
-        }
-        let record: EpiphanyLedgerEvidenceRecord = serde_json::from_str(line)
-            .with_context(|| format!("failed to decode {} line {}", path.display(), index + 1))?;
-        validate_evidence(&record).with_context(|| {
-            format!("invalid evidence at {} line {}", path.display(), index + 1)
-        })?;
-        records.push(record);
-    }
-    Ok(records)
 }
 
 fn validate_branch(branch: &EpiphanyBranchRecord) -> Result<()> {
@@ -314,39 +217,23 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn state_ledgers_migrate_and_append_native_evidence() -> Result<()> {
+    fn state_ledgers_add_branch_and_append_native_evidence() -> Result<()> {
         let temp = tempdir()?;
-        let branches = temp.path().join("branches.json");
-        let evidence = temp.path().join("evidence.jsonl");
         let store = temp.path().join("ledgers.msgpack");
-        fs::write(
-            &branches,
-            serde_json::json!({
-                "branches": [{
-                    "id": "main",
-                    "hypothesis": "Typed state reduces drift.",
-                    "status": "active",
-                    "artifacts": ["state/map.yaml"],
-                    "notes": "test"
-                }]
-            })
-            .to_string(),
-        )?;
-        fs::write(
-            &evidence,
-            serde_json::to_string(&EpiphanyLedgerEvidenceRecord {
-                ts: "2026-05-06T00:00:00+00:00".to_string(),
-                evidence_type: "test".to_string(),
-                status: "ok".to_string(),
-                note: "The initial ledger record exists.".to_string(),
-                branch: None,
+        add_state_branch(
+            &store,
+            EpiphanyBranchRecord {
+                id: "main".to_string(),
+                hypothesis: "Typed state reduces drift.".to_string(),
+                status: "active".to_string(),
+                artifacts: vec!["state/map.yaml".to_string()],
+                notes: "test".to_string(),
                 extra: BTreeMap::new(),
-            })? + "\n",
+            },
         )?;
-        migrate_state_ledgers_to_cultcache(&branches, &evidence, &store)?;
         let entry = load_state_ledger(&store)?;
         assert_eq!(entry.branches.len(), 1);
-        assert_eq!(entry.evidence.len(), 1);
+        assert_eq!(entry.evidence.len(), 0);
         append_state_evidence(
             &store,
             EpiphanyLedgerEvidenceRecord {
@@ -358,7 +245,7 @@ mod tests {
                 extra: BTreeMap::new(),
             },
         )?;
-        assert_eq!(load_state_ledger(&store)?.evidence.len(), 2);
+        assert_eq!(load_state_ledger(&store)?.evidence.len(), 1);
         Ok(())
     }
 }

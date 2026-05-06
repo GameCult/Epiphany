@@ -109,6 +109,4 @@ pub use state_ledger::add_state_branch;
 pub use state_ledger::append_state_evidence;
 pub use state_ledger::close_state_branch;
 pub use state_ledger::load_state_ledger;
-pub use state_ledger::migrate_state_ledgers_to_cultcache;
-pub use state_ledger::project_state_ledgers_to_json;
 pub use state_ledger::state_ledger_status;

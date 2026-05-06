@@ -5,8 +5,6 @@ use epiphany_core::EpiphanyLedgerEvidenceRecord;
 use epiphany_core::add_state_branch;
 use epiphany_core::append_state_evidence;
 use epiphany_core::close_state_branch;
-use epiphany_core::migrate_state_ledgers_to_cultcache;
-use epiphany_core::project_state_ledgers_to_json;
 use epiphany_core::state_ledger_status;
 use std::collections::BTreeMap;
 use std::env;
@@ -19,20 +17,6 @@ fn main() -> Result<()> {
         std::process::exit(2);
     };
     match command.as_str() {
-        "migrate-json" => {
-            let branches = require_path_arg(&mut args, "--branches")?;
-            let evidence = require_path_arg(&mut args, "--evidence")?;
-            let store = require_path_arg(&mut args, "--store")?;
-            print_json(&migrate_state_ledgers_to_cultcache(
-                branches, evidence, store,
-            )?)?;
-        }
-        "project-json" => {
-            let store = require_path_arg(&mut args, "--store")?;
-            let branches = require_path_arg(&mut args, "--branches")?;
-            let evidence = require_path_arg(&mut args, "--evidence")?;
-            print_json(&project_state_ledgers_to_json(store, branches, evidence)?)?;
-        }
         "status" => {
             let store = require_path_arg(&mut args, "--store")?;
             print_json(&state_ledger_status(store)?)?;
@@ -150,6 +134,6 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-state-ledger-store <migrate-json|project-json|status|add-evidence|add-branch|close-branch> ..."
+        "usage: epiphany-state-ledger-store <status|add-evidence|add-branch|close-branch> ..."
     );
 }

@@ -6,12 +6,10 @@ use epiphany_core::add_state_branch;
 use epiphany_core::append_state_evidence;
 use epiphany_core::close_state_branch;
 use epiphany_core::load_state_ledger;
-use epiphany_core::migrate_state_ledgers_to_cultcache;
 use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
 
 fn main() -> Result<()> {
     let root = env::current_dir().context("failed to resolve current directory")?;
@@ -25,35 +23,6 @@ fn main() -> Result<()> {
     };
     match command.as_str() {
         "status" => print_status(&root, &map_path, &ledger_store)?,
-        "migrate-json" => {
-            let mut branches = None;
-            let mut evidence = None;
-            let mut store = None;
-            parse_named_args(&mut args, |name, value| match name {
-                "--branches" => {
-                    branches = Some(PathBuf::from(value));
-                    Ok(())
-                }
-                "--evidence" => {
-                    evidence = Some(PathBuf::from(value));
-                    Ok(())
-                }
-                "--store" => {
-                    store = Some(PathBuf::from(value));
-                    Ok(())
-                }
-                other => anyhow::bail!("unexpected argument {other}"),
-            })?;
-            let branches = branches.unwrap_or_else(|| state_dir.join("branches.json"));
-            let evidence = evidence.unwrap_or_else(|| state_dir.join("evidence.jsonl"));
-            let store = store.unwrap_or_else(|| ledger_store.clone());
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&migrate_state_ledgers_to_cultcache(
-                    branches, evidence, store
-                )?)?
-            );
-        }
         "add-evidence" => {
             let mut evidence_type = None;
             let mut status = None;
@@ -237,7 +206,5 @@ fn parse_named_args(
 }
 
 fn print_usage() {
-    eprintln!(
-        "usage: epiphany-state <status|migrate-json|add-evidence|add-branch|close-branch> ..."
-    );
+    eprintln!("usage: epiphany-state <status|add-evidence|add-branch|close-branch> ...");
 }
