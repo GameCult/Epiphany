@@ -5,6 +5,12 @@ mod proposal;
 mod retrieval;
 mod rollout;
 
+pub use cultcache_rs::CacheBackingStore;
+pub use cultcache_rs::CultCache;
+pub use cultcache_rs::CultCacheDocument;
+pub use cultcache_rs::CultCacheEnvelope;
+pub use cultcache_rs::PushAllOptions;
+pub use cultcache_rs::SingleFileMessagePackBackingStore;
 pub use distillation::EpiphanyDistillInput;
 pub use distillation::EpiphanyDistillProposal;
 pub use distillation::distill_observation;
