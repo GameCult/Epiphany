@@ -423,18 +423,6 @@ impl CodexThread {
         self.codex.state_db()
     }
 
-    pub async fn epiphany_state_runtime(&self) -> Option<StateDbHandle> {
-        if let Some(state_db) = self.state_db() {
-            return Some(state_db);
-        }
-
-        let codex_home = self.codex.session.codex_home().await;
-        let config = self.codex.thread_config_snapshot().await;
-        codex_state::StateRuntime::init(codex_home.to_path_buf(), config.model_provider_id)
-            .await
-            .ok()
-    }
-
     pub async fn config_snapshot(&self) -> ThreadConfigSnapshot {
         self.codex.thread_config_snapshot().await
     }

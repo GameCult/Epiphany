@@ -4327,16 +4327,6 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let mut state_db_ctx = loaded_thread.as_ref().and_then(|thread| thread.state_db());
-        if state_db_ctx.is_none() {
-            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
-        }
-        let job_resolution = load_epiphany_job_launcher_snapshots(
-            state_db_ctx.as_ref(),
-            thread.epiphany_state.as_ref(),
-        )
-        .await;
-
         let response = ThreadEpiphanyJobsResponse {
             thread_id,
             source: if loaded {
@@ -4348,11 +4338,7 @@ impl CodexMessageProcessor {
                 .epiphany_state
                 .as_ref()
                 .map(|epiphany_state| epiphany_state.revision),
-            jobs: map_epiphany_jobs(
-                thread.epiphany_state.as_ref(),
-                retrieval_override.as_ref(),
-                &job_resolution,
-            ),
+            jobs: map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref()),
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -4432,35 +4418,18 @@ impl CodexMessageProcessor {
             &watcher,
         );
 
-        let (mut state_db_ctx, runtime_store_path) =
-            if let Some(loaded_thread) = loaded_thread.as_ref() {
-                (
-                    loaded_thread.epiphany_state_runtime().await,
-                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
-                )
-            } else {
-                (None, None)
-            };
-        if state_db_ctx.is_none() {
-            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
-        }
-        let job_resolution = load_epiphany_job_launcher_snapshots(
-            state_db_ctx.as_ref(),
-            thread.epiphany_state.as_ref(),
-        )
-        .await;
-        let jobs = map_epiphany_jobs(
-            thread.epiphany_state.as_ref(),
-            retrieval_override.as_ref(),
-            &job_resolution,
-        );
+        let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+        } else {
+            None
+        };
+        let jobs = map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref());
         let reorient_job = jobs
             .iter()
             .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
             .cloned();
         let (result_status, finding, _) = load_epiphany_reorient_result_snapshot(
             thread.epiphany_state.as_ref(),
-            state_db_ctx.as_ref(),
             runtime_store_path.as_deref(),
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
@@ -4583,35 +4552,18 @@ impl CodexMessageProcessor {
             &watcher,
         );
 
-        let (mut state_db_ctx, runtime_store_path) =
-            if let Some(loaded_thread) = loaded_thread.as_ref() {
-                (
-                    loaded_thread.epiphany_state_runtime().await,
-                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
-                )
-            } else {
-                (None, None)
-            };
-        if state_db_ctx.is_none() {
-            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
-        }
-        let job_resolution = load_epiphany_job_launcher_snapshots(
-            state_db_ctx.as_ref(),
-            thread.epiphany_state.as_ref(),
-        )
-        .await;
-        let jobs = map_epiphany_jobs(
-            thread.epiphany_state.as_ref(),
-            retrieval_override.as_ref(),
-            &job_resolution,
-        );
+        let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+        } else {
+            None
+        };
+        let jobs = map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref());
         let reorient_job = jobs
             .iter()
             .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
             .cloned();
         let (reorient_result_status, reorient_finding, _) = load_epiphany_reorient_result_snapshot(
             thread.epiphany_state.as_ref(),
-            state_db_ctx.as_ref(),
             runtime_store_path.as_deref(),
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
@@ -4651,7 +4603,6 @@ impl CodexMessageProcessor {
             if let Some(state) = thread.epiphany_state.as_ref() {
                 load_epiphany_role_result_snapshot(
                     state,
-                    state_db_ctx.as_ref(),
                     runtime_store_path.as_deref(),
                     ThreadEpiphanyRoleId::Modeling,
                     EPIPHANY_MODELING_ROLE_BINDING_ID,
@@ -4677,7 +4628,6 @@ impl CodexMessageProcessor {
             if let Some(state) = thread.epiphany_state.as_ref() {
                 load_epiphany_role_result_snapshot(
                     state,
-                    state_db_ctx.as_ref(),
                     runtime_store_path.as_deref(),
                     ThreadEpiphanyRoleId::Verification,
                     EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
@@ -4868,11 +4818,7 @@ impl CodexMessageProcessor {
             launched.epiphany_state,
         )
         .await;
-        let state_db_ctx = loaded_thread.epiphany_state_runtime().await;
-        let job_resolution =
-            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
-                .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+        let job = map_epiphany_jobs(Some(&epiphany_state), None)
             .into_iter()
             .find(|job| job.id == binding_id)
             .unwrap_or_else(|| ThreadEpiphanyJob {
@@ -4995,26 +4941,16 @@ impl CodexMessageProcessor {
             return;
         }
 
-        let (mut state_db_ctx, runtime_store_path) =
-            if let Some(loaded_thread) = loaded_thread.as_ref() {
-                (
-                    loaded_thread.epiphany_state_runtime().await,
-                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
-                )
-            } else {
-                (None, None)
-            };
-        if state_db_ctx.is_none() {
-            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
-        }
-        let job_resolution =
-            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(state)).await;
-        let job = map_epiphany_jobs(Some(state), None, &job_resolution)
+        let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+        } else {
+            None
+        };
+        let job = map_epiphany_jobs(Some(state), None)
             .into_iter()
             .find(|job| job.id == binding_id);
         let (status, finding, note) = load_epiphany_role_result_snapshot(
             state,
-            state_db_ctx.as_ref(),
             runtime_store_path.as_deref(),
             role_id,
             &binding_id,
@@ -5695,35 +5631,18 @@ impl CodexMessageProcessor {
             &watcher,
         );
 
-        let (mut state_db_ctx, runtime_store_path) =
-            if let Some(loaded_thread) = loaded_thread.as_ref() {
-                (
-                    loaded_thread.epiphany_state_runtime().await,
-                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
-                )
-            } else {
-                (None, None)
-            };
-        if state_db_ctx.is_none() {
-            state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
-        }
-        let job_resolution = load_epiphany_job_launcher_snapshots(
-            state_db_ctx.as_ref(),
-            thread.epiphany_state.as_ref(),
-        )
-        .await;
-        let jobs = map_epiphany_jobs(
-            thread.epiphany_state.as_ref(),
-            retrieval_override.as_ref(),
-            &job_resolution,
-        );
+        let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+        } else {
+            None
+        };
+        let jobs = map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref());
         let reorient_job = jobs
             .iter()
             .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
             .cloned();
         let (result_status, finding, result_note) = load_epiphany_reorient_result_snapshot(
             thread.epiphany_state.as_ref(),
-            state_db_ctx.as_ref(),
             runtime_store_path.as_deref(),
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
@@ -5902,11 +5821,7 @@ impl CodexMessageProcessor {
             launched.epiphany_state,
         )
         .await;
-        let state_db_ctx = loaded_thread.epiphany_state_runtime().await;
-        let job_resolution =
-            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
-                .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+        let job = map_epiphany_jobs(Some(&epiphany_state), None)
             .into_iter()
             .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
             .unwrap_or_else(map_epiphany_specialist_job);
@@ -5999,24 +5914,17 @@ impl CodexMessageProcessor {
         };
 
         let state_revision = Some(state.revision);
-        let (state_db_ctx, runtime_store_path) = if let Some(loaded_thread) = loaded_thread.as_ref()
-        {
-            (
-                loaded_thread.epiphany_state_runtime().await,
-                Some(loaded_thread.epiphany_runtime_spine_store_path().await),
-            )
+        let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
+            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
         } else {
-            (None, None)
+            None
         };
-        let job_resolution =
-            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(state)).await;
-        let job = map_epiphany_jobs(Some(state), None, &job_resolution)
+        let job = map_epiphany_jobs(Some(state), None)
             .into_iter()
             .find(|job| job.id == binding_id);
 
         let (status, finding, note) = load_epiphany_reorient_result_snapshot(
             Some(state),
-            state_db_ctx.as_ref(),
             runtime_store_path.as_deref(),
             binding_id.as_str(),
         )
@@ -6786,11 +6694,7 @@ impl CodexMessageProcessor {
         let epiphany_state =
             client_visible_live_thread_epiphany_state(thread.as_ref(), launched.epiphany_state)
                 .await;
-        let state_db_ctx = thread.epiphany_state_runtime().await;
-        let job_resolution =
-            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
-                .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+        let job = map_epiphany_jobs(Some(&epiphany_state), None)
             .into_iter()
             .find(|job| job.id == binding_id)
             .unwrap_or_else(|| ThreadEpiphanyJob {
@@ -6896,11 +6800,7 @@ impl CodexMessageProcessor {
         let epiphany_state =
             client_visible_live_thread_epiphany_state(thread.as_ref(), interrupted.epiphany_state)
                 .await;
-        let state_db_ctx = thread.epiphany_state_runtime().await;
-        let job_resolution =
-            load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&epiphany_state))
-                .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None, &job_resolution)
+        let job = map_epiphany_jobs(Some(&epiphany_state), None)
             .into_iter()
             .find(|job| job.id == binding_id)
             .unwrap_or_else(|| map_epiphany_specialist_job());
@@ -14456,7 +14356,6 @@ fn runtime_job_result_to_reorient_json(result: &EpiphanyRuntimeJobResult) -> ser
 
 async fn load_epiphany_role_result_snapshot(
     state: &EpiphanyThreadState,
-    _state_db_ctx: Option<&StateDbHandle>,
     runtime_store_path: Option<&Path>,
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
@@ -14488,7 +14387,6 @@ async fn load_epiphany_role_result_snapshot(
 
 async fn load_epiphany_reorient_result_snapshot(
     state: Option<&EpiphanyThreadState>,
-    _state_db_ctx: Option<&StateDbHandle>,
     runtime_store_path: Option<&Path>,
     binding_id: &str,
 ) -> (
@@ -17305,9 +17203,6 @@ fn extend_unique_strings(target: &mut Vec<String>, values: impl IntoIterator<Ite
     }
 }
 
-#[derive(Debug, Default, Clone)]
-struct EpiphanyJobLauncherResolution;
-
 fn binding_launcher_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
     binding.launcher_job_id.as_deref()
 }
@@ -17341,7 +17236,6 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         .snapshot(&thread_id_text)
         .await;
     let token_usage_info = thread.token_usage_info().await;
-    let state_db_ctx = thread.epiphany_state_runtime().await;
     let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
 
     let (_state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
@@ -17356,16 +17250,13 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         return;
     }
 
-    let job_resolution =
-        load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(&state)).await;
-    let jobs = map_epiphany_jobs(Some(&state), Some(&retrieval_override), &job_resolution);
+    let jobs = map_epiphany_jobs(Some(&state), Some(&retrieval_override));
     let reorient_job = jobs
         .iter()
         .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
         .cloned();
     let (reorient_result_status, reorient_finding, _) = load_epiphany_reorient_result_snapshot(
         Some(&state),
-        state_db_ctx.as_ref(),
         Some(runtime_store_path.as_path()),
         EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
     )
@@ -17394,7 +17285,6 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     );
     let (modeling_result_status, modeling_finding, _) = load_epiphany_role_result_snapshot(
         &state,
-        state_db_ctx.as_ref(),
         Some(runtime_store_path.as_path()),
         ThreadEpiphanyRoleId::Modeling,
         EPIPHANY_MODELING_ROLE_BINDING_ID,
@@ -17408,7 +17298,6 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         .is_some_and(epiphany_modeling_finding_has_reviewable_state_patch);
     let (verification_result_status, verification_finding, _) = load_epiphany_role_result_snapshot(
         &state,
-        state_db_ctx.as_ref(),
         Some(runtime_store_path.as_path()),
         ThreadEpiphanyRoleId::Verification,
         EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
@@ -17570,17 +17459,9 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
     }
 }
 
-async fn load_epiphany_job_launcher_snapshots(
-    _state_db_ctx: Option<&StateDbHandle>,
-    _state: Option<&EpiphanyThreadState>,
-) -> EpiphanyJobLauncherResolution {
-    EpiphanyJobLauncherResolution::default()
-}
-
 fn map_epiphany_jobs(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
-    _job_resolution: &EpiphanyJobLauncherResolution,
 ) -> Vec<ThreadEpiphanyJob> {
     let mut jobs = vec![
         map_epiphany_index_job(state, retrieval_override),
@@ -22651,11 +22532,7 @@ mod tests {
             ..Default::default()
         };
 
-        let jobs = map_epiphany_jobs(
-            Some(&state),
-            None,
-            &EpiphanyJobLauncherResolution::default(),
-        );
+        let jobs = map_epiphany_jobs(Some(&state), None);
 
         assert_eq!(jobs.len(), 4);
         assert_eq!(jobs[0].id, "retrieval-index");
@@ -22692,11 +22569,7 @@ mod tests {
             ..Default::default()
         };
 
-        let jobs = map_epiphany_jobs(
-            None,
-            Some(&retrieval),
-            &EpiphanyJobLauncherResolution::default(),
-        );
+        let jobs = map_epiphany_jobs(None, Some(&retrieval));
 
         assert_eq!(jobs[0].status, ThreadEpiphanyJobStatus::Idle);
         assert_eq!(jobs[0].items_processed, Some(7));
@@ -22727,11 +22600,7 @@ mod tests {
             ..Default::default()
         };
 
-        let jobs = map_epiphany_jobs(
-            Some(&state),
-            None,
-            &EpiphanyJobLauncherResolution::default(),
-        );
+        let jobs = map_epiphany_jobs(Some(&state), None);
         let specialist = jobs
             .iter()
             .find(|job| job.id == "modeling-checkpoint-worker")
@@ -22856,11 +22725,7 @@ mod tests {
             ..Default::default()
         };
 
-        let jobs = map_epiphany_jobs(
-            Some(&state),
-            None,
-            &EpiphanyJobLauncherResolution::default(),
-        );
+        let jobs = map_epiphany_jobs(Some(&state), None);
         let specialist = jobs
             .iter()
             .find(|job| job.id == "specialist-work")
