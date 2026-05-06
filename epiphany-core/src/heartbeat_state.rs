@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use chrono::Duration;
 use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
@@ -9,6 +10,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
@@ -17,6 +19,7 @@ pub const HEARTBEAT_STATE_KEY: &str = "default";
 pub const HEARTBEAT_STATE_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat.v0";
 pub const HEARTBEAT_STATUS_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat_status.v0";
 pub const INITIATIVE_SCHEMA_VERSION: &str = "ghostlight.initiative_schedule.v0";
+pub const VOID_ROUTINE_SCHEMA_VERSION: &str = "epiphany.void_routine.v0";
 
 const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
 const HEARTBEAT_ARENA_SCENE: &str = "scene";
@@ -193,6 +196,13 @@ pub struct HeartbeatTickOptions {
 pub struct HeartbeatCompleteOptions {
     pub role: String,
     pub action_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct VoidRoutineOptions {
+    pub agent_store: Option<std::path::PathBuf>,
+    pub source: String,
+    pub allow_dream: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -429,7 +439,72 @@ pub fn heartbeat_status_projection(
         "latestEvent": history.last().cloned(),
         "history": history,
         "latestArtifacts": latest_json_artifacts(artifact_dir, artifact_limit),
-        "availableActions": ["init", "tick", "complete", "status"],
+        "sleepCycle": state.sleep_cycle,
+        "memoryResonance": state.memory_resonance,
+        "incubation": state.incubation,
+        "availableActions": ["init", "tick", "complete", "status", "routine"],
+    }))
+}
+
+pub fn run_void_routine_store(
+    store_path: impl AsRef<Path>,
+    artifact_dir: impl AsRef<Path>,
+    options: VoidRoutineOptions,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut state =
+        load_heartbeat_state_entry(store_path)?.unwrap_or_else(|| default_heartbeat_state(1.0));
+    patch_missing_participants(&mut state);
+
+    let memory_records = collect_role_memory_records(options.agent_store.as_deref())?;
+    let resonance = build_memory_resonance(&memory_records);
+    let incubation = build_incubation(&state.incubation, &resonance, &memory_records);
+    let sleep_cycle =
+        update_sleep_cycle(state.sleep_cycle.as_ref(), &incubation, options.allow_dream);
+    let run_id = format!("epiphany-void-routine-{}", now_stamp());
+    let routine = serde_json::json!({
+        "schema_version": VOID_ROUTINE_SCHEMA_VERSION,
+        "runId": run_id,
+        "source": options.source,
+        "referenceLineage": "VoidBot-style room stewardship, sleep, resonance, and dream maintenance rebuilt as Epiphany-native heartbeat physiology.",
+        "storeFile": store_path,
+        "agentStore": options.agent_store,
+        "updatedAt": now_iso(),
+        "sleepCycle": sleep_cycle,
+        "memoryResonance": resonance,
+        "incubation": incubation,
+        "reviewNotes": [
+            "Void is reference material, not a runtime dependency.",
+            "The routine mutates only typed heartbeat physiology fields; project truth and role memory mutation stay on their dedicated reviewed surfaces.",
+            "Sleep is maintenance: slow rumination, memory compression, and dream residue, not absence."
+        ],
+    });
+
+    state.sleep_cycle = Some(sleep_cycle);
+    state.memory_resonance = Some(resonance);
+    state.incubation = Some(incubation);
+    state.extra.insert(
+        "voidRoutine".to_string(),
+        serde_json::json!({
+            "lastRunId": run_id,
+            "lastRunAt": now_iso(),
+            "source": options.source,
+            "referenceLineage": "VoidBot reference; Epiphany-native implementation.",
+        }),
+    );
+    write_heartbeat_state_entry(store_path, &state)?;
+
+    let artifact_dir = artifact_dir.as_ref();
+    fs::create_dir_all(artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let artifact_path = artifact_dir.join(format!("{run_id}.routine.json"));
+    write_json_artifact(&artifact_path, &routine)?;
+
+    Ok(serde_json::json!({
+        "ok": true,
+        "storeFile": store_path,
+        "artifactPath": artifact_path,
+        "routine": routine,
     }))
 }
 
@@ -1122,6 +1197,16 @@ fn latest_json_artifacts(artifact_dir: impl AsRef<Path>, limit: usize) -> Vec<Va
 }
 
 fn artifact_summary(payload: &Value) -> Value {
+    if payload.get("schema_version")
+        == Some(&Value::String(VOID_ROUTINE_SCHEMA_VERSION.to_string()))
+    {
+        return serde_json::json!({
+            "runId": payload.get("runId"),
+            "isNapping": payload.pointer("/sleepCycle/isNapping"),
+            "resonanceCount": payload.pointer("/memoryResonance/pairs").and_then(Value::as_array).map(Vec::len),
+            "incubationCount": payload.pointer("/incubation/themes").and_then(Value::as_array).map(Vec::len),
+        });
+    }
     let event = if payload.get("actionId").is_some() {
         Some(payload)
     } else {
@@ -1280,15 +1365,302 @@ fn rumination_patch(role_id: &str, action_id: &str) -> Value {
     })
 }
 
+#[derive(Clone, Debug)]
+struct RoleMemoryRecord {
+    role_id: String,
+    memory_id: String,
+    summary: String,
+    salience: f64,
+    confidence: f64,
+    tokens: BTreeSet<String>,
+}
+
+fn collect_role_memory_records(agent_store: Option<&Path>) -> Result<Vec<RoleMemoryRecord>> {
+    let Some(agent_store) = agent_store else {
+        return Ok(Vec::new());
+    };
+    let mut records = Vec::new();
+    for role_id in ROLE_ORDER {
+        let Some(entry) =
+            crate::agent_memory::load_agent_memory_entry_for_role(agent_store, role_id)?
+        else {
+            continue;
+        };
+        for memory in entry
+            .agent
+            .memories
+            .semantic
+            .iter()
+            .chain(entry.agent.memories.episodic.iter())
+            .chain(entry.agent.memories.relationship_summaries.iter())
+        {
+            let tokens = summary_tokens(&memory.summary);
+            if tokens.is_empty() {
+                continue;
+            }
+            records.push(RoleMemoryRecord {
+                role_id: (*role_id).to_string(),
+                memory_id: memory.memory_id.clone(),
+                summary: memory.summary.clone(),
+                salience: memory.salience,
+                confidence: memory.confidence,
+                tokens,
+            });
+        }
+    }
+    records.sort_by(|left, right| {
+        (right.salience * right.confidence)
+            .total_cmp(&(left.salience * left.confidence))
+            .then_with(|| left.role_id.cmp(&right.role_id))
+            .then_with(|| left.memory_id.cmp(&right.memory_id))
+    });
+    records.truncate(48);
+    Ok(records)
+}
+
+fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
+    let mut pairs = Vec::new();
+    for (left_index, left) in records.iter().enumerate() {
+        for right in records.iter().skip(left_index + 1) {
+            if left.role_id == right.role_id {
+                continue;
+            }
+            let overlap = token_overlap(&left.tokens, &right.tokens);
+            if overlap <= 0.0 {
+                continue;
+            }
+            let strength = round3(
+                overlap * ((left.salience * left.confidence) + (right.salience * right.confidence))
+                    / 2.0,
+            );
+            if strength < 0.08 {
+                continue;
+            }
+            pairs.push(serde_json::json!({
+                "leftRole": left.role_id,
+                "leftMemoryId": left.memory_id,
+                "leftSummary": left.summary,
+                "rightRole": right.role_id,
+                "rightMemoryId": right.memory_id,
+                "rightSummary": right.summary,
+                "strength": strength,
+                "sharedTokens": shared_tokens(&left.tokens, &right.tokens),
+            }));
+        }
+    }
+    pairs.sort_by(|left, right| {
+        right["strength"]
+            .as_f64()
+            .unwrap_or_default()
+            .total_cmp(&left["strength"].as_f64().unwrap_or_default())
+    });
+    pairs.truncate(8);
+    serde_json::json!({
+        "schema_version": "epiphany.memory_resonance.v0",
+        "updatedAt": now_iso(),
+        "source": "epiphany-native-void-routine",
+        "recordCount": records.len(),
+        "pairs": pairs,
+    })
+}
+
+fn build_incubation(
+    previous: &Option<Value>,
+    resonance: &Value,
+    records: &[RoleMemoryRecord],
+) -> Value {
+    let mut themes = previous
+        .as_ref()
+        .and_then(|value| value.get("themes"))
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    for pair in resonance
+        .get("pairs")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(4)
+    {
+        let left_role = pair
+            .get("leftRole")
+            .and_then(Value::as_str)
+            .unwrap_or("left");
+        let right_role = pair
+            .get("rightRole")
+            .and_then(Value::as_str)
+            .unwrap_or("right");
+        let tokens = pair
+            .get("sharedTokens")
+            .and_then(Value::as_array)
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .take(3)
+                    .collect::<Vec<_>>()
+                    .join("/")
+            })
+            .unwrap_or_default();
+        themes.push(serde_json::json!({
+            "themeId": format!("theme-{left_role}-{right_role}-{}", stable_theme_suffix(&tokens)),
+            "summary": format!("{left_role} and {right_role} keep touching {tokens}; let the swarm dream on whether that is signal or stale echo."),
+            "strength": pair.get("strength").cloned().unwrap_or(Value::Null),
+            "source": "memory_resonance",
+            "updatedAt": now_iso(),
+        }));
+    }
+    if themes.is_empty() && !records.is_empty() {
+        let strongest = &records[0];
+        themes.push(serde_json::json!({
+            "themeId": format!("theme-{}-strongest-memory", strongest.role_id),
+            "summary": format!("{} carries the hottest current memory: {}", display_name_for_role(&strongest.role_id), strongest.summary),
+            "strength": round3(strongest.salience * strongest.confidence),
+            "source": "strongest_memory",
+            "updatedAt": now_iso(),
+        }));
+    }
+    themes.sort_by(|left, right| {
+        right["strength"]
+            .as_f64()
+            .unwrap_or_default()
+            .total_cmp(&left["strength"].as_f64().unwrap_or_default())
+    });
+    themes.dedup_by(|left, right| left.get("themeId") == right.get("themeId"));
+    themes.truncate(12);
+    serde_json::json!({
+        "schema_version": "epiphany.incubation.v0",
+        "updatedAt": now_iso(),
+        "themes": themes,
+    })
+}
+
+fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream: bool) -> Value {
+    let cycle_hours = previous
+        .and_then(|value| value.get("cycleHours"))
+        .and_then(Value::as_i64)
+        .unwrap_or(4)
+        .clamp(2, 12);
+    let nap_duration_minutes = previous
+        .and_then(|value| value.get("napDurationMinutes"))
+        .and_then(Value::as_i64)
+        .unwrap_or(60)
+        .clamp(15, cycle_hours * 60 - 5);
+    let phase_offset_minutes = previous
+        .and_then(|value| value.get("phaseOffsetMinutesLocal"))
+        .and_then(Value::as_i64)
+        .unwrap_or(120)
+        .clamp(0, cycle_hours * 60 - 1);
+    let now = chrono::Utc::now();
+    let cycle_minutes = cycle_hours * 60;
+    let shifted = now.timestamp().div_euclid(60) - phase_offset_minutes;
+    let minute_in_cycle = shifted.rem_euclid(cycle_minutes);
+    let is_napping = minute_in_cycle < nap_duration_minutes;
+    let cycle_start_minute = shifted - minute_in_cycle + phase_offset_minutes;
+    let nap_start =
+        chrono::DateTime::<chrono::Utc>::from_timestamp(cycle_start_minute * 60, 0).unwrap_or(now);
+    let nap_end = nap_start + Duration::minutes(nap_duration_minutes);
+    let next_nap_start = if is_napping {
+        nap_start + Duration::minutes(cycle_minutes)
+    } else if minute_in_cycle >= nap_duration_minutes {
+        nap_start + Duration::minutes(cycle_minutes)
+    } else {
+        nap_start
+    };
+    let active_themes = incubation
+        .get("themes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|theme| theme.get("themeId").and_then(Value::as_str))
+        .take(4)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let previous_dream_count = previous
+        .and_then(|value| value.get("dreamCountInCurrentNap"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    let dream_count = if is_napping && allow_dream {
+        previous_dream_count.saturating_add(1)
+    } else if is_napping {
+        previous_dream_count
+    } else {
+        0
+    };
+    serde_json::json!({
+        "schema_version": "epiphany.sleep_cycle.v0",
+        "enabled": true,
+        "cycleHours": cycle_hours,
+        "napDurationMinutes": nap_duration_minutes,
+        "phaseOffsetMinutesLocal": phase_offset_minutes,
+        "replyMode": "sleep_rumination",
+        "isNapping": is_napping,
+        "currentNapStartedAt": if is_napping { Some(nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { None },
+        "currentNapEndsAt": if is_napping { Some(nap_end.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { None },
+        "nextNapStartsAt": next_nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "lastDreamAt": if is_napping && allow_dream { Some(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { previous.and_then(|value| value.get("lastDreamAt")).cloned().and_then(|value| value.as_str().map(str::to_string)) },
+        "dreamCountInCurrentNap": dream_count,
+        "activeDreamThemes": active_themes,
+        "lastDistillationSummary": if is_napping {
+            "Sleep pass prefers memory compression, resonance cooling, and dream residue over active work."
+        } else {
+            "Awake pass keeps resonance/incubation fresh without speaking unless Face has a real surface reason."
+        },
+    })
+}
+
+fn summary_tokens(summary: &str) -> BTreeSet<String> {
+    summary
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .map(|part| part.trim().to_ascii_lowercase())
+        .filter(|part| part.len() >= 4 && !STOP_WORDS.contains(&part.as_str()))
+        .collect()
+}
+
+fn token_overlap(left: &BTreeSet<String>, right: &BTreeSet<String>) -> f64 {
+    let shared = left.intersection(right).count() as f64;
+    if shared == 0.0 {
+        return 0.0;
+    }
+    let union = left.union(right).count() as f64;
+    if union <= 0.0 { 0.0 } else { shared / union }
+}
+
+fn shared_tokens(left: &BTreeSet<String>, right: &BTreeSet<String>) -> Vec<String> {
+    left.intersection(right).take(8).cloned().collect()
+}
+
+fn stable_theme_suffix(value: &str) -> String {
+    let mut hash = 5381_u64;
+    for byte in value.as_bytes() {
+        hash = ((hash << 5).wrapping_add(hash)).wrapping_add(*byte as u64);
+    }
+    format!("{:x}", hash & 0xffff)
+}
+
 fn now_iso() -> String {
     chrono::Utc::now()
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
         .replace('Z', "+00:00")
 }
 
+fn now_stamp() -> String {
+    chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string()
+}
+
 fn round6(value: f64) -> f64 {
     (value * 1_000_000.0).round() / 1_000_000.0
 }
+
+fn round3(value: f64) -> f64 {
+    (value * 1_000.0).round() / 1_000.0
+}
+
+const STOP_WORDS: &[&str] = &[
+    "about", "after", "agent", "before", "being", "between", "could", "from", "have", "into",
+    "lane", "memory", "more", "must", "should", "state", "than", "that", "their", "there", "this",
+    "through", "when", "with", "work",
+];
 
 fn agent_id_for_role(role_id: &str) -> &'static str {
     match role_id {

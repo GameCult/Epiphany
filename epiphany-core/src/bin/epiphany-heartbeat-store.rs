@@ -4,12 +4,14 @@ use anyhow::anyhow;
 use epiphany_core::GhostlightSceneParticipantSeed;
 use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatTickOptions;
+use epiphany_core::VoidRoutineOptions;
 use epiphany_core::apply_agent_self_patch;
 use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_heartbeat_state_entry;
+use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::validate_agent_memory_store;
 use std::env;
@@ -40,6 +42,8 @@ fn main() -> Result<()> {
     let mut profile = "epiphany".to_string();
     let mut scene_id = "ghostlight.scene".to_string();
     let mut scene_participants = Vec::<GhostlightSceneParticipantSeed>::new();
+    let mut source = "epiphany/void-routine".to_string();
+    let mut no_dream = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -66,6 +70,8 @@ fn main() -> Result<()> {
             "--scene-participant" => scene_participants.push(parse_scene_participant(
                 &next_value(&mut args, "--scene-participant")?,
             )?),
+            "--source" => source = next_value(&mut args, "--source")?,
+            "--no-dream" => no_dream = true,
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -171,6 +177,30 @@ fn main() -> Result<()> {
                 );
             }
         }
+        "routine" => {
+            let store_path = store_path.ok_or_else(|| anyhow!("routine requires --store"))?;
+            let artifact_dir =
+                artifact_dir.ok_or_else(|| anyhow!("routine requires --artifact-dir"))?;
+            if let Some(agent_store) = &agent_store {
+                let errors = validate_agent_memory_store(agent_store)?;
+                if !errors.is_empty() {
+                    return Err(anyhow!(
+                        "agent memory validation failed: {}",
+                        errors.join("; ")
+                    ));
+                }
+            }
+            let result = run_void_routine_store(
+                &store_path,
+                &artifact_dir,
+                VoidRoutineOptions {
+                    agent_store,
+                    source,
+                    allow_dream: !no_dream,
+                },
+            )?;
+            println!("{}", result);
+        }
         "smoke" => {
             let agent_store = agent_store.unwrap_or_else(|| PathBuf::from("state/agents.msgpack"));
             let result = run_smoke(&agent_store)?;
@@ -197,7 +227,7 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
 }
 
@@ -316,6 +346,16 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
 
     let validation_errors = validate_agent_memory_store(&temp_agent_store)?;
     let status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
+    let routine = run_void_routine_store(
+        &store_path,
+        &artifact_dir,
+        VoidRoutineOptions {
+            agent_store: Some(temp_agent_store.clone()),
+            source: "smoke/void-routine".to_string(),
+            allow_dream: true,
+        },
+    )?;
+    let routine_status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
     let initiative_errors = validate_schedule_shape(&work["schedule"])
         .into_iter()
         .chain(validate_schedule_shape(&idle["schedule"]))
@@ -338,7 +378,12 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         && artifact_dir.join("smoke-work.initiative.json").exists()
         && artifact_dir.join("smoke-work.completion.json").exists()
         && artifact_dir.join("smoke-idle.rumination.json").exists()
-        && status["participants"].as_array().map(Vec::len) == Some(8);
+        && status["participants"].as_array().map(Vec::len) == Some(8)
+        && routine["routine"]["schema_version"] == "epiphany.void_routine.v0"
+        && routine["routine"]["memoryResonance"]["schema_version"]
+            == "epiphany.memory_resonance.v0"
+        && routine["routine"]["incubation"]["schema_version"] == "epiphany.incubation.v0"
+        && routine_status["sleepCycle"]["schema_version"] == "epiphany.sleep_cycle.v0";
 
     let result = serde_json::json!({
         "ok": ok,
@@ -347,6 +392,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         "completionEvent": completed["event"],
         "idleEvent": idle["event"],
         "idleRumination": idle["rumination"],
+        "voidRoutine": routine["routine"],
         "validationErrors": validation_errors,
         "initiativeErrors": initiative_errors,
     });
