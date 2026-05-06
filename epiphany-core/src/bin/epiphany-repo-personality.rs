@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use chrono::Utc;
 use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
@@ -21,6 +22,9 @@ const TERRAIN_SCHEMA_VERSION: &str = "epiphany.repo_terrain_report.v0";
 const PROFILE_SCHEMA_VERSION: &str = "epiphany.repo_personality_profile.v0";
 const ROLE_PROJECTION_SCHEMA_VERSION: &str = "epiphany.role_personality_projection.v0";
 const ARTIFACT_SCHEMA_VERSION: &str = "epiphany.repo_personality_artifacts.v0";
+const DISTILLER_PACKET_SCHEMA_VERSION: &str = "epiphany.repo_personality_distiller_packet.v0";
+const REPO_PERSONALITY_DISTILLER_PROMPT: &str =
+    include_str!("../prompts/repo_personality_distiller.md");
 
 const ROLES: &[&str] = &[
     "coordinator",
@@ -197,6 +201,7 @@ fn main() -> Result<()> {
     let result = match command.as_str() {
         "scout" => run_scout(parse_scout_args(args)?),
         "project" => run_project(parse_project_args(args)?),
+        "agent-packet" => run_agent_packet(parse_agent_packet_args(args)?),
         "status" => run_status(parse_status_args(args)?),
         other => Err(anyhow!("unknown command {other:?}")),
     }?;
@@ -221,6 +226,13 @@ struct ProjectArgs {
 #[derive(Clone, Debug)]
 struct StatusArgs {
     store: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+struct AgentPacketArgs {
+    store: PathBuf,
+    artifact_dir: PathBuf,
+    repo_id: Option<String>,
 }
 
 fn parse_scout_args(args: impl Iterator<Item = String>) -> Result<ScoutArgs> {
@@ -286,6 +298,32 @@ fn parse_status_args(args: impl Iterator<Item = String>) -> Result<StatusArgs> {
     })?;
     Ok(StatusArgs {
         store: store.context("missing --store")?,
+    })
+}
+
+fn parse_agent_packet_args(args: impl Iterator<Item = String>) -> Result<AgentPacketArgs> {
+    let mut store = None;
+    let mut artifact_dir = None;
+    let mut repo_id = None;
+    parse_named_args(args, |name, value| match name {
+        "--store" => {
+            store = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--artifact-dir" => {
+            artifact_dir = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--repo-id" => {
+            repo_id = Some(value);
+            Ok(())
+        }
+        other => Err(anyhow!("unexpected agent-packet argument {other}")),
+    })?;
+    Ok(AgentPacketArgs {
+        store: store.context("missing --store")?,
+        artifact_dir: artifact_dir.context("missing --artifact-dir")?,
+        repo_id,
     })
 }
 
@@ -419,6 +457,105 @@ fn run_status(args: StatusArgs) -> Result<Value> {
         "roleProjections": projections.len(),
         "repos": reports.iter().map(report_summary).collect::<Vec<_>>(),
     }))
+}
+
+fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
+    fs::create_dir_all(&args.artifact_dir)
+        .with_context(|| format!("failed to create {}", args.artifact_dir.display()))?;
+    let mut cache = repo_personality_cache(&args.store)?;
+    cache.pull_all_backing_stores()?;
+    let reports = cache.get_all::<RepoTerrainReport>()?;
+    let profiles = cache.get_all::<RepoPersonalityProfile>()?;
+    let projections = cache.get_all::<RolePersonalityProjection>()?;
+    let profile = select_profile(&profiles, args.repo_id.as_deref())?;
+    let report = reports
+        .iter()
+        .find(|report| report.repo_id == profile.repo_id)
+        .ok_or_else(|| {
+            anyhow!(
+                "store has profile {:?} but no terrain report",
+                profile.repo_id
+            )
+        })?;
+    let role_projections: Vec<_> = projections
+        .iter()
+        .filter(|projection| projection.repo_id == profile.repo_id)
+        .collect();
+    let packet = json!({
+        "schemaVersion": DISTILLER_PACKET_SCHEMA_VERSION,
+        "createdAt": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "store": args.store,
+        "repoId": profile.repo_id,
+        "prompt": REPO_PERSONALITY_DISTILLER_PROMPT,
+        "input": {
+            "repoTerrainReport": report_agent_input(report),
+            "repoPersonalityProfile": profile_agent_input(profile),
+            "rolePersonalityProjections": role_projections
+                .iter()
+                .map(|projection| role_projection_agent_input(projection))
+                .collect::<Vec<_>>(),
+        },
+        "expectedOutput": {
+            "verdict": "ready-for-review | needs-more-terrain | reject",
+            "summary": "short repo personality pressure summary",
+            "confidence": "0.0..1.0",
+            "roleQuirks": [],
+            "selfPatchCandidates": [],
+            "startupDrift": null,
+            "doNotMutate": [],
+            "nextSafeMove": "Self reviews candidate pressure deltas before mutation."
+        },
+        "guardrails": [
+            "This packet is input to a specialist agent, not accepted truth.",
+            "Repo facts stay in terrain/model/planning/evidence surfaces.",
+            "Role memory may receive only subtle, bounded, Self-reviewed personality pressure.",
+            "No objectives, file lists, raw transcripts, code edits, or authority claims in selfPatch."
+        ]
+    });
+    let packet_path = args
+        .artifact_dir
+        .join("repo-personality-distiller-packet.json");
+    let prompt_path = args
+        .artifact_dir
+        .join("repo-personality-distiller-prompt.md");
+    let summary_path = args
+        .artifact_dir
+        .join("repo-personality-distiller-packet.md");
+    write_json(&packet_path, &packet)?;
+    write_text(&prompt_path, REPO_PERSONALITY_DISTILLER_PROMPT)?;
+    write_text(
+        &summary_path,
+        &render_agent_packet_markdown(report, profile, role_projections.len()),
+    )?;
+    Ok(json!({
+        "schemaVersion": DISTILLER_PACKET_SCHEMA_VERSION,
+        "mode": "agent-packet",
+        "repoId": profile.repo_id,
+        "artifactDir": args.artifact_dir,
+        "packetPath": packet_path,
+        "promptPath": prompt_path,
+        "summaryPath": summary_path,
+        "roleProjectionCount": role_projections.len(),
+    }))
+}
+
+fn select_profile<'a>(
+    profiles: &'a [RepoPersonalityProfile],
+    repo_id: Option<&str>,
+) -> Result<&'a RepoPersonalityProfile> {
+    if let Some(repo_id) = repo_id {
+        return profiles
+            .iter()
+            .find(|profile| profile.repo_id == repo_id)
+            .ok_or_else(|| anyhow!("no profile for repo id {repo_id:?}"));
+    }
+    match profiles {
+        [profile] => Ok(profile),
+        [] => Err(anyhow!("store has no repo personality profiles")),
+        _ => Err(anyhow!(
+            "store has multiple profiles; pass --repo-id to choose one"
+        )),
+    }
 }
 
 fn repo_personality_cache(path: &Path) -> Result<CultCache> {
@@ -1470,6 +1607,58 @@ fn profile_summary(profile: &RepoPersonalityProfile) -> Value {
     })
 }
 
+fn report_agent_input(report: &RepoTerrainReport) -> Value {
+    json!({
+        "schemaVersion": report.schema_version,
+        "repoId": report.repo_id,
+        "name": report.name,
+        "path": report.path,
+        "remoteUrls": report.remote_urls,
+        "sourceFamilies": report.source_families,
+        "languages": report.languages,
+        "stateSurfaces": report.state_surfaces,
+        "instructionSurfaces": report.instruction_surfaces,
+        "testSurfaces": report.test_surfaces,
+        "runtimeSurfaces": report.runtime_surfaces,
+        "historyMetrics": report.history_metrics,
+        "axisScores": report.axis_scores,
+        "axisEvidence": report.axis_evidence,
+        "confidence": report.confidence,
+        "warnings": report.warnings,
+    })
+}
+
+fn profile_agent_input(profile: &RepoPersonalityProfile) -> Value {
+    json!({
+        "schemaVersion": profile.schema_version,
+        "repoId": profile.repo_id,
+        "summary": profile.summary,
+        "sourceFamilyWeights": profile.source_family_weights,
+        "axisScores": profile.axis_scores,
+        "axisConfidence": profile.axis_confidence,
+        "dominantPressures": profile.dominant_pressures,
+        "riskPressures": profile.risk_pressures,
+    })
+}
+
+fn role_projection_agent_input(projection: &RolePersonalityProjection) -> Value {
+    json!({
+        "schemaVersion": projection.schema_version,
+        "projectionId": projection.projection_id,
+        "repoId": projection.repo_id,
+        "roleId": projection.role_id,
+        "traitDeltas": projection.trait_deltas,
+        "heartbeatDeltas": projection.heartbeat_deltas,
+        "defaultMoodPressure": projection.default_mood_pressure,
+        "semanticMemoryCandidates": projection.semantic_memory_candidates,
+        "goalCandidates": projection.goal_candidates,
+        "valueCandidates": projection.value_candidates,
+        "privateNoteCandidates": projection.private_note_candidates,
+        "reason": projection.reason,
+        "evidenceRefs": projection.evidence_refs,
+    })
+}
+
 fn render_scout_markdown(
     reports: &[RepoTerrainReport],
     profiles: &[RepoPersonalityProfile],
@@ -1518,6 +1707,44 @@ fn render_project_markdown(report: &RepoTerrainReport, profile: &RepoPersonality
             serde_json::to_string(&projection.default_mood_pressure).unwrap_or_default()
         ));
     }
+    out
+}
+
+fn render_agent_packet_markdown(
+    report: &RepoTerrainReport,
+    profile: &RepoPersonalityProfile,
+    role_projection_count: usize,
+) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "# Repo Personality Distiller Packet: {}\n\n",
+        report.name
+    ));
+    out.push_str("This packet is input to the Repo Personality Distiller specialist. It is not accepted truth.\n\n");
+    out.push_str("## Prompt\n\n");
+    out.push_str("See `repo-personality-distiller-prompt.md`.\n\n");
+    out.push_str("## Profile\n\n");
+    out.push_str(&format!("- Repo id: `{}`\n", profile.repo_id));
+    out.push_str(&format!("- Summary: {}\n", profile.summary));
+    out.push_str(&format!(
+        "- Dominant pressures: {}\n",
+        profile.dominant_pressures.join(", ")
+    ));
+    out.push_str(&format!(
+        "- Risk pressures: {}\n",
+        profile.risk_pressures.join(", ")
+    ));
+    out.push_str(&format!(
+        "- Role projections: {}\n\n",
+        role_projection_count
+    ));
+    out.push_str("## Guardrails\n\n");
+    out.push_str("- The distiller petitions Self; it does not mutate memory.\n");
+    out.push_str("- Repo facts stay out of selfPatch and remain in terrain, graph, planning, evidence, or checkpoint artifacts.\n");
+    out.push_str("- Personality pressure must be role-local, subtle, bounded, and reviewable.\n");
+    out.push_str(
+        "- Low confidence becomes a request for more terrain, not a permanent personality brand.\n",
+    );
     out
 }
 
@@ -1571,9 +1798,10 @@ fn round3(value: f64) -> f64 {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-repo-personality <scout|project|status> ...\n\
+        "usage: epiphany-repo-personality <scout|project|agent-packet|status> ...\n\
          scout --root <path> --artifact-dir <path> [--max-repos <n>]\n\
          project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>\n\
+         agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          status --store <baseline-or-projection.msgpack>"
     );
 }

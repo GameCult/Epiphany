@@ -493,6 +493,7 @@ It provides:
 
 - `scout --root <path> --artifact-dir <path> [--max-repos <n>]`
 - `project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>`
+- `agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
 - `status --store <baseline-or-projection.msgpack>`
 
 The first implementation is intentionally deterministic. It inventories git
@@ -507,18 +508,28 @@ and emits typed CultCache MessagePack records:
 It also writes JSON/Markdown inspection summaries beside the typed stores.
 Those exports are operator glass, not the source of truth.
 
+The startup-personality organ now has a dedicated distiller prompt at
+`epiphany-core/src/prompts/repo_personality_distiller.md`, mirrored into the
+app-server specialist prompt config as `roles.repo_personality`. The
+`agent-packet` command renders the prompt, the typed terrain/profile/projection
+input, explicit output contract, and guardrails into an auditable packet for a
+specialist pass. The distiller is allowed to petition Self with subtle
+role-local quirks and bounded `selfPatch` candidates; it is not allowed to
+mutate role memory, smuggle repo facts into personality, or invent project
+truth.
+
 Smoke coverage lives in
 `epiphany-core/src/bin/epiphany-repo-personality-smoke.rs`. The smoke creates two
 tiny git repos, scouts them into a baseline store, projects one repo, and proves
-the projection store contains one terrain report, one profile, and all eight
-standing role projections.
+the projection store contains one terrain report, one profile, all eight
+standing role projections, and a rendered distiller packet plus prompt.
 
 ## Next Implementation Step
 
 Wire `epiphany-repo-personality` into startup protocol:
 
-1. typed structs for terrain reports, personality profiles, and role projections
-2. drift detection against last accepted terrain input hashes
+1. drift detection against last accepted terrain input hashes
+2. startup/heartbeat launch routing for the repo-personality distiller packet
 3. Self-reviewed application into role memory through existing `selfPatch`
    policy
 4. heartbeat seed generation for personality/mood timing

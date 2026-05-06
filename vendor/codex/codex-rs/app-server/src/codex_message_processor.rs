@@ -13012,6 +13012,8 @@ struct EpiphanyRolePromptConfig {
     #[allow(dead_code)]
     research: String,
     #[allow(dead_code)]
+    repo_personality: String,
+    #[allow(dead_code)]
     face: String,
 }
 

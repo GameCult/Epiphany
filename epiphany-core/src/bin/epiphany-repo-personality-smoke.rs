@@ -90,6 +90,36 @@ fn run_smoke() -> Result<Value> {
         "project should write typed projection store",
     )?;
 
+    let packet = run_personality(
+        &root,
+        &[
+            "agent-packet",
+            "--store",
+            store.to_str().unwrap_or_default(),
+            "--artifact-dir",
+            artifacts.join("cult-packet").to_str().unwrap_or_default(),
+        ],
+    )?;
+    require(
+        packet["roleProjectionCount"] == 8,
+        "agent packet should carry eight role projections",
+    )?;
+    let packet_path = path_value(&packet, "packetPath")?;
+    let prompt_path = path_value(&packet, "promptPath")?;
+    let packet_summary_path = path_value(&packet, "summaryPath")?;
+    require(
+        packet_path.exists(),
+        "agent packet should write packet json",
+    )?;
+    require(
+        prompt_path.exists(),
+        "agent packet should write prompt markdown",
+    )?;
+    require(
+        packet_summary_path.exists(),
+        "agent packet should write summary markdown",
+    )?;
+
     let status = run_personality(
         &root,
         &["status", "--store", store.to_str().unwrap_or_default()],
@@ -114,6 +144,9 @@ fn run_smoke() -> Result<Value> {
         "loreRepo": lore_repo,
         "baseline": baseline,
         "projectionStore": store,
+        "packetPath": packet_path,
+        "promptPath": prompt_path,
+        "packetSummaryPath": packet_summary_path,
         "repoCount": scout["repoCount"],
         "roleProjections": status["roleProjections"],
     }))
@@ -172,9 +205,6 @@ fn native_personality_exe() -> Result<PathBuf> {
 }
 
 fn ensure_built(root: &Path, bin: &str, exe: &Path) -> Result<()> {
-    if exe.exists() {
-        return Ok(());
-    }
     let status = Command::new("cargo")
         .current_dir(root)
         .arg("build")
