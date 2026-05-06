@@ -4,7 +4,10 @@ use anyhow::anyhow;
 use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
+use cultnet_rs::CultNetDocumentMutationContract;
+use cultnet_rs::CultNetDocumentOperation;
 use cultnet_rs::CultNetMessage;
+use cultnet_rs::CultNetMutationAuthority;
 use cultnet_rs::CultNetWireContract;
 use cultnet_rs::encode_cultnet_message_to_vec;
 use cultnet_rs::encode_frame;
@@ -613,12 +616,16 @@ pub fn runtime_hello_frame(store_path: impl AsRef<Path>) -> Result<Vec<u8>> {
         role: Some("coordinator".to_string()),
         display_name: Some(identity.display_name),
         supported_document_types: Some(identity.supported_document_types),
+        supported_mutation_contracts: Some(epiphany_mutation_contracts()),
         supported_message_versions: Some(vec![
             "cultnet.hello.v0".to_string(),
             "cultnet.document_put.v0".to_string(),
             "cultnet.snapshot_request.v0".to_string(),
             "cultnet.snapshot_response.v0".to_string(),
+            "cultnet.schema_catalog_request.v0".to_string(),
+            "cultnet.schema_catalog_response.v0".to_string(),
         ]),
+        supports_schema_catalog: Some(true),
     };
     let payload = encode_cultnet_message_to_vec(&message, CultNetWireContract::CultNetSchemaV0)?;
     encode_frame(&payload)
@@ -655,6 +662,142 @@ fn supported_runtime_document_types() -> Vec<String> {
         "epiphany.agent.memory".to_string(),
         "epiphany.heartbeat.state".to_string(),
         "epiphany.state_ledger".to_string(),
+    ]
+}
+
+fn mutation_contract(
+    document_type: impl Into<String>,
+    payload_schema_version: impl Into<String>,
+    operations: Vec<CultNetDocumentOperation>,
+    authority: CultNetMutationAuthority,
+    intent_document_types: Vec<&str>,
+    receipt_document_types: Vec<&str>,
+    notes: Vec<&str>,
+) -> CultNetDocumentMutationContract {
+    CultNetDocumentMutationContract {
+        document_type: document_type.into(),
+        payload_schema_version: Some(payload_schema_version.into()),
+        operations,
+        authority,
+        intent_document_types: (!intent_document_types.is_empty()).then(|| {
+            intent_document_types
+                .into_iter()
+                .map(str::to_string)
+                .collect()
+        }),
+        receipt_document_types: (!receipt_document_types.is_empty()).then(|| {
+            receipt_document_types
+                .into_iter()
+                .map(str::to_string)
+                .collect()
+        }),
+        notes: (!notes.is_empty()).then(|| notes.into_iter().map(str::to_string).collect()),
+    }
+}
+
+fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
+    vec![
+        mutation_contract(
+            RUNTIME_IDENTITY_TYPE,
+            RUNTIME_SPINE_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Runtime identity is advertised by the coordinator, not remotely mutated."],
+        ),
+        mutation_contract(
+            RUNTIME_SESSION_TYPE,
+            RUNTIME_SPINE_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec!["epiphany.runtime.session_intent.v0"],
+            vec!["epiphany.swarm_control_receipt.v0"],
+            vec!["Sessions change through coordinator-reviewed typed intents."],
+        ),
+        mutation_contract(
+            RUNTIME_JOB_TYPE,
+            RUNTIME_SPINE_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec!["epiphany.heartbeat_pump_intent.v0"],
+            vec!["epiphany.swarm_control_receipt.v0"],
+            vec![
+                "Heartbeat activation owns agent work; external callers submit intents and watch receipts.",
+            ],
+        ),
+        mutation_contract(
+            RUNTIME_JOB_RESULT_TYPE,
+            RUNTIME_SPINE_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Job results are evidence records; review and acceptance are separate typed flows.",
+            ],
+        ),
+        mutation_contract(
+            RUNTIME_EVENT_TYPE,
+            RUNTIME_SPINE_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Runtime events are append-only projections for inspection."],
+        ),
+        mutation_contract(
+            "epiphany.agent.memory",
+            "ghostlight.agent_state.v0",
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec!["epiphany.agent_memory_intent.v0"],
+            vec!["epiphany.swarm_control_receipt.v0"],
+            vec![
+                "Sub-agents request memory mutations; the coordinator accepts, rejects, or explains the refusal.",
+            ],
+        ),
+        mutation_contract(
+            "epiphany.heartbeat.state",
+            "epiphany.agent_heartbeat.v0",
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![
+                "epiphany.heartbeat_pump_intent.v0",
+                "epiphany.circadian_rhythm_intent.v0",
+            ],
+            vec!["epiphany.swarm_control_receipt.v0"],
+            vec![
+                "Aquarium controls heartbeat and circadian rhythm through typed intents, not blind state replacement.",
+            ],
+        ),
+        mutation_contract(
+            "epiphany.state_ledger",
+            "epiphany.state_ledger.v0",
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "The ledger is inspected as durable memory; writes are mediated by role-specific state flows.",
+            ],
+        ),
     ]
 }
 
@@ -823,6 +966,7 @@ mod tests {
                 runtime_id,
                 runtime_kind,
                 supported_document_types,
+                supported_mutation_contracts,
                 ..
             } => {
                 assert_eq!(runtime_id, "epiphany-test");
@@ -831,6 +975,20 @@ mod tests {
                     supported_document_types
                         .unwrap()
                         .contains(&RUNTIME_JOB_RESULT_TYPE.to_string())
+                );
+                let contracts = supported_mutation_contracts.unwrap();
+                let heartbeat_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == "epiphany.heartbeat.state")
+                    .expect("heartbeat state should advertise mutation contract");
+                assert_eq!(
+                    heartbeat_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    heartbeat_contract
+                        .operations
+                        .contains(&CultNetDocumentOperation::IntentSubmit)
                 );
             }
             other => panic!("expected hello, got {other:?}"),
