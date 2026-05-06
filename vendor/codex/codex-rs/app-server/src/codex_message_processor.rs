@@ -17325,13 +17325,6 @@ fn binding_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
         .or(binding.runtime_agent_job_id.as_deref())
 }
 
-fn binding_agent_jobs_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
-    match binding_backend_kind(binding) {
-        Some(CoreEpiphanyJobBackendKind::AgentJobs) => binding_backend_job_id(binding),
-        Some(CoreEpiphanyJobBackendKind::Heartbeat) | None => None,
-    }
-}
-
 pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     thread_id: ThreadId,
     thread: Arc<CodexThread>,
@@ -17632,13 +17625,13 @@ fn map_epiphany_bound_job(binding: &EpiphanyJobBinding) -> ThreadEpiphanyJob {
             launcher_job_id: binding_launcher_job_id(binding).map(str::to_string),
             authority_scope: binding.authority_scope.clone(),
             backend_kind: binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind),
-            backend_job_id: binding_backend_job_id(binding).map(str::to_string),
+            backend_job_id: binding_projected_backend_job_id(binding).map(str::to_string),
             status: if binding.blocking_reason.is_some() {
                 ThreadEpiphanyJobStatus::Blocked
             } else {
                 ThreadEpiphanyJobStatus::Idle
             },
-            runtime_agent_job_id: binding_agent_jobs_job_id(binding).map(str::to_string),
+            runtime_agent_job_id: None,
             items_processed: None,
             items_total: None,
             progress_note: None,
@@ -17662,8 +17655,8 @@ fn overlay_epiphany_job_binding(
     job.launcher_job_id = binding_launcher_job_id(binding).map(str::to_string);
     job.authority_scope = binding.authority_scope.clone();
     job.backend_kind = binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind);
-    job.backend_job_id = binding_backend_job_id(binding).map(str::to_string);
-    job.runtime_agent_job_id = binding_agent_jobs_job_id(binding).map(str::to_string);
+    job.backend_job_id = binding_projected_backend_job_id(binding).map(str::to_string);
+    job.runtime_agent_job_id = None;
     if !binding.linked_subgoal_ids.is_empty() {
         job.linked_subgoal_ids = binding.linked_subgoal_ids.clone();
     }
@@ -17695,15 +17688,21 @@ fn overlay_epiphany_job_binding(
         return job;
     }
 
-    if let Some(agent_job_id) = binding_agent_jobs_job_id(binding) {
+    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::AgentJobs) {
         job.status = ThreadEpiphanyJobStatus::Blocked;
         job.blocking_reason = Some(format!(
-            "Legacy agent_jobs binding {:?} is sealed; Epiphany activation now belongs to heartbeat/runtime-spine.",
-            agent_job_id
+            "Legacy agent_jobs binding is sealed; Epiphany activation now belongs to heartbeat/runtime-spine."
         ));
     }
 
     job
+}
+
+fn binding_projected_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
+    match binding_backend_kind(binding) {
+        Some(CoreEpiphanyJobBackendKind::Heartbeat) => binding_backend_job_id(binding),
+        Some(CoreEpiphanyJobBackendKind::AgentJobs) | None => None,
+    }
 }
 
 fn map_core_epiphany_job_backend_kind(
