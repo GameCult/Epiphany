@@ -151,7 +151,7 @@ The current spine, blessed but not yet finished:
 - live graph traversal app-server smoke through `tools/epiphany_phase6_graph_query_smoke.py`
 - live planning app-server smoke through `tools/epiphany_phase6_planning_smoke.py`
 - live GUI planning adoption smoke through `tools/epiphany_gui_planning_smoke.py`
-- live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
+- live pressure app-server smoke through native `epiphany-phase6-pressure-smoke`
 - live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
 - live reorient-guided worker launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live MVP operator status smoke through native `epiphany-mvp-status-smoke`
@@ -246,7 +246,7 @@ For planning state/projection behavior changes, run:
 For context-pressure reflection behavior changes, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_pressure_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-pressure-smoke
 ```
 
 For reorientation policy behavior changes, run:

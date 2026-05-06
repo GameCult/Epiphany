@@ -1507,7 +1507,7 @@ Current tests cover the landed flows at useful seams:
 - live app-server smoke for the first Phase 6 context boundary in `tools/epiphany_phase6_context_smoke.py`.
 - live app-server smoke for the first Phase 6 graph traversal boundary in `tools/epiphany_phase6_graph_query_smoke.py`.
 - live app-server smoke for the first Phase 6 planning boundary in `tools/epiphany_phase6_planning_smoke.py`.
-- live app-server smoke for the first Phase 6 pressure boundary in `tools/epiphany_phase6_pressure_smoke.py`.
+- live app-server smoke for the first Phase 6 pressure boundary through native `epiphany-phase6-pressure-smoke`.
 - live app-server smoke for the first Phase 6 reorientation policy boundary in `tools/epiphany_phase6_reorient_smoke.py`.
 - live app-server smoke for the first bounded reorient-launch runtime consumer plus CRRC coordinator recommendations in `tools/epiphany_phase6_reorient_launch_smoke.py`.
 - live app-server smoke for the first MVP operator status view through native `epiphany-mvp-status-smoke`.
@@ -1531,7 +1531,7 @@ $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-a
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_graph_query_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_pressure_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-pressure-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-status-smoke

@@ -267,6 +267,7 @@ pub struct AppServerClient {
     stdin: ChildStdin,
     rx: mpsc::Receiver<Value>,
     transcript: Arc<Mutex<File>>,
+    notifications: Arc<Mutex<Vec<Value>>>,
     next_id: u64,
 }
 
@@ -327,6 +328,8 @@ impl AppServerClient {
             .ok_or_else(|| anyhow!("app-server stderr unavailable"))?;
         let (tx, rx) = mpsc::channel();
         let transcript_for_stdout = Arc::clone(&transcript);
+        let notifications = Arc::new(Mutex::new(Vec::new()));
+        let notifications_for_stdout = Arc::clone(&notifications);
         thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 if line.trim().is_empty() {
@@ -336,6 +339,12 @@ impl AppServerClient {
                     |error| json!({"_decode_error": error.to_string(), "raw": line}),
                 );
                 record(&transcript_for_stdout, "received", &message);
+                if message.get("method").is_some()
+                    && message.get("id").is_none()
+                    && let Ok(mut notifications) = notifications_for_stdout.lock()
+                {
+                    notifications.push(message.clone());
+                }
                 let _ = tx.send(message);
             }
         });
@@ -351,6 +360,7 @@ impl AppServerClient {
             stdin,
             rx,
             transcript,
+            notifications,
             next_id: 1,
         })
     }
@@ -425,6 +435,50 @@ impl AppServerClient {
             }
         }
         Err(anyhow!("timed out waiting for response {request_id}"))
+    }
+
+    pub fn notification_count(&self, method: &str, start_index: usize) -> usize {
+        self.notifications
+            .lock()
+            .ok()
+            .map(|notifications| {
+                notifications
+                    .iter()
+                    .skip(start_index)
+                    .filter(|message| message.get("method").and_then(Value::as_str) == Some(method))
+                    .count()
+            })
+            .unwrap_or(0)
+    }
+
+    pub fn notification_len(&self) -> usize {
+        self.notifications
+            .lock()
+            .map(|notifications| notifications.len())
+            .unwrap_or(0)
+    }
+
+    pub fn require_no_notification(
+        &mut self,
+        method: &str,
+        start_index: usize,
+        timeout: Duration,
+    ) -> Result<()> {
+        let deadline = Instant::now() + timeout;
+        while Instant::now() < deadline {
+            if let Some(status) = self.child.try_wait()? {
+                return Err(anyhow!(
+                    "app-server exited with {} while checking notification {}",
+                    status,
+                    method
+                ));
+            }
+            if self.notification_count(method, start_index) > 0 {
+                return Err(anyhow!("unexpected notification {method}"));
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        Ok(())
     }
 }
 

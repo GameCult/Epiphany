@@ -70,7 +70,7 @@ The landed machine now has:
 - read-only Phase 6 graph traversal through `thread/epiphany/graphQuery`
 - live Phase 6 graph traversal smoke coverage in `tools/epiphany_phase6_graph_query_smoke.py`
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
-- live Phase 6 pressure app-server smoke coverage in `tools/epiphany_phase6_pressure_smoke.py`
+- live Phase 6 pressure app-server smoke coverage through native `epiphany-phase6-pressure-smoke`
 - durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
 - read-only Phase 6 CRRC reorientation policy through `thread/epiphany/reorient`
 - bounded Phase 6 reorient-guided worker launch through `thread/epiphany/reorientLaunch`
