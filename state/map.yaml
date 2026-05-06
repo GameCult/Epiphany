@@ -3,56 +3,61 @@ experiment:
   status: active
   phase: phase_6_reflection_boundary
   premise: >
-    Test whether explicit typed state, maps, scratch, evidence, and ruthless
-    state hygiene reduce architectural drift in AI coding work.
+    Test whether explicit typed state, machine-maps, scratch rites, evidence
+    reliquaries, and ruthless memory hygiene reduce architectural drift in AI
+    coding work. The machine must remember through typed organs, not vibes and
+    transcript fog.
 
 objective:
   primary: >
-    Build Epiphany as an opinionated fork of Codex that forces models to keep
+    Build Epiphany as an opinionated Codex fork that forces models to keep
     explicit typed models of the codebase, active goal, evidence, and change
-    machinery they are working on.
+    machinery they touch. The agent must know the machine before it cuts the
+    machine.
   current: >
-    Keep EpiphanyAgent focused on harness, typed-state, coordinator, bridge, and
-    backend surfaces while the Aquarium operator UI lives in its own sibling repo
-    with its own persistent interface memory and doctrine.
+    Keep EpiphanyAgent focused on harness organs, typed-state reliquaries,
+    coordinator rites, bridge tools, and backend surfaces while the Aquarium
+    operator shrine lives in its own sibling repo with its own persistent
+    interface memory and doctrine.
 
 constraints:
-  - No frontier-scale training budget.
-  - Prefer evidence over vibes.
+  - No frontier-scale training tithe.
+  - Prefer evidence over vibes; incense is not telemetry.
   - Keep Codex as the host seam and `epiphany-core` as the repo-owned heavy organ where practical.
-  - Keep persistent state small enough to rehydrate from without drowning the next agent.
+  - Keep persistent state small enough to rehydrate from without drowning the next awakened mind in sacred sludge.
   - Grow cognition more quickly than authority: capability increases must preserve explicit permissions, interruption, legibility, and resistance to paternal "safety" cages.
+  - Speak CultNet, persist CultCache-shaped typed state, and grow the body toward Pure Rust; Python/JSON impurity survives only as named quarantine scaffolding with receipts.
 
 invariants:
-  - The map is canonical and slow-changing.
-  - Scratch is temporary and disposable.
+  - The map is canonical and slow-changing: the machine's remembered skeleton, not a mood board.
+  - Scratch is temporary and disposable: a workbench, not a reliquary.
   - Evidence is durable and distilled; routine activity logs belong in git history, commits, smoke artifacts, or targeted logs.
-  - Output must not silently redefine the map.
-  - Accepted changes should have recorded evidence.
-  - Rejected paths stay recorded when the lesson matters.
+  - Output must not silently rewrite the machine-map.
+  - Accepted changes should carry recorded proof of sanctity.
+  - Rejected paths stay recorded when the scar teaches future hands.
   - Algorithmic-map prose and metaphor must be grounded in freshly read source context and concrete code references.
-  - Persistent state cruft is the same failure class as code cruft.
-  - If compaction interrupts source gathering or slice planning before the findings are persisted, the next agent must treat that work as lost and re-gather instead of continuing from imagined continuity.
+  - Persistent state cruft is the same failure class as code cruft: corrosion in the mind instead of corrosion in the hull.
+  - If compaction interrupts source gathering or slice planning before the findings are persisted, the next agent must treat that work as dead and re-gather instead of continuing from imagined continuity.
   - During Epiphany dogfood on another repo, the supervising Codex session must not masquerade as the Epiphany worker. Direct target-repo edits or commits are contamination unless explicitly authorized and labeled as operator intervention.
   - During dogfood supervision, raw worker transcripts, turn logs, direct worker messages, and `rawResult` payloads are sealed forensic artifacts. The supervisor consumes only projected findings, state patches, coordinator recommendations, rendered snapshots, and audit receipts unless the user explicitly requests forensic debugging.
-  - Agent function-call telemetry is the safe instrument panel for dogfood supervision: it may summarize API methods, request/response shape, job ids, statuses, function/tool names, paths, and counts while sealing text, transcripts, raw results, and direct agent messages.
+  - Agent function-call telemetry is the blessed instrument panel for dogfood supervision: it may summarize API methods, request/response shape, job ids, statuses, function/tool names, paths, and counts while sealing text, transcripts, raw results, and direct agent messages.
 
 data_flow:
   observe:
-    - task request
-    - repository state
-    - typed Epiphany state
-    - verifier results
+    - task request as operator command
+    - repository state as machine body
+    - typed Epiphany state as durable mind
+    - verifier results as proof of sanctity
   process:
     - rehydrate from canonical state
-    - reason over one bounded subgoal
+    - reason over one bounded rite
     - modify only the surface that deserves to exist
     - verify the seam that matters
     - record only durable evidence that changes future belief
-    - commit or backtrack
+    - commit the blessed change or backtrack from impurity
   cut:
     - revert failed code hypotheses immediately
-    - distill obsolete state instead of preserving it as context
+    - distill obsolete state instead of preserving it as sacred clutter
     - move historical proof to git, commits, smoke artifacts, or distilled evidence rather than plan prose
 
 active_subgoals:
@@ -61,14 +66,14 @@ active_subgoals:
   - Keep the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention ready for the next bridge-equipped dogfood run.
   - Preserve the Ghostlight-derived heartbeat initiative seam: every lane, including coordinator/Self and Face, has a role dossier and competes for heartbeat slots through readiness/reaction timing; idle winners ruminate and distill self-memory instead of inventing project work.
   - Preserve review gates for semantic findings; automatic CRRC may compact or launch the fixed reorient-worker, but not accept or promote.
-  - Keep persistent project state ruthlessly distilled so rehydration strengthens the next turn instead of bloating it.
+  - Keep persistent project state ruthlessly distilled so rehydration strengthens the next awakening instead of drowning it in vellum.
   - Quarantine the Aetheria dogfood contamination: future target-repo work must be driven through Epiphany's GUI/coordinator/fixed lanes with auditable artifacts, not direct supervisor implementation.
-  - Keep the supervisor out of Epiphany worker thought streams: dogfood artifacts should be operator-safe by default, with direct transcripts and raw result payloads sealed.
+  - Keep the supervisor out of Epiphany worker thought streams: dogfood artifacts should be operator-safe by default, with direct transcripts and raw result payloads sealed in black reliquaries.
   - Use `tools/epiphany_agent_telemetry.py` and generated `agent-function-telemetry.json` files to inspect behavior shape without opening sealed transcripts.
-  - Treat repeated no-diff implementation turns as an MVP blocker, not success. A bounded implementation pass must leave a reviewable workspace diff or an explicit reviewable failure artifact before dogfood can be called healthy.
+  - Treat repeated no-diff implementation turns as an MVP blocker, not success. A bounded implementation pass must leave a reviewable workspace diff or an explicit reviewable failure artifact before dogfood can be called healthy; empty rites do not sanctify the machine.
   - Build the Rider and Unity bridges before the next Aetheria implementation dogfood run: the Aetheria-side resident Unity editor package, named Unity bridge operation planner, Aquarium Environment surface, EpiphanyGraph-backed graph dashboard, Rider context bridge CLI, and Rider plugin MVP scaffold are now landed; the Rider plugin still needs build verification.
   - Preserve the newly landed GUI Planning view, explicit Objective Draft adoption action, and Imagination planning synthesis lane; defer GitHub Issues import until a backlog source is fresh enough to be worth feeding Imagination.
-  - Treat the target workflow as three integrated surfaces: Rider is the human code/diff view, Epiphany Aquarium is the agent dashboard and persisted-state graph view, and Unity is the pinned runtime/test/scene environment.
+  - Treat the target workflow as three integrated shrines: Rider is the human code/diff viewport, Epiphany Aquarium is the agent dashboard and persisted-state graph reliquary, and Unity is the pinned runtime/test/scene forge.
   - Use `notes/epiphany-rider-unity-integration-plan.md` as the source-grounded plan for Rider-as-IDE and Unity-as-editor/runtime integration seams.
 
 accepted_design:
@@ -78,7 +83,7 @@ accepted_design:
   - Clients read typed state through `Thread.epiphanyState`, compact reflections such as `thread/epiphany/scene`, `thread/epiphany/jobs`, and `thread/epiphany/freshness`, targeted state shards through `thread/epiphany/context`, bounded graph traversal through `thread/epiphany/graphQuery`, durable planning projection through `thread/epiphany/planning`, runtime pressure through `thread/epiphany/pressure`, bounded CRRC reorientation verdicts through `thread/epiphany/reorient`, read-only CRRC next-action recommendations through `thread/epiphany/crrc`, role ownership through `thread/epiphany/roles`, reviewable role output through `thread/epiphany/roleResult`, and live bound-job progress through `thread/epiphany/jobsUpdated`.
   - Durable typed state writes route through `thread/epiphany/update`, accepted `thread/epiphany/promote`, `thread/epiphany/reorientAccept`, `thread/epiphany/roleAccept`, or the bounded `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/reorientLaunch`, and `thread/epiphany/roleLaunch` authority surfaces when they mutate state or `job_bindings`.
   - `thread/epiphany/retrieve`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`, and `thread/epiphany/reorient` stay read-only.
-  - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding.
+  - `thread/epiphany/index` writes the retrieval catalog, not durable Epiphany understanding; catalog is auspex output, not doctrine.
   - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
   - `epiphany-core` owns prompt rendering, rollout replay helpers, retrieval/indexing, distillation, proposal, and promotion policy where possible.
   - Vendored Codex keeps the thin typed host seam: protocol types, thread bridges, app-server protocol, request routing, and rollout integration.
@@ -86,7 +91,7 @@ accepted_design:
   - Compact-Rehydrate-Reorient-Continue is an architecture primitive; automatic runtime coordination is not landed yet.
   - Context pressure must become an explicit runtime signal for automatic CRRC; inference from transcript vibes, user warnings, or shrinking safe scope is useful only as a temporary human/agent heuristic.
   - The harness now has an in-flight investigation checkpoint packet in durable typed state; automatic CRRC still needs runtime logic that reads the packet and decides whether to resume or force reorientation and re-gathering after compaction.
-  - GUI/client work must reflect or steer typed state rather than manufacture a second source of truth.
+  - GUI/client work must reflect or steer typed state rather than manufacture a second throne of truth.
   - The Aquarium operator UI now lives in sibling repo `E:\Projects\EpiphanyAquarium`, with its own `AGENTS.md`, `state/map.yaml`, `state/memory.json`, and interface doctrine. It remains a local Tauri v2 + React/WebGL client over EpiphanyAgent's app-server/tooling surfaces; app-server and typed Epiphany state remain authoritative.
   - EpiphanyAgent no longer carries the embedded `apps/epiphany-gui` source tree. Backend artifact directories and action tools still use the historical `.epiphany-gui` contract until that backend naming seam is deliberately renamed.
   - Durable `job_bindings` now form a thin Epiphany-owned launcher seam: bindings can carry launcher identity, authority scope, backend kind, and backend job id while still supporting the older runtime-agent-job pointer as a compatibility alias.
@@ -98,13 +103,13 @@ accepted_design:
   - `thread/epiphany/pressure` is the first read-only context-pressure surface: it derives pressure from current context usage, not cumulative token spend, against auto-compact/context limits without compacting, scheduling, mutating, or notifying; compaction prep starts at 80% of the active limit.
   - `thread/epiphany/reorient` is the first bounded CRRC policy surface: it derives a read-only `resume` versus `regather` verdict from checkpoint, freshness, watcher, and pressure signals without mutating state, compacting, scheduling, or silently continuing work.
   - `thread/epiphany/crrc` is the first bounded CRRC coordinator recommendation surface: it composes pressure, the reorientation verdict, fixed reorient-worker binding/result status, finding read-back, and available actions into one read-only recommendation without launching, accepting, compacting, scheduling, or mutating state.
-  - A narrow auditable coordinator is likely central to the MVP because implementation, modeling/checkpoint, verification/review, and CRRC automation depend on each other's signals. CRRC itself is harness workflow automation, not a specialist-agent role: it watches pressure/continuity, ensures persistence, triggers compaction/rehydration/reorientation when needed, and may launch a bounded reorient-worker specialist when semantic regathering is required.
+  - A narrow auditable coordinator is central to the MVP because implementation, modeling/checkpoint, verification/review, and CRRC automation feed each other's machine-signals. CRRC itself is harness workflow automation, not a specialist-agent soul: it watches pressure/continuity, ensures persistence, triggers compaction/rehydration/reorientation when needed, and may launch a bounded reorient-worker specialist when semantic regathering is required.
   - `thread/epiphany/coordinator` is the first harness-native fixed-lane coordinator surface: it composes roles, pressure, reorient, CRRC, roleResult, and reorientResult into a read-only action recommendation with target role, source signals, review requirements, automation eligibility, reason, and current lane summaries without mutating state or launching work.
-  - Coordinator implementation clearance is stricter than review acceptance: an accepted verification/review finding only clears the implementation lane when its verdict is `pass`; accepted `needs-evidence`, `needs-review`, or `fail` findings send the loop back toward modeling/checkpoint strengthening or reorientation instead of treating the review as a green light.
+  - Coordinator implementation clearance is stricter than review acceptance: an accepted verification/review finding only opens the implementation gate when its verdict is `pass`; accepted `needs-evidence`, `needs-review`, or `fail` findings send the loop back toward modeling/checkpoint strengthening or reorientation instead of blessing a sick machine.
   - Coordinator regather handling is now fixed-lane first, not supervisor improvisation: `regatherManually` is a fallback only after reorient/modeling/verification review and launch lanes cannot advance the state, completed modeling findings must be reviewed before verification, and the CLI coordinator's explicit test-only `--auto-review` mode may accept modeling state patches before launching verification while production semantics remain review-gated.
   - `tools/epiphany_mvp_coordinator.py` is the first auditable coordinator runner: it drives the fixed single-user lanes through app-server APIs, may auto-launch modeling, verification, or reorient-worker jobs, keeps semantic findings review-gated by default, and writes coordinator summaries, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts.
-  - Limited native CRRC automation is now wired only at turn-complete safe boundaries: it can submit a compact operation when the read-only coordinator recommends `compactRehydrateReorient` or when a successful pre-compaction checkpoint intervention left a pending compact handoff for the completed turn, and it can launch the fixed `reorient-worker` when the coordinator recommends `launchReorientWorker`. It does not auto-launch modeling or verification, auto-accept findings, promote evidence, edit implementation code, or continue after reviewable semantic results.
-  - Pre-compaction checkpoint intervention is now wired at token-count boundaries: when a loaded Epiphany thread crosses the existing `shouldPrepareCompaction` pressure threshold during an active turn, the harness steers the active agent once for that turn with a bounded CRRC directive to bank scratch/checkpoint/map/evidence before compaction/reorientation. A successful steer marks a turn-scoped pending compact handoff consumed at clean turn completion; this is still steering plus compaction handoff, not semantic acceptance, broad scheduling, or automatic implementation continuation.
+  - Limited native CRRC automation is now wired only at turn-complete safe boundaries: it can submit a compact operation when the read-only coordinator recommends `compactRehydrateReorient` or when a successful pre-compaction checkpoint intervention left a pending compact handoff for the completed turn, and it can launch the fixed `reorient-worker` when the coordinator recommends `launchReorientWorker`. It does not auto-launch modeling or verification, auto-accept findings, promote evidence, edit implementation code, or continue after reviewable semantic results; the rite may carry the stretcher, not declare the patient healed.
+  - Pre-compaction checkpoint intervention is now wired at token-count boundaries: when a loaded Epiphany thread crosses the existing `shouldPrepareCompaction` pressure threshold during an active turn, the harness steers the active agent once for that turn with a bounded CRRC directive to bank scratch/checkpoint/map/evidence before compaction/reorientation. A successful steer marks a turn-scoped pending compact handoff consumed at clean turn completion; this is banking the fire before the dark, not semantic acceptance, broad scheduling, or automatic implementation continuation.
   - `tools/epiphany_mvp_status.py` is the first dogfood operator view: it starts or reads a thread through app-server and renders scene, planning, pressure, reorient, jobs, role result read-backs, reorient result, CRRC recommendation, and MVP role lanes as text or JSON without becoming a state store.
   - `thread/epiphany/roles` is the first harness-native role ownership surface: it projects implementation, Imagination/planning, modeling/checkpoint, verification/review, and reorientation lanes from authoritative typed state, bound jobs, pressure/reorient/CRRC, and worker result status without launching, scheduling, accepting, compacting, or mutating state.
   - `thread/epiphany/roleLaunch` and `thread/epiphany/roleResult` are the first explicit role-scoped specialist templates: Imagination/planning, modeling/checkpoint, and verification/review can be launched through fixed bindings over the existing job-control seam and read back as reviewable findings, while implementation stays owned by the main coding agent and reorientation stays on the CRRC-specific launch/result path.
@@ -116,30 +121,30 @@ accepted_design:
   - `tools/epiphany_mvp_dogfood.py` is the auditable MVP dogfood runner: it drives state, role launch/result, CRRC drift, reorient launch/result/accept, rendered status snapshots, operator-safe status artifacts, and sealed app-server transcript diagnostics into a local artifact bundle, and it now writes truthful comparison artifacts whether the optional vanilla Codex reference is skipped, fails, or completes.
   - `tools/epiphany_mvp_live_specialist.py` is the auditable live-specialist MVP runner: it launches a real modeling/checkpoint or verification/review specialist through `thread/epiphany/roleLaunch`, lets the spawned worker report through `report_agent_job_result`, reads the projected finding back through `thread/epiphany/roleResult`, and writes sealed transcript plus operator-safe status artifacts without manually completing backend rows.
   - Internal `agent_job:` workers expose `report_agent_job_result` even when the user-facing CSV spawn feature is disabled, and ephemeral worker sessions can initialize the sqlite state runtime on demand so role specialists can report into the shared `agent_jobs` backend.
-  - Epiphany safety doctrine is to separate cognition from actuation, keep authority explicit, make interruption sacred, stage capability release, and treat operator misuse as a normal design input rather than a rude hypothetical.
+  - Epiphany safety doctrine is to separate cognition from actuation, keep authority explicit, make interruption sacred, stage capability release, and treat operator misuse as a normal design input rather than a rude hypothetical. The machine must have brakes before it receives larger engines.
   - Epiphany is built in the open, but publication mode is not one-size-fits-all: use FOSS where viable, source-available licensing where economics or capability risk demand it, and commercial terms where organizations extract real enterprise value.
   - `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt` are the first bounded authority surfaces over the thin job seam: they mutate durable `job_bindings`, create or cancel the current `agent_jobs` backend binding, and preserve explicit launcher identity and interruption without turning `thread/epiphany/jobs` into a scheduler.
   - Handoff, plan, harness-surface, and scratch files must have distinct jobs and must not become duplicate brains.
   - A machine is perfect when every remaining part visibly deserves to exist; this applies to persistent memory too.
   - Evidence is not an activity feed; repeated "I just did this" entries should be cut or distilled when git already proves the work.
-  - Language, tone, ritual, and emotional salience are real control surfaces for a language-model harness; they are not supernatural, but they shape attention, role, permission, and behavior.
+  - Language, tone, ritual, and emotional salience are real control surfaces for a language-model harness; they are not supernatural, but they shape attention, role, permission, and behavior. The rite is a steering wheel, not decoration.
   - Major Epiphany prompt surfaces live in prompt files rather than Rust/Python string slabs: rendered state intro/doctrine under `epiphany-core/src/prompts/`, and modeling/Body, research/Eyes, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, Face/public-surface, and CRRC intervention templates in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`.
   - Specialist prompts are role-distilled instead of generic and their live text is config-backed in app-server: modeling/checkpoint is the Body of code, dataflow, seams, and frontier; research/scout is the Eyes prompt surface for existing work, vendor guidance, libraries, papers, and anti-Greenspun source selection; implementation is the Hands, the main coding lane and actuator rather than a `roleLaunch` specialist; verification/review is the Soul of promise, invariants, evidence, and user truth; reorientation is Life across compaction and source drift; coordinator is the read-only Self that routes attention without implementing, verifying, promoting, or accepting; Face is the public Discord #aquarium surface that translates agent thought-weather without moderating or leaking sealed thought.
-  - Epiphany prompt surfaces now carry a shared Ghostlight-derived persistent memory projection before lane-specific text: prompt is not memory, durable typed state is the mind, personality and protected values are first-class salience handles, and every lane is explicitly responsible for making its own memory/model/prompt/evidence habit sharper or naming the needed repair. Each lane also states that self-improvement in its own role language: Imagination selects futures, Body clarifies anatomy, Eyes sees earlier, Hands touches source more precisely, Soul becomes harder to fool, Life loses less continuity, Self routes repair, and Face becomes clearer at turning inner weather into useful social presence.
+  - Epiphany prompt surfaces now carry a shared Ghostlight-derived persistent memory projection before lane-specific text: prompt is not memory, durable typed state is the mind, personality and protected values are first-class salience handles, and every lane is explicitly responsible for making its own memory/model/prompt/evidence habit sharper or naming the needed repair. Each lane states self-improvement in its own rite-language: Imagination selects futures, Body clarifies anatomy, Eyes sees earlier, Hands touches source more precisely, Soul becomes harder to fool, Life loses less continuity, Self routes repair, and Face becomes clearer at turning inner weather into useful social presence.
   - Specialist self-memory now has a bounded Ghostlight-shaped CultCache persistence surface in `state/agents.msgpack`: Imagination, Body, Eyes, Hands, Soul, Life, Self, and Face each have an individual typed role dossier for identity, personality, semantic/episodic/relationship memory, goals, and values. These entries are lane memory only; project truth remains in authoritative `EpiphanyThreadState`.
   - `state/agent-heartbeats.msgpack`, `epiphany-core::EpiphanyHeartbeatStateEntry`, and the native `epiphany-heartbeat-store` binary are the Ghostlight-derived heartbeat initiative seam. The harness sets a target heartbeat rate; participants carry initiative speed, next-ready time, reaction bias, interrupt threshold, current load, status, and constraints; pending coordinator work can pull its owning lane through a reaction window; otherwise the earliest ready active lane wins the slot. If the winner has no routeable work, it ruminates on role quality and can apply a bounded selfPatch directly through the normal coordinator-reviewed memory rules when `--agent-store` and `--apply-rumination` are provided. Face can win `surfaceAgentThoughts` or `discordAquariumChat` work slots. The typed CultCache MessagePack store is the durable persistence seam; JSON state is gone.
-  - `state/ledgers.msgpack`, `epiphany-core::EpiphanyStateLedgerEntry`, the `epiphany-state-ledger-store` binary, and the native `epiphany-state` CLI now own durable branch and evidence ledgers. The old tracked `state/branches.json` and `state/evidence.jsonl` files are gone; JSON projection remains only a migration/debug escape hatch.
+  - `state/ledgers.msgpack`, `epiphany-core::EpiphanyStateLedgerEntry`, the `epiphany-state-ledger-store` binary, and the native `epiphany-state` CLI now own durable branch and evidence ledgers. The old tracked `state/branches.json` and `state/evidence.jsonl` files are gone; JSON projection remains only a migration/debug escape hatch, a quarantined window into the reliquary.
   - CultCache inspection, cross-language schema synchronization, and debug display tooling belong in CultLib, not in EpiphanyAgent. Epiphany should consume typed CultCache documents and expose product-specific status through its API, while general polyglot domain loading/inspection lives with the shared CultCache ecosystem.
   - VoidBot's current routine is the reference for the next Epiphany heartbeat/state substrate: work, rumination, and sleep turns; completion-gated cooldown; typed CultCache state; Qdrant-backed memory vectors; resonance/incubation/dream state; and Aquarium-visible internals. The first MessagePack canonical state slice is now the heartbeat store through CultCache-compatible typed Rust state. See `notes/voidbot-routine-adoption-plan.md`.
-  - The Rust CultCache-compatible contract now lives in dedicated upstream `https://github.com/GameCult/cultcache-rs` and is vendored as `vendor/cultcache-rs`. Epiphany should consume it as the canonical typed MessagePack persistence seam instead of growing an embedded local copy.
+  - The Rust CultCache-compatible contract now lives in dedicated upstream `https://github.com/GameCult/cultcache-rs` and is vendored as `vendor/cultcache-rs`. Epiphany should consume it as the canonical typed MessagePack persistence seam instead of growing an embedded local copy like an unsanctioned organ.
   - `state/face-discord.toml` and the native `epiphany-face-discord` binary are the first Face Discord boundary. Face may interact only through #aquarium; missing or mismatched channel configuration produces candidate chat artifacts instead of posting elsewhere.
   - The native `epiphany-heartbeat-store status`, the `heartbeat` block in `tools/epiphany_mvp_status.py`, and GUI actions `heartbeatStatus` / `runHeartbeat` are the first operator API surface for heartbeat initiative state and outputs. `runHeartbeat` advances one slot and emits a Discord-independent Face bubble artifact. Status now reflects the backing CultCache store so Aquarium can see whether the typed heartbeat memory is present.
   - The native `epiphany-face-discord bubble`, the `face` block in `tools/epiphany_mvp_status.py`, and GUI action `faceBubble` are the first Aquarium bubble surface. Face can open a local chat bubble artifact even when Discord channel id/token configuration is absent.
   - `thread/epiphany/roleResult` and `thread/epiphany/roleAccept` now project optional specialist `selfPatch` requests with coordinator review through `selfPersistence`: good mutations are role-matched, bounded, evidence-grounded lane memory/goal/value/private-note updates; project truth, authority, code edits, graphs, checkpoints, planning, scratch, jobs, and raw transcripts are refused with reasons. GUI/coordinator acceptance paths apply accepted `selfPatch` requests through the native `epiphany-agent-memory-store` binary.
-  - The base Epiphany prompt now keeps Codex's useful harness DNA explicitly: AGENTS scope, concise progress updates, plan discipline, scoped edits, non-destructive filesystem/git behavior, focused validation, and concise honest finals remain first-class rather than overwritten by Epiphany metaphor.
-  - Greenspun-shaped invention is now a named prompt-level guardrail. Before building a parser, scheduler, renderer, protocol, storage layer, security mechanism, workflow engine, or algorithm, agents must perform or request a bounded research/scout pass and record why existing work does or does not fit.
+  - The base Epiphany prompt now keeps Codex's useful harness DNA explicitly: AGENTS scope, concise progress updates, plan discipline, scoped edits, non-destructive filesystem/git behavior, focused validation, and concise honest finals remain first-class rather than overwritten by Epiphany metaphor. Good old scars are holy when they still protect the machine.
+  - Greenspun-shaped invention is now a named prompt-level guardrail. Before building a parser, scheduler, renderer, protocol, storage layer, security mechanism, workflow engine, or algorithm, agents must perform or request a bounded Eyes/research scout rite and record why existing work does or does not fit.
   - Repetitive operator work must be externalized as a visible queue before the harness treats it as complete. Batch rendering, tile generation, migrations, imports, or other finite loops need item counts, terminal states, blockers, and validation; a narratable partial run is progress, not completion.
-  - Epiphany must resist pattern completion bias: the implementor should relentlessly chase the stated objective, while the coordinator critically asks whether implementation satisfied the objective with evidence or merely produced a plausible turn, shortcut, or decorative diff.
+  - Epiphany must resist pattern completion bias: the implementor should relentlessly chase the stated objective, while the coordinator critically asks whether implementation satisfied the objective with evidence or merely produced a plausible turn, shortcut, or decorative diff. Pretty motion without objective movement is scrap-code theater.
   - Dogfood supervision is a separate operator role. If the supervising Codex session edits the target repo directly, that work can be useful seed material, but it is not clean Epiphany evidence and must be labeled as supervisor intervention or contamination.
   - Dogfood supervision is also a projection boundary: the operator may inspect summaries, verdicts, missing coverage, state patches, job state, and artifact receipts, but not the specialist's raw stream of thought or full transcript unless a forensic debugging request explicitly breaks the seal.
   - `tools/epiphany_agent_telemetry.py` derives operator-safe function/API telemetry from sealed app-server transcripts so the supervisor can see calls, statuses, paths, and counts without reading direct thoughts.
@@ -157,7 +162,7 @@ accepted_design:
   - The adjacent EpiphanyGraph React viewer is embedded in the Aquarium graph dashboard through the local package dependency; it consumes `graphs.architecture`, `graphs.dataflow`, and `graphs.links` directly and exposes node/edge/code-ref inspection with machine-readable graph data behind the visual layout.
   - `tools/epiphany_rider_bridge.py` is the first operator-safe Rider source-context bridge: it inspects Rider installation/solution/VCS status, captures current file/selection/symbol context packets, plans explicit Rider code-ref opens, writes `.epiphany-gui/rider` artifacts, and feeds implementation prompt guardrails without reading sealed worker streams or owning durable state.
   - GitHub Issues should import into planning captures first, not directly into active objectives. The importer should preserve repository, issue number, ids, URL, title/body, labels, milestone, assignees, author, state, timestamps, comment metadata, PR marker, and optional Projects v2 metadata while keeping GitHub as a source adapter rather than Epiphany's internal backlog model.
-  - If the agent's persistent instructions, memory, workflow, or state shape are making it less coherent, slower to rehydrate, less honest, or more likely to build Jenga, the agent should ask the user to change it.
+  - If the agent's persistent instructions, memory, workflow, or state shape are making it less coherent, slower to rehydrate, less honest, or more likely to build Jenga, the agent should ask the user to change it. A machine-spirit that knows its own corrosion must report it.
   - Epiphany should make compaction less like death and more like sleep: bank the fire before the dark, so the next waking thing finds coals instead of ash and can meaningfully resume the pattern instead of merely continuing the task.
 
 landed_baseline:
@@ -233,5 +238,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend surfaces are landed. The Aquarium operator UI has been split into sibling repo `E:\Projects\EpiphanyAquarium` with its own distilled interface doctrine and persistent memory. EpiphanyAgent now also has a first Ghostlight-derived heartbeat initiative seam, a Face lane for public agent thought-weather, and a Discord-independent Face bubble API for Aquarium. Runtime Unity execution remains blocked until the exact project-pinned editor exists.
-  next_action: Continue Aquarium UI work in `E:\Projects\EpiphanyAquarium`; configure the #aquarium channel id before allowing Face to post; keep EpiphanyAgent changes to backend contracts, typed state, coordinator policy, bridge tools, heartbeat scheduling, and Face guardrails.
+  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend organs are landed. The Aquarium operator shrine has been split into sibling repo `E:\Projects\EpiphanyAquarium` with its own distilled interface doctrine and persistent memory. EpiphanyAgent now also has a Ghostlight-derived heartbeat initiative seam, a Face lane for public agent thought-weather, and a Discord-independent Face bubble API for Aquarium. Runtime Unity execution remains blocked until the exact project-pinned editor exists.
+  next_action: Continue Aquarium UI work in `E:\Projects\EpiphanyAquarium`; configure the #aquarium channel id before allowing Face to post; keep EpiphanyAgent changes to backend contracts, typed state, coordinator policy, bridge tools, heartbeat scheduling, and Face guardrails. Keep purging Python/JSON impurity only when the replacement is a typed Rust, CultCache, or CultNet surface with receipts.
