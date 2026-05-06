@@ -484,15 +484,46 @@ the machine has repeatable bones.
 - Do not let high production pressure make Hands bypass Body or Soul.
 - Treat low-confidence inferred personality as a candidate, not a soul brand.
 
-## Immediate Next Step
+## Landed First Slice
 
-Implement `epiphany-repo-personality` with:
+The native `epiphany-repo-personality` binary now exists in
+`epiphany-core/src/bin/epiphany-repo-personality.rs`.
+
+It provides:
+
+- `scout --root <path> --artifact-dir <path> [--max-repos <n>]`
+- `project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>`
+- `status --store <baseline-or-projection.msgpack>`
+
+The first implementation is intentionally deterministic. It inventories git
+repos, instruction/state/test/runtime surfaces, file-extension/body shape,
+remote URLs, sampled commit history, path-class churn, commit-message keywords,
+and emits typed CultCache MessagePack records:
+
+- `epiphany.repo_terrain_report`
+- `epiphany.repo_personality_profile`
+- `epiphany.role_personality_projection`
+
+It also writes JSON/Markdown inspection summaries beside the typed stores.
+Those exports are operator glass, not the source of truth.
+
+Smoke coverage lives in
+`epiphany-core/src/bin/epiphany-repo-personality-smoke.rs`. The smoke creates two
+tiny git repos, scouts them into a baseline store, projects one repo, and proves
+the projection store contains one terrain report, one profile, and all eight
+standing role projections.
+
+## Next Implementation Step
+
+Wire `epiphany-repo-personality` into startup protocol:
 
 1. typed structs for terrain reports, personality profiles, and role projections
-2. a read-only `scout` command over local repos
-3. a deterministic reducer for the axes above
-4. MessagePack artifact output through CultCache-compatible typed records
-5. JSON/text rendering only as inspection exports, not the source of truth
+2. drift detection against last accepted terrain input hashes
+3. Self-reviewed application into role memory through existing `selfPatch`
+   policy
+4. heartbeat seed generation for personality/mood timing
+5. Aquarium surface for “repo personality changed” bubbles and profile
+   inspection
 
 That gets Epiphany from “I feel like this repo is anxious and glittery” to a
 repeatable profile that can initialize a swarm without needing the operator to
