@@ -11,6 +11,7 @@ apps/epiphany-gui/src-tauri/target/
 .epiphany-dogfood/
 .epiphany-heartbeats/
 .epiphany-face/
+.epiphany-rumination/
 state/agent-heartbeats.json
 state/*.msgpack.lock
 state/*.projection.json
