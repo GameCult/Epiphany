@@ -219,8 +219,8 @@ landed_baseline:
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- smoke --store .\state\agents.msgpack` before modifying role self-memory dossiers or `selfPatch` persistence policy.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- smoke --agent-store .\state\agents.msgpack` before modifying heartbeat initiative timing, idle rumination, or role slot selection.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-face-discord -- smoke` before modifying Face's #aquarium posting/draft guardrails.
-    - Use `tools/epiphany_unity_bridge_smoke.py` before modifying the Unity editor/runtime bridge.
-    - Use `tools/epiphany_rider_bridge_smoke.py` before modifying the Rider source-context bridge.
+    - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-unity-bridge-smoke` before modifying the Unity editor/runtime bridge.
+    - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-rider-bridge-smoke` before modifying the Rider source-context bridge.
     - Use `tools/epiphany_mvp_live_specialist.py` before claiming live specialist execution still works end to end.
     - Use `npm run build`, `npm run smoke:visual`, `cargo fmt --check`, `cargo check`, and `npm run tauri -- build --debug --no-bundle` under `E:\Projects\EpiphanyAquarium` before claiming Aquarium operator changes are usable.
     - Use focused scene/jobs/context/pressure/reorient/protocol/schema checks for reflection-only changes.

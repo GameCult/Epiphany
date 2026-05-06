@@ -140,8 +140,8 @@ The current spine, blessed but not yet finished:
 - Ghostlight-derived heartbeat initiative scheduling through the native `epiphany-heartbeat-store` binary, with Self and Face included as first-class participants, idle rumination routed through normal `selfPatch` review/application, and the heartbeat state round-tripped through the typed CultCache MessagePack store in `state/agent-heartbeats.msgpack`
 - Face as the public #aquarium-only surface for translating agent thought-weather into short chats or candidate drafts, without moderator authority
 - Ghostlight-shaped role dossiers in `state/agents.msgpack`, plus `selfPatch` review projection through `roleResult`/`roleAccept` and accepted memory application through the native `epiphany-agent-memory-store` binary
-- first Unity runtime bridge through native `epiphany-unity-bridge`, `tools/epiphany_unity_bridge_smoke.py`, GUI Inspect Unity, runtime artifact listing, and implementation prompt guardrails
-- first Rider source-context bridge through native `epiphany-rider-bridge`, `tools/epiphany_rider_bridge_smoke.py`, GUI Inspect Rider, Rider artifact listing, implementation prompt guardrails, and a source scaffold under `integrations/rider`
+- first Unity runtime bridge through native `epiphany-unity-bridge`, native `epiphany-unity-bridge-smoke`, GUI Inspect Unity, runtime artifact listing, and implementation prompt guardrails
+- first Rider source-context bridge through native `epiphany-rider-bridge`, native `epiphany-rider-bridge-smoke`, GUI Inspect Rider, Rider artifact listing, implementation prompt guardrails, and a source scaffold under `integrations/rider`
 - first GUI graph dashboard through the adjacent `@epiphanygraph/epiphany-graph-viewer` package over typed Epiphany graph state
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
