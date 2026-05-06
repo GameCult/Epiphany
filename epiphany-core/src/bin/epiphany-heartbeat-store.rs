@@ -1,11 +1,13 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use epiphany_core::GhostlightSceneParticipantSeed;
 use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatTickOptions;
 use epiphany_core::apply_agent_self_patch;
 use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_status_projection;
+use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_heartbeat_state_entry;
 use epiphany_core::tick_heartbeat_store;
@@ -35,6 +37,9 @@ fn main() -> Result<()> {
     let mut limit = 8_usize;
     let mut agent_store: Option<PathBuf> = None;
     let mut apply_rumination = false;
+    let mut profile = "epiphany".to_string();
+    let mut scene_id = "ghostlight.scene".to_string();
+    let mut scene_participants = Vec::<GhostlightSceneParticipantSeed>::new();
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -56,6 +61,11 @@ fn main() -> Result<()> {
             "--limit" => limit = next_value(&mut args, "--limit")?.parse()?,
             "--agent-store" => agent_store = Some(next_path(&mut args, "--agent-store")?),
             "--apply-rumination" => apply_rumination = true,
+            "--profile" => profile = next_value(&mut args, "--profile")?,
+            "--scene-id" => scene_id = next_value(&mut args, "--scene-id")?,
+            "--scene-participant" => scene_participants.push(parse_scene_participant(
+                &next_value(&mut args, "--scene-participant")?,
+            )?),
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -63,12 +73,22 @@ fn main() -> Result<()> {
     match command.as_str() {
         "init" => {
             let store_path = store_path.ok_or_else(|| anyhow!("init requires --store"))?;
-            let state = initialize_heartbeat_store(&store_path, target_heartbeat_rate)?;
+            let state = match profile.as_str() {
+                "epiphany" => initialize_heartbeat_store(&store_path, target_heartbeat_rate)?,
+                "ghostlight-scene" => initialize_ghostlight_scene_heartbeat_store(
+                    &store_path,
+                    target_heartbeat_rate,
+                    scene_id.clone(),
+                    scene_participants,
+                )?,
+                other => return Err(anyhow!("unknown heartbeat profile {other:?}")),
+            };
             println!(
                 "{}",
                 serde_json::json!({
                     "ok": true,
                     "command": "init",
+                    "profile": profile,
                     "storeFile": store_path,
                     "schemaVersion": state.schema_version,
                     "participants": state.participants.len(),
@@ -177,8 +197,30 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path>\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
+}
+
+fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> {
+    let parts = raw.split('|').collect::<Vec<_>>();
+    if parts.len() != 6 {
+        return Err(anyhow!(
+            "--scene-participant must be id|name|speed|reaction|threshold|constraint;constraint"
+        ));
+    }
+    Ok(GhostlightSceneParticipantSeed {
+        agent_id: parts[0].trim().to_string(),
+        display_name: parts[1].trim().to_string(),
+        initiative_speed: parts[2].trim().parse()?,
+        reaction_bias: parts[3].trim().parse()?,
+        interrupt_threshold: parts[4].trim().parse()?,
+        constraints: parts[5]
+            .split(';')
+            .map(str::trim)
+            .filter(|item| !item.is_empty())
+            .map(str::to_string)
+            .collect(),
+    })
 }
 
 fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
@@ -423,6 +465,9 @@ fn validate_schedule_shape(schedule: &serde_json::Value) -> Vec<String> {
             "attack",
             "wait",
             "mixed",
+            "role_work",
+            "ruminate_memory",
+            "scene_turn",
         ]
         .contains(&action["action_type"].as_str().unwrap_or_default())
         {
@@ -461,6 +506,8 @@ fn validate_schedule_shape(schedule: &serde_json::Value) -> Vec<String> {
                 .filter(|key| {
                     ![
                         "agent_id",
+                        "arena",
+                        "participant_kind",
                         "next_ready_at",
                         "reaction_readiness",
                         "eligible_for_reaction",

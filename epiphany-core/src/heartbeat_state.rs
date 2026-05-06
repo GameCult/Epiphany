@@ -18,6 +18,11 @@ pub const HEARTBEAT_STATE_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat.v0";
 pub const HEARTBEAT_STATUS_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat_status.v0";
 pub const INITIATIVE_SCHEMA_VERSION: &str = "ghostlight.initiative_schedule.v0";
 
+const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
+const HEARTBEAT_ARENA_SCENE: &str = "scene";
+const PARTICIPANT_KIND_AGENT: &str = "agent";
+const PARTICIPANT_KIND_CHARACTER: &str = "character";
+
 const ROLE_ORDER: &[&str] = &[
     "coordinator",
     "face",
@@ -85,6 +90,10 @@ pub struct HeartbeatParticipant {
     pub agent_id: String,
     pub role_id: String,
     pub display_name: String,
+    #[serde(default)]
+    pub arena: String,
+    #[serde(default)]
+    pub participant_kind: String,
     pub initiative_speed: f64,
     pub next_ready_at: f64,
     pub reaction_bias: f64,
@@ -109,6 +118,10 @@ pub struct HeartbeatPendingTurn {
     pub action_id: String,
     #[serde(rename = "actionType")]
     pub action_type: String,
+    #[serde(rename = "actionScale", default)]
+    pub action_scale: String,
+    #[serde(rename = "localAffordanceBasis", default)]
+    pub local_affordance_basis: Vec<String>,
     #[serde(rename = "startedAt")]
     pub started_at: String,
     #[serde(rename = "startedSceneClock")]
@@ -141,6 +154,12 @@ pub struct HeartbeatHistoryEvent {
     pub action_id: String,
     #[serde(rename = "actionType")]
     pub action_type: String,
+    #[serde(default)]
+    pub arena: String,
+    #[serde(rename = "participantKind", default)]
+    pub participant_kind: String,
+    #[serde(rename = "actionScale", default)]
+    pub action_scale: String,
     #[serde(rename = "coordinatorAction", default)]
     pub coordinator_action: Option<String>,
     #[serde(rename = "targetRole", default)]
@@ -174,6 +193,28 @@ pub struct HeartbeatTickOptions {
 pub struct HeartbeatCompleteOptions {
     pub role: String,
     pub action_id: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct GhostlightSceneParticipantSeed {
+    pub agent_id: String,
+    pub display_name: String,
+    pub initiative_speed: f64,
+    pub reaction_bias: f64,
+    pub interrupt_threshold: f64,
+    pub constraints: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct HeartbeatAction {
+    action_id: String,
+    action_type: &'static str,
+    action_scale: &'static str,
+    base_recovery: f64,
+    initiative_cost: f64,
+    interruptibility: f64,
+    commitment: f64,
+    local_affordance_basis: Vec<String>,
 }
 
 pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
@@ -232,6 +273,25 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
                 participant.agent_id
             ));
         }
+        let arena = participant_arena(participant);
+        if !matches!(arena, HEARTBEAT_ARENA_MAINTENANCE | HEARTBEAT_ARENA_SCENE) {
+            return Err(anyhow!(
+                "heartbeat participant {} arena {:?} is unsupported",
+                participant.agent_id,
+                arena
+            ));
+        }
+        let participant_kind = participant_kind(participant);
+        if !matches!(
+            participant_kind,
+            PARTICIPANT_KIND_AGENT | PARTICIPANT_KIND_CHARACTER
+        ) {
+            return Err(anyhow!(
+                "heartbeat participant {} participant_kind {:?} is unsupported",
+                participant.agent_id,
+                participant_kind
+            ));
+        }
     }
     Ok(())
 }
@@ -278,6 +338,45 @@ pub fn initialize_heartbeat_store(
     target_heartbeat_rate: f64,
 ) -> Result<EpiphanyHeartbeatStateEntry> {
     write_heartbeat_state_entry(store_path, &default_heartbeat_state(target_heartbeat_rate))
+}
+
+pub fn ghostlight_scene_heartbeat_state(
+    target_heartbeat_rate: f64,
+    scene_id: impl Into<String>,
+    participants: Vec<GhostlightSceneParticipantSeed>,
+) -> Result<EpiphanyHeartbeatStateEntry> {
+    if participants.is_empty() {
+        return Err(anyhow!(
+            "Ghostlight scene heartbeat requires at least one participant"
+        ));
+    }
+    let scene_id = scene_id.into();
+    let mut state = default_heartbeat_state(target_heartbeat_rate);
+    state.participants = participants
+        .into_iter()
+        .map(|seed| ghostlight_scene_participant(&scene_id, seed))
+        .collect();
+    state.extra.insert(
+        "protocol".to_string(),
+        serde_json::json!({
+            "domain": "ghostlight",
+            "sceneId": scene_id,
+            "arena": HEARTBEAT_ARENA_SCENE,
+            "contract": "Characters and maintenance organs use one initiative timing law; scene participants receive only projected local context.",
+        }),
+    );
+    validate_heartbeat_state(&state)?;
+    Ok(state)
+}
+
+pub fn initialize_ghostlight_scene_heartbeat_store(
+    store_path: impl AsRef<Path>,
+    target_heartbeat_rate: f64,
+    scene_id: impl Into<String>,
+    participants: Vec<GhostlightSceneParticipantSeed>,
+) -> Result<EpiphanyHeartbeatStateEntry> {
+    let state = ghostlight_scene_heartbeat_state(target_heartbeat_rate, scene_id, participants)?;
+    write_heartbeat_state_entry(store_path, &state)
 }
 
 pub fn heartbeat_status_projection(
@@ -411,6 +510,9 @@ pub fn complete_heartbeat_store(
         selected_agent_id: participant.agent_id.clone(),
         action_id: completed.action_id.clone(),
         action_type: completed.action_type.clone(),
+        arena: participant_arena(participant).to_string(),
+        participant_kind: participant_kind(participant).to_string(),
+        action_scale: completed.action_scale.clone(),
         coordinator_action: None,
         target_role: None,
         work_role: None,
@@ -454,31 +556,28 @@ fn tick_once(
     let (selected_index, selection_kind, selection_reason) =
         select_participant(state, work_role.as_deref(), options.urgency)?;
     let selected = state.participants[selected_index].clone();
-    let (action_id, action_type, base_recovery, initiative_cost, interruptibility, action_reason) =
-        action_for_selection(
-            state,
-            &selected,
-            work_role.as_deref(),
-            options.coordinator_action.as_deref(),
-            rate,
-        );
+    let action = action_for_selection(
+        state,
+        &selected,
+        work_role.as_deref(),
+        options.coordinator_action.as_deref(),
+        rate,
+    );
     let scene_clock = state.scene_clock.max(selected.next_ready_at);
-    let recovery = base_recovery
+    let recovery = action.base_recovery
         / selected
             .initiative_speed
             .max(state.selection_policy.minimum_speed);
     let pending = HeartbeatPendingTurn {
         status: "running".to_string(),
         schedule_id: options.schedule_id.clone(),
-        action_id: action_id.clone(),
-        action_type: if action_id.ends_with(".ruminate") {
-            "ruminate_memory".to_string()
-        } else {
-            "role_work".to_string()
-        },
+        action_id: action.action_id.clone(),
+        action_type: action.action_type.to_string(),
+        action_scale: action.action_scale.to_string(),
+        local_affordance_basis: action.local_affordance_basis.clone(),
         started_at: now_iso(),
         started_scene_clock: round6(scene_clock),
-        base_recovery: round6(base_recovery),
+        base_recovery: round6(action.base_recovery),
         recovery: round6(recovery),
         cooldown_policy: "after_turn_completion".to_string(),
         completed_at: None,
@@ -487,7 +586,7 @@ fn tick_once(
         extra: BTreeMap::new(),
     };
     state.participants[selected_index].pending_turn = Some(pending.clone());
-    state.participants[selected_index].last_action_id = Some(action_id.clone());
+    state.participants[selected_index].last_action_id = Some(action.action_id.clone());
     state.participants[selected_index].last_woke_at = Some(now_iso());
     state.participants[selected_index].current_load =
         round6((state.participants[selected_index].current_load * 0.75).clamp(0.0, 1.0));
@@ -497,18 +596,16 @@ fn tick_once(
     }
 
     let selected_after = state.participants[selected_index].clone();
-    let action_event_type = if action_id.ends_with(".ruminate") {
-        "ruminate_memory"
-    } else {
-        "role_work"
-    };
     let event = HeartbeatHistoryEvent {
         ts: now_iso(),
         schedule_id: options.schedule_id.clone(),
         selected_role: selected_after.role_id.clone(),
         selected_agent_id: selected_after.agent_id.clone(),
-        action_id: action_id.clone(),
-        action_type: action_event_type.to_string(),
+        action_id: action.action_id.clone(),
+        action_type: action.action_type.to_string(),
+        arena: participant_arena(&selected_after).to_string(),
+        participant_kind: participant_kind(&selected_after).to_string(),
+        action_scale: action.action_scale.to_string(),
         coordinator_action: options.coordinator_action.clone(),
         target_role: options.target_role.clone(),
         work_role: work_role.clone(),
@@ -533,26 +630,24 @@ fn tick_once(
         "scene_clock": state.scene_clock,
         "participants": state.participants.iter().map(schedule_participant_json).collect::<Vec<_>>(),
         "action_catalog": [{
-            "action_id": action_id,
+            "action_id": action.action_id,
             "actor_id": selected_after.agent_id,
-            "action_type": action_type,
-            "action_scale": if action_id.ends_with(".ruminate") { "short" } else { "standard" },
-            "base_recovery": base_recovery,
-            "initiative_cost": initiative_cost,
-            "interruptibility": interruptibility,
-            "commitment": if action_id.ends_with(".ruminate") { 0.25 } else { 0.65 },
-            "local_affordance_basis": [
-                action_reason,
-                "Heartbeat slots control opportunity, not project authority.",
-                "Cooldown starts only after the heartbeat turn completes, so an unfinished sub-agent thread cannot be heartbeaten again."
-            ],
+            "arena": participant_arena(&selected_after),
+            "participant_kind": participant_kind(&selected_after),
+            "action_type": action.action_type,
+            "action_scale": action.action_scale,
+            "base_recovery": action.base_recovery,
+            "initiative_cost": action.initiative_cost,
+            "interruptibility": action.interruptibility,
+            "commitment": action.commitment,
+            "local_affordance_basis": action.local_affordance_basis,
         }],
         "reaction_windows": if let Some(work_role) = &work_role {
             serde_json::json!([{
                 "window_id": format!("{}.pending-work", options.schedule_id),
                 "trigger_event_ref": options.source_scene_ref,
                 "urgency": options.urgency,
-                "eligible_actor_ids": [agent_id_for_role(work_role)],
+                "eligible_actor_ids": [agent_id_for_work_role(state, work_role)],
                 "allowed_action_scales": ["short", "standard"],
                 "expires_at": round6(state.scene_clock + 1.0),
                 "notes": "Pending coordinator work can pull its owning lane forward only if readiness clears threshold."
@@ -564,7 +659,7 @@ fn tick_once(
         "next_actor_selection": {
             "selection_kind": selection_kind,
             "selected_actor_id": selected_after.agent_id,
-            "selected_action_ids": [action_id],
+            "selected_action_ids": [event.action_id.clone()],
             "scene_clock_after_selection": state.scene_clock,
             "selection_reason": selection_reason,
             "override_reason": null,
@@ -577,10 +672,10 @@ fn tick_once(
         ],
     });
 
-    let rumination = if action_id.ends_with(".ruminate") {
+    let rumination = if event.action_type == "ruminate_memory" {
         serde_json::json!({
             "roleId": selected_after.role_id,
-            "selfPatch": rumination_patch(&selected_after.role_id, &action_id),
+            "selfPatch": rumination_patch(&selected_after.role_id, &event.action_id),
             "result": null,
             "applied": false,
         })
@@ -698,23 +793,51 @@ fn action_for_selection(
     work_role: Option<&str>,
     coordinator_action: Option<&str>,
     target_heartbeat_rate: f64,
-) -> (String, &'static str, f64, f64, f64, String) {
+) -> HeartbeatAction {
     let minimum_rate = state.pacing_policy.minimum_effective_rate.max(0.001);
+    if participant_arena(selected) == HEARTBEAT_ARENA_SCENE {
+        let heartbeat_rate = target_heartbeat_rate.max(minimum_rate);
+        return HeartbeatAction {
+            action_id: format!("heartbeat.{}.scene-turn", selected.role_id),
+            action_type: "scene_turn",
+            action_scale: "standard",
+            base_recovery: state.pacing_policy.work_base_recovery / heartbeat_rate,
+            initiative_cost: 4.0,
+            interruptibility: 0.5,
+            commitment: 0.7,
+            local_affordance_basis: vec![
+                format!(
+                    "Project {} from current Ghostlight scene state and run one local character turn.",
+                    selected.display_name
+                ),
+                "Selected actor receives only projected local context, not omniscient coordinator state."
+                    .to_string(),
+                "The same heartbeat timing law schedules scene characters and maintenance organs."
+                    .to_string(),
+            ],
+        };
+    }
     if Some(selected.role_id.as_str()) == work_role {
         let heartbeat_rate = target_heartbeat_rate.max(minimum_rate);
         let action_id = format!("heartbeat.{}.work", selected.role_id);
-        return (
+        return HeartbeatAction {
             action_id,
-            "mixed",
-            state.pacing_policy.work_base_recovery / heartbeat_rate,
-            4.0,
-            0.45,
-            format!(
+            action_type: "role_work",
+            action_scale: "standard",
+            base_recovery: state.pacing_policy.work_base_recovery / heartbeat_rate,
+            initiative_cost: 4.0,
+            interruptibility: 0.45,
+            commitment: 0.65,
+            local_affordance_basis: vec![
+                format!(
                 "Wake {} for coordinator action {}.",
                 selected.display_name,
                 coordinator_action.unwrap_or("pending work")
             ),
-        );
+                "Heartbeat slots control opportunity, not project authority.".to_string(),
+                "Cooldown starts only after the heartbeat turn completes, so an unfinished sub-agent thread cannot be heartbeaten again.".to_string(),
+            ],
+        };
     }
     let sleep_multiplier = state
         .pacing_policy
@@ -722,22 +845,28 @@ fn action_for_selection(
         .max(minimum_rate);
     let heartbeat_rate = (target_heartbeat_rate * sleep_multiplier).max(minimum_rate);
     let action_id = format!("heartbeat.{}.ruminate", selected.role_id);
-    (
+    HeartbeatAction {
         action_id,
-        "wait",
-        state.pacing_policy.idle_base_recovery / heartbeat_rate,
-        1.0,
-        0.9,
-        format!(
+        action_type: "ruminate_memory",
+        action_scale: "short",
+        base_recovery: state.pacing_policy.idle_base_recovery / heartbeat_rate,
+        initiative_cost: 1.0,
+        interruptibility: 0.9,
+        commitment: 0.25,
+        local_affordance_basis: vec![
+            format!(
             "{} has no actionable lane work; ruminate and distill role memory.",
             selected.display_name
         ),
-    )
+            "Heartbeat slots control opportunity, not project authority.".to_string(),
+            "When no coordinator work is active, idle rumination uses the sleep heartbeat multiplier so the swarm dreams slowly instead of thrashing.".to_string(),
+        ],
+    }
 }
 
 fn work_role_for_action(action: Option<&str>, target_role: Option<&str>) -> Option<String> {
     if let Some(target_role) = target_role
-        && ROLE_ORDER.contains(&target_role)
+        && (ROLE_ORDER.contains(&target_role) || target_role.starts_with("ghostlight.character."))
     {
         return Some(target_role.to_string());
     }
@@ -761,14 +890,16 @@ fn work_role_for_action(action: Option<&str>, target_role: Option<&str>) -> Opti
 }
 
 fn patch_missing_participants(state: &mut EpiphanyHeartbeatStateEntry) {
-    let present: Vec<String> = state
-        .participants
-        .iter()
-        .map(|item| item.role_id.clone())
-        .collect();
-    for role_id in ROLE_ORDER {
-        if !present.iter().any(|present| present == role_id) {
-            state.participants.push(default_participant(role_id));
+    if !is_ghostlight_scene_state(state) {
+        let present: Vec<String> = state
+            .participants
+            .iter()
+            .map(|item| item.role_id.clone())
+            .collect();
+        for role_id in ROLE_ORDER {
+            if !present.iter().any(|present| present == role_id) {
+                state.participants.push(default_participant(role_id));
+            }
         }
     }
     for participant in &mut state.participants {
@@ -788,11 +919,23 @@ fn patch_missing_participants(state: &mut EpiphanyHeartbeatStateEntry) {
     }
 }
 
+fn is_ghostlight_scene_state(state: &EpiphanyHeartbeatStateEntry) -> bool {
+    state
+        .extra
+        .get("protocol")
+        .and_then(Value::as_object)
+        .and_then(|protocol| protocol.get("domain"))
+        .and_then(Value::as_str)
+        == Some("ghostlight")
+}
+
 fn default_participant(role_id: &str) -> HeartbeatParticipant {
     HeartbeatParticipant {
         agent_id: agent_id_for_role(role_id).to_string(),
         role_id: role_id.to_string(),
         display_name: display_name_for_role(role_id).to_string(),
+        arena: HEARTBEAT_ARENA_MAINTENANCE.to_string(),
+        participant_kind: PARTICIPANT_KIND_AGENT.to_string(),
         initiative_speed: initiative_speed_for_role(role_id),
         next_ready_at: 0.0,
         reaction_bias: reaction_bias_for_role(role_id),
@@ -809,6 +952,52 @@ fn default_participant(role_id: &str) -> HeartbeatParticipant {
         pending_turn: None,
         extra: BTreeMap::new(),
     }
+}
+
+fn ghostlight_scene_participant(
+    scene_id: &str,
+    seed: GhostlightSceneParticipantSeed,
+) -> HeartbeatParticipant {
+    let role_id = ghostlight_role_id(seed.agent_id.as_str());
+    let mut extra = BTreeMap::new();
+    extra.insert("sceneId".to_string(), Value::String(scene_id.to_string()));
+    HeartbeatParticipant {
+        agent_id: seed.agent_id,
+        role_id,
+        display_name: seed.display_name,
+        arena: HEARTBEAT_ARENA_SCENE.to_string(),
+        participant_kind: PARTICIPANT_KIND_CHARACTER.to_string(),
+        initiative_speed: seed.initiative_speed,
+        next_ready_at: 0.0,
+        reaction_bias: seed.reaction_bias,
+        interrupt_threshold: seed.interrupt_threshold,
+        current_load: 0.0,
+        status: "active".to_string(),
+        constraints: seed.constraints,
+        last_action_id: None,
+        last_woke_at: None,
+        last_finished_at: None,
+        pending_turn: None,
+        extra,
+    }
+}
+
+fn ghostlight_role_id(agent_id: &str) -> String {
+    format!(
+        "ghostlight.character.{}",
+        agent_id
+            .trim()
+            .chars()
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() {
+                    ch.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>()
+            .trim_matches('-')
+    )
 }
 
 fn participant_index_by_role(state: &EpiphanyHeartbeatStateEntry, role_id: &str) -> Result<usize> {
@@ -841,12 +1030,39 @@ fn readiness_snapshot(
                 eligible.then_some(round6(item.reaction_bias * urgency - item.current_load));
             serde_json::json!({
                 "agent_id": item.agent_id,
+                "arena": participant_arena(item),
+                "participant_kind": participant_kind(item),
                 "next_ready_at": item.next_ready_at,
                 "reaction_readiness": reaction_readiness,
                 "eligible_for_reaction": eligible,
             })
         })
         .collect()
+}
+
+fn participant_arena(participant: &HeartbeatParticipant) -> &str {
+    if participant.arena.trim().is_empty() {
+        HEARTBEAT_ARENA_MAINTENANCE
+    } else {
+        participant.arena.as_str()
+    }
+}
+
+fn participant_kind(participant: &HeartbeatParticipant) -> &str {
+    if participant.participant_kind.trim().is_empty() {
+        PARTICIPANT_KIND_AGENT
+    } else {
+        participant.participant_kind.as_str()
+    }
+}
+
+fn agent_id_for_work_role(state: &EpiphanyHeartbeatStateEntry, role_id: &str) -> String {
+    state
+        .participants
+        .iter()
+        .find(|participant| participant.role_id == role_id)
+        .map(|participant| participant.agent_id.clone())
+        .unwrap_or_else(|| agent_id_for_role(role_id).to_string())
 }
 
 fn trim_history(state: &mut EpiphanyHeartbeatStateEntry) {
@@ -957,6 +1173,8 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "agentId": participant.agent_id,
         "roleId": participant.role_id,
         "displayName": participant.display_name,
+        "arena": participant_arena(participant),
+        "participantKind": participant_kind(participant),
         "initiativeSpeed": participant.initiative_speed,
         "nextReadyAt": participant.next_ready_at,
         "reactionBias": participant.reaction_bias,
@@ -973,7 +1191,10 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
 fn schedule_participant_json(participant: &HeartbeatParticipant) -> Value {
     serde_json::json!({
         "agent_id": participant.agent_id,
+        "role_id": participant.role_id,
         "display_name": participant.display_name,
+        "arena": participant_arena(participant),
+        "participant_kind": participant_kind(participant),
         "initiative_speed": participant.initiative_speed,
         "next_ready_at": participant.next_ready_at,
         "reaction_bias": participant.reaction_bias,
@@ -1000,6 +1221,8 @@ fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "scheduleId": turn.schedule_id,
         "actionId": turn.action_id,
         "actionType": turn.action_type,
+        "actionScale": turn.action_scale,
+        "localAffordanceBasis": turn.local_affordance_basis,
         "startedAt": turn.started_at,
         "startedSceneClock": turn.started_scene_clock,
         "baseRecovery": turn.base_recovery,
@@ -1019,6 +1242,9 @@ fn history_event_json(event: HeartbeatHistoryEvent) -> Value {
         "selectedAgentId": event.selected_agent_id,
         "actionId": event.action_id,
         "actionType": event.action_type,
+        "arena": event.arena,
+        "participantKind": event.participant_kind,
+        "actionScale": event.action_scale,
         "coordinatorAction": event.coordinator_action,
         "targetRole": event.target_role,
         "workRole": event.work_role,
@@ -1219,6 +1445,60 @@ mod tests {
         )?;
         assert_eq!(completed["event"]["turnStatus"], "completed");
         assert!(artifact_dir.join("native-work.completion.json").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn ghostlight_scene_heartbeat_selects_character_turns() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("ghostlight-heartbeats.msgpack");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_ghostlight_scene_heartbeat_store(
+            &store_path,
+            1.0,
+            "pallas-training-loop-v0",
+            vec![
+                GhostlightSceneParticipantSeed {
+                    agent_id: "nara-7".to_string(),
+                    display_name: "Nara-7".to_string(),
+                    initiative_speed: 1.1,
+                    reaction_bias: 0.6,
+                    interrupt_threshold: 0.35,
+                    constraints: vec!["Receives only projected local context.".to_string()],
+                },
+                GhostlightSceneParticipantSeed {
+                    agent_id: "orrin-dax".to_string(),
+                    display_name: "Orrin Dax".to_string(),
+                    initiative_speed: 0.9,
+                    reaction_bias: 0.55,
+                    interrupt_threshold: 0.4,
+                    constraints: vec!["Acts from current scene pressure.".to_string()],
+                },
+            ],
+        )?;
+
+        let tick = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 1.0,
+                coordinator_action: None,
+                target_role: None,
+                urgency: 0.75,
+                schedule_id: "pallas.turn-001".to_string(),
+                source_scene_ref: "ghostlight/pallas-training-loop-v0".to_string(),
+                defer_completion: true,
+            },
+        )?;
+
+        assert_eq!(tick["event"]["arena"], "scene");
+        assert_eq!(tick["event"]["participantKind"], "character");
+        assert_eq!(tick["event"]["actionType"], "scene_turn");
+        assert_eq!(
+            tick["schedule"]["action_catalog"][0]["action_type"],
+            "scene_turn"
+        );
+        assert_eq!(tick["schedule"]["participants"][0]["arena"], "scene");
         Ok(())
     }
 }
