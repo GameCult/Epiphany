@@ -18,8 +18,6 @@ DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-dogfood" / "coordinator-smoke"
 
 def native_coordinator_exe() -> Path:
     exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / "epiphany-mvp-coordinator.exe"
-    if exe.exists():
-        return exe
     subprocess.run(
         [
             "cargo",
@@ -65,6 +63,8 @@ def run_native(
         str(app_server),
         "--artifact-dir",
         str(artifact_dir),
+        "--runtime-store",
+        str(artifact_dir / "runtime-spine.msgpack"),
         "--codex-home",
         str(artifact_dir / "codex-home"),
         "--cwd",
@@ -100,8 +100,13 @@ def require_artifacts(summary: dict[str, Any]) -> None:
         "epiphany-transcript.jsonl",
         "epiphany-server.stderr.log",
         "agent-function-telemetry.json",
+        "runtime-spine-status.json",
     ):
         require((artifact_dir / name).exists(), f"missing coordinator artifact {name}")
+    require((artifact_dir / "runtime-spine.msgpack").exists(), "missing native runtime spine store")
+    runtime_status = json.loads((artifact_dir / "runtime-spine-status.json").read_text(encoding="utf-8"))
+    require(runtime_status["present"] is True, "native runtime spine should be present")
+    require(runtime_status["sessions"] >= 1, "native runtime spine should record a session")
 
 
 def require_operator_safe(value: Any, path: str = "$") -> None:

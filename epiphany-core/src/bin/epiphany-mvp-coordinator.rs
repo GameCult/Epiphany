@@ -1,6 +1,18 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use chrono::SecondsFormat;
+use epiphany_core::RuntimeSpineEventOptions;
+use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::RuntimeSpineJobOptions;
+use epiphany_core::RuntimeSpineJobResultOptions;
+use epiphany_core::RuntimeSpineSessionOptions;
+use epiphany_core::append_runtime_event;
+use epiphany_core::complete_runtime_job;
+use epiphany_core::create_runtime_job;
+use epiphany_core::create_runtime_session;
+use epiphany_core::initialize_runtime_spine;
+use epiphany_core::runtime_spine_status;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -33,6 +45,7 @@ struct Args {
     codex_home: PathBuf,
     artifact_dir: PathBuf,
     agent_memory_dir: PathBuf,
+    runtime_store: PathBuf,
     mode: String,
     max_steps: usize,
     poll_seconds: f64,
@@ -59,6 +72,7 @@ impl Args {
                 .unwrap_or_else(|| home_dir().join(".codex")),
             artifact_dir: root.join(".epiphany-dogfood").join("coordinator"),
             agent_memory_dir: root.join("state").join("agents.msgpack"),
+            runtime_store: root.join("state").join("runtime-spine.msgpack"),
             mode: "plan".to_string(),
             max_steps: 4,
             poll_seconds: 5.0,
@@ -80,6 +94,9 @@ impl Args {
                 "--artifact-dir" => parsed.artifact_dir = take_path(&mut args, "--artifact-dir")?,
                 "--agent-memory-dir" => {
                     parsed.agent_memory_dir = take_path(&mut args, "--agent-memory-dir")?;
+                }
+                "--runtime-store" => {
+                    parsed.runtime_store = take_path(&mut args, "--runtime-store")?
                 }
                 "--mode" => parsed.mode = take_string(&mut args, "--mode")?,
                 "--max-steps" => {
@@ -121,6 +138,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let codex_home = status_cli::absolute_path(&args.codex_home)?;
     let artifact_dir = status_cli::absolute_path(&args.artifact_dir)?;
     let agent_memory_dir = status_cli::absolute_path(&args.agent_memory_dir)?;
+    let runtime_store = status_cli::absolute_path(&args.runtime_store)?;
     reset_artifact_dir(&artifact_dir)?;
     fs::create_dir_all(&codex_home)?;
     if args.bootstrap_smoke_state {
@@ -171,6 +189,57 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         startup_events.push(thread_lifecycle_event("threadStart", &started));
         text_at(&started, &["thread", "id"])?
     };
+    let runtime_session_id = format!("coordinator-{thread_id}");
+    let runtime_identity = initialize_runtime_spine(
+        &runtime_store,
+        RuntimeSpineInitOptions {
+            runtime_id: "epiphany-local".to_string(),
+            display_name: "Epiphany Local".to_string(),
+            created_at: now(),
+        },
+    )?;
+    let runtime_session = ensure_runtime_session(
+        &runtime_store,
+        &runtime_session_id,
+        "Coordinate the Epiphany MVP lanes with native runtime job receipts.",
+    )?;
+    let runtime_event = append_runtime_event(
+        &runtime_store,
+        RuntimeSpineEventOptions {
+            event_id: format!("event-coordinator-started-{}", sanitize_id(&thread_id)),
+            occurred_at: now(),
+            event_type: "coordinator.started".to_string(),
+            source: "epiphany-mvp-coordinator".to_string(),
+            session_id: Some(runtime_session_id.clone()),
+            job_id: None,
+            summary: "Native coordinator session opened.".to_string(),
+        },
+    )
+    .or_else(|_| {
+        append_runtime_event(
+            &runtime_store,
+            RuntimeSpineEventOptions {
+                event_id: format!(
+                    "event-coordinator-started-{}-{}",
+                    sanitize_id(&thread_id),
+                    uuid::Uuid::new_v4()
+                ),
+                occurred_at: now(),
+                event_type: "coordinator.started".to_string(),
+                source: "epiphany-mvp-coordinator".to_string(),
+                session_id: Some(runtime_session_id.clone()),
+                job_id: None,
+                summary: "Native coordinator session opened.".to_string(),
+            },
+        )
+    })?;
+    startup_events.push(json!({
+        "type": "runtimeSpineSession",
+        "store": runtime_store,
+        "runtimeId": runtime_identity.runtime_id,
+        "sessionId": runtime_session.session_id,
+        "eventId": runtime_event.event_id,
+    }));
 
     if args.bootstrap_smoke_state {
         client.send(
@@ -292,14 +361,23 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     revision,
                     args.max_runtime_seconds,
                 )?;
+                let native_job = open_native_job(
+                    &runtime_store,
+                    &runtime_session_id,
+                    role_id,
+                    &launch,
+                    "Role specialist launched through temporary execution bridge.",
+                )?;
                 push_event(
                     &mut step,
-                    json!({"type": "roleLaunch", "roleId": role_id, "launch": status_cli::sanitize_for_operator(launch.clone())}),
+                    json!({"type": "roleLaunch", "roleId": role_id, "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJob": native_job}),
                 );
                 let result = wait_for_role_result(&mut client, &thread_id, role_id, args)?;
+                let native_result =
+                    maybe_complete_native_job(&runtime_store, &native_job, &result, role_id)?;
                 push_event(
                     &mut step,
-                    json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
+                    json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone()), "runtimeResult": native_result}),
                 );
                 final_status = collect_coordinator_status(&mut client, &thread_id)?;
                 if !args.auto_review {
@@ -315,14 +393,27 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "launchReorientWorker" => {
                 let launch =
                     launch_reorient(&mut client, &thread_id, revision, args.max_runtime_seconds)?;
+                let native_job = open_native_job(
+                    &runtime_store,
+                    &runtime_session_id,
+                    "reorient-worker",
+                    &launch,
+                    "Reorient worker launched through temporary execution bridge.",
+                )?;
                 push_event(
                     &mut step,
-                    json!({"type": "reorientLaunch", "launch": status_cli::sanitize_for_operator(launch.clone())}),
+                    json!({"type": "reorientLaunch", "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJob": native_job}),
                 );
                 let result = wait_for_reorient_result(&mut client, &thread_id, args)?;
+                let native_result = maybe_complete_native_job(
+                    &runtime_store,
+                    &native_job,
+                    &result,
+                    "reorient-worker",
+                )?;
                 push_event(
                     &mut step,
-                    json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
+                    json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone()), "runtimeResult": native_result}),
                 );
                 final_status = collect_coordinator_status(&mut client, &thread_id)?;
                 if !args.auto_review {
@@ -355,12 +446,15 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     }
 
     let operator_final_status = status_cli::sanitize_for_operator(final_status);
+    let runtime_status = runtime_spine_status(&runtime_store)?;
     let final_rendered = status_cli::render_status(&operator_final_status);
     let operator_steps = status_cli::sanitize_for_operator(Value::Array(steps));
     let summary = json!({
         "objective": "Coordinate the Epiphany MVP lanes over existing app-server APIs.",
         "artifactDir": artifact_dir,
         "codexHome": codex_home,
+        "runtimeStore": runtime_store,
+        "runtimeSpine": runtime_status,
         "workspace": cwd,
         "threadId": operator_final_status["threadId"],
         "mode": args.mode,
@@ -375,7 +469,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             "coordinator-final-status.json",
             "coordinator-final-status.txt",
             "coordinator-final-action.txt",
-            "agent-function-telemetry.json"
+            "agent-function-telemetry.json",
+            "runtime-spine-status.json"
         ],
         "sealedArtifactManifest": [
             {"path": "epiphany-transcript.jsonl", "reason": "sealed JSON-RPC audit trail; do not read during normal supervision"},
@@ -386,6 +481,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     write_json(
         &artifact_dir.join("coordinator-final-status.json"),
         &summary["finalStatus"],
+    )?;
+    write_json(
+        &artifact_dir.join("runtime-spine-status.json"),
+        &summary["runtimeSpine"],
     )?;
     fs::write(
         artifact_dir.join("coordinator-final-status.txt"),
@@ -622,6 +721,200 @@ fn maybe_apply_role_self_patch(accepted: &Value, agent_memory_dir: &Path) -> Res
     let mut output = output;
     output["appliedFromRoleAccept"] = json!(true);
     Ok(Some(output))
+}
+
+fn ensure_runtime_session(
+    runtime_store: &Path,
+    session_id: &str,
+    objective: &str,
+) -> Result<epiphany_core::EpiphanyRuntimeSession> {
+    match create_runtime_session(
+        runtime_store,
+        RuntimeSpineSessionOptions {
+            session_id: session_id.to_string(),
+            objective: objective.to_string(),
+            created_at: now(),
+            coordinator_note:
+                "Coordinator owns native runtime receipts before Codex execution dies.".to_string(),
+        },
+    ) {
+        Ok(session) => Ok(session),
+        Err(err) if err.to_string().contains("already exists") => {
+            let mut cache = epiphany_core::runtime_spine_cache(runtime_store)?;
+            cache.pull_all_backing_stores()?;
+            cache.get_required::<epiphany_core::EpiphanyRuntimeSession>(session_id)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+fn open_native_job(
+    runtime_store: &Path,
+    session_id: &str,
+    role_id: &str,
+    launch: &Value,
+    summary: &str,
+) -> Result<Value> {
+    let bridge_job_id = first_string_at(
+        launch,
+        &[
+            &["job", "id"],
+            &["job", "backendJobId"],
+            &["job", "runtimeAgentJobId"],
+            &["backendJobId"],
+            &["runtimeAgentJobId"],
+        ],
+    )
+    .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let native_job_id = format!("{}-{}", sanitize_id(role_id), sanitize_id(&bridge_job_id));
+    let job = match create_runtime_job(
+        runtime_store,
+        RuntimeSpineJobOptions {
+            job_id: native_job_id.clone(),
+            session_id: session_id.to_string(),
+            role: role_id.to_string(),
+            created_at: now(),
+            summary: summary.to_string(),
+            artifact_refs: Vec::new(),
+        },
+    ) {
+        Ok(job) => job,
+        Err(err) if err.to_string().contains("already exists") => {
+            let mut cache = epiphany_core::runtime_spine_cache(runtime_store)?;
+            cache.pull_all_backing_stores()?;
+            cache.get_required::<epiphany_core::EpiphanyRuntimeJob>(&native_job_id)?
+        }
+        Err(err) => return Err(err),
+    };
+    Ok(json!({
+        "jobId": job.job_id,
+        "role": job.role,
+        "status": format!("{:?}", job.status),
+        "bridgeJobId": bridge_job_id,
+    }))
+}
+
+fn maybe_complete_native_job(
+    runtime_store: &Path,
+    runtime_job: &Value,
+    result: &Value,
+    role_id: &str,
+) -> Result<Value> {
+    let status = result["status"].as_str().unwrap_or("unknown");
+    if !matches!(status, "completed" | "failed" | "cancelled") {
+        return Ok(json!({
+            "status": "pending",
+            "reason": "Bridge result is not terminal.",
+        }));
+    }
+    let job_id = runtime_job["jobId"]
+        .as_str()
+        .ok_or_else(|| anyhow!("runtime job event did not include jobId"))?;
+    let result_id = format!("result-{job_id}");
+    let summary = first_string_at(
+        result,
+        &[
+            &["finding", "summary"],
+            &["finding", "nextSafeMove"],
+            &["note"],
+            &["jobError"],
+        ],
+    )
+    .unwrap_or_else(|| format!("Bridge result status: {status}."));
+    let next_safe_move = first_string_at(result, &[&["finding", "nextSafeMove"]])
+        .unwrap_or_else(|| "Review the native runtime result.".to_string());
+    let verdict =
+        first_string_at(result, &[&["finding", "verdict"]]).unwrap_or_else(|| status.to_string());
+    match complete_runtime_job(
+        runtime_store,
+        RuntimeSpineJobResultOptions {
+            result_id: result_id.clone(),
+            job_id: job_id.to_string(),
+            completed_at: now(),
+            verdict,
+            summary,
+            next_safe_move,
+            evidence_refs: strings_at(result, &["finding", "evidenceIds"]),
+            artifact_refs: strings_at(result, &["finding", "artifactRefs"]),
+        },
+    ) {
+        Ok(completed) => Ok(json!({
+            "status": "completed",
+            "resultId": completed.result_id,
+            "jobId": completed.job_id,
+            "role": completed.role,
+            "verdict": completed.verdict,
+        })),
+        Err(err) if err.to_string().contains("already terminal") => Ok(json!({
+            "status": "alreadyTerminal",
+            "jobId": job_id,
+            "role": role_id,
+        })),
+        Err(err) if err.to_string().contains("already exists") => Ok(json!({
+            "status": "alreadyRecorded",
+            "resultId": result_id,
+            "jobId": job_id,
+            "role": role_id,
+        })),
+        Err(err) => Err(err),
+    }
+}
+
+fn first_string_at(value: &Value, paths: &[&[&str]]) -> Option<String> {
+    'paths: for path in paths {
+        let mut cursor = value;
+        for key in *path {
+            let Some(next) = cursor.get(*key) else {
+                continue 'paths;
+            };
+            cursor = next;
+        }
+        if let Some(value) = cursor.as_str()
+            && !value.trim().is_empty()
+        {
+            return Some(value.to_string());
+        }
+    }
+    None
+}
+
+fn strings_at(value: &Value, path: &[&str]) -> Vec<String> {
+    let mut cursor = value;
+    for key in path {
+        let Some(next) = cursor.get(*key) else {
+            return Vec::new();
+        };
+        cursor = next;
+    }
+    cursor
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(ToString::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn sanitize_id(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
+}
+
+fn now() -> String {
+    chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 fn reorient_patch() -> Value {
