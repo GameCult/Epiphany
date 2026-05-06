@@ -7,7 +7,6 @@ from pathlib import Path
 import subprocess
 from typing import Any
 
-from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import DEFAULT_APP_SERVER
 from epiphany_phase5_smoke import ROOT
@@ -48,6 +47,18 @@ def native_epiphany_bin(bin_name: str, *args: str) -> dict[str, Any]:
     if completed.returncode != 0:
         raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or f"{bin_name} failed")
     return json.loads(completed.stdout)
+
+
+def write_transcript_telemetry(transcript_path: Path, telemetry_path: Path) -> dict[str, Any]:
+    telemetry = native_epiphany_bin(
+        "epiphany-agent-telemetry",
+        str(transcript_path.resolve()),
+        "--output",
+        str(telemetry_path),
+    )
+    if telemetry_path.exists():
+        return json.loads(telemetry_path.read_text(encoding="utf-8"))
+    return telemetry
 
 
 def heartbeat_status(*, artifact_dir: Path = DEFAULT_HEARTBEAT_ARTIFACT_DIR, limit: int = 8) -> dict[str, Any]:

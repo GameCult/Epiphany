@@ -6,11 +6,11 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
 from epiphany_mvp_status import sanitize_for_operator
+from epiphany_mvp_status import write_transcript_telemetry
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase5_smoke import require
