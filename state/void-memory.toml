@@ -1,0 +1,25 @@
+schema_version = "epiphany.void_memory_bridge.v0"
+
+database_dsn_env = "VOID_DATABASE_DSN"
+database_dsn = "postgres://voidbot:voidbot@localhost:5432/voidbot"
+
+qdrant_url = "http://127.0.0.1:6333"
+qdrant_api_key_env = "QDRANT_API_KEY"
+qdrant_history_collection = "voidbot_discord_history_chunks"
+qdrant_source_collection = "voidbot_repository_source_chunks"
+qdrant_timeout_ms = 30000
+
+ollama_base_url = "http://127.0.0.1:11434"
+ollama_model = "qwen3-embedding:0.6b"
+ollama_timeout_ms = 30000
+history_query_instruction = "Given a Discord history question, retrieve relevant messages and discussion snippets that answer it."
+source_query_instruction = "Given a source-tree, codebase, or lore question, retrieve relevant files, code snippets, and lore passages that answer it."
+
+archive_path = "E:\\Projects\\VoidBot\\.voidbot\\rag\\messages.json"
+
+policy = [
+  "Face may search archived Discord memory for context before speaking.",
+  "Qdrant is the semantic memory backend for Discord history and source/lore vectors.",
+  "Postgres is checked as the live Void state spine for jobs, audit, interaction memory, and rate limits.",
+  "Raw archive rows remain evidence, not public speech; Face summarizes with restraint.",
+]

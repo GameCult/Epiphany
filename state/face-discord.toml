@@ -2,10 +2,14 @@ schema_version = "epiphany.face_discord.v0"
 allowed_channel_name = "#aquarium"
 allowed_channel_id_env = "EPIPHANY_FACE_AQUARIUM_CHANNEL_ID"
 bot_token_env = "DISCORD_BOT_TOKEN"
+webhook_cache_path = ".epiphany-face/discord-webhook-cache.json"
+persona_name = "Epiphany Face"
+# persona_avatar_url may be set per Face/backend when a specific swarm avatar exists.
 
 policy = [
   "Face may post only in #aquarium.",
   "If the #aquarium channel id is missing, Face writes candidate chat artifacts instead of posting.",
+  "When a Face has a persona name/avatar, it speaks through the shared Discord webhook pipe so each Epiphany can present as itself without separate bot identities.",
   "Face must not DM, moderate, escalate, or substitute another channel.",
   "Face translates agent thought-weather; it does not leak raw transcripts, private notes, or sealed artifacts.",
 ]

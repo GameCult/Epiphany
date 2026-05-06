@@ -241,8 +241,13 @@ fn run_status(args: &Args) -> Result<Value> {
         "status": "ready",
         "artifactDir": face_dir,
         "latestArtifacts": latest_face.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-        "availableActions": ["faceBubble", "characterTurn"],
+        "availableActions": ["faceBubble", "characterTurn", "discordPersonaPost"],
     });
+    let void_memory = native_json(
+        "epiphany-void-memory",
+        &["status", "--config", "state/void-memory.toml"],
+    )
+    .unwrap_or_else(|error| json!({"ok": false, "error": error.to_string()}));
     let status = json!({
         "threadId": thread_id,
         "read": read,
@@ -258,6 +263,7 @@ fn run_status(args: &Args) -> Result<Value> {
         "coordinator": coordinator,
         "heartbeat": heartbeat,
         "face": face,
+        "voidMemory": void_memory,
     });
     Ok(sanitize_for_operator(status))
 }
