@@ -456,7 +456,7 @@ Write these files:
    For typed-state candidates, perform structural validation by comparing against:
 
    - `E:\Projects\EpiphanyAgent\notes\epiphany-planning-substrate.md`
-   - `E:\Projects\EpiphanyAgent\tools\epiphany_phase6_planning_smoke.py`
+   - native `epiphany-phase6-planning-smoke`
    - `thread/epiphany/update` validation rules in the current source tree, when exact validation is needed
 
    If you can safely run a temporary app-server/thread validation without mutating the user's real state, do so and record the command. Otherwise record that typed-state candidates are source-shaped but operator-review pending.

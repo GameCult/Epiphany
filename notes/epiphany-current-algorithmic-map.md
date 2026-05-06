@@ -1506,7 +1506,7 @@ Current tests cover the landed flows at useful seams:
 - live app-server smoke for watcher-backed invalidation inputs inside the Phase 6 freshness boundary in `tools/epiphany_phase6_invalidation_smoke.py`.
 - live app-server smoke for the first Phase 6 context boundary through native `epiphany-phase6-context-smoke`.
 - live app-server smoke for the first Phase 6 graph traversal boundary through native `epiphany-phase6-graph-query-smoke`.
-- live app-server smoke for the first Phase 6 planning boundary in `tools/epiphany_phase6_planning_smoke.py`.
+- live app-server smoke for the first Phase 6 planning boundary through native `epiphany-phase6-planning-smoke`.
 - live app-server smoke for the first Phase 6 pressure boundary through native `epiphany-phase6-pressure-smoke`.
 - live app-server smoke for the first Phase 6 reorientation policy boundary in `tools/epiphany_phase6_reorient_smoke.py`.
 - live app-server smoke for the first bounded reorient-launch runtime consumer plus CRRC coordinator recommendations in `tools/epiphany_phase6_reorient_launch_smoke.py`.
@@ -1530,7 +1530,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-fresh
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-context-smoke
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-graph-query-smoke
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-planning-smoke
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-pressure-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'

@@ -205,7 +205,7 @@ landed_baseline:
     - Use `tools/epiphany_phase6_invalidation_smoke.py` before modifying watcher-backed invalidation behavior inside freshness reflection.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-context-smoke` before modifying targeted context-shard behavior.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-graph-query-smoke` before modifying graph traversal behavior.
-    - Use `tools/epiphany_phase6_planning_smoke.py` before modifying planning state or the read-only planning projection.
+    - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-planning-smoke` before modifying planning state or the read-only planning projection.
     - Use `tools/epiphany_gui_planning_smoke.py` before modifying GUI Objective Draft adoption behavior.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-pressure-smoke` before modifying context-pressure reflection behavior.
     - Use `tools/epiphany_phase6_reorient_smoke.py` before modifying bounded CRRC reorientation policy behavior.

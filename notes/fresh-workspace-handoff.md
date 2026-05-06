@@ -149,7 +149,7 @@ The current spine, blessed but not yet finished:
 - live watcher-backed invalidation smoke through `tools/epiphany_phase6_invalidation_smoke.py`
 - live context app-server smoke through native `epiphany-phase6-context-smoke`
 - live graph traversal app-server smoke through native `epiphany-phase6-graph-query-smoke`
-- live planning app-server smoke through `tools/epiphany_phase6_planning_smoke.py`
+- live planning app-server smoke through native `epiphany-phase6-planning-smoke`
 - live GUI planning adoption smoke through `tools/epiphany_gui_planning_smoke.py`
 - live pressure app-server smoke through native `epiphany-phase6-pressure-smoke`
 - live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
@@ -240,7 +240,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-graph
 For planning state/projection behavior changes, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-planning-smoke
 ```
 
 For context-pressure reflection behavior changes, run:
@@ -470,7 +470,7 @@ Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`,
 `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`,
 native `epiphany-mvp-status`, native `epiphany-mvp-coordinator`, and
-native `epiphany-phase6-graph-query-smoke` / `tools/epiphany_phase6_planning_smoke.py`
+native `epiphany-phase6-graph-query-smoke` / native `epiphany-phase6-planning-smoke`
 / `tools/epiphany_gui_planning_smoke.py`
 smokes are now guardrails, not the next organs.
 

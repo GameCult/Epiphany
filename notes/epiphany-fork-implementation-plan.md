@@ -465,7 +465,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-graph
 Before modifying planning state or projection behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-planning-smoke
 ```
 
 For app-server protocol changes, expect to run the relevant protocol tests,
