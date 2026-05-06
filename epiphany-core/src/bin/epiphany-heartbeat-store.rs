@@ -8,10 +8,8 @@ use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_heartbeat_state_entry;
-use epiphany_core::migrate_heartbeat_json_to_cultcache;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::validate_agent_memory_store;
-use epiphany_core::write_heartbeat_json_projection;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -23,9 +21,7 @@ fn main() -> Result<()> {
     let Some(command) = args.next() else {
         return usage();
     };
-    let mut json_path: Option<PathBuf> = None;
     let mut store_path: Option<PathBuf> = None;
-    let mut projection_path: Option<PathBuf> = None;
     let mut artifact_dir: Option<PathBuf> = None;
     let mut target_heartbeat_rate = 1.0_f64;
     let mut coordinator_action: Option<String> = None;
@@ -42,9 +38,7 @@ fn main() -> Result<()> {
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--json" => json_path = Some(next_path(&mut args, "--json")?),
             "--store" => store_path = Some(next_path(&mut args, "--store")?),
-            "--projection" => projection_path = Some(next_path(&mut args, "--projection")?),
             "--artifact-dir" => artifact_dir = Some(next_path(&mut args, "--artifact-dir")?),
             "--target-heartbeat-rate" => {
                 target_heartbeat_rate = next_value(&mut args, "--target-heartbeat-rate")?.parse()?
@@ -129,44 +123,6 @@ fn main() -> Result<()> {
             )?;
             println!("{}", result);
         }
-        "migrate-json" => {
-            let json_path = json_path.ok_or_else(|| anyhow!("migrate-json requires --json"))?;
-            let store_path = store_path.ok_or_else(|| anyhow!("migrate-json requires --store"))?;
-            let state = migrate_heartbeat_json_to_cultcache(&json_path, &store_path)?;
-            if let Some(projection_path) = projection_path {
-                write_heartbeat_json_projection(&store_path, projection_path)?;
-            }
-            println!(
-                "{}",
-                serde_json::json!({
-                    "ok": true,
-                    "command": "migrate-json",
-                    "json": json_path,
-                    "store": store_path,
-                    "schemaVersion": state.schema_version,
-                    "participants": state.participants.len(),
-                    "history": state.history.len(),
-                })
-            );
-        }
-        "project" => {
-            let store_path = store_path.ok_or_else(|| anyhow!("project requires --store"))?;
-            let projection_path =
-                projection_path.ok_or_else(|| anyhow!("project requires --projection"))?;
-            let state = write_heartbeat_json_projection(&store_path, &projection_path)?;
-            println!(
-                "{}",
-                serde_json::json!({
-                    "ok": true,
-                    "command": "project",
-                    "store": store_path,
-                    "projection": projection_path,
-                    "schemaVersion": state.schema_version,
-                    "participants": state.participants.len(),
-                    "history": state.history.len(),
-                })
-            );
-        }
         "status" => {
             let store_path = store_path.ok_or_else(|| anyhow!("status requires --store"))?;
             if let Some(artifact_dir) = artifact_dir {
@@ -221,7 +177,7 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path>\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store migrate-json --json <path> --store <path> [--projection <path>]\n       epiphany-heartbeat-store project --store <path> --projection <path>\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path>\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
 }
 
