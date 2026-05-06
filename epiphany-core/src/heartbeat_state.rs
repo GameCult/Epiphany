@@ -1023,9 +1023,11 @@ fn readiness_snapshot(
     state
         .participants
         .iter()
-        .filter(|item| item.status == "active" && !is_turn_pending(item))
+        .filter(|item| item.status == "active")
         .map(|item| {
-            let eligible = Some(item.role_id.as_str()) == work_role && work_role.is_some();
+            let pending = is_turn_pending(item);
+            let eligible =
+                !pending && Some(item.role_id.as_str()) == work_role && work_role.is_some();
             let reaction_readiness =
                 eligible.then_some(round6(item.reaction_bias * urgency - item.current_load));
             serde_json::json!({
