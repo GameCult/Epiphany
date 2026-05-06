@@ -85,6 +85,7 @@ The landed machine now has:
 - first Phase 6 dogfood operator view through native `epiphany-mvp-status`
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, sealed app-server transcript diagnostics, operator-safe final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through native `epiphany-mvp-coordinator`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
+- first Codex-independent native runtime vertebra through `epiphany-runtime-spine`, storing runtime identity, sessions, jobs, and events as typed CultCache MessagePack documents and emitting a framed CultNet hello message for the native contract
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - first Unity editor/runtime bridge through native `epiphany-unity-bridge`, `tools/epiphany_unity_bridge_smoke.py`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
@@ -96,6 +97,10 @@ The landed machine now has:
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
+The next phase direction is native-spine extraction: Codex app-server should
+shrink from runtime source of truth into a compatibility adapter while Epiphany
+sessions, jobs, events, heartbeats, role memory, and coordinator state move into
+CultCache-backed domain documents spoken over CultNet.
 
 ## Boundary Rules
 
