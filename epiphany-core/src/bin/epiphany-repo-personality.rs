@@ -486,6 +486,11 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
         "createdAt": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
         "store": args.store,
         "repoId": profile.repo_id,
+        "lifecycle": {
+            "mode": "birth-only",
+            "contract": "Run this specialist only when the repo/swarm has no accepted personality initialization. Later personality movement belongs to heartbeat, mood, rumination, sleep consolidation, lived evidence, and reviewed selfPatch.",
+            "rerunPolicy": "If an accepted initialization exists, do not rerun to refresh personality. Route major terrain surprises to Eyes/Body or Self review as normal state/model work, not personality reset."
+        },
         "prompt": REPO_PERSONALITY_DISTILLER_PROMPT,
         "input": {
             "repoTerrainReport": report_agent_input(report),
@@ -501,12 +506,18 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
             "confidence": "0.0..1.0",
             "roleQuirks": [],
             "selfPatchCandidates": [],
-            "startupDrift": null,
+            "initializationRecord": {
+                "repoId": profile.repo_id,
+                "terrainSchemaVersion": report.schema_version,
+                "profileSchemaVersion": profile.schema_version,
+                "acceptedOnce": true
+            },
             "doNotMutate": [],
-            "nextSafeMove": "Self reviews candidate pressure deltas before mutation."
+            "nextSafeMove": "Self reviews candidate pressure deltas before first initialization mutation; later drift uses heartbeat/mood/sleep/selfPatch."
         },
         "guardrails": [
             "This packet is input to a specialist agent, not accepted truth.",
+            "This packet is birth-only; do not rerun after an accepted initialization just because startup happened.",
             "Repo facts stay in terrain/model/planning/evidence surfaces.",
             "Role memory may receive only subtle, bounded, Self-reviewed personality pressure.",
             "No objectives, file lists, raw transcripts, code edits, or authority claims in selfPatch."
@@ -1740,6 +1751,7 @@ fn render_agent_packet_markdown(
     ));
     out.push_str("## Guardrails\n\n");
     out.push_str("- The distiller petitions Self; it does not mutate memory.\n");
+    out.push_str("- The distiller is birth-only; after accepted initialization, personality drift belongs to heartbeat, mood, rumination, sleep consolidation, lived evidence, and reviewed selfPatch.\n");
     out.push_str("- Repo facts stay out of selfPatch and remain in terrain, graph, planning, evidence, or checkpoint artifacts.\n");
     out.push_str("- Personality pressure must be role-local, subtle, bounded, and reviewable.\n");
     out.push_str(

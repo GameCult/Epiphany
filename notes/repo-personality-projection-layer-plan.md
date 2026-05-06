@@ -518,6 +518,14 @@ role-local quirks and bounded `selfPatch` candidates; it is not allowed to
 mutate role memory, smuggle repo facts into personality, or invent project
 truth.
 
+The distiller is birth-only. It runs when a repo/swarm has no accepted
+personality initialization record. After Self accepts the initial role-memory
+pressure, personality is allowed to drift through heartbeat, mood, rumination,
+sleep consolidation, lived evidence, and reviewed `selfPatch` mutations. Startup
+must not rerun this specialist merely because terrain changed or the repo
+reopened; major terrain surprises should route to Eyes/Body/Self as normal
+modeling or review work, not as a personality reset.
+
 Smoke coverage lives in
 `epiphany-core/src/bin/epiphany-repo-personality-smoke.rs`. The smoke creates two
 tiny git repos, scouts them into a baseline store, projects one repo, and proves
@@ -528,9 +536,10 @@ standing role projections, and a rendered distiller packet plus prompt.
 
 Wire `epiphany-repo-personality` into startup protocol:
 
-1. drift detection against last accepted terrain input hashes
-2. startup/heartbeat launch routing for the repo-personality distiller packet
-3. Self-reviewed application into role memory through existing `selfPatch`
+1. check for an accepted repo-personality initialization record
+2. if absent, launch the repo-personality distiller packet once through
+   startup/heartbeat routing
+3. Self-reviewed first application into role memory through existing `selfPatch`
    policy
 4. heartbeat seed generation for personality/mood timing
 5. Aquarium surface for “repo personality changed” bubbles and profile
@@ -539,3 +548,9 @@ Wire `epiphany-repo-personality` into startup protocol:
 That gets Epiphany from “I feel like this repo is anxious and glittery” to a
 repeatable profile that can initialize a swarm without needing the operator to
 personally diagnose every little machine soul by hand. A relief, frankly.
+
+Clarification: "drift detection" here does not mean rerunning the distiller to
+keep personality synchronized with repo terrain. It means detecting whether the
+birth rite has already been accepted. If it has, startup should leave the
+personality alone and let the swarm change through lived heartbeat/mood/sleep
+drift plus reviewed memory mutations.
