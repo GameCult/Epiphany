@@ -193,7 +193,11 @@ fn extract_map_field(path: &Path, name: &str) -> Result<Option<String>> {
     let prefix = format!("  {name}:");
     for line in fs::read_to_string(path)?.lines() {
         if line.starts_with(&prefix) {
-            return Ok(Some(line.split_once(':').map(|(_, value)| value.trim().to_string()).unwrap_or_default()));
+            return Ok(Some(
+                line.split_once(':')
+                    .map(|(_, value)| value.trim().to_string())
+                    .unwrap_or_default(),
+            ));
         }
     }
     Ok(None)
@@ -233,5 +237,7 @@ fn parse_named_args(
 }
 
 fn print_usage() {
-    eprintln!("usage: epiphany-state <status|migrate-json|add-evidence|add-branch|close-branch> ...");
+    eprintln!(
+        "usage: epiphany-state <status|migrate-json|add-evidence|add-branch|close-branch> ..."
+    );
 }

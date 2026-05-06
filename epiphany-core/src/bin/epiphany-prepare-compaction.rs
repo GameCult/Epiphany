@@ -43,18 +43,18 @@ fn main() -> Result<()> {
         }
     }
 
-    add_content_checks(
-        &mut findings,
-        &map_path,
-        &scratch_path,
-        &ledger_path,
-    );
+    add_content_checks(&mut findings, &map_path, &scratch_path, &ledger_path);
     add_handoff_checks(&mut findings, &handoff_path);
     add_agents_checks(&mut findings, &agents_path);
-    let (status, log) = match (run_git(&root, ["status", "--short", "--branch"]), run_git(&root, ["log", "--oneline", "-5"])) {
+    let (status, log) = match (
+        run_git(&root, ["status", "--short", "--branch"]),
+        run_git(&root, ["log", "--oneline", "-5"]),
+    ) {
         (Ok(status), Ok(log)) => {
             if status.lines().skip(1).any(|line| !line.trim().is_empty()) {
-                findings.push(warn("git worktree has uncommitted changes; commit or explain before compaction"));
+                findings.push(warn(
+                    "git worktree has uncommitted changes; commit or explain before compaction",
+                ));
             } else {
                 findings.push(ok("git worktree is clean"));
             }
@@ -62,7 +62,10 @@ fn main() -> Result<()> {
         }
         _ => {
             findings.push(error("git check failed"));
-            ("(git status unavailable)".to_string(), "(git log unavailable)".to_string())
+            (
+                "(git status unavailable)".to_string(),
+                "(git log unavailable)".to_string(),
+            )
         }
     };
 
@@ -102,12 +105,17 @@ fn add_content_checks(
     }
     match extract_map_field(map_path, "next_action") {
         Ok(Some(_)) => findings.push(ok("state/map.yaml has current_status.next_action")),
-        Ok(None) => findings.push(error("state/map.yaml is missing current_status.next_action")),
+        Ok(None) => findings.push(error(
+            "state/map.yaml is missing current_status.next_action",
+        )),
         Err(err) => findings.push(error(format!("map next_action check failed: {err}"))),
     }
     match extract_active_subgoals(map_path) {
         Ok(subgoals) if !subgoals.is_empty() => {
-            findings.push(ok(format!("state/map.yaml has {} active subgoal(s)", subgoals.len())));
+            findings.push(ok(format!(
+                "state/map.yaml has {} active subgoal(s)",
+                subgoals.len()
+            )));
         }
         Ok(_) => findings.push(warn("state/map.yaml has no active_subgoals entries")),
         Err(err) => findings.push(error(format!("active_subgoals check failed: {err}"))),
@@ -116,7 +124,9 @@ fn add_content_checks(
         Ok(Some(value)) if value == "No active scratch subgoal." => {
             findings.push(ok("state/scratch.md has no stale active scratch subgoal"));
         }
-        Ok(Some(value)) => findings.push(warn(format!("state/scratch.md has active scratch subgoal: {value}"))),
+        Ok(Some(value)) => findings.push(warn(format!(
+            "state/scratch.md has active scratch subgoal: {value}"
+        ))),
         Ok(None) => findings.push(warn("state/scratch.md has no Current Subgoal value")),
         Err(err) => findings.push(error(format!("scratch check failed: {err}"))),
     }
@@ -131,7 +141,9 @@ fn add_content_checks(
                 "state/ledgers.msgpack parses ({} evidence record(s))",
                 entry.evidence.len()
             )));
-            findings.push(ok(format!("state/ledgers.msgpack has {active} active branch(es)")));
+            findings.push(ok(format!(
+                "state/ledgers.msgpack has {active} active branch(es)"
+            )));
         }
         Err(err) => findings.push(error(format!("state ledger parse failed: {err}"))),
     }
@@ -143,7 +155,9 @@ fn add_handoff_checks(findings: &mut Vec<Finding>, handoff_path: &Path) {
         return;
     };
     if text.contains("Current branch before") || text.contains("Current HEAD before") {
-        findings.push(error("handoff embeds an exact branch or HEAD snapshot; use git commands instead"));
+        findings.push(error(
+            "handoff embeds an exact branch or HEAD snapshot; use git commands instead",
+        ));
     } else {
         findings.push(ok("handoff avoids exact branch/HEAD snapshots"));
     }
@@ -168,12 +182,19 @@ fn add_agents_checks(findings: &mut Vec<Finding>, agents_path: &Path) {
     if text.contains("epiphany-prepare-compaction") {
         findings.push(ok("AGENTS.md tells agents to use the compaction helper"));
     } else {
-        findings.push(error("AGENTS.md does not mention epiphany-prepare-compaction"));
+        findings.push(error(
+            "AGENTS.md does not mention epiphany-prepare-compaction",
+        ));
     }
-    if text.to_lowercase().contains("prepare for imminent compaction") {
+    if text
+        .to_lowercase()
+        .contains("prepare for imminent compaction")
+    {
         findings.push(ok("AGENTS.md names the imminent-compaction trigger"));
     } else {
-        findings.push(warn("AGENTS.md does not name the imminent-compaction trigger phrase"));
+        findings.push(warn(
+            "AGENTS.md does not name the imminent-compaction trigger phrase",
+        ));
     }
 }
 
@@ -185,9 +206,18 @@ fn render_report(
     log: &str,
     latest: Option<&EpiphanyLedgerEvidenceRecord>,
 ) -> Result<String> {
-    let ok_count = findings.iter().filter(|finding| finding.level == "ok").count();
-    let warn_count = findings.iter().filter(|finding| finding.level == "warn").count();
-    let error_count = findings.iter().filter(|finding| finding.level == "error").count();
+    let ok_count = findings
+        .iter()
+        .filter(|finding| finding.level == "ok")
+        .count();
+    let warn_count = findings
+        .iter()
+        .filter(|finding| finding.level == "warn")
+        .count();
+    let error_count = findings
+        .iter()
+        .filter(|finding| finding.level == "error")
+        .count();
     let mut lines = vec![
         "Epiphany pre-compaction persistence check".to_string(),
         format!("Workspace: {}", root.display()),
@@ -226,7 +256,11 @@ fn render_report(
     lines.push(String::new());
     lines.push("Findings:".to_string());
     for finding in findings {
-        lines.push(format!("[{}] {}", finding.level.to_uppercase(), finding.message));
+        lines.push(format!(
+            "[{}] {}",
+            finding.level.to_uppercase(),
+            finding.message
+        ));
     }
     lines.extend([
         String::new(),
@@ -245,7 +279,11 @@ fn extract_map_field(path: &Path, name: &str) -> Result<Option<String>> {
     let prefix = format!("  {name}:");
     for line in fs::read_to_string(path)?.lines() {
         if line.starts_with(&prefix) {
-            return Ok(Some(line.split_once(':').map(|(_, value)| value.trim().to_string()).unwrap_or_default()));
+            return Ok(Some(
+                line.split_once(':')
+                    .map(|(_, value)| value.trim().to_string())
+                    .unwrap_or_default(),
+            ));
         }
     }
     Ok(None)

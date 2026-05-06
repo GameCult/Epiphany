@@ -35,11 +35,11 @@ instead of posting.
 Use:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' validate
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' smoke
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' status
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- validate --store .\state\agents.msgpack
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- smoke --store .\state\agents.msgpack
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- status --store .\state\agents.msgpack
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' tick --coordinator-action continueImplementation --urgency 0.95 --apply-rumination
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' smoke
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- smoke --agent-store .\state\agents.msgpack
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_face_discord.py' draft --content 'Face notices the organs are arguing about evidence again.'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_face_discord.py' smoke
 ```

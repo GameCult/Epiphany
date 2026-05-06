@@ -1,16 +1,22 @@
+use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatTickOptions;
+use epiphany_core::apply_agent_self_patch;
 use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_heartbeat_state_entry;
 use epiphany_core::migrate_heartbeat_json_to_cultcache;
 use epiphany_core::tick_heartbeat_store;
+use epiphany_core::validate_agent_memory_store;
 use epiphany_core::write_heartbeat_json_projection;
 use std::env;
+use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
+use uuid::Uuid;
 
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
@@ -31,6 +37,7 @@ fn main() -> Result<()> {
     let mut role: Option<String> = None;
     let mut action_id: Option<String> = None;
     let mut limit = 8_usize;
+    let mut agent_store: Option<PathBuf> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -52,6 +59,7 @@ fn main() -> Result<()> {
             "--role" => role = Some(next_value(&mut args, "--role")?),
             "--action-id" => action_id = Some(next_value(&mut args, "--action-id")?),
             "--limit" => limit = next_value(&mut args, "--limit")?.parse()?,
+            "--agent-store" => agent_store = Some(next_path(&mut args, "--agent-store")?),
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -169,6 +177,15 @@ fn main() -> Result<()> {
                 );
             }
         }
+        "smoke" => {
+            let agent_store = agent_store.unwrap_or_else(|| PathBuf::from("state/agents.msgpack"));
+            let result = run_smoke(&agent_store)?;
+            let ok = result["ok"].as_bool().unwrap_or(false);
+            println!("{}", serde_json::to_string_pretty(&result)?);
+            if !ok {
+                std::process::exit(1);
+            }
+        }
         _ => return usage(),
     }
 
@@ -186,6 +203,286 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path>\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store migrate-json --json <path> --store <path> [--projection <path>]\n       epiphany-heartbeat-store project --store <path> --projection <path>"
+        "usage: epiphany-heartbeat-store init --store <path>\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store migrate-json --json <path> --store <path> [--projection <path>]\n       epiphany-heartbeat-store project --store <path> --projection <path>\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
+}
+
+fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
+    let temp_dir = scoped_temp_dir("epiphany-heartbeat-smoke")?;
+    let temp_agent_store = temp_dir.join("agents.msgpack");
+    let store_path = temp_dir.join("heartbeats.msgpack");
+    let artifact_dir = temp_dir.join("artifacts");
+    fs::copy(agent_store, &temp_agent_store).with_context(|| {
+        format!(
+            "failed to copy {} to {}",
+            agent_store.display(),
+            temp_agent_store.display()
+        )
+    })?;
+
+    let initial_errors = validate_agent_memory_store(&temp_agent_store)?;
+    if !initial_errors.is_empty() {
+        let _ = fs::remove_dir_all(&temp_dir);
+        return Ok(serde_json::json!({
+            "ok": false,
+            "phase": "agent-memory-validate",
+            "validationErrors": initial_errors,
+        }));
+    }
+
+    initialize_heartbeat_store(&store_path, 1.0)?;
+    let work = tick_heartbeat_store(
+        &store_path,
+        &artifact_dir,
+        HeartbeatTickOptions {
+            target_heartbeat_rate: 1.0,
+            coordinator_action: Some("continueImplementation".to_string()),
+            target_role: None,
+            urgency: 0.95,
+            schedule_id: "smoke-work".to_string(),
+            source_scene_ref: "smoke/coordinator".to_string(),
+            defer_completion: true,
+        },
+    )?;
+    let blocked_repeat = tick_heartbeat_store(
+        &store_path,
+        &artifact_dir,
+        HeartbeatTickOptions {
+            target_heartbeat_rate: 1.0,
+            coordinator_action: Some("continueImplementation".to_string()),
+            target_role: None,
+            urgency: 0.95,
+            schedule_id: "smoke-work".to_string(),
+            source_scene_ref: "smoke/coordinator".to_string(),
+            defer_completion: true,
+        },
+    )
+    .err()
+    .map(|error| error.to_string());
+
+    let action_id = work["event"]["actionId"]
+        .as_str()
+        .ok_or_else(|| anyhow!("smoke work event has no actionId"))?
+        .to_string();
+    let completed = complete_heartbeat_store(
+        &store_path,
+        &artifact_dir,
+        HeartbeatCompleteOptions {
+            role: "implementation".to_string(),
+            action_id: Some(action_id),
+        },
+    )?;
+    let mut idle = tick_heartbeat_store(
+        &store_path,
+        &artifact_dir,
+        HeartbeatTickOptions {
+            target_heartbeat_rate: 1.0,
+            coordinator_action: None,
+            target_role: None,
+            urgency: 0.0,
+            schedule_id: "smoke-idle".to_string(),
+            source_scene_ref: "smoke/idle".to_string(),
+            defer_completion: false,
+        },
+    )?;
+
+    if let Some(patch) = idle["rumination"]["selfPatch"].as_object() {
+        let role_id = idle["rumination"]["roleId"]
+            .as_str()
+            .ok_or_else(|| anyhow!("idle rumination has no roleId"))?
+            .to_string();
+        let patch = serde_json::Value::Object(patch.clone());
+        let applied = apply_agent_self_patch(&role_id, &patch, &temp_agent_store)?;
+        idle["rumination"]["result"] = serde_json::to_value(applied)?;
+        idle["rumination"]["applied"] = serde_json::Value::Bool(true);
+        write_rumination_artifact(&artifact_dir, "smoke-idle", &idle["rumination"])?;
+    }
+
+    let validation_errors = validate_agent_memory_store(&temp_agent_store)?;
+    let status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
+    let initiative_errors = validate_schedule_shape(&work["schedule"])
+        .into_iter()
+        .chain(validate_schedule_shape(&idle["schedule"]))
+        .collect::<Vec<_>>();
+    let ok = work["event"]["selectedRole"] == "implementation"
+        && work["event"]["turnStatus"] == "running"
+        && blocked_repeat
+            .as_deref()
+            .is_some_and(|message| message.contains("already has running heartbeat turn"))
+        && completed["event"]["turnStatus"] == "completed"
+        && idle["event"]["actionType"] == "ruminate_memory"
+        && idle["event"]["turnStatus"] == "completed"
+        && idle["event"]["nextReadyAt"].as_f64().unwrap_or_default()
+            > completed["event"]["nextReadyAt"]
+                .as_f64()
+                .unwrap_or_default()
+        && idle["rumination"]["result"]["status"] == "accepted"
+        && validation_errors.is_empty()
+        && initiative_errors.is_empty()
+        && artifact_dir.join("smoke-work.initiative.json").exists()
+        && artifact_dir.join("smoke-work.completion.json").exists()
+        && artifact_dir.join("smoke-idle.rumination.json").exists()
+        && status["participants"].as_array().map(Vec::len) == Some(8);
+
+    let result = serde_json::json!({
+        "ok": ok,
+        "workEvent": work["event"],
+        "blockedRepeat": blocked_repeat,
+        "completionEvent": completed["event"],
+        "idleEvent": idle["event"],
+        "idleRumination": idle["rumination"],
+        "validationErrors": validation_errors,
+        "initiativeErrors": initiative_errors,
+    });
+    let _ = fs::remove_dir_all(&temp_dir);
+    Ok(result)
+}
+
+fn write_rumination_artifact(
+    artifact_dir: &Path,
+    schedule_id: &str,
+    value: &serde_json::Value,
+) -> Result<()> {
+    fs::create_dir_all(artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let path = artifact_dir.join(format!("{schedule_id}.rumination.json"));
+    fs::write(&path, format!("{}\n", serde_json::to_string_pretty(value)?))
+        .with_context(|| format!("failed to write {}", path.display()))
+}
+
+fn validate_schedule_shape(schedule: &serde_json::Value) -> Vec<String> {
+    let mut errors = Vec::new();
+    let required = [
+        "schema_version",
+        "schedule_id",
+        "source_scene_ref",
+        "scene_clock",
+        "participants",
+        "action_catalog",
+        "reaction_windows",
+        "selection_policy",
+        "next_actor_selection",
+        "review_notes",
+    ];
+    for key in required {
+        if schedule.get(key).is_none() {
+            errors.push(format!("initiative schedule missing {key}"));
+        }
+    }
+    if schedule["schema_version"] != "ghostlight.initiative_schedule.v0" {
+        errors.push("initiative schedule has wrong schema_version".to_string());
+    }
+    if !schedule["scene_clock"].is_number()
+        || schedule["scene_clock"]
+            .as_f64()
+            .is_some_and(|clock| clock < 0.0)
+    {
+        errors.push("initiative schedule scene_clock must be non-negative number".to_string());
+    }
+    for participant in schedule["participants"].as_array().into_iter().flatten() {
+        if ![
+            "active",
+            "blocked",
+            "withdrawn",
+            "incapacitated",
+            "offscreen",
+        ]
+        .contains(&participant["status"].as_str().unwrap_or_default())
+        {
+            errors.push(format!(
+                "participant {:?} has invalid status",
+                participant["agent_id"]
+            ));
+        }
+        for key in [
+            "initiative_speed",
+            "next_ready_at",
+            "reaction_bias",
+            "interrupt_threshold",
+            "current_load",
+        ] {
+            if !participant[key].is_number() {
+                errors.push(format!(
+                    "participant {:?} {key} must be numeric",
+                    participant["agent_id"]
+                ));
+            }
+        }
+    }
+    for action in schedule["action_catalog"].as_array().into_iter().flatten() {
+        if ![
+            "speak",
+            "silence",
+            "move",
+            "gesture",
+            "touch_object",
+            "block_object",
+            "use_object",
+            "show_object",
+            "withhold_object",
+            "transfer_object",
+            "spend_resource",
+            "attack",
+            "wait",
+            "mixed",
+        ]
+        .contains(&action["action_type"].as_str().unwrap_or_default())
+        {
+            errors.push(format!(
+                "action {:?} has invalid action_type",
+                action["action_id"]
+            ));
+        }
+        if !["micro", "short", "standard", "major", "committed"]
+            .contains(&action["action_scale"].as_str().unwrap_or_default())
+        {
+            errors.push(format!(
+                "action {:?} has invalid action_scale",
+                action["action_id"]
+            ));
+        }
+    }
+    let selection = &schedule["next_actor_selection"];
+    if ![
+        "scheduled_turn",
+        "reaction_interrupt",
+        "coordinator_override",
+    ]
+    .contains(&selection["selection_kind"].as_str().unwrap_or_default())
+    {
+        errors.push("next_actor_selection has invalid selection_kind".to_string());
+    }
+    for snapshot in selection["readiness_snapshot"]
+        .as_array()
+        .into_iter()
+        .flatten()
+    {
+        if let Some(object) = snapshot.as_object() {
+            let extra_keys = object
+                .keys()
+                .filter(|key| {
+                    ![
+                        "agent_id",
+                        "next_ready_at",
+                        "reaction_readiness",
+                        "eligible_for_reaction",
+                    ]
+                    .contains(&key.as_str())
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            if !extra_keys.is_empty() {
+                errors.push(format!(
+                    "readiness snapshot has Ghostlight-incompatible keys: {extra_keys:?}"
+                ));
+            }
+        }
+    }
+    errors
+}
+
+fn scoped_temp_dir(prefix: &str) -> Result<PathBuf> {
+    let path = env::temp_dir().join(format!("{prefix}-{}", Uuid::new_v4()));
+    fs::create_dir_all(&path).with_context(|| format!("failed to create {}", path.display()))?;
+    Ok(path)
 }

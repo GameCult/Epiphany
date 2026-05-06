@@ -23,7 +23,9 @@ fn main() -> Result<()> {
             let branches = require_path_arg(&mut args, "--branches")?;
             let evidence = require_path_arg(&mut args, "--evidence")?;
             let store = require_path_arg(&mut args, "--store")?;
-            print_json(&migrate_state_ledgers_to_cultcache(branches, evidence, store)?)?;
+            print_json(&migrate_state_ledgers_to_cultcache(
+                branches, evidence, store,
+            )?)?;
         }
         "project-json" => {
             let store = require_path_arg(&mut args, "--store")?;
@@ -88,10 +90,14 @@ fn require_string_arg(args: &mut impl Iterator<Item = String>, name: &str) -> Re
     if flag != name {
         anyhow::bail!("expected {name}, got {flag}");
     }
-    args.next().with_context(|| format!("missing value for {name}"))
+    args.next()
+        .with_context(|| format!("missing value for {name}"))
 }
 
-fn optional_string_arg(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Option<String>> {
+fn optional_string_arg(
+    args: &mut impl Iterator<Item = String>,
+    name: &str,
+) -> Result<Option<String>> {
     let remaining = args.collect::<Vec<_>>();
     let mut found = None;
     let mut index = 0;
@@ -106,7 +112,9 @@ fn optional_string_arg(args: &mut impl Iterator<Item = String>, name: &str) -> R
     Ok(found)
 }
 
-fn collect_branch_tail(args: &mut impl Iterator<Item = String>) -> Result<(Vec<String>, Option<String>)> {
+fn collect_branch_tail(
+    args: &mut impl Iterator<Item = String>,
+) -> Result<(Vec<String>, Option<String>)> {
     let remaining = args.collect::<Vec<_>>();
     let mut artifacts = Vec::new();
     let mut note = None;

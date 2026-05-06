@@ -15,7 +15,11 @@ pub const AGENT_MEMORY_TYPE: &str = "epiphany.agent_memory";
 pub const AGENT_MEMORY_SCHEMA_VERSION: &str = "ghostlight.agent_state.v0";
 
 const ROLE_TARGETS: &[(&str, &str, &str)] = &[
-    ("imagination", "epiphany.imagination", "imagination.agent-state.json"),
+    (
+        "imagination",
+        "epiphany.imagination",
+        "imagination.agent-state.json",
+    ),
     ("modeling", "epiphany.body", "body.agent-state.json"),
     ("verification", "epiphany.soul", "soul.agent-state.json"),
     ("implementation", "epiphany.hands", "hands.agent-state.json"),
@@ -26,10 +30,7 @@ const ROLE_TARGETS: &[(&str, &str, &str)] = &[
 ];
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
-#[cultcache(
-    type = "epiphany.agent_memory",
-    schema = "EpiphanyAgentMemoryEntry"
-)]
+#[cultcache(type = "epiphany.agent_memory", schema = "EpiphanyAgentMemoryEntry")]
 pub struct EpiphanyAgentMemoryEntry {
     #[cultcache(key = 0)]
     pub schema_version: String,
@@ -325,8 +326,9 @@ pub fn review_agent_self_patch(
     }
     match patch.reason.as_deref() {
         Some(reason) if reason.trim().len() >= 16 && reason.len() <= 800 => {}
-        _ => reasons
-            .push("selfPatch reason must be a bounded explanation of at least 16 characters".to_string()),
+        _ => reasons.push(
+            "selfPatch reason must be a bounded explanation of at least 16 characters".to_string(),
+        ),
     }
 
     if let Some(object) = patch_value.as_object() {
@@ -344,13 +346,31 @@ pub fn review_agent_self_patch(
     }
 
     let mut mutation_count = 0;
-    mutation_count += review_memory_patch_array("semanticMemories", patch.semantic_memories.as_ref(), &mut reasons);
-    mutation_count += review_memory_patch_array("episodicMemories", patch.episodic_memories.as_ref(), &mut reasons);
-    mutation_count += review_memory_patch_array("relationshipMemories", patch.relationship_memories.as_ref(), &mut reasons);
+    mutation_count += review_memory_patch_array(
+        "semanticMemories",
+        patch.semantic_memories.as_ref(),
+        &mut reasons,
+    );
+    mutation_count += review_memory_patch_array(
+        "episodicMemories",
+        patch.episodic_memories.as_ref(),
+        &mut reasons,
+    );
+    mutation_count += review_memory_patch_array(
+        "relationshipMemories",
+        patch.relationship_memories.as_ref(),
+        &mut reasons,
+    );
     mutation_count += review_goal_patch_array(patch.goals.as_ref(), &mut reasons);
     mutation_count += review_value_patch_array(patch.values.as_ref(), &mut reasons);
     mutation_count += review_private_notes(patch.private_notes.as_ref(), &mut reasons);
-    review_string_array("evidenceIds", patch.evidence_ids.as_ref(), &mut reasons, 16, 160);
+    review_string_array(
+        "evidenceIds",
+        patch.evidence_ids.as_ref(),
+        &mut reasons,
+        16,
+        160,
+    );
     if mutation_count == 0 {
         reasons.push(
             "selfPatch must contain at least one semantic memory, episodic memory, relationship memory, goal, value, or private note"
@@ -359,7 +379,12 @@ pub fn review_agent_self_patch(
     }
 
     AgentMemoryReview {
-        status: if reasons.is_empty() { "accepted" } else { "rejected" }.to_string(),
+        status: if reasons.is_empty() {
+            "accepted"
+        } else {
+            "rejected"
+        }
+        .to_string(),
         target_agent_id,
         target_role_id: role_id.to_string(),
         target_store: store_path.display().to_string(),
@@ -402,9 +427,14 @@ pub fn apply_agent_self_patch(
         upsert_values(&mut entry.agent.canonical_state.values, incoming);
     }
     if let Some(mut private_notes) = patch.private_notes {
-        entry.agent.identity.private_notes.append(&mut private_notes);
+        entry
+            .agent
+            .identity
+            .private_notes
+            .append(&mut private_notes);
         let keep_from = entry.agent.identity.private_notes.len().saturating_sub(32);
-        entry.agent.identity.private_notes = entry.agent.identity.private_notes[keep_from..].to_vec();
+        entry.agent.identity.private_notes =
+            entry.agent.identity.private_notes[keep_from..].to_vec();
     }
     cache.put(role_id.to_string(), &entry)?;
     review.applied = Some(true);
@@ -515,7 +545,9 @@ fn entry_from_projection(
         ));
     }
     if projection.agents.len() != 1 {
-        return Err(anyhow!("role memory projection must contain exactly one agent"));
+        return Err(anyhow!(
+            "role memory projection must contain exactly one agent"
+        ));
     }
     let agent = projection.agents.into_iter().next().expect("checked len");
     if agent.agent_id != expected_agent_id {
@@ -547,7 +579,12 @@ fn validate_agent_entry(entry: &EpiphanyAgentMemoryEntry, expected_agent_id: &st
     }
     check_string(&entry.world.world_id, "world.world_id", &mut errors, 120);
     check_string(&entry.world.setting, "world.setting", &mut errors, 800);
-    check_string(&entry.world.time.label, "world.time.label", &mut errors, 200);
+    check_string(
+        &entry.world.time.label,
+        "world.time.label",
+        &mut errors,
+        200,
+    );
     if entry.world.canon_context.is_empty() {
         errors.push("world.canon_context must not be empty".to_string());
     }
@@ -557,8 +594,18 @@ fn validate_agent_entry(entry: &EpiphanyAgentMemoryEntry, expected_agent_id: &st
             entry.role_id, entry.agent.agent_id, expected_agent_id
         ));
     }
-    check_string(&entry.agent.identity.name, "identity.name", &mut errors, 200);
-    check_string(&entry.agent.identity.origin, "identity.origin", &mut errors, 800);
+    check_string(
+        &entry.agent.identity.name,
+        "identity.name",
+        &mut errors,
+        200,
+    );
+    check_string(
+        &entry.agent.identity.origin,
+        "identity.origin",
+        &mut errors,
+        800,
+    );
     check_string(
         &entry.agent.identity.public_description,
         "identity.public_description",
@@ -604,13 +651,20 @@ fn validate_agent_entry(entry: &EpiphanyAgentMemoryEntry, expected_agent_id: &st
             &entry.agent.canonical_state.presentation_strategy,
         ),
         ("voice_style", &entry.agent.canonical_state.voice_style),
-        ("situational_state", &entry.agent.canonical_state.situational_state),
+        (
+            "situational_state",
+            &entry.agent.canonical_state.situational_state,
+        ),
     ] {
         if group.is_empty() {
             errors.push(format!("canonical_state.{group_name} must not be empty"));
         }
         for (name, vector) in group {
-            validate_trait_vector(vector, &format!("canonical_state.{group_name}.{name}"), &mut errors);
+            validate_trait_vector(
+                vector,
+                &format!("canonical_state.{group_name}.{name}"),
+                &mut errors,
+            );
         }
     }
     errors
@@ -625,7 +679,12 @@ fn validate_memory(memory: &GhostlightMemory, path: &str, errors: &mut Vec<Strin
 
 fn validate_goal(goal: &GhostlightGoal, path: &str, errors: &mut Vec<String>) {
     check_string(&goal.goal_id, &format!("{path}.goal_id"), errors, 120);
-    check_string(&goal.description, &format!("{path}.description"), errors, 800);
+    check_string(
+        &goal.description,
+        &format!("{path}.description"),
+        errors,
+        800,
+    );
     if !matches!(
         goal.scope.as_str(),
         "immediate" | "scene" | "case" | "arc" | "life"
@@ -633,7 +692,12 @@ fn validate_goal(goal: &GhostlightGoal, path: &str, errors: &mut Vec<String>) {
         errors.push(format!("{path}.scope is not a Ghostlight scope"));
     }
     check_unit(goal.priority, &format!("{path}.priority"), errors);
-    check_string(&goal.emotional_stake, &format!("{path}.emotional_stake"), errors, 400);
+    check_string(
+        &goal.emotional_stake,
+        &format!("{path}.emotional_stake"),
+        errors,
+        400,
+    );
     if !matches!(
         goal.status.as_str(),
         "active" | "blocked" | "dormant" | "resolved" | "abandoned"
@@ -660,7 +724,9 @@ fn validate_trait_vector(vector: &GhostlightTraitVector, path: &str, errors: &mu
 
 fn check_string(value: &str, path: &str, errors: &mut Vec<String>, max_len: usize) {
     if value.trim().is_empty() || value.len() > max_len {
-        errors.push(format!("{path} must be non-empty text under {max_len} characters"));
+        errors.push(format!(
+            "{path} must be non-empty text under {max_len} characters"
+        ));
     }
 }
 
@@ -734,9 +800,22 @@ fn review_memory_patch_array(
                 "selfPatch {field}[{index}].memoryId must start with 'mem-' and avoid whitespace"
             ));
         }
-        check_patch_text(&item.summary, &format!("selfPatch {field}[{index}].summary"), reasons, 600);
-        check_patch_unit(item.salience, &format!("selfPatch {field}[{index}].salience"), reasons);
-        check_patch_unit(item.confidence, &format!("selfPatch {field}[{index}].confidence"), reasons);
+        check_patch_text(
+            &item.summary,
+            &format!("selfPatch {field}[{index}].summary"),
+            reasons,
+            600,
+        );
+        check_patch_unit(
+            item.salience,
+            &format!("selfPatch {field}[{index}].salience"),
+            reasons,
+        );
+        check_patch_unit(
+            item.confidence,
+            &format!("selfPatch {field}[{index}].confidence"),
+            reasons,
+        );
     }
     value.len()
 }
@@ -754,14 +833,25 @@ fn review_goal_patch_array(value: Option<&Vec<SelfPatchGoal>>, reasons: &mut Vec
                 "selfPatch goals[{index}].goalId must start with 'goal-' and avoid whitespace"
             ));
         }
-        check_patch_text(&item.description, &format!("selfPatch goals[{index}].description"), reasons, 700);
+        check_patch_text(
+            &item.description,
+            &format!("selfPatch goals[{index}].description"),
+            reasons,
+            700,
+        );
         if !matches!(
             item.scope.as_str(),
             "immediate" | "scene" | "case" | "arc" | "life"
         ) {
-            reasons.push(format!("selfPatch goals[{index}].scope is not a Ghostlight scope"));
+            reasons.push(format!(
+                "selfPatch goals[{index}].scope is not a Ghostlight scope"
+            ));
         }
-        check_patch_unit(item.priority, &format!("selfPatch goals[{index}].priority"), reasons);
+        check_patch_unit(
+            item.priority,
+            &format!("selfPatch goals[{index}].priority"),
+            reasons,
+        );
         check_patch_text(
             &item.emotional_stake,
             &format!("selfPatch goals[{index}].emotionalStake"),
@@ -772,13 +862,18 @@ fn review_goal_patch_array(value: Option<&Vec<SelfPatchGoal>>, reasons: &mut Vec
             item.status.as_str(),
             "active" | "blocked" | "dormant" | "resolved" | "abandoned"
         ) {
-            reasons.push(format!("selfPatch goals[{index}].status is not a Ghostlight status"));
+            reasons.push(format!(
+                "selfPatch goals[{index}].status is not a Ghostlight status"
+            ));
         }
     }
     value.len()
 }
 
-fn review_value_patch_array(value: Option<&Vec<SelfPatchValue>>, reasons: &mut Vec<String>) -> usize {
+fn review_value_patch_array(
+    value: Option<&Vec<SelfPatchValue>>,
+    reasons: &mut Vec<String>,
+) -> usize {
     let Some(value) = value else {
         return 0;
     };
@@ -791,8 +886,17 @@ fn review_value_patch_array(value: Option<&Vec<SelfPatchValue>>, reasons: &mut V
                 "selfPatch values[{index}].valueId must start with 'value-' and avoid whitespace"
             ));
         }
-        check_patch_text(&item.label, &format!("selfPatch values[{index}].label"), reasons, 240);
-        check_patch_unit(item.priority, &format!("selfPatch values[{index}].priority"), reasons);
+        check_patch_text(
+            &item.label,
+            &format!("selfPatch values[{index}].label"),
+            reasons,
+            240,
+        );
+        check_patch_unit(
+            item.priority,
+            &format!("selfPatch values[{index}].priority"),
+            reasons,
+        );
     }
     value.len()
 }
@@ -805,7 +909,12 @@ fn review_private_notes(value: Option<&Vec<String>>, reasons: &mut Vec<String>) 
         reasons.push("selfPatch privateNotes may contain at most 6 records".to_string());
     }
     for (index, item) in value.iter().enumerate() {
-        check_patch_text(item, &format!("selfPatch privateNotes[{index}]"), reasons, 600);
+        check_patch_text(
+            item,
+            &format!("selfPatch privateNotes[{index}]"),
+            reasons,
+            600,
+        );
     }
     value.len()
 }
@@ -821,16 +930,25 @@ fn review_string_array(
         return;
     };
     if value.len() > max_items {
-        reasons.push(format!("selfPatch {field} may contain at most {max_items} records"));
+        reasons.push(format!(
+            "selfPatch {field} may contain at most {max_items} records"
+        ));
     }
     for (index, item) in value.iter().enumerate() {
-        check_patch_text(item, &format!("selfPatch {field}[{index}]"), reasons, max_len);
+        check_patch_text(
+            item,
+            &format!("selfPatch {field}[{index}]"),
+            reasons,
+            max_len,
+        );
     }
 }
 
 fn check_patch_text(value: &str, path: &str, reasons: &mut Vec<String>, max_len: usize) {
     if value.trim().is_empty() || value.len() > max_len {
-        reasons.push(format!("{path} must be non-empty text under {max_len} characters"));
+        reasons.push(format!(
+            "{path} must be non-empty text under {max_len} characters"
+        ));
     }
 }
 
@@ -843,9 +961,9 @@ fn check_patch_unit(value: f64, path: &str, reasons: &mut Vec<String>) {
 fn valid_identifier(value: &str, prefix: &str) -> bool {
     value.starts_with(prefix)
         && value.len() <= 120
-        && value
-            .chars()
-            .all(|ch| ch.is_ascii() && (ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.')))
+        && value.chars().all(|ch| {
+            ch.is_ascii() && (ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+        })
 }
 
 fn upsert_memories(records: &mut Vec<GhostlightMemory>, incoming: Vec<SelfPatchMemory>) {
@@ -962,12 +1080,13 @@ mod tests {
         let mut cache = agent_memory_cache(&store)?;
         cache.pull_all_backing_stores()?;
         let body = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
-        assert!(body
-            .agent
-            .memories
-            .semantic
-            .iter()
-            .any(|memory| memory.memory_id == "mem-body-native-source-grounding"));
+        assert!(
+            body.agent
+                .memories
+                .semantic
+                .iter()
+                .any(|memory| memory.memory_id == "mem-body-native-source-grounding")
+        );
         Ok(())
     }
 

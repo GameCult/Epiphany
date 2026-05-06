@@ -155,7 +155,11 @@ pub fn add_state_branch(
         .get::<EpiphanyStateLedgerEntry>(STATE_LEDGER_KEY)?
         .unwrap_or_else(default_state_ledger);
     validate_branch(&branch)?;
-    if entry.branches.iter().any(|candidate| candidate.id == branch.id) {
+    if entry
+        .branches
+        .iter()
+        .any(|candidate| candidate.id == branch.id)
+    {
         return Err(anyhow!("Branch {:?} already exists.", branch.id));
     }
     entry.branches.push(branch.clone());
@@ -258,7 +262,8 @@ fn default_state_ledger() -> EpiphanyStateLedgerEntry {
 }
 
 fn read_evidence_jsonl(path: &Path) -> Result<Vec<EpiphanyLedgerEvidenceRecord>> {
-    let raw = fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
+    let raw =
+        fs::read_to_string(path).with_context(|| format!("failed to read {}", path.display()))?;
     let mut records = Vec::new();
     for (index, line) in raw.lines().enumerate() {
         if line.trim().is_empty() {
@@ -266,8 +271,9 @@ fn read_evidence_jsonl(path: &Path) -> Result<Vec<EpiphanyLedgerEvidenceRecord>>
         }
         let record: EpiphanyLedgerEvidenceRecord = serde_json::from_str(line)
             .with_context(|| format!("failed to decode {} line {}", path.display(), index + 1))?;
-        validate_evidence(&record)
-            .with_context(|| format!("invalid evidence at {} line {}", path.display(), index + 1))?;
+        validate_evidence(&record).with_context(|| {
+            format!("invalid evidence at {} line {}", path.display(), index + 1)
+        })?;
         records.push(record);
     }
     Ok(records)
