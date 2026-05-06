@@ -115,9 +115,9 @@ rumination, Face surfacing, and sleep consolidation.
      and CultCache inspection compatibility.
 
 2. **Heartbeat state migration**
-   - Move `state/agent-heartbeats.json` into a typed MessagePack document, then
-     retire JSON once the heartbeat tool reads and writes the typed store
-     directly.
+   - Move `state/agent-heartbeats.json` into a typed MessagePack document.
+     Landed: the tracked JSON state file is retired and heartbeat
+     init/status/tick/complete now route through the native CultCache store.
    - Add `sleep_cycle`, `memory_resonance`, and `incubation` fields.
    - Keep the current CLI contract stable while the backing store changes.
 

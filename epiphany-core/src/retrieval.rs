@@ -549,7 +549,7 @@ fn search_threads() -> NonZero<usize> {
         .map(NonZero::get)
         .unwrap_or(1);
     #[expect(clippy::expect_used)]
-    NonZero::new(cores.min(FILE_SEARCH_MAX_THREADS).max(1))
+    NonZero::new(cores.clamp(1, FILE_SEARCH_MAX_THREADS))
         .expect("file-search threads should be non-zero")
 }
 
@@ -1877,7 +1877,7 @@ mod tests {
         );
         assert!(response.results.iter().any(|result| {
             result.kind == EpiphanyRetrieveResultKind::SemanticChunk
-                && result.path == PathBuf::from("src/router.rs")
+                && result.path == Path::new("src/router.rs")
         }));
         drop(qdrant);
         drop(ollama);

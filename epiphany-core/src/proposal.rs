@@ -134,8 +134,8 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     };
 
     for path in &code_ref_paths {
-        let path_code_refs = code_refs_for_path(&code_refs, &path);
-        let candidate_node_id = graph_node_id(&path);
+        let path_code_refs = code_refs_for_path(&code_refs, path);
+        let candidate_node_id = graph_node_id(path);
         if let Some(node_match) = find_architecture_node_for_path(
             &graphs,
             &path_code_refs,
@@ -152,7 +152,7 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
             active_node_ids.push(node_id.clone());
             graphs.architecture.nodes.push(EpiphanyGraphNode {
                 id: node_id,
-                title: title_from_path(&path),
+                title: title_from_path(path),
                 purpose: truncate_chars(
                     &format!(
                         "Candidate implementation surface from verified observation: {}",
