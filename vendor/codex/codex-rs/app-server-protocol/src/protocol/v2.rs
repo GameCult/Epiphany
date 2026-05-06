@@ -4617,7 +4617,6 @@ pub enum ThreadEpiphanyJobKind {
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
 pub enum ThreadEpiphanyJobBackendKind {
-    AgentJobs,
     Heartbeat,
 }
 
@@ -4657,9 +4656,6 @@ pub struct ThreadEpiphanyJob {
     #[ts(optional = nullable)]
     pub backend_job_id: Option<String>,
     pub status: ThreadEpiphanyJobStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub runtime_agent_job_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub items_processed: Option<u32>,

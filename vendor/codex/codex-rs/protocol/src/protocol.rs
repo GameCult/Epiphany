@@ -3316,7 +3316,6 @@ pub enum EpiphanyJobKind {
 #[serde(rename_all = "snake_case")]
 #[ts(rename_all = "snake_case")]
 pub enum EpiphanyJobBackendKind {
-    AgentJobs,
     Heartbeat,
 }
 
@@ -3338,9 +3337,6 @@ pub struct EpiphanyJobBinding {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub backend_job_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub runtime_agent_job_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub linked_subgoal_ids: Vec<String>,

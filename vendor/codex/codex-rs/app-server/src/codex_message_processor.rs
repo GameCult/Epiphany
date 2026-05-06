@@ -4885,7 +4885,6 @@ impl CodexMessageProcessor {
                 backend_kind: Some(ThreadEpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some(launched.backend_job_id.clone()),
                 status: ThreadEpiphanyJobStatus::Pending,
-                runtime_agent_job_id: None,
                 items_processed: None,
                 items_total: None,
                 progress_note: None,
@@ -6804,7 +6803,6 @@ impl CodexMessageProcessor {
                 backend_kind: Some(ThreadEpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some(launched.backend_job_id.clone()),
                 status: ThreadEpiphanyJobStatus::Pending,
-                runtime_agent_job_id: None,
                 items_processed: None,
                 items_total: None,
                 progress_note: None,
@@ -14484,7 +14482,7 @@ async fn load_epiphany_role_result_snapshot(
     (
         ThreadEpiphanyRoleResultStatus::BackendUnavailable,
         None,
-        "Legacy agent_jobs role bindings are sealed; launch a heartbeat-backed role worker for typed runtime-spine results.".to_string(),
+        "Non-heartbeat role bindings are unsupported; launch a heartbeat-backed role worker for typed runtime-spine results.".to_string(),
     )
 }
 
@@ -14522,7 +14520,7 @@ async fn load_epiphany_reorient_result_snapshot(
     (
         ThreadEpiphanyReorientResultStatus::BackendUnavailable,
         None,
-        "Legacy agent_jobs reorientation bindings are sealed; launch a heartbeat-backed reorient worker for typed runtime-spine results.".to_string(),
+        "Non-heartbeat reorientation bindings are unsupported; launch a heartbeat-backed reorient worker for typed runtime-spine results.".to_string(),
     )
 }
 
@@ -15555,7 +15553,7 @@ async fn load_completed_epiphany_reorient_finding(
     }
 
     Err(CodexErr::InvalidRequest(
-        "legacy agent_jobs reorientation findings are sealed; accept only typed runtime-spine heartbeat results"
+        "non-heartbeat reorientation findings are unsupported; accept only typed runtime-spine heartbeat results"
             .to_string(),
     ))
 }
@@ -15598,7 +15596,7 @@ async fn load_completed_epiphany_role_finding(
     }
 
     Err(CodexErr::InvalidRequest(
-        "legacy agent_jobs role findings are sealed; accept only typed runtime-spine heartbeat results"
+        "non-heartbeat role findings are unsupported; accept only typed runtime-spine heartbeat results"
             .to_string(),
     ))
 }
@@ -17319,10 +17317,7 @@ fn binding_backend_kind(binding: &EpiphanyJobBinding) -> Option<CoreEpiphanyJobB
 }
 
 fn binding_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
-    binding
-        .backend_job_id
-        .as_deref()
-        .or(binding.runtime_agent_job_id.as_deref())
+    binding.backend_job_id.as_deref()
 }
 
 pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
@@ -17631,7 +17626,6 @@ fn map_epiphany_bound_job(binding: &EpiphanyJobBinding) -> ThreadEpiphanyJob {
             } else {
                 ThreadEpiphanyJobStatus::Idle
             },
-            runtime_agent_job_id: None,
             items_processed: None,
             items_total: None,
             progress_note: None,
@@ -17656,7 +17650,6 @@ fn overlay_epiphany_job_binding(
     job.authority_scope = binding.authority_scope.clone();
     job.backend_kind = binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind);
     job.backend_job_id = binding_projected_backend_job_id(binding).map(str::to_string);
-    job.runtime_agent_job_id = None;
     if !binding.linked_subgoal_ids.is_empty() {
         job.linked_subgoal_ids = binding.linked_subgoal_ids.clone();
     }
@@ -17688,20 +17681,13 @@ fn overlay_epiphany_job_binding(
         return job;
     }
 
-    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::AgentJobs) {
-        job.status = ThreadEpiphanyJobStatus::Blocked;
-        job.blocking_reason = Some(format!(
-            "Legacy agent_jobs binding is sealed; Epiphany activation now belongs to heartbeat/runtime-spine."
-        ));
-    }
-
     job
 }
 
 fn binding_projected_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
     match binding_backend_kind(binding) {
         Some(CoreEpiphanyJobBackendKind::Heartbeat) => binding_backend_job_id(binding),
-        Some(CoreEpiphanyJobBackendKind::AgentJobs) | None => None,
+        None => None,
     }
 }
 
@@ -17709,7 +17695,6 @@ fn map_core_epiphany_job_backend_kind(
     kind: CoreEpiphanyJobBackendKind,
 ) -> ThreadEpiphanyJobBackendKind {
     match kind {
-        CoreEpiphanyJobBackendKind::AgentJobs => ThreadEpiphanyJobBackendKind::AgentJobs,
         CoreEpiphanyJobBackendKind::Heartbeat => ThreadEpiphanyJobBackendKind::Heartbeat,
     }
 }
@@ -17744,7 +17729,6 @@ fn map_epiphany_index_job(
             backend_kind: None,
             backend_job_id: None,
             status: ThreadEpiphanyJobStatus::Unavailable,
-            runtime_agent_job_id: None,
             items_processed: None,
             items_total: None,
             progress_note: None,
@@ -17781,7 +17765,6 @@ fn map_epiphany_index_job(
         backend_kind: None,
         backend_job_id: None,
         status: epiphany_job_status_from_retrieval_status(retrieval.status),
-        runtime_agent_job_id: None,
         items_processed: retrieval.indexed_file_count,
         items_total: None,
         progress_note: Some(progress_note),
@@ -17852,7 +17835,6 @@ fn map_epiphany_remap_job(state: Option<&EpiphanyThreadState>) -> ThreadEpiphany
         } else {
             ThreadEpiphanyJobStatus::Idle
         },
-        runtime_agent_job_id: None,
         items_processed: None,
         items_total: None,
         progress_note: Some(progress_note),
@@ -17903,7 +17885,6 @@ fn map_epiphany_verification_job(state: Option<&EpiphanyThreadState>) -> ThreadE
         backend_kind: None,
         backend_job_id: None,
         status,
-        runtime_agent_job_id: None,
         items_processed: Some(verified),
         items_total: Some(total),
         progress_note: Some(progress_note),
@@ -17926,7 +17907,6 @@ fn map_epiphany_specialist_job() -> ThreadEpiphanyJob {
         backend_kind: None,
         backend_job_id: None,
         status: ThreadEpiphanyJobStatus::Unavailable,
-        runtime_agent_job_id: None,
         items_processed: None,
         items_total: None,
         progress_note: None,
@@ -17957,7 +17937,6 @@ fn epiphany_blocked_state_job(
         backend_kind: None,
         backend_job_id: None,
         status: ThreadEpiphanyJobStatus::Blocked,
-        runtime_agent_job_id: None,
         items_processed: None,
         items_total: None,
         progress_note: None,
@@ -20168,9 +20147,8 @@ mod tests {
                 owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
                 launcher_job_id: Some("launcher-1".to_string()),
                 authority_scope: Some("epiphany.reorient.resume".to_string()),
-                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs),
+                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some("backend-1".to_string()),
-                runtime_agent_job_id: None,
                 linked_subgoal_ids: Vec::new(),
                 linked_graph_node_ids: Vec::new(),
                 progress_note: None,
@@ -20480,7 +20458,6 @@ mod tests {
             backend_kind: None,
             backend_job_id: None,
             status: ThreadEpiphanyJobStatus::Needed,
-            runtime_agent_job_id: None,
             items_processed: None,
             items_total: None,
             progress_note: Some("Evidence needs review.".to_string()),
@@ -22728,7 +22705,7 @@ mod tests {
     }
 
     #[test]
-    fn map_epiphany_jobs_projects_heartbeat_binding_as_pending_without_agent_jobs() {
+    fn map_epiphany_jobs_projects_heartbeat_binding_as_pending() {
         let state = codex_protocol::protocol::EpiphanyThreadState {
             job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
                 id: "modeling-checkpoint-worker".to_string(),
@@ -22739,7 +22716,6 @@ mod tests {
                 authority_scope: Some("epiphany.role.modeling".to_string()),
                 backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some("heartbeat-turn-1".to_string()),
-                runtime_agent_job_id: None,
                 linked_subgoal_ids: vec!["phase-6".to_string()],
                 linked_graph_node_ids: vec!["runtime-spine".to_string()],
                 progress_note: Some(
@@ -22770,7 +22746,6 @@ mod tests {
             specialist.backend_job_id.as_deref(),
             Some("heartbeat-turn-1")
         );
-        assert_eq!(specialist.runtime_agent_job_id, None);
         assert_eq!(specialist.blocking_reason, None);
         assert!(
             specialist
@@ -22839,7 +22814,6 @@ mod tests {
             authority_scope: Some("epiphany.role.modeling".to_string()),
             backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
             backend_job_id: Some("heartbeat-job-1".to_string()),
-            runtime_agent_job_id: None,
             linked_subgoal_ids: Vec::new(),
             linked_graph_node_ids: Vec::new(),
             progress_note: None,
@@ -22860,43 +22834,6 @@ mod tests {
     }
 
     #[test]
-    fn map_epiphany_jobs_blocks_missing_bound_runtime_agent_job() {
-        let state = codex_protocol::protocol::EpiphanyThreadState {
-            job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
-                id: "specialist-work".to_string(),
-                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
-                scope: "role-scoped specialist work".to_string(),
-                owner_role: "epiphany-harness".to_string(),
-                launcher_job_id: Some("launcher-specialist-missing".to_string()),
-                authority_scope: Some("epiphany.specialist".to_string()),
-                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs),
-                backend_job_id: Some("job-missing".to_string()),
-                runtime_agent_job_id: Some("job-missing".to_string()),
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-                progress_note: None,
-                blocking_reason: None,
-            }],
-            ..Default::default()
-        };
-        let resolution = EpiphanyJobLauncherResolution::default();
-
-        let jobs = map_epiphany_jobs(Some(&state), None, &resolution);
-        let specialist = jobs
-            .iter()
-            .find(|job| job.id == "specialist-work")
-            .expect("specialist slot should exist");
-
-        assert_eq!(specialist.status, ThreadEpiphanyJobStatus::Blocked);
-        assert!(
-            specialist
-                .blocking_reason
-                .as_deref()
-                .is_some_and(|reason| reason.contains("activation now belongs to heartbeat"))
-        );
-    }
-
-    #[test]
     fn map_epiphany_jobs_blocks_binding_after_interrupt_clears_backend() {
         let state = codex_protocol::protocol::EpiphanyThreadState {
             job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
@@ -22908,7 +22845,6 @@ mod tests {
                 authority_scope: Some("epiphany.specialist".to_string()),
                 backend_kind: None,
                 backend_job_id: None,
-                runtime_agent_job_id: None,
                 linked_subgoal_ids: vec!["phase-6".to_string()],
                 linked_graph_node_ids: vec!["job-control".to_string()],
                 progress_note: None,
@@ -22938,7 +22874,6 @@ mod tests {
         assert_eq!(specialist.launcher_job_id, None);
         assert_eq!(specialist.backend_kind, None);
         assert_eq!(specialist.backend_job_id, None);
-        assert_eq!(specialist.runtime_agent_job_id, None);
         assert_eq!(specialist.linked_subgoal_ids, vec!["phase-6".to_string()]);
         assert_eq!(
             specialist.linked_graph_node_ids,

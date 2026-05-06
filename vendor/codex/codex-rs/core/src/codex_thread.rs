@@ -851,7 +851,6 @@ fn build_epiphany_job_launch_binding(
         authority_scope: Some(request.authority_scope.clone()),
         backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
         backend_job_id: Some(backend_job_id.to_string()),
-        runtime_agent_job_id: None,
         linked_subgoal_ids: request.linked_subgoal_ids.clone(),
         linked_graph_node_ids: request.linked_graph_node_ids.clone(),
         progress_note: Some(
@@ -950,17 +949,13 @@ fn clear_epiphany_job_binding_backend(
     binding.launcher_job_id = None;
     binding.backend_kind = None;
     binding.backend_job_id = None;
-    binding.runtime_agent_job_id = None;
     binding.progress_note = None;
     binding.blocking_reason = Some(blocking_reason.to_string());
     bindings
 }
 
 fn binding_backend_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
-    binding
-        .backend_job_id
-        .as_deref()
-        .or(binding.runtime_agent_job_id.as_deref())
+    binding.backend_job_id.as_deref()
 }
 
 fn epiphany_state_update_validation_errors(
@@ -1083,13 +1078,6 @@ fn validate_epiphany_job_bindings(job_bindings: &[EpiphanyJobBinding]) -> Vec<St
             require_nonempty_update(backend_job_id, "job_binding.backend_job_id", &mut errors);
         }
 
-        if let Some(runtime_agent_job_id) = binding.runtime_agent_job_id.as_deref() {
-            require_nonempty_update(
-                runtime_agent_job_id,
-                "job_binding.runtime_agent_job_id",
-                &mut errors,
-            );
-        }
         if let Some(progress_note) = binding.progress_note.as_deref() {
             require_nonempty_update(progress_note, "job_binding.progress_note", &mut errors);
         }
@@ -1106,21 +1094,6 @@ fn validate_epiphany_job_bindings(job_bindings: &[EpiphanyJobBinding]) -> Vec<St
                 binding.id
             )),
             _ => {}
-        }
-        if let (
-            Some(EpiphanyJobBackendKind::AgentJobs),
-            Some(backend_job_id),
-            Some(runtime_agent_job_id),
-        ) = (
-            binding.backend_kind,
-            binding.backend_job_id.as_deref(),
-            binding.runtime_agent_job_id.as_deref(),
-        ) && backend_job_id != runtime_agent_job_id
-        {
-            errors.push(format!(
-                "job binding {:?} sets mismatched agent_jobs ids across backend_job_id and runtime_agent_job_id",
-                binding.id
-            ));
         }
         if !binding.id.is_empty() && !seen_ids.insert(binding.id.as_str()) {
             errors.push(format!("duplicate job binding id {:?}", binding.id));
@@ -1438,12 +1411,11 @@ mod epiphany_update_tests {
             owner_role: "epiphany-harness".to_string(),
             launcher_job_id: Some(format!("launcher-{id}")),
             authority_scope: Some("epiphany.specialist".to_string()),
-            backend_kind: Some(EpiphanyJobBackendKind::AgentJobs),
-            backend_job_id: Some(format!("agent-job-{id}")),
-            runtime_agent_job_id: Some(format!("agent-job-{id}")),
+            backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
+            backend_job_id: Some(format!("heartbeat-job-{id}")),
             linked_subgoal_ids: vec!["phase-6".to_string()],
             linked_graph_node_ids: vec!["job-surface".to_string()],
-            progress_note: Some("Bound to a real runtime agent job.".to_string()),
+            progress_note: Some("Bound to a heartbeat runtime-spine job.".to_string()),
             blocking_reason: None,
         }
     }
@@ -1542,8 +1514,8 @@ mod epiphany_update_tests {
             Some("epiphany.specialist")
         );
         assert_eq!(
-            state.job_bindings[0].runtime_agent_job_id.as_deref(),
-            Some("agent-job-new")
+            state.job_bindings[0].backend_job_id.as_deref(),
+            Some("heartbeat-job-new")
         );
         assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-jobs"));
     }
@@ -1853,9 +1825,8 @@ mod epiphany_update_tests {
                     owner_role: String::new(),
                     launcher_job_id: Some(String::new()),
                     authority_scope: Some(String::new()),
-                    backend_kind: Some(EpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some(String::new()),
-                    runtime_agent_job_id: Some(String::new()),
                     linked_subgoal_ids: Vec::new(),
                     linked_graph_node_ids: Vec::new(),
                     progress_note: Some(String::new()),
@@ -1891,11 +1862,6 @@ mod epiphany_update_tests {
         assert!(
             errors
                 .iter()
-                .any(|error| error.contains("job_binding.runtime_agent_job_id must not be empty"))
-        );
-        assert!(
-            errors
-                .iter()
                 .any(|error| error.contains("job_binding.launcher_job_id must not be empty"))
         );
         assert!(
@@ -1925,21 +1891,14 @@ mod epiphany_update_tests {
         let update = EpiphanyStateUpdate {
             job_bindings: Some(vec![
                 EpiphanyJobBinding {
-                    backend_kind: Some(EpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: None,
                     ..job_binding("missing-backend-job-id")
                 },
                 EpiphanyJobBinding {
                     backend_kind: None,
-                    backend_job_id: Some("agent-job-orphan".to_string()),
-                    runtime_agent_job_id: None,
+                    backend_job_id: Some("heartbeat-job-orphan".to_string()),
                     ..job_binding("orphan-backend-job-id")
-                },
-                EpiphanyJobBinding {
-                    backend_kind: Some(EpiphanyJobBackendKind::AgentJobs),
-                    backend_job_id: Some("agent-job-backend".to_string()),
-                    runtime_agent_job_id: Some("agent-job-legacy".to_string()),
-                    ..job_binding("mismatched-ids")
                 },
             ]),
             ..Default::default()
@@ -1955,9 +1914,6 @@ mod epiphany_update_tests {
         assert!(errors.iter().any(|error| {
             error.contains("backend_job_id without backend_kind")
                 && error.contains("orphan-backend-job-id")
-        }));
-        assert!(errors.iter().any(|error| {
-            error.contains("mismatched agent_jobs ids") && error.contains("mismatched-ids")
         }));
     }
 
@@ -1986,7 +1942,6 @@ mod epiphany_update_tests {
             Some(EpiphanyJobBackendKind::Heartbeat)
         );
         assert_eq!(binding.backend_job_id.as_deref(), Some("turn-1"));
-        assert_eq!(binding.runtime_agent_job_id, None);
         assert!(
             binding
                 .progress_note

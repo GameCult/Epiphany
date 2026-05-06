@@ -1908,7 +1908,6 @@ mod tests {
                     backend_kind: None,
                     backend_job_id: None,
                     status: v2::ThreadEpiphanyJobStatus::Needed,
-                    runtime_agent_job_id: None,
                     items_processed: Some(12),
                     items_total: None,
                     progress_note: Some(
@@ -1979,7 +1978,6 @@ mod tests {
                         backend_kind: None,
                         backend_job_id: None,
                         status: v2::ThreadEpiphanyJobStatus::Needed,
-                        runtime_agent_job_id: None,
                         items_processed: None,
                         items_total: None,
                         progress_note: None,
@@ -2137,14 +2135,13 @@ mod tests {
                         launcher_job_id: Some("epiphany-launch-1".to_string()),
                         authority_scope: Some("epiphany.role.modeling".to_string()),
                         backend_kind: Some(
-                            codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs,
+                            codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat,
                         ),
                         backend_job_id: Some("backend-1".to_string()),
-                        runtime_agent_job_id: Some("backend-1".to_string()),
                         linked_subgoal_ids: vec!["phase-6".to_string()],
                         linked_graph_node_ids: vec!["state-spine".to_string()],
                         progress_note: Some(
-                            "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                            "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
                                 .to_string(),
                         ),
                         blocking_reason: None,
@@ -2158,14 +2155,13 @@ mod tests {
                     owner_role: "epiphany-modeler".to_string(),
                     launcher_job_id: Some("epiphany-launch-1".to_string()),
                     authority_scope: Some("epiphany.role.modeling".to_string()),
-                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("backend-1".to_string()),
                     status: v2::ThreadEpiphanyJobStatus::Pending,
-                    runtime_agent_job_id: Some("backend-1".to_string()),
                     items_processed: None,
                     items_total: None,
                     progress_note: Some(
-                        "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                        "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
                             .to_string(),
                     ),
                     last_checkpoint_at_unix_seconds: None,
@@ -2197,12 +2193,11 @@ mod tests {
                             "owner_role": "epiphany-modeler",
                             "launcher_job_id": "epiphany-launch-1",
                             "authority_scope": "epiphany.role.modeling",
-                            "backend_kind": "agent_jobs",
+                            "backend_kind": "heartbeat",
                             "backend_job_id": "backend-1",
-                            "runtime_agent_job_id": "backend-1",
                             "linked_subgoal_ids": ["phase-6"],
                             "linked_graph_node_ids": ["state-spine"],
-                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
                         }]
                     },
                     "job": {
@@ -2215,8 +2210,7 @@ mod tests {
                         "backendKind": "agentJobs",
                         "backendJobId": "backend-1",
                         "status": "pending",
-                        "runtimeAgentJobId": "backend-1",
-                        "progressNote": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend.",
+                        "progressNote": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend.",
                         "linkedSubgoalIds": ["phase-6"],
                         "linkedGraphNodeIds": ["state-spine"]
                     }
@@ -2246,10 +2240,9 @@ mod tests {
                     owner_role: "epiphany-verifier".to_string(),
                     launcher_job_id: Some("epiphany-launch-2".to_string()),
                     authority_scope: Some("epiphany.role.verification".to_string()),
-                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("backend-2".to_string()),
                     status: v2::ThreadEpiphanyJobStatus::Completed,
-                    runtime_agent_job_id: Some("backend-2".to_string()),
                     items_processed: Some(1),
                     items_total: Some(1),
                     progress_note: Some("1/1 items completed.".to_string()),
@@ -2312,7 +2305,6 @@ mod tests {
                         "backendKind": "agentJobs",
                         "backendJobId": "backend-2",
                         "status": "completed",
-                        "runtimeAgentJobId": "backend-2",
                         "itemsProcessed": 1,
                         "itemsTotal": 1,
                         "progressNote": "1/1 items completed.",
@@ -3212,14 +3204,13 @@ mod tests {
                         launcher_job_id: Some("epiphany-launch-1".to_string()),
                         authority_scope: Some("epiphany.reorient.regather".to_string()),
                         backend_kind: Some(
-                            codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs,
+                            codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat,
                         ),
                         backend_job_id: Some("backend-1".to_string()),
-                        runtime_agent_job_id: Some("backend-1".to_string()),
                         linked_subgoal_ids: vec!["phase-6".to_string()],
                         linked_graph_node_ids: vec!["state-spine".to_string()],
                         progress_note: Some(
-                            "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                            "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
                                 .to_string(),
                         ),
                         blocking_reason: None,
@@ -3233,14 +3224,13 @@ mod tests {
                     owner_role: "epiphany-reorient".to_string(),
                     launcher_job_id: Some("epiphany-launch-1".to_string()),
                     authority_scope: Some("epiphany.reorient.regather".to_string()),
-                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("backend-1".to_string()),
                     status: v2::ThreadEpiphanyJobStatus::Pending,
-                    runtime_agent_job_id: Some("backend-1".to_string()),
                     items_processed: None,
                     items_total: None,
                     progress_note: Some(
-                        "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                        "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
                             .to_string(),
                     ),
                     last_checkpoint_at_unix_seconds: None,
@@ -3292,12 +3282,11 @@ mod tests {
                             "owner_role": "epiphany-reorient",
                             "launcher_job_id": "epiphany-launch-1",
                             "authority_scope": "epiphany.reorient.regather",
-                            "backend_kind": "agent_jobs",
+                            "backend_kind": "heartbeat",
                             "backend_job_id": "backend-1",
-                            "runtime_agent_job_id": "backend-1",
                             "linked_subgoal_ids": ["phase-6"],
                             "linked_graph_node_ids": ["state-spine"],
-                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
                         }]
                     },
                     "job": {
@@ -3310,8 +3299,7 @@ mod tests {
                         "backendKind": "agentJobs",
                         "backendJobId": "backend-1",
                         "status": "pending",
-                        "runtimeAgentJobId": "backend-1",
-                        "progressNote": "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend.",
+                        "progressNote": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend.",
                         "linkedSubgoalIds": ["phase-6"],
                         "linkedGraphNodeIds": ["state-spine"]
                     }
@@ -3340,10 +3328,9 @@ mod tests {
                     owner_role: "epiphany-reorient".to_string(),
                     launcher_job_id: Some("epiphany-launch-1".to_string()),
                     authority_scope: Some("epiphany.reorient.resume".to_string()),
-                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("backend-1".to_string()),
                     status: v2::ThreadEpiphanyJobStatus::Completed,
-                    runtime_agent_job_id: Some("backend-1".to_string()),
                     items_processed: Some(1),
                     items_total: Some(1),
                     progress_note: Some("1/1 items completed.".to_string()),
@@ -3399,7 +3386,6 @@ mod tests {
                         "backendKind": "agentJobs",
                         "backendJobId": "backend-1",
                         "status": "completed",
-                        "runtimeAgentJobId": "backend-1",
                         "itemsProcessed": 1,
                         "itemsTotal": 1,
                         "progressNote": "1/1 items completed.",
@@ -3820,10 +3806,9 @@ mod tests {
                         launcher_job_id: Some("launcher-specialist".to_string()),
                         authority_scope: Some("epiphany.specialist".to_string()),
                         backend_kind: Some(
-                            codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs,
+                            codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat,
                         ),
                         backend_job_id: Some("job-123".to_string()),
-                        runtime_agent_job_id: Some("job-123".to_string()),
                         linked_subgoal_ids: Vec::new(),
                         linked_graph_node_ids: Vec::new(),
                         progress_note: Some("Launched explicitly.".to_string()),
@@ -3838,10 +3823,9 @@ mod tests {
                     owner_role: "epiphany-harness".to_string(),
                     launcher_job_id: Some("launcher-specialist".to_string()),
                     authority_scope: Some("epiphany.specialist".to_string()),
-                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("job-123".to_string()),
                     status: v2::ThreadEpiphanyJobStatus::Pending,
-                    runtime_agent_job_id: Some("job-123".to_string()),
                     items_processed: None,
                     items_total: None,
                     progress_note: Some("Runtime agent job is pending.".to_string()),
@@ -3872,9 +3856,8 @@ mod tests {
                             "owner_role": "epiphany-harness",
                             "launcher_job_id": "launcher-specialist",
                             "authority_scope": "epiphany.specialist",
-                            "backend_kind": "agent_jobs",
+                            "backend_kind": "heartbeat",
                             "backend_job_id": "job-123",
-                            "runtime_agent_job_id": "job-123",
                             "progress_note": "Launched explicitly."
                         }]
                     },
@@ -3888,7 +3871,6 @@ mod tests {
                         "backendKind": "agentJobs",
                         "backendJobId": "job-123",
                         "status": "pending",
-                        "runtimeAgentJobId": "job-123",
                         "progressNote": "Runtime agent job is pending."
                     }
                 }
@@ -3918,7 +3900,6 @@ mod tests {
                         authority_scope: Some("epiphany.specialist".to_string()),
                         backend_kind: None,
                         backend_job_id: None,
-                        runtime_agent_job_id: None,
                         linked_subgoal_ids: Vec::new(),
                         linked_graph_node_ids: Vec::new(),
                         progress_note: None,
@@ -3938,7 +3919,6 @@ mod tests {
                     backend_kind: None,
                     backend_job_id: None,
                     status: v2::ThreadEpiphanyJobStatus::Blocked,
-                    runtime_agent_job_id: None,
                     items_processed: None,
                     items_total: None,
                     progress_note: None,
@@ -4109,10 +4089,9 @@ mod tests {
                     owner_role: "epiphany-harness".to_string(),
                     launcher_job_id: Some("launcher-specialist".to_string()),
                     authority_scope: Some("epiphany.specialist".to_string()),
-                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("job-123".to_string()),
                     status: v2::ThreadEpiphanyJobStatus::Running,
-                    runtime_agent_job_id: Some("job-123".to_string()),
                     items_processed: Some(1),
                     items_total: Some(3),
                     progress_note: Some("Runtime agent job is running.".to_string()),
@@ -4141,7 +4120,6 @@ mod tests {
                         "backendKind": "agentJobs",
                         "backendJobId": "job-123",
                         "status": "running",
-                        "runtimeAgentJobId": "job-123",
                         "itemsProcessed": 1,
                         "itemsTotal": 3,
                         "progressNote": "Runtime agent job is running.",
@@ -5034,10 +5012,9 @@ mod tests {
                     owner_role: "epiphany-harness".to_string(),
                     launcher_job_id: Some("launcher-specialist".to_string()),
                     authority_scope: Some("epiphany.specialist".to_string()),
-                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::AgentJobs),
+                    backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("job-123".to_string()),
                     status: v2::ThreadEpiphanyJobStatus::Running,
-                    runtime_agent_job_id: Some("job-123".to_string()),
                     items_processed: Some(1),
                     items_total: Some(3),
                     progress_note: Some("Runtime agent job is running.".to_string()),

@@ -32,7 +32,6 @@ use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::WebSearchToolType;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
-use codex_protocol::protocol::SubAgentSource;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::collections::BTreeMap;
@@ -174,7 +173,6 @@ fn test_build_specs_collab_tools_enabled() {
         &tools,
         &["spawn_agent", "send_input", "wait_agent", "close_agent"],
     );
-    assert_lacks_tool_name(&tools, "spawn_agents_on_csv");
     assert_lacks_tool_name(&tools, "list_agents");
 
     let spawn_agent = find_tool(&tools, "spawn_agent");
@@ -330,7 +328,7 @@ fn test_build_specs_multi_agent_v2_uses_task_names_and_hides_resume() {
 }
 
 #[test]
-fn test_build_specs_multi_agent_omits_agent_jobs() {
+fn test_build_specs_multi_agent_exposes_collab_tools_only() {
     let model_info = model_info();
     let mut features = Features::with_defaults();
     features.normalize_dependencies();
@@ -356,8 +354,6 @@ fn test_build_specs_multi_agent_omits_agent_jobs() {
         &tools,
         &["spawn_agent", "send_input", "wait_agent", "close_agent"],
     );
-    assert_lacks_tool_name(&tools, "spawn_agents_on_csv");
-    assert_lacks_tool_name(&tools, "report_agent_job_result");
 }
 
 #[test]
