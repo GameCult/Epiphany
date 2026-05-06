@@ -387,6 +387,9 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         && routine["routine"]["bridge"]["schema_version"] == "epiphany.cognition_bridge.v0"
         && routine["routine"]["candidateInterventions"]["schema_version"]
             == "epiphany.candidate_interventions.v0"
+        && routine["routine"]["appraisals"]["schema_version"]
+            == "epiphany.agent_thought_appraisals.v0"
+        && routine["routine"]["reactions"]["schema_version"] == "epiphany.agent_reactions.v0"
         && routine_status["sleepCycle"]["schema_version"] == "epiphany.sleep_cycle.v0";
 
     let result = serde_json::json!({

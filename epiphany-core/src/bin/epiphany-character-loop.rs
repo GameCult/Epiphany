@@ -198,12 +198,17 @@ fn character_turn_packet(
             "bridge": {
                 "schema_version": "epiphany.cognition_bridge.v0",
                 "contract": "Synthesize or separate the lanes, name saturation and unresolved tension, then choose bubble, draft, finding, silence, or selfPatch. The bridge may steer attention; it may not mutate project truth."
+            },
+            "appraisal": {
+                "schema_version": "epiphany.agent_thought_appraisal.v0",
+                "contract": "Project the active thought cluster through this actor's own personality vectors before reacting. Interpretation, emotion, and reaction are participant-local; state mutation still requires reviewed selfPatch or project-state acceptance."
             }
         },
         "guardrails": [
             "Humans talk to Face; other organs expose internals through Aquarium and typed artifacts rather than becoming direct chats.",
             "Use character-local projection: the actor receives its own dossier and visible stimulus, not omniscient hidden state.",
             "Run both cognition lanes before choosing an output: analytic keeps the promise honest, associative keeps the living signal from going flat.",
+            "Appraise the thought cluster through this role's personality before reacting; do not use a global mood knob as a substitute for participant-local appraisal.",
             "If speech or action would be noise, return silence plus bounded rumination or selfPatch.",
             "Posting, state mutation, objective adoption, and semantic acceptance remain separate reviewed Epiphany surfaces."
         ],
@@ -215,6 +220,8 @@ fn character_turn_packet(
             "analyticThread": "object",
             "associativeThread": "object",
             "bridgeSynthesis": "object",
+            "appraisal": "object",
+            "reaction": "object",
             "decision": "bubble|draft|finding|silence|blocked",
             "selfPatch": "optional bounded role memory mutation"
         }
@@ -262,7 +269,9 @@ fn run_smoke() -> Result<Value> {
             .as_str()
             .is_some_and(|text| text.contains("Aquarium"))
         && packet["cognitionLanes"]["schema_version"] == "epiphany.cognition_lanes.v0"
-        && packet["cognitionLanes"]["bridge"]["schema_version"] == "epiphany.cognition_bridge.v0";
+        && packet["cognitionLanes"]["bridge"]["schema_version"] == "epiphany.cognition_bridge.v0"
+        && packet["cognitionLanes"]["appraisal"]["schema_version"]
+            == "epiphany.agent_thought_appraisal.v0";
     Ok(serde_json::json!({
         "ok": ok,
         "turnPath": path,

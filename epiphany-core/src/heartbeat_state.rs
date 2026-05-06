@@ -70,6 +70,10 @@ pub struct EpiphanyHeartbeatStateEntry {
     #[cultcache(key = 12, default)]
     pub candidate_interventions: Option<Value>,
     #[cultcache(key = 13, default)]
+    pub appraisals: Option<Value>,
+    #[cultcache(key = 14, default)]
+    pub reactions: Option<Value>,
+    #[cultcache(key = 15, default)]
     pub extra: BTreeMap<String, Value>,
 }
 
@@ -348,6 +352,8 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
         thought_lanes: None,
         bridge: None,
         candidate_interventions: None,
+        appraisals: None,
+        reactions: None,
         extra: BTreeMap::new(),
     }
 }
@@ -454,6 +460,8 @@ pub fn heartbeat_status_projection(
         "thoughtLanes": state.thought_lanes,
         "bridge": state.bridge,
         "candidateInterventions": state.candidate_interventions,
+        "appraisals": state.appraisals,
+        "reactions": state.reactions,
         "availableActions": ["init", "tick", "complete", "status", "routine"],
     }))
 }
@@ -469,11 +477,15 @@ pub fn run_void_routine_store(
     patch_missing_participants(&mut state);
 
     let memory_records = collect_role_memory_records(options.agent_store.as_deref())?;
+    let appraisal_profiles = collect_role_appraisal_profiles(options.agent_store.as_deref())?;
     let resonance = build_memory_resonance(&memory_records);
     let incubation = build_incubation(&state.incubation, &resonance, &memory_records);
     let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
     let bridge = build_thought_bridge(&state.bridge, &thought_lanes, &resonance, &incubation);
     let candidate_interventions = build_candidate_interventions(&bridge, &incubation);
+    let appraisals =
+        build_agent_appraisals(&appraisal_profiles, &thought_lanes, &incubation, &bridge);
+    let reactions = build_agent_reactions(&appraisals, &bridge);
     let sleep_cycle =
         update_sleep_cycle(state.sleep_cycle.as_ref(), &incubation, options.allow_dream);
     let run_id = format!("epiphany-void-routine-{}", now_stamp());
@@ -491,10 +503,13 @@ pub fn run_void_routine_store(
         "thoughtLanes": thought_lanes,
         "bridge": bridge,
         "candidateInterventions": candidate_interventions,
+        "appraisals": appraisals,
+        "reactions": reactions,
         "reviewNotes": [
             "Void is reference material, not a runtime dependency.",
             "The routine mutates only typed heartbeat physiology fields; project truth and role memory mutation stay on their dedicated reviewed surfaces.",
             "Analytic and associative lanes are cognition context, not hidden authority; the bridge decides draft, speech, silence, or further incubation.",
+            "Appraisal projects clustered thoughts through each agent's own personality vectors; reaction is derived from that appraisal and remains separate from state mutation.",
             "Sleep is maintenance: slow rumination, memory compression, and dream residue, not absence."
         ],
     });
@@ -505,6 +520,8 @@ pub fn run_void_routine_store(
     state.thought_lanes = Some(thought_lanes);
     state.bridge = Some(bridge);
     state.candidate_interventions = Some(candidate_interventions);
+    state.appraisals = Some(appraisals);
+    state.reactions = Some(reactions);
     state.extra.insert(
         "voidRoutine".to_string(),
         serde_json::json!({
@@ -1227,6 +1244,8 @@ fn artifact_summary(payload: &Value) -> Value {
             "isNapping": payload.pointer("/sleepCycle/isNapping"),
             "resonanceCount": payload.pointer("/memoryResonance/pairs").and_then(Value::as_array).map(Vec::len),
             "incubationCount": payload.pointer("/incubation/themes").and_then(Value::as_array).map(Vec::len),
+            "appraisalCount": payload.pointer("/appraisals/participantAppraisals").and_then(Value::as_array).map(Vec::len),
+            "reactionCount": payload.pointer("/reactions/reactions").and_then(Value::as_array).map(Vec::len),
         });
     }
     let event = if payload.get("actionId").is_some() {
@@ -1397,6 +1416,28 @@ struct RoleMemoryRecord {
     tokens: BTreeSet<String>,
 }
 
+#[derive(Clone, Debug)]
+struct RoleAppraisalProfile {
+    role_id: String,
+    agent_id: String,
+    display_name: String,
+    traits: Vec<PersonalityTraitProjection>,
+    reactivity: f64,
+    plasticity: f64,
+    expressiveness: f64,
+    guardedness: f64,
+    values: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+struct PersonalityTraitProjection {
+    group: String,
+    name: String,
+    activation: f64,
+    plasticity: f64,
+    weight: f64,
+}
+
 fn collect_role_memory_records(agent_store: Option<&Path>) -> Result<Vec<RoleMemoryRecord>> {
     let Some(agent_store) = agent_store else {
         return Ok(Vec::new());
@@ -1438,6 +1479,117 @@ fn collect_role_memory_records(agent_store: Option<&Path>) -> Result<Vec<RoleMem
     });
     records.truncate(48);
     Ok(records)
+}
+
+fn collect_role_appraisal_profiles(
+    agent_store: Option<&Path>,
+) -> Result<Vec<RoleAppraisalProfile>> {
+    let Some(agent_store) = agent_store else {
+        return Ok(Vec::new());
+    };
+    let mut profiles = Vec::new();
+    for role_id in ROLE_ORDER {
+        let Some(entry) =
+            crate::agent_memory::load_agent_memory_entry_for_role(agent_store, role_id)?
+        else {
+            continue;
+        };
+        let mut traits = Vec::new();
+        collect_trait_group(
+            &mut traits,
+            "underlying_organization",
+            &entry.agent.canonical_state.underlying_organization,
+        );
+        collect_trait_group(
+            &mut traits,
+            "stable_dispositions",
+            &entry.agent.canonical_state.stable_dispositions,
+        );
+        collect_trait_group(
+            &mut traits,
+            "behavioral_dimensions",
+            &entry.agent.canonical_state.behavioral_dimensions,
+        );
+        collect_trait_group(
+            &mut traits,
+            "presentation_strategy",
+            &entry.agent.canonical_state.presentation_strategy,
+        );
+        collect_trait_group(
+            &mut traits,
+            "voice_style",
+            &entry.agent.canonical_state.voice_style,
+        );
+        collect_trait_group(
+            &mut traits,
+            "situational_state",
+            &entry.agent.canonical_state.situational_state,
+        );
+        traits.sort_by(|left, right| right.weight.total_cmp(&left.weight));
+        let top_weighted = traits.iter().take(8).collect::<Vec<_>>();
+        let reactivity = average(top_weighted.iter().map(|item| item.activation)).unwrap_or(0.5);
+        let plasticity = average(top_weighted.iter().map(|item| item.plasticity)).unwrap_or(0.5);
+        let expressiveness = average(
+            traits
+                .iter()
+                .filter(|item| item.group == "voice_style" || item.group == "presentation_strategy")
+                .map(|item| item.activation),
+        )
+        .unwrap_or(reactivity);
+        let guardedness = average(
+            traits
+                .iter()
+                .filter(|item| {
+                    let name = item.name.as_str();
+                    name.contains("guard")
+                        || name.contains("shame")
+                        || name.contains("risk")
+                        || name.contains("caution")
+                        || name.contains("contingent")
+                        || name.contains("defens")
+                })
+                .map(|item| item.activation),
+        )
+        .unwrap_or((1.0 - expressiveness * 0.45).clamp(0.0, 1.0));
+        let values = entry
+            .agent
+            .canonical_state
+            .values
+            .iter()
+            .take(5)
+            .map(|value| value.label.clone())
+            .collect();
+        profiles.push(RoleAppraisalProfile {
+            role_id: (*role_id).to_string(),
+            agent_id: entry.agent.agent_id,
+            display_name: entry.agent.identity.name,
+            traits,
+            reactivity: round3(reactivity),
+            plasticity: round3(plasticity),
+            expressiveness: round3(expressiveness),
+            guardedness: round3(guardedness),
+            values,
+        });
+    }
+    Ok(profiles)
+}
+
+fn collect_trait_group(
+    traits: &mut Vec<PersonalityTraitProjection>,
+    group: &str,
+    source: &BTreeMap<String, crate::agent_memory::GhostlightTraitVector>,
+) {
+    for (name, vector) in source {
+        let activation = vector.current_activation.clamp(0.0, 1.0);
+        let plasticity = vector.plasticity.clamp(0.0, 1.0);
+        traits.push(PersonalityTraitProjection {
+            group: group.to_string(),
+            name: name.clone(),
+            activation,
+            plasticity,
+            weight: round3(activation * (0.65 + plasticity * 0.35)),
+        });
+    }
 }
 
 fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
@@ -1785,6 +1937,305 @@ fn build_candidate_interventions(bridge: &Value, incubation: &Value) -> Value {
     })
 }
 
+fn build_agent_appraisals(
+    profiles: &[RoleAppraisalProfile],
+    thought_lanes: &Value,
+    incubation: &Value,
+    bridge: &Value,
+) -> Value {
+    let thought_tokens = cognition_tokens(thought_lanes, incubation, bridge);
+    let thought_pressure = thought_pressure(thought_lanes, incubation);
+    let bridge_decision = bridge
+        .pointer("/decision/speakDecision")
+        .and_then(Value::as_str)
+        .unwrap_or("silence");
+    let focus = incubation
+        .get("themes")
+        .and_then(Value::as_array)
+        .and_then(|themes| themes.first())
+        .and_then(|theme| theme.get("themeId"))
+        .and_then(Value::as_str)
+        .unwrap_or("no-active-theme");
+    let appraisals = profiles
+        .iter()
+        .map(|profile| {
+            let projection = personality_projection(profile, &thought_tokens);
+            let alignment = projection
+                .iter()
+                .filter_map(|item| item.get("projection").and_then(Value::as_f64))
+                .next()
+                .unwrap_or(profile.reactivity);
+            let arousal = round3(
+                (thought_pressure * (0.35 + profile.reactivity * 0.45 + profile.plasticity * 0.2))
+                    .clamp(0.0, 1.0),
+            );
+            let guardedness = round3(
+                (profile.guardedness * 0.65 + thought_pressure * 0.25 + (1.0 - alignment) * 0.1)
+                    .clamp(0.0, 1.0),
+            );
+            let curiosity = round3(
+                ((1.0 - profile.guardedness) * 0.25 + alignment * 0.45 + profile.plasticity * 0.3)
+                    .clamp(0.0, 1.0),
+            );
+            let urgency = round3((arousal * 0.65 + guardedness * 0.25 + thought_pressure * 0.1).clamp(0.0, 1.0));
+            let valence = round3((0.55 + curiosity * 0.2 - guardedness * 0.18).clamp(0.0, 1.0));
+            let label = interpretation_label(bridge_decision, arousal, guardedness, curiosity);
+            serde_json::json!({
+                "schema_version": "epiphany.agent_thought_appraisal.v0",
+                "appraisalId": format!("appraisal-{}-{}", profile.role_id, stable_theme_suffix(focus)),
+                "reviewStatus": "generated_unreviewed",
+                "participantAgentId": profile.agent_id,
+                "roleId": profile.role_id,
+                "currentCharacterStateRef": format!("state/agents.msgpack#{}", profile.role_id),
+                "thoughtClusterRef": focus,
+                "participantLocalContext": {
+                    "displayName": profile.display_name,
+                    "values": profile.values,
+                    "reactivity": profile.reactivity,
+                    "plasticity": profile.plasticity,
+                    "expressiveness": profile.expressiveness,
+                    "guardedness": profile.guardedness,
+                },
+                "observableThoughtSummary": strongest_thought_summary(thought_lanes, incubation),
+                "personalityProjection": projection,
+                "interpretation": format!("{} appraises {} through its current personality vector; reaction should follow this appraisal rather than a global mood knob.", profile.display_name, focus),
+                "emotionalAppraisal": {
+                    "valence": valence,
+                    "arousal": arousal,
+                    "urgency": urgency,
+                    "curiosity": curiosity,
+                    "guardedness": guardedness,
+                    "thoughtPressure": round3(thought_pressure),
+                },
+                "interpretationLabel": label,
+                "confidenceNotes": "Deterministic first-pass appraisal from typed role personality vectors and clustered thought state; useful as reaction guidance, not reviewed truth.",
+                "candidateImplications": {
+                    "reactionMode": reaction_mode(&label, bridge_decision),
+                    "reactionIntensity": round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
+                    "shouldSpeak": bridge_decision == "draft" && profile.role_id == "face" && guardedness < 0.75,
+                    "shouldIncubate": bridge_decision != "silence" && guardedness >= 0.55,
+                },
+                "review": {
+                    "acceptedForMutation": false,
+                    "rationale": "Appraisal may steer reaction and display; state mutation still requires the explicit selfPatch or project-state review path.",
+                },
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "schema_version": "epiphany.agent_thought_appraisals.v0",
+        "updatedAt": now_iso(),
+        "thoughtClusterRef": focus,
+        "participantAppraisals": appraisals,
+    })
+}
+
+fn build_agent_reactions(appraisals: &Value, bridge: &Value) -> Value {
+    let bridge_decision = bridge
+        .pointer("/decision/speakDecision")
+        .and_then(Value::as_str)
+        .unwrap_or("silence");
+    let reactions = appraisals
+        .get("participantAppraisals")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .map(|appraisal| {
+            let role_id = appraisal
+                .get("roleId")
+                .and_then(Value::as_str)
+                .unwrap_or("unknown");
+            let arousal = appraisal
+                .pointer("/emotionalAppraisal/arousal")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            let guardedness = appraisal
+                .pointer("/emotionalAppraisal/guardedness")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            let curiosity = appraisal
+                .pointer("/emotionalAppraisal/curiosity")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            let mode = appraisal
+                .pointer("/candidateImplications/reactionMode")
+                .and_then(Value::as_str)
+                .unwrap_or("hold");
+            let intensity = appraisal
+                .pointer("/candidateImplications/reactionIntensity")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            serde_json::json!({
+                "reactionId": format!("reaction-{}-{}", role_id, now_stamp()),
+                "roleId": role_id,
+                "participantAgentId": appraisal.get("participantAgentId"),
+                "appraisalId": appraisal.get("appraisalId"),
+                "mode": mode,
+                "moodLabel": mood_label(arousal, guardedness, curiosity),
+                "intensity": round3(intensity),
+                "bridgeDecision": bridge_decision,
+                "surface": if role_id == "face" { "aquarium" } else { "internal" },
+                "recommendedUse": reaction_recommended_use(role_id, mode),
+            })
+        })
+        .collect::<Vec<_>>();
+    serde_json::json!({
+        "schema_version": "epiphany.agent_reactions.v0",
+        "updatedAt": now_iso(),
+        "reactions": reactions,
+        "contract": "Reaction is appraisal output. It may pace, color, draft, or display behavior; it does not mutate state without review.",
+    })
+}
+
+fn cognition_tokens(thought_lanes: &Value, incubation: &Value, bridge: &Value) -> BTreeSet<String> {
+    let mut tokens = BTreeSet::new();
+    collect_json_tokens(thought_lanes, &mut tokens);
+    collect_json_tokens(incubation, &mut tokens);
+    collect_json_tokens(bridge, &mut tokens);
+    tokens
+}
+
+fn collect_json_tokens(value: &Value, tokens: &mut BTreeSet<String>) {
+    match value {
+        Value::String(text) => tokens.extend(summary_tokens(text)),
+        Value::Array(items) => {
+            for item in items {
+                collect_json_tokens(item, tokens);
+            }
+        }
+        Value::Object(object) => {
+            for (key, value) in object {
+                tokens.extend(summary_tokens(key));
+                collect_json_tokens(value, tokens);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn thought_pressure(thought_lanes: &Value, incubation: &Value) -> f64 {
+    let analytic = max_number_at(thought_lanes, "/analytic/activeThreads", "desireToAct");
+    let associative = max_number_at(thought_lanes, "/associative/activeThreads", "desireToSpeak");
+    let theme = max_number_at(incubation, "/themes", "strength");
+    (analytic * 0.35 + associative * 0.25 + theme * 0.4).clamp(0.0, 1.0)
+}
+
+fn max_number_at(value: &Value, pointer: &str, key: &str) -> f64 {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.get(key).and_then(Value::as_f64))
+        .max_by(f64::total_cmp)
+        .unwrap_or(0.0)
+}
+
+fn personality_projection(
+    profile: &RoleAppraisalProfile,
+    thought_tokens: &BTreeSet<String>,
+) -> Vec<Value> {
+    let mut scored = profile
+        .traits
+        .iter()
+        .map(|item| {
+            let trait_tokens = summary_tokens(&format!("{} {}", item.group, item.name));
+            let overlap = token_overlap(&trait_tokens, thought_tokens);
+            let projection = round3((item.weight * (0.55 + overlap * 1.8)).clamp(0.0, 1.0));
+            serde_json::json!({
+                "group": item.group,
+                "name": item.name,
+                "activation": round3(item.activation),
+                "plasticity": round3(item.plasticity),
+                "tokenOverlap": round3(overlap),
+                "projection": projection,
+            })
+        })
+        .collect::<Vec<_>>();
+    scored.sort_by(|left, right| {
+        right["projection"]
+            .as_f64()
+            .unwrap_or_default()
+            .total_cmp(&left["projection"].as_f64().unwrap_or_default())
+    });
+    scored.truncate(6);
+    scored
+}
+
+fn strongest_thought_summary(thought_lanes: &Value, incubation: &Value) -> String {
+    incubation
+        .get("themes")
+        .and_then(Value::as_array)
+        .and_then(|themes| themes.first())
+        .and_then(|theme| theme.get("summary"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            thought_lanes
+                .pointer("/analytic/activeThreads")
+                .and_then(Value::as_array)
+                .and_then(|threads| threads.first())
+                .and_then(|thread| thread.get("claim"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or("No salient thought cluster is active.")
+        .to_string()
+}
+
+fn interpretation_label(
+    bridge_decision: &str,
+    arousal: f64,
+    guardedness: f64,
+    curiosity: f64,
+) -> String {
+    if guardedness > 0.72 && arousal > 0.35 {
+        "protective_appraisal".to_string()
+    } else if curiosity > 0.68 {
+        "investigative_appraisal".to_string()
+    } else if bridge_decision == "draft" {
+        "expressive_appraisal".to_string()
+    } else if arousal < 0.12 {
+        "low_pressure_appraisal".to_string()
+    } else {
+        "incubating_appraisal".to_string()
+    }
+}
+
+fn reaction_mode(label: &str, bridge_decision: &str) -> &'static str {
+    match (label, bridge_decision) {
+        ("protective_appraisal", _) => "hold_and_verify",
+        ("investigative_appraisal", _) => "inspect",
+        ("expressive_appraisal", "draft") => "draft",
+        ("low_pressure_appraisal", _) => "sleep_ruminate",
+        _ => "incubate",
+    }
+}
+
+fn mood_label(arousal: f64, guardedness: f64, curiosity: f64) -> &'static str {
+    if guardedness > 0.72 && arousal > 0.35 {
+        "wary"
+    } else if curiosity > 0.68 && arousal > 0.25 {
+        "keen"
+    } else if arousal < 0.12 {
+        "drowsy"
+    } else if guardedness > curiosity {
+        "watchful"
+    } else {
+        "interested"
+    }
+}
+
+fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
+    match (role_id, mode) {
+        ("face", "draft") => "Prepare a reviewed Aquarium-facing draft; do not post automatically.",
+        (_, "hold_and_verify") => "Bias toward verifier/modeler review before expression.",
+        (_, "inspect") => {
+            "Bias the next heartbeat toward a bounded retrieval or modeling inspection."
+        }
+        (_, "sleep_ruminate") => "Let this organ sleep-ruminate unless real work arrives.",
+        _ => "Keep the thought incubating and visible in Aquarium.",
+    }
+}
+
 fn topic_saturation_from_syntheses(syntheses: &[Value]) -> Vec<Value> {
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for synthesis in syntheses {
@@ -1931,6 +2382,18 @@ fn round6(value: f64) -> f64 {
 
 fn round3(value: f64) -> f64 {
     (value * 1_000.0).round() / 1_000.0
+}
+
+fn average(values: impl Iterator<Item = f64>) -> Option<f64> {
+    let mut total = 0.0;
+    let mut count = 0_usize;
+    for value in values {
+        if value.is_finite() {
+            total += value;
+            count += 1;
+        }
+    }
+    (count > 0).then_some(total / count as f64)
 }
 
 const STOP_WORDS: &[&str] = &[
