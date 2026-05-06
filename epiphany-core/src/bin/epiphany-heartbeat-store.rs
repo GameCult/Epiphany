@@ -3,6 +3,7 @@ use anyhow::Result;
 use anyhow::anyhow;
 use epiphany_core::GhostlightSceneParticipantSeed;
 use epiphany_core::HeartbeatCompleteOptions;
+use epiphany_core::HeartbeatPumpOptions;
 use epiphany_core::HeartbeatTickOptions;
 use epiphany_core::VoidRoutineOptions;
 use epiphany_core::apply_agent_self_patch;
@@ -11,6 +12,7 @@ use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_heartbeat_state_entry;
+use epiphany_core::pump_heartbeat_store;
 use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::validate_agent_memory_store;
@@ -28,9 +30,15 @@ fn main() -> Result<()> {
     let mut store_path: Option<PathBuf> = None;
     let mut artifact_dir: Option<PathBuf> = None;
     let mut target_heartbeat_rate = 1.0_f64;
+    let mut min_heartbeat_rate = 0.05_f64;
+    let mut max_heartbeat_rate = 4.0_f64;
+    let mut min_concurrency = 1_usize;
+    let mut max_concurrency = 8_usize;
+    let mut max_ticks = 8_usize;
     let mut coordinator_action: Option<String> = None;
     let mut target_role: Option<String> = None;
     let mut urgency = 0.75_f64;
+    let mut urgency_explicit = false;
     let mut schedule_id = "epiphany-heartbeat".to_string();
     let mut source_scene_ref = "epiphany/coordinator".to_string();
     let mut defer_completion = false;
@@ -52,11 +60,27 @@ fn main() -> Result<()> {
             "--target-heartbeat-rate" => {
                 target_heartbeat_rate = next_value(&mut args, "--target-heartbeat-rate")?.parse()?
             }
+            "--min-heartbeat-rate" => {
+                min_heartbeat_rate = next_value(&mut args, "--min-heartbeat-rate")?.parse()?
+            }
+            "--max-heartbeat-rate" => {
+                max_heartbeat_rate = next_value(&mut args, "--max-heartbeat-rate")?.parse()?
+            }
+            "--min-concurrency" => {
+                min_concurrency = next_value(&mut args, "--min-concurrency")?.parse()?
+            }
+            "--max-concurrency" => {
+                max_concurrency = next_value(&mut args, "--max-concurrency")?.parse()?
+            }
+            "--max-ticks" => max_ticks = next_value(&mut args, "--max-ticks")?.parse()?,
             "--coordinator-action" => {
                 coordinator_action = Some(next_value(&mut args, "--coordinator-action")?)
             }
             "--target-role" => target_role = Some(next_value(&mut args, "--target-role")?),
-            "--urgency" => urgency = next_value(&mut args, "--urgency")?.parse()?,
+            "--urgency" => {
+                urgency = next_value(&mut args, "--urgency")?.parse()?;
+                urgency_explicit = true;
+            }
             "--schedule-id" => schedule_id = next_value(&mut args, "--schedule-id")?,
             "--source-scene-ref" => source_scene_ref = next_value(&mut args, "--source-scene-ref")?,
             "--defer-completion" => defer_completion = true,
@@ -150,6 +174,39 @@ fn main() -> Result<()> {
             )?;
             println!("{}", result);
         }
+        "pump" => {
+            let store_path = store_path.ok_or_else(|| anyhow!("pump requires --store"))?;
+            let artifact_dir =
+                artifact_dir.ok_or_else(|| anyhow!("pump requires --artifact-dir"))?;
+            if let Some(agent_store) = &agent_store {
+                let errors = validate_agent_memory_store(agent_store)?;
+                if !errors.is_empty() {
+                    return Err(anyhow!(
+                        "agent memory validation failed: {}",
+                        errors.join("; ")
+                    ));
+                }
+            }
+            let result = pump_heartbeat_store(
+                &store_path,
+                &artifact_dir,
+                HeartbeatPumpOptions {
+                    base_heartbeat_rate: target_heartbeat_rate,
+                    min_heartbeat_rate,
+                    max_heartbeat_rate,
+                    min_concurrency,
+                    max_concurrency,
+                    max_ticks,
+                    external_urgency: if urgency_explicit { urgency } else { 0.0 },
+                    coordinator_action,
+                    target_role,
+                    schedule_id,
+                    source_scene_ref,
+                    agent_store,
+                },
+            )?;
+            println!("{}", result);
+        }
         "status" => {
             let store_path = store_path.ok_or_else(|| anyhow!("status requires --store"))?;
             if let Some(artifact_dir) = artifact_dir {
@@ -228,7 +285,7 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
 }
 
@@ -360,6 +417,46 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         },
     )?;
     let routine_status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
+    let relaxed_store_path = temp_dir.join("relaxed-heartbeats.msgpack");
+    initialize_heartbeat_store(&relaxed_store_path, 1.0)?;
+    let relaxed_pump = pump_heartbeat_store(
+        &relaxed_store_path,
+        &artifact_dir,
+        HeartbeatPumpOptions {
+            base_heartbeat_rate: 1.0,
+            min_heartbeat_rate: 0.05,
+            max_heartbeat_rate: 4.0,
+            min_concurrency: 1,
+            max_concurrency: 8,
+            max_ticks: 8,
+            external_urgency: 0.0,
+            coordinator_action: None,
+            target_role: None,
+            schedule_id: "smoke-relaxed-pump".to_string(),
+            source_scene_ref: "smoke/relaxed".to_string(),
+            agent_store: Some(temp_agent_store.clone()),
+        },
+    )?;
+    let alarmed_store_path = temp_dir.join("alarmed-heartbeats.msgpack");
+    initialize_heartbeat_store(&alarmed_store_path, 1.0)?;
+    let alarmed_pump = pump_heartbeat_store(
+        &alarmed_store_path,
+        &artifact_dir,
+        HeartbeatPumpOptions {
+            base_heartbeat_rate: 1.0,
+            min_heartbeat_rate: 0.05,
+            max_heartbeat_rate: 4.0,
+            min_concurrency: 1,
+            max_concurrency: 8,
+            max_ticks: 8,
+            external_urgency: 1.0,
+            coordinator_action: None,
+            target_role: None,
+            schedule_id: "smoke-alarmed-pump".to_string(),
+            source_scene_ref: "smoke/alarmed".to_string(),
+            agent_store: Some(temp_agent_store.clone()),
+        },
+    )?;
     let initiative_errors = validate_schedule_shape(&work["schedule"])
         .into_iter()
         .chain(validate_schedule_shape(&idle["schedule"]))
@@ -417,6 +514,11 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             })
             == Some(true)
         && routine_status["sleepCycle"]["schema_version"] == "epiphany.sleep_cycle.v0";
+    let ok = ok
+        && relaxed_pump["pump"]["launched"].as_u64() == Some(0)
+        && relaxed_pump["pump"]["pacing"]["targetConcurrency"].as_u64() == Some(0)
+        && alarmed_pump["pump"]["launched"].as_u64().unwrap_or(0) >= 6
+        && alarmed_pump["pump"]["pacing"]["targetConcurrency"].as_u64() == Some(8);
 
     let result = serde_json::json!({
         "ok": ok,
@@ -427,6 +529,8 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         "idleRumination": idle["rumination"],
         "voidRoutine": routine["routine"],
         "personalityTiming": routine_status["participants"],
+        "relaxedPump": relaxed_pump["pump"],
+        "alarmedPump": alarmed_pump["pump"],
         "validationErrors": validation_errors,
         "initiativeErrors": initiative_errors,
     });

@@ -204,6 +204,22 @@ pub struct HeartbeatTickOptions {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct HeartbeatPumpOptions {
+    pub base_heartbeat_rate: f64,
+    pub min_heartbeat_rate: f64,
+    pub max_heartbeat_rate: f64,
+    pub min_concurrency: usize,
+    pub max_concurrency: usize,
+    pub max_ticks: usize,
+    pub external_urgency: f64,
+    pub coordinator_action: Option<String>,
+    pub target_role: Option<String>,
+    pub schedule_id: String,
+    pub source_scene_ref: String,
+    pub agent_store: Option<std::path::PathBuf>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct HeartbeatCompleteOptions {
     pub role: String,
     pub action_id: Option<String>,
@@ -427,7 +443,7 @@ pub fn heartbeat_status_projection(
             "latestEvent": null,
             "history": [],
             "latestArtifacts": latest_json_artifacts(artifact_dir, artifact_limit),
-            "availableActions": ["init", "tick", "complete", "status"],
+            "availableActions": ["init", "tick", "pump", "complete", "status"],
         }));
     };
     let history: Vec<_> = state
@@ -463,7 +479,8 @@ pub fn heartbeat_status_projection(
         "candidateInterventions": state.candidate_interventions,
         "appraisals": state.appraisals,
         "reactions": state.reactions,
-        "availableActions": ["init", "tick", "complete", "status", "routine"],
+        "adaptivePacing": state.extra.get("adaptivePacing"),
+        "availableActions": ["init", "tick", "pump", "complete", "status", "routine"],
     }))
 }
 
@@ -592,6 +609,132 @@ pub fn tick_heartbeat_store(
         "event": result["event"].clone(),
         "schedule": result["schedule"].clone(),
         "rumination": result["rumination"].clone(),
+    }))
+}
+
+pub fn pump_heartbeat_store(
+    store_path: impl AsRef<Path>,
+    artifact_dir: impl AsRef<Path>,
+    options: HeartbeatPumpOptions,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut state = load_heartbeat_state_entry(store_path)?
+        .unwrap_or_else(|| default_heartbeat_state(options.base_heartbeat_rate.max(0.001)));
+    if options.base_heartbeat_rate > 0.0 {
+        state.target_heartbeat_rate = options.base_heartbeat_rate;
+    }
+    patch_missing_participants(&mut state);
+    if let Some(agent_store) = options.agent_store.as_deref() {
+        let appraisal_profiles = collect_role_appraisal_profiles(Some(agent_store))?;
+        apply_personality_timing_profiles(&mut state, &appraisal_profiles);
+    }
+    if let Some(appraisals) = state.appraisals.clone() {
+        apply_mood_timing_from_appraisals(&mut state, &appraisals);
+    }
+
+    let pacing = adaptive_swarm_pacing(&state, &options);
+    state.target_heartbeat_rate = pacing.effective_heartbeat_rate;
+    state.extra.insert(
+        "adaptivePacing".to_string(),
+        serde_json::json!({
+            "schema_version": "epiphany.adaptive_heartbeat_pacing.v0",
+            "contract": "Swarm pressure controls both heartbeat tempo and concurrency. Relaxed systems sleep slow; urgent systems fill more lanes without re-waking unfinished turns.",
+            "pressure": pacing.pressure,
+            "effectiveHeartbeatRate": pacing.effective_heartbeat_rate,
+            "targetConcurrency": pacing.target_concurrency,
+            "runningTurns": pacing.running_turns,
+            "activeParticipants": pacing.active_participants,
+            "signals": pacing.signals,
+        }),
+    );
+
+    let artifact_dir = artifact_dir.as_ref();
+    fs::create_dir_all(artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+
+    let mut tick_results = Vec::new();
+    let mut errors = Vec::new();
+    let ticks_allowed = options.max_ticks.min(pacing.target_concurrency);
+    for index in 0..ticks_allowed {
+        if running_turn_count(&state) >= pacing.target_concurrency {
+            break;
+        }
+        let use_coordinator_action = index == 0;
+        let tick_options = HeartbeatTickOptions {
+            target_heartbeat_rate: pacing.effective_heartbeat_rate,
+            coordinator_action: use_coordinator_action
+                .then(|| options.coordinator_action.clone())
+                .flatten(),
+            target_role: use_coordinator_action
+                .then(|| options.target_role.clone())
+                .flatten(),
+            urgency: pacing
+                .pressure
+                .max(options.external_urgency.clamp(0.0, 1.0)),
+            schedule_id: format!("{}.pump-{:03}", options.schedule_id, index + 1),
+            source_scene_ref: options.source_scene_ref.clone(),
+            defer_completion: true,
+            agent_store: options.agent_store.clone(),
+        };
+        match tick_once(&mut state, &tick_options) {
+            Ok(result) => {
+                write_json_artifact(
+                    artifact_dir.join(format!("{}.initiative.json", tick_options.schedule_id)),
+                    &result["schedule"],
+                )?;
+                write_json_artifact(
+                    artifact_dir.join(format!("{}.event.json", tick_options.schedule_id)),
+                    &result["event"],
+                )?;
+                tick_results.push(serde_json::json!({
+                    "event": result["event"],
+                    "schedule": result["schedule"],
+                    "rumination": result["rumination"],
+                }));
+            }
+            Err(error) => {
+                errors.push(error.to_string());
+                break;
+            }
+        }
+    }
+    let launched = tick_results.len();
+    let final_running_turns = running_turn_count(&state);
+    write_heartbeat_state_entry(store_path, &state)?;
+
+    let pump = serde_json::json!({
+        "schema_version": "epiphany.adaptive_heartbeat_pump.v0",
+        "storeFile": store_path,
+        "artifactDir": artifact_dir,
+        "sourceSceneRef": options.source_scene_ref,
+        "scheduleId": options.schedule_id,
+        "pacing": {
+            "schema_version": "epiphany.adaptive_heartbeat_pacing.v0",
+            "pressure": pacing.pressure,
+            "effectiveHeartbeatRate": pacing.effective_heartbeat_rate,
+            "targetConcurrency": pacing.target_concurrency,
+            "runningTurnsBefore": pacing.running_turns,
+            "runningTurnsAfter": final_running_turns,
+            "activeParticipants": pacing.active_participants,
+            "signals": pacing.signals,
+        },
+        "launched": launched,
+        "ticks": tick_results,
+        "errors": errors,
+        "reviewNotes": [
+            "The pump controls opportunity pressure, not authority.",
+            "A relaxed swarm may launch nothing; an urgent swarm may fill most available lanes.",
+            "Per-lane pending turns remain hard locks, so no agent is re-heartbeaten while its previous turn is running."
+        ],
+    });
+    write_json_artifact(
+        artifact_dir.join(format!("{}.pump.json", options.schedule_id)),
+        &pump,
+    )?;
+
+    Ok(serde_json::json!({
+        "ok": errors.is_empty(),
+        "pump": pump,
     }))
 }
 
@@ -1845,6 +1988,142 @@ fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, ap
             }),
         );
     }
+}
+
+#[derive(Clone, Debug)]
+struct AdaptiveSwarmPacing {
+    pressure: f64,
+    effective_heartbeat_rate: f64,
+    target_concurrency: usize,
+    running_turns: usize,
+    active_participants: usize,
+    signals: Value,
+}
+
+fn adaptive_swarm_pacing(
+    state: &EpiphanyHeartbeatStateEntry,
+    options: &HeartbeatPumpOptions,
+) -> AdaptiveSwarmPacing {
+    let active_participants = state
+        .participants
+        .iter()
+        .filter(|participant| participant.status == "active")
+        .count();
+    let running_turns = running_turn_count(state);
+    let mood_signals = swarm_mood_signals(state);
+    let external_urgency = options.external_urgency.clamp(0.0, 1.0);
+    let pending_pressure = if active_participants == 0 {
+        0.0
+    } else {
+        (running_turns as f64 / active_participants as f64).clamp(0.0, 1.0)
+    };
+    let pressure = [
+        external_urgency,
+        mood_signals.max_anxiety,
+        mood_signals.max_urgency,
+        mood_signals.max_reaction_intensity,
+        mood_signals.max_thought_pressure,
+        pending_pressure * 0.65,
+    ]
+    .into_iter()
+    .fold(0.0_f64, f64::max)
+    .clamp(0.0, 1.0);
+
+    let base_rate = options
+        .base_heartbeat_rate
+        .max(state.pacing_policy.minimum_effective_rate)
+        .max(0.001);
+    let min_rate = options.min_heartbeat_rate.max(0.001).min(base_rate);
+    let max_rate = options.max_heartbeat_rate.max(base_rate).max(min_rate);
+    let pressure_curve = pressure * pressure;
+    let effective_heartbeat_rate = round6(min_rate + (max_rate - min_rate) * pressure_curve);
+
+    let max_concurrency = options
+        .max_concurrency
+        .max(1)
+        .min(active_participants.max(1));
+    let relaxed_floor = if pressure < 0.18 {
+        0
+    } else {
+        options.min_concurrency.min(max_concurrency)
+    };
+    let target_concurrency = if pressure < 0.18 {
+        relaxed_floor
+    } else {
+        let span = max_concurrency.saturating_sub(relaxed_floor);
+        (relaxed_floor + (span as f64 * pressure).ceil() as usize).min(max_concurrency)
+    };
+
+    AdaptiveSwarmPacing {
+        pressure: round3(pressure),
+        effective_heartbeat_rate,
+        target_concurrency,
+        running_turns,
+        active_participants,
+        signals: serde_json::json!({
+            "externalUrgency": round3(external_urgency),
+            "maxAnxiety": round3(mood_signals.max_anxiety),
+            "averageAnxiety": round3(mood_signals.average_anxiety),
+            "maxUrgency": round3(mood_signals.max_urgency),
+            "maxArousal": round3(mood_signals.max_arousal),
+            "maxThoughtPressure": round3(mood_signals.max_thought_pressure),
+            "maxReactionIntensity": round3(mood_signals.max_reaction_intensity),
+            "pendingPressure": round3(pending_pressure),
+            "contract": "Anxiety-like state raises tempo and concurrency; calm state lets the swarm sleep slow.",
+        }),
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct SwarmMoodSignals {
+    max_anxiety: f64,
+    average_anxiety: f64,
+    max_urgency: f64,
+    max_arousal: f64,
+    max_thought_pressure: f64,
+    max_reaction_intensity: f64,
+}
+
+fn swarm_mood_signals(state: &EpiphanyHeartbeatStateEntry) -> SwarmMoodSignals {
+    let mut signals = SwarmMoodSignals::default();
+    let mut anxiety_total = 0.0;
+    let mut anxiety_count = 0_usize;
+    for participant in &state.participants {
+        let Some(mood) = participant.extra.get("moodTiming") else {
+            continue;
+        };
+        let anxiety = number_at(mood, "/anxiety");
+        let urgency = number_at(mood, "/urgency");
+        let arousal = number_at(mood, "/arousal");
+        let thought_pressure = number_at(mood, "/thoughtPressure");
+        let reaction_intensity = number_at(mood, "/reactionIntensity");
+        signals.max_anxiety = signals.max_anxiety.max(anxiety);
+        signals.max_urgency = signals.max_urgency.max(urgency);
+        signals.max_arousal = signals.max_arousal.max(arousal);
+        signals.max_thought_pressure = signals.max_thought_pressure.max(thought_pressure);
+        signals.max_reaction_intensity = signals.max_reaction_intensity.max(reaction_intensity);
+        anxiety_total += anxiety;
+        anxiety_count += 1;
+    }
+    if anxiety_count > 0 {
+        signals.average_anxiety = anxiety_total / anxiety_count as f64;
+    }
+    signals
+}
+
+fn running_turn_count(state: &EpiphanyHeartbeatStateEntry) -> usize {
+    state
+        .participants
+        .iter()
+        .filter(|participant| is_turn_pending(participant))
+        .count()
+}
+
+fn number_at(value: &Value, pointer: &str) -> f64 {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0)
 }
 
 fn personality_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
