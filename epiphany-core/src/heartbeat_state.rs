@@ -200,6 +200,7 @@ pub struct HeartbeatTickOptions {
     pub schedule_id: String,
     pub source_scene_ref: String,
     pub defer_completion: bool,
+    pub agent_store: Option<std::path::PathBuf>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -478,6 +479,7 @@ pub fn run_void_routine_store(
 
     let memory_records = collect_role_memory_records(options.agent_store.as_deref())?;
     let appraisal_profiles = collect_role_appraisal_profiles(options.agent_store.as_deref())?;
+    apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     let resonance = build_memory_resonance(&memory_records);
     let incubation = build_incubation(&state.incubation, &resonance, &memory_records);
     let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
@@ -486,6 +488,7 @@ pub fn run_void_routine_store(
     let appraisals =
         build_agent_appraisals(&appraisal_profiles, &thought_lanes, &incubation, &bridge);
     let reactions = build_agent_reactions(&appraisals, &bridge);
+    apply_mood_timing_from_appraisals(&mut state, &appraisals);
     let sleep_cycle =
         update_sleep_cycle(state.sleep_cycle.as_ref(), &incubation, options.allow_dream);
     let run_id = format!("epiphany-void-routine-{}", now_stamp());
@@ -559,6 +562,13 @@ pub fn tick_heartbeat_store(
         state.target_heartbeat_rate = options.target_heartbeat_rate;
     }
     patch_missing_participants(&mut state);
+    if let Some(agent_store) = options.agent_store.as_deref() {
+        let appraisal_profiles = collect_role_appraisal_profiles(Some(agent_store))?;
+        apply_personality_timing_profiles(&mut state, &appraisal_profiles);
+    }
+    if let Some(appraisals) = state.appraisals.clone() {
+        apply_mood_timing_from_appraisals(&mut state, &appraisals);
+    }
     let result = tick_once(&mut state, &options)?;
     write_heartbeat_state_entry(store_path, &state)?;
 
@@ -678,7 +688,7 @@ fn tick_once(
         rate,
     );
     let scene_clock = state.scene_clock.max(selected.next_ready_at);
-    let recovery = action.base_recovery
+    let recovery = action.base_recovery * effective_cooldown_multiplier(&selected)
         / selected
             .initiative_speed
             .max(state.selection_policy.minimum_speed);
@@ -699,6 +709,19 @@ fn tick_once(
         next_ready_at: None,
         extra: BTreeMap::new(),
     };
+    let mut pending = pending;
+    pending.extra.insert(
+        "personalityCooldownMultiplier".to_string(),
+        serde_json::json!(personality_cooldown_multiplier(&selected)),
+    );
+    pending.extra.insert(
+        "moodCooldownMultiplier".to_string(),
+        serde_json::json!(mood_cooldown_multiplier(&selected)),
+    );
+    pending.extra.insert(
+        "effectiveCooldownMultiplier".to_string(),
+        serde_json::json!(effective_cooldown_multiplier(&selected)),
+    );
     state.participants[selected_index].pending_turn = Some(pending.clone());
     state.participants[selected_index].last_action_id = Some(action.action_id.clone());
     state.participants[selected_index].last_woke_at = Some(now_iso());
@@ -751,6 +774,9 @@ fn tick_once(
             "action_type": action.action_type,
             "action_scale": action.action_scale,
             "base_recovery": action.base_recovery,
+            "personality_cooldown_multiplier": personality_cooldown_multiplier(&selected_after),
+            "mood_cooldown_multiplier": mood_cooldown_multiplier(&selected_after),
+            "effective_cooldown_multiplier": effective_cooldown_multiplier(&selected_after),
             "initiative_cost": action.initiative_cost,
             "interruptibility": action.interruptibility,
             "commitment": action.commitment,
@@ -782,7 +808,7 @@ fn tick_once(
         "review_notes": [
             "Epiphany heartbeat uses Ghostlight initiative timing as a harness scheduling receipt.",
             "A selected idle lane may ruminate and request bounded self-memory mutation; it may not invent project work.",
-            "When no coordinator work is active, idle rumination uses the sleep heartbeat multiplier so the swarm dreams slowly instead of thrashing."
+            "When no coordinator work is active, idle rumination is slowed by the sleep multiplier and shaped by personality and mood cooldowns so the swarm dreams instead of thrashing."
         ],
     });
 
@@ -969,11 +995,11 @@ fn action_for_selection(
         commitment: 0.25,
         local_affordance_basis: vec![
             format!(
-            "{} has no actionable lane work; ruminate and distill role memory.",
+            "{} has no actionable lane work; ruminate on role quality and prepare candidate self-memory pressure.",
             selected.display_name
         ),
             "Heartbeat slots control opportunity, not project authority.".to_string(),
-            "When no coordinator work is active, idle rumination uses the sleep heartbeat multiplier so the swarm dreams slowly instead of thrashing.".to_string(),
+            "When no coordinator work is active, idle rumination is slowed by the sleep multiplier and shaped by personality and mood cooldowns so the swarm dreams instead of thrashing.".to_string(),
         ],
     }
 }
@@ -1304,6 +1330,11 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "arena": participant_arena(participant),
         "participantKind": participant_kind(participant),
         "initiativeSpeed": participant.initiative_speed,
+        "personalityCooldownMultiplier": personality_cooldown_multiplier(participant),
+        "moodCooldownMultiplier": mood_cooldown_multiplier(participant),
+        "effectiveCooldownMultiplier": effective_cooldown_multiplier(participant),
+        "personalityTiming": participant.extra.get("personalityTiming"),
+        "moodTiming": participant.extra.get("moodTiming"),
         "nextReadyAt": participant.next_ready_at,
         "reactionBias": participant.reaction_bias,
         "interruptThreshold": participant.interrupt_threshold,
@@ -1324,6 +1355,9 @@ fn schedule_participant_json(participant: &HeartbeatParticipant) -> Value {
         "arena": participant_arena(participant),
         "participant_kind": participant_kind(participant),
         "initiative_speed": participant.initiative_speed,
+        "personality_cooldown_multiplier": personality_cooldown_multiplier(participant),
+        "mood_cooldown_multiplier": mood_cooldown_multiplier(participant),
+        "effective_cooldown_multiplier": effective_cooldown_multiplier(participant),
         "next_ready_at": participant.next_ready_at,
         "reaction_bias": participant.reaction_bias,
         "interrupt_threshold": participant.interrupt_threshold,
@@ -1354,6 +1388,9 @@ fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "startedAt": turn.started_at,
         "startedSceneClock": turn.started_scene_clock,
         "baseRecovery": turn.base_recovery,
+        "personalityCooldownMultiplier": turn.extra.get("personalityCooldownMultiplier"),
+        "moodCooldownMultiplier": turn.extra.get("moodCooldownMultiplier"),
+        "effectiveCooldownMultiplier": turn.extra.get("effectiveCooldownMultiplier"),
         "recovery": turn.recovery,
         "cooldownPolicy": turn.cooldown_policy,
         "completedAt": turn.completed_at,
@@ -1387,16 +1424,16 @@ fn rumination_patch(role_id: &str, action_id: &str) -> Value {
     let display_name = display_name_for_role(role_id);
     serde_json::json!({
         "agentId": agent_id_for_role(role_id),
-        "reason": format!("{display_name} won an idle heartbeat slot and should preserve the habit of using idle wakeups to distill role memory instead of manufacturing project work."),
+        "reason": format!("{display_name} won an idle heartbeat slot and should preserve the habit of using idle wakeups to ruminate before sleep/review distills anything durable."),
         "semanticMemories": [{
             "memoryId": format!("mem-{role_id}-heartbeat-rumination"),
-            "summary": "When a heartbeat wakes this lane and no coordinator-approved work is available, the correct move is to ruminate on role quality, cut stale memory, and return a bounded self-memory improvement rather than inventing project authority.",
+            "summary": "When a heartbeat wakes this lane and no coordinator-approved work is available, the correct move is to ruminate on role quality and surface candidate self-memory pressure rather than inventing project authority; durable distillation belongs in sleep or review.",
             "salience": 0.78,
             "confidence": 0.88,
         }],
         "goals": [{
-            "goalId": format!("goal-{role_id}-heartbeat-self-distill"),
-            "description": "Use idle heartbeat slots to become sharper at this lane's own work before touching project state.",
+            "goalId": format!("goal-{role_id}-heartbeat-rumination"),
+            "description": "Use idle heartbeat slots to ruminate on this lane's own work and prepare bounded memory pressure before touching project state.",
             "scope": "life",
             "priority": 0.82,
             "emotionalStake": "An idle organ that invents work becomes noise in the bloodstream.",
@@ -1590,6 +1627,247 @@ fn collect_trait_group(
             weight: round3(activation * (0.65 + plasticity * 0.35)),
         });
     }
+}
+
+fn apply_personality_timing_profiles(
+    state: &mut EpiphanyHeartbeatStateEntry,
+    profiles: &[RoleAppraisalProfile],
+) {
+    for participant in &mut state.participants {
+        let Some(profile) = profiles
+            .iter()
+            .find(|profile| profile.role_id == participant.role_id)
+        else {
+            continue;
+        };
+        let timing = personality_timing_for_profile(profile);
+        participant.extra.insert(
+            "personalityCooldownMultiplier".to_string(),
+            serde_json::json!(timing.cooldown_multiplier),
+        );
+        participant.extra.insert(
+            "personalityTiming".to_string(),
+            serde_json::json!({
+                "schema_version": "epiphany.personality_timing.v0",
+                "source": "state/agents.msgpack",
+                "cooldownMultiplier": timing.cooldown_multiplier,
+                "workDrive": timing.work_drive,
+                "handsiness": timing.handsiness,
+                "caution": timing.caution,
+                "ruminationBias": timing.rumination_bias,
+                "basis": timing.basis,
+                "contract": "Cooldown is personality-shaped. Lower multipliers recover faster; higher multipliers yield the floor to other lanes."
+            }),
+        );
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PersonalityTiming {
+    cooldown_multiplier: f64,
+    work_drive: f64,
+    handsiness: f64,
+    caution: f64,
+    rumination_bias: f64,
+    basis: Vec<String>,
+}
+
+fn personality_timing_for_profile(profile: &RoleAppraisalProfile) -> PersonalityTiming {
+    let work_drive = trait_match_score(
+        &profile.traits,
+        &[
+            "objective",
+            "diff",
+            "implementation",
+            "hands",
+            "bloodhound",
+            "craft",
+            "act",
+            "source_touch",
+            "work",
+            "task",
+        ],
+    );
+    let handsiness = trait_match_score(
+        &profile.traits,
+        &[
+            "hands",
+            "implementation",
+            "diff_truth",
+            "objective_pursuit",
+            "bloodhound_pressure",
+            "source_touch_precision",
+            "small_reviewable_cut",
+            "craft",
+        ],
+    );
+    let caution = trait_match_score(
+        &profile.traits,
+        &[
+            "review",
+            "gate",
+            "caution",
+            "guard",
+            "risk",
+            "verification",
+            "truth",
+            "falsification",
+            "routing",
+            "discipline",
+        ],
+    );
+    let rumination_bias = trait_match_score(
+        &profile.traits,
+        &[
+            "dream",
+            "memory",
+            "reflection",
+            "imagination",
+            "future",
+            "translation",
+            "watch",
+            "continuity",
+            "self",
+        ],
+    );
+    let cooldown = (1.05 + profile.guardedness * 0.28 + caution * 0.24 + rumination_bias * 0.08
+        - profile.reactivity * 0.16
+        - profile.plasticity * 0.10
+        - work_drive * 0.18
+        - handsiness * 0.34)
+        .clamp(0.55, 1.55);
+    let mut basis = Vec::new();
+    for item in profile.traits.iter().take(6) {
+        basis.push(format!(
+            "{}.{} activation {:.2} plasticity {:.2}",
+            item.group, item.name, item.activation, item.plasticity
+        ));
+    }
+    PersonalityTiming {
+        cooldown_multiplier: round3(cooldown),
+        work_drive: round3(work_drive),
+        handsiness: round3(handsiness),
+        caution: round3(caution),
+        rumination_bias: round3(rumination_bias),
+        basis,
+    }
+}
+
+fn trait_match_score(traits: &[PersonalityTraitProjection], needles: &[&str]) -> f64 {
+    let mut score = 0.0_f64;
+    let mut weight = 0.0_f64;
+    for item in traits {
+        let haystack = format!("{} {}", item.group, item.name);
+        let matched = needles
+            .iter()
+            .any(|needle| haystack.contains(&needle.replace('_', " ")));
+        let matched = matched || needles.iter().any(|needle| haystack.contains(*needle));
+        if matched {
+            let item_weight = 0.7 + item.plasticity * 0.3;
+            score += item.activation * item_weight;
+            weight += item_weight;
+        }
+    }
+    if weight <= f64::EPSILON {
+        0.0
+    } else {
+        (score / weight).clamp(0.0, 1.0)
+    }
+}
+
+fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, appraisals: &Value) {
+    let Some(items) = appraisals
+        .get("participantAppraisals")
+        .and_then(Value::as_array)
+    else {
+        return;
+    };
+    for participant in &mut state.participants {
+        let Some(appraisal) = items
+            .iter()
+            .find(|item| item.get("roleId").and_then(Value::as_str) == Some(&participant.role_id))
+        else {
+            continue;
+        };
+        let emotional = appraisal
+            .get("emotionalAppraisal")
+            .and_then(Value::as_object);
+        let urgency = emotional
+            .and_then(|value| value.get("urgency"))
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0);
+        let arousal = emotional
+            .and_then(|value| value.get("arousal"))
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0);
+        let thought_pressure = emotional
+            .and_then(|value| value.get("thoughtPressure"))
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0);
+        let guardedness = emotional
+            .and_then(|value| value.get("guardedness"))
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0);
+        let reaction_intensity = appraisal
+            .pointer("/candidateImplications/reactionIntensity")
+            .and_then(Value::as_f64)
+            .unwrap_or(0.0)
+            .clamp(0.0, 1.0);
+        let anxiety = (urgency * 0.32
+            + arousal * 0.22
+            + thought_pressure * 0.24
+            + guardedness * 0.12
+            + reaction_intensity * 0.10)
+            .clamp(0.0, 1.0);
+        let multiplier =
+            (1.10 - urgency * 0.24 - anxiety * 0.38 - reaction_intensity * 0.12).clamp(0.55, 1.25);
+        participant.extra.insert(
+            "moodCooldownMultiplier".to_string(),
+            serde_json::json!(round3(multiplier)),
+        );
+        participant.extra.insert(
+            "moodTiming".to_string(),
+            serde_json::json!({
+                "schema_version": "epiphany.mood_timing.v0",
+                "source": appraisal.get("appraisalId"),
+                "cooldownMultiplier": round3(multiplier),
+                "anxiety": round3(anxiety),
+                "urgency": round3(urgency),
+                "arousal": round3(arousal),
+                "thoughtPressure": round3(thought_pressure),
+                "guardedness": round3(guardedness),
+                "reactionIntensity": round3(reaction_intensity),
+                "contract": "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner."
+            }),
+        );
+    }
+}
+
+fn personality_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
+    participant
+        .extra
+        .get("personalityCooldownMultiplier")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0)
+        .clamp(0.25, 3.0)
+}
+
+fn mood_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
+    participant
+        .extra
+        .get("moodCooldownMultiplier")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0)
+        .clamp(0.25, 3.0)
+}
+
+fn effective_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
+    round3(personality_cooldown_multiplier(participant) * mood_cooldown_multiplier(participant))
+        .clamp(0.20, 4.0)
 }
 
 fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
@@ -2523,6 +2801,7 @@ mod tests {
                 schedule_id: "native-work".to_string(),
                 source_scene_ref: "test/native".to_string(),
                 defer_completion: true,
+                agent_store: None,
             },
         )?;
         assert_eq!(work["event"]["selectedRole"], "implementation");
@@ -2540,6 +2819,7 @@ mod tests {
                 schedule_id: "native-work-repeat".to_string(),
                 source_scene_ref: "test/native".to_string(),
                 defer_completion: false,
+                agent_store: None,
             },
         )
         .unwrap_err();
@@ -2602,6 +2882,7 @@ mod tests {
                 schedule_id: "pallas.turn-001".to_string(),
                 source_scene_ref: "ghostlight/pallas-training-loop-v0".to_string(),
                 defer_completion: true,
+                agent_store: None,
             },
         )?;
 

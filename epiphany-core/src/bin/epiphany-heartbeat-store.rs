@@ -127,6 +127,7 @@ fn main() -> Result<()> {
                     schedule_id: tick_schedule_id,
                     source_scene_ref,
                     defer_completion,
+                    agent_store: agent_store.clone(),
                 },
             )?;
             if apply_rumination {
@@ -288,6 +289,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             schedule_id: "smoke-work".to_string(),
             source_scene_ref: "smoke/coordinator".to_string(),
             defer_completion: true,
+            agent_store: Some(temp_agent_store.clone()),
         },
     )?;
     let blocked_repeat = tick_heartbeat_store(
@@ -301,6 +303,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             schedule_id: "smoke-work".to_string(),
             source_scene_ref: "smoke/coordinator".to_string(),
             defer_completion: true,
+            agent_store: Some(temp_agent_store.clone()),
         },
     )
     .err()
@@ -329,6 +332,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             schedule_id: "smoke-idle".to_string(),
             source_scene_ref: "smoke/idle".to_string(),
             defer_completion: false,
+            agent_store: Some(temp_agent_store.clone()),
         },
     )?;
 
@@ -390,6 +394,28 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         && routine["routine"]["appraisals"]["schema_version"]
             == "epiphany.agent_thought_appraisals.v0"
         && routine["routine"]["reactions"]["schema_version"] == "epiphany.agent_reactions.v0"
+        && routine_status["participants"]
+            .as_array()
+            .and_then(|participants| {
+                let hands = participants
+                    .iter()
+                    .find(|item| item["roleId"] == "implementation")?;
+                let self_lane = participants
+                    .iter()
+                    .find(|item| item["roleId"] == "coordinator")?;
+                let hands_personality = hands["personalityCooldownMultiplier"]
+                    .as_f64()
+                    .unwrap_or(1.0);
+                let self_personality = self_lane["personalityCooldownMultiplier"]
+                    .as_f64()
+                    .unwrap_or(1.0);
+                let hands_effective = hands["effectiveCooldownMultiplier"].as_f64().unwrap_or(1.0);
+                let self_effective = self_lane["effectiveCooldownMultiplier"]
+                    .as_f64()
+                    .unwrap_or(1.0);
+                Some(hands_personality < self_personality && hands_effective < self_effective)
+            })
+            == Some(true)
         && routine_status["sleepCycle"]["schema_version"] == "epiphany.sleep_cycle.v0";
 
     let result = serde_json::json!({
@@ -400,6 +426,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         "idleEvent": idle["event"],
         "idleRumination": idle["rumination"],
         "voidRoutine": routine["routine"],
+        "personalityTiming": routine_status["participants"],
         "validationErrors": validation_errors,
         "initiativeErrors": initiative_errors,
     });
