@@ -37,6 +37,7 @@ invariants:
   - Rejected paths stay recorded when the scar teaches future hands.
   - Algorithmic-map prose and metaphor must be grounded in freshly read source context and concrete code references.
   - Persistent state cruft is the same failure class as code cruft: corrosion in the mind instead of corrosion in the hull.
+  - Rumination is not distillation by itself. Heartbeat physiology may shuffle memory resonance, thought lanes, appraisals, reactions, sleep, and dreams, but the machine has not learned doctrine until a review pass decides what belongs in map, handoff, evidence, or role self-memory.
   - If compaction interrupts source gathering or slice planning before the findings are persisted, the next agent must treat that work as dead and re-gather instead of continuing from imagined continuity.
   - During Epiphany dogfood on another repo, the supervising Codex session must not masquerade as the Epiphany worker. Direct target-repo edits or commits are contamination unless explicitly authorized and labeled as operator intervention.
   - During dogfood supervision, raw worker transcripts, turn logs, direct worker messages, and `rawResult` payloads are sealed forensic artifacts. The supervisor consumes only projected findings, state patches, coordinator recommendations, rendered snapshots, and audit receipts unless the user explicitly requests forensic debugging.
@@ -69,6 +70,7 @@ active_subgoals:
   - Treat VoidBot as reference lineage, not a runtime dependency. The useful organ is Epiphany-native Void routine physiology: heartbeat state owns sleep cycle, memory resonance, incubation, analytic/associative cognition lanes, bridge judgment, candidate interventions, dream residue, and Aquarium-visible routine receipts over typed role dossiers.
   - Preserve review gates for semantic findings; automatic CRRC may compact or launch the fixed reorient-worker, but not accept or promote.
   - Keep persistent project state ruthlessly distilled so rehydration strengthens the next awakening instead of drowning it in vellum.
+  - After any manual or automated rumination vigil, run an explicit distillation pass: inspect receipts, decide whether the lesson is durable, update only the persistent surfaces that deserve it, and record evidence only when future behavior should change.
   - Quarantine the Aetheria dogfood contamination: future target-repo work must be driven through Epiphany's GUI/coordinator/fixed lanes with auditable artifacts, not direct supervisor implementation.
   - Keep the supervisor out of Epiphany worker thought streams: dogfood artifacts should be operator-safe by default, with direct transcripts and raw result payloads sealed in black reliquaries.
   - Use native `epiphany-agent-telemetry` and generated `agent-function-telemetry.json` files to inspect behavior shape without opening sealed transcripts.
