@@ -118,7 +118,7 @@ The current spine, blessed but not yet finished:
 - read-only CRRC coordinator recommendation through `thread/epiphany/crrc`
 - CRRC now recognizes already accepted reorientation findings so `reorientAccept` does not leave the operator stuck on a repeat `acceptReorientResult` recommendation.
 - thin launcher metadata in durable `jobBindings`
-- live bound-job progress notification through `thread/epiphany/jobsUpdated`
+- `thread/epiphany/jobsUpdated` remains protocol shape only for sealed legacy evacuation telemetry; app-server no longer emits Epiphany updates from old runtime `agent_job_progress` events
 - read-only compact reflection through `thread/epiphany/scene`
 - read-only job/progress reflection through `thread/epiphany/jobs`, with durable launcher metadata plus live runtime `agent_jobs` overlay
 - read-only role ownership reflection through `thread/epiphany/roles`
