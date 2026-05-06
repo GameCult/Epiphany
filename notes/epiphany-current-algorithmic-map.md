@@ -1508,7 +1508,7 @@ Current tests cover the landed flows at useful seams:
 - live app-server smoke for the first Phase 6 graph traversal boundary through native `epiphany-phase6-graph-query-smoke`.
 - live app-server smoke for the first Phase 6 planning boundary through native `epiphany-phase6-planning-smoke`.
 - live app-server smoke for the first Phase 6 pressure boundary through native `epiphany-phase6-pressure-smoke`.
-- live app-server smoke for the first Phase 6 reorientation policy boundary in `tools/epiphany_phase6_reorient_smoke.py`.
+- live app-server smoke for the first Phase 6 reorientation policy boundary through native `epiphany-phase6-reorient-smoke`.
 - live app-server smoke for the first bounded reorient-launch runtime consumer plus CRRC coordinator recommendations in `tools/epiphany_phase6_reorient_launch_smoke.py`.
 - live app-server smoke for the first MVP operator status view through native `epiphany-mvp-status-smoke`.
 - focused app-server mapper coverage for `thread/epiphany/roles`, plus MVP status smoke coverage that consumes the roles surface.
@@ -1532,7 +1532,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-conte
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-graph-query-smoke
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-planning-smoke
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-pressure-smoke
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-reorient-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-status-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_job_control_smoke.py'

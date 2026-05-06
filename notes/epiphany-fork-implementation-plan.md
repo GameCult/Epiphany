@@ -91,7 +91,7 @@ The landed machine now has:
 - first Unity editor/runtime bridge through native `epiphany-unity-bridge`, native `epiphany-unity-bridge-smoke`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
 - prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-core/src/prompts/`, while modeling/Body, research/Eyes, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, and CRRC templates live in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`
 - prompt-level anti-Greenspun guardrails: Epiphany keeps Codex's useful operator discipline and requires a bounded research/scout check before agents invent bespoke versions of known algorithms, parsers, schedulers, renderers, protocols, storage layers, security mechanisms, or workflow engines
-- live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
+- live Phase 6 reorientation app-server smoke coverage through native `epiphany-phase6-reorient-smoke`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 MVP status smoke coverage through native `epiphany-mvp-status-smoke`
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
