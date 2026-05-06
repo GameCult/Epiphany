@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -17,6 +18,12 @@ MAP_PATH = STATE_DIR / "map.yaml"
 SCRATCH_PATH = STATE_DIR / "scratch.md"
 BRANCHES_PATH = STATE_DIR / "branches.json"
 EVIDENCE_PATH = STATE_DIR / "evidence.jsonl"
+LEDGER_STORE_PATH = STATE_DIR / "ledgers.msgpack"
+STATE_LEDGER_EXE = (
+    Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex"))
+    / "debug"
+    / "epiphany-state-ledger-store.exe"
+)
 HANDOFF_PATH = NOTES_DIR / "fresh-workspace-handoff.md"
 PLAN_PATH = NOTES_DIR / "epiphany-fork-implementation-plan.md"
 ALGO_MAP_PATH = NOTES_DIR / "epiphany-current-algorithmic-map.md"
@@ -42,6 +49,38 @@ def run_git(args: list[str]) -> str:
         text=True,
     )
     return completed.stdout.strip()
+
+
+def run_state_ledger_status() -> dict[str, Any]:
+    if STATE_LEDGER_EXE.exists():
+        command = [
+            str(STATE_LEDGER_EXE),
+            "status",
+            "--store",
+            str(LEDGER_STORE_PATH),
+        ]
+    else:
+        command = [
+            "cargo",
+            "run",
+            "--quiet",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            "epiphany-state-ledger-store",
+            "--",
+            "status",
+            "--store",
+            str(LEDGER_STORE_PATH),
+        ]
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(completed.stdout)
 
 
 def extract_map_field(name: str) -> str | None:
@@ -82,36 +121,25 @@ def current_scratch_subgoal() -> str | None:
 
 
 def load_evidence() -> list[dict[str, Any]]:
-    records: list[dict[str, Any]] = []
-    for line_number, line in enumerate(read_text(EVIDENCE_PATH).splitlines(), start=1):
-        if not line.strip():
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"evidence line {line_number} is invalid JSON: {exc}") from exc
-        if not isinstance(record, dict):
-            raise ValueError(f"evidence line {line_number} is not a JSON object")
-        records.append(record)
-    return records
+    ledger = run_state_ledger_status()
+    latest = ledger.get("latestEvidence") or []
+    return list(reversed(latest))
 
 
 def load_branches() -> dict[str, Any]:
-    data = json.loads(read_text(BRANCHES_PATH))
-    if not isinstance(data, dict):
-        raise ValueError("branches.json must be a JSON object")
-    branches = data.get("branches")
-    if not isinstance(branches, list):
-        raise ValueError("branches.json must contain a branches list")
-    return data
+    ledger = run_state_ledger_status()
+    return {
+        "branches": [None] * int(ledger.get("branches") or 0),
+        "activeBranches": int(ledger.get("activeBranches") or 0),
+        "evidence": int(ledger.get("evidence") or 0),
+    }
 
 
 def add_required_file_checks(findings: list[Finding]) -> None:
     for path in [
         MAP_PATH,
         SCRATCH_PATH,
-        BRANCHES_PATH,
-        EVIDENCE_PATH,
+        LEDGER_STORE_PATH,
         HANDOFF_PATH,
         PLAN_PATH,
         ALGO_MAP_PATH,
@@ -154,23 +182,17 @@ def add_content_checks(findings: list[Finding]) -> tuple[list[dict[str, Any]], d
 
     try:
         evidence = load_evidence()
-        findings.append(Finding("ok", f"state/evidence.jsonl parses ({len(evidence)} record(s))"))
+        branches = load_branches()
+        findings.append(Finding("ok", f"state/ledgers.msgpack parses ({branches.get('evidence', 0)} evidence record(s))"))
     except ValueError as exc:
         findings.append(Finding("error", str(exc)))
 
-    if EVIDENCE_PATH.exists() and EVIDENCE_PATH.stat().st_size > 25_000:
-        findings.append(Finding("warn", "state/evidence.jsonl is larger than 25 KB; consider distillation"))
-
     try:
         branches = load_branches()
-        active = [
-            branch
-            for branch in branches.get("branches", [])
-            if isinstance(branch, dict) and branch.get("status") == "active"
-        ]
-        findings.append(Finding("ok", f"state/branches.json parses ({len(active)} active branch(es))"))
+        active = branches.get("activeBranches", 0)
+        findings.append(Finding("ok", f"state/ledgers.msgpack has {active} active branch(es)"))
     except (json.JSONDecodeError, ValueError) as exc:
-        findings.append(Finding("error", f"branches.json parse failed: {exc}"))
+        findings.append(Finding("error", f"state ledger parse failed: {exc}"))
 
     return evidence, branches
 

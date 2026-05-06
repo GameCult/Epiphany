@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 from epiphany_agent_memory import DEFAULT_AGENT_DIR
+from epiphany_agent_memory import resolve_store_path
 from epiphany_agent_memory import ROLE_TARGETS
 from epiphany_agent_memory import apply_self_patch
 from epiphany_agent_memory import validate_all
@@ -191,18 +192,18 @@ def run_status(args: argparse.Namespace) -> dict[str, Any]:
 def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     with TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
-        agent_dir = tmp_dir / "agents"
+        agent_store = tmp_dir / "agents.msgpack"
         store_file = tmp_dir / "heartbeats.msgpack"
         artifact_dir = tmp_dir / "artifacts"
         import shutil
 
-        shutil.copytree(args.agent_dir, agent_dir)
+        shutil.copy2(resolve_store_path(args.agent_dir), agent_store)
         native_heartbeat_command("init", "--store", str(store_file), "--target-heartbeat-rate", "1.0")
         first_args = argparse.Namespace(
             state_file=None,
             store_file=store_file,
             artifact_dir=artifact_dir,
-            agent_dir=agent_dir,
+            agent_dir=agent_store,
             target_heartbeat_rate=1.0,
             coordinator_action="continueImplementation",
             target_role=None,
@@ -230,7 +231,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             state_file=None,
             store_file=store_file,
             artifact_dir=artifact_dir,
-            agent_dir=agent_dir,
+            agent_dir=agent_store,
             target_heartbeat_rate=1.0,
             coordinator_action=None,
             target_role=None,
@@ -241,7 +242,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             defer_completion=False,
         )
         idle = run_tick(second_args)
-        validation_errors = validate_all(agent_dir)
+        validation_errors = validate_all(agent_store)
         initiative_errors = [
             *validate_initiative_schedule_shape(work["schedule"]),
             *validate_initiative_schedule_shape(idle["schedule"]),

@@ -5,7 +5,7 @@ Codex.
 
 It is not a changelog. Git history, commit messages, smoke artifacts, and
 targeted logs already do the proof job without turning this file into a hay
-bale; `state/evidence.jsonl` carries only distilled belief-changing evidence.
+bale; `state/ledgers.msgpack` carries only distilled belief-changing evidence.
 
 The purpose of this note is to answer four questions:
 
@@ -28,7 +28,7 @@ forever becomes the documentation equivalent of the Jenga tower.
 Historical detail belongs in:
 
 - `git log`
-- `state/evidence.jsonl`, when the detail changes what a future agent should believe
+- `state/ledgers.msgpack`, when the detail changes what a future agent should believe
 - `notes/fresh-workspace-handoff.md`
 - `notes/epiphany-current-algorithmic-map.md`
 
@@ -150,7 +150,7 @@ The current lessons:
 - Keep the implementation plan as a distilled forward plan, not a trophy wall.
 - Keep the harness-surfaces note as a surface contract, not a dump of every possible future type.
 - Keep `fresh-workspace-handoff.md` as a re-entry packet, not a substitute brain.
-- Keep `state/evidence.jsonl` as a durable distilled ledger, not an activity feed.
+- Keep `state/ledgers.msgpack` as a durable distilled ledger, not an activity feed.
 - Revert failed code hypotheses immediately.
 - Distill failed or obsolete state hypotheses just as aggressively.
 - Treat unpersisted source-gathering and slice-planning work as volatile. If compaction interrupts it, the correct recovery is re-gathering from source or a persisted checkpoint, not continuing from the ghost of the old context.

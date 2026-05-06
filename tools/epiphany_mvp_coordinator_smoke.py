@@ -7,6 +7,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+from epiphany_agent_memory import project_json_dir
+from epiphany_agent_memory import resolve_store_path
 from epiphany_mvp_coordinator import DEFAULT_APP_SERVER
 from epiphany_mvp_coordinator import DEFAULT_AGENT_MEMORY_DIR
 from epiphany_mvp_coordinator import run_coordinator
@@ -39,6 +41,7 @@ def coordinator_args(
     dry_compact: bool = False,
     auto_review: bool = False,
     max_steps: int = 4,
+    agent_memory_store: Path | None = None,
 ) -> argparse.Namespace:
     artifact_dir = artifact_root / name
     return SimpleNamespace(
@@ -47,7 +50,7 @@ def coordinator_args(
         cwd=ROOT,
         codex_home=artifact_dir / "codex-home",
         artifact_dir=artifact_dir,
-        agent_memory_dir=artifact_root / "agent-memory",
+        agent_memory_dir=agent_memory_store or artifact_root / "agent-memory.msgpack",
         mode=mode,
         max_steps=max_steps,
         poll_seconds=0.1,
@@ -99,10 +102,16 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     artifact_root = args.artifact_root.resolve()
     reset_artifact_root(artifact_root)
-    shutil.copytree(DEFAULT_AGENT_MEMORY_DIR, artifact_root / "agent-memory")
+    agent_memory_store = artifact_root / "agent-memory.msgpack"
+    shutil.copy2(resolve_store_path(DEFAULT_AGENT_MEMORY_DIR), agent_memory_store)
 
     cold = run_coordinator(
-        coordinator_args(app_server=app_server, artifact_root=artifact_root, name="cold")
+        coordinator_args(
+            app_server=app_server,
+            artifact_root=artifact_root,
+            name="cold",
+            agent_memory_store=agent_memory_store,
+        )
     )
     require(
         cold["finalAction"]["action"] == "prepareCheckpoint",
@@ -145,9 +154,11 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     )
     require_artifacts(verification)
     require_operator_safe(verification)
+    projected_memory = artifact_root / "agent-memory-projection"
+    project_json_dir(agent_memory_store, projected_memory)
     require(
         "mem-body-phase6-role-smoke"
-        in (artifact_root / "agent-memory" / "body.agent-state.json").read_text(encoding="utf-8"),
+        in (projected_memory / "body.agent-state.json").read_text(encoding="utf-8"),
         "auto-review coordinator smoke should apply accepted selfPatch to isolated agent memory",
     )
 

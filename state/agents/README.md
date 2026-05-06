@@ -1,9 +1,9 @@
 # Epiphany Role Memory
 
-These files are Ghostlight-shaped persistent memory dossiers for Epiphany's lanes.
-They are not project truth. The active objective, graphs, checkpoint, scratch,
-planning records, evidence, and job bindings still live in authoritative
-`EpiphanyThreadState`.
+Epiphany's lane dossiers are Ghostlight-shaped persistent memory documents stored
+in `state/agents.msgpack` through CultCache. They are not project truth. The
+active objective, graphs, checkpoint, scratch, planning records, evidence, and
+job bindings still live in authoritative `EpiphanyThreadState`.
 
 Specialists may request bounded self-memory updates through `selfPatch`.
 The coordinator reviews those requests and accepts only role-matched mutations
@@ -27,15 +27,17 @@ the lane must ruminate on its own role and distill memory rather than invent
 project work. Bounded rumination can write a normal `selfPatch`; the coordinator
 review rules still apply.
 
-Face's Discord boundary lives in `state/face-discord.json`: it may interact only
-through #aquarium. If the channel id is not configured, Face must write candidate
-chat artifacts through `tools/epiphany_face_discord.py draft` instead of posting.
+Face's Discord boundary is still a small TOML configuration seam: it may
+interact only through #aquarium. If the channel id is not configured, Face must
+write candidate chat artifacts through `tools/epiphany_face_discord.py draft`
+instead of posting.
 
 Use:
 
 ```powershell
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' validate
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' smoke
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_memory.py' status
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' tick --coordinator-action continueImplementation --urgency 0.95 --apply-rumination
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_face_discord.py' draft --content 'Face notices the organs are arguing about evidence again.'

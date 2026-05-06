@@ -418,7 +418,7 @@ The anti-Jenga rule applies to docs and state files too:
 Canonical responsibilities:
 
 - `state/map.yaml`: current project map and accepted design
-- `state/evidence.jsonl`: distilled durable evidence, decisions, rejected paths, verification, and scars
+- `state/ledgers.msgpack`: distilled durable evidence, decisions, rejected paths, verification, scars, and branch ledger state
 - `notes/fresh-workspace-handoff.md`: re-entry packet
 - `notes/epiphany-current-algorithmic-map.md`: source-grounded current control flow
 - `notes/epiphany-fork-implementation-plan.md`: distilled forward implementation plan

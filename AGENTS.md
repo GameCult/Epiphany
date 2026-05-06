@@ -10,11 +10,11 @@ The motivating failure mode is that an agent can make many plausible local edits
 
 - Treat `state/map.yaml` as the canonical project map.
 - Treat `state/scratch.md` as disposable working memory for one bounded subgoal.
-- Treat `state/evidence.jsonl` as the distilled durable ledger of what was learned, verified, rejected, or accepted.
+- Treat `state/ledgers.msgpack` as the distilled durable branch/evidence ledger of what was learned, verified, rejected, or accepted.
 - Treat `notes/epiphany-fork-implementation-plan.md` as the current implementation plan for the Epiphany fork architecture.
 - Update `state/map.yaml` when project understanding changes.
 - Add evidence after meaningful research, implementation, verification, or rejected paths, but keep it distilled. Routine "I just did this" proof belongs in git history, commit messages, smoke artifacts, or targeted logs unless it changes what the next agent should believe.
-- Do not store volatile current phase/status blocks in this file; keep current status in `state/map.yaml` and `notes/fresh-workspace-handoff.md`. Use `state/evidence.jsonl` only for distilled belief-changing records.
+- Do not store volatile current phase/status blocks in the evidence ledger; keep current status in `state/map.yaml` and `notes/fresh-workspace-handoff.md`. Use `state/ledgers.msgpack` only for distilled belief-changing records and branch ledger state.
 
 ## Important Paths
 

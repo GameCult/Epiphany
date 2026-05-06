@@ -1,0 +1,11 @@
+schema_version = "epiphany.face_discord.v0"
+allowed_channel_name = "#aquarium"
+allowed_channel_id_env = "EPIPHANY_FACE_AQUARIUM_CHANNEL_ID"
+bot_token_env = "DISCORD_BOT_TOKEN"
+
+policy = [
+  "Face may post only in #aquarium.",
+  "If the #aquarium channel id is missing, Face writes candidate chat artifacts instead of posting.",
+  "Face must not DM, moderate, escalate, or substitute another channel.",
+  "Face translates agent thought-weather; it does not leak raw transcripts, private notes, or sealed artifacts.",
+]

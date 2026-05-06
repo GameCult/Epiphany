@@ -3,7 +3,7 @@
 This is the re-entry packet for `E:\Projects\EpiphanyAgent`.
 
 It is intentionally short. Historical proof belongs in git, commit messages,
-smoke artifacts, and the distilled `state/evidence.jsonl` ledger; exact control flow belongs in
+smoke artifacts, and the distilled `state/ledgers.msgpack` evidence ledger; exact control flow belongs in
 `notes/epiphany-current-algorithmic-map.md`; forward planning belongs in
 `notes/epiphany-fork-implementation-plan.md`.
 
@@ -19,7 +19,7 @@ Get-Content '.\notes\epiphany-current-algorithmic-map.md'
 Get-Content '.\notes\epiphany-fork-implementation-plan.md'
 git status --short --branch
 git log --oneline -5
-Get-Content '.\state\evidence.jsonl' -Tail 8
+& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status
 ```
 
 Do not trust this file for the exact live HEAD. Always check git.
@@ -40,9 +40,9 @@ Do not trust this file for the exact live HEAD. Always check git.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline. Rendered state intro/doctrine text lives in `epiphany-core/src/prompts/`, and lane/control prompt text lives in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`: modeling is the Body, implementation is the Hands and GUI-launched main coding lane, verification is the Soul, reorientation is Life, coordinator remains the read-only Self, and CRRC owns the pre-compaction intervention template.
 - The Ghostlight memory pass is landed. `epiphany_specialists.toml` now has a shared persistent-memory projection prepended by the harness to fixed role specialists, reorientation workers, coordinator notes, and CRRC checkpoint interventions; `tools/epiphany_gui_action.py` prepends the same memory to GUI-launched implementation prompts. The rendered base doctrine also states the Perfect Machine rule directly: prompt is projection, durable typed state is the mind, every lane must improve its own memory/model/prompt/evidence habit or name the repair, and each lane phrases that duty in its own organ language so the salience sticks.
-- The role self-memory persistence pass is landed. Each lane has a Ghostlight-shaped dossier under `state/agents`, and specialists may return optional `selfPatch` requests beside their normal role result. `roleResult`/`roleAccept` project coordinator review as `selfPersistence`: accepted requests are role-matched, bounded lane memory/goal/value/private-note mutations; refused requests explain wrong role, project-truth smuggling, authority grabs, bloat, missing reason, or malformed records. GUI/coordinator accept paths apply accepted `selfPatch` requests through `tools/epiphany_agent_memory.py`; project truth still belongs only in `EpiphanyThreadState`.
+- The role self-memory persistence pass is native now. Each lane has a Ghostlight-shaped typed dossier in `state/agents.msgpack`, and specialists may return optional `selfPatch` requests beside their normal role result. `roleResult`/`roleAccept` project coordinator review as `selfPersistence`: accepted requests are role-matched, bounded lane memory/goal/value/private-note mutations; refused requests explain wrong role, project-truth smuggling, authority grabs, bloat, missing reason, or malformed records. GUI/coordinator accept paths apply accepted `selfPatch` requests through `tools/epiphany_agent_memory.py`, which delegates to the Rust CultCache store; project truth still belongs only in `EpiphanyThreadState`.
 - The heartbeat initiative pass is landed as a bounded tool seam. `state/agent-heartbeats.msgpack` tracks Self, Face, Imagination, Eyes, Body, Hands, Soul, and Life as Ghostlight-style initiative participants with speed, next-ready time, reaction bias, interrupt threshold, load, status, constraints, history, and pending turns through `epiphany-core::EpiphanyHeartbeatStateEntry` and the native `epiphany-heartbeat-store` binary. `tools/epiphany_agent_heartbeat.py` delegates init/status/tick/complete to that Rust CultCache store, then only handles Python-owned role memory patch application and artifact glue. JSON heartbeat state is gone; general CultCache schema sync, polyglot domain loading, and debug display tools belong in CultLib. This is a callable scheduler seam, not yet an always-on daemon.
-- The Face public-surface pass is landed as a bounded lane. `state/agents/face.agent-state.json` gives Face a Ghostlight-shaped dossier; `epiphany_specialists.toml` gives it a VoidBot-heartbeat-derived prompt stripped of moderation authority; `state/face-discord.json` and `tools/epiphany_face_discord.py` enforce that Face may interact only through #aquarium. Missing channel id or token writes candidate chat artifacts instead of posting elsewhere.
+- The Face public-surface pass is landed as a bounded lane. Face's role dossier lives in `state/agents.msgpack`; `epiphany_specialists.toml` gives it a VoidBot-heartbeat-derived prompt stripped of moderation authority; `state/face-discord.toml` and `tools/epiphany_face_discord.py` enforce that Face may interact only through #aquarium. Missing channel id or token writes candidate chat artifacts instead of posting elsewhere.
 - The heartbeat/Face operator API pass is landed. `tools/epiphany_agent_heartbeat.py status` returns machine-readable initiative state plus CultCache store presence, `tools/epiphany_face_discord.py bubble` writes Discord-independent `epiphany.face_bubble.v0` artifacts, `tools/epiphany_mvp_status.py` includes `heartbeat` and `face` blocks, and `tools/epiphany_gui_action.py` exposes `heartbeatStatus`, `runHeartbeat`, and `faceBubble`. `runHeartbeat` advances one slot and emits a Face bubble so Aquarium can show chat even before Discord posting is configured.
 - The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention.
 - The dogfood quarantine now has a direct-thought boundary. The supervisor may read coordinator actions, role/reorient statuses, structured finding summaries, reviewed state patches, rendered status snapshots, and artifact manifests. It must not read raw worker transcripts, direct worker messages, full turn logs, or `rawResult` payloads during normal dogfood. Those artifacts are sealed for explicit forensic debugging only.
@@ -134,7 +134,7 @@ The current spine:
 - shared Ghostlight-derived persistent memory projection across Imagination, Body, Soul, Life, Self, CRRC checkpoint steering, and the GUI-launched Hands implementation lane
 - Ghostlight-derived heartbeat initiative scheduling through `tools/epiphany_agent_heartbeat.py`, with Self and Face included as first-class participants, idle rumination routed through normal `selfPatch` review/application, and the heartbeat state round-tripped through the typed CultCache MessagePack store in `state/agent-heartbeats.msgpack`
 - Face as the public #aquarium-only surface for translating agent thought-weather into short chats or candidate drafts, without moderator authority
-- Ghostlight-shaped role dossiers under `state/agents`, plus `selfPatch` review projection through `roleResult`/`roleAccept` and accepted memory application through `tools/epiphany_agent_memory.py`
+- Ghostlight-shaped role dossiers in `state/agents.msgpack`, plus `selfPatch` review projection through `roleResult`/`roleAccept` and accepted memory application through `tools/epiphany_agent_memory.py`
 - first Unity runtime bridge through `tools/epiphany_unity_bridge.py`, `tools/epiphany_unity_bridge_smoke.py`, GUI Inspect Unity, runtime artifact listing, and implementation prompt guardrails
 - first Rider source-context bridge through `tools/epiphany_rider_bridge.py`, `tools/epiphany_rider_bridge_smoke.py`, GUI Inspect Rider, Rider artifact listing, implementation prompt guardrails, and a source scaffold under `integrations/rider`
 - first GUI graph dashboard through the adjacent `@epiphanygraph/epiphany-graph-viewer` package over typed Epiphany graph state
@@ -304,7 +304,7 @@ Rules now in force:
 
 - `state/map.yaml` is canonical current truth.
 - `state/scratch.md` is disposable scratch.
-- `state/evidence.jsonl` is a distilled durable belief ledger.
+- `state/ledgers.msgpack` is a distilled durable belief and branch ledger.
 - `tools/epiphany_prepare_compaction.py` is the pre-compaction persistence check; run it before and after imminent-compaction persistence passes.
 - this handoff is a compact re-entry packet.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.

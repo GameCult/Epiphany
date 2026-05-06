@@ -21,6 +21,7 @@ from epiphany_agent_heartbeat import heartbeat_status
 from epiphany_agent_heartbeat import run_tick as run_heartbeat_tick
 from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_agent_memory import apply_self_patch
+from epiphany_agent_memory import DEFAULT_AGENT_STORE
 from epiphany_face_discord import DEFAULT_ARTIFACT_DIR as DEFAULT_FACE_ARTIFACT_DIR
 from epiphany_face_discord import latest_face_artifacts
 from epiphany_face_discord import write_bubble
@@ -37,7 +38,7 @@ from epiphany_unity_bridge import bridge_guidance as unity_bridge_guidance
 
 DEFAULT_CODEX_HOME = ROOT / ".epiphany-gui" / "codex-home"
 DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-gui" / "actions"
-DEFAULT_AGENT_MEMORY_DIR = ROOT / "state" / "agents"
+DEFAULT_AGENT_MEMORY_DIR = DEFAULT_AGENT_STORE
 EPIPHANY_PROMPTS_PATH = (
     ROOT
     / "vendor"

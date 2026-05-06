@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import tomllib
 from typing import Any
 from urllib import error
 from urllib import request
@@ -13,7 +14,7 @@ from uuid import uuid4
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CONFIG = ROOT / "state" / "face-discord.json"
+DEFAULT_CONFIG = ROOT / "state" / "face-discord.toml"
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-face"
 DISCORD_API = "https://discord.com/api/v10"
 CHAT_SCHEMA_VERSION = "epiphany.face_chat.v0"
@@ -37,6 +38,17 @@ def read_text_arg(value: str | None, *, stdin_fallback: bool = True) -> str:
 
 def load_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_config(path: Path) -> dict[str, Any]:
+    if path.suffix.lower() == ".toml":
+        with path.open("rb") as handle:
+            data = tomllib.load(handle)
+    else:
+        data = load_json(path)
+    if not isinstance(data, dict):
+        raise ValueError(f"Face config must be an object: {path}")
+    return data
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -178,7 +190,7 @@ def post_message(content: str, *, channel_id: str, token: str) -> dict[str, Any]
 
 
 def run_draft(args: argparse.Namespace) -> dict[str, Any]:
-    config = load_json(args.config)
+    config = load_config(args.config)
     content = read_text_arg(args.content)
     if not content.strip():
         raise ValueError("Face chat content is empty")
@@ -207,7 +219,7 @@ def run_bubble(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def run_post(args: argparse.Namespace) -> dict[str, Any]:
-    config = load_json(args.config)
+    config = load_config(args.config)
     content = read_text_arg(args.content)
     if not content.strip():
         raise ValueError("Face chat content is empty")

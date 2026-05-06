@@ -10,6 +10,7 @@ from typing import Any
 
 from epiphany_agent_telemetry import write_transcript_telemetry
 from epiphany_agent_memory import apply_self_patch
+from epiphany_agent_memory import DEFAULT_AGENT_STORE
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import collect_status
 from epiphany_mvp_status import render_status
@@ -28,7 +29,7 @@ from epiphany_phase6_role_smoke import complete_role_backend_job
 
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-dogfood" / "coordinator"
 DEFAULT_CODEX_HOME = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
-DEFAULT_AGENT_MEMORY_DIR = ROOT / "state" / "agents"
+DEFAULT_AGENT_MEMORY_DIR = DEFAULT_AGENT_STORE
 TERMINAL_ROLE_STATUSES = {"completed", "failed", "cancelled"}
 TERMINAL_REORIENT_STATUSES = {"completed", "failed", "cancelled"}
 STOP_ACTIONS = {

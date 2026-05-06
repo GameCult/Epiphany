@@ -42,7 +42,7 @@ Use the existing Ghostlight-shaped role memory contract in:
 
 - `E:\Projects\EpiphanyAgent\state\agents\README.md`
 - `E:\Projects\EpiphanyAgent\tools\epiphany_agent_memory.py`
-- `E:\Projects\EpiphanyAgent\state\agents\*.agent-state.json`
+- `E:\Projects\EpiphanyAgent\state\agents.msgpack`
 
 All proposed memory mutations must be expressible as bounded `selfPatch` JSON objects accepted by `tools/epiphany_agent_memory.py review-patch`.
 
@@ -78,7 +78,7 @@ For each primary repo, inspect if present:
 - `AGENTS.md`
 - `state/map.yaml`
 - `state/memory.json`
-- `state/evidence.jsonl`
+- `state/ledgers.msgpack`
 - `state/evidence.archive.jsonl` only if the live evidence is too thin
 - `state/scratch.md`
 - `notes/fresh-workspace-handoff.md`
@@ -226,7 +226,7 @@ Look for lessons about rehydration, compaction, handoff, operational recovery, c
 
 Likely sources:
 
-- Every primary repo's `AGENTS.md`, `state/map.yaml`, `notes/fresh-workspace-handoff.md`, and `state/evidence.jsonl`.
+- Every primary repo's `AGENTS.md`, `state/map.yaml`, `notes/fresh-workspace-handoff.md`, and durable evidence ledger.
 - Ghostlight and Epiphany's pre-compaction helpers.
 - gamecult-ops startup/recovery runbooks.
 - VoidBot's scheduler/logon/stack resurrection fixes.
@@ -467,13 +467,13 @@ Write these files:
 
    - exact command sequence to apply the validated role patches
    - exact command sequence to apply typed-state candidates to a selected Epiphany thread through `thread/epiphany/update`
-   - expected changed files under `state/agents`
+   - expected changed entries in `state/agents.msgpack`
    - expected typed state fields changed: `planning`, `graphs`, `graphFrontier`, `investigationCheckpoint`, `observations`, or `evidence`
    - validation command after apply
    - rollback plan using git
    - recommendation on whether to apply now or stage for later review
 
-Do not apply role patches unless the operator explicitly says this sandbox run is allowed to modify `state/agents`. Do not apply typed-state candidates unless the operator explicitly names the target thread or workspace state surface. The default deliverable is a reviewable migration packet, but that packet must be rich enough to initialize Epiphany's typed state after review.
+Do not apply role patches unless the operator explicitly says this sandbox run is allowed to modify `state/agents.msgpack`. Do not apply typed-state candidates unless the operator explicitly names the target thread or workspace state surface. The default deliverable is a reviewable migration packet, but that packet must be rich enough to initialize Epiphany's typed state after review.
 
 ## Distillation Rules
 
@@ -485,7 +485,7 @@ Do not apply role patches unless the operator explicitly says this sandbox run i
 - If a lesson belongs to multiple roles, phrase each version in that role's language and keep the overlap intentional.
 - Keep confidence lower for AGENTS-only secondary repos because they have less lived evidence.
 - Treat archived or stale evidence as historical scar tissue, not current truth.
-- When state surfaces disagree, prefer `state/map.yaml` for current map, `state/evidence.jsonl` for durable lessons, and `notes/fresh-workspace-handoff.md` for re-entry/continuity.
+- When state surfaces disagree, prefer `state/map.yaml` for current map, the durable evidence ledger for lasting lessons, and `notes/fresh-workspace-handoff.md` for re-entry/continuity.
 - If a repo has no pseudo-Epiphany state and only `AGENTS.md`, extract doctrine only; do not invent memories from absence.
 - When roadmap docs are stale but structurally useful, import them as low-confidence planning captures/backlog/streams instead of erasing them.
 - When a repo has a clear architecture map, import a small graph/model candidate focused on ownership, dataflow, and invariants; do not dump every file.
