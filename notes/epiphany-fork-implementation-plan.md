@@ -481,7 +481,7 @@ Before modifying explicit role launch/read-back behavior, run:
 Before modifying the fixed-lane MVP coordinator endpoint or runner, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_mvp_coordinator_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-coordinator-smoke
 ```
 
 On this Windows machine, use:
