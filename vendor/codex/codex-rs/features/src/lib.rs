@@ -142,8 +142,6 @@ pub enum Feature {
     Collab,
     /// Enable task-path-based multi-agent routing.
     MultiAgentV2,
-    /// Enable CSV-backed agent job tools.
-    SpawnCsv,
     /// Enable apps.
     Apps,
     /// Enable the tool_search tool for apps.
@@ -447,9 +445,6 @@ impl Features {
     }
 
     pub fn normalize_dependencies(&mut self) {
-        if self.enabled(Feature::SpawnCsv) && !self.enabled(Feature::Collab) {
-            self.enable(Feature::Collab);
-        }
         if self.enabled(Feature::CodeModeOnly) && !self.enabled(Feature::CodeMode) {
             self.enable(Feature::CodeMode);
         }
@@ -811,12 +806,6 @@ pub const FEATURES: &[FeatureSpec] = &[
     FeatureSpec {
         id: Feature::MultiAgentV2,
         key: "multi_agent_v2",
-        stage: Stage::UnderDevelopment,
-        default_enabled: false,
-    },
-    FeatureSpec {
-        id: Feature::SpawnCsv,
-        key: "enable_fanout",
         stage: Stage::UnderDevelopment,
         default_enabled: false,
     },

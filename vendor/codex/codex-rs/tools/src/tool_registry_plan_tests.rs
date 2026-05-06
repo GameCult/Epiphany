@@ -330,10 +330,9 @@ fn test_build_specs_multi_agent_v2_uses_task_names_and_hides_resume() {
 }
 
 #[test]
-fn test_build_specs_enable_fanout_enables_agent_jobs_and_collab_tools() {
+fn test_build_specs_multi_agent_omits_agent_jobs() {
     let model_info = model_info();
     let mut features = Features::with_defaults();
-    features.enable(Feature::SpawnCsv);
     features.normalize_dependencies();
     let available_models = Vec::new();
     let tools_config = ToolsConfig::new(&ToolsConfigParams {
@@ -355,14 +354,10 @@ fn test_build_specs_enable_fanout_enables_agent_jobs_and_collab_tools() {
 
     assert_contains_tool_names(
         &tools,
-        &[
-            "spawn_agent",
-            "send_input",
-            "wait_agent",
-            "close_agent",
-            "spawn_agents_on_csv",
-        ],
+        &["spawn_agent", "send_input", "wait_agent", "close_agent"],
     );
+    assert_lacks_tool_name(&tools, "spawn_agents_on_csv");
+    assert_lacks_tool_name(&tools, "report_agent_job_result");
 }
 
 #[test]
@@ -467,78 +462,6 @@ fn disabled_environment_omits_environment_backed_tools() {
     assert_lacks_tool_name(&tools, "apply_patch");
     assert_lacks_tool_name(&tools, "list_dir");
     assert_lacks_tool_name(&tools, VIEW_IMAGE_TOOL_NAME);
-}
-
-#[test]
-fn test_build_specs_agent_job_worker_tools_enabled() {
-    let model_info = model_info();
-    let mut features = Features::with_defaults();
-    features.enable(Feature::SpawnCsv);
-    features.normalize_dependencies();
-    features.enable(Feature::Sqlite);
-    let available_models = Vec::new();
-    let tools_config = ToolsConfig::new(&ToolsConfigParams {
-        model_info: &model_info,
-        available_models: &available_models,
-        features: &features,
-        image_generation_tool_auth_allowed: true,
-        web_search_mode: Some(WebSearchMode::Cached),
-        session_source: SessionSource::SubAgent(SubAgentSource::Other(
-            "agent_job:test".to_string(),
-        )),
-        sandbox_policy: &SandboxPolicy::DangerFullAccess,
-        windows_sandbox_level: WindowsSandboxLevel::Disabled,
-    });
-    let (tools, _) = build_specs(
-        &tools_config,
-        /*mcp_tools*/ None,
-        /*deferred_mcp_tools*/ None,
-        &[],
-    );
-
-    assert_contains_tool_names(
-        &tools,
-        &[
-            "spawn_agent",
-            "send_input",
-            "resume_agent",
-            "wait_agent",
-            "close_agent",
-            "spawn_agents_on_csv",
-            "report_agent_job_result",
-            REQUEST_USER_INPUT_TOOL_NAME,
-        ],
-    );
-}
-
-#[test]
-fn test_build_specs_agent_job_worker_report_tool_without_csv_front_door() {
-    let model_info = model_info();
-    let mut features = Features::with_defaults();
-    features.normalize_dependencies();
-    features.enable(Feature::Sqlite);
-    let available_models = Vec::new();
-    let tools_config = ToolsConfig::new(&ToolsConfigParams {
-        model_info: &model_info,
-        available_models: &available_models,
-        features: &features,
-        image_generation_tool_auth_allowed: true,
-        web_search_mode: Some(WebSearchMode::Cached),
-        session_source: SessionSource::SubAgent(SubAgentSource::Other(
-            "agent_job:test".to_string(),
-        )),
-        sandbox_policy: &SandboxPolicy::DangerFullAccess,
-        windows_sandbox_level: WindowsSandboxLevel::Disabled,
-    });
-    let (tools, _) = build_specs(
-        &tools_config,
-        /*mcp_tools*/ None,
-        /*deferred_mcp_tools*/ None,
-        &[],
-    );
-
-    assert_contains_tool_names(&tools, &["report_agent_job_result"]);
-    assert_lacks_tool_name(&tools, "spawn_agents_on_csv");
 }
 
 #[test]

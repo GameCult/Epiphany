@@ -10,7 +10,6 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ToolHandlerKind {
-    AgentJobs,
     ApplyPatch,
     CloseAgentV1,
     CloseAgentV2,

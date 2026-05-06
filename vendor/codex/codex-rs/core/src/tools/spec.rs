@@ -1,6 +1,5 @@
 use crate::shell::Shell;
 use crate::shell::ShellType;
-use crate::tools::handlers::agent_jobs::BatchJobHandler;
 use crate::tools::handlers::multi_agents_common::DEFAULT_WAIT_TIMEOUT_MS;
 use crate::tools::handlers::multi_agents_common::MAX_WAIT_TIMEOUT_MS;
 use crate::tools::handlers::multi_agents_common::MIN_WAIT_TIMEOUT_MS;
@@ -188,9 +187,6 @@ pub(crate) fn build_specs_with_discoverable_tools(
 
     for handler in plan.handlers {
         match handler.kind {
-            ToolHandlerKind::AgentJobs => {
-                builder.register_handler(handler.name, Arc::new(BatchJobHandler));
-            }
             ToolHandlerKind::ApplyPatch => {
                 builder.register_handler(handler.name, apply_patch_handler.clone());
             }

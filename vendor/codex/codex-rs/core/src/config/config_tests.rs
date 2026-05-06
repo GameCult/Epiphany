@@ -3967,7 +3967,6 @@ async fn load_config_rejects_missing_agent_role_config_file() -> std::io::Result
         agents: Some(AgentsToml {
             max_threads: None,
             max_depth: None,
-            job_max_runtime_seconds: None,
             roles: BTreeMap::from([(
                 "researcher".to_string(),
                 AgentRoleToml {
@@ -4833,7 +4832,6 @@ async fn load_config_normalizes_agent_role_nickname_candidates() -> std::io::Res
         agents: Some(AgentsToml {
             max_threads: None,
             max_depth: None,
-            job_max_runtime_seconds: None,
             roles: BTreeMap::from([(
                 "researcher".to_string(),
                 AgentRoleToml {
@@ -4875,7 +4873,6 @@ async fn load_config_rejects_empty_agent_role_nickname_candidates() -> std::io::
         agents: Some(AgentsToml {
             max_threads: None,
             max_depth: None,
-            job_max_runtime_seconds: None,
             roles: BTreeMap::from([(
                 "researcher".to_string(),
                 AgentRoleToml {
@@ -4911,7 +4908,6 @@ async fn load_config_rejects_duplicate_agent_role_nickname_candidates() -> std::
         agents: Some(AgentsToml {
             max_threads: None,
             max_depth: None,
-            job_max_runtime_seconds: None,
             roles: BTreeMap::from([(
                 "researcher".to_string(),
                 AgentRoleToml {
@@ -4947,7 +4943,6 @@ async fn load_config_rejects_unsafe_agent_role_nickname_candidates() -> std::io:
         agents: Some(AgentsToml {
             max_threads: None,
             max_depth: None,
-            job_max_runtime_seconds: None,
             roles: BTreeMap::from([(
                 "researcher".to_string(),
                 AgentRoleToml {
@@ -5203,7 +5198,6 @@ async fn test_precedence_fixture_with_o3_profile() -> std::io::Result<()> {
             agent_max_depth: DEFAULT_AGENT_MAX_DEPTH,
             agent_roles: BTreeMap::new(),
             memories: MemoriesConfig::default(),
-            agent_job_max_runtime_seconds: DEFAULT_AGENT_JOB_MAX_RUNTIME_SECONDS,
             codex_home: fixture.codex_home(),
             sqlite_home: fixture.codex_home().to_path_buf(),
             log_dir: fixture.codex_home().join("log").to_path_buf(),
@@ -5355,7 +5349,6 @@ async fn test_precedence_fixture_with_gpt3_profile() -> std::io::Result<()> {
         agent_max_depth: DEFAULT_AGENT_MAX_DEPTH,
         agent_roles: BTreeMap::new(),
         memories: MemoriesConfig::default(),
-        agent_job_max_runtime_seconds: DEFAULT_AGENT_JOB_MAX_RUNTIME_SECONDS,
         codex_home: fixture.codex_home(),
         sqlite_home: fixture.codex_home().to_path_buf(),
         log_dir: fixture.codex_home().join("log").to_path_buf(),
@@ -5505,7 +5498,6 @@ async fn test_precedence_fixture_with_zdr_profile() -> std::io::Result<()> {
         agent_max_depth: DEFAULT_AGENT_MAX_DEPTH,
         agent_roles: BTreeMap::new(),
         memories: MemoriesConfig::default(),
-        agent_job_max_runtime_seconds: DEFAULT_AGENT_JOB_MAX_RUNTIME_SECONDS,
         codex_home: fixture.codex_home(),
         sqlite_home: fixture.codex_home().to_path_buf(),
         log_dir: fixture.codex_home().join("log").to_path_buf(),
@@ -5640,7 +5632,6 @@ async fn test_precedence_fixture_with_gpt5_profile() -> std::io::Result<()> {
         agent_max_depth: DEFAULT_AGENT_MAX_DEPTH,
         agent_roles: BTreeMap::new(),
         memories: MemoriesConfig::default(),
-        agent_job_max_runtime_seconds: DEFAULT_AGENT_JOB_MAX_RUNTIME_SECONDS,
         codex_home: fixture.codex_home(),
         sqlite_home: fixture.codex_home().to_path_buf(),
         log_dir: fixture.codex_home().join("log").to_path_buf(),

@@ -12,7 +12,6 @@ use codex_protocol::openai_models::ModelPreset;
 use codex_protocol::openai_models::WebSearchToolType;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
-use codex_protocol::protocol::SubAgentSource;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use std::path::PathBuf;
 
@@ -109,8 +108,6 @@ pub struct ToolsConfig {
     pub spawn_agent_usage_hint_text: Option<String>,
     pub default_mode_request_user_input: bool,
     pub experimental_supported_tools: Vec<String>,
-    pub agent_jobs_tools: bool,
-    pub agent_jobs_worker_tools: bool,
     pub agent_type_description: String,
 }
 
@@ -133,7 +130,7 @@ impl ToolsConfig {
             features,
             image_generation_tool_auth_allowed,
             web_search_mode,
-            session_source,
+            session_source: _,
             sandbox_policy,
             windows_sandbox_level,
         } = params;
@@ -145,7 +142,6 @@ impl ToolsConfig {
             include_js_repl && features.enabled(Feature::JsReplToolsOnly);
         let include_collab_tools = features.enabled(Feature::Collab);
         let include_multi_agent_v2 = features.enabled(Feature::MultiAgentV2);
-        let include_agent_jobs = features.enabled(Feature::SpawnCsv);
         let include_default_mode_request_user_input =
             features.enabled(Feature::DefaultModeRequestUserInput);
         let include_search_tool =
@@ -195,12 +191,6 @@ impl ToolsConfig {
             None => include_apply_patch_tool.then_some(ApplyPatchToolType::Freeform),
         };
 
-        let agent_jobs_worker_tools = matches!(
-            session_source,
-            SessionSource::SubAgent(SubAgentSource::Other(label))
-                if label.starts_with("agent_job:")
-        );
-
         Self {
             available_models: available_models.to_vec(),
             shell_type,
@@ -229,8 +219,6 @@ impl ToolsConfig {
             spawn_agent_usage_hint_text: None,
             default_mode_request_user_input: include_default_mode_request_user_input,
             experimental_supported_tools: model_info.experimental_supported_tools.clone(),
-            agent_jobs_tools: include_agent_jobs,
-            agent_jobs_worker_tools,
             agent_type_description: String::new(),
         }
     }

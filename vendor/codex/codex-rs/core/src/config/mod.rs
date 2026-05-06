@@ -127,7 +127,6 @@ pub use codex_git_utils::GhostSnapshotConfig;
 pub(crate) const AGENTS_MD_MAX_BYTES: usize = 32 * 1024; // 32 KiB
 pub(crate) const DEFAULT_AGENT_MAX_THREADS: Option<usize> = Some(6);
 pub(crate) const DEFAULT_AGENT_MAX_DEPTH: i32 = 1;
-pub(crate) const DEFAULT_AGENT_JOB_MAX_RUNTIME_SECONDS: Option<u64> = None;
 const LOCAL_DEV_BUILD_VERSION: &str = "0.0.0";
 
 pub const CONFIG_TOML_FILE: &str = "config.toml";
@@ -427,9 +426,6 @@ pub struct Config {
 
     /// Maximum number of agent threads that can be open concurrently.
     pub agent_max_threads: Option<usize>,
-    /// Maximum runtime in seconds for agent job workers before they are failed.
-    pub agent_job_max_runtime_seconds: Option<u64>,
-
     /// Maximum nesting depth allowed for spawned agent threads.
     pub agent_max_depth: i32,
 
@@ -1965,25 +1961,6 @@ impl Config {
                 "agents.max_depth must be at least 1",
             ));
         }
-        let agent_job_max_runtime_seconds = cfg
-            .agents
-            .as_ref()
-            .and_then(|agents| agents.job_max_runtime_seconds)
-            .or(DEFAULT_AGENT_JOB_MAX_RUNTIME_SECONDS);
-        if agent_job_max_runtime_seconds == Some(0) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "agents.job_max_runtime_seconds must be at least 1",
-            ));
-        }
-        if let Some(max_runtime_seconds) = agent_job_max_runtime_seconds
-            && max_runtime_seconds > i64::MAX as u64
-        {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "agents.job_max_runtime_seconds must fit within a 64-bit signed integer",
-            ));
-        }
         let background_terminal_max_timeout = cfg
             .background_terminal_max_timeout
             .unwrap_or(DEFAULT_MAX_BACKGROUND_TERMINAL_TIMEOUT_MS)
@@ -2337,7 +2314,6 @@ impl Config {
             agent_max_depth,
             agent_roles,
             memories: cfg.memories.unwrap_or_default().into(),
-            agent_job_max_runtime_seconds,
             codex_home,
             sqlite_home,
             log_dir,

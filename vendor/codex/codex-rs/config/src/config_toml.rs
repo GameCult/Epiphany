@@ -557,7 +557,6 @@ pub struct AgentsToml {
     pub max_depth: Option<i32>,
     /// Default maximum runtime in seconds for agent job workers.
     #[schemars(range(min = 1))]
-    pub job_max_runtime_seconds: Option<u64>,
 
     /// User-defined role declarations keyed by role name.
     ///

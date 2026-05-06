@@ -37,7 +37,6 @@ use crate::create_list_mcp_resource_templates_tool;
 use crate::create_list_mcp_resources_tool;
 use crate::create_local_shell_tool;
 use crate::create_read_mcp_resource_tool;
-use crate::create_report_agent_job_result_tool;
 use crate::create_request_permissions_tool;
 use crate::create_request_user_input_tool;
 use crate::create_resume_agent_tool;
@@ -47,7 +46,6 @@ use crate::create_shell_command_tool;
 use crate::create_shell_tool;
 use crate::create_spawn_agent_tool_v1;
 use crate::create_spawn_agent_tool_v2;
-use crate::create_spawn_agents_on_csv_tool;
 use crate::create_test_sync_tool;
 use crate::create_tool_search_tool;
 use crate::create_tool_suggest_tool;
@@ -475,24 +473,6 @@ pub fn build_tool_registry_plan(
             plan.register_handler("wait_agent", ToolHandlerKind::WaitAgentV1);
             plan.register_handler("close_agent", ToolHandlerKind::CloseAgentV1);
         }
-    }
-
-    if config.agent_jobs_tools {
-        plan.push_spec(
-            create_spawn_agents_on_csv_tool(),
-            /*supports_parallel_tool_calls*/ false,
-            config.code_mode_enabled,
-        );
-        plan.register_handler("spawn_agents_on_csv", ToolHandlerKind::AgentJobs);
-    }
-
-    if config.agent_jobs_worker_tools {
-        plan.push_spec(
-            create_report_agent_job_result_tool(),
-            /*supports_parallel_tool_calls*/ false,
-            config.code_mode_enabled,
-        );
-        plan.register_handler("report_agent_job_result", ToolHandlerKind::AgentJobs);
     }
 
     if let Some(mcp_tools) = params.mcp_tools {
