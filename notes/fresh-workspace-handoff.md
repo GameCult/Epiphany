@@ -12,14 +12,14 @@ smoke artifacts, and the distilled `state/ledgers.msgpack` evidence ledger; exac
 From the repo root:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status
 Get-Content '.\state\map.yaml'
 Get-Content '.\notes\fresh-workspace-handoff.md'
 Get-Content '.\notes\epiphany-current-algorithmic-map.md'
 Get-Content '.\notes\epiphany-fork-implementation-plan.md'
 git status --short --branch
 git log --oneline -5
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status
 ```
 
 Do not trust this file for the exact live HEAD. Always check git.
@@ -305,7 +305,7 @@ Rules now in force:
 - `state/map.yaml` is canonical current truth.
 - `state/scratch.md` is disposable scratch.
 - `state/ledgers.msgpack` is a distilled durable belief and branch ledger.
-- `tools/epiphany_prepare_compaction.py` is the pre-compaction persistence check; run it before and after imminent-compaction persistence passes.
+- `epiphany-prepare-compaction` is the native pre-compaction persistence check; run it before and after imminent-compaction persistence passes.
 - this handoff is a compact re-entry packet.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.
 - `notes/epiphany-rider-unity-integration-plan.md` is the detailed Rider-as-IDE and Unity-as-editor/runtime integration plan.

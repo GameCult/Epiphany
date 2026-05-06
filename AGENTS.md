@@ -24,17 +24,17 @@ The motivating failure mode is that an agent can make many plausible local edits
 - Handoff summary: `E:\Projects\EpiphanyAgent\notes\fresh-workspace-handoff.md`
 - Epiphany algorithmic map: `E:\Projects\EpiphanyAgent\notes\epiphany-current-algorithmic-map.md`
 - Epiphany safety architecture: `E:\Projects\EpiphanyAgent\notes\epiphany-safety-architecture.md`
-- State CLI: `E:\Projects\EpiphanyAgent\tools\epiphany_state.py`
-- Pre-compaction helper: `E:\Projects\EpiphanyAgent\tools\epiphany_prepare_compaction.py`
+- State CLI: `cargo run --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml --bin epiphany-state -- ...`
+- Pre-compaction helper: `cargo run --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction -- ...`
 
 ## Useful Commands
 
-Use the bundled Python runtime if `python` is not on PATH:
+Use the native Rust tools for state and compaction:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' add-evidence --type research --status ok --note '...'
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_prepare_compaction.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- add-evidence --type research --status ok --note '...'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --
 ```
 
 Useful Codex repo searches:
@@ -56,13 +56,13 @@ On fresh session load, do this before wandering off into implementation:
    - `notes/epiphany-fork-implementation-plan.md`
    - `notes/epiphany-safety-architecture.md` when the task touches capability growth, autonomy, permissions, governance, or deployment authority
 2. run:
-   - `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_state.py' status`
+   - `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`
 3. restate the current next action from the persisted state before starting edits
 4. if the user only asked to rehydrate or reorient, stop after orientation and wait for an explicit continue instruction instead of treating the persisted next action as permission to start coding
 
 After compaction, resume, or any suspicious loss of continuity:
 
-1. rerun `epiphany_state.py status`
+1. rerun `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- status`
 2. reread `state/map.yaml` and `notes/fresh-workspace-handoff.md`
 3. treat the persisted next action as authoritative unless fresh evidence in the repo contradicts it
 
@@ -76,10 +76,10 @@ Do not wait for the blackout and then act surprised.
 
 When the user says to prepare for imminent compaction:
 
-1. run `tools/epiphany_prepare_compaction.py` before editing persistence surfaces
+1. run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --` before editing persistence surfaces
 2. use its warnings as the checklist for map, handoff, scratch, evidence, and git hygiene
 3. update only the state that actually needs to change
-4. run `tools/epiphany_prepare_compaction.py` again after edits
+4. run `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prepare-compaction --` again after edits
 5. fix errors, address warnings, and commit the completed persistence pass unless the work is deliberately mid-surgery
 
 ## Operating Discipline
