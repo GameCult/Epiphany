@@ -32,7 +32,7 @@ remembers doctrine; the branch remembers the blade.
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Phase 1 through Phase 5 are complete enough.
 - Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id. New `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/roleLaunch`, and `thread/epiphany/reorientLaunch` writes are heartbeat-backed, open typed runtime-spine job receipts under `state/runtime-spine.msgpack`, and no longer create Codex `agent_jobs` rows or require the SQLite state runtime. Freshness carries watcher-backed invalidation inputs, graphQuery traverses authoritative typed graph neighborhoods and path/symbol matches without mutation, planning projects typed captures/backlog/roadmap/objective drafts without adopting work, roles project implementation/imagination/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleResult` and `reorientResult` read heartbeat-backed typed runtime-spine job results when present, `roleAccept` and `reorientAccept` accept completed heartbeat findings from typed runtime-spine results while remaining explicit review gates, `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating, and `thread/epiphany/coordinator` composes those signals into a fixed-lane MVP action recommendation without becoming a writer.
-- Native `epiphany-mvp-status` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, planning, pressure, reorient, jobs, roles, Imagination/modeling/verification role result read-backs, reorient result, heartbeat, Face bubbles, and CRRC recommendation as text or JSON. The Python status module is now quarantine tissue for still-Python GUI/status callers, not the smoked product path.
+- Native `epiphany-mvp-status` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, planning, pressure, reorient, jobs, roles, Imagination/modeling/verification role result read-backs, reorient result, heartbeat, Face bubbles, and CRRC recommendation as text or machine output. The old Python status module has been cut; native Rust/CultCache/CultNet surfaces are the smoked product path.
 - Native `epiphany-mvp-coordinator` is the first auditable fixed-lane coordinator runner. It starts or reads a thread through app-server, opens a native runtime-spine session, follows the harness-native coordinator action, can auto-launch modeling, verification, or reorient-worker jobs, records native runtime job/result receipts for terminal launched work, keeps semantic findings review-gated by default, and writes summary, steps, rendered snapshots, transcript, stderr, runtime-spine status, and final next-action artifacts under `.epiphany-dogfood/coordinator` or a caller-provided artifact directory. It refuses direct backend-completion mutation; full completion smoke needs live workers while execution is being cauterized into CultNet.
 - Native `epiphany-runtime-spine` is the first Codex-independent runtime vertebra. It owns typed CultCache documents for runtime identity, sessions, jobs, job results, and events; opens/completes native jobs; snapshots jobs/results by runtime job id; projects job-result counts; and can emit a framed CultNet hello message advertising the native document contract. Codex app-server launch/read-back/acceptance is now a typed heartbeat/runtime-spine bridge; the old `agent_jobs` SQLite path is sealed for Epiphany role/reorient results.
 - Native CRRC automation is now landed only at turn-complete safe boundaries. It may submit `Op::Compact` for coordinator-approved `compactRehydrateReorient` or for a successful pre-compaction checkpoint intervention's pending compact handoff, and it may launch the fixed `reorient-worker` for coordinator-approved `launchReorientWorker`. It does not auto-launch Imagination/modeling/verification, accept findings, promote evidence, edit implementation code, or keep going after reviewable semantic output.
@@ -147,7 +147,7 @@ The current spine, blessed but not yet finished:
 - live context app-server smoke through native `epiphany-phase6-context-smoke`
 - live graph traversal app-server smoke through native `epiphany-phase6-graph-query-smoke`
 - live planning app-server smoke through native `epiphany-phase6-planning-smoke`
-- live GUI planning adoption smoke through `tools/epiphany_gui_planning_smoke.py`
+- GUI Objective Draft adoption now belongs to Aquarium/backend API surfaces; add a native Rust guardrail before broadening the EpiphanyAgent-side adoption contract.
 - live pressure app-server smoke through native `epiphany-phase6-pressure-smoke`
 - live reorientation app-server smoke through native `epiphany-phase6-reorient-smoke`
 - live MVP operator status smoke through native `epiphany-mvp-status-smoke`
@@ -271,7 +271,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-status-s
 For GUI Objective Draft adoption behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_gui_planning_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-planning-smoke
 ```
 
 For explicit Imagination/planning, modeling/checkpoint, and verification/review role launch/read-back/acceptance,
@@ -461,7 +461,6 @@ Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
 `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`,
 native `epiphany-mvp-status`, native `epiphany-mvp-coordinator`, and
 native `epiphany-phase6-graph-query-smoke` / native `epiphany-phase6-planning-smoke`
-/ `tools/epiphany_gui_planning_smoke.py`
 smokes are now guardrails, not the next organs.
 
 ## Not Yet
