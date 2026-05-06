@@ -499,25 +499,6 @@ impl CodexThread {
     ) -> CodexResult<EpiphanyJobLaunchResult> {
         validate_epiphany_job_launch_request(&request)?;
 
-        let session = self.codex.session.clone();
-        let state_db = self.epiphany_state_runtime().await.ok_or_else(|| {
-            CodexErr::InvalidRequest(
-                "sqlite state db is unavailable for Epiphany job launch".to_string(),
-            )
-        })?;
-        let launch_turn = session.new_default_turn().await;
-        let launch_options = crate::tools::handlers::agent_jobs::build_runner_options(
-            &session,
-            &launch_turn,
-            Some(1),
-        )
-        .await
-        .map_err(|err| {
-            CodexErr::InvalidRequest(format!(
-                "failed to prepare Epiphany agent job runner: {err}"
-            ))
-        })?;
-
         let current_state = self
             .codex
             .session
@@ -532,9 +513,9 @@ impl CodexThread {
                 current_state.revision
             )));
         }
-        validate_epiphany_job_launch_target(&current_state, &state_db, &request).await?;
+        validate_epiphany_job_launch_target(&current_state, &request)?;
 
-        let launcher_job_id = format!("epiphany-launch-{}", Uuid::new_v4());
+        let launcher_job_id = format!("epiphany-heartbeat-launch-{}", Uuid::new_v4());
         let backend_job_id = Uuid::new_v4().to_string();
         let replacement_binding = build_epiphany_job_launch_binding(
             &request,
@@ -560,94 +541,14 @@ impl CodexThread {
             )));
         }
 
-        let output_csv_path = epiphany_agent_job_output_csv_path(
-            self.codex.session.codex_home().await.as_path(),
-            backend_job_id.as_str(),
-        );
-        let row_object = request.input_json.as_object().cloned().ok_or_else(|| {
-            CodexErr::InvalidRequest(
-                "epiphany job launch input_json must be a JSON object".to_string(),
-            )
-        })?;
-        let input_headers = sorted_json_object_keys(&row_object);
-        let job_items = vec![codex_state::AgentJobItemCreateParams {
-            item_id: request.binding_id.clone(),
-            row_index: 0,
-            source_id: Some(request.binding_id.clone()),
-            row_json: Value::Object(row_object),
-        }];
-
-        state_db
-            .create_agent_job(
-                &codex_state::AgentJobCreateParams {
-                    id: backend_job_id.clone(),
-                    name: epiphany_agent_job_name(request.binding_id.as_str()),
-                    instruction: request.instruction.clone(),
-                    auto_export: false,
-                    max_runtime_seconds: request.max_runtime_seconds,
-                    output_schema_json: request.output_schema_json.clone(),
-                    input_headers,
-                    input_csv_path: output_csv_path.display().to_string(),
-                    output_csv_path: output_csv_path.display().to_string(),
-                },
-                job_items.as_slice(),
-            )
-            .await
-            .map_err(|err| {
-                CodexErr::Fatal(format!("failed to create Epiphany backend job: {err}"))
-            })?;
-
-        let epiphany_state = match self
+        let epiphany_state = self
             .epiphany_update_state(EpiphanyStateUpdate {
                 expected_revision: request.expected_revision,
                 job_bindings: Some(next_job_bindings),
                 ..Default::default()
             })
             .await
-        {
-            Ok(epiphany_state) => epiphany_state,
-            Err(err) => {
-                let _ = state_db
-                    .mark_agent_job_cancelled(
-                        backend_job_id.as_str(),
-                        "Epiphany launch state update failed before the binding could persist.",
-                    )
-                    .await;
-                return Err(err);
-            }
-        };
-
-        let runner_session = session.clone();
-        let runner_state_db = state_db.clone();
-        let runner_job_id = backend_job_id.clone();
-        tokio::spawn(async move {
-            if let Err(err) = runner_state_db
-                .mark_agent_job_running(runner_job_id.as_str())
-                .await
-            {
-                let error_message =
-                    format!("failed to transition Epiphany backend job to running: {err}");
-                let _ = runner_state_db
-                    .mark_agent_job_failed(runner_job_id.as_str(), error_message.as_str())
-                    .await;
-                return;
-            }
-
-            if let Err(err) = crate::tools::handlers::agent_jobs::run_agent_job_loop(
-                runner_session,
-                launch_turn,
-                runner_state_db.clone(),
-                runner_job_id.clone(),
-                launch_options,
-            )
-            .await
-            {
-                let error_message = format!("Epiphany backend job runner failed: {err}");
-                let _ = runner_state_db
-                    .mark_agent_job_failed(runner_job_id.as_str(), error_message.as_str())
-                    .await;
-            }
-        });
+            ?;
 
         Ok(EpiphanyJobLaunchResult {
             epiphany_state,
@@ -667,11 +568,6 @@ impl CodexThread {
             ));
         }
 
-        let state_db = self.epiphany_state_runtime().await.ok_or_else(|| {
-            CodexErr::InvalidRequest(
-                "sqlite state db is unavailable for Epiphany job interrupt".to_string(),
-            )
-        })?;
         let current_state = self
             .codex
             .session
@@ -698,68 +594,66 @@ impl CodexThread {
             )));
         };
         let binding = current_state.job_bindings[binding_index].clone();
-        let agent_job_id = binding_agent_jobs_job_id_core(&binding).ok_or_else(|| {
-            CodexErr::InvalidRequest(format!(
-                "epiphany job binding {:?} is not currently backed by the agent_jobs runtime",
-                request.binding_id
-            ))
-        })?;
 
         let mut interrupted_thread_ids = Vec::new();
-        let running_items = state_db
-            .list_agent_job_items(
-                agent_job_id,
-                Some(codex_state::AgentJobItemStatus::Running),
-                Some(64),
-            )
-            .await
-            .map_err(|err| {
-                CodexErr::Fatal(format!(
-                    "failed to inspect running Epiphany backend job items: {err}"
-                ))
-            })?;
-        for running_item in running_items {
-            let Some(assigned_thread_id) = running_item.assigned_thread_id else {
-                continue;
-            };
-            let Ok(thread_id) = ThreadId::from_string(assigned_thread_id.as_str()) else {
-                continue;
-            };
-            match self
-                .codex
-                .session
-                .services
-                .agent_control
-                .shutdown_live_agent(thread_id)
+        let mut cancel_requested = false;
+        if binding_backend_kind_core(&binding) == Some(EpiphanyJobBackendKind::AgentJobs)
+            && let Some(agent_job_id) = binding_agent_jobs_job_id_core(&binding)
+            && let Some(state_db) = self.epiphany_state_runtime().await
+        {
+            let running_items = state_db
+                .list_agent_job_items(
+                    agent_job_id,
+                    Some(codex_state::AgentJobItemStatus::Running),
+                    Some(64),
+                )
                 .await
-            {
-                Ok(_) | Err(CodexErr::ThreadNotFound(_)) | Err(CodexErr::InternalAgentDied) => {
-                    interrupted_thread_ids.push(assigned_thread_id);
-                }
-                Err(err) => {
-                    return Err(CodexErr::Fatal(format!(
-                        "failed to interrupt Epiphany worker thread {assigned_thread_id}: {err}"
-                    )));
+                .map_err(|err| {
+                    CodexErr::Fatal(format!(
+                        "failed to inspect running legacy Epiphany backend job items: {err}"
+                    ))
+                })?;
+            for running_item in running_items {
+                let Some(assigned_thread_id) = running_item.assigned_thread_id else {
+                    continue;
+                };
+                let Ok(thread_id) = ThreadId::from_string(assigned_thread_id.as_str()) else {
+                    continue;
+                };
+                match self
+                    .codex
+                    .session
+                    .services
+                    .agent_control
+                    .shutdown_live_agent(thread_id)
+                    .await
+                {
+                    Ok(_) | Err(CodexErr::ThreadNotFound(_)) | Err(CodexErr::InternalAgentDied) => {
+                        interrupted_thread_ids.push(assigned_thread_id);
+                    }
+                    Err(err) => {
+                        return Err(CodexErr::Fatal(format!(
+                            "failed to interrupt Epiphany worker thread {assigned_thread_id}: {err}"
+                        )));
+                    }
                 }
             }
-        }
 
-        let cancel_requested = state_db
-            .mark_agent_job_cancelled(
-                agent_job_id,
-                request.reason.as_deref().unwrap_or(
-                    "Epiphany launch authority requested an interrupt for the bound backend job.",
-                ),
-            )
-            .await
-            .map_err(|err| {
-                CodexErr::Fatal(format!("failed to cancel Epiphany backend job: {err}"))
-            })?;
+            cancel_requested = state_db
+                .mark_agent_job_cancelled(
+                    agent_job_id,
+                    request.reason.as_deref().unwrap_or(
+                        "Epiphany launch authority requested an interrupt for a legacy bound backend job.",
+                    ),
+                )
+                .await
+                .unwrap_or(false);
+        }
 
         let next_job_bindings = clear_epiphany_job_binding_backend(
             current_state.job_bindings.clone(),
             binding_index,
-            "No active runtime backend is currently bound; launch explicitly to resume specialist work.",
+            "No active heartbeat turn is currently bound; launch explicitly to resume specialist work.",
         );
         let epiphany_state = self
             .epiphany_update_state(EpiphanyStateUpdate {
@@ -917,7 +811,7 @@ fn validate_epiphany_job_launch_request(request: &EpiphanyJobLaunchRequest) -> C
     }
     if request.kind != EpiphanyJobKind::Specialist {
         return Err(CodexErr::InvalidRequest(
-            "epiphany job launch currently supports only specialist jobs on the agent_jobs backend"
+            "epiphany job launch currently supports only specialist heartbeat turns"
                 .to_string(),
         ));
     }
@@ -956,9 +850,8 @@ fn validate_epiphany_job_launch_request(request: &EpiphanyJobLaunchRequest) -> C
     Ok(())
 }
 
-async fn validate_epiphany_job_launch_target(
+fn validate_epiphany_job_launch_target(
     state: &EpiphanyThreadState,
-    state_db: &StateDbHandle,
     request: &EpiphanyJobLaunchRequest,
 ) -> CodexResult<()> {
     let Some(existing_binding) = state
@@ -968,60 +861,12 @@ async fn validate_epiphany_job_launch_target(
     else {
         return Ok(());
     };
-    let Some(agent_job_id) = binding_agent_jobs_job_id_core(existing_binding) else {
-        return Ok(());
-    };
-    let existing_job = state_db.get_agent_job(agent_job_id).await.map_err(|err| {
-        CodexErr::Fatal(format!(
-            "failed to inspect existing Epiphany backend job {:?}: {err}",
-            agent_job_id
-        ))
-    })?;
-    if existing_job.as_ref().is_some_and(|job| {
-        matches!(
-            job.status,
-            codex_state::AgentJobStatus::Pending | codex_state::AgentJobStatus::Running
-        )
-    }) {
-        let progress = state_db
-            .get_agent_job_progress(agent_job_id)
-            .await
-            .map_err(|err| {
-                CodexErr::Fatal(format!(
-                    "failed to inspect existing Epiphany backend job progress {:?}: {err}",
-                    agent_job_id
-                ))
-            })?;
-        if progress.pending_items == 0 && progress.running_items == 0 {
-            if progress.failed_items > 0 {
-                state_db
-                    .mark_agent_job_failed(
-                        agent_job_id,
-                        "Epiphany launch recovered a stale active backend job with no active items.",
-                    )
-                    .await
-                    .map_err(|err| {
-                        CodexErr::Fatal(format!(
-                            "failed to mark stale Epiphany backend job {:?} failed: {err}",
-                            agent_job_id
-                        ))
-                    })?;
-            } else {
-                state_db
-                    .mark_agent_job_completed(agent_job_id)
-                    .await
-                    .map_err(|err| {
-                        CodexErr::Fatal(format!(
-                            "failed to mark stale Epiphany backend job {:?} completed: {err}",
-                            agent_job_id
-                        ))
-                    })?;
-            }
-            return Ok(());
-        }
+    if binding_backend_job_id_core(existing_binding).is_some()
+        && existing_binding.blocking_reason.is_none()
+    {
         return Err(CodexErr::InvalidRequest(format!(
-            "epiphany job binding {:?} is already bound to active backend job {:?}; interrupt it before launching a replacement",
-            request.binding_id, agent_job_id
+            "epiphany job binding {:?} is already bound to an active heartbeat turn; interrupt it before launching a replacement",
+            request.binding_id
         )));
     }
     Ok(())
@@ -1039,13 +884,13 @@ fn build_epiphany_job_launch_binding(
         owner_role: request.owner_role.clone(),
         launcher_job_id: Some(launcher_job_id.to_string()),
         authority_scope: Some(request.authority_scope.clone()),
-        backend_kind: Some(EpiphanyJobBackendKind::AgentJobs),
+        backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
         backend_job_id: Some(backend_job_id.to_string()),
-        runtime_agent_job_id: Some(backend_job_id.to_string()),
+        runtime_agent_job_id: None,
         linked_subgoal_ids: request.linked_subgoal_ids.clone(),
         linked_graph_node_ids: request.linked_graph_node_ids.clone(),
         progress_note: Some(
-            "Explicitly launched through the Epiphany authority surface onto the agent_jobs backend."
+            "Explicitly queued through the Epiphany authority surface for heartbeat activation."
                 .to_string(),
         ),
         blocking_reason: None,
@@ -1083,13 +928,7 @@ fn clear_epiphany_job_binding_backend(
 }
 
 fn binding_backend_kind_core(binding: &EpiphanyJobBinding) -> Option<EpiphanyJobBackendKind> {
-    binding.backend_kind.or_else(|| {
-        if binding.runtime_agent_job_id.is_some() {
-            Some(EpiphanyJobBackendKind::AgentJobs)
-        } else {
-            None
-        }
-    })
+    binding.backend_kind
 }
 
 fn binding_backend_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
@@ -1102,26 +941,8 @@ fn binding_backend_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
 fn binding_agent_jobs_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
     match binding_backend_kind_core(binding) {
         Some(EpiphanyJobBackendKind::AgentJobs) => binding_backend_job_id_core(binding),
-        None => None,
+        Some(EpiphanyJobBackendKind::Heartbeat) | None => None,
     }
-}
-
-fn epiphany_agent_job_name(binding_id: &str) -> String {
-    let suffix = Uuid::new_v4().simple().to_string();
-    let short_suffix = &suffix[..8];
-    format!("epiphany-{binding_id}-{short_suffix}")
-}
-
-fn epiphany_agent_job_output_csv_path(codex_home: &std::path::Path, job_id: &str) -> PathBuf {
-    codex_home
-        .join("epiphany-agent-jobs")
-        .join(format!("{job_id}.csv"))
-}
-
-fn sorted_json_object_keys(row_object: &serde_json::Map<String, Value>) -> Vec<String> {
-    let mut keys = row_object.keys().cloned().collect::<Vec<_>>();
-    keys.sort();
-    keys
 }
 
 fn epiphany_state_update_validation_errors(
@@ -2120,6 +1941,37 @@ mod epiphany_update_tests {
         assert!(errors.iter().any(|error| {
             error.contains("mismatched agent_jobs ids") && error.contains("mismatched-ids")
         }));
+    }
+
+    #[test]
+    fn build_epiphany_job_launch_binding_targets_heartbeat_backend() {
+        let request = EpiphanyJobLaunchRequest {
+            expected_revision: Some(7),
+            binding_id: "modeling-checkpoint-worker".to_string(),
+            kind: EpiphanyJobKind::Specialist,
+            scope: "role-scoped modeling/checkpoint maintenance".to_string(),
+            owner_role: "epiphany-modeler".to_string(),
+            authority_scope: "epiphany.role.modeling".to_string(),
+            linked_subgoal_ids: vec!["phase-6".to_string()],
+            linked_graph_node_ids: vec!["runtime-spine".to_string()],
+            instruction: "Model the target before implementation.".to_string(),
+            input_json: serde_json::json!({ "objective": "keep state typed" }),
+            output_schema_json: None,
+            max_runtime_seconds: Some(60),
+        };
+
+        let binding =
+            build_epiphany_job_launch_binding(&request, "epiphany-heartbeat-launch-1", "turn-1");
+
+        assert_eq!(binding.backend_kind, Some(EpiphanyJobBackendKind::Heartbeat));
+        assert_eq!(binding.backend_job_id.as_deref(), Some("turn-1"));
+        assert_eq!(binding.runtime_agent_job_id, None);
+        assert!(
+            binding
+                .progress_note
+                .as_deref()
+                .is_some_and(|note| note.contains("heartbeat activation"))
+        );
     }
 }
 

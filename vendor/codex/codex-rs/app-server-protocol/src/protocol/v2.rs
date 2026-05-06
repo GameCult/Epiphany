@@ -4618,6 +4618,7 @@ pub enum ThreadEpiphanyJobKind {
 #[ts(export_to = "v2/")]
 pub enum ThreadEpiphanyJobBackendKind {
     AgentJobs,
+    Heartbeat,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]

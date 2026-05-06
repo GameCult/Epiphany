@@ -4871,10 +4871,10 @@ impl CodexMessageProcessor {
                 owner_role: "epiphany-harness".to_string(),
                 launcher_job_id: Some(launched.launcher_job_id.clone()),
                 authority_scope: None,
-                backend_kind: Some(ThreadEpiphanyJobBackendKind::AgentJobs),
+                backend_kind: Some(ThreadEpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some(launched.backend_job_id.clone()),
                 status: ThreadEpiphanyJobStatus::Pending,
-                runtime_agent_job_id: Some(launched.backend_job_id.clone()),
+                runtime_agent_job_id: None,
                 items_processed: None,
                 items_total: None,
                 progress_note: None,
@@ -6915,10 +6915,10 @@ impl CodexMessageProcessor {
                 owner_role: "epiphany-harness".to_string(),
                 launcher_job_id: Some(launched.launcher_job_id.clone()),
                 authority_scope: None,
-                backend_kind: Some(ThreadEpiphanyJobBackendKind::AgentJobs),
+                backend_kind: Some(ThreadEpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some(launched.backend_job_id.clone()),
                 status: ThreadEpiphanyJobStatus::Pending,
-                runtime_agent_job_id: Some(launched.backend_job_id.clone()),
+                runtime_agent_job_id: None,
                 items_processed: None,
                 items_total: None,
                 progress_note: None,
@@ -14451,6 +14451,14 @@ async fn load_epiphany_role_result_snapshot(
             "No matching Epiphany role specialist binding exists.".to_string(),
         );
     };
+    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
+        return (
+            ThreadEpiphanyRoleResultStatus::Pending,
+            None,
+            "Heartbeat activation owns this role specialist; no accepted typed result has been reported yet."
+                .to_string(),
+        );
+    }
     let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
         return (
             ThreadEpiphanyRoleResultStatus::BackendUnavailable,
@@ -14544,20 +14552,28 @@ async fn load_epiphany_reorient_result_snapshot(
         .job_bindings
         .iter()
         .find(|binding| binding.id == binding_id);
-    let Some(state_db_ctx) = state_db_ctx else {
-        return (
-            ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-            None,
-            "State runtime is unavailable, so the bound agent_jobs result cannot be read."
-                .to_string(),
-        );
-    };
     let (agent_job, item) = if let Some(binding) = binding {
+        if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
+            return (
+                ThreadEpiphanyReorientResultStatus::Pending,
+                None,
+                "Heartbeat activation owns this reorientation worker; no accepted typed result has been reported yet."
+                    .to_string(),
+            );
+        }
         let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
             return (
                 ThreadEpiphanyReorientResultStatus::BackendUnavailable,
                 None,
                 "The matching binding is not currently backed by the agent_jobs backend."
+                .to_string(),
+            );
+        };
+        let Some(state_db_ctx) = state_db_ctx else {
+            return (
+                ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                None,
+                "State runtime is unavailable, so the bound agent_jobs result cannot be read."
                     .to_string(),
             );
         };
@@ -14604,6 +14620,13 @@ async fn load_epiphany_reorient_result_snapshot(
         };
         (agent_job, item)
     } else {
+        let Some(state_db_ctx) = state_db_ctx else {
+            return (
+                ThreadEpiphanyReorientResultStatus::MissingBinding,
+                None,
+                "No matching Epiphany reorientation worker binding exists.".to_string(),
+            );
+        };
         match state_db_ctx
             .latest_agent_job_item_by_source_id(binding_id)
             .await
@@ -17515,13 +17538,7 @@ fn binding_launcher_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
 }
 
 fn binding_backend_kind(binding: &EpiphanyJobBinding) -> Option<CoreEpiphanyJobBackendKind> {
-    binding.backend_kind.or_else(|| {
-        if binding.runtime_agent_job_id.is_some() {
-            Some(CoreEpiphanyJobBackendKind::AgentJobs)
-        } else {
-            None
-        }
-    })
+    binding.backend_kind
 }
 
 fn binding_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
@@ -17534,7 +17551,7 @@ fn binding_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
 fn binding_agent_jobs_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
     match binding_backend_kind(binding) {
         Some(CoreEpiphanyJobBackendKind::AgentJobs) => binding_backend_job_id(binding),
-        None => None,
+        Some(CoreEpiphanyJobBackendKind::Heartbeat) | None => None,
     }
 }
 
@@ -18007,6 +18024,20 @@ fn overlay_epiphany_job_binding(
         return job;
     }
 
+    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat)
+        && binding_backend_job_id(binding).is_some()
+    {
+        job.status = ThreadEpiphanyJobStatus::Pending;
+        job.blocking_reason = None;
+        job.progress_note = Some(
+            binding
+                .progress_note
+                .clone()
+                .unwrap_or_else(|| "Queued for Epiphany heartbeat activation.".to_string()),
+        );
+        return job;
+    }
+
     if let Some(agent_job_id) = binding_agent_jobs_job_id(binding) {
         job.status = ThreadEpiphanyJobStatus::Blocked;
         job.blocking_reason = Some(if job_resolution.agent_jobs_available {
@@ -18051,6 +18082,7 @@ fn map_core_epiphany_job_backend_kind(
 ) -> ThreadEpiphanyJobBackendKind {
     match kind {
         CoreEpiphanyJobBackendKind::AgentJobs => ThreadEpiphanyJobBackendKind::AgentJobs,
+        CoreEpiphanyJobBackendKind::Heartbeat => ThreadEpiphanyJobBackendKind::Heartbeat,
     }
 }
 
@@ -23227,6 +23259,62 @@ mod tests {
         assert_eq!(
             specialist.linked_graph_node_ids,
             vec!["job-surface".to_string()]
+        );
+    }
+
+    #[test]
+    fn map_epiphany_jobs_projects_heartbeat_binding_as_pending_without_agent_jobs() {
+        let state = codex_protocol::protocol::EpiphanyThreadState {
+            job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
+                id: "modeling-checkpoint-worker".to_string(),
+                kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+                scope: "role-scoped modeling/checkpoint maintenance".to_string(),
+                owner_role: "epiphany-modeler".to_string(),
+                launcher_job_id: Some("epiphany-heartbeat-launch-1".to_string()),
+                authority_scope: Some("epiphany.role.modeling".to_string()),
+                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
+                backend_job_id: Some("heartbeat-turn-1".to_string()),
+                runtime_agent_job_id: None,
+                linked_subgoal_ids: vec!["phase-6".to_string()],
+                linked_graph_node_ids: vec!["runtime-spine".to_string()],
+                progress_note: Some(
+                    "Explicitly queued through the Epiphany authority surface for heartbeat activation."
+                        .to_string(),
+                ),
+                blocking_reason: None,
+            }],
+            ..Default::default()
+        };
+
+        let jobs = map_epiphany_jobs(
+            Some(&state),
+            None,
+            &EpiphanyJobLauncherResolution {
+                agent_jobs_available: false,
+                snapshots_by_binding_id: HashMap::new(),
+            },
+        );
+        let specialist = jobs
+            .iter()
+            .find(|job| job.id == "modeling-checkpoint-worker")
+            .expect("heartbeat specialist slot should exist");
+
+        assert_eq!(specialist.status, ThreadEpiphanyJobStatus::Pending);
+        assert_eq!(
+            specialist.backend_kind,
+            Some(ThreadEpiphanyJobBackendKind::Heartbeat)
+        );
+        assert_eq!(
+            specialist.backend_job_id.as_deref(),
+            Some("heartbeat-turn-1")
+        );
+        assert_eq!(specialist.runtime_agent_job_id, None);
+        assert_eq!(specialist.blocking_reason, None);
+        assert!(
+            specialist
+                .progress_note
+                .as_deref()
+                .is_some_and(|note| note.contains("heartbeat activation"))
         );
     }
 

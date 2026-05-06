@@ -3317,6 +3317,7 @@ pub enum EpiphanyJobKind {
 #[ts(rename_all = "snake_case")]
 pub enum EpiphanyJobBackendKind {
     AgentJobs,
+    Heartbeat,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
