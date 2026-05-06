@@ -53,18 +53,17 @@ The landed machine now has:
 - successful-write notification through `thread/epiphany/stateUpdated`
 - explicit launch/interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`, now backed by heartbeat-owned activation bindings rather than Codex `agent_jobs`
 - thin Epiphany-owned launcher metadata in durable `jobBindings`, with launcher id, authority scope, and backend kind/job id
-- live bound-runtime progress notification through `thread/epiphany/jobsUpdated`
+- sealed legacy `thread/epiphany/jobsUpdated` protocol shape; heartbeat/runtime-spine is the live progress path
 - response-level and notification-level revision and changed-field metadata
 - direct-update validation for malformed appended records and structural replacements
 - proposal and promotion rules that reduce map/churn Jenga pressure
-- reusable Phase 5 app-server smoke coverage in `tools/epiphany_phase5_smoke.py`
+- focused Rust app-server mapper/handler coverage for the Phase 5 control-plane chain; the old Python smoke shim has been cut
 - a first Phase 6 read-only reflection surface through `thread/epiphany/scene`
 - live Phase 6 scene app-server smoke coverage through native `epiphany-phase6-scene-smoke`
-- read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`, with durable heartbeat-backed `jobBindings` and legacy `agent_jobs` overlay only for stale bindings
-- live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
+- read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`, with durable heartbeat-backed `jobBindings` and sealed stale `agent_jobs` bindings
 - read-only Phase 6 retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - live Phase 6 freshness app-server smoke coverage through native `epiphany-phase6-freshness-smoke`
-- live Phase 6 watcher-backed invalidation smoke coverage in `tools/epiphany_phase6_invalidation_smoke.py`
+- focused Rust app-server coverage for Phase 6 watcher-backed invalidation inputs; a native smoke should be added before broadening that surface
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
 - live Phase 6 context app-server smoke coverage through native `epiphany-phase6-context-smoke`
 - read-only Phase 6 graph traversal through `thread/epiphany/graphQuery`
@@ -83,18 +82,16 @@ The landed machine now has:
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the heartbeat/runtime-spine seam
 - review-gated Phase 6 modeling acceptance through `thread/epiphany/roleAccept`, limited to completed modeling/checkpoint `statePatch` findings that apply graph/frontier/checkpoint/scratch/investigation-checkpoint changes through the existing state validator
 - first Phase 6 dogfood operator view through native `epiphany-mvp-status`
-- first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, sealed app-server transcript diagnostics, operator-safe final status artifacts, truthful vanilla-reference output, and comparison notes
+- old Python dogfood runner cut; replacement must be native Rust/CultCache/CultNet over heartbeat/runtime-spine receipts
 - first auditable Phase 6 fixed-lane coordinator runner through native `epiphany-mvp-coordinator`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, runtime-spine status, native runtime job/result receipts for launched work, and final next-action artifacts while keeping semantic findings review-gated by default
 - first Codex-independent native runtime vertebra through `epiphany-runtime-spine`, storing runtime identity, sessions, jobs, job results, and events as typed CultCache MessagePack documents, opening/completing native jobs, projecting job-result counts, and emitting a framed CultNet hello message for the native contract
-- live-specialist runner must be rebuilt around heartbeat/runtime-spine result receipts; the old `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` proof path is no longer current
+- live-specialist runner must be rebuilt around heartbeat/runtime-spine result receipts
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - first Unity editor/runtime bridge through native `epiphany-unity-bridge`, native `epiphany-unity-bridge-smoke`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
 - prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-core/src/prompts/`, while modeling/Body, research/Eyes, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, and CRRC templates live in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`
 - prompt-level anti-Greenspun guardrails: Epiphany keeps Codex's useful operator discipline and requires a bounded research/scout check before agents invent bespoke versions of known algorithms, parsers, schedulers, renderers, protocols, storage layers, security mechanisms, or workflow engines
 - live Phase 6 reorientation app-server smoke coverage through native `epiphany-phase6-reorient-smoke`
-- live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live Phase 6 MVP status smoke coverage through native `epiphany-mvp-status-smoke`
-- live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 The next phase direction is native-spine extraction: Codex app-server is a
@@ -227,12 +224,12 @@ verification/review workers, read their findings back without reading Rust, and
 apply a reviewed modeling graph/checkpoint patch without pretending the modeler
 can silently promote itself.
 The first auditable dogfood pass then added
-`tools/epiphany_mvp_dogfood.py`, rendered modeling/verification findings in the
+native coordinator/status surfaces, rendered modeling/verification findings in the
 status view, and fixed CRRC's repeat-acceptance recommendation after
 `reorientAccept`. The live-specialist runner then proved the real worker path by
-launching a modeling/checkpoint specialist, letting it inspect the smoke
-workspace, report through `report_agent_job_result`, and return a completed
-`checkpoint-ready` finding through `roleResult`. The coordinator runner then
+launching a modeling/checkpoint specialist and returning a completed
+`checkpoint-ready` finding through `roleResult`; that old backend completion
+path is now cut. The coordinator runner then
 proved the sequence-locked MVP policy across cold start, clean checkpoint,
 modeling, verification, CRRC drift/reorient, and high-pressure compact/dry-run
 paths. Native CRRC automation then wired the proved policy into turn-complete
@@ -377,7 +374,7 @@ Implementation slices:
    reorientLaunch, reorientResult, and explicit reorientAccept flows are
    landed. Review gates remain explicit; the GUI does not auto-promote
    evidence or continue implementation after semantic findings.
-3. **Dogfood launcher**: wrap `tools/epiphany_mvp_dogfood.py` and
+3. **Dogfood launcher**: wrap a native heartbeat/runtime-spine runner and
    native `epiphany-mvp-coordinator` as explicit operator actions that write
    artifact bundles and stream progress/status into Aquarium.
 4. **Usability pass**: make the current recommendation, blocked lane, pending
@@ -423,7 +420,7 @@ Use focused checks for the surface being changed.
 Before modifying Phase 5 control-plane behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server --lib map_epiphany_ --manifest-path .\vendor\codex\codex-rs\Cargo.toml
 ```
 
 Before modifying scene projection behavior, run:
@@ -435,7 +432,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-scene
 Before modifying jobs reflection behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server --lib map_epiphany_jobs --manifest-path .\vendor\codex\codex-rs\Cargo.toml
 ```
 
 Before modifying freshness reflection behavior, run:
@@ -447,7 +444,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-fresh
 Before modifying watcher-backed invalidation behavior inside freshness reflection, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke
 ```
 
 Before modifying targeted context-shard behavior, run:
@@ -475,7 +472,7 @@ intentional.
 Before modifying explicit role launch/read-back behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_role_smoke.py'
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server --lib load_epiphany_role_result_reads_heartbeat_runtime_spine_result --manifest-path .\vendor\codex\codex-rs\Cargo.toml
 ```
 
 Before modifying the fixed-lane MVP coordinator endpoint or runner, run:

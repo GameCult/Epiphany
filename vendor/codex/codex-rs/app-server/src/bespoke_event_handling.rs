@@ -4,7 +4,6 @@ use crate::codex_message_processor::maybe_run_epiphany_pre_compaction_checkpoint
 use crate::codex_message_processor::read_rollout_items_from_rollout;
 use crate::codex_message_processor::read_summary_from_rollout;
 use crate::codex_message_processor::summary_to_thread;
-use crate::codex_message_processor::thread_epiphany_jobs_updated_notification_for_agent_job_progress;
 use crate::epiphany_invalidation::EpiphanyInvalidationManager;
 use crate::error_code::INTERNAL_ERROR_CODE;
 use crate::error_code::INVALID_REQUEST_ERROR_CODE;
@@ -81,7 +80,6 @@ use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestPayload;
 use codex_app_server_protocol::SkillsChangedNotification;
 use codex_app_server_protocol::TerminalInteractionNotification;
-use codex_app_server_protocol::ThreadEpiphanyJobsUpdatedNotification;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadNameUpdatedNotification;
 use codex_app_server_protocol::ThreadRealtimeClosedNotification;
@@ -150,7 +148,6 @@ use codex_protocol::request_user_input::RequestUserInputResponse as CoreRequestU
 use codex_sandboxing::policy_transforms::intersect_permission_profiles;
 use codex_shell_command::parse_command::shlex_join;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -171,13 +168,6 @@ struct CommandExecutionCompletionItem {
     command: String,
     cwd: AbsolutePathBuf,
     command_actions: Vec<V2ParsedCommand>,
-}
-
-const AGENT_JOB_PROGRESS_PREFIX: &str = "agent_job_progress:";
-
-#[derive(Debug, Deserialize)]
-struct AgentJobProgressBackgroundEvent {
-    job_id: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2027,18 +2017,6 @@ pub(crate) async fn apply_bespoke_event_handling(
             )
             .await;
         }
-        EventMsg::BackgroundEvent(background_event) => {
-            if let ApiVersion::V2 = api_version {
-                maybe_emit_thread_epiphany_jobs_updated(
-                    conversation_id,
-                    &conversation,
-                    background_event.message.as_str(),
-                    &outgoing,
-                    &thread_state,
-                )
-                .await;
-            }
-        }
         EventMsg::ShutdownComplete => {
             thread_watch_manager
                 .note_thread_shutdown(&conversation_id.to_string())
@@ -2047,55 +2025,6 @@ pub(crate) async fn apply_bespoke_event_handling(
 
         _ => {}
     }
-}
-
-async fn maybe_emit_thread_epiphany_jobs_updated(
-    conversation_id: ThreadId,
-    conversation: &Arc<CodexThread>,
-    message: &str,
-    outgoing: &ThreadScopedOutgoingMessageSender,
-    thread_state: &Arc<Mutex<ThreadState>>,
-) {
-    let Some(payload_json) = message.strip_prefix(AGENT_JOB_PROGRESS_PREFIX) else {
-        return;
-    };
-
-    let progress = match serde_json::from_str::<AgentJobProgressBackgroundEvent>(payload_json) {
-        Ok(progress) => progress,
-        Err(err) => {
-            warn!(
-                thread_id = %conversation_id,
-                "failed to parse agent job progress background event: {err}"
-            );
-            return;
-        }
-    };
-
-    let Some(notification) = thread_epiphany_jobs_updated_notification_for_agent_job_progress(
-        conversation_id,
-        conversation.as_ref(),
-        progress.job_id.as_str(),
-    )
-    .await
-    else {
-        return;
-    };
-
-    if !should_emit_thread_epiphany_jobs_updated(thread_state, &notification).await {
-        return;
-    }
-
-    outgoing
-        .send_server_notification(ServerNotification::ThreadEpiphanyJobsUpdated(notification))
-        .await;
-}
-
-async fn should_emit_thread_epiphany_jobs_updated(
-    thread_state: &Arc<Mutex<ThreadState>>,
-    notification: &ThreadEpiphanyJobsUpdatedNotification,
-) -> bool {
-    let mut thread_state = thread_state.lock().await;
-    thread_state.record_epiphany_jobs_update(notification.jobs.as_slice())
 }
 
 async fn handle_turn_diff(
@@ -4606,220 +4535,6 @@ mod tests {
         assert!(
             rx.try_recv().is_err(),
             "no notifications should be emitted when token usage info is absent"
-        );
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn background_agent_job_progress_emits_epiphany_jobs_updated_once() -> Result<()> {
-        let codex_home = TempDir::new()?;
-        let config = load_default_config_for_test(&codex_home).await;
-        let thread_manager = Arc::new(
-            codex_core::test_support::thread_manager_with_models_provider_and_home(
-                CodexAuth::create_dummy_chatgpt_auth_for_testing(),
-                config.model_provider.clone(),
-                config.codex_home.to_path_buf(),
-                Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
-            ),
-        );
-        let codex_core::NewThread {
-            thread_id: conversation_id,
-            thread: conversation,
-            ..
-        } = thread_manager.start_thread(config).await?;
-        let state_db = conversation.state_db().expect("state db should exist");
-
-        state_db
-            .create_agent_job(
-                &codex_state::AgentJobCreateParams {
-                    id: "job-specialist".to_string(),
-                    name: "epiphany-specialist".to_string(),
-                    instruction: "Run the runtime-bound specialist smoke.".to_string(),
-                    auto_export: false,
-                    max_runtime_seconds: Some(60),
-                    output_schema_json: None,
-                    input_headers: vec!["row".to_string()],
-                    input_csv_path: "input.csv".to_string(),
-                    output_csv_path: "output.csv".to_string(),
-                },
-                &[
-                    codex_state::AgentJobItemCreateParams {
-                        item_id: "item-completed".to_string(),
-                        row_index: 0,
-                        source_id: Some("row-0".to_string()),
-                        row_json: json!({"row": 0}),
-                    },
-                    codex_state::AgentJobItemCreateParams {
-                        item_id: "item-running".to_string(),
-                        row_index: 1,
-                        source_id: Some("row-1".to_string()),
-                        row_json: json!({"row": 1}),
-                    },
-                    codex_state::AgentJobItemCreateParams {
-                        item_id: "item-pending".to_string(),
-                        row_index: 2,
-                        source_id: Some("row-2".to_string()),
-                        row_json: json!({"row": 2}),
-                    },
-                ],
-            )
-            .await?;
-        state_db.mark_agent_job_running("job-specialist").await?;
-        assert!(
-            state_db
-                .mark_agent_job_item_running_with_thread(
-                    "job-specialist",
-                    "item-completed",
-                    "worker-thread-completed",
-                )
-                .await?
-        );
-        assert!(
-            state_db
-                .report_agent_job_item_result(
-                    "job-specialist",
-                    "item-completed",
-                    "worker-thread-completed",
-                    &json!({"accepted": true}),
-                )
-                .await?
-        );
-        assert!(
-            state_db
-                .mark_agent_job_item_running_with_thread(
-                    "job-specialist",
-                    "item-running",
-                    "worker-thread-running",
-                )
-                .await?
-        );
-
-        conversation
-            .epiphany_update_state(codex_core::EpiphanyStateUpdate {
-                expected_revision: Some(0),
-                job_bindings: Some(vec![codex_protocol::protocol::EpiphanyJobBinding {
-                    id: "specialist-work".to_string(),
-                    kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
-                    scope: "runtime-bound specialist work".to_string(),
-                    owner_role: "epiphany-harness".to_string(),
-                    launcher_job_id: Some("launcher-specialist".to_string()),
-                    authority_scope: Some("epiphany.specialist".to_string()),
-                    backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::AgentJobs),
-                    backend_job_id: Some("job-specialist".to_string()),
-                    runtime_agent_job_id: Some("job-specialist".to_string()),
-                    linked_subgoal_ids: vec!["phase6-jobs".to_string()],
-                    linked_graph_node_ids: vec!["job-surface".to_string()],
-                    progress_note: Some("Bound to a real runtime specialist job.".to_string()),
-                    blocking_reason: None,
-                }]),
-                ..Default::default()
-            })
-            .await?;
-
-        let thread_state = new_thread_state();
-        let thread_watch_manager = ThreadWatchManager::new();
-        let epiphany_invalidation_manager = EpiphanyInvalidationManager::new();
-        let (tx, mut rx) = mpsc::channel(CHANNEL_CAPACITY);
-        let outgoing = Arc::new(OutgoingMessageSender::new(tx));
-        let outgoing = ThreadScopedOutgoingMessageSender::new(
-            outgoing,
-            vec![ConnectionId(1)],
-            conversation_id,
-        );
-        let message = format!(
-            "{AGENT_JOB_PROGRESS_PREFIX}{}",
-            json!({
-                "job_id": "job-specialist",
-                "total_items": 3,
-                "pending_items": 1,
-                "running_items": 1,
-                "completed_items": 1,
-                "failed_items": 0,
-                "eta_seconds": 42,
-            })
-        );
-
-        apply_bespoke_event_handling(
-            Event {
-                id: "turn-epiphany-jobs".to_string(),
-                msg: EventMsg::BackgroundEvent(codex_protocol::protocol::BackgroundEventEvent {
-                    message: message.clone(),
-                }),
-            },
-            conversation_id,
-            conversation.clone(),
-            thread_manager.clone(),
-            None,
-            outgoing.clone(),
-            thread_state.clone(),
-            thread_watch_manager.clone(),
-            epiphany_invalidation_manager.clone(),
-            ApiVersion::V2,
-            "test-provider".to_string(),
-            codex_home.path(),
-        )
-        .await;
-
-        let first = recv_broadcast_message(&mut rx).await?;
-        match first {
-            OutgoingMessage::AppServerNotification(
-                ServerNotification::ThreadEpiphanyJobsUpdated(payload),
-            ) => {
-                assert_eq!(payload.thread_id, conversation_id.to_string());
-                assert_eq!(
-                    payload.source,
-                    codex_app_server_protocol::ThreadEpiphanyJobsUpdatedSource::RuntimeProgress
-                );
-                assert_eq!(payload.state_revision, Some(1));
-                assert_eq!(payload.jobs.len(), 1);
-                let job = &payload.jobs[0];
-                assert_eq!(job.id, "specialist-work");
-                assert_eq!(
-                    job.status,
-                    codex_app_server_protocol::ThreadEpiphanyJobStatus::Running
-                );
-                assert_eq!(job.launcher_job_id.as_deref(), Some("launcher-specialist"));
-                assert_eq!(job.authority_scope.as_deref(), Some("epiphany.specialist"));
-                assert_eq!(
-                    job.backend_kind,
-                    Some(codex_app_server_protocol::ThreadEpiphanyJobBackendKind::AgentJobs)
-                );
-                assert_eq!(job.backend_job_id.as_deref(), Some("job-specialist"));
-                assert_eq!(job.runtime_agent_job_id.as_deref(), Some("job-specialist"));
-                assert_eq!(job.items_processed, Some(1));
-                assert_eq!(job.items_total, Some(3));
-                assert_eq!(
-                    job.active_thread_ids,
-                    vec!["worker-thread-running".to_string()]
-                );
-            }
-            other => bail!("unexpected notification: {other:?}"),
-        }
-
-        apply_bespoke_event_handling(
-            Event {
-                id: "turn-epiphany-jobs".to_string(),
-                msg: EventMsg::BackgroundEvent(codex_protocol::protocol::BackgroundEventEvent {
-                    message,
-                }),
-            },
-            conversation_id,
-            conversation,
-            thread_manager,
-            None,
-            outgoing,
-            thread_state,
-            thread_watch_manager,
-            epiphany_invalidation_manager,
-            ApiVersion::V2,
-            "test-provider".to_string(),
-            codex_home.path(),
-        )
-        .await;
-
-        assert!(
-            rx.try_recv().is_err(),
-            "duplicate background progress should not emit unchanged jobsUpdated payloads"
         );
         Ok(())
     }

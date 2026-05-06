@@ -211,6 +211,6 @@ operator-enginseer, not the implementation servitor.
 
 - Use focused checks for the surface being changed instead of defaulting to a
   whole-repo ritual. Not every prayer needs a cathedral.
-- For Phase 5 control-plane behavior changes, run `& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'`.
+- For Epiphany control-plane behavior changes, run focused Rust checks against the touched app-server mapper/handler tests plus any matching native `epiphany-core` smoke binary. The old Python smoke shims have been cut; do not resurrect them.
 - For Codex Rust work on this Windows machine, set `$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'`.
 - Do not parallelize cargo builds or tests against the same target directory.

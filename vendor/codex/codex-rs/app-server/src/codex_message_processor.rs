@@ -192,7 +192,6 @@ use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyJobsParams;
 use codex_app_server_protocol::ThreadEpiphanyJobsResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobsSource;
-use codex_app_server_protocol::ThreadEpiphanyJobsUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyPlanningParams;
 use codex_app_server_protocol::ThreadEpiphanyPlanningResponse;
 use codex_app_server_protocol::ThreadEpiphanyPlanningSummary;
@@ -488,8 +487,6 @@ use codex_rmcp_client::perform_oauth_login_return_url;
 use codex_rollout::state_db::StateDbHandle;
 use codex_rollout::state_db::get_state_db;
 use codex_rollout::state_db::reconcile_rollout;
-use codex_state::AgentJobItemStatus;
-use codex_state::AgentJobStatus;
 use codex_state::StateRuntime;
 use codex_state::ThreadMetadata;
 use codex_state::ThreadMetadataBuilder;
@@ -13627,40 +13624,6 @@ fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
     })
 }
 
-fn map_epiphany_reorient_result_status(
-    job_status: AgentJobStatus,
-    item_status: AgentJobItemStatus,
-) -> ThreadEpiphanyReorientResultStatus {
-    match job_status {
-        AgentJobStatus::Cancelled => ThreadEpiphanyReorientResultStatus::Cancelled,
-        AgentJobStatus::Failed => ThreadEpiphanyReorientResultStatus::Failed,
-        AgentJobStatus::Pending => ThreadEpiphanyReorientResultStatus::Pending,
-        AgentJobStatus::Running | AgentJobStatus::Completed => match item_status {
-            AgentJobItemStatus::Pending => ThreadEpiphanyReorientResultStatus::Pending,
-            AgentJobItemStatus::Running => ThreadEpiphanyReorientResultStatus::Running,
-            AgentJobItemStatus::Completed => ThreadEpiphanyReorientResultStatus::Completed,
-            AgentJobItemStatus::Failed => ThreadEpiphanyReorientResultStatus::Failed,
-        },
-    }
-}
-
-fn map_epiphany_role_result_status(
-    job_status: AgentJobStatus,
-    item_status: AgentJobItemStatus,
-) -> ThreadEpiphanyRoleResultStatus {
-    match job_status {
-        AgentJobStatus::Cancelled => ThreadEpiphanyRoleResultStatus::Cancelled,
-        AgentJobStatus::Failed => ThreadEpiphanyRoleResultStatus::Failed,
-        AgentJobStatus::Pending => ThreadEpiphanyRoleResultStatus::Pending,
-        AgentJobStatus::Running | AgentJobStatus::Completed => match item_status {
-            AgentJobItemStatus::Pending => ThreadEpiphanyRoleResultStatus::Pending,
-            AgentJobItemStatus::Running => ThreadEpiphanyRoleResultStatus::Running,
-            AgentJobItemStatus::Completed => ThreadEpiphanyRoleResultStatus::Completed,
-            AgentJobItemStatus::Failed => ThreadEpiphanyRoleResultStatus::Failed,
-        },
-    }
-}
-
 fn map_epiphany_reorient_finding(
     raw_result: serde_json::Value,
     job_error: Option<String>,
@@ -14495,7 +14458,7 @@ fn runtime_job_result_to_reorient_json(result: &EpiphanyRuntimeJobResult) -> ser
 
 async fn load_epiphany_role_result_snapshot(
     state: &EpiphanyThreadState,
-    state_db_ctx: Option<&StateDbHandle>,
+    _state_db_ctx: Option<&StateDbHandle>,
     runtime_store_path: Option<&Path>,
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
@@ -14518,82 +14481,16 @@ async fn load_epiphany_role_result_snapshot(
     if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
         return load_epiphany_role_result_from_runtime_spine(binding, runtime_store_path, role_id);
     }
-    let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
-        return (
-            ThreadEpiphanyRoleResultStatus::BackendUnavailable,
-            None,
-            "The matching binding is not currently backed by the agent_jobs backend.".to_string(),
-        );
-    };
-    let Some(state_db_ctx) = state_db_ctx else {
-        return (
-            ThreadEpiphanyRoleResultStatus::BackendUnavailable,
-            None,
-            "State runtime is unavailable, so the bound agent_jobs result cannot be read."
-                .to_string(),
-        );
-    };
-    let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
-        Ok(Some(job)) => job,
-        Ok(None) => {
-            return (
-                ThreadEpiphanyRoleResultStatus::BackendMissing,
-                None,
-                format!(
-                    "Bound agent_jobs backend job {:?} was not found.",
-                    agent_job_id
-                ),
-            );
-        }
-        Err(err) => {
-            return (
-                ThreadEpiphanyRoleResultStatus::BackendUnavailable,
-                None,
-                format!("Failed to read Epiphany role backend job: {err}"),
-            );
-        }
-    };
-    let item = match state_db_ctx
-        .get_agent_job_item(agent_job_id, binding_id)
-        .await
-    {
-        Ok(Some(item)) => item,
-        Ok(None) => {
-            return (
-                ThreadEpiphanyRoleResultStatus::BackendMissing,
-                None,
-                "Bound agent_jobs backend item was not found for this role specialist.".to_string(),
-            );
-        }
-        Err(err) => {
-            return (
-                ThreadEpiphanyRoleResultStatus::BackendUnavailable,
-                None,
-                format!("Failed to read Epiphany role backend item: {err}"),
-            );
-        }
-    };
-    let status = map_epiphany_role_result_status(agent_job.status, item.status);
-    let finding = item.result_json.as_ref().map(|result| {
-        map_epiphany_role_finding(
-            role_id,
-            result.clone(),
-            agent_job.last_error.clone(),
-            item.last_error.clone(),
-        )
-    });
-    let note = render_epiphany_role_result_note(
-        role_id,
-        status,
-        finding.as_ref(),
-        item.last_error.as_deref(),
-    );
-    (status, finding, note)
+    (
+        ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+        None,
+        "Legacy agent_jobs role bindings are sealed; launch a heartbeat-backed role worker for typed runtime-spine results.".to_string(),
+    )
 }
 
 async fn load_epiphany_reorient_result_snapshot(
     state: Option<&EpiphanyThreadState>,
-    state_db_ctx: Option<&StateDbHandle>,
+    _state_db_ctx: Option<&StateDbHandle>,
     runtime_store_path: Option<&Path>,
     binding_id: &str,
 ) -> (
@@ -14608,113 +14505,25 @@ async fn load_epiphany_reorient_result_snapshot(
             "No authoritative Epiphany state exists for this thread.".to_string(),
         );
     };
-    let binding = state
+    let Some(binding) = state
         .job_bindings
         .iter()
-        .find(|binding| binding.id == binding_id);
-    let (agent_job, item) = if let Some(binding) = binding {
-        if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
-            return load_epiphany_reorient_result_from_runtime_spine(binding, runtime_store_path);
-        }
-        let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
-            return (
-                ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                None,
-                "The matching binding is not currently backed by the agent_jobs backend."
-                    .to_string(),
-            );
-        };
-        let Some(state_db_ctx) = state_db_ctx else {
-            return (
-                ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                None,
-                "State runtime is unavailable, so the bound agent_jobs result cannot be read."
-                    .to_string(),
-            );
-        };
-        let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
-            Ok(Some(job)) => job,
-            Ok(None) => {
-                return (
-                    ThreadEpiphanyReorientResultStatus::BackendMissing,
-                    None,
-                    format!(
-                        "Bound agent_jobs backend job {:?} was not found.",
-                        agent_job_id
-                    ),
-                );
-            }
-            Err(err) => {
-                return (
-                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                    None,
-                    format!("Failed to read Epiphany reorientation backend job: {err}"),
-                );
-            }
-        };
-        let item = match state_db_ctx
-            .get_agent_job_item(agent_job_id, binding_id)
-            .await
-        {
-            Ok(Some(item)) => item,
-            Ok(None) => {
-                return (
-                    ThreadEpiphanyReorientResultStatus::BackendMissing,
-                    None,
-                    "Bound agent_jobs backend item was not found for this reorient worker."
-                        .to_string(),
-                );
-            }
-            Err(err) => {
-                return (
-                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                    None,
-                    format!("Failed to read Epiphany reorientation backend item: {err}"),
-                );
-            }
-        };
-        (agent_job, item)
-    } else {
-        let Some(state_db_ctx) = state_db_ctx else {
-            return (
-                ThreadEpiphanyReorientResultStatus::MissingBinding,
-                None,
-                "No matching Epiphany reorientation worker binding exists.".to_string(),
-            );
-        };
-        match state_db_ctx
-            .latest_agent_job_item_by_source_id(binding_id)
-            .await
-        {
-            Ok(Some((agent_job, item))) => (agent_job, item),
-            Ok(None) => {
-                return (
-                    ThreadEpiphanyReorientResultStatus::MissingBinding,
-                    None,
-                    "No matching Epiphany reorientation worker binding or recovered backend item exists."
-                        .to_string(),
-                );
-            }
-            Err(err) => {
-                return (
-                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                    None,
-                    format!("Failed to recover Epiphany reorientation backend item: {err}"),
-                );
-            }
-        }
+        .find(|binding| binding.id == binding_id)
+    else {
+        return (
+            ThreadEpiphanyReorientResultStatus::MissingBinding,
+            None,
+            "No matching Epiphany reorientation worker binding exists.".to_string(),
+        );
     };
-    let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
-    let finding = item.result_json.as_ref().map(|result| {
-        map_epiphany_reorient_finding(
-            result.clone(),
-            agent_job.last_error.clone(),
-            item.last_error.clone(),
-        )
-    });
-    let note =
-        render_epiphany_reorient_result_note(status, finding.as_ref(), item.last_error.as_deref());
-    (status, finding, note)
+    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
+        return load_epiphany_reorient_result_from_runtime_spine(binding, runtime_store_path);
+    }
+    (
+        ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+        None,
+        "Legacy agent_jobs reorientation bindings are sealed; launch a heartbeat-backed reorient worker for typed runtime-spine results.".to_string(),
+    )
 }
 
 fn map_epiphany_crrc_recommendation(
@@ -15745,81 +15554,9 @@ async fn load_completed_epiphany_reorient_finding(
         });
     }
 
-    let state_db_ctx = thread.epiphany_state_runtime().await.ok_or_else(|| {
-        CodexErr::InvalidRequest(
-            "sqlite state db is unavailable for Epiphany reorientation result acceptance"
-                .to_string(),
-        )
-    })?;
-    let (agent_job, item) = if let Some(binding) = state
-        .job_bindings
-        .iter()
-        .find(|binding| binding.id == binding_id)
-    {
-        let agent_job_id = binding_agent_jobs_job_id(binding).ok_or_else(|| {
-            CodexErr::InvalidRequest(format!(
-                "epiphany reorientation binding {:?} is not backed by agent_jobs",
-                binding_id
-            ))
-        })?;
-        let agent_job = state_db_ctx
-            .get_agent_job(agent_job_id)
-            .await
-            .map_err(|err| CodexErr::Fatal(format!("failed to read Epiphany backend job: {err}")))?
-            .ok_or_else(|| {
-                CodexErr::InvalidRequest(format!(
-                    "bound agent_jobs backend job {:?} was not found",
-                    agent_job_id
-                ))
-            })?;
-        let item = state_db_ctx
-            .get_agent_job_item(agent_job_id, binding_id)
-            .await
-            .map_err(|err| {
-                CodexErr::Fatal(format!(
-                    "failed to read Epiphany backend job item for {binding_id:?}: {err}"
-                ))
-            })?
-            .ok_or_else(|| {
-                CodexErr::InvalidRequest(format!(
-                    "bound agent_jobs backend item {:?} was not found",
-                    binding_id
-                ))
-            })?;
-        (agent_job, item)
-    } else {
-        state_db_ctx
-            .latest_agent_job_item_by_source_id(binding_id)
-            .await
-            .map_err(|err| {
-                CodexErr::Fatal(format!(
-                    "failed to recover Epiphany backend job item for {binding_id:?}: {err}"
-                ))
-            })?
-            .ok_or_else(|| {
-                CodexErr::InvalidRequest(format!(
-                    "epiphany reorientation binding {:?} was not found and no recovered backend item exists",
-                    binding_id
-                ))
-            })?
-    };
-    let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
-    if status != ThreadEpiphanyReorientResultStatus::Completed {
-        return Err(CodexErr::InvalidRequest(format!(
-            "cannot accept reorientation result while worker status is {:?}",
-            status
-        )));
-    }
-    let result = item.result_json.ok_or_else(|| {
-        CodexErr::InvalidRequest(
-            "cannot accept completed reorientation worker because no result_json was recorded"
-                .to_string(),
-        )
-    })?;
-    Ok(map_epiphany_reorient_finding(
-        result,
-        agent_job.last_error,
-        item.last_error,
+    Err(CodexErr::InvalidRequest(
+        "legacy agent_jobs reorientation findings are sealed; accept only typed runtime-spine heartbeat results"
+            .to_string(),
     ))
 }
 
@@ -15860,58 +15597,9 @@ async fn load_completed_epiphany_role_finding(
         });
     }
 
-    let agent_job_id = binding_agent_jobs_job_id(binding).ok_or_else(|| {
-        CodexErr::InvalidRequest(format!(
-            "epiphany role binding {:?} is not backed by agent_jobs",
-            binding_id
-        ))
-    })?;
-    let state_db_ctx = thread.epiphany_state_runtime().await.ok_or_else(|| {
-        CodexErr::InvalidRequest(
-            "sqlite state db is unavailable for Epiphany role result acceptance".to_string(),
-        )
-    })?;
-    let agent_job = state_db_ctx
-        .get_agent_job(agent_job_id)
-        .await
-        .map_err(|err| CodexErr::Fatal(format!("failed to read Epiphany backend job: {err}")))?
-        .ok_or_else(|| {
-            CodexErr::InvalidRequest(format!(
-                "bound agent_jobs backend job {:?} was not found",
-                agent_job_id
-            ))
-        })?;
-    let item = state_db_ctx
-        .get_agent_job_item(agent_job_id, binding_id)
-        .await
-        .map_err(|err| {
-            CodexErr::Fatal(format!(
-                "failed to read Epiphany backend job item for {binding_id:?}: {err}"
-            ))
-        })?
-        .ok_or_else(|| {
-            CodexErr::InvalidRequest(format!(
-                "bound agent_jobs backend item {:?} was not found",
-                binding_id
-            ))
-        })?;
-    let status = map_epiphany_role_result_status(agent_job.status, item.status);
-    if status != ThreadEpiphanyRoleResultStatus::Completed {
-        return Err(CodexErr::InvalidRequest(format!(
-            "cannot accept role result while worker status is {:?}",
-            status
-        )));
-    }
-    let result = item.result_json.ok_or_else(|| {
-        CodexErr::InvalidRequest(
-            "cannot accept completed role worker because no result_json was recorded".to_string(),
-        )
-    })?;
-    Ok(map_epiphany_role_finding(
-        role_id,
-        result,
-        agent_job.last_error,
-        item.last_error,
+    Err(CodexErr::InvalidRequest(
+        "legacy agent_jobs role findings are sealed; accept only typed runtime-spine heartbeat results"
+            .to_string(),
     ))
 }
 
@@ -17642,14 +17330,6 @@ fn binding_agent_jobs_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
         Some(CoreEpiphanyJobBackendKind::AgentJobs) => binding_backend_job_id(binding),
         Some(CoreEpiphanyJobBackendKind::Heartbeat) | None => None,
     }
-}
-
-pub(crate) async fn thread_epiphany_jobs_updated_notification_for_agent_job_progress(
-    _thread_id: ThreadId,
-    _thread: &CodexThread,
-    _agent_job_id: &str,
-) -> Option<ThreadEpiphanyJobsUpdatedNotification> {
-    None
 }
 
 pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
@@ -20544,31 +20224,6 @@ mod tests {
         assert_eq!(finding.evidence_ids, vec!["ev-1"]);
         assert_eq!(finding.job_error.as_deref(), Some("job warning"));
         assert_eq!(finding.raw_result, raw_result);
-    }
-
-    #[test]
-    fn map_epiphany_reorient_result_status_keeps_runtime_terminal_states() {
-        assert_eq!(
-            map_epiphany_reorient_result_status(
-                AgentJobStatus::Cancelled,
-                AgentJobItemStatus::Running,
-            ),
-            ThreadEpiphanyReorientResultStatus::Cancelled
-        );
-        assert_eq!(
-            map_epiphany_reorient_result_status(
-                AgentJobStatus::Running,
-                AgentJobItemStatus::Completed,
-            ),
-            ThreadEpiphanyReorientResultStatus::Completed
-        );
-        assert_eq!(
-            map_epiphany_reorient_result_status(
-                AgentJobStatus::Completed,
-                AgentJobItemStatus::Failed,
-            ),
-            ThreadEpiphanyReorientResultStatus::Failed
-        );
     }
 
     #[test]

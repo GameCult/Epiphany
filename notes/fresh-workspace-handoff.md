@@ -34,20 +34,19 @@ remembers doctrine; the branch remembers the blade.
 - Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and backend kind/job id. New `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/roleLaunch`, and `thread/epiphany/reorientLaunch` writes are heartbeat-backed, open typed runtime-spine job receipts under `state/runtime-spine.msgpack`, and no longer create Codex `agent_jobs` rows or require the SQLite state runtime. Freshness carries watcher-backed invalidation inputs, graphQuery traverses authoritative typed graph neighborhoods and path/symbol matches without mutation, planning projects typed captures/backlog/roadmap/objective drafts without adopting work, roles project implementation/imagination/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleResult` and `reorientResult` read heartbeat-backed typed runtime-spine job results when present, `roleAccept` and `reorientAccept` accept completed heartbeat findings from typed runtime-spine results while remaining explicit review gates, `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating, and `thread/epiphany/coordinator` composes those signals into a fixed-lane MVP action recommendation without becoming a writer.
 - Native `epiphany-mvp-status` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, planning, pressure, reorient, jobs, roles, Imagination/modeling/verification role result read-backs, reorient result, heartbeat, Face bubbles, and CRRC recommendation as text or JSON. The Python status module is now quarantine tissue for still-Python GUI/status callers, not the smoked product path.
 - Native `epiphany-mvp-coordinator` is the first auditable fixed-lane coordinator runner. It starts or reads a thread through app-server, opens a native runtime-spine session, follows the harness-native coordinator action, can auto-launch modeling, verification, or reorient-worker jobs, records native runtime job/result receipts for terminal launched work, keeps semantic findings review-gated by default, and writes summary, steps, rendered snapshots, transcript, stderr, runtime-spine status, and final next-action artifacts under `.epiphany-dogfood/coordinator` or a caller-provided artifact directory. It refuses direct backend-completion mutation; full completion smoke needs live workers while execution is being cauterized into CultNet.
-- Native `epiphany-runtime-spine` is the first Codex-independent runtime vertebra. It owns typed CultCache documents for runtime identity, sessions, jobs, job results, and events; opens/completes native jobs; snapshots jobs/results by runtime job id; projects job-result counts; and can emit a framed CultNet hello message advertising the native document contract. Codex app-server launch/read-back/acceptance is now a typed heartbeat/runtime-spine bridge; the old `agent_jobs` SQLite path is legacy read-back only for stale bindings.
+- Native `epiphany-runtime-spine` is the first Codex-independent runtime vertebra. It owns typed CultCache documents for runtime identity, sessions, jobs, job results, and events; opens/completes native jobs; snapshots jobs/results by runtime job id; projects job-result counts; and can emit a framed CultNet hello message advertising the native document contract. Codex app-server launch/read-back/acceptance is now a typed heartbeat/runtime-spine bridge; the old `agent_jobs` SQLite path is sealed for Epiphany role/reorient results.
 - Native CRRC automation is now landed only at turn-complete safe boundaries. It may submit `Op::Compact` for coordinator-approved `compactRehydrateReorient` or for a successful pre-compaction checkpoint intervention's pending compact handoff, and it may launch the fixed `reorient-worker` for coordinator-approved `launchReorientWorker`. It does not auto-launch Imagination/modeling/verification, accept findings, promote evidence, edit implementation code, or keep going after reviewable semantic output.
 - Pre-compaction checkpoint intervention is now landed. On token-count events for loaded Epiphany threads, when current context usage reaches 80% of the active auto-compact/context limit, the harness steers the active turn once with a CRRC checkpoint directive so the agent banks working context before compaction/reorientation. Pressure ignores cumulative token spend; cumulative-only telemetry reports unknown instead of yelling. A successful steer now latches a turn-scoped compact handoff that is consumed at clean turn completion, preventing the brake from decaying into another implementation turn. This is still bounded steering plus compaction handoff, not automatic semantic acceptance, a broad scheduler, or implementation continuation.
-- `tools/epiphany_mvp_dogfood.py` is the first auditable dogfood runner. It drives a bounded state/role/CRRC/reorientation loop and writes local artifacts under `.epiphany-dogfood/mvp-loop`, including sealed app-server transcript diagnostics, rendered snapshots, operator-safe final status, vanilla-reference prompt/output, and comparison notes. The runner now writes truthful vanilla/comparison artifacts whether the optional vanilla reference is skipped, fails, or completes.
-- `tools/epiphany_mvp_live_specialist.py` is stale against the heartbeat-backed launch path. Do not use it as proof of the current machine until it is rebuilt around typed heartbeat/runtime-spine result receipts.
+- The old Python dogfood/live-specialist runners were cut because they encoded the `agent_jobs` completion path. The replacement must be native Rust/CultCache/CultNet and complete heartbeat-owned runtime-spine job results with auditable artifacts.
 - The Aquarium operator UI now lives in sibling repo `E:\Projects\EpiphanyAquarium`, not under `apps/epiphany-gui`. It is a Tauri v2 + React/WebGL interface organism over the existing status bridge, dogfood artifacts, and GUI action artifacts, not a new throne of truth. It has its own `AGENTS.md`, persistent `state/map.yaml`, `state/memory.json`, scratch/evidence files, and interface doctrine. EpiphanyAgent remains the authoritative harness/backend forge.
 - Durable in-flight investigation checkpointing is now landed in authoritative typed state, writable through `thread/epiphany/update` or accepted `thread/epiphany/promote`, rendered into the prompt, and reflected through scene/context.
 - The prompt doctrine pass is landed. Shared Epiphany prompts now carry distilled memory/evidence discipline. Rendered state intro/doctrine text lives in `epiphany-core/src/prompts/`, and lane/control prompt text lives in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`: modeling is the Body, implementation is the Hands and GUI-launched main coding lane, verification is the Soul, reorientation is Life, coordinator remains the read-only Self, and CRRC owns the pre-compaction intervention template.
-- The Ghostlight memory pass is landed. `epiphany_specialists.toml` now has a shared persistent-memory projection prepended by the harness to fixed role specialists, reorientation workers, coordinator notes, and CRRC checkpoint interventions; `tools/epiphany_gui_action.py` prepends the same memory to GUI-launched implementation prompts. The rendered base doctrine also states the Perfect Machine rule directly: prompt is projection, durable typed state is the mind, every lane must improve its own memory/model/prompt/evidence habit or name the repair, and each lane phrases that duty in its own organ language so the salience sticks.
+- The Ghostlight memory pass is landed. `epiphany_specialists.toml` now has a shared persistent-memory projection prepended by the harness to fixed role specialists, reorientation workers, coordinator notes, and CRRC checkpoint interventions. The rendered base doctrine also states the Perfect Machine rule directly: prompt is projection, durable typed state is the mind, every lane must improve its own memory/model/prompt/evidence habit or name the repair, and each lane phrases that duty in its own organ language so the salience sticks.
 - The role self-memory persistence pass is native now. Each lane has a Ghostlight-shaped typed dossier in `state/agents.msgpack`, and specialists may return optional `selfPatch` requests beside their normal role result. `roleResult`/`roleAccept` project coordinator review as `selfPersistence`: accepted requests are role-matched, bounded lane memory/goal/value/private-note mutations; refused requests explain wrong role, project-truth smuggling, authority grabs, bloat, missing reason, or malformed records. GUI/coordinator accept paths apply accepted `selfPatch` requests through the native `epiphany-agent-memory-store` binary; project truth still belongs only in `EpiphanyThreadState`.
 - The heartbeat initiative pass is landed as a bounded tool seam. `state/agent-heartbeats.msgpack` tracks Self, Face, Imagination, Eyes, Body, Hands, Soul, and Life as Ghostlight-style initiative participants with speed, next-ready time, reaction bias, interrupt threshold, load, status, constraints, history, and pending turns through `epiphany-core::EpiphanyHeartbeatStateEntry` and the native `epiphany-heartbeat-store` binary. Tick/status/complete and idle rumination selfPatch application now run through Rust/CultCache directly. JSON heartbeat state and Python wrapper state are gone; general CultCache schema sync, polyglot domain loading, and debug display tools belong in CultLib. This is a callable scheduler seam, not yet an always-on daemon; a heart valve, not a whole circulatory god.
 - The Face public-surface pass is landed as a bounded lane. Face's role dossier lives in `state/agents.msgpack`; `epiphany_specialists.toml` gives it a VoidBot-heartbeat-derived prompt stripped of moderation authority; `state/face-discord.toml` and the native `epiphany-face-discord` binary enforce that Face may interact only through #aquarium. Missing channel id or token writes candidate chat artifacts instead of posting elsewhere.
-- The heartbeat/Face operator API pass is landed. Native `epiphany-heartbeat-store status` returns machine-readable initiative state plus CultCache store presence, native `epiphany-face-discord bubble` writes Discord-independent `epiphany.face_bubble.v0` artifacts, native `epiphany-mvp-status` includes `heartbeat` and `face` blocks, and `tools/epiphany_gui_action.py` exposes `heartbeatStatus`, `runHeartbeat`, and `faceBubble`. `runHeartbeat` advances one slot and emits a Face bubble so Aquarium can show chat even before Discord posting is configured.
-- The native runtime-spine pass is landed as a first vertebra, not a full daemon. `state/runtime-spine.msgpack` is the default store, `.epiphany-dogfood/runtime-spine-job/runtime.msgpack` and `hello.cultnet` are the latest job/result smoke artifacts, and the active amputation is redirecting specialist launch/result flows from Codex `agent_jobs` into typed CultNet/CultCache runtime documents.
+- The heartbeat/Face operator API pass is landed. Native `epiphany-heartbeat-store status` returns machine-readable initiative state plus CultCache store presence, native `epiphany-face-discord bubble` writes Discord-independent `epiphany.face_bubble.v0` artifacts, and native `epiphany-mvp-status` includes `heartbeat` and `face` blocks. Aquarium should call native/backend surfaces rather than resurrecting deleted Python action shims.
+- The native runtime-spine pass is landed as a first vertebra, not a full daemon. `state/runtime-spine.msgpack` is the default store, `.epiphany-dogfood/runtime-spine-job/runtime.msgpack` and `hello.cultnet` are the latest job/result smoke artifacts, and specialist launch/result flows now route through typed heartbeat/runtime-spine documents.
 - The Aetheria dogfood run has a contamination scar. The supervising Codex session directly edited and committed target-repo work on `E:\Projects\Aetheria-Economy` instead of only driving Epiphany lanes. Treat those Aetheria commits as supervisor-seeded implementation, not clean evidence that Epiphany coordinated the work. Future dogfood must run through the GUI/coordinator/fixed role lanes with auditable artifacts unless the user explicitly authorizes an operator intervention. Remember the sunburn: do not stare into the worker's objective until you become it.
 - The dogfood quarantine now has a direct-thought boundary. The supervisor may read coordinator actions, role/reorient statuses, structured finding summaries, reviewed state patches, rendered status snapshots, and artifact manifests. It must not read raw worker transcripts, direct worker messages, full turn logs, or `rawResult` payloads during normal dogfood. Those artifacts are sealed black reliquaries for explicit forensic debugging only.
 - Native `epiphany-agent-telemetry` is the safe instrument panel for sealed runs. Status/coordinator/GUI/dogfood/live-specialist tools generate telemetry JSON from sealed transcripts that preserves method names, call shape, job/status/path counts, and any visible function/tool names while sealing text, direct messages, and raw results.
@@ -56,7 +55,7 @@ remembers doctrine; the branch remembers the blade.
 - A later dogfood attempt exposed another supervision scar: manually launching modeling, reorientation, and verification from the supervisor is not clean dogfood. The coordinator now treats `regatherManually` as fallback only after fixed lanes cannot advance, stops at `reviewModelingResult` for completed unaccepted modeling findings, and the CLI runner's explicit test-only `--auto-review` mode can accept modeling `statePatch` findings before launching verification. Production semantic findings remain review-gated.
 - The latest dogfood pass fixed concrete harness wounds: stale completed backend jobs now project as terminal, accepted verifier non-pass findings no longer clear implementation, verification coverage accepts modeler source evidence ids as current-model coverage, implementation audits compare pre/post diff hashes instead of treating existing dirt as fresh work, the latest implementation audit status wins, blocked no-diff turns route back through CRRC, stale accepted reorient findings relaunch bounded reorientation when the checkpoint regathers, and accepted reorientation findings now bank resume-ready checkpoints.
 - The latest audited implementation artifact is `.epiphany-dogfood/aetheria-supervised/gui-actions/continueImplementation-1777548050463576300-28568`: it correctly shows `workspaceChanged: false`, `dirtyWorkspace: true`, `trackedDiffChanged: false`, wrote a no-diff audit, advanced Epiphany state to revision 57, and routed coordinator/CRRC back to `launchReorientWorker` instead of pretending old dirt was progress.
-- Aetheria dogfood exposed and then landed the first editor/runtime bridge. An implementation worker launched legacy `D:\Unity\Editor\Unity.exe -version` (Unity 5.5.0f3) even though Aetheria pins Unity `6000.1.10f1`; the stray process was killed. Native `epiphany-unity-bridge` now resolves the project-pinned Unity editor, refuses wrong/missing versions, owns `-batchmode`, `-quit`, and `-projectPath`, and writes inspection/command/log artifacts. `tools/epiphany_gui_action.py` points implementation workers at that bridge, and the GUI has an Inspect Unity action.
+- Aetheria dogfood exposed and then landed the first editor/runtime bridge. An implementation worker launched legacy `D:\Unity\Editor\Unity.exe -version` (Unity 5.5.0f3) even though Aetheria pins Unity `6000.1.10f1`; the stray process was killed. Native `epiphany-unity-bridge` now resolves the project-pinned Unity editor, refuses wrong/missing versions, owns `-batchmode`, `-quit`, and `-projectPath`, and writes inspection/command/log artifacts. Aquarium should surface those bridge artifacts through native/backend calls, not deleted Python action shims.
 - The current Aetheria runtime truth is blocked but legible: the project pins Unity `6000.1.10f1`, this machine currently has Hub editor `6000.4.2f1`, and the bridge wrote `.epiphany-gui/runtime/unity-inspect-1777549218802064800-23832` proving the exact editor is missing. Treat that artifact as the evidence gap until the pinned editor exists. The `.epiphany-gui` directory name is still a backend artifact contract, even though the client repo is now Aquarium.
 - The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
 - The planning loop is now runtime-backed and operator-visible. Typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub issue source refs live in `EpiphanyThreadState`, validate through revision-gated `thread/epiphany/update`, render into prompts when present, project read-only through `thread/epiphany/planning`, render in the GUI Planning panel, can be synthesized by the fixed Imagination/planning lane, and can be explicitly adopted through the artifacted `adoptObjectiveDraft` GUI action. Chat is deliberation, not an objective pipe; ideas and GitHub Issues remain planning state until explicit human adoption.
@@ -120,13 +119,13 @@ The current spine, blessed but not yet finished:
 - thin launcher metadata in durable `jobBindings`
 - `thread/epiphany/jobsUpdated` remains protocol shape only for sealed legacy evacuation telemetry; app-server no longer emits Epiphany updates from old runtime `agent_job_progress` events
 - read-only compact reflection through `thread/epiphany/scene`
-- read-only job/progress reflection through `thread/epiphany/jobs`, with durable launcher metadata plus live runtime `agent_jobs` overlay
+- read-only job/progress reflection through `thread/epiphany/jobs`, with durable launcher metadata, heartbeat pending projection, and sealed stale `agent_jobs` bindings
 - read-only role ownership reflection through `thread/epiphany/roles`
 - read-only retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only graph traversal through `thread/epiphany/graphQuery`
 - read-only planning projection through `thread/epiphany/planning`
-- GUI planning adoption through `tools/epiphany_gui_action.py --action adoptObjectiveDraft`, which requires a selected Objective Draft id and writes objective/subgoal/planning/scratch/checkpoint/evidence updates plus patch/update artifacts
+- GUI planning adoption now belongs to Aquarium/backend API surfaces; the old EpiphanyAgent Python GUI action shim has been cut
 - read-only current-context pressure reflection through `thread/epiphany/pressure`
 - read-only CRRC reorientation policy through `thread/epiphany/reorient`
 - read-only CRRC next-action recommendation through `thread/epiphany/crrc`
@@ -143,20 +142,16 @@ The current spine, blessed but not yet finished:
 - first Rider source-context bridge through native `epiphany-rider-bridge`, native `epiphany-rider-bridge-smoke`, GUI Inspect Rider, Rider artifact listing, implementation prompt guardrails, and a source scaffold under `integrations/rider`
 - first GUI graph dashboard through the adjacent `@epiphanygraph/epiphany-graph-viewer` package over typed Epiphany graph state
 - live scene app-server smoke through native `epiphany-phase6-scene-smoke`
-- live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live freshness app-server smoke through native `epiphany-phase6-freshness-smoke`
-- live watcher-backed invalidation smoke through `tools/epiphany_phase6_invalidation_smoke.py`
+- focused Rust app-server coverage for watcher-backed invalidation inputs; native invalidation smoke is still a gap before broadening that surface
 - live context app-server smoke through native `epiphany-phase6-context-smoke`
 - live graph traversal app-server smoke through native `epiphany-phase6-graph-query-smoke`
 - live planning app-server smoke through native `epiphany-phase6-planning-smoke`
 - live GUI planning adoption smoke through `tools/epiphany_gui_planning_smoke.py`
 - live pressure app-server smoke through native `epiphany-phase6-pressure-smoke`
 - live reorientation app-server smoke through native `epiphany-phase6-reorient-smoke`
-- live reorient-guided worker launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
 - live MVP operator status smoke through native `epiphany-mvp-status-smoke`
 - live MVP coordinator smoke through native `epiphany-mvp-coordinator-smoke`
-- live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
-- live specialist MVP pass through `tools/epiphany_mvp_live_specialist.py`
 - Tauri v2 + React/WebGL Aquarium operator shell under `E:\Projects\EpiphanyAquarium`, including visual smoke, durable checkpoint preparation, fixed lane launch/read-back controls, explicit Imagination planning acceptance, explicit review-gated reorient acceptance, and bounded artifact-writing buttons
 
 The exact current control flow is documented in
@@ -191,7 +186,7 @@ The exact current control flow is documented in
 For Phase 5 control-plane behavior changes, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
+$env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server --lib map_epiphany_ --manifest-path .\vendor\codex\codex-rs\Cargo.toml
 ```
 
 For scene projection behavior changes, run:
@@ -203,13 +198,11 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-scene
 For jobs reflection behavior changes, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
 ```
 
 For launch/interrupt authority changes over the thin job seam, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_job_control_smoke.py'
 ```
 
 For freshness reflection behavior changes, run:
@@ -221,7 +214,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-fresh
 For watcher-backed invalidation behavior inside freshness reflection, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke
 ```
 
 For targeted context-shard behavior changes, run:
@@ -257,7 +250,6 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-reori
 For the bounded reorient-guided worker launch surface, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'
 ```
 
 The same smoke now also covers the read-only `thread/epiphany/crrc`
@@ -286,7 +278,6 @@ For explicit Imagination/planning, modeling/checkpoint, and verification/review 
 run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_role_smoke.py'
 ```
 
 For Codex Rust work on this Windows machine:
@@ -313,7 +304,7 @@ Rules now in force:
 - this handoff is a compact re-entry packet.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.
 - `notes/epiphany-rider-unity-integration-plan.md` is the detailed Rider-as-IDE and Unity-as-editor/runtime integration plan.
-- `notes/epiphany-core-harness-surfaces.md` is the stable surface contract.
+- The stable live surface contract now lives in `state/map.yaml` plus `notes/epiphany-current-algorithmic-map.md`; the stale harness-surface duplicate was cut.
 - `notes/epiphany-current-algorithmic-map.md` is the source-grounded control-flow map.
 
 Do not let any one note become all of those things. That is how the tower grows
@@ -384,9 +375,9 @@ instead of pretending the receipt drawer is full.
 
 The first live-specialist pass has also run. It produced
 `.epiphany-dogfood/live-specialist` artifacts and proved the real worker path:
-`roleLaunch` created a bound `agent_jobs` row, the spawned modeling worker
-inspected the smoke workspace, called `report_agent_job_result`, and
-`roleResult` projected a completed `checkpoint-ready` finding.
+Historical scar: an earlier role smoke used a bound `agent_jobs` row and
+`report_agent_job_result`; that path is now cut and must not be used as current
+proof.
 The role smoke now also proves modeling can return a reviewable graph/checkpoint
 `statePatch` and `thread/epiphany/roleAccept` can apply it so the durable graph
 actually grows after review.
@@ -480,7 +471,7 @@ smokes are now guardrails, not the next organs.
 - broad specialist-agent scheduling beyond the fixed single-user role lanes
 - GUI-as-source-of-truth
 - broad runtime CRRC execution beyond the landed safe-boundary compact, fixed reorient-worker launch, and pre-compaction checkpoint steering actions
-- Epiphany-owned long-running job execution beyond the current runtime `agent_jobs` seam
+- Epiphany-owned always-on heartbeat/runtime-spine execution beyond the current typed launch/read-back seams
 - broader editor/runtime bridges beyond the first pinned Unity bridge
 - broad event stream beyond the landed state update notification
 - typed repetitive-work queues plus final-answer gates, so batch/tile/import/migration work cannot end merely because the pattern was demonstrated or the partial result sounds tidy

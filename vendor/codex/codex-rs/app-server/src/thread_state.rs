@@ -1,7 +1,6 @@
 use crate::outgoing_message::ConnectionId;
 use crate::outgoing_message::ConnectionRequestId;
 use codex_app_server_protocol::RequestId;
-use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadHistoryBuilder;
 use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnError;
@@ -66,7 +65,6 @@ pub(crate) struct ThreadState {
     pub(crate) listener_generation: u64,
     listener_command_tx: Option<mpsc::UnboundedSender<ThreadListenerCommand>>,
     current_turn_history: ThreadHistoryBuilder,
-    last_epiphany_jobs_by_job_id: HashMap<String, ThreadEpiphanyJob>,
     last_epiphany_checkpoint_intervention_turn_id: Option<String>,
     pending_epiphany_checkpoint_compaction_turn_id: Option<String>,
     listener_thread: Option<Weak<CodexThread>>,
@@ -101,7 +99,6 @@ impl ThreadState {
         }
         self.listener_command_tx = None;
         self.current_turn_history.reset();
-        self.last_epiphany_jobs_by_job_id.clear();
         self.pending_epiphany_checkpoint_compaction_turn_id = None;
         self.listener_thread = None;
     }
@@ -130,18 +127,6 @@ impl ThreadState {
         {
             self.current_turn_history.reset();
         }
-    }
-
-    pub(crate) fn record_epiphany_jobs_update(&mut self, jobs: &[ThreadEpiphanyJob]) -> bool {
-        let mut changed = false;
-        for job in jobs {
-            if self.last_epiphany_jobs_by_job_id.get(job.id.as_str()) != Some(job) {
-                changed = true;
-                self.last_epiphany_jobs_by_job_id
-                    .insert(job.id.clone(), job.clone());
-            }
-        }
-        changed
     }
 
     pub(crate) fn record_epiphany_checkpoint_intervention(&mut self, turn_id: &str) -> bool {
