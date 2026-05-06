@@ -93,7 +93,7 @@ The landed machine now has:
 - prompt-level anti-Greenspun guardrails: Epiphany keeps Codex's useful operator discipline and requires a bounded research/scout check before agents invent bespoke versions of known algorithms, parsers, schedulers, renderers, protocols, storage layers, security mechanisms, or workflow engines
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
 - live Phase 6 reorient-launch app-server smoke coverage in `tools/epiphany_phase6_reorient_launch_smoke.py`
-- live Phase 6 MVP status smoke coverage in `tools/epiphany_mvp_status_smoke.py`
+- live Phase 6 MVP status smoke coverage through native `epiphany-mvp-status-smoke`
 - live Phase 6 job-control app-server smoke coverage in `tools/epiphany_phase6_job_control_smoke.py`
 
 The current phase is Phase 6: reflection boundary and observable harness state.

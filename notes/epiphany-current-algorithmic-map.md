@@ -1510,7 +1510,7 @@ Current tests cover the landed flows at useful seams:
 - live app-server smoke for the first Phase 6 pressure boundary in `tools/epiphany_phase6_pressure_smoke.py`.
 - live app-server smoke for the first Phase 6 reorientation policy boundary in `tools/epiphany_phase6_reorient_smoke.py`.
 - live app-server smoke for the first bounded reorient-launch runtime consumer plus CRRC coordinator recommendations in `tools/epiphany_phase6_reorient_launch_smoke.py`.
-- live app-server smoke for the first MVP operator status view in `tools/epiphany_mvp_status_smoke.py`.
+- live app-server smoke for the first MVP operator status view through native `epiphany-mvp-status-smoke`.
 - focused app-server mapper coverage for `thread/epiphany/roles`, plus MVP status smoke coverage that consumes the roles surface.
 - focused app-server/protocol coverage for `thread/epiphany/roleLaunch`, `thread/epiphany/roleResult`, and `thread/epiphany/roleAccept`, plus live role smoke coverage that launches Imagination, modeling, and verification workers, reads completed results, accepts a reviewed Imagination planning patch and a reviewed modeling graph patch, proves durable planning grows without objective adoption, proves the durable graph grows before verification sees the expanded frontier, and proves a modeling `selfPatch` review is carried through result/accept. Native `epiphany-agent-memory-store smoke` validates the Ghostlight-shaped dossiers and accepted/refused/apply behavior for self-memory patches.
 - live app-server smoke for the first Phase 6 job-control boundary in `tools/epiphany_phase6_job_control_smoke.py`.
@@ -1534,6 +1534,6 @@ $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-a
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_pressure_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_launch_smoke.py'
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_mvp_status_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-status-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_job_control_smoke.py'
 ```

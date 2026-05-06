@@ -154,7 +154,7 @@ The current spine, blessed but not yet finished:
 - live pressure app-server smoke through `tools/epiphany_phase6_pressure_smoke.py`
 - live reorientation app-server smoke through `tools/epiphany_phase6_reorient_smoke.py`
 - live reorient-guided worker launch smoke through `tools/epiphany_phase6_reorient_launch_smoke.py`
-- live MVP operator status smoke through `tools/epiphany_mvp_status_smoke.py`
+- live MVP operator status smoke through native `epiphany-mvp-status-smoke`
 - live MVP coordinator smoke through native `epiphany-mvp-coordinator-smoke`
 - live job-control app-server smoke through `tools/epiphany_phase6_job_control_smoke.py`
 - live specialist MVP pass through `tools/epiphany_mvp_live_specialist.py`
@@ -274,7 +274,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-coordina
 For the first MVP operator status view, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_mvp_status_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-status-smoke
 ```
 
 For GUI Objective Draft adoption behavior, run:

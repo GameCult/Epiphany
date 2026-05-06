@@ -212,7 +212,7 @@ landed_baseline:
     - Use `tools/epiphany_phase6_reorient_launch_smoke.py` before modifying the bounded reorient-guided worker launch surface.
     - Use `tools/epiphany_phase6_reorient_launch_smoke.py` before modifying the bounded reorient-worker result read-back surface.
     - Use `tools/epiphany_phase6_reorient_launch_smoke.py` before modifying the read-only CRRC coordinator recommendation surface.
-    - Use `tools/epiphany_mvp_status_smoke.py` before modifying the MVP operator status view.
+    - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-status-smoke` before modifying the MVP operator status view.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-mvp-coordinator-smoke` before modifying the fixed-lane MVP coordinator endpoint or runner.
     - Use `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib runtime_spine -- --nocapture` and `cargo build --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-runtime-spine` before modifying native runtime-spine state or CultNet hello emission.
     - Use `tools/epiphany_phase6_role_smoke.py` before modifying explicit role launch/read-back/acceptance behavior.
