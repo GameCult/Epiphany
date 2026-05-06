@@ -262,7 +262,7 @@ fn run_status(args: &Args) -> Result<Value> {
     Ok(sanitize_for_operator(status))
 }
 
-struct AppServerClient {
+pub struct AppServerClient {
     child: Child,
     stdin: ChildStdin,
     rx: mpsc::Receiver<Value>,
@@ -271,7 +271,7 @@ struct AppServerClient {
 }
 
 impl AppServerClient {
-    fn start(
+    pub fn start(
         app_server: &Path,
         codex_home: &Path,
         transcript_path: &Path,
@@ -355,7 +355,7 @@ impl AppServerClient {
         })
     }
 
-    fn send(
+    pub fn send(
         &mut self,
         method: &str,
         params: Option<Value>,
@@ -436,7 +436,7 @@ impl Drop for AppServerClient {
     }
 }
 
-fn render_status(status: &Value) -> String {
+pub fn render_status(status: &Value) -> String {
     let scene = &status["scene"]["scene"];
     let pressure = &status["pressure"]["pressure"];
     let reorient = &status["reorient"]["decision"];
@@ -611,7 +611,7 @@ fn render_status(status: &Value) -> String {
     format!("{}\n", lines.join("\n"))
 }
 
-fn sanitize_for_operator(value: Value) -> Value {
+pub fn sanitize_for_operator(value: Value) -> Value {
     match value {
         Value::Object(map) => {
             let mut sanitized = serde_json::Map::new();
@@ -650,7 +650,7 @@ fn sealed_direct_thought(key: &str, value: &Value) -> Value {
     sealed
 }
 
-fn write_transcript_telemetry(transcript: &Path, output: &Path) -> Result<()> {
+pub fn write_transcript_telemetry(transcript: &Path, output: &Path) -> Result<()> {
     let _ = native_json(
         "epiphany-agent-telemetry",
         &[
@@ -662,7 +662,7 @@ fn write_transcript_telemetry(transcript: &Path, output: &Path) -> Result<()> {
     Ok(())
 }
 
-fn native_json(bin_name: &str, args: &[&str]) -> Result<Value> {
+pub fn native_json(bin_name: &str, args: &[&str]) -> Result<Value> {
     let exe = PathBuf::from(
         env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| DEFAULT_CARGO_TARGET_DIR.to_string()),
     )
@@ -718,7 +718,7 @@ fn home_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
-fn absolute_path(path: &Path) -> Result<PathBuf> {
+pub fn absolute_path(path: &Path) -> Result<PathBuf> {
     if path.is_absolute() {
         Ok(path.to_path_buf())
     } else {

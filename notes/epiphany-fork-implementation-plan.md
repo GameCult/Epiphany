@@ -84,7 +84,7 @@ The landed machine now has:
 - review-gated Phase 6 modeling acceptance through `thread/epiphany/roleAccept`, limited to completed modeling/checkpoint `statePatch` findings that apply graph/frontier/checkpoint/scratch/investigation-checkpoint changes through the existing state validator
 - first Phase 6 dogfood operator view through native `epiphany-mvp-status`
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, sealed app-server transcript diagnostics, operator-safe final status artifacts, truthful vanilla-reference output, and comparison notes
-- first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
+- first auditable Phase 6 fixed-lane coordinator runner through native `epiphany-mvp-coordinator`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - first Unity editor/runtime bridge through native `epiphany-unity-bridge`, `tools/epiphany_unity_bridge_smoke.py`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
@@ -212,7 +212,7 @@ harness-native role ownership, and first fixed role specialist launch/result
 blockers are now landed as
 `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
 `thread/epiphany/crrc`, native `epiphany-mvp-status`,
-`thread/epiphany/coordinator`, `tools/epiphany_mvp_coordinator.py`, and
+`thread/epiphany/coordinator`, native `epiphany-mvp-coordinator`, and
 `thread/epiphany/roles`, `thread/epiphany/roleLaunch`,
 `thread/epiphany/roleResult`, and `thread/epiphany/roleAccept`. A human can now ask the harness what it believes,
 what it recommends, which role lane owns the next visible work, which fixed-lane
@@ -372,7 +372,7 @@ Implementation slices:
    landed. Review gates remain explicit; the GUI does not auto-promote
    evidence or continue implementation after semantic findings.
 3. **Dogfood launcher**: wrap `tools/epiphany_mvp_dogfood.py` and
-   `tools/epiphany_mvp_coordinator.py` as explicit operator actions that write
+   native `epiphany-mvp-coordinator` as explicit operator actions that write
    artifact bundles and stream progress/status into Aquarium.
 4. **Usability pass**: make the current recommendation, blocked lane, pending
    review, and next safe action visually obvious enough that the user can test

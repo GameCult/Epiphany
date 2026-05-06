@@ -2,42 +2,38 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+from pathlib import Path
 import shutil
 import subprocess
-from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
-from epiphany_mvp_coordinator import DEFAULT_APP_SERVER
-from epiphany_mvp_coordinator import DEFAULT_AGENT_MEMORY_DIR
-from epiphany_mvp_coordinator import run_coordinator
-from epiphany_phase5_smoke import ROOT
+from epiphany_mvp_status import DEFAULT_APP_SERVER
+from epiphany_mvp_status import ROOT
 from epiphany_phase5_smoke import require
 
 
 DEFAULT_ARTIFACT_ROOT = ROOT / ".epiphany-dogfood" / "coordinator-smoke"
 
 
-def native_agent_memory(*args: str) -> dict[str, Any]:
-    exe = Path(r"C:\Users\Meta\.cargo-target-codex") / "debug" / "epiphany-agent-memory-store.exe"
+def native_coordinator_exe() -> Path:
+    exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / "epiphany-mvp-coordinator.exe"
     if exe.exists():
-        command = [str(exe), *args]
-    else:
-        command = [
+        return exe
+    subprocess.run(
+        [
             "cargo",
-            "run",
-            "--quiet",
+            "build",
             "--manifest-path",
             str(ROOT / "epiphany-core" / "Cargo.toml"),
             "--bin",
-            "epiphany-agent-memory-store",
-            "--",
-            *args,
-        ]
-    completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
-    if completed.returncode != 0:
-        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "epiphany-agent-memory-store failed")
-    return json.loads(completed.stdout)
+            "epiphany-mvp-coordinator",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+    require(exe.exists(), f"native coordinator binary was not built: {exe}")
+    return exe
 
 
 def reset_artifact_root(path: Path) -> None:
@@ -50,41 +46,47 @@ def reset_artifact_root(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def coordinator_args(
+def run_native(
     *,
+    exe: Path,
     app_server: Path,
     artifact_root: Path,
     name: str,
     mode: str = "plan",
     bootstrap_smoke_state: bool = False,
-    simulate_source_drift: bool = False,
     simulate_high_pressure: bool = False,
     dry_compact: bool = False,
-    auto_review: bool = False,
-    max_steps: int = 4,
-    agent_memory_store: Path | None = None,
-) -> argparse.Namespace:
+    max_steps: int = 1,
+) -> dict[str, Any]:
     artifact_dir = artifact_root / name
-    return SimpleNamespace(
-        app_server=app_server,
-        thread_id=None,
-        cwd=ROOT,
-        codex_home=artifact_dir / "codex-home",
-        artifact_dir=artifact_dir,
-        agent_memory_dir=agent_memory_store or artifact_root / "agent-memory.msgpack",
-        mode=mode,
-        max_steps=max_steps,
-        poll_seconds=0.1,
-        timeout_seconds=20,
-        max_runtime_seconds=30,
-        ephemeral=True,
-        auto_review=auto_review,
-        test_complete_backend=True,
-        bootstrap_smoke_state=bootstrap_smoke_state,
-        simulate_high_pressure=simulate_high_pressure,
-        simulate_source_drift=simulate_source_drift,
-        dry_compact=dry_compact,
-    )
+    command = [
+        str(exe),
+        "--app-server",
+        str(app_server),
+        "--artifact-dir",
+        str(artifact_dir),
+        "--codex-home",
+        str(artifact_dir / "codex-home"),
+        "--cwd",
+        str(ROOT),
+        "--mode",
+        mode,
+        "--max-steps",
+        str(max_steps),
+        "--poll-seconds",
+        "0.1",
+        "--timeout-seconds",
+        "3",
+    ]
+    if bootstrap_smoke_state:
+        command.append("--bootstrap-smoke-state")
+    if simulate_high_pressure:
+        command.append("--simulate-high-pressure")
+    if dry_compact:
+        command.append("--dry-compact")
+    completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, check=False)
+    require(completed.returncode == 0, completed.stderr or completed.stdout)
+    return json.loads(completed.stdout)
 
 
 def require_artifacts(summary: dict[str, Any]) -> None:
@@ -97,6 +99,7 @@ def require_artifacts(summary: dict[str, Any]) -> None:
         "coordinator-final-action.txt",
         "epiphany-transcript.jsonl",
         "epiphany-server.stderr.log",
+        "agent-function-telemetry.json",
     ):
         require((artifact_dir / name).exists(), f"missing coordinator artifact {name}")
 
@@ -123,16 +126,13 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
     artifact_root = args.artifact_root.resolve()
     reset_artifact_root(artifact_root)
-    agent_memory_store = artifact_root / "agent-memory.msgpack"
-    shutil.copy2(DEFAULT_AGENT_MEMORY_DIR, agent_memory_store)
+    exe = native_coordinator_exe()
 
-    cold = run_coordinator(
-        coordinator_args(
-            app_server=app_server,
-            artifact_root=artifact_root,
-            name="cold",
-            agent_memory_store=agent_memory_store,
-        )
+    cold = run_native(
+        exe=exe,
+        app_server=app_server,
+        artifact_root=artifact_root,
+        name="cold",
     )
     require(
         cold["finalAction"]["action"] == "prepareCheckpoint",
@@ -141,83 +141,15 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_artifacts(cold)
     require_operator_safe(cold)
 
-    modeling = run_coordinator(
-        coordinator_args(
-            app_server=app_server,
-            artifact_root=artifact_root,
-            name="modeling",
-            mode="run",
-            bootstrap_smoke_state=True,
-            max_steps=1,
-        )
-    )
-    require(
-        modeling["finalAction"]["action"] == "reviewModelingResult",
-        "modeling run should stop with a reviewable modeling result",
-    )
-    require_artifacts(modeling)
-    require_operator_safe(modeling)
-
-    verification = run_coordinator(
-        coordinator_args(
-            app_server=app_server,
-            artifact_root=artifact_root,
-            name="verification",
-            mode="run",
-            bootstrap_smoke_state=True,
-            auto_review=True,
-            max_steps=4,
-        )
-    )
-    require(
-        verification["steps"][-1]["action"] == "reviewVerificationResult",
-        "auto-review smoke should drive through verification and stop at review",
-    )
-    require_artifacts(verification)
-    require_operator_safe(verification)
-    projected_memory = artifact_root / "agent-memory-projection"
-    native_agent_memory(
-        "project-json-dir",
-        "--store",
-        str(agent_memory_store),
-        "--output-dir",
-        str(projected_memory),
-    )
-    require(
-        "mem-body-phase6-role-smoke"
-        in (projected_memory / "body.agent-state.json").read_text(encoding="utf-8"),
-        "auto-review coordinator smoke should apply accepted selfPatch to isolated agent memory",
-    )
-
-    drift = run_coordinator(
-        coordinator_args(
-            app_server=app_server,
-            artifact_root=artifact_root,
-            name="drift",
-            mode="run",
-            bootstrap_smoke_state=True,
-            simulate_source_drift=True,
-            max_steps=1,
-        )
-    )
-    require(
-        drift["finalAction"]["action"] == "reviewReorientResult",
-        "source drift should launch reorient worker and stop for review",
-    )
-    require_artifacts(drift)
-    require_operator_safe(drift)
-
-    pressure = run_coordinator(
-        coordinator_args(
-            app_server=app_server,
-            artifact_root=artifact_root,
-            name="pressure",
-            mode="run",
-            bootstrap_smoke_state=True,
-            simulate_high_pressure=True,
-            dry_compact=True,
-            max_steps=1,
-        )
+    pressure = run_native(
+        exe=exe,
+        app_server=app_server,
+        artifact_root=artifact_root,
+        name="pressure",
+        mode="run",
+        bootstrap_smoke_state=True,
+        simulate_high_pressure=True,
+        dry_compact=True,
     )
     require(
         pressure["steps"][0]["action"] == "compactRehydrateReorient",
@@ -230,13 +162,29 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
     require_artifacts(pressure)
     require_operator_safe(pressure)
 
+    rejected = subprocess.run(
+        [
+            str(exe),
+            "--artifact-dir",
+            str(artifact_root / "rejected-private-store-completion"),
+            "--test-complete-backend",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    require(
+        rejected.returncode != 0 and "CultNet job-result API" in rejected.stderr,
+        "native coordinator should reject direct backend-completion mutation",
+    )
+
     result = {
         "artifactRoot": str(artifact_root),
         "coldAction": cold["finalAction"]["action"],
-        "modelingAction": modeling["finalAction"]["action"],
-        "verificationAction": verification["steps"][-1]["action"],
-        "driftAction": drift["finalAction"]["action"],
         "pressureAction": pressure["steps"][0]["action"],
+        "directBackendCompletionRejected": True,
+        "note": "Native smoke does not fake specialist completion by mutating Codex state storage; full completion smoke needs a CultNet job-result API.",
     }
     (artifact_root / "coordinator-smoke-summary.json").write_text(
         json.dumps(result, indent=2, ensure_ascii=False) + "\n",
@@ -247,7 +195,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Smoke the auditable Epiphany MVP coordinator over fixed lanes."
+        description="Smoke the native auditable Epiphany MVP coordinator."
     )
     parser.add_argument("--app-server", type=Path, default=DEFAULT_APP_SERVER)
     parser.add_argument("--artifact-root", type=Path, default=DEFAULT_ARTIFACT_ROOT)
