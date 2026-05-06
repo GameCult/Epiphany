@@ -10,7 +10,6 @@ use crate::session::Codex;
 use crate::session::SessionSettingsUpdate;
 use crate::session::SteerInputError;
 use codex_features::Feature;
-use codex_protocol::ThreadId;
 use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::Personality;
@@ -605,62 +604,8 @@ impl CodexThread {
                 request.binding_id
             )));
         };
-        let binding = current_state.job_bindings[binding_index].clone();
-
-        let mut interrupted_thread_ids = Vec::new();
-        let mut cancel_requested = false;
-        if binding_backend_kind_core(&binding) == Some(EpiphanyJobBackendKind::AgentJobs)
-            && let Some(agent_job_id) = binding_agent_jobs_job_id_core(&binding)
-            && let Some(state_db) = self.epiphany_state_runtime().await
-        {
-            let running_items = state_db
-                .list_agent_job_items(
-                    agent_job_id,
-                    Some(codex_state::AgentJobItemStatus::Running),
-                    Some(64),
-                )
-                .await
-                .map_err(|err| {
-                    CodexErr::Fatal(format!(
-                        "failed to inspect running legacy Epiphany backend job items: {err}"
-                    ))
-                })?;
-            for running_item in running_items {
-                let Some(assigned_thread_id) = running_item.assigned_thread_id else {
-                    continue;
-                };
-                let Ok(thread_id) = ThreadId::from_string(assigned_thread_id.as_str()) else {
-                    continue;
-                };
-                match self
-                    .codex
-                    .session
-                    .services
-                    .agent_control
-                    .shutdown_live_agent(thread_id)
-                    .await
-                {
-                    Ok(_) | Err(CodexErr::ThreadNotFound(_)) | Err(CodexErr::InternalAgentDied) => {
-                        interrupted_thread_ids.push(assigned_thread_id);
-                    }
-                    Err(err) => {
-                        return Err(CodexErr::Fatal(format!(
-                            "failed to interrupt Epiphany worker thread {assigned_thread_id}: {err}"
-                        )));
-                    }
-                }
-            }
-
-            cancel_requested = state_db
-                .mark_agent_job_cancelled(
-                    agent_job_id,
-                    request.reason.as_deref().unwrap_or(
-                        "Epiphany launch authority requested an interrupt for a legacy bound backend job.",
-                    ),
-                )
-                .await
-                .unwrap_or(false);
-        }
+        let interrupted_thread_ids = Vec::new();
+        let cancel_requested = false;
 
         let next_job_bindings = clear_epiphany_job_binding_backend(
             current_state.job_bindings.clone(),
@@ -1011,22 +956,11 @@ fn clear_epiphany_job_binding_backend(
     bindings
 }
 
-fn binding_backend_kind_core(binding: &EpiphanyJobBinding) -> Option<EpiphanyJobBackendKind> {
-    binding.backend_kind
-}
-
 fn binding_backend_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
     binding
         .backend_job_id
         .as_deref()
         .or(binding.runtime_agent_job_id.as_deref())
-}
-
-fn binding_agent_jobs_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
-    match binding_backend_kind_core(binding) {
-        Some(EpiphanyJobBackendKind::AgentJobs) => binding_backend_job_id_core(binding),
-        Some(EpiphanyJobBackendKind::Heartbeat) | None => None,
-    }
 }
 
 fn epiphany_state_update_validation_errors(
