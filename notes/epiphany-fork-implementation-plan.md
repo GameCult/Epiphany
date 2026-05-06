@@ -82,7 +82,7 @@ The landed machine now has:
 - read-only Phase 6 role ownership through `thread/epiphany/roles`, projecting implementation, modeling/checkpoint, verification/review, and reorientation lanes from typed state plus jobs/CRRC/result signals
 - explicit Phase 6 role launch/read-back through `thread/epiphany/roleLaunch` and read-only `thread/epiphany/roleResult`, limited to fixed modeling/checkpoint and verification/review templates over the existing job-control seam
 - review-gated Phase 6 modeling acceptance through `thread/epiphany/roleAccept`, limited to completed modeling/checkpoint `statePatch` findings that apply graph/frontier/checkpoint/scratch/investigation-checkpoint changes through the existing state validator
-- first Phase 6 dogfood operator view through `tools/epiphany_mvp_status.py`
+- first Phase 6 dogfood operator view through native `epiphany-mvp-status`
 - first auditable Phase 6 dogfood runner through `tools/epiphany_mvp_dogfood.py`, producing local status snapshots, sealed app-server transcript diagnostics, operator-safe final status artifacts, truthful vanilla-reference output, and comparison notes
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
@@ -211,7 +211,7 @@ coordinator, first
 harness-native role ownership, and first fixed role specialist launch/result
 blockers are now landed as
 `thread/epiphany/reorientResult`, `thread/epiphany/reorientAccept`,
-`thread/epiphany/crrc`, `tools/epiphany_mvp_status.py`,
+`thread/epiphany/crrc`, native `epiphany-mvp-status`,
 `thread/epiphany/coordinator`, `tools/epiphany_mvp_coordinator.py`, and
 `thread/epiphany/roles`, `thread/epiphany/roleLaunch`,
 `thread/epiphany/roleResult`, and `thread/epiphany/roleAccept`. A human can now ask the harness what it believes,
@@ -363,7 +363,7 @@ Implementation slices:
 
 1. **Read-only shell**: scaffold Tauri/React, connect to app-server through the
    existing MVP status bridge, render the same data as
-   `tools/epiphany_mvp_status.py`, and provide artifact bundle links. This
+   native `epiphany-mvp-status`, and provide artifact bundle links. This
    slice landed first under `apps/epiphany-gui` and is now extracted to
    `E:\Projects\EpiphanyAquarium`.
 2. **Bounded operator actions**: status snapshot, coordinator-plan, Unity

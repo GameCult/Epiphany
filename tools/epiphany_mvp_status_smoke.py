@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+import subprocess
 
 from epiphany_mvp_status import DEFAULT_APP_SERVER
 from epiphany_mvp_status import ROOT
-from epiphany_mvp_status import render_status
-from epiphany_mvp_status import run
 from epiphany_phase5_smoke import require
 from epiphany_phase5_smoke import reset_smoke_paths
 
@@ -16,6 +16,27 @@ DEFAULT_CODEX_HOME = ROOT / ".epiphany-smoke" / "mvp-status-codex-home"
 DEFAULT_RESULT = ROOT / ".epiphany-smoke" / "mvp-status-smoke-result.json"
 DEFAULT_TRANSCRIPT = ROOT / ".epiphany-smoke" / "mvp-status-smoke-transcript.jsonl"
 DEFAULT_STDERR = ROOT / ".epiphany-smoke" / "mvp-status-smoke-server.stderr.log"
+DEFAULT_RENDERED = ROOT / ".epiphany-smoke" / "mvp-status-smoke-rendered.txt"
+
+
+def native_status_exe() -> Path:
+    exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / "epiphany-mvp-status.exe"
+    if exe.exists():
+        return exe
+    subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            "epiphany-mvp-status",
+        ],
+        cwd=ROOT,
+        check=True,
+    )
+    require(exe.exists(), f"native status binary was not built: {exe}")
+    return exe
 
 
 def run_smoke(args: argparse.Namespace) -> dict[str, object]:
@@ -28,20 +49,57 @@ def run_smoke(args: argparse.Namespace) -> dict[str, object]:
     transcript_path = args.transcript.resolve()
     stderr_path = args.stderr.resolve()
     reset_smoke_paths(codex_home, result_path, transcript_path, stderr_path)
+    rendered_path = args.rendered.resolve()
+    if rendered_path.exists():
+        rendered_path.unlink()
 
-    status = run(
-        argparse.Namespace(
-            app_server=app_server,
-            codex_home=codex_home,
-            thread_id=None,
-            cwd=ROOT,
-            ephemeral=True,
-            result=None,
-            transcript=transcript_path,
-            stderr=stderr_path,
-        )
+    exe = native_status_exe()
+    completed = subprocess.run(
+        [
+            str(exe),
+            "--app-server",
+            str(app_server),
+            "--codex-home",
+            str(codex_home),
+            "--cwd",
+            str(ROOT),
+            "--transcript",
+            str(transcript_path),
+            "--stderr",
+            str(stderr_path),
+            "--result",
+            str(result_path),
+            "--json",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
     )
-    rendered = render_status(status)
+    require(completed.returncode == 0, completed.stderr or completed.stdout)
+    status = json.loads(completed.stdout)
+    rendered_completed = subprocess.run(
+        [
+            str(exe),
+            "--app-server",
+            str(app_server),
+            "--codex-home",
+            str(codex_home),
+            "--cwd",
+            str(ROOT),
+            "--transcript",
+            str(transcript_path.with_name("mvp-status-smoke-render-transcript.jsonl")),
+            "--stderr",
+            str(stderr_path.with_name("mvp-status-smoke-render-server.stderr.log")),
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    require(rendered_completed.returncode == 0, rendered_completed.stderr or rendered_completed.stdout)
+    rendered = rendered_completed.stdout
+    rendered_path.write_text(rendered, encoding="utf-8")
 
     require(
         status["scene"]["scene"]["stateStatus"] == "missing",
@@ -139,6 +197,7 @@ def main() -> int:
     parser.add_argument("--result", type=Path, default=DEFAULT_RESULT)
     parser.add_argument("--transcript", type=Path, default=DEFAULT_TRANSCRIPT)
     parser.add_argument("--stderr", type=Path, default=DEFAULT_STDERR)
+    parser.add_argument("--rendered", type=Path, default=DEFAULT_RENDERED)
     args = parser.parse_args()
     result = run_smoke(args)
     print(json.dumps(result, indent=2, ensure_ascii=False))

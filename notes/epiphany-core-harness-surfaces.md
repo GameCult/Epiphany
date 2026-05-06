@@ -61,7 +61,7 @@ The rule is:
 | `thread/epiphany/pressure` | read-only reflection | landed, live-smoked | Context-pressure gauge derived from token telemetry and recorded auto-compact/context limits. |
 | `thread/epiphany/reorient` | read-only policy reflection | landed, live-smoked | Bounded CRRC reorientation verdict derived from checkpoint, freshness, watcher, and pressure signals; returns resume vs regather without acting on the decision. |
 | `thread/epiphany/crrc` | read-only coordinator reflection | landed, live-smoked | Composes pressure, reorientation verdict, bound worker status/result, and available actions into one recommendation without launching, accepting, compacting, or mutating state. |
-| `tools/epiphany_mvp_status.py` | operator CLI | landed, live-smoked | Starts or reads a thread through app-server and renders scene, pressure, reorient, jobs, result, CRRC recommendation, and MVP role lanes as a compact dogfood view. |
+| `epiphany-mvp-status` | operator CLI | landed, live-smoked | Starts or reads a thread through app-server and renders scene, planning, pressure, reorient, jobs, result, CRRC recommendation, heartbeat, Face bubbles, and MVP role lanes as a compact dogfood view. |
 
 ## Write Authority
 
@@ -240,7 +240,7 @@ worker, wait for worker, review result, accept result, or regather manually. It
 is not a scheduler, a hidden launch, a hidden accept, a compactor, or a second
 source of truth. The little tyrant remains theoretical, for now.
 
-The first dogfood operator view is landed as `tools/epiphany_mvp_status.py`.
+The first dogfood operator view is landed as native `epiphany-mvp-status`.
 It starts or reads one thread through the app-server and prints the scene,
 pressure, reorientation verdict, jobs, reorient result, and CRRC recommendation
 as a compact status report, with raw JSON available when needed. It also derives
