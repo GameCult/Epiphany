@@ -66,7 +66,7 @@ The landed machine now has:
 - live Phase 6 freshness app-server smoke coverage through native `epiphany-phase6-freshness-smoke`
 - live Phase 6 watcher-backed invalidation smoke coverage in `tools/epiphany_phase6_invalidation_smoke.py`
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
-- live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
+- live Phase 6 context app-server smoke coverage through native `epiphany-phase6-context-smoke`
 - read-only Phase 6 graph traversal through `thread/epiphany/graphQuery`
 - live Phase 6 graph traversal smoke coverage in `tools/epiphany_phase6_graph_query_smoke.py`
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
@@ -453,7 +453,7 @@ Before modifying watcher-backed invalidation behavior inside freshness reflectio
 Before modifying targeted context-shard behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-context-smoke
 ```
 
 Before modifying graph traversal behavior, run:

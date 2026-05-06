@@ -1504,7 +1504,7 @@ Current tests cover the landed flows at useful seams:
 - live app-server smoke for the first Phase 6 jobs boundary in `tools/epiphany_phase6_jobs_smoke.py`.
 - live app-server smoke for the first Phase 6 freshness boundary through native `epiphany-phase6-freshness-smoke`.
 - live app-server smoke for watcher-backed invalidation inputs inside the Phase 6 freshness boundary in `tools/epiphany_phase6_invalidation_smoke.py`.
-- live app-server smoke for the first Phase 6 context boundary in `tools/epiphany_phase6_context_smoke.py`.
+- live app-server smoke for the first Phase 6 context boundary through native `epiphany-phase6-context-smoke`.
 - live app-server smoke for the first Phase 6 graph traversal boundary in `tools/epiphany_phase6_graph_query_smoke.py`.
 - live app-server smoke for the first Phase 6 planning boundary in `tools/epiphany_phase6_planning_smoke.py`.
 - live app-server smoke for the first Phase 6 pressure boundary through native `epiphany-phase6-pressure-smoke`.
@@ -1528,7 +1528,7 @@ $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-a
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_context_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-context-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_graph_query_smoke.py'
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-pressure-smoke
