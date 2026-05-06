@@ -210,7 +210,7 @@ landed_baseline:
     - Use `tools/epiphany_phase6_role_smoke.py` before modifying explicit role launch/read-back/acceptance behavior.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- smoke --store .\state\agents.msgpack` before modifying role self-memory dossiers or `selfPatch` persistence policy.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- smoke --agent-store .\state\agents.msgpack` before modifying heartbeat initiative timing, idle rumination, or role slot selection.
-    - Use `tools/epiphany_face_discord_smoke.py` before modifying Face's #aquarium posting/draft guardrails.
+    - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-face-discord -- smoke` before modifying Face's #aquarium posting/draft guardrails.
     - Use `tools/epiphany_unity_bridge_smoke.py` before modifying the Unity editor/runtime bridge.
     - Use `tools/epiphany_rider_bridge_smoke.py` before modifying the Rider source-context bridge.
     - Use `tools/epiphany_mvp_live_specialist.py` before claiming live specialist execution still works end to end.

@@ -40,6 +40,6 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- status --store .\state\agents.msgpack
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_agent_heartbeat.py' tick --coordinator-action continueImplementation --urgency 0.95 --apply-rumination
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- smoke --agent-store .\state\agents.msgpack
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_face_discord.py' draft --content 'Face notices the organs are arguing about evidence again.'
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_face_discord.py' smoke
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-face-discord -- draft --content 'Face notices the organs are arguing about evidence again.'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-face-discord -- smoke
 ```
