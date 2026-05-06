@@ -13,6 +13,13 @@
       "stable_actor_id_asc"
     ]
   },
+  "pacing_policy": {
+    "cooldown_starts_after_turn_completion": true,
+    "work_base_recovery": 6.0,
+    "idle_base_recovery": 2.0,
+    "sleep_heartbeat_rate_multiplier": 0.05,
+    "minimum_effective_rate": 0.001
+  },
   "participants": [
     {
       "agent_id": "epiphany.self",

@@ -97,6 +97,11 @@ When the user says to prepare for imminent compaction:
   another coordinator politely", the API must provide that path and reject
   cross-workspace rummaging. UI-only discouragement is just a velvet rope in
   front of an unlocked door.
+- Heartbeat scheduling should behave like physiology. Do not wake a lane again
+  while its previous heartbeat turn is still running; cooldown starts after
+  completion, not at launch. When no coordinator work is active, let the swarm
+  sleep: slow rumination, memory distillation, and dreaming without hammering
+  every organ at work tempo.
 - Prefer one clear hypothesis per iteration.
 - Verify with checks that reflect the real goal, not just proxy success.
 - Revert or discard changes that do not clearly improve the target.

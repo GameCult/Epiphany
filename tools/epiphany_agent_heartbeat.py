@@ -193,6 +193,13 @@ def default_state(*, target_heartbeat_rate: float = 1.0) -> dict[str, Any]:
                 "stable_actor_id_asc",
             ],
         },
+        "pacing_policy": {
+            "cooldown_starts_after_turn_completion": True,
+            "work_base_recovery": 6.0,
+            "idle_base_recovery": 2.0,
+            "sleep_heartbeat_rate_multiplier": 0.05,
+            "minimum_effective_rate": 0.001,
+        },
         "participants": [
             {
                 "agent_id": agent_id_for_role(role_id),
@@ -207,6 +214,8 @@ def default_state(*, target_heartbeat_rate: float = 1.0) -> dict[str, Any]:
                 "constraints": participant_constraints(role_id),
                 "last_action_id": None,
                 "last_woke_at": None,
+                "last_finished_at": None,
+                "pending_turn": None,
             }
             for role_id in ROLE_ORDER
         ],
@@ -251,6 +260,11 @@ def load_state(path: Path, *, target_heartbeat_rate: float) -> dict[str, Any]:
     for role_id in ROLE_ORDER:
         if role_id not in present:
             state.setdefault("participants", []).append(default_state()["participants"][ROLE_ORDER.index(role_id)])
+    state.setdefault("pacing_policy", default_state()["pacing_policy"])
+    for participant in state.get("participants", []):
+        if isinstance(participant, dict):
+            participant.setdefault("last_finished_at", None)
+            participant.setdefault("pending_turn", None)
     return state
 
 
@@ -274,7 +288,7 @@ def heartbeat_status(
             "latestEvent": None,
             "history": [],
             "latestArtifacts": latest_json_artifacts(artifact_dir, limit=artifact_limit),
-            "availableActions": ["init", "tick", "status"],
+            "availableActions": ["init", "tick", "complete", "status"],
         }
     state = load_json(state_file)
     if state.get("schema_version") != SCHEMA_VERSION:
@@ -296,6 +310,8 @@ def heartbeat_status(
                 "status": participant.get("status"),
                 "lastActionId": participant.get("last_action_id"),
                 "lastWokeAt": participant.get("last_woke_at"),
+                "lastFinishedAt": participant.get("last_finished_at"),
+                "pendingTurn": participant.get("pending_turn"),
             }
         )
     history = [
@@ -315,7 +331,7 @@ def heartbeat_status(
         "latestEvent": history[-1] if history else None,
         "history": history,
         "latestArtifacts": latest_json_artifacts(artifact_dir, limit=artifact_limit),
-        "availableActions": ["init", "tick", "status"],
+        "availableActions": ["init", "tick", "complete", "status"],
     }
 
 
@@ -335,7 +351,16 @@ def participant_by_role(state: dict[str, Any], role_id: str) -> dict[str, Any]:
 
 
 def active_participants(state: dict[str, Any]) -> list[dict[str, Any]]:
-    return [item for item in state["participants"] if item.get("status") == "active"]
+    return [
+        item
+        for item in state["participants"]
+        if item.get("status") == "active" and not is_turn_pending(item)
+    ]
+
+
+def is_turn_pending(participant: dict[str, Any]) -> bool:
+    pending = participant.get("pending_turn")
+    return isinstance(pending, dict) and pending.get("status") == "running"
 
 
 def readiness_snapshot(
@@ -375,9 +400,15 @@ def select_participant(
         raise ValueError("heartbeat has no active participants")
     if work_role:
         candidate = participant_by_role(state, work_role)
+        if is_turn_pending(candidate):
+            pending = candidate.get("pending_turn") or {}
+            raise ValueError(
+                f"{candidate['display_name']} already has running heartbeat turn {pending.get('actionId')}; complete it before scheduling another"
+            )
         reaction_readiness = float(candidate["reaction_bias"]) * urgency - float(candidate.get("current_load", 0.0))
         if (
             candidate.get("status") == "active"
+            and not is_turn_pending(candidate)
             and reaction_readiness >= float(candidate["interrupt_threshold"])
         ):
             return candidate, "reaction_interrupt", (
@@ -401,24 +432,29 @@ def action_for_selection(
     *,
     work_role: str | None,
     coordinator_action: str | None,
+    target_heartbeat_rate: float,
+    pacing_policy: dict[str, Any],
 ) -> tuple[str, str, float, float, float, str]:
     role_id = selected["role_id"]
-    heartbeat_rate = 1.0
+    minimum_rate = max(float(pacing_policy.get("minimum_effective_rate", 0.001)), 0.001)
     if role_id == work_role:
+        heartbeat_rate = max(target_heartbeat_rate, minimum_rate)
         action_id = f"heartbeat.{role_id}.work"
         return (
             action_id,
             "mixed",
-            6.0 / heartbeat_rate,
+            float(pacing_policy.get("work_base_recovery", 6.0)) / heartbeat_rate,
             4.0,
             0.45,
             f"Wake {selected['display_name']} for coordinator action {coordinator_action or 'pending work'}.",
         )
+    sleep_multiplier = max(float(pacing_policy.get("sleep_heartbeat_rate_multiplier", 0.18)), minimum_rate)
+    heartbeat_rate = max(target_heartbeat_rate * sleep_multiplier, minimum_rate)
     action_id = f"heartbeat.{role_id}.ruminate"
     return (
         action_id,
         "wait",
-        2.0 / heartbeat_rate,
+        float(pacing_policy.get("idle_base_recovery", 2.0)) / heartbeat_rate,
         1.0,
         0.9,
         f"{selected['display_name']} has no actionable lane work; ruminate and distill role memory.",
@@ -474,8 +510,10 @@ def tick_once(
     agent_dir: Path,
     schedule_id: str,
     source_scene_ref: str,
+    defer_completion: bool = False,
 ) -> dict[str, Any]:
     rate = max(float(state.get("target_heartbeat_rate", 1.0)), 0.001)
+    pacing_policy = state.setdefault("pacing_policy", default_state()["pacing_policy"])
     work_role = work_role_for_action(coordinator_action, target_role)
     selected, selection_kind, selection_reason = select_participant(
         state,
@@ -483,16 +521,34 @@ def tick_once(
         urgency=urgency,
     )
     action_id, action_type, base_recovery, initiative_cost, interruptibility, action_reason = (
-        action_for_selection(selected, work_role=work_role, coordinator_action=coordinator_action)
+        action_for_selection(
+            selected,
+            work_role=work_role,
+            coordinator_action=coordinator_action,
+            target_heartbeat_rate=rate,
+            pacing_policy=pacing_policy,
+        )
     )
-    base_recovery = base_recovery / rate
     scene_clock = max(float(state["scene_clock"]), float(selected["next_ready_at"]))
     recovery = base_recovery / max(float(selected["initiative_speed"]), float(state["selection_policy"]["minimum_speed"]))
-    selected["next_ready_at"] = round(scene_clock + recovery, 6)
+    pending_turn = {
+        "status": "running",
+        "scheduleId": schedule_id,
+        "actionId": action_id,
+        "actionType": "ruminate_memory" if action_id.endswith(".ruminate") else "role_work",
+        "startedAt": now_iso(),
+        "startedSceneClock": round(scene_clock, 6),
+        "baseRecovery": round(base_recovery, 6),
+        "recovery": round(recovery, 6),
+        "cooldownPolicy": "after_turn_completion",
+    }
+    selected["pending_turn"] = pending_turn
     selected["last_action_id"] = action_id
     selected["last_woke_at"] = now_iso()
     selected["current_load"] = round(min(1.0, max(0.0, float(selected.get("current_load", 0.0)) * 0.75)), 6)
     state["scene_clock"] = round(scene_clock, 6)
+    if not defer_completion:
+        complete_pending_turn(state, selected)
 
     snapshot = readiness_snapshot(active_participants(state), work_role=work_role, urgency=urgency)
     schedule = {
@@ -510,6 +566,7 @@ def tick_once(
                 "interrupt_threshold": item["interrupt_threshold"],
                 "current_load": item["current_load"],
                 "status": item["status"],
+                "pending_turn": item.get("pending_turn"),
                 "constraints": item["constraints"],
             }
             for item in state["participants"]
@@ -527,6 +584,7 @@ def tick_once(
                 "local_affordance_basis": [
                     action_reason,
                     "Heartbeat slots control opportunity, not project authority.",
+                    "Cooldown starts only after the heartbeat turn completes, so an unfinished sub-agent thread cannot be heartbeaten again.",
                 ],
             }
         ],
@@ -556,6 +614,7 @@ def tick_once(
         "review_notes": [
             "Epiphany heartbeat uses Ghostlight initiative timing as a harness scheduling receipt.",
             "A selected idle lane may ruminate and request bounded self-memory mutation; it may not invent project work.",
+            "When no coordinator work is active, idle rumination uses the sleep heartbeat multiplier so the swarm dreams slowly instead of thrashing.",
         ],
     }
 
@@ -583,10 +642,31 @@ def tick_once(
         "workRole": work_role,
         "sceneClock": state["scene_clock"],
         "nextReadyAt": selected["next_ready_at"],
+        "turnStatus": "running" if defer_completion else "completed",
+        "cooldownStartedAfterCompletion": True,
     }
     state.setdefault("history", []).append(event)
     state["history"] = state["history"][-128:]
     return {"event": event, "schedule": schedule, "rumination": rumination}
+
+
+def complete_pending_turn(state: dict[str, Any], participant: dict[str, Any]) -> dict[str, Any]:
+    pending = participant.get("pending_turn")
+    if not isinstance(pending, dict) or pending.get("status") != "running":
+        raise ValueError(f"{participant.get('role_id')} has no running heartbeat turn")
+    scene_clock = max(float(state.get("scene_clock", 0.0)), float(pending.get("startedSceneClock", 0.0)))
+    recovery = float(pending.get("recovery", 0.0))
+    participant["next_ready_at"] = round(scene_clock + recovery, 6)
+    participant["last_finished_at"] = now_iso()
+    completed = {
+        **pending,
+        "status": "completed",
+        "completedAt": participant["last_finished_at"],
+        "completedSceneClock": round(scene_clock, 6),
+        "nextReadyAt": participant["next_ready_at"],
+    }
+    participant["pending_turn"] = None
+    return completed
 
 
 def run_tick(args: argparse.Namespace) -> dict[str, Any]:
@@ -603,6 +683,7 @@ def run_tick(args: argparse.Namespace) -> dict[str, Any]:
         agent_dir=args.agent_dir,
         schedule_id=args.schedule_id,
         source_scene_ref=args.source_scene_ref,
+        defer_completion=getattr(args, "defer_completion", False),
     )
     write_json(args.state_file, state)
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -616,6 +697,37 @@ def run_tick(args: argparse.Namespace) -> dict[str, Any]:
         "artifactDir": str(args.artifact_dir),
         **result,
     }
+
+
+def run_complete(args: argparse.Namespace) -> dict[str, Any]:
+    state = load_state(args.state_file, target_heartbeat_rate=0.0)
+    participant = participant_by_role(state, args.role)
+    pending = participant.get("pending_turn")
+    if not isinstance(pending, dict) or pending.get("status") != "running":
+        raise ValueError(f"{args.role} has no running heartbeat turn")
+    if args.action_id and pending.get("actionId") != args.action_id:
+        raise ValueError(
+            f"{args.role} pending heartbeat action is {pending.get('actionId')}, not {args.action_id}"
+        )
+    completed = complete_pending_turn(state, participant)
+    event = {
+        "ts": now_iso(),
+        "scheduleId": completed.get("scheduleId"),
+        "selectedRole": args.role,
+        "selectedAgentId": participant.get("agent_id"),
+        "actionId": completed.get("actionId"),
+        "actionType": completed.get("actionType"),
+        "turnStatus": "completed",
+        "sceneClock": state.get("scene_clock"),
+        "nextReadyAt": participant.get("next_ready_at"),
+    }
+    state.setdefault("history", []).append(event)
+    state["history"] = state["history"][-128:]
+    write_json(args.state_file, state)
+    args.artifact_dir.mkdir(parents=True, exist_ok=True)
+    if completed.get("scheduleId"):
+        write_json(args.artifact_dir / f"{completed['scheduleId']}.completion.json", {"event": event, "turn": completed})
+    return {"ok": True, "event": event, "completedTurn": completed}
 
 
 def run_status(args: argparse.Namespace) -> dict[str, Any]:
@@ -647,8 +759,21 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             apply_rumination=True,
             schedule_id="smoke-work",
             source_scene_ref="smoke/coordinator",
+            defer_completion=True,
         )
         work = run_tick(first_args)
+        blocked_repeat = None
+        try:
+            run_tick(first_args)
+        except ValueError as exc:
+            blocked_repeat = str(exc)
+        complete_args = argparse.Namespace(
+            state_file=state_file,
+            artifact_dir=artifact_dir,
+            role="implementation",
+            action_id=work["event"]["actionId"],
+        )
+        completed = run_complete(complete_args)
         second_args = argparse.Namespace(
             state_file=state_file,
             artifact_dir=artifact_dir,
@@ -660,6 +785,7 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
             apply_rumination=True,
             schedule_id="smoke-idle",
             source_scene_ref="smoke/idle",
+            defer_completion=False,
         )
         idle = run_tick(second_args)
         validation_errors = validate_all(agent_dir)
@@ -670,17 +796,26 @@ def run_smoke(args: argparse.Namespace) -> dict[str, Any]:
         state = load_json(state_file)
         ok = (
             work["event"]["selectedRole"] == "implementation"
+            and work["event"]["turnStatus"] == "running"
+            and blocked_repeat is not None
+            and "already has running heartbeat turn" in blocked_repeat
+            and completed["event"]["turnStatus"] == "completed"
             and idle["event"]["actionType"] == "ruminate_memory"
+            and idle["event"]["turnStatus"] == "completed"
+            and idle["event"]["nextReadyAt"] > completed["event"]["nextReadyAt"]
             and idle["rumination"]["result"]["status"] == "accepted"
             and not validation_errors
             and not initiative_errors
             and (artifact_dir / "smoke-work.initiative.json").exists()
+            and (artifact_dir / "smoke-work.completion.json").exists()
             and (artifact_dir / "smoke-idle.rumination.json").exists()
             and len(state.get("participants", [])) == len(ROLE_ORDER)
         )
         return {
             "ok": ok,
             "workEvent": work["event"],
+            "blockedRepeat": blocked_repeat,
+            "completionEvent": completed["event"],
             "idleEvent": idle["event"],
             "idleRumination": idle["rumination"],
             "validationErrors": validation_errors,
@@ -750,6 +885,17 @@ def build_parser() -> argparse.ArgumentParser:
     tick.add_argument("--apply-rumination", action="store_true")
     tick.add_argument("--schedule-id", default="epiphany-heartbeat")
     tick.add_argument("--source-scene-ref", default="epiphany/coordinator")
+    tick.add_argument(
+        "--defer-completion",
+        action="store_true",
+        help="Leave the selected lane in-flight; cooldown begins when the complete command is called.",
+    )
+
+    complete = subparsers.add_parser("complete")
+    complete.add_argument("--state-file", type=Path, default=DEFAULT_HEARTBEAT_STATE)
+    complete.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
+    complete.add_argument("--role", choices=sorted(ROLE_TARGETS), required=True)
+    complete.add_argument("--action-id")
 
     init = subparsers.add_parser("init")
     init.add_argument("--state-file", type=Path, default=DEFAULT_HEARTBEAT_STATE)
@@ -778,6 +924,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "tick":
             print(json.dumps(run_tick(args), indent=2))
+            return 0
+        if args.command == "complete":
+            print(json.dumps(run_complete(args), indent=2))
             return 0
         if args.command == "status":
             print(json.dumps(run_status(args), indent=2))
