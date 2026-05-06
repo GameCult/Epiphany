@@ -64,6 +64,12 @@ pub struct EpiphanyHeartbeatStateEntry {
     #[cultcache(key = 9, default)]
     pub incubation: Option<Value>,
     #[cultcache(key = 10, default)]
+    pub thought_lanes: Option<Value>,
+    #[cultcache(key = 11, default)]
+    pub bridge: Option<Value>,
+    #[cultcache(key = 12, default)]
+    pub candidate_interventions: Option<Value>,
+    #[cultcache(key = 13, default)]
     pub extra: BTreeMap<String, Value>,
 }
 
@@ -339,6 +345,9 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
         sleep_cycle: None,
         memory_resonance: None,
         incubation: None,
+        thought_lanes: None,
+        bridge: None,
+        candidate_interventions: None,
         extra: BTreeMap::new(),
     }
 }
@@ -442,6 +451,9 @@ pub fn heartbeat_status_projection(
         "sleepCycle": state.sleep_cycle,
         "memoryResonance": state.memory_resonance,
         "incubation": state.incubation,
+        "thoughtLanes": state.thought_lanes,
+        "bridge": state.bridge,
+        "candidateInterventions": state.candidate_interventions,
         "availableActions": ["init", "tick", "complete", "status", "routine"],
     }))
 }
@@ -459,6 +471,9 @@ pub fn run_void_routine_store(
     let memory_records = collect_role_memory_records(options.agent_store.as_deref())?;
     let resonance = build_memory_resonance(&memory_records);
     let incubation = build_incubation(&state.incubation, &resonance, &memory_records);
+    let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
+    let bridge = build_thought_bridge(&state.bridge, &thought_lanes, &resonance, &incubation);
+    let candidate_interventions = build_candidate_interventions(&bridge, &incubation);
     let sleep_cycle =
         update_sleep_cycle(state.sleep_cycle.as_ref(), &incubation, options.allow_dream);
     let run_id = format!("epiphany-void-routine-{}", now_stamp());
@@ -473,9 +488,13 @@ pub fn run_void_routine_store(
         "sleepCycle": sleep_cycle,
         "memoryResonance": resonance,
         "incubation": incubation,
+        "thoughtLanes": thought_lanes,
+        "bridge": bridge,
+        "candidateInterventions": candidate_interventions,
         "reviewNotes": [
             "Void is reference material, not a runtime dependency.",
             "The routine mutates only typed heartbeat physiology fields; project truth and role memory mutation stay on their dedicated reviewed surfaces.",
+            "Analytic and associative lanes are cognition context, not hidden authority; the bridge decides draft, speech, silence, or further incubation.",
             "Sleep is maintenance: slow rumination, memory compression, and dream residue, not absence."
         ],
     });
@@ -483,6 +502,9 @@ pub fn run_void_routine_store(
     state.sleep_cycle = Some(sleep_cycle);
     state.memory_resonance = Some(resonance);
     state.incubation = Some(incubation);
+    state.thought_lanes = Some(thought_lanes);
+    state.bridge = Some(bridge);
+    state.candidate_interventions = Some(candidate_interventions);
     state.extra.insert(
         "voidRoutine".to_string(),
         serde_json::json!({
@@ -1526,13 +1548,268 @@ fn build_incubation(
             .unwrap_or_default()
             .total_cmp(&left["strength"].as_f64().unwrap_or_default())
     });
-    themes.dedup_by(|left, right| left.get("themeId") == right.get("themeId"));
+    let mut seen_themes = BTreeSet::new();
+    themes.retain(|theme| {
+        let theme_id = theme
+            .get("themeId")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown")
+            .to_string();
+        seen_themes.insert(theme_id)
+    });
     themes.truncate(12);
     serde_json::json!({
         "schema_version": "epiphany.incubation.v0",
         "updatedAt": now_iso(),
         "themes": themes,
     })
+}
+
+fn build_thought_lanes(
+    resonance: &Value,
+    incubation: &Value,
+    records: &[RoleMemoryRecord],
+) -> Value {
+    let analytic_threads = resonance
+        .get("pairs")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(4)
+        .enumerate()
+        .map(|(index, pair)| {
+            let left_role = pair.get("leftRole").and_then(Value::as_str).unwrap_or("left");
+            let right_role = pair.get("rightRole").and_then(Value::as_str).unwrap_or("right");
+            let strength = pair.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
+            serde_json::json!({
+                "threadId": format!("analytic-{left_role}-{right_role}-{index}"),
+                "topic": format!("{left_role}/{right_role} evidence seam"),
+                "claim": format!("{} and {} share a recurring memory edge; inspect whether this changes lane routing or evidence expectations.", display_name_for_role(left_role), display_name_for_role(right_role)),
+                "evidenceRefs": [
+                    pair.get("leftMemoryId").and_then(Value::as_str).unwrap_or_default(),
+                    pair.get("rightMemoryId").and_then(Value::as_str).unwrap_or_default()
+                ],
+                "salience": round3(strength),
+                "confidence": round3((0.55 + strength).min(0.95)),
+                "desireToAct": round3((strength * 1.4).min(0.85)),
+                "counterweight": "Shared vocabulary is not proof of shared truth; verify against artifacts before changing project state.",
+                "lastTouchedAt": now_iso(),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let associative_threads = incubation
+        .get("themes")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(4)
+        .enumerate()
+        .map(|(index, theme)| {
+            let topic = theme
+                .get("themeId")
+                .and_then(Value::as_str)
+                .unwrap_or("incubating-theme");
+            let strength = theme.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
+            serde_json::json!({
+                "threadId": format!("associative-{topic}-{index}"),
+                "topic": topic,
+                "claim": theme.get("summary").and_then(Value::as_str).unwrap_or("An incubating thought wants another pass before it speaks."),
+                "sourceThemeId": topic,
+                "novelty": round3((0.42 + strength).min(0.92)),
+                "roomRelevance": round3((0.35 + strength).min(0.88)),
+                "desireToSpeak": round3((strength * 1.25).min(0.8)),
+                "counterweight": "A theme that keeps returning may be signal, obsession, or stale echo; the bridge must decide.",
+                "lastTouchedAt": now_iso(),
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let seed_threads = if analytic_threads.is_empty() && associative_threads.is_empty() {
+        records
+            .first()
+            .map(|record| {
+                vec![serde_json::json!({
+                    "threadId": format!("analytic-{}-seed", record.role_id),
+                    "topic": format!("{} strongest memory", record.role_id),
+                    "claim": record.summary,
+                    "evidenceRefs": [record.memory_id],
+                    "salience": round3(record.salience),
+                    "confidence": round3(record.confidence),
+                    "desireToAct": 0.2,
+                    "counterweight": "One hot memory is only a seed; do not let it annex the whole mind.",
+                    "lastTouchedAt": now_iso(),
+                })]
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    serde_json::json!({
+        "schema_version": "epiphany.cognition_lanes.v0",
+        "updatedAt": now_iso(),
+        "analytic": {
+            "description": "Literal, evidence-facing lane: what is happening, what constraints matter, what action is justified.",
+            "activeThreads": if analytic_threads.is_empty() { seed_threads } else { analytic_threads },
+        },
+        "associative": {
+            "description": "Pattern-facing lane: what this rhymes with, what seam is ripening, what surprising branch may be worth a later retrieval hop.",
+            "activeThreads": associative_threads,
+        },
+    })
+}
+
+fn build_thought_bridge(
+    previous: &Option<Value>,
+    thought_lanes: &Value,
+    resonance: &Value,
+    incubation: &Value,
+) -> Value {
+    let analytic_count = thought_lanes
+        .pointer("/analytic/activeThreads")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default();
+    let associative_count = thought_lanes
+        .pointer("/associative/activeThreads")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default();
+    let resonance_count = resonance
+        .get("pairs")
+        .and_then(Value::as_array)
+        .map(Vec::len)
+        .unwrap_or_default();
+    let strongest_theme = incubation
+        .get("themes")
+        .and_then(Value::as_array)
+        .and_then(|themes| themes.first())
+        .cloned();
+    let lane_balance = match analytic_count.cmp(&associative_count) {
+        std::cmp::Ordering::Greater => "analytic-heavy",
+        std::cmp::Ordering::Less => "associative-heavy",
+        std::cmp::Ordering::Equal => "balanced",
+    };
+    let speak_decision = if resonance_count >= 3 && associative_count > 0 {
+        "draft"
+    } else if resonance_count > 0 {
+        "hold"
+    } else {
+        "silence"
+    };
+    let mut syntheses = previous
+        .as_ref()
+        .and_then(|value| value.get("recentSyntheses"))
+        .or_else(|| {
+            previous
+                .as_ref()
+                .and_then(|value| value.get("recent_syntheses"))
+        })
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    syntheses.push(serde_json::json!({
+        "timestamp": now_iso(),
+        "summary": if let Some(theme) = &strongest_theme {
+            format!("Analytic evidence edges and associative incubation currently converge on {}.", theme.get("themeId").and_then(Value::as_str).unwrap_or("an unnamed theme"))
+        } else {
+            "No strong convergence yet; hold the lanes open without forcing speech.".to_string()
+        },
+        "dominantTopics": strongest_theme
+            .as_ref()
+            .and_then(|theme| theme.get("themeId"))
+            .cloned()
+            .map(|topic| vec![topic])
+            .unwrap_or_default(),
+        "laneBalance": lane_balance,
+        "speakDecision": speak_decision,
+        "saturationNote": if syntheses.len() > 4 {
+            Some("Recent syntheses are accumulating; cool repeated topics unless fresh evidence strengthens them.")
+        } else {
+            None
+        },
+    }));
+    syntheses.reverse();
+    syntheses.truncate(8);
+    syntheses.reverse();
+
+    serde_json::json!({
+        "schema_version": "epiphany.cognition_bridge.v0",
+        "updatedAt": now_iso(),
+        "recentSyntheses": syntheses,
+        "topicSaturation": topic_saturation_from_syntheses(&syntheses),
+        "unresolvedTensions": [{
+            "topic": "thought authority boundary",
+            "summary": "Cognition lanes may shape attention and drafts, but only reviewed Epiphany state surfaces change project truth.",
+            "openedAt": now_iso(),
+        }],
+        "decision": {
+            "laneBalance": lane_balance,
+            "speakDecision": speak_decision,
+            "reason": "Bridge converts analytic and associative lanes into draft/hold/silence guidance without granting authority.",
+        },
+    })
+}
+
+fn build_candidate_interventions(bridge: &Value, incubation: &Value) -> Value {
+    let decision = bridge
+        .pointer("/decision/speakDecision")
+        .and_then(Value::as_str)
+        .unwrap_or("silence");
+    let strongest_theme = incubation
+        .get("themes")
+        .and_then(Value::as_array)
+        .and_then(|themes| themes.first());
+    let items = if matches!(decision, "draft" | "hold") {
+        strongest_theme
+            .map(|theme| {
+                vec![serde_json::json!({
+                    "interventionId": format!("candidate-{}", theme.get("themeId").and_then(Value::as_str).unwrap_or("theme")),
+                    "summary": "Possible Aquarium-facing thought-weather note",
+                    "draft": format!("I keep seeing {} rhyme across the swarm; worth inspecting before it becomes either signal or superstition.", theme.get("themeId").and_then(Value::as_str).unwrap_or("an unnamed seam")),
+                    "decision": decision,
+                    "requiresFace": true,
+                    "requiresReview": true,
+                    "createdAt": now_iso(),
+                })]
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    serde_json::json!({
+        "schema_version": "epiphany.candidate_interventions.v0",
+        "updatedAt": now_iso(),
+        "items": items,
+    })
+}
+
+fn topic_saturation_from_syntheses(syntheses: &[Value]) -> Vec<Value> {
+    let mut counts: BTreeMap<String, usize> = BTreeMap::new();
+    for synthesis in syntheses {
+        for topic in synthesis
+            .get("dominantTopics")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+        {
+            *counts.entry(topic.to_string()).or_default() += 1;
+        }
+    }
+    counts
+        .into_iter()
+        .filter(|(_, count)| *count > 1)
+        .map(|(topic, count)| {
+            serde_json::json!({
+                "topic": topic,
+                "dominance": round3((count as f64 / syntheses.len().max(1) as f64).min(1.0)),
+                "recentMentions": count,
+                "coolingAdvice": "Require fresh evidence or a new angle before surfacing this topic again.",
+            })
+        })
+        .collect()
 }
 
 fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream: bool) -> Value {

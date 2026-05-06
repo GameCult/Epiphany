@@ -173,9 +173,37 @@ fn character_turn_packet(
             "silence",
             "selfPatch"
         ],
+        "cognitionLanes": {
+            "schema_version": "epiphany.cognition_lanes.v0",
+            "analytic": {
+                "description": "Literal, evidence-facing lane: what happened, what constraints apply, what action is justified.",
+                "requiredThreadShape": {
+                    "topic": "string",
+                    "claim": "string",
+                    "evidenceRefs": "string[]",
+                    "confidence": "0..1",
+                    "counterweight": "string"
+                }
+            },
+            "associative": {
+                "description": "Pattern-facing lane: what this rhymes with, what older seam or emotional salience may matter, what should incubate.",
+                "requiredThreadShape": {
+                    "topic": "string",
+                    "claim": "string",
+                    "sourceThemeIds": "string[]",
+                    "novelty": "0..1",
+                    "counterweight": "string"
+                }
+            },
+            "bridge": {
+                "schema_version": "epiphany.cognition_bridge.v0",
+                "contract": "Synthesize or separate the lanes, name saturation and unresolved tension, then choose bubble, draft, finding, silence, or selfPatch. The bridge may steer attention; it may not mutate project truth."
+            }
+        },
         "guardrails": [
             "Humans talk to Face; other organs expose internals through Aquarium and typed artifacts rather than becoming direct chats.",
             "Use character-local projection: the actor receives its own dossier and visible stimulus, not omniscient hidden state.",
+            "Run both cognition lanes before choosing an output: analytic keeps the promise honest, associative keeps the living signal from going flat.",
             "If speech or action would be noise, return silence plus bounded rumination or selfPatch.",
             "Posting, state mutation, objective adoption, and semantic acceptance remain separate reviewed Epiphany surfaces."
         ],
@@ -184,6 +212,9 @@ fn character_turn_packet(
             "localInterpretation": "string",
             "candidateBubble": "string|null",
             "candidateDraft": "string|null",
+            "analyticThread": "object",
+            "associativeThread": "object",
+            "bridgeSynthesis": "object",
             "decision": "bubble|draft|finding|silence|blocked",
             "selfPatch": "optional bounded role memory mutation"
         }
@@ -229,7 +260,9 @@ fn run_smoke() -> Result<Value> {
             .is_some_and(|name| !name.trim().is_empty())
         && packet["stimulus"]["content"]
             .as_str()
-            .is_some_and(|text| text.contains("Aquarium"));
+            .is_some_and(|text| text.contains("Aquarium"))
+        && packet["cognitionLanes"]["schema_version"] == "epiphany.cognition_lanes.v0"
+        && packet["cognitionLanes"]["bridge"]["schema_version"] == "epiphany.cognition_bridge.v0";
     Ok(serde_json::json!({
         "ok": ok,
         "turnPath": path,
@@ -240,6 +273,7 @@ fn run_smoke() -> Result<Value> {
             "agentId": packet["protocol"]["agentId"],
             "identityName": packet["projectedLocalContext"]["identity"]["name"],
             "allowedOutputs": packet["allowedOutputs"],
+            "cognitionLanes": packet["cognitionLanes"]["schema_version"],
         }
     }))
 }
