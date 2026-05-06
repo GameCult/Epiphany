@@ -16,6 +16,7 @@ from epiphany_agent_memory import validate_all
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_HEARTBEAT_STATE = ROOT / "state" / "agent-heartbeats.json"
+DEFAULT_HEARTBEAT_STORE = ROOT / "state" / "agent-heartbeats.msgpack"
 DEFAULT_ARTIFACT_DIR = ROOT / ".epiphany-heartbeats"
 SCHEMA_VERSION = "epiphany.agent_heartbeat.v0"
 STATUS_SCHEMA_VERSION = "epiphany.agent_heartbeat_status.v0"
@@ -155,6 +156,25 @@ def latest_json_artifacts(artifact_dir: Path, *, limit: int = 8) -> list[dict[st
     return artifacts
 
 
+def cultcache_store_status(store_file: Path = DEFAULT_HEARTBEAT_STORE) -> dict[str, Any]:
+    if not store_file.exists():
+        return {
+            "storeFile": str(store_file),
+            "present": False,
+            "sizeBytes": None,
+            "modifiedAt": None,
+        }
+    stat = store_file.stat()
+    return {
+        "storeFile": str(store_file),
+        "present": True,
+        "sizeBytes": stat.st_size,
+        "modifiedAt": datetime.fromtimestamp(stat.st_mtime, timezone.utc).replace(microsecond=0).isoformat(),
+        "entryType": "epiphany.agent_heartbeat",
+        "entryKey": "default",
+    }
+
+
 def artifact_summary(payload: Any) -> dict[str, Any]:
     if not isinstance(payload, dict):
         return {"type": type(payload).__name__}
@@ -271,6 +291,7 @@ def load_state(path: Path, *, target_heartbeat_rate: float) -> dict[str, Any]:
 def heartbeat_status(
     *,
     state_file: Path = DEFAULT_HEARTBEAT_STATE,
+    store_file: Path = DEFAULT_HEARTBEAT_STORE,
     artifact_dir: Path = DEFAULT_ARTIFACT_DIR,
     target_heartbeat_rate: float = 0.0,
     artifact_limit: int = 8,
@@ -281,6 +302,7 @@ def heartbeat_status(
             "ok": True,
             "status": "missing",
             "stateFile": str(state_file),
+            "cultCacheStore": cultcache_store_status(store_file),
             "artifactDir": str(artifact_dir),
             "targetHeartbeatRate": target_heartbeat_rate if target_heartbeat_rate > 0 else None,
             "sceneClock": None,
@@ -324,6 +346,7 @@ def heartbeat_status(
         "ok": True,
         "status": "ready",
         "stateFile": str(state_file),
+        "cultCacheStore": cultcache_store_status(store_file),
         "artifactDir": str(artifact_dir),
         "targetHeartbeatRate": state.get("target_heartbeat_rate"),
         "sceneClock": state.get("scene_clock"),
@@ -733,6 +756,7 @@ def run_complete(args: argparse.Namespace) -> dict[str, Any]:
 def run_status(args: argparse.Namespace) -> dict[str, Any]:
     return heartbeat_status(
         state_file=args.state_file,
+        store_file=args.store_file,
         artifact_dir=args.artifact_dir,
         target_heartbeat_rate=args.target_heartbeat_rate,
         artifact_limit=args.limit,
@@ -903,6 +927,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     status = subparsers.add_parser("status")
     status.add_argument("--state-file", type=Path, default=DEFAULT_HEARTBEAT_STATE)
+    status.add_argument("--store-file", type=Path, default=DEFAULT_HEARTBEAT_STORE)
     status.add_argument("--artifact-dir", type=Path, default=DEFAULT_ARTIFACT_DIR)
     status.add_argument("--target-heartbeat-rate", type=float, default=0.0)
     status.add_argument("--limit", type=int, default=8)
