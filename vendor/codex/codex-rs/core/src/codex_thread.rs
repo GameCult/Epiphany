@@ -56,6 +56,12 @@ use codex_protocol::protocol::TokenUsageInfo;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_core::RuntimeSpineInitOptions;
+use epiphany_core::RuntimeSpineJobOptions;
+use epiphany_core::RuntimeSpineSessionOptions;
+use epiphany_core::create_runtime_job;
+use epiphany_core::ensure_runtime_session;
+use epiphany_core::initialize_runtime_spine;
 use rmcp::model::ReadResourceRequestParams;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -517,6 +523,13 @@ impl CodexThread {
 
         let launcher_job_id = format!("epiphany-heartbeat-launch-{}", Uuid::new_v4());
         let backend_job_id = Uuid::new_v4().to_string();
+        let runtime_store = self.epiphany_runtime_spine_store_path().await;
+        open_epiphany_runtime_spine_job(
+            runtime_store.as_path(),
+            &current_state,
+            &request,
+            backend_job_id.as_str(),
+        )?;
         let replacement_binding = build_epiphany_job_launch_binding(
             &request,
             launcher_job_id.as_str(),
@@ -547,8 +560,7 @@ impl CodexThread {
                 job_bindings: Some(next_job_bindings),
                 ..Default::default()
             })
-            .await
-            ?;
+            .await?;
 
         Ok(EpiphanyJobLaunchResult {
             epiphany_state,
@@ -689,6 +701,15 @@ impl CodexThread {
         })
     }
 
+    pub async fn epiphany_runtime_spine_store_path(&self) -> PathBuf {
+        self.config_snapshot()
+            .await
+            .cwd
+            .join("state")
+            .join("runtime-spine.msgpack")
+            .to_path_buf()
+    }
+
     pub async fn epiphany_index(
         &self,
         force_full_rebuild: bool,
@@ -811,8 +832,7 @@ fn validate_epiphany_job_launch_request(request: &EpiphanyJobLaunchRequest) -> C
     }
     if request.kind != EpiphanyJobKind::Specialist {
         return Err(CodexErr::InvalidRequest(
-            "epiphany job launch currently supports only specialist heartbeat turns"
-                .to_string(),
+            "epiphany job launch currently supports only specialist heartbeat turns".to_string(),
         ));
     }
     if request.scope.trim().is_empty() {
@@ -895,6 +915,70 @@ fn build_epiphany_job_launch_binding(
         ),
         blocking_reason: None,
     }
+}
+
+fn open_epiphany_runtime_spine_job(
+    store_path: &std::path::Path,
+    state: &EpiphanyThreadState,
+    request: &EpiphanyJobLaunchRequest,
+    backend_job_id: &str,
+) -> CodexResult<()> {
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    initialize_runtime_spine(
+        store_path,
+        RuntimeSpineInitOptions {
+            runtime_id: "epiphany-local".to_string(),
+            display_name: "Epiphany Local".to_string(),
+            created_at: now.clone(),
+        },
+    )
+    .map_err(|err| {
+        CodexErr::Fatal(format!(
+            "failed to initialize Epiphany runtime spine {}: {err}",
+            store_path.display()
+        ))
+    })?;
+    ensure_runtime_session(
+        store_path,
+        RuntimeSpineSessionOptions {
+            session_id: "epiphany-main".to_string(),
+            objective: state
+                .objective
+                .clone()
+                .filter(|objective| !objective.trim().is_empty())
+                .unwrap_or_else(|| "Epiphany heartbeat activation".to_string()),
+            created_at: now.clone(),
+            coordinator_note: "App-server launch opened this typed runtime session.".to_string(),
+        },
+    )
+    .map_err(|err| {
+        CodexErr::Fatal(format!(
+            "failed to ensure Epiphany runtime session in {}: {err}",
+            store_path.display()
+        ))
+    })?;
+    create_runtime_job(
+        store_path,
+        RuntimeSpineJobOptions {
+            job_id: backend_job_id.to_string(),
+            session_id: "epiphany-main".to_string(),
+            role: request.owner_role.clone(),
+            created_at: now,
+            summary: format!(
+                "Heartbeat activation queued for binding {} with authority {}.",
+                request.binding_id, request.authority_scope
+            ),
+            artifact_refs: Vec::new(),
+        },
+    )
+    .map_err(|err| {
+        CodexErr::Fatal(format!(
+            "failed to open Epiphany runtime job {:?} in {}: {err}",
+            backend_job_id,
+            store_path.display()
+        ))
+    })?;
+    Ok(())
 }
 
 fn replace_or_append_epiphany_job_binding(
@@ -1963,7 +2047,10 @@ mod epiphany_update_tests {
         let binding =
             build_epiphany_job_launch_binding(&request, "epiphany-heartbeat-launch-1", "turn-1");
 
-        assert_eq!(binding.backend_kind, Some(EpiphanyJobBackendKind::Heartbeat));
+        assert_eq!(
+            binding.backend_kind,
+            Some(EpiphanyJobBackendKind::Heartbeat)
+        );
         assert_eq!(binding.backend_job_id.as_deref(), Some("turn-1"));
         assert_eq!(binding.runtime_agent_job_id, None);
         assert!(

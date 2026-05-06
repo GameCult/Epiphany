@@ -510,6 +510,10 @@ use codex_thread_store::ThreadStoreError;
 use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataParams;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
+use epiphany_core::EpiphanyRuntimeJobResult;
+use epiphany_core::EpiphanyRuntimeJobSnapshot;
+use epiphany_core::EpiphanyRuntimeJobStatus;
+use epiphany_core::runtime_job_snapshot;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -4433,11 +4437,15 @@ impl CodexMessageProcessor {
             &watcher,
         );
 
-        let mut state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            loaded_thread.epiphany_state_runtime().await
-        } else {
-            None
-        };
+        let (mut state_db_ctx, runtime_store_path) =
+            if let Some(loaded_thread) = loaded_thread.as_ref() {
+                (
+                    loaded_thread.epiphany_state_runtime().await,
+                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
+                )
+            } else {
+                (None, None)
+            };
         if state_db_ctx.is_none() {
             state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
         }
@@ -4458,6 +4466,7 @@ impl CodexMessageProcessor {
         let (result_status, finding, _) = load_epiphany_reorient_result_snapshot(
             thread.epiphany_state.as_ref(),
             state_db_ctx.as_ref(),
+            runtime_store_path.as_deref(),
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
         .await;
@@ -4579,11 +4588,15 @@ impl CodexMessageProcessor {
             &watcher,
         );
 
-        let mut state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            loaded_thread.epiphany_state_runtime().await
-        } else {
-            None
-        };
+        let (mut state_db_ctx, runtime_store_path) =
+            if let Some(loaded_thread) = loaded_thread.as_ref() {
+                (
+                    loaded_thread.epiphany_state_runtime().await,
+                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
+                )
+            } else {
+                (None, None)
+            };
         if state_db_ctx.is_none() {
             state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
         }
@@ -4604,6 +4617,7 @@ impl CodexMessageProcessor {
         let (reorient_result_status, reorient_finding, _) = load_epiphany_reorient_result_snapshot(
             thread.epiphany_state.as_ref(),
             state_db_ctx.as_ref(),
+            runtime_store_path.as_deref(),
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
         .await;
@@ -4643,6 +4657,7 @@ impl CodexMessageProcessor {
                 load_epiphany_role_result_snapshot(
                     state,
                     state_db_ctx.as_ref(),
+                    runtime_store_path.as_deref(),
                     ThreadEpiphanyRoleId::Modeling,
                     EPIPHANY_MODELING_ROLE_BINDING_ID,
                 )
@@ -4668,6 +4683,7 @@ impl CodexMessageProcessor {
                 load_epiphany_role_result_snapshot(
                     state,
                     state_db_ctx.as_ref(),
+                    runtime_store_path.as_deref(),
                     ThreadEpiphanyRoleId::Verification,
                     EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
                 )
@@ -4985,11 +5001,15 @@ impl CodexMessageProcessor {
             return;
         }
 
-        let mut state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            loaded_thread.epiphany_state_runtime().await
-        } else {
-            None
-        };
+        let (mut state_db_ctx, runtime_store_path) =
+            if let Some(loaded_thread) = loaded_thread.as_ref() {
+                (
+                    loaded_thread.epiphany_state_runtime().await,
+                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
+                )
+            } else {
+                (None, None)
+            };
         if state_db_ctx.is_none() {
             state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
         }
@@ -4998,9 +5018,14 @@ impl CodexMessageProcessor {
         let job = map_epiphany_jobs(Some(state), None, &job_resolution)
             .into_iter()
             .find(|job| job.id == binding_id);
-        let (status, finding, note) =
-            load_epiphany_role_result_snapshot(state, state_db_ctx.as_ref(), role_id, &binding_id)
-                .await;
+        let (status, finding, note) = load_epiphany_role_result_snapshot(
+            state,
+            state_db_ctx.as_ref(),
+            runtime_store_path.as_deref(),
+            role_id,
+            &binding_id,
+        )
+        .await;
 
         self.outgoing
             .send_response(
@@ -5676,11 +5701,15 @@ impl CodexMessageProcessor {
             &watcher,
         );
 
-        let mut state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            loaded_thread.epiphany_state_runtime().await
-        } else {
-            None
-        };
+        let (mut state_db_ctx, runtime_store_path) =
+            if let Some(loaded_thread) = loaded_thread.as_ref() {
+                (
+                    loaded_thread.epiphany_state_runtime().await,
+                    Some(loaded_thread.epiphany_runtime_spine_store_path().await),
+                )
+            } else {
+                (None, None)
+            };
         if state_db_ctx.is_none() {
             state_db_ctx = open_state_db_for_direct_thread_lookup(&self.config).await;
         }
@@ -5701,6 +5730,7 @@ impl CodexMessageProcessor {
         let (result_status, finding, result_note) = load_epiphany_reorient_result_snapshot(
             thread.epiphany_state.as_ref(),
             state_db_ctx.as_ref(),
+            runtime_store_path.as_deref(),
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
         .await;
@@ -5975,10 +6005,14 @@ impl CodexMessageProcessor {
         };
 
         let state_revision = Some(state.revision);
-        let state_db_ctx = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            loaded_thread.epiphany_state_runtime().await
+        let (state_db_ctx, runtime_store_path) = if let Some(loaded_thread) = loaded_thread.as_ref()
+        {
+            (
+                loaded_thread.epiphany_state_runtime().await,
+                Some(loaded_thread.epiphany_runtime_spine_store_path().await),
+            )
         } else {
-            None
+            (None, None)
         };
         let job_resolution =
             load_epiphany_job_launcher_snapshots(state_db_ctx.as_ref(), Some(state)).await;
@@ -5986,156 +6020,13 @@ impl CodexMessageProcessor {
             .into_iter()
             .find(|job| job.id == binding_id);
 
-        let Some(binding) = state
-            .job_bindings
-            .iter()
-            .find(|binding| binding.id == binding_id)
-        else {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    ThreadEpiphanyReorientResultResponse {
-                        thread_id: thread_uuid.to_string(),
-                        source,
-                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
-                        state_revision,
-                        binding_id,
-                        status: ThreadEpiphanyReorientResultStatus::MissingBinding,
-                        job,
-                        finding: None,
-                        note: "No matching Epiphany reorientation worker binding exists."
-                            .to_string(),
-                    },
-                )
-                .await;
-            return;
-        };
-
-        let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    ThreadEpiphanyReorientResultResponse {
-                        thread_id: thread_uuid.to_string(),
-                        source,
-                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
-                        state_revision,
-                        binding_id,
-                        status: ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                        job,
-                        finding: None,
-                        note: "The matching binding is not currently backed by the agent_jobs backend."
-                            .to_string(),
-                    },
-                )
-                .await;
-            return;
-        };
-
-        let Some(state_db_ctx) = state_db_ctx.as_ref() else {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    ThreadEpiphanyReorientResultResponse {
-                        thread_id: thread_uuid.to_string(),
-                        source,
-                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
-                        state_revision,
-                        binding_id,
-                        status: ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-                        job,
-                        finding: None,
-                        note: "State runtime is unavailable, so the bound agent_jobs result cannot be read."
-                            .to_string(),
-                    },
-                )
-                .await;
-            return;
-        };
-
-        let agent_job = match state_db_ctx.get_agent_job(agent_job_id).await {
-            Ok(Some(job)) => job,
-            Ok(None) => {
-                self.outgoing
-                    .send_response(
-                        request_id,
-                        ThreadEpiphanyReorientResultResponse {
-                            thread_id: thread_uuid.to_string(),
-                            source,
-                            state_status: ThreadEpiphanyReorientStateStatus::Ready,
-                            state_revision,
-                            binding_id,
-                            status: ThreadEpiphanyReorientResultStatus::BackendMissing,
-                            job,
-                            finding: None,
-                            note: format!(
-                                "Bound agent_jobs backend job {:?} was not found.",
-                                agent_job_id
-                            ),
-                        },
-                    )
-                    .await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to read Epiphany reorientation backend job: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let item = match state_db_ctx
-            .get_agent_job_item(agent_job_id, binding_id.as_str())
-            .await
-        {
-            Ok(item) => item,
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to read Epiphany reorientation backend job item: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
-        let Some(item) = item else {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    ThreadEpiphanyReorientResultResponse {
-                        thread_id: thread_uuid.to_string(),
-                        source,
-                        state_status: ThreadEpiphanyReorientStateStatus::Ready,
-                        state_revision,
-                        binding_id,
-                        status: ThreadEpiphanyReorientResultStatus::BackendMissing,
-                        job,
-                        finding: None,
-                        note:
-                            "Bound agent_jobs backend item was not found for this reorient worker."
-                                .to_string(),
-                    },
-                )
-                .await;
-            return;
-        };
-
-        let status = map_epiphany_reorient_result_status(agent_job.status, item.status);
-        let finding = item.result_json.as_ref().map(|result| {
-            map_epiphany_reorient_finding(
-                result.clone(),
-                agent_job.last_error.clone(),
-                item.last_error.clone(),
-            )
-        });
-        let note = render_epiphany_reorient_result_note(
-            status,
-            finding.as_ref(),
-            item.last_error.as_deref(),
-        );
+        let (status, finding, note) = load_epiphany_reorient_result_snapshot(
+            Some(state),
+            state_db_ctx.as_ref(),
+            runtime_store_path.as_deref(),
+            binding_id.as_str(),
+        )
+        .await;
 
         self.outgoing
             .send_response(
@@ -14430,9 +14321,184 @@ fn render_epiphany_reorient_result_note(
     }
 }
 
+fn load_epiphany_role_result_from_runtime_spine(
+    binding: &EpiphanyJobBinding,
+    runtime_store_path: Option<&Path>,
+    role_id: ThreadEpiphanyRoleId,
+) -> (
+    ThreadEpiphanyRoleResultStatus,
+    Option<ThreadEpiphanyRoleFinding>,
+    String,
+) {
+    let Some(job_id) = binding_backend_job_id(binding) else {
+        return (
+            ThreadEpiphanyRoleResultStatus::BackendMissing,
+            None,
+            "Heartbeat binding has no runtime-spine job id.".to_string(),
+        );
+    };
+    let Some(runtime_store_path) = runtime_store_path else {
+        return (
+            ThreadEpiphanyRoleResultStatus::Pending,
+            None,
+            "Heartbeat activation owns this role specialist; no loaded runtime-spine store is available yet."
+                .to_string(),
+        );
+    };
+    let snapshot = match runtime_job_snapshot(runtime_store_path, job_id) {
+        Ok(Some(snapshot)) => snapshot,
+        Ok(None) => {
+            return (
+                ThreadEpiphanyRoleResultStatus::Pending,
+                None,
+                format!(
+                    "Heartbeat runtime job {:?} has not reported typed state yet.",
+                    job_id
+                ),
+            );
+        }
+        Err(err) => {
+            return (
+                ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+                None,
+                format!(
+                    "Failed to read heartbeat runtime-spine job {:?}: {err}",
+                    job_id
+                ),
+            );
+        }
+    };
+    let status = map_runtime_role_result_status(&snapshot);
+    let finding = snapshot.result.as_ref().map(|result| {
+        map_epiphany_role_finding(role_id, runtime_job_result_to_role_json(result), None, None)
+    });
+    let note = render_epiphany_role_result_note(role_id, status, finding.as_ref(), None);
+    (status, finding, note)
+}
+
+fn load_epiphany_reorient_result_from_runtime_spine(
+    binding: &EpiphanyJobBinding,
+    runtime_store_path: Option<&Path>,
+) -> (
+    ThreadEpiphanyReorientResultStatus,
+    Option<ThreadEpiphanyReorientFinding>,
+    String,
+) {
+    let Some(job_id) = binding_backend_job_id(binding) else {
+        return (
+            ThreadEpiphanyReorientResultStatus::BackendMissing,
+            None,
+            "Heartbeat binding has no runtime-spine job id.".to_string(),
+        );
+    };
+    let Some(runtime_store_path) = runtime_store_path else {
+        return (
+            ThreadEpiphanyReorientResultStatus::Pending,
+            None,
+            "Heartbeat activation owns this reorientation worker; no loaded runtime-spine store is available yet."
+                .to_string(),
+        );
+    };
+    let snapshot = match runtime_job_snapshot(runtime_store_path, job_id) {
+        Ok(Some(snapshot)) => snapshot,
+        Ok(None) => {
+            return (
+                ThreadEpiphanyReorientResultStatus::Pending,
+                None,
+                format!(
+                    "Heartbeat runtime job {:?} has not reported typed state yet.",
+                    job_id
+                ),
+            );
+        }
+        Err(err) => {
+            return (
+                ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                None,
+                format!(
+                    "Failed to read heartbeat runtime-spine job {:?}: {err}",
+                    job_id
+                ),
+            );
+        }
+    };
+    let status = map_runtime_reorient_result_status(&snapshot);
+    let finding = snapshot.result.as_ref().map(|result| {
+        map_epiphany_reorient_finding(runtime_job_result_to_reorient_json(result), None, None)
+    });
+    let note = render_epiphany_reorient_result_note(status, finding.as_ref(), None);
+    (status, finding, note)
+}
+
+fn map_runtime_role_result_status(
+    snapshot: &EpiphanyRuntimeJobSnapshot,
+) -> ThreadEpiphanyRoleResultStatus {
+    match snapshot.job.status {
+        EpiphanyRuntimeJobStatus::Queued => ThreadEpiphanyRoleResultStatus::Pending,
+        EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview => {
+            ThreadEpiphanyRoleResultStatus::Running
+        }
+        EpiphanyRuntimeJobStatus::Completed => {
+            if snapshot.result.is_some() {
+                ThreadEpiphanyRoleResultStatus::Completed
+            } else {
+                ThreadEpiphanyRoleResultStatus::Pending
+            }
+        }
+        EpiphanyRuntimeJobStatus::Failed => ThreadEpiphanyRoleResultStatus::Failed,
+        EpiphanyRuntimeJobStatus::Cancelled => ThreadEpiphanyRoleResultStatus::Cancelled,
+    }
+}
+
+fn map_runtime_reorient_result_status(
+    snapshot: &EpiphanyRuntimeJobSnapshot,
+) -> ThreadEpiphanyReorientResultStatus {
+    match snapshot.job.status {
+        EpiphanyRuntimeJobStatus::Queued => ThreadEpiphanyReorientResultStatus::Pending,
+        EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview => {
+            ThreadEpiphanyReorientResultStatus::Running
+        }
+        EpiphanyRuntimeJobStatus::Completed => {
+            if snapshot.result.is_some() {
+                ThreadEpiphanyReorientResultStatus::Completed
+            } else {
+                ThreadEpiphanyReorientResultStatus::Pending
+            }
+        }
+        EpiphanyRuntimeJobStatus::Failed => ThreadEpiphanyReorientResultStatus::Failed,
+        EpiphanyRuntimeJobStatus::Cancelled => ThreadEpiphanyReorientResultStatus::Cancelled,
+    }
+}
+
+fn runtime_job_result_to_role_json(result: &EpiphanyRuntimeJobResult) -> serde_json::Value {
+    serde_json::json!({
+        "verdict": result.verdict,
+        "summary": result.summary,
+        "nextSafeMove": result.next_safe_move,
+        "evidenceIds": result.evidence_refs,
+        "artifactRefs": result.artifact_refs,
+        "runtimeResultId": result.result_id,
+        "runtimeJobId": result.job_id,
+    })
+}
+
+fn runtime_job_result_to_reorient_json(result: &EpiphanyRuntimeJobResult) -> serde_json::Value {
+    serde_json::json!({
+        "mode": result.role,
+        "summary": result.summary,
+        "nextSafeMove": result.next_safe_move,
+        "checkpointStillValid": result.verdict != "fail",
+        "evidenceIds": result.evidence_refs,
+        "artifactRefs": result.artifact_refs,
+        "runtimeResultId": result.result_id,
+        "runtimeJobId": result.job_id,
+    })
+}
+
 async fn load_epiphany_role_result_snapshot(
     state: &EpiphanyThreadState,
     state_db_ctx: Option<&StateDbHandle>,
+    runtime_store_path: Option<&Path>,
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
 ) -> (
@@ -14452,12 +14518,7 @@ async fn load_epiphany_role_result_snapshot(
         );
     };
     if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
-        return (
-            ThreadEpiphanyRoleResultStatus::Pending,
-            None,
-            "Heartbeat activation owns this role specialist; no accepted typed result has been reported yet."
-                .to_string(),
-        );
+        return load_epiphany_role_result_from_runtime_spine(binding, runtime_store_path, role_id);
     }
     let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
         return (
@@ -14535,6 +14596,7 @@ async fn load_epiphany_role_result_snapshot(
 async fn load_epiphany_reorient_result_snapshot(
     state: Option<&EpiphanyThreadState>,
     state_db_ctx: Option<&StateDbHandle>,
+    runtime_store_path: Option<&Path>,
     binding_id: &str,
 ) -> (
     ThreadEpiphanyReorientResultStatus,
@@ -14554,19 +14616,14 @@ async fn load_epiphany_reorient_result_snapshot(
         .find(|binding| binding.id == binding_id);
     let (agent_job, item) = if let Some(binding) = binding {
         if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
-            return (
-                ThreadEpiphanyReorientResultStatus::Pending,
-                None,
-                "Heartbeat activation owns this reorientation worker; no accepted typed result has been reported yet."
-                    .to_string(),
-            );
+            return load_epiphany_reorient_result_from_runtime_spine(binding, runtime_store_path);
         }
         let Some(agent_job_id) = binding_agent_jobs_job_id(binding) else {
             return (
                 ThreadEpiphanyReorientResultStatus::BackendUnavailable,
                 None,
                 "The matching binding is not currently backed by the agent_jobs backend."
-                .to_string(),
+                    .to_string(),
             );
         };
         let Some(state_db_ctx) = state_db_ctx else {
@@ -15665,6 +15722,31 @@ async fn load_completed_epiphany_reorient_finding(
     state: &EpiphanyThreadState,
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyReorientFinding> {
+    if let Some(binding) = state
+        .job_bindings
+        .iter()
+        .find(|binding| binding.id == binding_id)
+        && binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat)
+    {
+        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine(
+            binding,
+            Some(runtime_store_path.as_path()),
+        );
+        if status != ThreadEpiphanyReorientResultStatus::Completed {
+            return Err(CodexErr::InvalidRequest(format!(
+                "cannot accept reorientation result while worker status is {:?}",
+                status
+            )));
+        }
+        return finding.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
+                    .to_string(),
+            )
+        });
+    }
+
     let state_db_ctx = thread.epiphany_state_runtime().await.ok_or_else(|| {
         CodexErr::InvalidRequest(
             "sqlite state db is unavailable for Epiphany reorientation result acceptance"
@@ -15759,6 +15841,27 @@ async fn load_completed_epiphany_role_finding(
                 binding_id
             ))
         })?;
+    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
+        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine(
+            binding,
+            Some(runtime_store_path.as_path()),
+            role_id,
+        );
+        if status != ThreadEpiphanyRoleResultStatus::Completed {
+            return Err(CodexErr::InvalidRequest(format!(
+                "cannot accept role result while worker status is {:?}",
+                status
+            )));
+        }
+        return finding.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "cannot accept completed role worker because no typed runtime-spine result was recorded"
+                    .to_string(),
+            )
+        });
+    }
+
     let agent_job_id = binding_agent_jobs_job_id(binding).ok_or_else(|| {
         CodexErr::InvalidRequest(format!(
             "epiphany role binding {:?} is not backed by agent_jobs",
@@ -17618,6 +17721,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         .await;
     let token_usage_info = thread.token_usage_info().await;
     let state_db_ctx = thread.epiphany_state_runtime().await;
+    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
 
     let (_state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
         Some(&state),
@@ -17641,6 +17745,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let (reorient_result_status, reorient_finding, _) = load_epiphany_reorient_result_snapshot(
         Some(&state),
         state_db_ctx.as_ref(),
+        Some(runtime_store_path.as_path()),
         EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
     )
     .await;
@@ -17669,6 +17774,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let (modeling_result_status, modeling_finding, _) = load_epiphany_role_result_snapshot(
         &state,
         state_db_ctx.as_ref(),
+        Some(runtime_store_path.as_path()),
         ThreadEpiphanyRoleId::Modeling,
         EPIPHANY_MODELING_ROLE_BINDING_ID,
     )
@@ -17682,6 +17788,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let (verification_result_status, verification_finding, _) = load_epiphany_role_result_snapshot(
         &state,
         state_db_ctx.as_ref(),
+        Some(runtime_store_path.as_path()),
         ThreadEpiphanyRoleId::Verification,
         EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
     )
@@ -23316,6 +23423,85 @@ mod tests {
                 .as_deref()
                 .is_some_and(|note| note.contains("heartbeat activation"))
         );
+    }
+
+    #[test]
+    fn load_epiphany_role_result_reads_heartbeat_runtime_spine_result() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let store = temp.path().join("runtime.msgpack");
+        epiphany_core::initialize_runtime_spine(
+            &store,
+            epiphany_core::RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-05-06T00:00:00Z".to_string(),
+            },
+        )
+        .expect("runtime identity");
+        epiphany_core::create_runtime_session(
+            &store,
+            epiphany_core::RuntimeSpineSessionOptions {
+                session_id: "epiphany-main".to_string(),
+                objective: "Read typed runtime results.".to_string(),
+                created_at: "2026-05-06T00:01:00Z".to_string(),
+                coordinator_note: "test".to_string(),
+            },
+        )
+        .expect("runtime session");
+        epiphany_core::create_runtime_job(
+            &store,
+            epiphany_core::RuntimeSpineJobOptions {
+                job_id: "heartbeat-job-1".to_string(),
+                session_id: "epiphany-main".to_string(),
+                role: "epiphany-modeler".to_string(),
+                created_at: "2026-05-06T00:02:00Z".to_string(),
+                summary: "queued".to_string(),
+                artifact_refs: Vec::new(),
+            },
+        )
+        .expect("runtime job");
+        epiphany_core::complete_runtime_job(
+            &store,
+            epiphany_core::RuntimeSpineJobResultOptions {
+                result_id: "heartbeat-result-1".to_string(),
+                job_id: "heartbeat-job-1".to_string(),
+                completed_at: "2026-05-06T00:03:00Z".to_string(),
+                verdict: "pass".to_string(),
+                summary: "Runtime model ready.".to_string(),
+                next_safe_move: "Launch verification.".to_string(),
+                evidence_refs: vec!["evidence:model".to_string()],
+                artifact_refs: vec!["artifact:model".to_string()],
+            },
+        )
+        .expect("runtime result");
+
+        let binding = codex_protocol::protocol::EpiphanyJobBinding {
+            id: "modeling-checkpoint-worker".to_string(),
+            kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
+            scope: "role-scoped modeling/checkpoint maintenance".to_string(),
+            owner_role: "epiphany-modeler".to_string(),
+            launcher_job_id: Some("epiphany-heartbeat-launch-1".to_string()),
+            authority_scope: Some("epiphany.role.modeling".to_string()),
+            backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
+            backend_job_id: Some("heartbeat-job-1".to_string()),
+            runtime_agent_job_id: None,
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+            progress_note: None,
+            blocking_reason: None,
+        };
+        let (status, finding, note) = load_epiphany_role_result_from_runtime_spine(
+            &binding,
+            Some(store.as_path()),
+            ThreadEpiphanyRoleId::Modeling,
+        );
+
+        assert_eq!(status, ThreadEpiphanyRoleResultStatus::Completed);
+        let finding = finding.expect("runtime finding");
+        assert_eq!(finding.verdict.as_deref(), Some("pass"));
+        assert_eq!(finding.summary.as_deref(), Some("Runtime model ready."));
+        assert_eq!(finding.evidence_ids, vec!["evidence:model".to_string()]);
+        assert!(note.contains("Modeling role specialist completed"));
     }
 
     #[test]

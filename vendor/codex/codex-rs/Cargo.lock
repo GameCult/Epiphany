@@ -1890,6 +1890,7 @@ dependencies = [
  "codex-utils-rustls-provider",
  "constant_time_eq 0.3.1",
  "core_test_support",
+ "epiphany-core",
  "futures",
  "gethostname",
  "hmac",

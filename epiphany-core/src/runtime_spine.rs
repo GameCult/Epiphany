@@ -231,6 +231,12 @@ pub struct RuntimeSpineJobResultOptions {
     pub artifact_refs: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct EpiphanyRuntimeJobSnapshot {
+    pub job: EpiphanyRuntimeJob,
+    pub result: Option<EpiphanyRuntimeJobResult>,
+}
+
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
     let mut cache = CultCache::new();
@@ -307,6 +313,42 @@ pub fn create_runtime_session(
     Ok(session)
 }
 
+pub fn ensure_runtime_session(
+    store_path: impl AsRef<Path>,
+    options: RuntimeSpineSessionOptions,
+) -> Result<EpiphanyRuntimeSession> {
+    validate_non_empty(&options.session_id, "session id")?;
+    validate_non_empty(&options.objective, "objective")?;
+    validate_non_empty(&options.created_at, "created at")?;
+    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    if let Some(existing) = cache.get::<EpiphanyRuntimeSession>(&options.session_id)? {
+        if matches!(
+            existing.status,
+            EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
+        ) {
+            return Err(anyhow!(
+                "runtime session {:?} is terminal and cannot accept jobs",
+                options.session_id
+            ));
+        }
+        return Ok(existing);
+    }
+    let session = EpiphanyRuntimeSession {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        session_id: options.session_id.clone(),
+        objective: options.objective,
+        status: EpiphanyRuntimeSessionStatus::Active,
+        created_at: options.created_at.clone(),
+        updated_at: options.created_at,
+        coordinator_note: options.coordinator_note,
+        metadata: BTreeMap::new(),
+    };
+    cache.put(&options.session_id, &session)?;
+    Ok(session)
+}
+
 pub fn create_runtime_job(
     store_path: impl AsRef<Path>,
     options: RuntimeSpineJobOptions,
@@ -359,6 +401,32 @@ pub fn create_runtime_job(
     };
     cache.put(&event.event_id, &event)?;
     Ok(job)
+}
+
+pub fn runtime_job_snapshot(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<EpiphanyRuntimeJobSnapshot>> {
+    validate_non_empty(job_id, "job id")?;
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(None);
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let Some(job) = cache.get::<EpiphanyRuntimeJob>(job_id)? else {
+        return Ok(None);
+    };
+    let result = cache
+        .get_all::<EpiphanyRuntimeJobResult>()?
+        .into_iter()
+        .filter(|result| result.job_id == job_id)
+        .max_by(|left, right| {
+            left.completed_at
+                .cmp(&right.completed_at)
+                .then_with(|| left.result_id.cmp(&right.result_id))
+        });
+    Ok(Some(EpiphanyRuntimeJobSnapshot { job, result }))
 }
 
 pub fn complete_runtime_job(
@@ -720,6 +788,16 @@ mod tests {
         assert_eq!(status.open_jobs, 0);
         assert_eq!(status.job_results, 1);
         assert_eq!(status.events, 2);
+        let snapshot =
+            runtime_job_snapshot(&store, "job-1")?.expect("completed job snapshot should exist");
+        assert_eq!(snapshot.job.status, EpiphanyRuntimeJobStatus::Completed);
+        assert_eq!(
+            snapshot
+                .result
+                .as_ref()
+                .map(|result| result.result_id.as_str()),
+            Some("result-1")
+        );
         Ok(())
     }
 
