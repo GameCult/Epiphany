@@ -33,10 +33,10 @@ class EpiphanyBridgeClient(private val project: Project) {
     }
 
     private fun runBridge(args: List<String>): String {
-        val script = File(epiphanyRoot, "tools/epiphany_rider_bridge.py")
+        val bridge = bridgePath()
         val artifactRoot = System.getenv("EPIPHANY_RIDER_ARTIFACT_ROOT")
             ?: File(epiphanyRoot, ".epiphany-gui/rider").absolutePath
-        val command = mutableListOf(pythonPath(), script.absolutePath)
+        val command = mutableListOf(bridge.absolutePath)
         command.addAll(args)
         command.add("--artifact-root")
         command.add(artifactRoot)
@@ -50,16 +50,22 @@ class EpiphanyBridgeClient(private val project: Project) {
         return output.ifBlank { "Epiphany bridge returned no output." }
     }
 
-    private fun pythonPath(): String {
-        return System.getenv("EPIPHANY_PYTHON")
-            ?: "C:\\Users\\Meta\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe"
+    private fun bridgePath(): File {
+        System.getenv("EPIPHANY_RIDER_BRIDGE")?.let { return File(it).absoluteFile }
+        val targetDir = System.getenv("CARGO_TARGET_DIR")
+            ?: "C:\\Users\\Meta\\.cargo-target-codex"
+        val candidate = File(targetDir, "debug/epiphany-rider-bridge.exe").absoluteFile
+        if (candidate.exists()) {
+            return candidate
+        }
+        return File(epiphanyRoot, "epiphany-core/target/debug/epiphany-rider-bridge.exe").absoluteFile
     }
 
     private fun findEpiphanyRoot(): File {
         System.getenv("EPIPHANY_REPO_ROOT")?.let { return File(it).absoluteFile }
         var cursor: File? = projectRoot
         while (cursor != null) {
-            if (File(cursor, "tools/epiphany_rider_bridge.py").exists()) {
+            if (File(cursor, "epiphany-core/Cargo.toml").exists()) {
                 return cursor
             }
             cursor = cursor.parentFile

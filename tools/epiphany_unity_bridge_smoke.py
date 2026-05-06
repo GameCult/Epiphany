@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 from typing import Any
 
 from epiphany_phase5_smoke import ROOT
@@ -64,8 +63,7 @@ def run_bridge(
     env["EPIPHANY_UNITY_EDITOR_ROOTS"] = str(roots)
     completed = subprocess.run(
         [
-            sys.executable,
-            str(ROOT / "tools" / "epiphany_unity_bridge.py"),
+            str(native_bridge_exe()),
             args[0],
             "--project-path",
             str(workspace),
@@ -280,6 +278,30 @@ def main() -> int:
     result_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
+
+
+def native_bridge_exe() -> Path:
+    exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / "epiphany-unity-bridge.exe"
+    if exe.exists():
+        return exe
+    completed = subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            "epiphany-unity-bridge",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    require(completed.returncode == 0, f"failed to build native unity bridge: {completed.stderr}")
+    require(exe.exists(), f"native unity bridge executable was not built at {exe}")
+    return exe
 
 
 if __name__ == "__main__":

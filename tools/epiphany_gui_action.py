@@ -21,8 +21,6 @@ from epiphany_mvp_status import sanitize_for_operator
 from epiphany_phase5_smoke import AppServerClient
 from epiphany_phase5_smoke import ROOT
 from epiphany_phase6_reorient_launch_smoke import BINDING_ID as REORIENT_BINDING_ID
-from epiphany_rider_bridge import bridge_guidance as rider_bridge_guidance
-from epiphany_unity_bridge import bridge_guidance as unity_bridge_guidance
 
 
 DEFAULT_CODEX_HOME = ROOT / ".epiphany-gui" / "codex-home"
@@ -475,11 +473,29 @@ def active_review_files_from_status(status: dict[str, Any]) -> list[str]:
 
 
 def unity_guidance(cwd: Path) -> str:
-    return unity_bridge_guidance(cwd, ROOT)
+    try:
+        result = native_epiphany_bin(
+            "epiphany-unity-bridge",
+            "guidance",
+            "--project-path",
+            str(cwd),
+        )
+    except RuntimeError as error:
+        return f"- Unity bridge: native guidance failed: {error}"
+    return str(result.get("guidance") or "- Unity bridge: native guidance returned no text.")
 
 
 def rider_guidance(cwd: Path) -> str:
-    return rider_bridge_guidance(cwd, ROOT)
+    try:
+        result = native_epiphany_bin(
+            "epiphany-rider-bridge",
+            "guidance",
+            "--project-root",
+            str(cwd),
+        )
+    except RuntimeError as error:
+        return f"- Rider bridge: native guidance failed: {error}"
+    return str(result.get("guidance") or "- Rider bridge: native guidance returned no text.")
 
 
 def first_present(value: dict[str, Any], *paths: tuple[str, ...]) -> Any:

@@ -87,7 +87,7 @@ The landed machine now has:
 - first auditable Phase 6 fixed-lane coordinator runner through `tools/epiphany_mvp_coordinator.py`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, and final next-action artifacts while keeping semantic findings review-gated by default
 - first auditable Phase 6 live-specialist runner through `tools/epiphany_mvp_live_specialist.py`, proving `roleLaunch -> agent_jobs worker -> report_agent_job_result -> roleResult` without manual backend completion
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
-- first Unity editor/runtime bridge through `tools/epiphany_unity_bridge.py`, `tools/epiphany_unity_bridge_smoke.py`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
+- first Unity editor/runtime bridge through native `epiphany-unity-bridge`, `tools/epiphany_unity_bridge_smoke.py`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
 - prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-core/src/prompts/`, while modeling/Body, research/Eyes, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, and CRRC templates live in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`
 - prompt-level anti-Greenspun guardrails: Epiphany keeps Codex's useful operator discipline and requires a bounded research/scout check before agents invent bespoke versions of known algorithms, parsers, schedulers, renderers, protocols, storage layers, security mechanisms, or workflow engines
 - live Phase 6 reorientation app-server smoke coverage in `tools/epiphany_phase6_reorient_smoke.py`
@@ -250,7 +250,7 @@ slice is now landed. The fixed lanes can catch modeling, verification, stale
 job, no-diff, and reorientation failures, but the implementation lane cannot
 prove engine assumptions by launching random local tools. A worker tried to
 launch a legacy default Unity editor even though Aetheria pins Unity
-`6000.1.10f1`. `tools/epiphany_unity_bridge.py` now reads the project pin,
+`6000.1.10f1`. Native `epiphany-unity-bridge` now reads the project pin,
 resolves only an exact Hub editor, refuses wrong or missing editors, owns the
 batch/quit/projectPath command wrapper, and writes inspection/command/log
 artifacts. On this machine Aetheria is correctly blocked: only Unity

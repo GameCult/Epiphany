@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 from typing import Any
 
 from epiphany_phase5_smoke import ROOT
@@ -55,8 +54,7 @@ def create_fake_rider(root: Path) -> Path:
 def run_bridge(workspace: Path, artifact_root: Path, env: dict[str, str], args: list[str]) -> dict[str, Any]:
     completed = subprocess.run(
         [
-            sys.executable,
-            str(ROOT / "tools" / "epiphany_rider_bridge.py"),
+            str(native_bridge_exe()),
             args[0],
             "--project-root",
             str(workspace),
@@ -150,6 +148,30 @@ def main() -> int:
     result_path.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, ensure_ascii=False))
     return 0
+
+
+def native_bridge_exe() -> Path:
+    exe = Path(os.environ.get("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")) / "debug" / "epiphany-rider-bridge.exe"
+    if exe.exists():
+        return exe
+    completed = subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--manifest-path",
+            str(ROOT / "epiphany-core" / "Cargo.toml"),
+            "--bin",
+            "epiphany-rider-bridge",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    require(completed.returncode == 0, f"failed to build native rider bridge: {completed.stderr}")
+    require(exe.exists(), f"native rider bridge executable was not built at {exe}")
+    return exe
 
 
 if __name__ == "__main__":

@@ -222,13 +222,13 @@ Already landed:
 - GUI graph dashboard using the adjacent `@epiphanygraph/epiphany-graph-viewer`
   package over typed `graphs.architecture`, `graphs.dataflow`, and
   `graphs.links`.
-- `tools/epiphany_rider_bridge.py`, which writes operator-safe Rider
+- native `epiphany-rider-bridge`, which writes operator-safe Rider
   installation, solution, VCS, context, and open-ref artifacts.
 - GUI **Inspect Rider** action and Rider artifact listing.
 - `integrations/rider` frontend-only plugin scaffold for a tool window and
   Send Context to Epiphany action. This scaffold still needs build verification
   because Gradle is not installed on the current machine.
-- `tools/epiphany_unity_bridge.py`, which:
+- native `epiphany-unity-bridge`, which:
   - reads `ProjectSettings/ProjectVersion.txt`
   - resolves only the exact project-pinned Unity Hub editor
   - refuses wrong or missing editor versions
@@ -498,7 +498,7 @@ not need to wrestle it in the kitchen for breakfast.
 Already landed:
 
 ```powershell
-python tools/epiphany_unity_bridge.py inspect --project-path E:\Projects\Aetheria-Economy
+epiphany-unity-bridge inspect --project-path E:\Projects\Aetheria-Economy
 ```
 
 Outputs:
@@ -590,33 +590,33 @@ thing" refactors. The Editor knows what the object is; use it.
 
 ### Phase U2: Bridge Command Contract
 
-Extend `tools/epiphany_unity_bridge.py run` with named operations that call the
+Extend native `epiphany-unity-bridge run` with named operations that call the
 resident editor package instead of making freeform `-executeMethod` the normal
 path.
 
 Recommended CLI:
 
 ```powershell
-python tools/epiphany_unity_bridge.py probe `
+epiphany-unity-bridge probe `
   --project-path E:\Projects\Aetheria-Economy `
   --operation check-compilation
 
-python tools/epiphany_unity_bridge.py probe `
+epiphany-unity-bridge probe `
   --project-path E:\Projects\Aetheria-Economy `
   --operation scene-facts `
   --scene Assets/Scenes/Main.unity
 
-python tools/epiphany_unity_bridge.py probe `
+epiphany-unity-bridge probe `
   --project-path E:\Projects\Aetheria-Economy `
   --operation prefab-facts `
   --asset Assets/Prefabs/Nebula.prefab
 
-python tools/epiphany_unity_bridge.py probe `
+epiphany-unity-bridge probe `
   --project-path E:\Projects\Aetheria-Economy `
   --operation serialized-object `
   --asset Assets/Materials/Nebula.mat
 
-python tools/epiphany_unity_bridge.py test `
+epiphany-unity-bridge run-tests `
   --project-path E:\Projects\Aetheria-Economy `
   --platform editmode `
   --filter Aetheria.Rendering.Gravity*
@@ -800,15 +800,15 @@ Start in tools/GUI, then promote to app-server only when stable.
 
 Existing:
 
-- `tools/epiphany_unity_bridge.py inspect`
+- `epiphany-unity-bridge inspect`
 - GUI `inspectUnity`
 
 Add next:
 
-- `tools/epiphany_unity_bridge.py probe`
-- `tools/epiphany_unity_bridge.py test`
-- `tools/epiphany_rider_bridge.py status`
-- `tools/epiphany_rider_bridge.py context`
+- `epiphany-unity-bridge probe`
+- `epiphany-unity-bridge run-tests`
+- `epiphany-rider-bridge status`
+- `epiphany-rider-bridge context`
 
 ### App-Server Later
 
@@ -1023,7 +1023,7 @@ Rider changed ranges or git diff touches frontier files
 
 ### Slice 3: Unity Bridge Operations
 
-- Extend `epiphany_unity_bridge.py` from generic `run` to named operations:
+- Extend native `epiphany-unity-bridge` from generic `run` to named operations:
   - `inspect`
   - `check-compilation`
   - `run-tests`
@@ -1062,7 +1062,7 @@ Rider changed ranges or git diff touches frontier files
 
 ### Slice 6: Rider Bridge CLI
 
-- Add `tools/epiphany_rider_bridge.py` as a local protocol stub.
+- Add native `epiphany-rider-bridge` as a local protocol stub.
 - It should accept context packets from the future plugin and write artifacts.
 - It should not require Rider plugin code yet.
 
