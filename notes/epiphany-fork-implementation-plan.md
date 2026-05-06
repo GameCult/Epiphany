@@ -68,7 +68,7 @@ The landed machine now has:
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
 - live Phase 6 context app-server smoke coverage through native `epiphany-phase6-context-smoke`
 - read-only Phase 6 graph traversal through `thread/epiphany/graphQuery`
-- live Phase 6 graph traversal smoke coverage in `tools/epiphany_phase6_graph_query_smoke.py`
+- live Phase 6 graph traversal smoke coverage through native `epiphany-phase6-graph-query-smoke`
 - read-only Phase 6 context-pressure reflection through `thread/epiphany/pressure`
 - live Phase 6 pressure app-server smoke coverage through native `epiphany-phase6-pressure-smoke`
 - durable Phase 6 investigation checkpointing in authoritative typed state, prompt rendering, and scene/context reflection
@@ -459,7 +459,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-conte
 Before modifying graph traversal behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_graph_query_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-graph-query-smoke
 ```
 
 Before modifying planning state or projection behavior, run:

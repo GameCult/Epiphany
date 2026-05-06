@@ -1505,7 +1505,7 @@ Current tests cover the landed flows at useful seams:
 - live app-server smoke for the first Phase 6 freshness boundary through native `epiphany-phase6-freshness-smoke`.
 - live app-server smoke for watcher-backed invalidation inputs inside the Phase 6 freshness boundary in `tools/epiphany_phase6_invalidation_smoke.py`.
 - live app-server smoke for the first Phase 6 context boundary through native `epiphany-phase6-context-smoke`.
-- live app-server smoke for the first Phase 6 graph traversal boundary in `tools/epiphany_phase6_graph_query_smoke.py`.
+- live app-server smoke for the first Phase 6 graph traversal boundary through native `epiphany-phase6-graph-query-smoke`.
 - live app-server smoke for the first Phase 6 planning boundary in `tools/epiphany_phase6_planning_smoke.py`.
 - live app-server smoke for the first Phase 6 pressure boundary through native `epiphany-phase6-pressure-smoke`.
 - live app-server smoke for the first Phase 6 reorientation policy boundary in `tools/epiphany_phase6_reorient_smoke.py`.
@@ -1529,7 +1529,7 @@ $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-a
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-context-smoke
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_graph_query_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-graph-query-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_planning_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-pressure-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_reorient_smoke.py'
