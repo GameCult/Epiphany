@@ -201,7 +201,7 @@ landed_baseline:
     - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
     - Use `tools/epiphany_phase6_jobs_smoke.py` before modifying job/progress reflection behavior.
     - Use `tools/epiphany_phase6_job_control_smoke.py` before modifying launch/interrupt authority over the thin job seam.
-    - Use `tools/epiphany_phase6_freshness_smoke.py` before modifying freshness reflection behavior.
+    - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke` before modifying freshness reflection behavior.
     - Use `tools/epiphany_phase6_invalidation_smoke.py` before modifying watcher-backed invalidation behavior inside freshness reflection.
     - Use `tools/epiphany_phase6_context_smoke.py` before modifying targeted context-shard behavior.
     - Use `tools/epiphany_phase6_graph_query_smoke.py` before modifying graph traversal behavior.

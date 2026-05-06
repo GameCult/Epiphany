@@ -480,6 +480,34 @@ impl AppServerClient {
         }
         Ok(())
     }
+
+    pub fn wait_for_notification(
+        &mut self,
+        method: &str,
+        start_index: usize,
+        timeout: Duration,
+    ) -> Result<Value> {
+        let deadline = Instant::now() + timeout;
+        while Instant::now() < deadline {
+            if let Some(status) = self.child.try_wait()? {
+                return Err(anyhow!(
+                    "app-server exited with {} before notification {}",
+                    status,
+                    method
+                ));
+            }
+            if let Ok(notifications) = self.notifications.lock()
+                && let Some(message) = notifications
+                    .iter()
+                    .skip(start_index)
+                    .find(|message| message.get("method").and_then(Value::as_str) == Some(method))
+            {
+                return Ok(message.clone());
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        Err(anyhow!("timed out waiting for notification {method}"))
+    }
 }
 
 impl Drop for AppServerClient {

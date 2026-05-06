@@ -145,7 +145,7 @@ The current spine, blessed but not yet finished:
 - first GUI graph dashboard through the adjacent `@epiphanygraph/epiphany-graph-viewer` package over typed Epiphany graph state
 - live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
-- live freshness app-server smoke through `tools/epiphany_phase6_freshness_smoke.py`
+- live freshness app-server smoke through native `epiphany-phase6-freshness-smoke`
 - live watcher-backed invalidation smoke through `tools/epiphany_phase6_invalidation_smoke.py`
 - live context app-server smoke through `tools/epiphany_phase6_context_smoke.py`
 - live graph traversal app-server smoke through `tools/epiphany_phase6_graph_query_smoke.py`
@@ -216,7 +216,7 @@ For launch/interrupt authority changes over the thin job seam, run:
 For freshness reflection behavior changes, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_freshness_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke
 ```
 
 For watcher-backed invalidation behavior inside freshness reflection, run:

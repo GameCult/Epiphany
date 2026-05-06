@@ -63,7 +63,7 @@ The landed machine now has:
 - read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`, with durable `jobBindings` plus live runtime `agent_jobs` overlay
 - live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
 - read-only Phase 6 retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
-- live Phase 6 freshness app-server smoke coverage in `tools/epiphany_phase6_freshness_smoke.py`
+- live Phase 6 freshness app-server smoke coverage through native `epiphany-phase6-freshness-smoke`
 - live Phase 6 watcher-backed invalidation smoke coverage in `tools/epiphany_phase6_invalidation_smoke.py`
 - read-only Phase 6 targeted state-shard reflection through `thread/epiphany/context`
 - live Phase 6 context app-server smoke coverage in `tools/epiphany_phase6_context_smoke.py`
@@ -441,7 +441,7 @@ Before modifying jobs reflection behavior, run:
 Before modifying freshness reflection behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_freshness_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke
 ```
 
 Before modifying watcher-backed invalidation behavior inside freshness reflection, run:
