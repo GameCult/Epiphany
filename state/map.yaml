@@ -198,7 +198,7 @@ landed_baseline:
     - Native runtime spine slice: `epiphany-core::EpiphanyRuntimeIdentity`, `EpiphanyRuntimeSession`, `EpiphanyRuntimeJob`, `EpiphanyRuntimeJobResult`, and `EpiphanyRuntimeEvent` plus the native `epiphany-runtime-spine` binary establish a CultCache-backed spine, native job/result lifecycle, status projection, and framed CultNet hello output so the old Codex app-server runtime can be starved down to a temporary evacuation bridge instead of remaining the throne.
   guardrails:
     - Use `tools/epiphany_phase5_smoke.py` before modifying update, distill, propose, promote, read-projection, or notification behavior.
-    - Use `tools/epiphany_phase6_scene_smoke.py` before modifying scene projection behavior.
+    - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-scene-smoke` before modifying scene projection behavior.
     - Use `tools/epiphany_phase6_jobs_smoke.py` before modifying job/progress reflection behavior.
     - Use `tools/epiphany_phase6_job_control_smoke.py` before modifying launch/interrupt authority over the thin job seam.
     - Use `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke` before modifying freshness reflection behavior.

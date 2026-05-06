@@ -143,7 +143,7 @@ The current spine, blessed but not yet finished:
 - first Unity runtime bridge through native `epiphany-unity-bridge`, native `epiphany-unity-bridge-smoke`, GUI Inspect Unity, runtime artifact listing, and implementation prompt guardrails
 - first Rider source-context bridge through native `epiphany-rider-bridge`, native `epiphany-rider-bridge-smoke`, GUI Inspect Rider, Rider artifact listing, implementation prompt guardrails, and a source scaffold under `integrations/rider`
 - first GUI graph dashboard through the adjacent `@epiphanygraph/epiphany-graph-viewer` package over typed Epiphany graph state
-- live scene app-server smoke through `tools/epiphany_phase6_scene_smoke.py`
+- live scene app-server smoke through native `epiphany-phase6-scene-smoke`
 - live jobs app-server smoke through `tools/epiphany_phase6_jobs_smoke.py`
 - live freshness app-server smoke through native `epiphany-phase6-freshness-smoke`
 - live watcher-backed invalidation smoke through `tools/epiphany_phase6_invalidation_smoke.py`
@@ -198,7 +198,7 @@ For Phase 5 control-plane behavior changes, run:
 For scene projection behavior changes, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_scene_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-scene-smoke
 ```
 
 For jobs reflection behavior changes, run:

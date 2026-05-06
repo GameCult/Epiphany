@@ -1500,7 +1500,7 @@ Current tests cover the landed flows at useful seams:
 - focused app-server notification coverage for `thread/epiphany/jobsUpdated`, including duplicate-suppression when repeated runtime progress would otherwise emit the same bound-job payload twice.
 - app-server mapping of core retrieval/index summaries into protocol responses.
 - reusable app-server smoke for the richer Phase 5 chain in `tools/epiphany_phase5_smoke.py`, including update/promote response metadata, `thread/epiphany/stateUpdated` notifications with source, revision, changed-field checks, retrieval-summary presence in successful write response/notification states, the verifier-only promotion edge where `Evidence` changes because verifier evidence is appended, invalid direct observation/evidence and replacement update rejection without mutation or notification, and explicit zero-notification assertions for rejected promotions.
-- live app-server smoke for the first Phase 6 scene boundary in `tools/epiphany_phase6_scene_smoke.py`.
+- live app-server smoke for the first Phase 6 scene boundary through native `epiphany-phase6-scene-smoke`.
 - live app-server smoke for the first Phase 6 jobs boundary in `tools/epiphany_phase6_jobs_smoke.py`.
 - live app-server smoke for the first Phase 6 freshness boundary through native `epiphany-phase6-freshness-smoke`.
 - live app-server smoke for watcher-backed invalidation inputs inside the Phase 6 freshness boundary in `tools/epiphany_phase6_invalidation_smoke.py`.
@@ -1524,7 +1524,7 @@ $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-c
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server-protocol --lib thread_epiphany_
 $env:CARGO_TARGET_DIR='C:\Users\Meta\.cargo-target-codex'; cargo test -p codex-app-server --lib map_epiphany_
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase5_smoke.py'
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_scene_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-scene-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_jobs_smoke.py'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-freshness-smoke
 & 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_invalidation_smoke.py'

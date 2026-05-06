@@ -59,7 +59,7 @@ The landed machine now has:
 - proposal and promotion rules that reduce map/churn Jenga pressure
 - reusable Phase 5 app-server smoke coverage in `tools/epiphany_phase5_smoke.py`
 - a first Phase 6 read-only reflection surface through `thread/epiphany/scene`
-- live Phase 6 scene app-server smoke coverage in `tools/epiphany_phase6_scene_smoke.py`
+- live Phase 6 scene app-server smoke coverage through native `epiphany-phase6-scene-smoke`
 - read-only Phase 6 job/progress reflection through `thread/epiphany/jobs`, with durable `jobBindings` plus live runtime `agent_jobs` overlay
 - live Phase 6 jobs app-server smoke coverage in `tools/epiphany_phase6_jobs_smoke.py`
 - read-only Phase 6 retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
@@ -429,7 +429,7 @@ Before modifying Phase 5 control-plane behavior, run:
 Before modifying scene projection behavior, run:
 
 ```powershell
-& 'C:\Users\Meta\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' '.\tools\epiphany_phase6_scene_smoke.py'
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-phase6-scene-smoke
 ```
 
 Before modifying jobs reflection behavior, run:
