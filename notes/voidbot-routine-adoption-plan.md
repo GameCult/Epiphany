@@ -7,7 +7,7 @@ cosplaying as a Discord moderator. The useful organs are:
 - cooldown that starts after a heartbeat turn completes, not when it launches
 - nap windows for memory consolidation, pruning, dream residue, and incubation
 - canonical MessagePack state through a CultCache-style typed document store
-- editable JSON working projections that strip or preserve large vector payloads
+- CultCache-native inspection/debug tooling rather than long-lived JSON shadow state
   deliberately
 - code-owned schemas instead of schema drift hiding in loose files
 - semantic memory vectors in Qdrant with source hashes and compact dimensions
@@ -28,7 +28,7 @@ coordinator pressure / user objective / swarm messages
   -> optional Qdrant memory recall / resonance
   -> bounded result, selfPatch, statePatch, dream, or callback
   -> completion receipt starts cooldown
-  -> canonical MessagePack write + JSON working projection
+  -> canonical MessagePack write + typed inspection/debug views
 ```
 
 ## Scheduler Contract
@@ -73,7 +73,9 @@ Minimum Rust surface:
   external lock expectation.
 - `CultCache`: register types, load stores, validate payloads through typed
   serde structs, get/get_required/get_all/put/update/delete/snapshot.
-- JSON working projection helpers for operator inspection and manual review.
+- Typed inspection/debug views should come from CultLib/CultCache tooling so
+  all wire-compatible runtimes share the same schema and display assumptions.
+  Repo-local JSON projections are temporary compatibility shims only.
 
 The schema should live in annotated Rust structs using serde plus generated JSON
 Schema where useful. MessagePack is canonical. JSON is the window, not the
@@ -100,7 +102,7 @@ pattern to agent memory:
   salience, confidence, updated time, source refs
 - canonical MessagePack state stores vector metadata and optionally compact
   inline vectors; Qdrant stores the retrieval vector
-- JSON working views may strip vector values while preserving metadata
+- CultCache inspection views may strip vector values while preserving metadata
 
 Memory resonance is not proof. It is "these things rhyme" evidence for
 rumination, Face surfacing, and sleep consolidation.
@@ -110,17 +112,19 @@ rumination, Face surfacing, and sleep consolidation.
 1. **Contract extraction**
    - Add Rust CultCache-compatible module in `epiphany-core`.
    - Add fixtures proving MessagePack round-trip, typed serde/schema validation,
-     and JSON working projection.
+     and CultCache inspection compatibility.
 
 2. **Heartbeat state migration**
-   - Move `state/agent-heartbeats.json` into a typed MessagePack document with a
-     JSON working projection.
+   - Move `state/agent-heartbeats.json` into a typed MessagePack document, then
+     retire JSON once the heartbeat tool reads and writes the typed store
+     directly.
    - Add `sleep_cycle`, `memory_resonance`, and `incubation` fields.
    - Keep the current CLI contract stable while the backing store changes.
 
 3. **Role memory migration**
    - Store each Ghostlight-shaped role dossier as `epiphany.role_agent_state`.
-   - Keep per-role JSON projections for human inspection and git review.
+   - Use CultLib/CultCache inspection tools for human/debug review instead of
+     preserving per-role JSON as a parallel source of truth.
    - Attach semantic vector metadata to episodic, semantic, relationship, goal,
      value, musing, and dream entries.
 
