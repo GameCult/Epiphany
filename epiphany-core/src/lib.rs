@@ -7,8 +7,8 @@ mod rollout;
 
 pub use cultcache_rs::CacheBackingStore;
 pub use cultcache_rs::CultCache;
-pub use cultcache_rs::CultCacheDocument;
 pub use cultcache_rs::CultCacheEnvelope;
+pub use cultcache_rs::DatabaseEntry;
 pub use cultcache_rs::PushAllOptions;
 pub use cultcache_rs::SingleFileMessagePackBackingStore;
 pub use distillation::EpiphanyDistillInput;
