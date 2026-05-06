@@ -17,6 +17,7 @@ use std::path::Path;
 pub const RUNTIME_IDENTITY_TYPE: &str = "epiphany.runtime.identity";
 pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
+pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const RUNTIME_EVENT_TYPE: &str = "epiphany.runtime.event";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
@@ -89,6 +90,38 @@ pub struct EpiphanyRuntimeJob {
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.job_result",
+    schema = "EpiphanyRuntimeJobResult"
+)]
+pub struct EpiphanyRuntimeJobResult {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub result_id: String,
+    #[cultcache(key = 2)]
+    pub job_id: String,
+    #[cultcache(key = 3)]
+    pub session_id: String,
+    #[cultcache(key = 4)]
+    pub role: String,
+    #[cultcache(key = 5)]
+    pub verdict: String,
+    #[cultcache(key = 6)]
+    pub summary: String,
+    #[cultcache(key = 7)]
+    pub completed_at: String,
+    #[cultcache(key = 8, default)]
+    pub next_safe_move: String,
+    #[cultcache(key = 9, default)]
+    pub evidence_refs: Vec<String>,
+    #[cultcache(key = 10, default)]
+    pub artifact_refs: Vec<String>,
+    #[cultcache(key = 11, default)]
+    pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.event", schema = "EpiphanyRuntimeEvent")]
 pub struct EpiphanyRuntimeEvent {
     #[cultcache(key = 0)]
@@ -145,6 +178,7 @@ pub struct EpiphanyRuntimeSpineStatus {
     pub active_sessions: usize,
     pub jobs: usize,
     pub open_jobs: usize,
+    pub job_results: usize,
     pub events: usize,
     pub supported_document_types: Vec<String>,
 }
@@ -175,12 +209,35 @@ pub struct RuntimeSpineEventOptions {
     pub summary: String,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeSpineJobOptions {
+    pub job_id: String,
+    pub session_id: String,
+    pub role: String,
+    pub created_at: String,
+    pub summary: String,
+    pub artifact_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeSpineJobResultOptions {
+    pub result_id: String,
+    pub job_id: String,
+    pub completed_at: String,
+    pub verdict: String,
+    pub summary: String,
+    pub next_safe_move: String,
+    pub evidence_refs: Vec<String>,
+    pub artifact_refs: Vec<String>,
+}
+
 pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let store_path = store_path.as_ref();
     let mut cache = CultCache::new();
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
+    cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(
         store_path.to_path_buf(),
@@ -211,10 +268,7 @@ pub fn initialize_runtime_spine(
         created_at,
         updated_at: options.created_at,
         supported_document_types: supported_runtime_document_types(),
-        metadata: BTreeMap::from([(
-            "compatibilityCodexRole".to_string(),
-            "adapter-only".to_string(),
-        )]),
+        metadata: BTreeMap::from([("codexEvacuationBridge".to_string(), "temporary".to_string())]),
     };
     cache.put(RUNTIME_IDENTITY_KEY, &identity)?;
     Ok(identity)
@@ -251,6 +305,134 @@ pub fn create_runtime_session(
     };
     cache.put(&options.session_id, &session)?;
     Ok(session)
+}
+
+pub fn create_runtime_job(
+    store_path: impl AsRef<Path>,
+    options: RuntimeSpineJobOptions,
+) -> Result<EpiphanyRuntimeJob> {
+    validate_non_empty(&options.job_id, "job id")?;
+    validate_non_empty(&options.session_id, "session id")?;
+    validate_non_empty(&options.role, "role")?;
+    validate_non_empty(&options.created_at, "created at")?;
+    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let session = cache
+        .get::<EpiphanyRuntimeSession>(&options.session_id)?
+        .ok_or_else(|| anyhow!("runtime session {:?} does not exist", options.session_id))?;
+    if matches!(
+        session.status,
+        EpiphanyRuntimeSessionStatus::Completed | EpiphanyRuntimeSessionStatus::Archived
+    ) {
+        return Err(anyhow!(
+            "runtime session {:?} is not open for jobs",
+            options.session_id
+        ));
+    }
+    if cache.get::<EpiphanyRuntimeJob>(&options.job_id)?.is_some() {
+        return Err(anyhow!("runtime job {:?} already exists", options.job_id));
+    }
+    let job = EpiphanyRuntimeJob {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        job_id: options.job_id.clone(),
+        session_id: options.session_id.clone(),
+        role: options.role,
+        status: EpiphanyRuntimeJobStatus::Queued,
+        created_at: options.created_at.clone(),
+        updated_at: options.created_at.clone(),
+        summary: options.summary,
+        artifact_refs: options.artifact_refs,
+        metadata: BTreeMap::new(),
+    };
+    cache.put(&options.job_id, &job)?;
+    let event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: format!("event-job-opened-{}", options.job_id),
+        occurred_at: options.created_at,
+        event_type: "job.opened".to_string(),
+        source: "runtime-spine".to_string(),
+        session_id: Some(options.session_id),
+        job_id: Some(options.job_id),
+        summary: "Native runtime job opened.".to_string(),
+        metadata: BTreeMap::new(),
+    };
+    cache.put(&event.event_id, &event)?;
+    Ok(job)
+}
+
+pub fn complete_runtime_job(
+    store_path: impl AsRef<Path>,
+    options: RuntimeSpineJobResultOptions,
+) -> Result<EpiphanyRuntimeJobResult> {
+    validate_non_empty(&options.result_id, "result id")?;
+    validate_non_empty(&options.job_id, "job id")?;
+    validate_non_empty(&options.completed_at, "completed at")?;
+    validate_non_empty(&options.verdict, "verdict")?;
+    validate_non_empty(&options.summary, "summary")?;
+    let mut cache = runtime_spine_cache(store_path.as_ref())?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    let mut job = cache
+        .get::<EpiphanyRuntimeJob>(&options.job_id)?
+        .ok_or_else(|| anyhow!("runtime job {:?} does not exist", options.job_id))?;
+    if matches!(
+        job.status,
+        EpiphanyRuntimeJobStatus::Completed
+            | EpiphanyRuntimeJobStatus::Failed
+            | EpiphanyRuntimeJobStatus::Cancelled
+    ) {
+        return Err(anyhow!(
+            "runtime job {:?} is already terminal",
+            options.job_id
+        ));
+    }
+    if cache
+        .get::<EpiphanyRuntimeJobResult>(&options.result_id)?
+        .is_some()
+    {
+        return Err(anyhow!(
+            "runtime job result {:?} already exists",
+            options.result_id
+        ));
+    }
+    let terminal_status = terminal_status_for_verdict(&options.verdict);
+    job.status = terminal_status;
+    job.updated_at = options.completed_at.clone();
+    job.summary = options.summary.clone();
+    job.artifact_refs = merge_refs(&job.artifact_refs, &options.artifact_refs);
+    let result = EpiphanyRuntimeJobResult {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        result_id: options.result_id.clone(),
+        job_id: options.job_id.clone(),
+        session_id: job.session_id.clone(),
+        role: job.role.clone(),
+        verdict: options.verdict,
+        summary: options.summary,
+        completed_at: options.completed_at.clone(),
+        next_safe_move: options.next_safe_move,
+        evidence_refs: options.evidence_refs,
+        artifact_refs: options.artifact_refs,
+        metadata: BTreeMap::new(),
+    };
+    cache.put(&job.job_id, &job)?;
+    cache.put(&result.result_id, &result)?;
+    let event = EpiphanyRuntimeEvent {
+        schema_version: RUNTIME_SPINE_SCHEMA_VERSION.to_string(),
+        event_id: format!("event-job-completed-{}", options.job_id),
+        occurred_at: options.completed_at,
+        event_type: "job.completed".to_string(),
+        source: "runtime-spine".to_string(),
+        session_id: Some(result.session_id.clone()),
+        job_id: Some(options.job_id),
+        summary: format!(
+            "Native runtime job completed with verdict {}.",
+            result.verdict
+        ),
+        metadata: BTreeMap::from([("resultId".to_string(), result.result_id.clone())]),
+    };
+    cache.put(&event.event_id, &event)?;
+    Ok(result)
 }
 
 pub fn append_runtime_event(
@@ -300,6 +482,7 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
             active_sessions: 0,
             jobs: 0,
             open_jobs: 0,
+            job_results: 0,
             events: 0,
             supported_document_types: Vec::new(),
         });
@@ -311,6 +494,7 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
     let identity = cache.get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?;
     let sessions = cache.get_all::<EpiphanyRuntimeSession>()?;
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
+    let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
     let events = cache.get_all::<EpiphanyRuntimeEvent>()?;
     let active_sessions = sessions
         .iter()
@@ -342,6 +526,7 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
         active_sessions,
         jobs: jobs.len(),
         open_jobs,
+        job_results: job_results.len(),
         events: events.len(),
         supported_document_types: identity
             .map(|item| item.supported_document_types)
@@ -397,6 +582,7 @@ fn supported_runtime_document_types() -> Vec<String> {
         RUNTIME_IDENTITY_TYPE.to_string(),
         RUNTIME_SESSION_TYPE.to_string(),
         RUNTIME_JOB_TYPE.to_string(),
+        RUNTIME_JOB_RESULT_TYPE.to_string(),
         RUNTIME_EVENT_TYPE.to_string(),
         "epiphany.agent.memory".to_string(),
         "epiphany.heartbeat.state".to_string(),
@@ -409,6 +595,27 @@ fn validate_non_empty(value: &str, field: &str) -> Result<()> {
         return Err(anyhow!("{field} must be non-empty"));
     }
     Ok(())
+}
+
+fn terminal_status_for_verdict(verdict: &str) -> EpiphanyRuntimeJobStatus {
+    if matches!(
+        verdict,
+        "failed" | "fail" | "error" | "blocked" | "cancelled" | "canceled"
+    ) {
+        EpiphanyRuntimeJobStatus::Failed
+    } else {
+        EpiphanyRuntimeJobStatus::Completed
+    }
+}
+
+fn merge_refs(existing: &[String], incoming: &[String]) -> Vec<String> {
+    let mut merged = existing.to_vec();
+    for item in incoming {
+        if !merged.contains(item) {
+            merged.push(item.clone());
+        }
+    }
+    merged
 }
 
 #[cfg(test)]
@@ -462,6 +669,61 @@ mod tests {
     }
 
     #[test]
+    fn runtime_spine_opens_and_completes_native_jobs() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-05-06T00:00:00Z".to_string(),
+            },
+        )?;
+        create_runtime_session(
+            &store,
+            RuntimeSpineSessionOptions {
+                session_id: "session-1".to_string(),
+                objective: "Build the job artery.".to_string(),
+                created_at: "2026-05-06T00:01:00Z".to_string(),
+                coordinator_note: "Native jobs.".to_string(),
+            },
+        )?;
+        let job = create_runtime_job(
+            &store,
+            RuntimeSpineJobOptions {
+                job_id: "job-1".to_string(),
+                session_id: "session-1".to_string(),
+                role: "modeling".to_string(),
+                created_at: "2026-05-06T00:02:00Z".to_string(),
+                summary: "Model the target.".to_string(),
+                artifact_refs: vec!["artifact:modeling-plan".to_string()],
+            },
+        )?;
+        assert_eq!(job.status, EpiphanyRuntimeJobStatus::Queued);
+        let result = complete_runtime_job(
+            &store,
+            RuntimeSpineJobResultOptions {
+                result_id: "result-1".to_string(),
+                job_id: "job-1".to_string(),
+                completed_at: "2026-05-06T00:03:00Z".to_string(),
+                verdict: "pass".to_string(),
+                summary: "Model is ready.".to_string(),
+                next_safe_move: "Launch verification.".to_string(),
+                evidence_refs: vec!["evidence:model".to_string()],
+                artifact_refs: vec!["artifact:model".to_string()],
+            },
+        )?;
+        assert_eq!(result.role, "modeling");
+        let status = runtime_spine_status(&store)?;
+        assert_eq!(status.jobs, 1);
+        assert_eq!(status.open_jobs, 0);
+        assert_eq!(status.job_results, 1);
+        assert_eq!(status.events, 2);
+        Ok(())
+    }
+
+    #[test]
     fn runtime_spine_emits_cultnet_hello_frame() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");
@@ -490,7 +752,7 @@ mod tests {
                 assert!(
                     supported_document_types
                         .unwrap()
-                        .contains(&RUNTIME_SESSION_TYPE.to_string())
+                        .contains(&RUNTIME_JOB_RESULT_TYPE.to_string())
                 );
             }
             other => panic!("expected hello, got {other:?}"),
