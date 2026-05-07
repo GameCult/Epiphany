@@ -1,12 +1,15 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::SecondsFormat;
-use epiphany_core::dossier_profile_for_role;
-use epiphany_core::load_agent_memory_entry_for_role;
 use epiphany_core::EpiphanyAgentMemoryEntry;
 use epiphany_core::GhostlightMemory;
+use epiphany_core::GhostlightTraitVector;
+use epiphany_core::dossier_profile_for_role;
+use epiphany_core::load_agent_memory_entry_for_role;
 use serde_json::Value;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::env;
 use std::fs;
 use std::io::Read;
@@ -117,6 +120,10 @@ fn character_turn_packet(
     mood: &str,
 ) -> Value {
     let dossier_profile = dossier_profile_for_role(&entry.role_id);
+    let projection_seed =
+        deterministic_projection_seed(entry, stimulus, source, mode, status, mood);
+    let appraisal_seed = deterministic_appraisal_seed(entry, &projection_seed, stimulus, source);
+    let reaction_seed = deterministic_reaction_seed(&entry.role_id, &appraisal_seed);
     serde_json::json!({
         "schema_version": CHARACTER_TURN_SCHEMA_VERSION,
         "protocol": {
@@ -168,8 +175,12 @@ fn character_turn_packet(
             "semanticMemories": entry.agent.memories.semantic.iter().map(memory_projection).collect::<Vec<_>>(),
             "episodicMemories": entry.agent.memories.episodic.iter().map(memory_projection).collect::<Vec<_>>(),
             "relationshipMemories": entry.agent.memories.relationship_summaries.iter().map(memory_projection).collect::<Vec<_>>(),
+            "perceivedStateOverlays": entry.agent.perceived_state_overlays.iter().take(6).cloned().collect::<Vec<_>>(),
             "privateNoteCount": entry.agent.identity.private_notes.len(),
         },
+        "projectionSeed": projection_seed,
+        "appraisalSeed": appraisal_seed,
+        "reactionSeed": reaction_seed,
         "allowedOutputs": [
             "bubble",
             "discordAquariumDraft",
@@ -241,6 +252,456 @@ fn memory_projection(memory: &GhostlightMemory) -> Value {
     })
 }
 
+#[derive(Clone, Debug)]
+struct TraitSignal {
+    group: &'static str,
+    name: String,
+    activation: f64,
+    plasticity: f64,
+    weight: f64,
+}
+
+fn deterministic_projection_seed(
+    entry: &EpiphanyAgentMemoryEntry,
+    stimulus: &str,
+    source: &str,
+    mode: &str,
+    status: &str,
+    mood: &str,
+) -> Value {
+    let thought_tokens = stimulus_token_set(stimulus, source, mode, status, mood);
+    let traits = collect_trait_signals(entry);
+    let mut scored = traits
+        .iter()
+        .map(|item| {
+            let trait_tokens = summary_tokens(&format!("{} {}", item.group, item.name));
+            let overlap = token_overlap(&trait_tokens, &thought_tokens);
+            let projection = round3((item.weight * (0.55 + overlap * 1.8)).clamp(0.0, 1.0));
+            serde_json::json!({
+                "group": item.group,
+                "name": item.name,
+                "activation": round3(item.activation),
+                "plasticity": round3(item.plasticity),
+                "tokenOverlap": round3(overlap),
+                "projection": projection,
+            })
+        })
+        .collect::<Vec<_>>();
+    scored.sort_by(|left, right| {
+        right["projection"]
+            .as_f64()
+            .unwrap_or_default()
+            .total_cmp(&left["projection"].as_f64().unwrap_or_default())
+    });
+    scored.truncate(6);
+
+    let (relationship_pressure, relationship_summary) =
+        strongest_relationship_pressure(entry, &thought_tokens);
+    let (overlay_pressure, overlay_summary) = strongest_overlay_pressure(entry, &thought_tokens);
+
+    serde_json::json!({
+        "schema_version": "epiphany.personality_projection.v0",
+        "participantAgentId": entry.agent.agent_id,
+        "roleId": entry.role_id,
+        "thoughtClusterRef": format!("{}#stimulus", source),
+        "thoughtTokens": thought_tokens.into_iter().collect::<Vec<_>>(),
+        "dominantTraitMatches": scored,
+        "relationshipPressure": {
+            "strength": round3(relationship_pressure),
+            "summary": relationship_summary,
+        },
+        "perceivedOverlayPressure": {
+            "strength": round3(overlay_pressure),
+            "summary": overlay_summary,
+        },
+        "contract": "Projection is participant-local and fallible. It is a seed for embodied response, not reviewed project truth.",
+    })
+}
+
+fn deterministic_appraisal_seed(
+    entry: &EpiphanyAgentMemoryEntry,
+    projection_seed: &Value,
+    stimulus: &str,
+    source: &str,
+) -> Value {
+    let traits = collect_trait_signals(entry);
+    let reactivity = average(traits.iter().take(8).map(|item| item.activation)).unwrap_or(0.5);
+    let plasticity = average(traits.iter().take(8).map(|item| item.plasticity)).unwrap_or(0.5);
+    let expressiveness = average(
+        traits
+            .iter()
+            .filter(|item| item.group == "voice_style" || item.group == "presentation_strategy")
+            .map(|item| item.activation),
+    )
+    .unwrap_or(reactivity);
+    let guarded_baseline = average(
+        traits
+            .iter()
+            .filter(|item| {
+                let name = item.name.as_str();
+                name.contains("guard")
+                    || name.contains("shame")
+                    || name.contains("risk")
+                    || name.contains("caution")
+                    || name.contains("contingent")
+                    || name.contains("defens")
+                    || name.contains("susp")
+            })
+            .map(|item| item.activation),
+    )
+    .unwrap_or((1.0 - expressiveness * 0.45).clamp(0.0, 1.0));
+    let alignment = projection_seed
+        .pointer("/dominantTraitMatches/0/projection")
+        .and_then(Value::as_f64)
+        .unwrap_or(reactivity);
+    let relationship_pressure = projection_seed
+        .pointer("/relationshipPressure/strength")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let overlay_pressure = projection_seed
+        .pointer("/perceivedOverlayPressure/strength")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let thought_pressure = (0.18
+        + (summary_tokens(stimulus).len() as f64 / 18.0).min(0.42)
+        + relationship_pressure * 0.22
+        + overlay_pressure * 0.18)
+        .clamp(0.0, 1.0);
+    let arousal =
+        round3((thought_pressure * (0.35 + reactivity * 0.45 + plasticity * 0.2)).clamp(0.0, 1.0));
+    let guardedness = round3(
+        (guarded_baseline * 0.58
+            + relationship_pressure * 0.18
+            + overlay_pressure * 0.14
+            + (1.0 - alignment) * 0.10)
+            .clamp(0.0, 1.0),
+    );
+    let curiosity =
+        round3(((1.0 - guardedness) * 0.22 + alignment * 0.46 + plasticity * 0.32).clamp(0.0, 1.0));
+    let urgency =
+        round3((arousal * 0.58 + guardedness * 0.22 + thought_pressure * 0.20).clamp(0.0, 1.0));
+    let valence = round3((0.52 + curiosity * 0.22 - guardedness * 0.20).clamp(0.0, 1.0));
+    let label = interpretation_label("draft", arousal, guardedness, curiosity);
+    serde_json::json!({
+        "schema_version": "epiphany.agent_thought_appraisal.v0",
+        "appraisalId": format!("face-appraisal-{}", short_id()),
+        "reviewStatus": "generated_unreviewed",
+        "participantAgentId": entry.agent.agent_id,
+        "roleId": entry.role_id,
+        "currentCharacterStateRef": format!("state/agents.msgpack#{}", entry.role_id),
+        "thoughtClusterRef": format!("{}#stimulus", source),
+        "observableThoughtSummary": stimulus,
+        "participantLocalContext": {
+            "displayName": entry.agent.identity.name,
+            "valueLabels": entry
+                .agent
+                .canonical_state
+                .values
+                .iter()
+                .take(5)
+                .map(|value| value.label.clone())
+                .collect::<Vec<_>>(),
+            "reactivity": round3(reactivity),
+            "plasticity": round3(plasticity),
+            "expressiveness": round3(expressiveness),
+            "guardedness": round3(guarded_baseline),
+            "relationshipMemoryCount": entry.agent.memories.relationship_summaries.len(),
+            "perceivedOverlayCount": entry.agent.perceived_state_overlays.len(),
+        },
+        "personalityProjection": projection_seed,
+        "interpretation": format!(
+            "{} appraises the visible stimulus through its local personality, relationship memory, and perceived overlays; this is embodied response guidance, not omniscient truth.",
+            entry.agent.identity.name
+        ),
+        "emotionalAppraisal": {
+            "valence": valence,
+            "arousal": arousal,
+            "urgency": urgency,
+            "curiosity": curiosity,
+            "guardedness": guardedness,
+            "thoughtPressure": round3(thought_pressure),
+        },
+        "interpretationLabel": label,
+        "candidateImplications": {
+            "reactionMode": reaction_mode(&label, "draft"),
+            "reactionIntensity": round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
+            "shouldSpeak": entry.role_id == "face" && guardedness < 0.78,
+            "shouldIncubate": guardedness >= 0.55,
+        },
+        "confidenceNotes": "Deterministic Face-local appraisal rebuilt from the same Ghostlight-style personality projection logic used by heartbeat. Useful for reaction shape, still reviewable and fallible.",
+        "review": {
+            "acceptedForMutation": false,
+            "rationale": "Appraisal may steer expression and reaction; state mutation still requires explicit review.",
+        }
+    })
+}
+
+fn deterministic_reaction_seed(role_id: &str, appraisal_seed: &Value) -> Value {
+    let arousal = appraisal_seed
+        .pointer("/emotionalAppraisal/arousal")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let guardedness = appraisal_seed
+        .pointer("/emotionalAppraisal/guardedness")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let curiosity = appraisal_seed
+        .pointer("/emotionalAppraisal/curiosity")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let mode = appraisal_seed
+        .pointer("/candidateImplications/reactionMode")
+        .and_then(Value::as_str)
+        .unwrap_or("incubate");
+    let intensity = appraisal_seed
+        .pointer("/candidateImplications/reactionIntensity")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    serde_json::json!({
+        "schema_version": "epiphany.agent_reaction.v0",
+        "reactionId": format!("reaction-{}-{}", role_id, short_id()),
+        "roleId": role_id,
+        "appraisalId": appraisal_seed.get("appraisalId"),
+        "mode": mode,
+        "moodLabel": mood_label(arousal, guardedness, curiosity),
+        "intensity": round3(intensity),
+        "surface": if role_id == "face" { "aquarium" } else { "internal" },
+        "recommendedUse": reaction_recommended_use(role_id, mode),
+        "contract": "Reaction is derived from local appraisal and may color speech or silence; it still does not mutate durable state by itself.",
+    })
+}
+
+fn collect_trait_signals(entry: &EpiphanyAgentMemoryEntry) -> Vec<TraitSignal> {
+    let mut traits = Vec::new();
+    collect_trait_group(
+        &mut traits,
+        "underlying_organization",
+        &entry.agent.canonical_state.underlying_organization,
+    );
+    collect_trait_group(
+        &mut traits,
+        "stable_dispositions",
+        &entry.agent.canonical_state.stable_dispositions,
+    );
+    collect_trait_group(
+        &mut traits,
+        "behavioral_dimensions",
+        &entry.agent.canonical_state.behavioral_dimensions,
+    );
+    collect_trait_group(
+        &mut traits,
+        "presentation_strategy",
+        &entry.agent.canonical_state.presentation_strategy,
+    );
+    collect_trait_group(
+        &mut traits,
+        "voice_style",
+        &entry.agent.canonical_state.voice_style,
+    );
+    collect_trait_group(
+        &mut traits,
+        "situational_state",
+        &entry.agent.canonical_state.situational_state,
+    );
+    traits.sort_by(|left, right| right.weight.total_cmp(&left.weight));
+    traits
+}
+
+fn collect_trait_group(
+    traits: &mut Vec<TraitSignal>,
+    group: &'static str,
+    source: &BTreeMap<String, GhostlightTraitVector>,
+) {
+    for (name, vector) in source {
+        let activation = vector.current_activation.clamp(0.0, 1.0);
+        let plasticity = vector.plasticity.clamp(0.0, 1.0);
+        traits.push(TraitSignal {
+            group,
+            name: name.clone(),
+            activation,
+            plasticity,
+            weight: round3(activation * (0.65 + plasticity * 0.35)),
+        });
+    }
+}
+
+fn strongest_relationship_pressure(
+    entry: &EpiphanyAgentMemoryEntry,
+    thought_tokens: &BTreeSet<String>,
+) -> (f64, String) {
+    entry
+        .agent
+        .memories
+        .relationship_summaries
+        .iter()
+        .map(|memory| {
+            let overlap = token_overlap(&summary_tokens(&memory.summary), thought_tokens);
+            let strength = overlap * (memory.salience * memory.confidence);
+            (strength, memory.summary.clone())
+        })
+        .max_by(|left, right| left.0.total_cmp(&right.0))
+        .map(|(strength, summary)| (round3(strength.clamp(0.0, 1.0)), summary))
+        .unwrap_or((
+            0.0,
+            "No strong relationship pressure is active.".to_string(),
+        ))
+}
+
+fn strongest_overlay_pressure(
+    entry: &EpiphanyAgentMemoryEntry,
+    thought_tokens: &BTreeSet<String>,
+) -> (f64, String) {
+    entry
+        .agent
+        .perceived_state_overlays
+        .iter()
+        .map(|overlay| {
+            let mut tokens = BTreeSet::new();
+            collect_json_tokens(overlay, &mut tokens);
+            let overlap = token_overlap(&tokens, thought_tokens);
+            let summary = overlay
+                .get("summary")
+                .and_then(Value::as_str)
+                .or_else(|| overlay.get("label").and_then(Value::as_str))
+                .unwrap_or("Perceived overlay relevance");
+            (overlap, summary.to_string())
+        })
+        .max_by(|left, right| left.0.total_cmp(&right.0))
+        .map(|(strength, summary)| (round3(strength.clamp(0.0, 1.0)), summary))
+        .unwrap_or((
+            0.0,
+            "No perceived overlay is tugging on this stimulus.".to_string(),
+        ))
+}
+
+fn stimulus_token_set(
+    stimulus: &str,
+    source: &str,
+    mode: &str,
+    status: &str,
+    mood: &str,
+) -> BTreeSet<String> {
+    let mut tokens = BTreeSet::new();
+    tokens.extend(summary_tokens(stimulus));
+    tokens.extend(summary_tokens(source));
+    tokens.extend(summary_tokens(mode));
+    tokens.extend(summary_tokens(status));
+    tokens.extend(summary_tokens(mood));
+    tokens
+}
+
+fn collect_json_tokens(value: &Value, tokens: &mut BTreeSet<String>) {
+    match value {
+        Value::String(text) => tokens.extend(summary_tokens(text)),
+        Value::Array(items) => {
+            for item in items {
+                collect_json_tokens(item, tokens);
+            }
+        }
+        Value::Object(object) => {
+            for (key, value) in object {
+                tokens.extend(summary_tokens(key));
+                collect_json_tokens(value, tokens);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn summary_tokens(text: &str) -> BTreeSet<String> {
+    text.split(|ch: char| !ch.is_ascii_alphanumeric() && ch != '_' && ch != '-')
+        .filter_map(|item| {
+            let token = item.trim().to_ascii_lowercase().replace('_', "-");
+            (token.len() >= 3).then_some(token)
+        })
+        .collect()
+}
+
+fn token_overlap(left: &BTreeSet<String>, right: &BTreeSet<String>) -> f64 {
+    if left.is_empty() || right.is_empty() {
+        return 0.0;
+    }
+    let shared = left.intersection(right).count() as f64;
+    let denom = left.len().min(right.len()) as f64;
+    if denom <= f64::EPSILON {
+        0.0
+    } else {
+        (shared / denom).clamp(0.0, 1.0)
+    }
+}
+
+fn average<I>(values: I) -> Option<f64>
+where
+    I: Iterator<Item = f64>,
+{
+    let mut total = 0.0_f64;
+    let mut count = 0_usize;
+    for value in values {
+        total += value;
+        count += 1;
+    }
+    (count > 0).then_some(total / count as f64)
+}
+
+fn interpretation_label(
+    bridge_decision: &str,
+    arousal: f64,
+    guardedness: f64,
+    curiosity: f64,
+) -> String {
+    if guardedness > 0.72 && arousal > 0.35 {
+        "protective_appraisal".to_string()
+    } else if curiosity > 0.68 {
+        "investigative_appraisal".to_string()
+    } else if bridge_decision == "draft" {
+        "expressive_appraisal".to_string()
+    } else if arousal < 0.12 {
+        "low_pressure_appraisal".to_string()
+    } else {
+        "incubating_appraisal".to_string()
+    }
+}
+
+fn reaction_mode(label: &str, bridge_decision: &str) -> &'static str {
+    match (label, bridge_decision) {
+        ("protective_appraisal", _) => "hold_and_verify",
+        ("investigative_appraisal", _) => "inspect",
+        ("expressive_appraisal", "draft") => "draft",
+        ("low_pressure_appraisal", _) => "sleep_ruminate",
+        _ => "incubate",
+    }
+}
+
+fn mood_label(arousal: f64, guardedness: f64, curiosity: f64) -> &'static str {
+    if guardedness > 0.72 && arousal > 0.35 {
+        "wary"
+    } else if curiosity > 0.68 && arousal > 0.25 {
+        "keen"
+    } else if arousal < 0.12 {
+        "drowsy"
+    } else if guardedness > curiosity {
+        "watchful"
+    } else {
+        "interested"
+    }
+}
+
+fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
+    match (role_id, mode) {
+        ("face", "draft") => "Prepare a reviewed Aquarium-facing draft; do not post automatically.",
+        (_, "hold_and_verify") => "Bias toward verifier/modeler review before expression.",
+        (_, "inspect") => {
+            "Bias the next heartbeat toward a bounded retrieval or modeling inspection."
+        }
+        (_, "sleep_ruminate") => "Let this organ sleep-ruminate unless real work arrives.",
+        _ => "Keep the thought incubating and visible in Aquarium.",
+    }
+}
+
+fn round3(value: f64) -> f64 {
+    (value.clamp(0.0, 1.0) * 1000.0).round() / 1000.0
+}
+
 fn run_smoke() -> Result<Value> {
     let temp_dir = scoped_temp_dir("epiphany-character-loop-smoke")?;
     let artifact_dir = temp_dir.join("artifacts");
@@ -268,6 +729,9 @@ fn run_smoke() -> Result<Value> {
         && packet["protocol"]["roleId"] == "face"
         && packet["protocol"]["dossierProfile"]["profileKind"] == "embodied_actor"
         && packet["projectedLocalContext"]["dossierProfile"]["profileKind"] == "embodied_actor"
+        && packet["projectionSeed"]["schema_version"] == "epiphany.personality_projection.v0"
+        && packet["appraisalSeed"]["schema_version"] == "epiphany.agent_thought_appraisal.v0"
+        && packet["reactionSeed"]["schema_version"] == "epiphany.agent_reaction.v0"
         && packet["projectedLocalContext"]["identity"]["name"]
             .as_str()
             .is_some_and(|name| !name.trim().is_empty())
@@ -287,6 +751,9 @@ fn run_smoke() -> Result<Value> {
             "roleId": packet["protocol"]["roleId"],
             "agentId": packet["protocol"]["agentId"],
             "dossierProfile": packet["protocol"]["dossierProfile"]["profileKind"],
+            "projectionSchema": packet["projectionSeed"]["schema_version"],
+            "appraisalSchema": packet["appraisalSeed"]["schema_version"],
+            "reactionSchema": packet["reactionSeed"]["schema_version"],
             "identityName": packet["projectedLocalContext"]["identity"]["name"],
             "allowedOutputs": packet["allowedOutputs"],
             "cognitionLanes": packet["cognitionLanes"]["schema_version"],

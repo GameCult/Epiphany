@@ -16,6 +16,7 @@ pub use agent_memory::EpiphanyAgentMemoryEntry;
 pub use agent_memory::EpiphanyDossierProfile;
 pub use agent_memory::EpiphanyDossierProfileKind;
 pub use agent_memory::GhostlightMemory;
+pub use agent_memory::GhostlightTraitVector;
 pub use agent_memory::agent_memory_status;
 pub use agent_memory::apply_agent_canonical_trait_seeds;
 pub use agent_memory::apply_agent_self_patch;

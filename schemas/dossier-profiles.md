@@ -54,6 +54,8 @@ Failure mode if overbuilt:
 Intended for:
 
 - Face
+- future multiple Faces or perspective-mouths (for example faction-facing
+  Aetheria interlocutors)
 - Ghostlight scene characters
 - any future public, social, or dramatic agent that must react as a situated
   person rather than a narrow work organ
@@ -95,6 +97,7 @@ So the policy is:
 
 - sparse lane-core dossiers are fine when they improve work
 - Face should trend toward embodied-actor richness
+- the current singular `face` role is an MVP constraint, not a metaphysical law
 - do not pretend those are the same requirement
 
 ## Wire Visibility
