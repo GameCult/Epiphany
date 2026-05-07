@@ -5,6 +5,8 @@ use chrono::Utc;
 use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
+use epiphany_core::AgentCanonicalTraitSeed;
+use epiphany_core::apply_agent_canonical_trait_seeds;
 use epiphany_core::apply_agent_self_patch;
 use epiphany_core::default_heartbeat_state;
 use epiphany_core::load_heartbeat_state_entry;
@@ -349,6 +351,7 @@ struct AcceptInitArgs {
     result: Option<PathBuf>,
     agent_store: Option<PathBuf>,
     apply_self_patches: bool,
+    apply_trait_seeds: bool,
     heartbeat_store: Option<PathBuf>,
     apply_heartbeat_seeds: bool,
 }
@@ -468,6 +471,7 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
     let mut result = None;
     let mut agent_store = None;
     let mut apply_self_patches = false;
+    let mut apply_trait_seeds = false;
     let mut heartbeat_store = None;
     let mut apply_heartbeat_seeds = false;
     parse_named_args(args, |name, value| match name {
@@ -503,6 +507,10 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
             apply_self_patches = parse_bool_arg("--apply-self-patches", &value)?;
             Ok(())
         }
+        "--apply-trait-seeds" => {
+            apply_trait_seeds = parse_bool_arg("--apply-trait-seeds", &value)?;
+            Ok(())
+        }
         "--heartbeat-store" => {
             heartbeat_store = Some(PathBuf::from(value));
             Ok(())
@@ -522,6 +530,7 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
         result,
         agent_store,
         apply_self_patches,
+        apply_trait_seeds,
         heartbeat_store,
         apply_heartbeat_seeds,
     })
@@ -797,7 +806,7 @@ fn run_startup(args: StartupArgs) -> Result<Value> {
                 "birthOnly": true,
                 "executionOwner": "repo-initialization-startup-runner",
                 "heartbeatParticipant": Value::Null,
-                "contract": "Startup-only specialist packet. Do not register as a heartbeat lane; accept-init may seed heartbeat physiology only after Self review.",
+                "contract": "Startup-only specialist packet. Do not register as a heartbeat lane; accept-init may stamp the newborn trait lattice and seed heartbeat physiology only after Self review.",
                 "packetPath": result["packetPath"],
                 "promptPath": result["promptPath"],
                 "summaryPath": result["summaryPath"],
@@ -850,7 +859,7 @@ fn run_startup(args: StartupArgs) -> Result<Value> {
         "nextSafeMove": if action == "continueStartup" {
             "Startup birth records are accepted; leave later personality, trajectory, and memory movement to heartbeat, mood, evidence, sleep, and reviewed selfPatch."
         } else {
-            "Self reviews generated birth packets, runs the startup-only distiller specialists outside the heartbeat lane system, applies accepted selfPatch candidates and heartbeat seeds through accept-init, then records each completed birth rite."
+            "Self reviews generated birth packets, runs the startup-only distiller specialists outside the heartbeat lane system, applies accepted selfPatch candidates, trait-lattice seeds, and heartbeat seeds through accept-init, then records each completed birth rite."
         }
     });
     write_json(
@@ -886,6 +895,12 @@ fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow!("packet has no schemaVersion"))?;
     validate_initialization_kind(&args.kind, packet_schema)?;
+    let trait_lattice_persistence = process_trait_lattice_seed_patches(
+        &args.kind,
+        &packet,
+        args.agent_store.as_deref(),
+        args.apply_trait_seeds,
+    )?;
     let heartbeat_seeds = process_heartbeat_seed_patches(
         &args.kind,
         &packet,
@@ -942,8 +957,10 @@ fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
         "resultPath": args.result,
         "agentStore": args.agent_store,
         "applySelfPatches": args.apply_self_patches,
+        "applyTraitSeeds": args.apply_trait_seeds,
         "heartbeatStore": args.heartbeat_store,
         "applyHeartbeatSeeds": args.apply_heartbeat_seeds,
+        "traitLatticePersistence": trait_lattice_persistence,
         "heartbeatSeeds": heartbeat_seeds,
         "selfPersistence": self_persistence,
         "record": initialization_record_summary(&record),
@@ -1426,6 +1443,50 @@ fn process_initialization_result_patches(
     }))
 }
 
+fn process_trait_lattice_seed_patches(
+    kind: &str,
+    packet: &Value,
+    agent_store: Option<&Path>,
+    apply_trait_seeds: bool,
+) -> Result<Value> {
+    if kind != "repo-personality" {
+        return Ok(json!({
+            "status": "not-applicable",
+            "applyTraitSeeds": apply_trait_seeds,
+            "seeds": [],
+            "applied": 0,
+        }));
+    }
+    let seeds = extract_trait_seed_candidates(packet)?;
+    if seeds.is_empty() {
+        return Ok(json!({
+            "status": "no-seeds",
+            "applyTraitSeeds": apply_trait_seeds,
+            "seeds": [],
+            "applied": 0,
+        }));
+    }
+    if !apply_trait_seeds {
+        return Ok(json!({
+            "status": "review-only",
+            "applyTraitSeeds": false,
+            "seeds": seeds,
+            "applied": 0,
+            "contract": "Pass --agent-store and --apply-trait-seeds true after Self review to stamp the newborn Ghostlight trait lattice."
+        }));
+    }
+    let store = agent_store
+        .ok_or_else(|| anyhow!("--agent-store is required with --apply-trait-seeds true"))?;
+    let applied = apply_agent_canonical_trait_seeds(&seeds, store)?;
+    Ok(json!({
+        "status": "applied",
+        "agentStore": store,
+        "applyTraitSeeds": true,
+        "applied": applied["applied"].clone(),
+        "seeds": applied["seeds"].clone(),
+    }))
+}
+
 fn process_heartbeat_seed_patches(
     kind: &str,
     packet: &Value,
@@ -1526,6 +1587,459 @@ fn process_heartbeat_seed_patches(
         "seeds": applied,
         "applied": applied.iter().filter(|item| item.get("status").and_then(Value::as_str) == Some("applied")).count(),
     }))
+}
+
+#[derive(Clone, Debug, Copy)]
+struct CanonicalTraitTemplate {
+    group_name: &'static str,
+    trait_name: &'static str,
+    mean: f64,
+    plasticity: f64,
+    current_activation: f64,
+}
+
+const COORDINATOR_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "routing_discipline",
+        mean: 0.92,
+        plasticity: 0.22,
+        current_activation: 0.9,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "critical_adversarial_care",
+        mean: 0.93,
+        plasticity: 0.2,
+        current_activation: 0.91,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "review_gate_integrity",
+        mean: 0.95,
+        plasticity: 0.18,
+        current_activation: 0.93,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "action_reason_signal",
+        mean: 0.88,
+        plasticity: 0.24,
+        current_activation: 0.86,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "dry_direct_operator",
+        mean: 0.84,
+        plasticity: 0.24,
+        current_activation: 0.82,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "lane_skepticism",
+        mean: 0.9,
+        plasticity: 0.26,
+        current_activation: 0.88,
+    },
+];
+
+const FACE_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "multi_lane_attention",
+        mean: 0.9,
+        plasticity: 0.28,
+        current_activation: 0.86,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "room_native_translation",
+        mean: 0.88,
+        plasticity: 0.26,
+        current_activation: 0.84,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "aquarium_channel_discipline",
+        mean: 0.96,
+        plasticity: 0.16,
+        current_activation: 0.94,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "short_constructive_chat",
+        mean: 0.86,
+        plasticity: 0.25,
+        current_activation: 0.82,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "warm_weird_interface",
+        mean: 0.84,
+        plasticity: 0.28,
+        current_activation: 0.82,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "thought_weather_watch",
+        mean: 0.88,
+        plasticity: 0.32,
+        current_activation: 0.84,
+    },
+];
+
+const IMAGINATION_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "future_shape_distillation",
+        mean: 0.9,
+        plasticity: 0.28,
+        current_activation: 0.86,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "adoption_boundary_respect",
+        mean: 0.94,
+        plasticity: 0.18,
+        current_activation: 0.92,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "selectability",
+        mean: 0.88,
+        plasticity: 0.3,
+        current_activation: 0.84,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "objective_draft_shape",
+        mean: 0.89,
+        plasticity: 0.24,
+        current_activation: 0.86,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "bounded_possibility",
+        mean: 0.82,
+        plasticity: 0.25,
+        current_activation: 0.79,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "backlog_pressure",
+        mean: 0.83,
+        plasticity: 0.34,
+        current_activation: 0.78,
+    },
+];
+
+const RESEARCH_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "primary_source_bias",
+        mean: 0.9,
+        plasticity: 0.24,
+        current_activation: 0.86,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "anti_greenspun_reflex",
+        mean: 0.94,
+        plasticity: 0.18,
+        current_activation: 0.92,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "search_before_touch",
+        mean: 0.88,
+        plasticity: 0.28,
+        current_activation: 0.84,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "fit_rejection_table",
+        mean: 0.84,
+        plasticity: 0.26,
+        current_activation: 0.81,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "clear_scout_report",
+        mean: 0.82,
+        plasticity: 0.24,
+        current_activation: 0.79,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "unknowns_visible",
+        mean: 0.87,
+        plasticity: 0.3,
+        current_activation: 0.82,
+    },
+];
+
+const MODELING_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "source_grounding",
+        mean: 0.93,
+        plasticity: 0.18,
+        current_activation: 0.9,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "anatomical_precision",
+        mean: 0.91,
+        plasticity: 0.21,
+        current_activation: 0.88,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "frontier_pressure",
+        mean: 0.84,
+        plasticity: 0.32,
+        current_activation: 0.77,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "plain_source_map",
+        mean: 0.88,
+        plasticity: 0.22,
+        current_activation: 0.84,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "quiet_anatomist",
+        mean: 0.82,
+        plasticity: 0.25,
+        current_activation: 0.8,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "checkpoint_hunger",
+        mean: 0.86,
+        plasticity: 0.3,
+        current_activation: 0.83,
+    },
+];
+
+const IMPLEMENTATION_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "source_touch_precision",
+        mean: 0.9,
+        plasticity: 0.22,
+        current_activation: 0.87,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "objective_pursuit",
+        mean: 0.92,
+        plasticity: 0.19,
+        current_activation: 0.9,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "diff_truth",
+        mean: 0.89,
+        plasticity: 0.25,
+        current_activation: 0.86,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "small_reviewable_cut",
+        mean: 0.87,
+        plasticity: 0.24,
+        current_activation: 0.82,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "plain_craft_notes",
+        mean: 0.8,
+        plasticity: 0.24,
+        current_activation: 0.78,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "bloodhound_pressure",
+        mean: 0.9,
+        plasticity: 0.28,
+        current_activation: 0.88,
+    },
+];
+
+const VERIFICATION_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "falsification_first",
+        mean: 0.93,
+        plasticity: 0.2,
+        current_activation: 0.91,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "promise_integrity",
+        mean: 0.95,
+        plasticity: 0.18,
+        current_activation: 0.93,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "missing_evidence_pressure",
+        mean: 0.9,
+        plasticity: 0.26,
+        current_activation: 0.87,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "cold_red_pen",
+        mean: 0.88,
+        plasticity: 0.23,
+        current_activation: 0.86,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "unseduced_review",
+        mean: 0.84,
+        plasticity: 0.22,
+        current_activation: 0.82,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "invariant_watch",
+        mean: 0.91,
+        plasticity: 0.25,
+        current_activation: 0.89,
+    },
+];
+
+const REORIENTATION_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+    CanonicalTraitTemplate {
+        group_name: "underlying_organization",
+        trait_name: "continuity_triage",
+        mean: 0.91,
+        plasticity: 0.24,
+        current_activation: 0.88,
+    },
+    CanonicalTraitTemplate {
+        group_name: "stable_dispositions",
+        trait_name: "loss_honesty",
+        mean: 0.94,
+        plasticity: 0.2,
+        current_activation: 0.92,
+    },
+    CanonicalTraitTemplate {
+        group_name: "behavioral_dimensions",
+        trait_name: "regather_precision",
+        mean: 0.86,
+        plasticity: 0.3,
+        current_activation: 0.82,
+    },
+    CanonicalTraitTemplate {
+        group_name: "presentation_strategy",
+        trait_name: "survived_died_next",
+        mean: 0.88,
+        plasticity: 0.24,
+        current_activation: 0.85,
+    },
+    CanonicalTraitTemplate {
+        group_name: "voice_style",
+        trait_name: "calm_after_rupture",
+        mean: 0.84,
+        plasticity: 0.23,
+        current_activation: 0.8,
+    },
+    CanonicalTraitTemplate {
+        group_name: "situational_state",
+        trait_name: "ember_watch",
+        mean: 0.9,
+        plasticity: 0.28,
+        current_activation: 0.88,
+    },
+];
+
+fn extract_trait_seed_candidates(packet: &Value) -> Result<Vec<AgentCanonicalTraitSeed>> {
+    let Some(items) = packet
+        .pointer("/input/rolePersonalityProjections")
+        .and_then(Value::as_array)
+    else {
+        return Ok(Vec::new());
+    };
+    let mut seeds = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        let role_id = required_str(item, "roleId", index)?;
+        let deltas = number_map(item.get("traitDeltas"));
+        let mood = number_map(item.get("defaultMoodPressure"));
+        let templates = role_trait_templates(role_id)?;
+        let axes = role_axes(role_id);
+        for (template, axis) in templates.iter().take(5).zip(axes.iter()) {
+            let delta = deltas.get(*axis).copied().unwrap_or(0.0);
+            seeds.push(seed_from_template(
+                role_id,
+                template,
+                delta,
+                Some(format!("repo-personality startup axis {axis}")),
+            ));
+        }
+        seeds.push(seed_from_template(
+            role_id,
+            &templates[5],
+            situational_delta(&mood),
+            Some("repo-personality startup mood pressure (urgency/anxiety/curiosity)".to_string()),
+        ));
+    }
+    Ok(seeds)
+}
+
+fn role_trait_templates(role_id: &str) -> Result<&'static [CanonicalTraitTemplate; 6]> {
+    match role_id {
+        "coordinator" => Ok(&COORDINATOR_TRAIT_TEMPLATES),
+        "face" => Ok(&FACE_TRAIT_TEMPLATES),
+        "imagination" => Ok(&IMAGINATION_TRAIT_TEMPLATES),
+        "research" => Ok(&RESEARCH_TRAIT_TEMPLATES),
+        "modeling" => Ok(&MODELING_TRAIT_TEMPLATES),
+        "implementation" => Ok(&IMPLEMENTATION_TRAIT_TEMPLATES),
+        "verification" => Ok(&VERIFICATION_TRAIT_TEMPLATES),
+        "reorientation" => Ok(&REORIENTATION_TRAIT_TEMPLATES),
+        other => Err(anyhow!(
+            "no canonical trait template registered for role {:?}",
+            other
+        )),
+    }
+}
+
+fn seed_from_template(
+    role_id: &str,
+    template: &CanonicalTraitTemplate,
+    delta: f64,
+    source: Option<String>,
+) -> AgentCanonicalTraitSeed {
+    let normalized_delta = if delta.is_finite() {
+        delta.clamp(-0.3, 0.3)
+    } else {
+        0.0
+    };
+    AgentCanonicalTraitSeed {
+        role_id: role_id.to_string(),
+        group_name: template.group_name.to_string(),
+        trait_name: template.trait_name.to_string(),
+        mean: round3((template.mean + normalized_delta * 0.22).clamp(0.0, 1.0)),
+        plasticity: round3((template.plasticity + normalized_delta.abs() * 0.08).clamp(0.0, 1.0)),
+        current_activation: round3(
+            (template.current_activation + normalized_delta * 0.28).clamp(0.0, 1.0),
+        ),
+        source,
+    }
+}
+
+fn situational_delta(mood: &BTreeMap<String, f64>) -> f64 {
+    let urgency = number_from_map(mood, "urgency");
+    let anxiety = number_from_map(mood, "anxiety");
+    let curiosity = number_from_map(mood, "curiosity");
+    round3(
+        (((urgency - 0.5) * 0.5) + ((anxiety - 0.5) * 0.35) + ((curiosity - 0.5) * 0.15))
+            .clamp(-0.3, 0.3),
+    )
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -3996,7 +4510,7 @@ fn print_usage() {
          trajectory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>\n\
-         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-trajectory|repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]\n\
+         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-trajectory|repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--apply-trait-seeds <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]\n\
          status --store <baseline-or-projection.msgpack>"
     );
 }

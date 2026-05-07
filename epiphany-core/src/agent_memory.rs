@@ -247,6 +247,19 @@ pub struct AgentMemoryReview {
     pub applied: Option<bool>,
 }
 
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentCanonicalTraitSeed {
+    pub role_id: String,
+    pub group_name: String,
+    pub trait_name: String,
+    pub mean: f64,
+    pub plasticity: f64,
+    pub current_activation: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+}
+
 pub fn migrate_agent_memory_json_dir_to_cultcache(
     agent_dir: impl AsRef<Path>,
     store_path: impl AsRef<Path>,
@@ -463,6 +476,55 @@ pub fn apply_agent_self_patch(
     Ok(review)
 }
 
+pub fn apply_agent_canonical_trait_seeds(
+    seeds: &[AgentCanonicalTraitSeed],
+    store_path: impl AsRef<Path>,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut cache = agent_memory_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let mut applied = Vec::new();
+    for seed in seeds {
+        if seed.trait_name.trim().is_empty() {
+            return Err(anyhow!(
+                "trait seed for role {:?} has an empty trait_name",
+                seed.role_id
+            ));
+        }
+        let vector = GhostlightTraitVector {
+            mean: clamp_unit(seed.mean),
+            plasticity: clamp_unit(seed.plasticity),
+            current_activation: clamp_unit(seed.current_activation),
+            extra: BTreeMap::new(),
+        };
+        let mut entry = cache
+            .get::<EpiphanyAgentMemoryEntry>(&seed.role_id)?
+            .ok_or_else(|| anyhow!("CultCache has no role memory entry for {:?}", seed.role_id))?;
+        let group = canonical_group_mut(&mut entry.agent.canonical_state, &seed.group_name)?;
+        let previous = group.get(&seed.trait_name).cloned();
+        if seed.trait_name != "baseline" {
+            group.remove("baseline");
+        }
+        group.insert(seed.trait_name.clone(), vector.clone());
+        cache.put(seed.role_id.clone(), &entry)?;
+        applied.push(serde_json::json!({
+            "roleId": seed.role_id,
+            "groupName": seed.group_name,
+            "traitName": seed.trait_name,
+            "source": seed.source,
+            "previous": previous,
+            "vector": vector,
+            "status": "applied",
+        }));
+    }
+    Ok(serde_json::json!({
+        "status": if applied.is_empty() { "no-seeds" } else { "applied" },
+        "agentStore": store_path,
+        "applied": applied.len(),
+        "seeds": applied,
+    }))
+}
+
 pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
     let store_path = store_path.as_ref();
     if !store_path.exists() {
@@ -553,6 +615,24 @@ fn agent_memory_cache(store_path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyAgentMemoryEntry>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path));
     Ok(cache)
+}
+
+fn canonical_group_mut<'a>(
+    state: &'a mut GhostlightCanonicalState,
+    group_name: &str,
+) -> Result<&'a mut BTreeMap<String, GhostlightTraitVector>> {
+    match group_name {
+        "underlying_organization" => Ok(&mut state.underlying_organization),
+        "stable_dispositions" => Ok(&mut state.stable_dispositions),
+        "behavioral_dimensions" => Ok(&mut state.behavioral_dimensions),
+        "presentation_strategy" => Ok(&mut state.presentation_strategy),
+        "voice_style" => Ok(&mut state.voice_style),
+        "situational_state" => Ok(&mut state.situational_state),
+        other => Err(anyhow!(
+            "unknown canonical_state group {:?}; expected one of the six Ghostlight trait bundles",
+            other
+        )),
+    }
 }
 
 fn entry_from_projection(
@@ -755,6 +835,14 @@ fn check_string(value: &str, path: &str, errors: &mut Vec<String>, max_len: usiz
 fn check_unit(value: f64, path: &str, errors: &mut Vec<String>) {
     if !value.is_finite() || !(0.0..=1.0).contains(&value) {
         errors.push(format!("{path} must be between 0 and 1"));
+    }
+}
+
+fn clamp_unit(value: f64) -> f64 {
+    if !value.is_finite() {
+        0.5
+    } else {
+        value.clamp(0.0, 1.0)
     }
 }
 
@@ -1108,6 +1196,56 @@ mod tests {
                 .semantic
                 .iter()
                 .any(|memory| memory.memory_id == "mem-body-native-source-grounding")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn canonical_trait_seeds_replace_baseline_vectors() -> Result<()> {
+        let temp = tempdir()?;
+        let agent_dir = temp.path().join("agents");
+        fs::create_dir_all(&agent_dir)?;
+        for (role_id, agent_id, filename) in ROLE_TARGETS {
+            fs::write(
+                agent_dir.join(filename),
+                sample_agent_json(agent_id, &format!("Agent {role_id}")),
+            )?;
+        }
+        let store = temp.path().join("agents.msgpack");
+        migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
+
+        let applied = apply_agent_canonical_trait_seeds(
+            &[AgentCanonicalTraitSeed {
+                role_id: "coordinator".to_string(),
+                group_name: "underlying_organization".to_string(),
+                trait_name: "routing_discipline".to_string(),
+                mean: 0.92,
+                plasticity: 0.22,
+                current_activation: 0.9,
+                source: Some("startup personality projection smoke".to_string()),
+            }],
+            &store,
+        )?;
+        assert_eq!(applied["applied"], 1);
+
+        let mut cache = agent_memory_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let entry = cache.get_required::<EpiphanyAgentMemoryEntry>("coordinator")?;
+        assert!(
+            !entry
+                .agent
+                .canonical_state
+                .underlying_organization
+                .contains_key("baseline")
+        );
+        assert_eq!(
+            entry
+                .agent
+                .canonical_state
+                .underlying_organization
+                .get("routing_discipline")
+                .map(|vector| vector.mean),
+            Some(0.92)
         );
         Ok(())
     }

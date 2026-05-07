@@ -1,6 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use epiphany_core::load_agent_memory_entry_for_role;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -380,6 +381,13 @@ fn run_smoke() -> Result<Value> {
             "smoke-self",
             "--summary",
             "Smoke accepted repo personality birth packet after review.",
+            "--agent-store",
+            root.join("state")
+                .join("agents.msgpack")
+                .to_str()
+                .unwrap_or_default(),
+            "--apply-trait-seeds",
+            "true",
             "--heartbeat-store",
             heartbeat_store.to_str().unwrap_or_default(),
             "--apply-heartbeat-seeds",
@@ -396,6 +404,32 @@ fn run_smoke() -> Result<Value> {
             .unwrap_or_default()
             > 0,
         "accept-init should apply heartbeat seed mutations",
+    )?;
+    require(
+        accepted_personality["traitLatticePersistence"]["applied"]
+            .as_u64()
+            .unwrap_or_default()
+            > 0,
+        "accept-init should stamp newborn canonical trait lattice seeds",
+    )?;
+    let coordinator =
+        load_agent_memory_entry_for_role(root.join("state").join("agents.msgpack"), "coordinator")?
+            .ok_or_else(|| anyhow!("startup smoke lost coordinator role memory entry"))?;
+    require(
+        !coordinator
+            .agent
+            .canonical_state
+            .underlying_organization
+            .contains_key("baseline"),
+        "personality accept-init should replace baseline canonical traits for coordinator",
+    )?;
+    require(
+        coordinator
+            .agent
+            .canonical_state
+            .underlying_organization
+            .contains_key("routing_discipline"),
+        "personality accept-init should seed coordinator routing_discipline trait",
     )?;
     let agent_store = artifacts.join("startup-agents.msgpack");
     fs::copy(root.join("state").join("agents.msgpack"), &agent_store)

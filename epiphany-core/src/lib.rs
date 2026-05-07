@@ -9,11 +9,13 @@ mod rollout;
 mod runtime_spine;
 mod state_ledger;
 
+pub use agent_memory::AgentCanonicalTraitSeed;
 pub use agent_memory::AgentMemoryReview;
 pub use agent_memory::AgentSelfPatch;
 pub use agent_memory::EpiphanyAgentMemoryEntry;
 pub use agent_memory::GhostlightMemory;
 pub use agent_memory::agent_memory_status;
+pub use agent_memory::apply_agent_canonical_trait_seeds;
 pub use agent_memory::apply_agent_self_patch;
 pub use agent_memory::load_agent_memory_entry_for_role;
 pub use agent_memory::migrate_agent_memory_json_dir_to_cultcache;
