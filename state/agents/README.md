@@ -36,6 +36,10 @@ contracts, verification, runtime, and source. The native
 `epiphany-repo-personality memory-packet` command renders the role-specific
 memory distiller packet. It is a petition to Self, not a direct mutation, and it
 must not reset a living lane's learned memory after startup.
+When Self reviews a generated distiller result, run
+`epiphany-repo-personality accept-init --result ... --agent-store ... --apply-self-patches true`
+to apply accepted birth-memory petitions through the same coordinator-reviewed
+`selfPatch` machinery used by living lanes.
 
 Face's Discord boundary is still a small TOML configuration seam: it may
 interact only through #aquarium. If the channel id is not configured, Face must

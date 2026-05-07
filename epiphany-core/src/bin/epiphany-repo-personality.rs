@@ -5,6 +5,8 @@ use chrono::Utc;
 use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
+use epiphany_core::apply_agent_self_patch;
+use epiphany_core::review_agent_self_patch;
 use ignore::WalkBuilder;
 use serde::Deserialize;
 use serde::Serialize;
@@ -275,6 +277,9 @@ struct AcceptInitArgs {
     kind: String,
     accepted_by: String,
     summary: Option<String>,
+    result: Option<PathBuf>,
+    agent_store: Option<PathBuf>,
+    apply_self_patches: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -389,6 +394,9 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
     let mut kind = None;
     let mut accepted_by = Some("Self".to_string());
     let mut summary = None;
+    let mut result = None;
+    let mut agent_store = None;
+    let mut apply_self_patches = false;
     parse_named_args(args, |name, value| match name {
         "--init-store" => {
             init_store = Some(PathBuf::from(value));
@@ -410,6 +418,18 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
             summary = Some(value);
             Ok(())
         }
+        "--result" => {
+            result = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--agent-store" => {
+            agent_store = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--apply-self-patches" => {
+            apply_self_patches = parse_bool_arg("--apply-self-patches", &value)?;
+            Ok(())
+        }
         other => Err(anyhow!("unexpected accept-init argument {other}")),
     })?;
     Ok(AcceptInitArgs {
@@ -418,6 +438,9 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
         kind: kind.context("missing --kind")?,
         accepted_by: accepted_by.unwrap_or_else(|| "Self".to_string()),
         summary,
+        result,
+        agent_store,
+        apply_self_patches,
     })
 }
 
@@ -479,6 +502,14 @@ fn parse_named_args(
         handle(&name, value)?;
     }
     Ok(())
+}
+
+fn parse_bool_arg(name: &str, value: &str) -> Result<bool> {
+    match value {
+        "true" | "yes" | "1" => Ok(true),
+        "false" | "no" | "0" => Ok(false),
+        other => Err(anyhow!("{name} must be true or false, got {other:?}")),
+    }
 }
 
 fn run_scout(args: ScoutArgs) -> Result<Value> {
@@ -728,6 +759,29 @@ fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow!("packet has no schemaVersion"))?;
     validate_initialization_kind(&args.kind, packet_schema)?;
+    let self_persistence = if let Some(result_path) = &args.result {
+        let raw = fs::read_to_string(result_path)
+            .with_context(|| format!("failed to read {}", result_path.display()))?;
+        let result: Value = serde_json::from_str(&raw)
+            .with_context(|| format!("failed to decode {}", result_path.display()))?;
+        process_initialization_result_patches(
+            &args.kind,
+            &result,
+            args.agent_store.as_deref(),
+            args.apply_self_patches,
+        )?
+    } else {
+        json!({
+            "resultPath": Value::Null,
+            "agentStore": args.agent_store,
+            "applySelfPatches": args.apply_self_patches,
+            "patches": [],
+            "accepted": 0,
+            "rejected": 0,
+            "applied": 0,
+            "status": "not-provided"
+        })
+    };
     let record = RepoInitializationRecord {
         schema_version: INITIALIZATION_RECORD_SCHEMA_VERSION.to_string(),
         record_id: initialization_record_id(repo_id, &args.kind),
@@ -752,6 +806,10 @@ fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
         "schemaVersion": INITIALIZATION_RECORD_SCHEMA_VERSION,
         "mode": "accept-init",
         "initStore": args.init_store,
+        "resultPath": args.result,
+        "agentStore": args.agent_store,
+        "applySelfPatches": args.apply_self_patches,
+        "selfPersistence": self_persistence,
         "record": initialization_record_summary(&record),
     }))
 }
@@ -1036,6 +1094,154 @@ fn validate_initialization_kind(kind: &str, packet_schema: &str) -> Result<()> {
         (other, _) => Err(anyhow!(
             "unknown initialization kind {other:?}; expected repo-personality or repo-memory"
         )),
+    }
+}
+
+fn process_initialization_result_patches(
+    kind: &str,
+    result: &Value,
+    agent_store: Option<&Path>,
+    apply_self_patches: bool,
+) -> Result<Value> {
+    let patches = extract_initialization_self_patches(kind, result)?;
+    if patches.is_empty() {
+        return Ok(json!({
+            "status": "no-patches",
+            "applySelfPatches": apply_self_patches,
+            "patches": [],
+            "accepted": 0,
+            "rejected": 0,
+            "applied": 0,
+        }));
+    }
+    let store = agent_store.ok_or_else(|| {
+        anyhow!("--agent-store is required when --result contains selfPatch candidates")
+    })?;
+    let mut reviews = Vec::new();
+    let mut accepted = 0usize;
+    let mut rejected = 0usize;
+    let mut applied = 0usize;
+    for patch in patches {
+        let review = if apply_self_patches {
+            apply_agent_self_patch(&patch.role_id, &patch.self_patch, store)?
+        } else {
+            review_agent_self_patch(&patch.role_id, &patch.self_patch, store)
+        };
+        if review.status == "accepted" {
+            accepted += 1;
+        } else {
+            rejected += 1;
+        }
+        if review.applied == Some(true) {
+            applied += 1;
+        }
+        reviews.push(json!({
+            "roleId": patch.role_id,
+            "source": patch.source,
+            "review": review,
+        }));
+    }
+    Ok(json!({
+        "status": if rejected == 0 { "accepted" } else { "review-blocked" },
+        "agentStore": store,
+        "applySelfPatches": apply_self_patches,
+        "patches": reviews,
+        "accepted": accepted,
+        "rejected": rejected,
+        "applied": applied,
+    }))
+}
+
+struct InitializationSelfPatch {
+    role_id: String,
+    source: String,
+    self_patch: Value,
+}
+
+fn extract_initialization_self_patches(
+    kind: &str,
+    result: &Value,
+) -> Result<Vec<InitializationSelfPatch>> {
+    match kind {
+        "repo-personality" => extract_personality_self_patches(result),
+        "repo-memory" => extract_memory_self_patches(result),
+        other => Err(anyhow!("unknown initialization kind {other:?}")),
+    }
+}
+
+fn extract_personality_self_patches(result: &Value) -> Result<Vec<InitializationSelfPatch>> {
+    let Some(items) = result.get("selfPatchCandidates").and_then(Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    let mut patches = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        let self_patch = item.get("selfPatch").unwrap_or(item).clone();
+        let role_id = item
+            .get("roleId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                self_patch
+                    .get("agentId")
+                    .and_then(Value::as_str)
+                    .and_then(role_id_for_agent_id)
+                    .map(str::to_string)
+            })
+            .ok_or_else(|| {
+                anyhow!("selfPatchCandidates[{index}] needs roleId or known selfPatch.agentId")
+            })?;
+        patches.push(InitializationSelfPatch {
+            role_id,
+            source: format!("selfPatchCandidates[{index}]"),
+            self_patch,
+        });
+    }
+    Ok(patches)
+}
+
+fn extract_memory_self_patches(result: &Value) -> Result<Vec<InitializationSelfPatch>> {
+    let Some(items) = result.get("roleMemoryPatches").and_then(Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    let mut patches = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        let Some(self_patch) = item.get("selfPatch").cloned() else {
+            continue;
+        };
+        let role_id = item
+            .get("roleId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                self_patch
+                    .get("agentId")
+                    .and_then(Value::as_str)
+                    .and_then(role_id_for_agent_id)
+                    .map(str::to_string)
+            })
+            .ok_or_else(|| {
+                anyhow!("roleMemoryPatches[{index}] needs roleId or known selfPatch.agentId")
+            })?;
+        patches.push(InitializationSelfPatch {
+            role_id,
+            source: format!("roleMemoryPatches[{index}].selfPatch"),
+            self_patch,
+        });
+    }
+    Ok(patches)
+}
+
+fn role_id_for_agent_id(agent_id: &str) -> Option<&'static str> {
+    match agent_id {
+        "epiphany.self" => Some("coordinator"),
+        "epiphany.face" => Some("face"),
+        "epiphany.imagination" => Some("imagination"),
+        "epiphany.eyes" => Some("research"),
+        "epiphany.body" => Some("modeling"),
+        "epiphany.hands" => Some("implementation"),
+        "epiphany.soul" => Some("verification"),
+        "epiphany.life" => Some("reorientation"),
+        _ => None,
     }
 }
 

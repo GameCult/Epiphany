@@ -218,6 +218,37 @@ fn run_smoke() -> Result<Value> {
         accepted_personality["record"]["kind"] == "repo-personality",
         "accept-init should record personality birth",
     )?;
+    let agent_store = artifacts.join("startup-agents.msgpack");
+    fs::copy(root.join("state").join("agents.msgpack"), &agent_store)
+        .context("failed to copy role memory store for startup smoke")?;
+    let memory_result_path = artifacts.join("startup-memory-result.json");
+    fs::write(
+        &memory_result_path,
+        serde_json::to_vec_pretty(&json!({
+            "verdict": "ready-for-review",
+            "summary": "Smoke newborn memory distillation.",
+            "confidence": 0.9,
+            "roleMemoryPatches": [{
+                "roleId": "modeling",
+                "roleName": "Body",
+                "verdict": "ready-for-review",
+                "selfPatch": {
+                    "agentId": "epiphany.body",
+                    "reason": "Birth memory should teach Body that repo initialization memory is reviewed and typed.",
+                    "semanticMemories": [{
+                        "memoryId": "mem-body-startup-birth-memory-smoke",
+                        "summary": "Repo memory birth packets can produce role-specific selfPatch candidates that are applied only after Self review.",
+                        "salience": 0.72,
+                        "confidence": 0.88
+                    }]
+                },
+                "sourceRefs": ["AGENTS.md"],
+                "whyThisBelongsInMemory": "Body needs the startup memory route to stay source-grounded.",
+                "stalenessRisk": "smoke fixture",
+                "doNotStore": []
+            }]
+        }))?,
+    )?;
     let accepted_memory = run_personality(
         &root,
         &[
@@ -232,11 +263,21 @@ fn run_smoke() -> Result<Value> {
             "smoke-self",
             "--summary",
             "Smoke accepted repo memory birth packet after review.",
+            "--result",
+            memory_result_path.to_str().unwrap_or_default(),
+            "--agent-store",
+            agent_store.to_str().unwrap_or_default(),
+            "--apply-self-patches",
+            "true",
         ],
     )?;
     require(
         accepted_memory["record"]["kind"] == "repo-memory",
         "accept-init should record memory birth",
+    )?;
+    require(
+        accepted_memory["selfPersistence"]["applied"] == 1,
+        "accept-init should apply reviewed memory selfPatch candidates",
     )?;
     let startup_after_accept = run_personality(
         &root,
@@ -297,8 +338,10 @@ fn run_smoke() -> Result<Value> {
         "memoryPromptPath": memory_prompt_path,
         "memorySummaryPath": memory_summary_path,
         "initStore": init_store,
+        "agentStore": agent_store,
         "startupPersonalityPacket": startup_personality_packet,
         "startupMemoryPacket": startup_memory_packet,
+        "startupMemoryResult": memory_result_path,
         "startupAfterAcceptAction": startup_after_accept["action"],
         "repoCount": scout["repoCount"],
         "roleProjections": status["roleProjections"],
