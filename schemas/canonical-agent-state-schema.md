@@ -86,12 +86,28 @@ Current activation is how hot it is right now.
 
 ## Epiphany-Specific Policy
 
-Epiphany no longer uses Ghostlight's old idea of one universal required label
-set across all agents. The current standing swarm uses one named trait per
-family per organ, with role-local semantics. That is deliberate.
+Epiphany now treats the wire schema as one shared body shape with two explicit
+profiles layered over it:
 
-The goal is not to force Self and Hands into the same fake psychological
-spreadsheet. The goal is to keep each organ's identity explicit and queryable.
+1. `lane_core`
+2. `embodied_actor`
+
+See [dossier-profiles.md](./dossier-profiles.md).
+
+The important distinction is:
+
+- most standing Epiphany organs want a lean role lattice with room to grow
+  through memory, rumination, and distillation
+- Face and Ghostlight-style characters want a denser, more fallible, more
+  relationship-heavy personality surface
+
+So the schema stays shared, but the expected population density changes by
+profile.
+
+Epiphany does **not** currently require every standing organ to populate the
+full old Ghostlight trait inventory. That would be fake precision. But the
+full embodied Ghostlight families remain canonical, available, and appropriate
+for Face and character-grade agents.
 
 ## Mutation Boundaries
 
@@ -112,6 +128,11 @@ Canonical trait bundles currently change through two sanctioned paths:
 That birth-time route is documented in
 [repo-personality-birth-projection.md](./repo-personality-birth-projection.md).
 
+Face and future embodied actors are still expected to evolve through richer
+event, relationship, appraisal, and distillation flows. The current narrow
+`selfPatch` contract is enough for lane-core growth, but it is not the end of
+the story for fully embodied personalities.
+
 ## Project Truth Versus Self Truth
 
 These dossiers are not the same thing as thread state.
@@ -131,5 +152,6 @@ world model.
 ## Related Contracts
 
 - [agent-state-variable-glossary.md](./agent-state-variable-glossary.md)
+- [dossier-profiles.md](./dossier-profiles.md)
 - [heartbeat-state-schema.md](./heartbeat-state-schema.md)
 - [repo-personality-birth-projection.md](./repo-personality-birth-projection.md)

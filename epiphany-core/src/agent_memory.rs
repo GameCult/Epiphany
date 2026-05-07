@@ -248,6 +248,24 @@ pub struct AgentMemoryReview {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EpiphanyDossierProfileKind {
+    LaneCore,
+    EmbodiedActor,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyDossierProfile {
+    pub profile_kind: EpiphanyDossierProfileKind,
+    pub canonical_density: String,
+    pub relationship_model: String,
+    pub perceived_overlay_mode: String,
+    pub growth_channels: Vec<String>,
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentCanonicalTraitSeed {
     pub role_id: String,
@@ -546,6 +564,7 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
                 "roleId": role_id,
                 "agentId": entry.agent.agent_id,
                 "displayName": entry.agent.identity.name,
+                "dossierProfile": dossier_profile_for_role(role_id),
                 "semanticMemories": entry.agent.memories.semantic.len(),
                 "episodicMemories": entry.agent.memories.episodic.len(),
                 "relationshipMemories": entry.agent.memories.relationship_summaries.len(),
@@ -568,6 +587,44 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
         "errors": errors,
         "roles": roles,
     }))
+}
+
+pub fn dossier_profile_for_role(role_id: &str) -> EpiphanyDossierProfile {
+    match role_id {
+        "face" => EpiphanyDossierProfile {
+            profile_kind: EpiphanyDossierProfileKind::EmbodiedActor,
+            canonical_density: "dense_ghostlight_core_preferred".to_string(),
+            relationship_model: "relationship_summaries_and_directional_stance_matter".to_string(),
+            perceived_overlay_mode: "observer_local_and_fallible".to_string(),
+            growth_channels: vec![
+                "heartbeat appraisal and reaction".to_string(),
+                "character-loop interpretation".to_string(),
+                "episodic and relationship memory accumulation".to_string(),
+                "reviewed selfPatch".to_string(),
+                "sleep/distillation".to_string(),
+            ],
+            notes: vec![
+                "Face should behave like an embodied, responsive, and fallible public creature rather than a thin tool wrapper.".to_string(),
+                "Dense Ghostlight-style canonical families, perceived overlays, and relationship pressure are appropriate here.".to_string(),
+            ],
+        },
+        _ => EpiphanyDossierProfile {
+            profile_kind: EpiphanyDossierProfileKind::LaneCore,
+            canonical_density: "lean_role_lattice".to_string(),
+            relationship_model: "role_local_summary_only".to_string(),
+            perceived_overlay_mode: "minimal_until_a_real_need_exists".to_string(),
+            growth_channels: vec![
+                "reviewed selfPatch".to_string(),
+                "heartbeat rumination pressure".to_string(),
+                "sleep/distillation".to_string(),
+                "birth-time repo personality and memory seeding".to_string(),
+            ],
+            notes: vec![
+                "Most standing Epiphany organs need sharp role identity, room to grow, and resistance to personality sludge more than they need full dramatic embodiment.".to_string(),
+                "Sparse canonical bundles are acceptable here as long as memory, goals, values, and private notes can deepen over time.".to_string(),
+            ],
+        },
+    }
 }
 
 pub fn project_agent_memory_to_json_dir(
@@ -1248,6 +1305,17 @@ mod tests {
             Some(0.92)
         );
         Ok(())
+    }
+
+    #[test]
+    fn dossier_profiles_distinguish_face_from_lane_organs() {
+        let face = dossier_profile_for_role("face");
+        assert_eq!(face.profile_kind, EpiphanyDossierProfileKind::EmbodiedActor);
+        assert_eq!(face.canonical_density, "dense_ghostlight_core_preferred");
+
+        let hands = dossier_profile_for_role("implementation");
+        assert_eq!(hands.profile_kind, EpiphanyDossierProfileKind::LaneCore);
+        assert_eq!(hands.canonical_density, "lean_role_lattice");
     }
 
     fn sample_agent_json(agent_id: &str, name: &str) -> String {

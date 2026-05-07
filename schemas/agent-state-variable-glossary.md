@@ -1,12 +1,19 @@
 # Agent State Variable Glossary
 
-This is the current human-facing glossary for Epiphany's live Ghostlight-shaped
-role lattice.
+This is the current human-facing glossary for Epiphany's Ghostlight-shaped
+state surface.
 
 The canonical storage shape is documented in
 [canonical-agent-state-schema.md](./canonical-agent-state-schema.md). The live
 Rust structures live in
 [agent_memory.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/agent_memory.rs).
+
+This document now covers two things:
+
+1. the dense Ghostlight family vocabulary used by embodied actors
+2. the current standing Epiphany role lattice used by the resident organs
+
+Those are related, not identical.
 
 ## Trait Vector Components
 
@@ -30,6 +37,138 @@ This is enough to separate character from moment, which is a small mercy.
 | `presentation_strategy` | how the organ presents its work outwardly |
 | `voice_style` | the communication texture of that organ |
 | `situational_state` | what pressure it tends to carry when active |
+
+## Dense Embodied Profile Vocabulary
+
+These are the canonical Ghostlight-family labels appropriate for
+`embodied_actor` dossiers such as Face and scene characters.
+
+### Underlying Organization
+
+| Label | Meaning |
+| --- | --- |
+| `self_coherence` | how integrated and stable the agent's sense of self is under pressure |
+| `contingent_worth` | how much felt worth depends on approval, utility, status, purity, or external validation |
+| `shame_sensitivity` | how painful exposure, correction, failure, or diminishment feels |
+| `reciprocity_capacity` | ability to sustain mutual obligation rather than purely extractive or avoidant relations |
+| `mentalization_quality` | ability to model other minds with nuance instead of flattening them into threat, need, or utility |
+| `authenticity_tolerance` | capacity to be known without immediately retreating into performance or concealment |
+| `mask_rigidity` | how necessary and inflexible the performed self is |
+| `external_regulation_dependence` | how much stability depends on other people, scripts, or surrounding structure |
+
+### Stable Dispositions
+
+| Label | Meaning |
+| --- | --- |
+| `novelty_seeking` | attraction to new experience and unproven paths |
+| `conformity` | preference for accepted norms and group expectations |
+| `status_hunger` | desire for rank, recognition, or visible superiority |
+| `risk_tolerance` | willingness to accept danger, uncertainty, or loss |
+| `sociability` | baseline draw toward company and social energy |
+| `baseline_threat_sensitivity` | default readiness to detect danger or betrayal |
+| `aesthetic_appetite` | sensitivity to beauty, style, symbolism, or expressive environment |
+| `ideological_rigidity` | resistance to revising beliefs or explanatory frames |
+
+### Behavioral Dimensions
+
+| Label | Meaning |
+| --- | --- |
+| `interpersonal_warmth` | tendency to express care or welcome |
+| `drive` | goal pressure, persistence, and forward force |
+| `grandiosity` | inflated self-importance or self-mythologizing |
+| `validation_seeking` | need for reassurance or recognition |
+| `anxiety` | anticipatory fear or instability under uncertainty |
+| `control_pressure` | urge to manage people, situations, or outcomes tightly |
+| `hostility` | readiness toward anger, contempt, or attack |
+| `suspicion` | expectation that others hide traps or bad faith |
+| `rigidity` | difficulty adapting under new evidence |
+| `withdrawal` | tendency to disengage or retreat |
+| `volatility` | speed and intensity of emotional swings |
+| `attachment_seeking` | pull toward closeness, reassurance, or being chosen |
+| `distance_seeking` | push toward space, opacity, and autonomy |
+
+### Presentation Strategy
+
+| Label | Meaning |
+| --- | --- |
+| `charm` | performs warmth, ease, or charisma to influence contact |
+| `compliance` | performs agreement or harmless cooperation |
+| `superiority` | performs being above others, more competent, or less vulnerable |
+| `detachment` | performs cool distance or emotional unavailability |
+| `seductiveness` | performs desirability or intimate leverage |
+| `competence_theater` | performs capability and control, sometimes beyond what is actually secure |
+| `moral_theater` | performs righteousness, purity, or ethical authority |
+| `strategic_opacity` | controls what others can know |
+| `cultivated_harmlessness` | performs being safe, small, useful, or beneath concern |
+| `abrasive_boundary` | performs bite or difficulty to keep others from pressing closer |
+| `ironic_distance` | performs irony or joking distance to avoid naked sincerity |
+
+### Voice Style
+
+| Label | Meaning |
+| --- | --- |
+| `dryness` | understated or deadpan phrasing |
+| `verbal_warmth` | inviting, reassuring, or socially soft phrasing |
+| `formality` | formal structure, titles, or careful address |
+| `verbosity` | longer turns and elaboration |
+| `pace` | quick movement through turns or topic shifts |
+| `plainspoken_directness` | plain, concrete, blunt speech |
+| `lexical_precision` | exact word choice and careful distinctions |
+| `technical_density` | specialist terms or heavy systems language |
+| `technical_compression` | terse expert shorthand |
+| `figurative_language` | metaphor, image, or symbolic framing |
+| `lyricism` | musical, poetic, or sensuous language |
+| `narrative_detail` | concrete scene detail and sequence |
+| `emotional_explicitness` | direct naming of feelings or needs |
+| `pointedness` | sharp or barbed precision |
+| `self_disclosure` | volunteers private motives or history |
+| `hedging` | caveats, uncertainty markers, or softeners |
+| `certainty_marking` | signals confidence or finality |
+| `politeness` | courtesy and face-saving language |
+| `coded_politeness` | politeness used to imply criticism, threat, or hierarchy |
+| `ritualized_address` | formulaic greetings, titles, prayers, or ceremonial phrases |
+| `register_switching` | shifts register by audience or pressure |
+| `dialect_marking` | regional, class, occupational, or subcultural speech markers |
+| `theatricality` | drama, persona, flourish, or rhetorical display |
+| `humor` | jokes, wit, teasing, or comic framing |
+| `conversational_dominance` | takes or controls the floor |
+| `listening_responsiveness` | reflects or adapts to what the other just said |
+| `question_asking` | uses questions to probe, invite, or corner |
+| `profanity` | taboo, sacred, or deliberately coarse language |
+
+### Situational State
+
+| Label | Meaning |
+| --- | --- |
+| `exhaustion` | depletion or low reserve |
+| `scarcity_pressure` | pressure from money, supplies, time, space, or safety scarcity |
+| `humiliation` | felt diminishment or exposure |
+| `panic` | acute overwhelm or threat response |
+| `triumph` | victory, vindication, or emotional lift |
+| `grief` | active loss or mourning |
+| `overstimulation` | sensory, social, cognitive, or emotional overload |
+| `grievance_activation` | resentment or retaliatory moral charge |
+| `acute_shame` | immediate shame flare or self-disgust |
+| `perceived_status_threat` | sense that rank, dignity, competence, or face is under threat |
+
+### Relationship Stance
+
+Relationship stance is directional and especially important for embodied actors.
+
+| Label | Meaning |
+| --- | --- |
+| `trust` | expectation that the target will not exploit vulnerability |
+| `respect` | recognition of competence, integrity, or seriousness |
+| `resentment` | accumulated grievance or unpaid emotional debt |
+| `dependence` | need for the target's care, access, protection, or recognition |
+| `fear` | expectation that the target can or will cause harm |
+| `fascination` | captivation, attraction, fixation, or unresolved interest |
+| `obligation` | felt debt, duty, or promise |
+| `envy` | pain around what the target has, is, or receives |
+| `moral_disgust` | aversion rooted in perceived corruption or wrongness |
+| `perceived_status_gap` | felt difference in rank, leverage, or dignity |
+| `expectation_of_care` | belief that the target may protect or soothe |
+| `expectation_of_betrayal` | belief that the target may abandon, expose, or exploit |
 
 ## Standing Epiphany Organs
 
@@ -125,6 +264,6 @@ The current live swarm carries one named trait per family per organ.
 
 ## Status Note
 
-These names are current live Epiphany doctrine, not inherited Ghostlight core
-labels. If they change in code or in the standing role shells, update this file
-in the same pass.
+These standing names are current live Epiphany doctrine, not a replacement for
+the dense Ghostlight family vocabulary above. If they change in code or in the
+standing role shells, update this file in the same pass.

@@ -1,10 +1,11 @@
+use anyhow::anyhow;
 use anyhow::Context;
 use anyhow::Result;
-use anyhow::anyhow;
 use chrono::SecondsFormat;
+use epiphany_core::dossier_profile_for_role;
+use epiphany_core::load_agent_memory_entry_for_role;
 use epiphany_core::EpiphanyAgentMemoryEntry;
 use epiphany_core::GhostlightMemory;
-use epiphany_core::load_agent_memory_entry_for_role;
 use serde_json::Value;
 use std::env;
 use std::fs;
@@ -115,6 +116,7 @@ fn character_turn_packet(
     status: &str,
     mood: &str,
 ) -> Value {
+    let dossier_profile = dossier_profile_for_role(&entry.role_id);
     serde_json::json!({
         "schema_version": CHARACTER_TURN_SCHEMA_VERSION,
         "protocol": {
@@ -123,6 +125,7 @@ fn character_turn_packet(
             "mode": mode,
             "roleId": entry.role_id,
             "agentId": entry.agent.agent_id,
+            "dossierProfile": dossier_profile,
             "turnKind": "stimulus_response",
             "responseContract": "Respond from projected local state and visible stimulus; do not leak hidden agent streams or invent omniscient truth.",
         },
@@ -147,6 +150,7 @@ fn character_turn_packet(
                 "time": entry.world.time.label,
                 "canonContext": entry.world.canon_context,
             },
+            "dossierProfile": dossier_profile_for_role(&entry.role_id),
             "activeGoals": entry.agent.goals.iter().map(|goal| serde_json::json!({
                 "goalId": goal.goal_id,
                 "description": goal.description,
@@ -262,6 +266,8 @@ fn run_smoke() -> Result<Value> {
     let ok = packet["schema_version"] == CHARACTER_TURN_SCHEMA_VERSION
         && packet["protocol"]["bundle"] == "epiphany.character_loop"
         && packet["protocol"]["roleId"] == "face"
+        && packet["protocol"]["dossierProfile"]["profileKind"] == "embodied_actor"
+        && packet["projectedLocalContext"]["dossierProfile"]["profileKind"] == "embodied_actor"
         && packet["projectedLocalContext"]["identity"]["name"]
             .as_str()
             .is_some_and(|name| !name.trim().is_empty())
@@ -280,6 +286,7 @@ fn run_smoke() -> Result<Value> {
             "bundle": packet["protocol"]["bundle"],
             "roleId": packet["protocol"]["roleId"],
             "agentId": packet["protocol"]["agentId"],
+            "dossierProfile": packet["protocol"]["dossierProfile"]["profileKind"],
             "identityName": packet["projectedLocalContext"]["identity"]["name"],
             "allowedOutputs": packet["allowedOutputs"],
             "cognitionLanes": packet["cognitionLanes"]["schema_version"],

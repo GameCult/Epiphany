@@ -17,7 +17,10 @@ developer's damp recollection.
   human-facing explanation of how Epiphany uses the Ghostlight agent-state
   shape.
 - [agent-state-variable-glossary.md](./agent-state-variable-glossary.md):
-  current role-lattice glossary for the standing Epiphany organs.
+  full Ghostlight-family glossary plus current Epiphany role-lattice receipts.
+- [dossier-profiles.md](./dossier-profiles.md):
+  explicit split between lean Epiphany work-organ dossiers and embodied
+  Ghostlight/Face personalities.
 - [repo-personality-birth-projection.md](./repo-personality-birth-projection.md):
   deterministic birth-time path from repo terrain to newborn trait lattice and
   heartbeat seeds.
