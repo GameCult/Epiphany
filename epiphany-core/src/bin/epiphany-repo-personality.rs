@@ -24,6 +24,7 @@ const ROLE_PROJECTION_SCHEMA_VERSION: &str = "epiphany.role_personality_projecti
 const ARTIFACT_SCHEMA_VERSION: &str = "epiphany.repo_personality_artifacts.v0";
 const DISTILLER_PACKET_SCHEMA_VERSION: &str = "epiphany.repo_personality_distiller_packet.v0";
 const MEMORY_DISTILLER_PACKET_SCHEMA_VERSION: &str = "epiphany.repo_memory_distiller_packet.v0";
+const INITIALIZATION_RECORD_SCHEMA_VERSION: &str = "epiphany.repo_initialization_record.v0";
 const REPO_PERSONALITY_DISTILLER_PROMPT: &str =
     include_str!("../prompts/repo_personality_distiller.md");
 const REPO_MEMORY_DISTILLER_PROMPT: &str = include_str!("../prompts/repo_memory_distiller.md");
@@ -197,6 +198,34 @@ pub struct RolePersonalityProjection {
     pub evidence_refs: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.repo_initialization_record",
+    schema = "EpiphanyRepoInitializationRecord"
+)]
+pub struct RepoInitializationRecord {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub record_id: String,
+    #[cultcache(key = 2)]
+    pub repo_id: String,
+    #[cultcache(key = 3)]
+    pub repo_path: String,
+    #[cultcache(key = 4)]
+    pub kind: String,
+    #[cultcache(key = 5)]
+    pub source_packet_schema_version: String,
+    #[cultcache(key = 6)]
+    pub source_packet_path: String,
+    #[cultcache(key = 7)]
+    pub accepted_at: String,
+    #[cultcache(key = 8)]
+    pub accepted_by: String,
+    #[cultcache(key = 9)]
+    pub summary: String,
+}
+
 fn main() -> Result<()> {
     let mut args = env::args().skip(1);
     let Some(command) = args.next() else {
@@ -208,6 +237,8 @@ fn main() -> Result<()> {
         "project" => run_project(parse_project_args(args)?),
         "agent-packet" => run_agent_packet(parse_packet_args(args, "agent-packet")?),
         "memory-packet" => run_memory_packet(parse_packet_args(args, "memory-packet")?),
+        "startup" => run_startup(parse_startup_args(args)?),
+        "accept-init" => run_accept_init(parse_accept_init_args(args)?),
         "status" => run_status(parse_status_args(args)?),
         other => Err(anyhow!("unknown command {other:?}")),
     }?;
@@ -227,6 +258,23 @@ struct ProjectArgs {
     repo: PathBuf,
     baseline: PathBuf,
     artifact_dir: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+struct StartupArgs {
+    repo: PathBuf,
+    baseline: PathBuf,
+    artifact_dir: PathBuf,
+    init_store: PathBuf,
+}
+
+#[derive(Clone, Debug)]
+struct AcceptInitArgs {
+    init_store: PathBuf,
+    packet: PathBuf,
+    kind: String,
+    accepted_by: String,
+    summary: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -300,6 +348,76 @@ fn parse_project_args(args: impl Iterator<Item = String>) -> Result<ProjectArgs>
         repo: repo.context("missing --repo")?,
         baseline: baseline.context("missing --baseline")?,
         artifact_dir: artifact_dir.context("missing --artifact-dir")?,
+    })
+}
+
+fn parse_startup_args(args: impl Iterator<Item = String>) -> Result<StartupArgs> {
+    let mut repo = None;
+    let mut baseline = None;
+    let mut artifact_dir = None;
+    let mut init_store = None;
+    parse_named_args(args, |name, value| match name {
+        "--repo" => {
+            repo = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--baseline" => {
+            baseline = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--artifact-dir" => {
+            artifact_dir = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--init-store" => {
+            init_store = Some(PathBuf::from(value));
+            Ok(())
+        }
+        other => Err(anyhow!("unexpected startup argument {other}")),
+    })?;
+    Ok(StartupArgs {
+        repo: repo.context("missing --repo")?,
+        baseline: baseline.context("missing --baseline")?,
+        artifact_dir: artifact_dir.context("missing --artifact-dir")?,
+        init_store: init_store.context("missing --init-store")?,
+    })
+}
+
+fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptInitArgs> {
+    let mut init_store = None;
+    let mut packet = None;
+    let mut kind = None;
+    let mut accepted_by = Some("Self".to_string());
+    let mut summary = None;
+    parse_named_args(args, |name, value| match name {
+        "--init-store" => {
+            init_store = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--packet" => {
+            packet = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--kind" => {
+            kind = Some(value);
+            Ok(())
+        }
+        "--accepted-by" => {
+            accepted_by = Some(value);
+            Ok(())
+        }
+        "--summary" => {
+            summary = Some(value);
+            Ok(())
+        }
+        other => Err(anyhow!("unexpected accept-init argument {other}")),
+    })?;
+    Ok(AcceptInitArgs {
+        init_store: init_store.context("missing --init-store")?,
+        packet: packet.context("missing --packet")?,
+        kind: kind.context("missing --kind")?,
+        accepted_by: accepted_by.unwrap_or_else(|| "Self".to_string()),
+        summary,
     })
 }
 
@@ -416,26 +534,11 @@ fn run_scout(args: ScoutArgs) -> Result<Value> {
 fn run_project(args: ProjectArgs) -> Result<Value> {
     fs::create_dir_all(&args.artifact_dir)
         .with_context(|| format!("failed to create {}", args.artifact_dir.display()))?;
-    let mut baseline = repo_personality_cache(&args.baseline)?;
-    baseline.pull_all_backing_stores()?;
-    let reports = baseline.get_all::<RepoTerrainReport>()?;
-    let target_id = repo_id(&args.repo);
-    let report = reports
-        .iter()
-        .find(|report| report.repo_id == target_id || same_path(&report.path, &args.repo))
-        .cloned()
-        .unwrap_or_else(|| scout_repo(&args.repo).expect("target repo should be scoutable"));
-    let profile = reduce_report(&report);
-
-    let store_path = args.artifact_dir.join("projection.msgpack");
-    let mut cache = repo_personality_cache(&store_path)?;
-    cache.pull_all_backing_stores()?;
-    cache.put::<RepoTerrainReport>(report.repo_id.clone(), &report)?;
-    cache.put::<RepoPersonalityProfile>(profile.repo_id.clone(), &profile)?;
-    for projection in &profile.role_modulations {
-        cache.put::<RolePersonalityProjection>(projection.projection_id.clone(), projection)?;
-    }
-
+    let ProjectedRepo {
+        store_path,
+        report,
+        profile,
+    } = project_repo_to_store(&args.repo, &args.baseline, &args.artifact_dir)?;
     let summary = json!({
         "schemaVersion": ARTIFACT_SCHEMA_VERSION,
         "mode": "project",
@@ -461,6 +564,45 @@ fn run_project(args: ProjectArgs) -> Result<Value> {
     Ok(summary)
 }
 
+struct ProjectedRepo {
+    store_path: PathBuf,
+    report: RepoTerrainReport,
+    profile: RepoPersonalityProfile,
+}
+
+fn project_repo_to_store(
+    repo: &Path,
+    baseline_path: &Path,
+    artifact_dir: &Path,
+) -> Result<ProjectedRepo> {
+    fs::create_dir_all(artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let mut baseline = repo_personality_cache(baseline_path)?;
+    baseline.pull_all_backing_stores()?;
+    let reports = baseline.get_all::<RepoTerrainReport>()?;
+    let target_id = repo_id(repo);
+    let report = reports
+        .iter()
+        .find(|report| report.repo_id == target_id || same_path(&report.path, repo))
+        .cloned()
+        .unwrap_or_else(|| scout_repo(repo).expect("target repo should be scoutable"));
+    let profile = reduce_report(&report);
+
+    let store_path = artifact_dir.join("projection.msgpack");
+    let mut cache = repo_personality_cache(&store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.put::<RepoTerrainReport>(report.repo_id.clone(), &report)?;
+    cache.put::<RepoPersonalityProfile>(profile.repo_id.clone(), &profile)?;
+    for projection in &profile.role_modulations {
+        cache.put::<RolePersonalityProjection>(projection.projection_id.clone(), projection)?;
+    }
+    Ok(ProjectedRepo {
+        store_path,
+        report,
+        profile,
+    })
+}
+
 fn run_status(args: StatusArgs) -> Result<Value> {
     let mut cache = repo_personality_cache(&args.store)?;
     cache.pull_all_backing_stores()?;
@@ -475,6 +617,142 @@ fn run_status(args: StatusArgs) -> Result<Value> {
         "profiles": profiles.len(),
         "roleProjections": projections.len(),
         "repos": reports.iter().map(report_summary).collect::<Vec<_>>(),
+    }))
+}
+
+fn run_startup(args: StartupArgs) -> Result<Value> {
+    fs::create_dir_all(&args.artifact_dir)
+        .with_context(|| format!("failed to create {}", args.artifact_dir.display()))?;
+    let target_repo_id = repo_id(&args.repo);
+    let accepted = accepted_initialization_kinds(&args.init_store, &target_repo_id)?;
+    let personality_ready = accepted.contains("repo-personality");
+    let memory_ready = accepted.contains("repo-memory");
+    let mut generated_packets = Vec::new();
+    let mut required_actions = Vec::new();
+    let mut projection_store = None;
+
+    if !personality_ready || !memory_ready {
+        let projection_dir = args.artifact_dir.join("projection");
+        let projected = project_repo_to_store(&args.repo, &args.baseline, &projection_dir)?;
+        projection_store = Some(projected.store_path.clone());
+        if !personality_ready {
+            let result = run_agent_packet(AgentPacketArgs {
+                store: projected.store_path.clone(),
+                artifact_dir: args.artifact_dir.join("repo-personality"),
+                repo_id: Some(projected.profile.repo_id.clone()),
+            })?;
+            required_actions.push("reviewRepoPersonalityInitialization");
+            generated_packets.push(json!({
+                "kind": "repo-personality",
+                "packetPath": result["packetPath"],
+                "promptPath": result["promptPath"],
+                "summaryPath": result["summaryPath"],
+            }));
+        }
+        if !memory_ready {
+            let result = run_memory_packet(AgentPacketArgs {
+                store: projected.store_path.clone(),
+                artifact_dir: args.artifact_dir.join("repo-memory"),
+                repo_id: Some(projected.profile.repo_id.clone()),
+            })?;
+            required_actions.push("reviewRepoMemoryInitialization");
+            generated_packets.push(json!({
+                "kind": "repo-memory",
+                "packetPath": result["packetPath"],
+                "promptPath": result["promptPath"],
+                "summaryPath": result["summaryPath"],
+            }));
+        }
+    }
+
+    let action = if generated_packets.is_empty() {
+        "continueStartup"
+    } else {
+        "reviewInitializationPackets"
+    };
+    let result = json!({
+        "schemaVersion": ARTIFACT_SCHEMA_VERSION,
+        "mode": "startup",
+        "action": action,
+        "repoId": target_repo_id,
+        "repo": args.repo,
+        "baseline": args.baseline,
+        "artifactDir": args.artifact_dir,
+        "initStore": args.init_store,
+        "acceptedKinds": accepted,
+            "missingKinds": initialization_kinds()
+            .iter()
+            .filter(|kind| !accepted.iter().any(|accepted| accepted == *kind))
+            .copied()
+            .collect::<Vec<_>>(),
+        "projectionStore": projection_store,
+        "generatedPackets": generated_packets,
+        "requiredActions": required_actions,
+        "requiresReview": action == "reviewInitializationPackets",
+        "nextSafeMove": if action == "continueStartup" {
+            "Startup birth records are accepted; leave later personality and memory movement to heartbeat, mood, evidence, sleep, and reviewed selfPatch."
+        } else {
+            "Self reviews generated birth packets, runs the relevant distiller lanes, applies accepted selfPatch candidates through agent memory review, then records accept-init for each completed birth rite."
+        }
+    });
+    write_json(
+        &args
+            .artifact_dir
+            .join("repo-initialization-startup-summary.json"),
+        &result,
+    )?;
+    write_text(
+        &args
+            .artifact_dir
+            .join("repo-initialization-startup-summary.md"),
+        &render_startup_markdown(&result),
+    )?;
+    Ok(result)
+}
+
+fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
+    let raw = fs::read_to_string(&args.packet)
+        .with_context(|| format!("failed to read {}", args.packet.display()))?;
+    let packet: Value = serde_json::from_str(&raw)
+        .with_context(|| format!("failed to decode {}", args.packet.display()))?;
+    let repo_id = packet
+        .get("repoId")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("packet has no repoId"))?;
+    let repo_path = packet
+        .pointer("/input/repoTerrainReport/path")
+        .and_then(Value::as_str)
+        .unwrap_or("");
+    let packet_schema = packet
+        .get("schemaVersion")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("packet has no schemaVersion"))?;
+    validate_initialization_kind(&args.kind, packet_schema)?;
+    let record = RepoInitializationRecord {
+        schema_version: INITIALIZATION_RECORD_SCHEMA_VERSION.to_string(),
+        record_id: initialization_record_id(repo_id, &args.kind),
+        repo_id: repo_id.to_string(),
+        repo_path: repo_path.to_string(),
+        kind: args.kind.clone(),
+        source_packet_schema_version: packet_schema.to_string(),
+        source_packet_path: args.packet.display().to_string(),
+        accepted_at: Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        accepted_by: args.accepted_by,
+        summary: args.summary.unwrap_or_else(|| {
+            format!(
+                "{} birth packet accepted for {}; detailed selfPatch application remains separately review-gated.",
+                args.kind, repo_id
+            )
+        }),
+    };
+    let mut cache = repo_initialization_cache(&args.init_store)?;
+    cache.pull_all_backing_stores()?;
+    cache.put(record.record_id.clone(), &record)?;
+    Ok(json!({
+        "schemaVersion": INITIALIZATION_RECORD_SCHEMA_VERSION,
+        "mode": "accept-init",
+        "initStore": args.init_store,
+        "record": initialization_record_summary(&record),
     }))
 }
 
@@ -706,6 +984,72 @@ fn repo_personality_cache(path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<RolePersonalityProjection>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path));
     Ok(cache)
+}
+
+fn repo_initialization_cache(path: &Path) -> Result<CultCache> {
+    let mut cache = CultCache::new();
+    cache.register_entry_type::<RepoInitializationRecord>()?;
+    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path));
+    Ok(cache)
+}
+
+fn initialization_kinds() -> &'static [&'static str] {
+    &["repo-personality", "repo-memory"]
+}
+
+fn accepted_initialization_kinds(store: &Path, repo_id: &str) -> Result<BTreeSet<String>> {
+    if !store.exists() {
+        return Ok(BTreeSet::new());
+    }
+    let mut cache = repo_initialization_cache(store)?;
+    cache.pull_all_backing_stores()?;
+    let mut accepted = BTreeSet::new();
+    for kind in initialization_kinds() {
+        if cache
+            .get::<RepoInitializationRecord>(&initialization_record_id(repo_id, kind))?
+            .is_some()
+        {
+            accepted.insert((*kind).to_string());
+        }
+    }
+    Ok(accepted)
+}
+
+fn initialization_record_id(repo_id: &str, kind: &str) -> String {
+    format!("{repo_id}::{kind}")
+}
+
+fn validate_initialization_kind(kind: &str, packet_schema: &str) -> Result<()> {
+    match (kind, packet_schema) {
+        ("repo-personality", DISTILLER_PACKET_SCHEMA_VERSION) => Ok(()),
+        ("repo-memory", MEMORY_DISTILLER_PACKET_SCHEMA_VERSION) => Ok(()),
+        ("repo-personality", other) => Err(anyhow!(
+            "repo-personality init requires packet schema {:?}, got {:?}",
+            DISTILLER_PACKET_SCHEMA_VERSION,
+            other
+        )),
+        ("repo-memory", other) => Err(anyhow!(
+            "repo-memory init requires packet schema {:?}, got {:?}",
+            MEMORY_DISTILLER_PACKET_SCHEMA_VERSION,
+            other
+        )),
+        (other, _) => Err(anyhow!(
+            "unknown initialization kind {other:?}; expected repo-personality or repo-memory"
+        )),
+    }
+}
+
+fn initialization_record_summary(record: &RepoInitializationRecord) -> Value {
+    json!({
+        "recordId": record.record_id,
+        "repoId": record.repo_id,
+        "kind": record.kind,
+        "sourcePacketSchemaVersion": record.source_packet_schema_version,
+        "sourcePacketPath": record.source_packet_path,
+        "acceptedAt": record.accepted_at,
+        "acceptedBy": record.accepted_by,
+        "summary": record.summary,
+    })
 }
 
 fn collect_memory_sources(
@@ -2146,6 +2490,51 @@ fn render_memory_packet_markdown(
     out
 }
 
+fn render_startup_markdown(result: &Value) -> String {
+    let mut out = String::new();
+    out.push_str("# Repo Initialization Startup\n\n");
+    out.push_str(&format!(
+        "- Repo id: `{}`\n",
+        result["repoId"].as_str().unwrap_or("unknown")
+    ));
+    out.push_str(&format!(
+        "- Action: `{}`\n",
+        result["action"].as_str().unwrap_or("unknown")
+    ));
+    out.push_str(&format!(
+        "- Requires review: `{}`\n\n",
+        result["requiresReview"].as_bool().unwrap_or(false)
+    ));
+    out.push_str("## Accepted Birth Records\n\n");
+    if let Some(kinds) = result["acceptedKinds"].as_array() {
+        if kinds.is_empty() {
+            out.push_str("- none\n");
+        } else {
+            for kind in kinds {
+                out.push_str(&format!("- `{}`\n", kind.as_str().unwrap_or("unknown")));
+            }
+        }
+    }
+    out.push_str("\n## Generated Packets\n\n");
+    if let Some(packets) = result["generatedPackets"].as_array() {
+        if packets.is_empty() {
+            out.push_str("- none\n");
+        } else {
+            for packet in packets {
+                out.push_str(&format!(
+                    "- `{}`: `{}`\n",
+                    packet["kind"].as_str().unwrap_or("unknown"),
+                    packet["packetPath"].as_str().unwrap_or("missing")
+                ));
+            }
+        }
+    }
+    out.push_str("\n## Next Safe Move\n\n");
+    out.push_str(result["nextSafeMove"].as_str().unwrap_or(""));
+    out.push('\n');
+    out
+}
+
 fn write_json(path: &Path, value: &Value) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -2196,11 +2585,13 @@ fn round3(value: f64) -> f64 {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-repo-personality <scout|project|agent-packet|memory-packet|status> ...\n\
+        "usage: epiphany-repo-personality <scout|project|agent-packet|memory-packet|startup|accept-init|status> ...\n\
          scout --root <path> --artifact-dir <path> [--max-repos <n>]\n\
          project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>\n\
          agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
+         startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>\n\
+         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>]\n\
          status --store <baseline-or-projection.msgpack>"
     );
 }

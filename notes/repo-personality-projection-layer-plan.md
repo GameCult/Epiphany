@@ -496,6 +496,8 @@ It provides:
 - `project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>`
 - `agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
 - `memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
+- `startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>`
+- `accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>]`
 - `status --store <baseline-or-projection.msgpack>`
 
 The first implementation is intentionally deterministic. It inventories git
@@ -564,20 +566,28 @@ and a rendered role-specific memory distiller packet plus prompt.
 
 ## Next Implementation Step
 
-Wire `epiphany-repo-personality` into startup protocol:
+The first startup valve is now wired:
 
-1. check for an accepted repo-personality initialization record
-2. if absent, launch the repo-personality distiller packet once through
-   startup/heartbeat routing
-3. Self-reviewed first application into role memory through existing `selfPatch`
-   policy
-4. heartbeat seed generation for personality/mood timing
-5. Aquarium surface for “repo personality changed” bubbles and profile
-   inspection
-
+1. `startup` checks a typed CultCache init store for accepted
+   `repo-personality` and `repo-memory` records.
+2. missing birth records generate the matching personality and/or memory packet
+   under the startup artifact directory and return `reviewInitializationPackets`.
+3. `accept-init` records Self-reviewed packet acceptance in
+   `epiphany.repo_initialization_record.v0`.
+4. a later `startup` for the same repo sees both accepted records and returns
+   `continueStartup` without regenerating packets.
 That gets Epiphany from “I feel like this repo is anxious and glittery” to a
 repeatable profile that can initialize a swarm without needing the operator to
 personally diagnose every little machine soul by hand. A relief, frankly.
+
+Remaining startup-routing gaps after the first valve:
+
+1. actual LLM specialist execution for the generated packets
+2. first application of accepted `selfPatch` candidates into
+   `state/agents.msgpack`
+3. heartbeat seed mutation from accepted personality pressure
+4. Aquarium review/action surfaces for generated birth packets and accepted
+   initialization records
 
 Clarification: "drift detection" here does not mean rerunning the distiller to
 keep personality synchronized with repo terrain. It means detecting whether the

@@ -165,6 +165,107 @@ fn run_smoke() -> Result<Value> {
         "memory packet should write summary markdown",
     )?;
 
+    let init_store = artifacts.join("repo-initialization.msgpack");
+    let startup = run_personality(
+        &root,
+        &[
+            "startup",
+            "--repo",
+            cult_repo.to_str().unwrap_or_default(),
+            "--baseline",
+            baseline.to_str().unwrap_or_default(),
+            "--artifact-dir",
+            artifacts.join("startup-first").to_str().unwrap_or_default(),
+            "--init-store",
+            init_store.to_str().unwrap_or_default(),
+        ],
+    )?;
+    require(
+        startup["action"] == "reviewInitializationPackets",
+        "startup should request birth packet review before accepted records exist",
+    )?;
+    require(
+        startup["generatedPackets"].as_array().map_or(0, Vec::len) == 2,
+        "startup should generate personality and memory packets",
+    )?;
+    let startup_personality_packet = packet_for_kind(&startup, "repo-personality")?;
+    let startup_memory_packet = packet_for_kind(&startup, "repo-memory")?;
+    require(
+        startup_personality_packet.exists(),
+        "startup should write personality packet",
+    )?;
+    require(
+        startup_memory_packet.exists(),
+        "startup should write memory packet",
+    )?;
+    let accepted_personality = run_personality(
+        &root,
+        &[
+            "accept-init",
+            "--init-store",
+            init_store.to_str().unwrap_or_default(),
+            "--packet",
+            startup_personality_packet.to_str().unwrap_or_default(),
+            "--kind",
+            "repo-personality",
+            "--accepted-by",
+            "smoke-self",
+            "--summary",
+            "Smoke accepted repo personality birth packet after review.",
+        ],
+    )?;
+    require(
+        accepted_personality["record"]["kind"] == "repo-personality",
+        "accept-init should record personality birth",
+    )?;
+    let accepted_memory = run_personality(
+        &root,
+        &[
+            "accept-init",
+            "--init-store",
+            init_store.to_str().unwrap_or_default(),
+            "--packet",
+            startup_memory_packet.to_str().unwrap_or_default(),
+            "--kind",
+            "repo-memory",
+            "--accepted-by",
+            "smoke-self",
+            "--summary",
+            "Smoke accepted repo memory birth packet after review.",
+        ],
+    )?;
+    require(
+        accepted_memory["record"]["kind"] == "repo-memory",
+        "accept-init should record memory birth",
+    )?;
+    let startup_after_accept = run_personality(
+        &root,
+        &[
+            "startup",
+            "--repo",
+            cult_repo.to_str().unwrap_or_default(),
+            "--baseline",
+            baseline.to_str().unwrap_or_default(),
+            "--artifact-dir",
+            artifacts
+                .join("startup-after-accept")
+                .to_str()
+                .unwrap_or_default(),
+            "--init-store",
+            init_store.to_str().unwrap_or_default(),
+        ],
+    )?;
+    require(
+        startup_after_accept["action"] == "continueStartup",
+        "startup should not rerun birth packets after accepted records exist",
+    )?;
+    require(
+        startup_after_accept["generatedPackets"]
+            .as_array()
+            .is_some_and(Vec::is_empty),
+        "startup should generate no packets after accepted records exist",
+    )?;
+
     let status = run_personality(
         &root,
         &["status", "--store", store.to_str().unwrap_or_default()],
@@ -195,6 +296,10 @@ fn run_smoke() -> Result<Value> {
         "memoryPacketPath": memory_packet_path,
         "memoryPromptPath": memory_prompt_path,
         "memorySummaryPath": memory_summary_path,
+        "initStore": init_store,
+        "startupPersonalityPacket": startup_personality_packet,
+        "startupMemoryPacket": startup_memory_packet,
+        "startupAfterAcceptAction": startup_after_accept["action"],
         "repoCount": scout["repoCount"],
         "roleProjections": status["roleProjections"],
     }))
@@ -297,6 +402,19 @@ fn path_value(value: &Value, key: &str) -> Result<PathBuf> {
         .and_then(Value::as_str)
         .map(PathBuf::from)
         .ok_or_else(|| anyhow!("missing path value {key}"))
+}
+
+fn packet_for_kind(value: &Value, kind: &str) -> Result<PathBuf> {
+    value["generatedPackets"]
+        .as_array()
+        .and_then(|packets| {
+            packets
+                .iter()
+                .find(|packet| packet["kind"] == kind)
+                .and_then(|packet| packet["packetPath"].as_str())
+        })
+        .map(PathBuf::from)
+        .ok_or_else(|| anyhow!("missing generated packet for {kind}"))
 }
 
 fn require(condition: bool, message: &str) -> Result<()> {
