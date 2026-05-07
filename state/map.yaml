@@ -42,6 +42,7 @@ invariants:
   - During Epiphany dogfood on another repo, the supervising Codex session must not masquerade as the Epiphany worker. Direct target-repo edits or commits are contamination unless explicitly authorized and labeled as operator intervention.
   - During dogfood supervision, raw worker transcripts, turn logs, direct worker messages, and `rawResult` payloads are sealed forensic artifacts. The supervisor consumes only projected findings, state patches, coordinator recommendations, rendered snapshots, and audit receipts unless the user explicitly requests forensic debugging.
   - Agent function-call telemetry is the blessed instrument panel for dogfood supervision: it may summarize API methods, request/response shape, job ids, statuses, function/tool names, paths, and counts while sealing text, transcripts, raw results, and direct agent messages.
+  - "Data should flow through your Rusty veins like an energetic plasma: tightly contained, and meticulously routed."
 
 data_flow:
   observe:
