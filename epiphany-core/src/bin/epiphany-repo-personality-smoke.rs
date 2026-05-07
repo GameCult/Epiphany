@@ -367,6 +367,9 @@ fn run_smoke() -> Result<Value> {
         accepted_trajectory["record"]["kind"] == "repo-trajectory",
         "accept-init should record trajectory birth",
     )?;
+    let agent_store = artifacts.join("startup-agents.msgpack");
+    fs::copy(root.join("state").join("agents.msgpack"), &agent_store)
+        .context("failed to copy role memory store for startup smoke")?;
     let accepted_personality = run_personality(
         &root,
         &[
@@ -382,10 +385,7 @@ fn run_smoke() -> Result<Value> {
             "--summary",
             "Smoke accepted repo personality birth packet after review.",
             "--agent-store",
-            root.join("state")
-                .join("agents.msgpack")
-                .to_str()
-                .unwrap_or_default(),
+            agent_store.to_str().unwrap_or_default(),
             "--apply-trait-seeds",
             "true",
             "--heartbeat-store",
@@ -412,9 +412,8 @@ fn run_smoke() -> Result<Value> {
             > 0,
         "accept-init should stamp newborn canonical trait lattice seeds",
     )?;
-    let coordinator =
-        load_agent_memory_entry_for_role(root.join("state").join("agents.msgpack"), "coordinator")?
-            .ok_or_else(|| anyhow!("startup smoke lost coordinator role memory entry"))?;
+    let coordinator = load_agent_memory_entry_for_role(&agent_store, "coordinator")?
+        .ok_or_else(|| anyhow!("startup smoke lost coordinator role memory entry"))?;
     require(
         !coordinator
             .agent
@@ -431,9 +430,6 @@ fn run_smoke() -> Result<Value> {
             .contains_key("routing_discipline"),
         "personality accept-init should seed coordinator routing_discipline trait",
     )?;
-    let agent_store = artifacts.join("startup-agents.msgpack");
-    fs::copy(root.join("state").join("agents.msgpack"), &agent_store)
-        .context("failed to copy role memory store for startup smoke")?;
     let memory_result_path = artifacts.join("startup-memory-result.json");
     fs::write(
         &memory_result_path,
