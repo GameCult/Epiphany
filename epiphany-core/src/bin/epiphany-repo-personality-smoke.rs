@@ -198,6 +198,15 @@ fn run_smoke() -> Result<Value> {
         startup_memory_packet.exists(),
         "startup should write memory packet",
     )?;
+    let heartbeat_store = artifacts.join("startup-heartbeats.msgpack");
+    run_heartbeat(
+        &root,
+        &[
+            "init",
+            "--store",
+            heartbeat_store.to_str().unwrap_or_default(),
+        ],
+    )?;
     let accepted_personality = run_personality(
         &root,
         &[
@@ -212,11 +221,22 @@ fn run_smoke() -> Result<Value> {
             "smoke-self",
             "--summary",
             "Smoke accepted repo personality birth packet after review.",
+            "--heartbeat-store",
+            heartbeat_store.to_str().unwrap_or_default(),
+            "--apply-heartbeat-seeds",
+            "true",
         ],
     )?;
     require(
         accepted_personality["record"]["kind"] == "repo-personality",
         "accept-init should record personality birth",
+    )?;
+    require(
+        accepted_personality["heartbeatSeeds"]["applied"]
+            .as_u64()
+            .unwrap_or_default()
+            > 0,
+        "accept-init should apply heartbeat seed mutations",
     )?;
     let agent_store = artifacts.join("startup-agents.msgpack");
     fs::copy(root.join("state").join("agents.msgpack"), &agent_store)
@@ -339,6 +359,7 @@ fn run_smoke() -> Result<Value> {
         "memorySummaryPath": memory_summary_path,
         "initStore": init_store,
         "agentStore": agent_store,
+        "heartbeatStore": heartbeat_store,
         "startupPersonalityPacket": startup_personality_packet,
         "startupMemoryPacket": startup_memory_packet,
         "startupMemoryResult": memory_result_path,
@@ -391,11 +412,43 @@ fn run_personality(root: &Path, args: &[&str]) -> Result<Value> {
     })
 }
 
+fn run_heartbeat(root: &Path, args: &[&str]) -> Result<Value> {
+    let exe = native_heartbeat_exe()?;
+    ensure_built(root, "epiphany-heartbeat-store", &exe)?;
+    let output = Command::new(exe)
+        .current_dir(root)
+        .args(args)
+        .output()
+        .context("failed to run epiphany-heartbeat-store")?;
+    require(
+        output.status.success(),
+        &format!(
+            "epiphany-heartbeat-store failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ),
+    )?;
+    serde_json::from_slice(&output.stdout).with_context(|| {
+        format!(
+            "epiphany-heartbeat-store did not return JSON: {}",
+            String::from_utf8_lossy(&output.stdout)
+        )
+    })
+}
+
 fn native_personality_exe() -> Result<PathBuf> {
     let target_dir = env::var_os("CARGO_TARGET_DIR")
         .unwrap_or_else(|| r"C:\Users\Meta\.cargo-target-codex".into());
     Ok(PathBuf::from(target_dir).join("debug").join(format!(
         "epiphany-repo-personality{}",
+        env::consts::EXE_SUFFIX
+    )))
+}
+
+fn native_heartbeat_exe() -> Result<PathBuf> {
+    let target_dir = env::var_os("CARGO_TARGET_DIR")
+        .unwrap_or_else(|| r"C:\Users\Meta\.cargo-target-codex".into());
+    Ok(PathBuf::from(target_dir).join("debug").join(format!(
+        "epiphany-heartbeat-store{}",
         env::consts::EXE_SUFFIX
     )))
 }

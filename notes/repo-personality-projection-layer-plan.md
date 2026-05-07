@@ -497,7 +497,7 @@ It provides:
 - `agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
 - `memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
 - `startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>`
-- `accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>]`
+- `accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]`
 - `status --store <baseline-or-projection.msgpack>`
 
 The first implementation is intentionally deterministic. It inventories git
@@ -577,7 +577,11 @@ The first startup valve is now wired:
 4. when given a reviewed distiller result plus `--agent-store`, `accept-init`
    routes role-local `selfPatch` candidates through the native agent-memory
    review/apply path instead of mutating memory through a side channel.
-5. a later `startup` for the same repo sees both accepted records and returns
+5. when accepting `repo-personality` with `--heartbeat-store` and
+   `--apply-heartbeat-seeds true`, `accept-init` seeds role initiative speed,
+   reaction bias, cooldown multiplier, and birth mood pressure from typed
+   role-personality projections.
+6. a later `startup` for the same repo sees both accepted records and returns
    `continueStartup` without regenerating packets.
 That gets Epiphany from “I feel like this repo is anxious and glittery” to a
 repeatable profile that can initialize a swarm and seed reviewed role memory
@@ -587,8 +591,7 @@ hand. A relief, frankly.
 Remaining startup-routing gaps after the first valve:
 
 1. actual LLM specialist execution for the generated packets
-2. heartbeat seed mutation from accepted personality pressure
-3. Aquarium review/action surfaces for generated birth packets and accepted
+2. Aquarium review/action surfaces for generated birth packets and accepted
    initialization records
 
 Clarification: "drift detection" here does not mean rerunning the distiller to

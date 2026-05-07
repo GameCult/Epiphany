@@ -6,7 +6,10 @@ use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use epiphany_core::apply_agent_self_patch;
+use epiphany_core::default_heartbeat_state;
+use epiphany_core::load_heartbeat_state_entry;
 use epiphany_core::review_agent_self_patch;
+use epiphany_core::write_heartbeat_state_entry;
 use ignore::WalkBuilder;
 use serde::Deserialize;
 use serde::Serialize;
@@ -280,6 +283,8 @@ struct AcceptInitArgs {
     result: Option<PathBuf>,
     agent_store: Option<PathBuf>,
     apply_self_patches: bool,
+    heartbeat_store: Option<PathBuf>,
+    apply_heartbeat_seeds: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -397,6 +402,8 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
     let mut result = None;
     let mut agent_store = None;
     let mut apply_self_patches = false;
+    let mut heartbeat_store = None;
+    let mut apply_heartbeat_seeds = false;
     parse_named_args(args, |name, value| match name {
         "--init-store" => {
             init_store = Some(PathBuf::from(value));
@@ -430,6 +437,14 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
             apply_self_patches = parse_bool_arg("--apply-self-patches", &value)?;
             Ok(())
         }
+        "--heartbeat-store" => {
+            heartbeat_store = Some(PathBuf::from(value));
+            Ok(())
+        }
+        "--apply-heartbeat-seeds" => {
+            apply_heartbeat_seeds = parse_bool_arg("--apply-heartbeat-seeds", &value)?;
+            Ok(())
+        }
         other => Err(anyhow!("unexpected accept-init argument {other}")),
     })?;
     Ok(AcceptInitArgs {
@@ -441,6 +456,8 @@ fn parse_accept_init_args(args: impl Iterator<Item = String>) -> Result<AcceptIn
         result,
         agent_store,
         apply_self_patches,
+        heartbeat_store,
+        apply_heartbeat_seeds,
     })
 }
 
@@ -759,6 +776,12 @@ fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
         .and_then(Value::as_str)
         .ok_or_else(|| anyhow!("packet has no schemaVersion"))?;
     validate_initialization_kind(&args.kind, packet_schema)?;
+    let heartbeat_seeds = process_heartbeat_seed_patches(
+        &args.kind,
+        &packet,
+        args.heartbeat_store.as_deref(),
+        args.apply_heartbeat_seeds,
+    )?;
     let self_persistence = if let Some(result_path) = &args.result {
         let raw = fs::read_to_string(result_path)
             .with_context(|| format!("failed to read {}", result_path.display()))?;
@@ -809,6 +832,9 @@ fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
         "resultPath": args.result,
         "agentStore": args.agent_store,
         "applySelfPatches": args.apply_self_patches,
+        "heartbeatStore": args.heartbeat_store,
+        "applyHeartbeatSeeds": args.apply_heartbeat_seeds,
+        "heartbeatSeeds": heartbeat_seeds,
         "selfPersistence": self_persistence,
         "record": initialization_record_summary(&record),
     }))
@@ -1150,6 +1176,177 @@ fn process_initialization_result_patches(
         "rejected": rejected,
         "applied": applied,
     }))
+}
+
+fn process_heartbeat_seed_patches(
+    kind: &str,
+    packet: &Value,
+    heartbeat_store: Option<&Path>,
+    apply_heartbeat_seeds: bool,
+) -> Result<Value> {
+    if kind != "repo-personality" {
+        return Ok(json!({
+            "status": "not-applicable",
+            "applyHeartbeatSeeds": apply_heartbeat_seeds,
+            "seeds": [],
+            "applied": 0,
+        }));
+    }
+    let seeds = extract_heartbeat_seed_candidates(packet)?;
+    if seeds.is_empty() {
+        return Ok(json!({
+            "status": "no-seeds",
+            "applyHeartbeatSeeds": apply_heartbeat_seeds,
+            "seeds": [],
+            "applied": 0,
+        }));
+    }
+    if !apply_heartbeat_seeds {
+        return Ok(json!({
+            "status": "review-only",
+            "applyHeartbeatSeeds": false,
+            "seeds": seeds,
+            "applied": 0,
+            "contract": "Pass --heartbeat-store and --apply-heartbeat-seeds true after Self review to mutate heartbeat physiology."
+        }));
+    }
+    let store = heartbeat_store.ok_or_else(|| {
+        anyhow!("--heartbeat-store is required with --apply-heartbeat-seeds true")
+    })?;
+    let mut state =
+        load_heartbeat_state_entry(store)?.unwrap_or_else(|| default_heartbeat_state(1.0));
+    let mut applied = Vec::new();
+    for seed in seeds {
+        let Some(participant) = state
+            .participants
+            .iter_mut()
+            .find(|participant| participant.role_id == seed.role_id)
+        else {
+            applied.push(json!({
+                "roleId": seed.role_id,
+                "status": "missing-participant",
+            }));
+            continue;
+        };
+        let previous_initiative_speed = participant.initiative_speed;
+        let previous_reaction_bias = participant.reaction_bias;
+        let previous_cooldown = participant
+            .extra
+            .get("personalityCooldownMultiplier")
+            .and_then(Value::as_f64)
+            .unwrap_or(1.0);
+        let initiative_delta = number_from_map(&seed.heartbeat_deltas, "initiativeSpeedDelta");
+        let cooldown_delta = number_from_map(&seed.heartbeat_deltas, "cooldownMultiplierDelta");
+        let urgency = number_from_map(&seed.default_mood_pressure, "urgency");
+        let anxiety = number_from_map(&seed.default_mood_pressure, "anxiety");
+        participant.initiative_speed =
+            round3((participant.initiative_speed + initiative_delta).clamp(0.2, 3.0));
+        participant.reaction_bias =
+            round3((participant.reaction_bias + urgency * 0.08 + anxiety * 0.04).clamp(0.05, 2.0));
+        let cooldown = round3((previous_cooldown + cooldown_delta).clamp(0.55, 1.55));
+        participant
+            .extra
+            .insert("personalityCooldownMultiplier".to_string(), json!(cooldown));
+        participant.extra.insert(
+            "birthPersonalitySeed".to_string(),
+            json!({
+                "schemaVersion": "epiphany.birth_heartbeat_seed.v0",
+                "source": "repo-personality accept-init",
+                "projectionId": seed.projection_id,
+                "repoId": seed.repo_id,
+                "heartbeatDeltas": seed.heartbeat_deltas,
+                "defaultMoodPressure": seed.default_mood_pressure,
+                "contract": "Birth personality may seed heartbeat timing once after Self review; later drift belongs to mood, rumination, sleep, and reviewed selfPatch."
+            }),
+        );
+        applied.push(json!({
+            "roleId": seed.role_id,
+            "status": "applied",
+            "previousInitiativeSpeed": previous_initiative_speed,
+            "initiativeSpeed": participant.initiative_speed,
+            "previousReactionBias": previous_reaction_bias,
+            "reactionBias": participant.reaction_bias,
+            "previousPersonalityCooldownMultiplier": previous_cooldown,
+            "personalityCooldownMultiplier": cooldown,
+        }));
+    }
+    write_heartbeat_state_entry(store, &state)?;
+    Ok(json!({
+        "status": "applied",
+        "heartbeatStore": store,
+        "applyHeartbeatSeeds": true,
+        "seeds": applied,
+        "applied": applied.iter().filter(|item| item.get("status").and_then(Value::as_str) == Some("applied")).count(),
+    }))
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InitializationHeartbeatSeed {
+    projection_id: String,
+    repo_id: String,
+    role_id: String,
+    heartbeat_deltas: BTreeMap<String, f64>,
+    default_mood_pressure: BTreeMap<String, f64>,
+}
+
+fn extract_heartbeat_seed_candidates(packet: &Value) -> Result<Vec<InitializationHeartbeatSeed>> {
+    let Some(items) = packet
+        .pointer("/input/rolePersonalityProjections")
+        .and_then(Value::as_array)
+    else {
+        return Ok(Vec::new());
+    };
+    let mut seeds = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        let role_id = required_str(item, "roleId", index)?;
+        let projection_id = item
+            .get("projectionId")
+            .and_then(Value::as_str)
+            .unwrap_or(role_id)
+            .to_string();
+        let repo_id = item
+            .get("repoId")
+            .and_then(Value::as_str)
+            .unwrap_or_else(|| {
+                packet
+                    .get("repoId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("unknown")
+            })
+            .to_string();
+        seeds.push(InitializationHeartbeatSeed {
+            projection_id,
+            repo_id,
+            role_id: role_id.to_string(),
+            heartbeat_deltas: number_map(item.get("heartbeatDeltas")),
+            default_mood_pressure: number_map(item.get("defaultMoodPressure")),
+        });
+    }
+    Ok(seeds)
+}
+
+fn required_str<'a>(item: &'a Value, field: &str, index: usize) -> Result<&'a str> {
+    item.get(field)
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow!("rolePersonalityProjections[{index}] missing {field}"))
+}
+
+fn number_map(value: Option<&Value>) -> BTreeMap<String, f64> {
+    let mut out = BTreeMap::new();
+    let Some(object) = value.and_then(Value::as_object) else {
+        return out;
+    };
+    for (key, value) in object {
+        if let Some(number) = value.as_f64().filter(|number| number.is_finite()) {
+            out.insert(key.clone(), round3(number));
+        }
+    }
+    out
+}
+
+fn number_from_map(values: &BTreeMap<String, f64>, key: &str) -> f64 {
+    values.get(key).copied().unwrap_or(0.0)
 }
 
 struct InitializationSelfPatch {
@@ -2797,7 +2994,7 @@ fn print_usage() {
          agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>\n\
-         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>]\n\
+         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]\n\
          status --store <baseline-or-projection.msgpack>"
     );
 }

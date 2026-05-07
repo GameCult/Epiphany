@@ -40,6 +40,11 @@ When Self reviews a generated distiller result, run
 `epiphany-repo-personality accept-init --result ... --agent-store ... --apply-self-patches true`
 to apply accepted birth-memory petitions through the same coordinator-reviewed
 `selfPatch` machinery used by living lanes.
+For the personality birth packet, add
+`--heartbeat-store ... --apply-heartbeat-seeds true` after review to seed
+initiative speed, reaction bias, cooldown multiplier, and birth mood pressure
+in the typed heartbeat store. That seed is a one-time physiology nudge, not a
+license to rerun personality initialization whenever the repo mood changes.
 
 Face's Discord boundary is still a small TOML configuration seam: it may
 interact only through #aquarium. If the channel id is not configured, Face must
