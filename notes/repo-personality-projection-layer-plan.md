@@ -572,6 +572,8 @@ The first startup valve is now wired:
    `repo-personality` and `repo-memory` records.
 2. missing birth records generate the matching personality and/or memory packet
    under the startup artifact directory and return `reviewInitializationPackets`.
+   Those generated packets are explicitly startup-only. They are executed by a
+   repo-initialization runner, not registered as heartbeat lanes.
 3. `accept-init` records Self-reviewed packet acceptance in
    `epiphany.repo_initialization_record.v0`.
 4. when given a reviewed distiller result plus `--agent-store`, `accept-init`
@@ -590,7 +592,7 @@ hand. A relief, frankly.
 
 Remaining startup-routing gaps after the first valve:
 
-1. actual LLM specialist execution for the generated packets
+1. actual startup-only LLM specialist execution for the generated packets
 2. Aquarium review/action surfaces for generated birth packets and accepted
    initialization records
 

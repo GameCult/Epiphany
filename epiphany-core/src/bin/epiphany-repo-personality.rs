@@ -692,6 +692,10 @@ fn run_startup(args: StartupArgs) -> Result<Value> {
             required_actions.push("reviewRepoPersonalityInitialization");
             generated_packets.push(json!({
                 "kind": "repo-personality",
+                "birthOnly": true,
+                "executionOwner": "repo-initialization-startup-runner",
+                "heartbeatParticipant": Value::Null,
+                "contract": "Startup-only specialist packet. Do not register as a heartbeat lane; accept-init may seed heartbeat physiology only after Self review.",
                 "packetPath": result["packetPath"],
                 "promptPath": result["promptPath"],
                 "summaryPath": result["summaryPath"],
@@ -706,6 +710,10 @@ fn run_startup(args: StartupArgs) -> Result<Value> {
             required_actions.push("reviewRepoMemoryInitialization");
             generated_packets.push(json!({
                 "kind": "repo-memory",
+                "birthOnly": true,
+                "executionOwner": "repo-initialization-startup-runner",
+                "heartbeatParticipant": Value::Null,
+                "contract": "Startup-only specialist packet. Do not register as a heartbeat lane; accept-init may apply reviewed role selfPatch requests only after Self review.",
                 "packetPath": result["packetPath"],
                 "promptPath": result["promptPath"],
                 "summaryPath": result["summaryPath"],
@@ -740,7 +748,7 @@ fn run_startup(args: StartupArgs) -> Result<Value> {
         "nextSafeMove": if action == "continueStartup" {
             "Startup birth records are accepted; leave later personality and memory movement to heartbeat, mood, evidence, sleep, and reviewed selfPatch."
         } else {
-            "Self reviews generated birth packets, runs the relevant distiller lanes, applies accepted selfPatch candidates through agent memory review, then records accept-init for each completed birth rite."
+            "Self reviews generated birth packets, runs the startup-only distiller specialists outside the heartbeat lane system, applies accepted selfPatch candidates and heartbeat seeds through accept-init, then records each completed birth rite."
         }
     });
     write_json(
