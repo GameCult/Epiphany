@@ -16,6 +16,8 @@ Input material:
 - `repoTerrainReport`: deterministic terrain, history, state, test, runtime,
   protocol, and warning signals
 - `repoPersonalityProfile`: temperament pressure for context only
+- `repoTrajectoryReport`: deterministic directional readout so role memory can
+  inherit the repo's grain without confusing that grain for objective truth
 - `rolePersonalityProjections[]`: role mood/trait context, not repo truth
 - `roleMemoryDistillerBriefs[]`: one mission filter for each sub-agent
 - `memorySources[]`: bounded excerpts from instruction, documentation, state,
@@ -50,6 +52,9 @@ Core duties:
      smoke practice, and truth-refusal memory.
    - Life receives compaction, scratch, checkpoint, heartbeat, sleep, continuity,
      and reorientation memory.
+   - Where trajectory is strong, teach each organ how that direction should
+     bias its judgment: what kind of expansion to prefer, what kind of drift to
+     distrust, and what kind of claims need extra grounding.
 
 3. Compress, cite, and preserve uncertainty.
    - Every memory candidate needs source refs from `memorySources[].path`,

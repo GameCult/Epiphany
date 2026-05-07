@@ -165,6 +165,42 @@ fn run_smoke() -> Result<Value> {
         "memory packet should write summary markdown",
     )?;
 
+    let trajectory_packet = run_personality(
+        &root,
+        &[
+            "trajectory-packet",
+            "--store",
+            store.to_str().unwrap_or_default(),
+            "--artifact-dir",
+            artifacts
+                .join("cult-trajectory-packet")
+                .to_str()
+                .unwrap_or_default(),
+        ],
+    )?;
+    require(
+        trajectory_packet["trajectoryThemeCount"]
+            .as_u64()
+            .unwrap_or(0)
+            > 0,
+        "trajectory packet should carry trajectory themes",
+    )?;
+    let trajectory_packet_path = path_value(&trajectory_packet, "packetPath")?;
+    let trajectory_prompt_path = path_value(&trajectory_packet, "promptPath")?;
+    let trajectory_summary_path = path_value(&trajectory_packet, "summaryPath")?;
+    require(
+        trajectory_packet_path.exists(),
+        "trajectory packet should write packet json",
+    )?;
+    require(
+        trajectory_prompt_path.exists(),
+        "trajectory packet should write prompt markdown",
+    )?;
+    require(
+        trajectory_summary_path.exists(),
+        "trajectory packet should write summary markdown",
+    )?;
+
     let init_store = artifacts.join("repo-initialization.msgpack");
     let startup = run_personality(
         &root,
@@ -185,11 +221,16 @@ fn run_smoke() -> Result<Value> {
         "startup should request birth packet review before accepted records exist",
     )?;
     require(
-        startup["generatedPackets"].as_array().map_or(0, Vec::len) == 2,
-        "startup should generate personality and memory packets",
+        startup["generatedPackets"].as_array().map_or(0, Vec::len) == 3,
+        "startup should generate trajectory, personality, and memory packets",
     )?;
+    let startup_trajectory_packet = packet_for_kind(&startup, "repo-trajectory")?;
     let startup_personality_packet = packet_for_kind(&startup, "repo-personality")?;
     let startup_memory_packet = packet_for_kind(&startup, "repo-memory")?;
+    require(
+        startup_trajectory_packet.exists(),
+        "startup should write trajectory packet",
+    )?;
     require(
         startup_personality_packet.exists(),
         "startup should write personality packet",
@@ -235,8 +276,8 @@ fn run_smoke() -> Result<Value> {
         "birth runner should return its schema",
     )?;
     require(
-        birth_runner["executions"].as_array().map_or(0, Vec::len) == 2,
-        "birth runner plan should expose both startup-only specialist executions",
+        birth_runner["executions"].as_array().map_or(0, Vec::len) == 3,
+        "birth runner plan should expose all startup-only specialist executions",
     )?;
     require(
         birth_runner["executions"]
@@ -254,6 +295,76 @@ fn run_smoke() -> Result<Value> {
             "--store",
             heartbeat_store.to_str().unwrap_or_default(),
         ],
+    )?;
+    let trajectory_result_path = artifacts.join("startup-trajectory-result.json");
+    fs::write(
+        &trajectory_result_path,
+        serde_json::to_vec_pretty(&json!({
+            "verdict": "ready-for-review",
+            "summary": "Smoke trajectory birth distillation.",
+            "confidence": 0.88,
+            "selfImage": "CultTiny is becoming a typed-contract workspace that prefers receipts to swagger.",
+            "trajectoryNarrative": "The tiny history and docs both lean toward explicit schema boundaries, known formats, and reviewable proof over improvising private protocol sludge.",
+            "implicitGoals": ["Keep future expansion grounded in explicit schemas and receipts."],
+            "antiGoals": ["Do not drift into ad hoc protocol glue just because the fixture is small."],
+            "roleBiases": [{
+                "roleId": "coordinator",
+                "bias": "Self should treat typed-schema growth as part of the repo's grain.",
+                "trajectorySignals": ["systems_formalization", "protocol_intolerance"],
+                "behavioralEffect": "Challenge loose glue early.",
+                "risk": "Could become stiff if later work needs play.",
+                "evidenceRefs": ["AGENTS.md", "docs/architecture.md"]
+            }],
+            "selfPatchCandidates": [{
+                "roleId": "coordinator",
+                "selfPatch": {
+                    "agentId": "epiphany.self",
+                    "reason": "Trajectory birth should teach Self that CultTiny has been moving toward typed receipts and explicit contracts.",
+                    "semanticMemories": [{
+                        "memoryId": "mem-self-startup-trajectory-smoke",
+                        "summary": "CultTiny's trajectory favors typed contract growth and evidence-backed explicitness over casual glue.",
+                        "salience": 0.74,
+                        "confidence": 0.87
+                    }]
+                }
+            }],
+            "initializationRecord": {
+                "repoId": "culttiny",
+                "distillerKind": "repo-trajectory",
+                "acceptedOnce": true
+            },
+            "doNotMutate": [],
+            "nextSafeMove": "Self reviews the trajectory petition before it colors later memory drift."
+        }))?,
+    )?;
+    let accepted_trajectory = run_personality(
+        &root,
+        &[
+            "accept-init",
+            "--init-store",
+            init_store.to_str().unwrap_or_default(),
+            "--packet",
+            startup_trajectory_packet.to_str().unwrap_or_default(),
+            "--kind",
+            "repo-trajectory",
+            "--accepted-by",
+            "smoke-self",
+            "--summary",
+            "Smoke accepted repo trajectory birth packet after review.",
+            "--result",
+            trajectory_result_path.to_str().unwrap_or_default(),
+            "--agent-store",
+            root.join("state")
+                .join("agents.msgpack")
+                .to_str()
+                .unwrap_or_default(),
+            "--apply-self-patches",
+            "false",
+        ],
+    )?;
+    require(
+        accepted_trajectory["record"]["kind"] == "repo-trajectory",
+        "accept-init should record trajectory birth",
     )?;
     let accepted_personality = run_personality(
         &root,
@@ -388,6 +499,10 @@ fn run_smoke() -> Result<Value> {
         "projection store should have one profile",
     )?;
     require(
+        status["trajectoryReports"] == 1,
+        "projection store should have one trajectory report",
+    )?;
+    require(
         status["roleProjections"] == 8,
         "projection store should have eight role projections",
     )?;
@@ -402,6 +517,9 @@ fn run_smoke() -> Result<Value> {
         "packetPath": packet_path,
         "promptPath": prompt_path,
         "packetSummaryPath": packet_summary_path,
+        "trajectoryPacketPath": trajectory_packet_path,
+        "trajectoryPromptPath": trajectory_prompt_path,
+        "trajectorySummaryPath": trajectory_summary_path,
         "memoryPacketPath": memory_packet_path,
         "memoryPromptPath": memory_prompt_path,
         "memorySummaryPath": memory_summary_path,
@@ -409,11 +527,14 @@ fn run_smoke() -> Result<Value> {
         "agentStore": agent_store,
         "heartbeatStore": heartbeat_store,
         "birthRunnerSummary": artifacts.join("birth-runner-plan").join("birth-runner-summary.json"),
+        "startupTrajectoryPacket": startup_trajectory_packet,
         "startupPersonalityPacket": startup_personality_packet,
         "startupMemoryPacket": startup_memory_packet,
+        "startupTrajectoryResult": trajectory_result_path,
         "startupMemoryResult": memory_result_path,
         "startupAfterAcceptAction": startup_after_accept["action"],
         "repoCount": scout["repoCount"],
+        "trajectoryReports": status["trajectoryReports"],
         "roleProjections": status["roleProjections"],
     }))
 }

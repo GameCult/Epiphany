@@ -26,16 +26,24 @@ use std::process::Command;
 const TERRAIN_SCHEMA_VERSION: &str = "epiphany.repo_terrain_report.v0";
 const PROFILE_SCHEMA_VERSION: &str = "epiphany.repo_personality_profile.v0";
 const ROLE_PROJECTION_SCHEMA_VERSION: &str = "epiphany.role_personality_projection.v0";
+const TRAJECTORY_SCHEMA_VERSION: &str = "epiphany.repo_trajectory_report.v0";
 const ARTIFACT_SCHEMA_VERSION: &str = "epiphany.repo_personality_artifacts.v0";
 const DISTILLER_PACKET_SCHEMA_VERSION: &str = "epiphany.repo_personality_distiller_packet.v0";
 const MEMORY_DISTILLER_PACKET_SCHEMA_VERSION: &str = "epiphany.repo_memory_distiller_packet.v0";
+const TRAJECTORY_DISTILLER_PACKET_SCHEMA_VERSION: &str =
+    "epiphany.repo_trajectory_distiller_packet.v0";
 const INITIALIZATION_RECORD_SCHEMA_VERSION: &str = "epiphany.repo_initialization_record.v0";
 const REPO_PERSONALITY_DISTILLER_PROMPT: &str =
     include_str!("../prompts/repo_personality_distiller.md");
 const REPO_MEMORY_DISTILLER_PROMPT: &str = include_str!("../prompts/repo_memory_distiller.md");
+const REPO_TRAJECTORY_DISTILLER_PROMPT: &str =
+    include_str!("../prompts/repo_trajectory_distiller.md");
 const MEMORY_SOURCE_MAX_FILES: usize = 48;
 const MEMORY_SOURCE_MAX_BYTES_PER_FILE: usize = 12_000;
 const MEMORY_SOURCE_MAX_TOTAL_BYTES: usize = 120_000;
+const TRAJECTORY_SOURCE_MAX_FILES: usize = 18;
+const TRAJECTORY_SOURCE_MAX_BYTES_PER_FILE: usize = 9_000;
+const TRAJECTORY_SOURCE_MAX_TOTAL_BYTES: usize = 72_000;
 
 const ROLES: &[&str] = &[
     "coordinator",
@@ -143,6 +151,63 @@ pub struct RepoHistoryMetrics {
     pub recent_messages: Vec<String>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrajectorySourceExcerpt {
+    pub path: String,
+    pub kind: String,
+    pub bytes: usize,
+    pub truncated: bool,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoTrajectoryThemeScore {
+    pub theme: String,
+    pub early_history: f64,
+    pub recent_history: f64,
+    pub current_sources: f64,
+    pub delta: f64,
+    pub evidence: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.repo_trajectory_report",
+    schema = "EpiphanyRepoTrajectoryReport"
+)]
+pub struct RepoTrajectoryReport {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub repo_id: String,
+    #[cultcache(key = 2)]
+    pub trajectory_summary: String,
+    #[cultcache(key = 3)]
+    pub self_image: String,
+    #[cultcache(key = 4)]
+    pub early_commit_messages: Vec<String>,
+    #[cultcache(key = 5)]
+    pub recent_commit_messages: Vec<String>,
+    #[cultcache(key = 6)]
+    pub trajectory_sources: Vec<TrajectorySourceExcerpt>,
+    #[cultcache(key = 7)]
+    pub theme_scores: Vec<RepoTrajectoryThemeScore>,
+    #[cultcache(key = 8)]
+    pub directional_pressures: Vec<String>,
+    #[cultcache(key = 9)]
+    pub implicit_goal_candidates: Vec<String>,
+    #[cultcache(key = 10)]
+    pub anti_goal_candidates: Vec<String>,
+    #[cultcache(key = 11)]
+    pub tensions: Vec<String>,
+    #[cultcache(key = 12)]
+    pub confidence: f64,
+    #[cultcache(key = 13)]
+    pub warnings: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(
     type = "epiphany.repo_personality_profile",
@@ -242,6 +307,7 @@ fn main() -> Result<()> {
         "project" => run_project(parse_project_args(args)?),
         "agent-packet" => run_agent_packet(parse_packet_args(args, "agent-packet")?),
         "memory-packet" => run_memory_packet(parse_packet_args(args, "memory-packet")?),
+        "trajectory-packet" => run_trajectory_packet(parse_packet_args(args, "trajectory-packet")?),
         "startup" => run_startup(parse_startup_args(args)?),
         "accept-init" => run_accept_init(parse_accept_init_args(args)?),
         "status" => run_status(parse_status_args(args)?),
@@ -549,7 +615,15 @@ fn run_scout(args: ScoutArgs) -> Result<Value> {
         reports.push(report);
     }
     let profiles = reduce_reports(&reports);
+    let mut trajectories = Vec::new();
     for profile in &profiles {
+        let report = reports
+            .iter()
+            .find(|report| report.repo_id == profile.repo_id)
+            .expect("profile should map to report");
+        let trajectory = derive_trajectory_report(Path::new(&report.path), report, profile)?;
+        cache.put::<RepoTrajectoryReport>(trajectory.repo_id.clone(), &trajectory)?;
+        trajectories.push(trajectory);
         cache.put::<RepoPersonalityProfile>(profile.repo_id.clone(), profile)?;
         for projection in &profile.role_modulations {
             cache.put::<RolePersonalityProjection>(projection.projection_id.clone(), projection)?;
@@ -564,6 +638,7 @@ fn run_scout(args: ScoutArgs) -> Result<Value> {
         "store": store_path,
         "repoCount": reports.len(),
         "profileCount": profiles.len(),
+        "trajectoryCount": trajectories.len(),
         "repos": reports.iter().map(report_summary).collect::<Vec<_>>(),
     });
     write_json(
@@ -574,7 +649,7 @@ fn run_scout(args: ScoutArgs) -> Result<Value> {
     )?;
     write_text(
         &args.artifact_dir.join("repo-personality-scout-summary.md"),
-        &render_scout_markdown(&reports, &profiles),
+        &render_scout_markdown(&reports, &profiles, &trajectories),
     )?;
     Ok(summary)
 }
@@ -586,6 +661,7 @@ fn run_project(args: ProjectArgs) -> Result<Value> {
         store_path,
         report,
         profile,
+        trajectory,
     } = project_repo_to_store(&args.repo, &args.baseline, &args.artifact_dir)?;
     let summary = json!({
         "schemaVersion": ARTIFACT_SCHEMA_VERSION,
@@ -596,6 +672,7 @@ fn run_project(args: ProjectArgs) -> Result<Value> {
         "store": store_path,
         "profile": profile_summary(&profile),
         "terrain": report_summary(&report),
+        "trajectory": trajectory_summary(&trajectory),
     });
     write_json(
         &args
@@ -607,7 +684,7 @@ fn run_project(args: ProjectArgs) -> Result<Value> {
         &args
             .artifact_dir
             .join("repo-personality-project-summary.md"),
-        &render_project_markdown(&report, &profile),
+        &render_project_markdown(&report, &profile, &trajectory),
     )?;
     Ok(summary)
 }
@@ -616,6 +693,7 @@ struct ProjectedRepo {
     store_path: PathBuf,
     report: RepoTerrainReport,
     profile: RepoPersonalityProfile,
+    trajectory: RepoTrajectoryReport,
 }
 
 fn project_repo_to_store(
@@ -635,12 +713,14 @@ fn project_repo_to_store(
         .cloned()
         .unwrap_or_else(|| scout_repo(repo).expect("target repo should be scoutable"));
     let profile = reduce_report(&report);
+    let trajectory = derive_trajectory_report(repo, &report, &profile)?;
 
     let store_path = artifact_dir.join("projection.msgpack");
     let mut cache = repo_personality_cache(&store_path)?;
     cache.pull_all_backing_stores()?;
     cache.put::<RepoTerrainReport>(report.repo_id.clone(), &report)?;
     cache.put::<RepoPersonalityProfile>(profile.repo_id.clone(), &profile)?;
+    cache.put::<RepoTrajectoryReport>(trajectory.repo_id.clone(), &trajectory)?;
     for projection in &profile.role_modulations {
         cache.put::<RolePersonalityProjection>(projection.projection_id.clone(), projection)?;
     }
@@ -648,6 +728,7 @@ fn project_repo_to_store(
         store_path,
         report,
         profile,
+        trajectory,
     })
 }
 
@@ -656,6 +737,7 @@ fn run_status(args: StatusArgs) -> Result<Value> {
     cache.pull_all_backing_stores()?;
     let reports = cache.get_all::<RepoTerrainReport>()?;
     let profiles = cache.get_all::<RepoPersonalityProfile>()?;
+    let trajectories = cache.get_all::<RepoTrajectoryReport>()?;
     let projections = cache.get_all::<RolePersonalityProjection>()?;
     Ok(json!({
         "schemaVersion": ARTIFACT_SCHEMA_VERSION,
@@ -663,6 +745,7 @@ fn run_status(args: StatusArgs) -> Result<Value> {
         "store": args.store,
         "reports": reports.len(),
         "profiles": profiles.len(),
+        "trajectoryReports": trajectories.len(),
         "roleProjections": projections.len(),
         "repos": reports.iter().map(report_summary).collect::<Vec<_>>(),
     }))
@@ -675,14 +758,33 @@ fn run_startup(args: StartupArgs) -> Result<Value> {
     let accepted = accepted_initialization_kinds(&args.init_store, &target_repo_id)?;
     let personality_ready = accepted.contains("repo-personality");
     let memory_ready = accepted.contains("repo-memory");
+    let trajectory_ready = accepted.contains("repo-trajectory");
     let mut generated_packets = Vec::new();
     let mut required_actions = Vec::new();
     let mut projection_store = None;
 
-    if !personality_ready || !memory_ready {
+    if !personality_ready || !memory_ready || !trajectory_ready {
         let projection_dir = args.artifact_dir.join("projection");
         let projected = project_repo_to_store(&args.repo, &args.baseline, &projection_dir)?;
         projection_store = Some(projected.store_path.clone());
+        if !trajectory_ready {
+            let result = run_trajectory_packet(AgentPacketArgs {
+                store: projected.store_path.clone(),
+                artifact_dir: args.artifact_dir.join("repo-trajectory"),
+                repo_id: Some(projected.profile.repo_id.clone()),
+            })?;
+            required_actions.push("reviewRepoTrajectoryInitialization");
+            generated_packets.push(json!({
+                "kind": "repo-trajectory",
+                "birthOnly": true,
+                "executionOwner": "repo-initialization-startup-runner",
+                "heartbeatParticipant": Value::Null,
+                "contract": "Startup-only specialist packet. Do not register as a heartbeat lane; accept-init may apply reviewed role selfPatch requests only after Self review.",
+                "packetPath": result["packetPath"],
+                "promptPath": result["promptPath"],
+                "summaryPath": result["summaryPath"],
+            }));
+        }
         if !personality_ready {
             let result = run_agent_packet(AgentPacketArgs {
                 store: projected.store_path.clone(),
@@ -746,7 +848,7 @@ fn run_startup(args: StartupArgs) -> Result<Value> {
         "requiredActions": required_actions,
         "requiresReview": action == "reviewInitializationPackets",
         "nextSafeMove": if action == "continueStartup" {
-            "Startup birth records are accepted; leave later personality and memory movement to heartbeat, mood, evidence, sleep, and reviewed selfPatch."
+            "Startup birth records are accepted; leave later personality, trajectory, and memory movement to heartbeat, mood, evidence, sleep, and reviewed selfPatch."
         } else {
             "Self reviews generated birth packets, runs the startup-only distiller specialists outside the heartbeat lane system, applies accepted selfPatch candidates and heartbeat seeds through accept-init, then records each completed birth rite."
         }
@@ -848,13 +950,14 @@ fn run_accept_init(args: AcceptInitArgs) -> Result<Value> {
     }))
 }
 
-fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
+fn run_trajectory_packet(args: AgentPacketArgs) -> Result<Value> {
     fs::create_dir_all(&args.artifact_dir)
         .with_context(|| format!("failed to create {}", args.artifact_dir.display()))?;
     let mut cache = repo_personality_cache(&args.store)?;
     cache.pull_all_backing_stores()?;
     let reports = cache.get_all::<RepoTerrainReport>()?;
     let profiles = cache.get_all::<RepoPersonalityProfile>()?;
+    let trajectories = cache.get_all::<RepoTrajectoryReport>()?;
     let projections = cache.get_all::<RolePersonalityProjection>()?;
     let profile = select_profile(&profiles, args.repo_id.as_deref())?;
     let report = reports
@@ -863,6 +966,124 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
         .ok_or_else(|| {
             anyhow!(
                 "store has profile {:?} but no terrain report",
+                profile.repo_id
+            )
+        })?;
+    let trajectory = trajectories
+        .iter()
+        .find(|trajectory| trajectory.repo_id == profile.repo_id)
+        .ok_or_else(|| {
+            anyhow!(
+                "store has profile {:?} but no trajectory report",
+                profile.repo_id
+            )
+        })?;
+    let role_projections: Vec<_> = projections
+        .iter()
+        .filter(|projection| projection.repo_id == profile.repo_id)
+        .collect();
+    let packet = json!({
+        "schemaVersion": TRAJECTORY_DISTILLER_PACKET_SCHEMA_VERSION,
+        "createdAt": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "store": args.store,
+        "repoId": profile.repo_id,
+        "lifecycle": {
+            "mode": "birth-only",
+            "contract": "Run this specialist only when the repo/swarm has no accepted trajectory initialization. Later direction drift belongs to heartbeat, mood, lived work, reviewed selfPatch, and planning/evidence truth.",
+            "rerunPolicy": "If accepted trajectory initialization exists, do not rerun to rebrand the repo. Route contradictions through normal Eyes/Body/Imagination/Soul work and reviewed memory drift."
+        },
+        "prompt": REPO_TRAJECTORY_DISTILLER_PROMPT,
+        "input": {
+            "repoTerrainReport": report_agent_input(report),
+            "repoPersonalityProfile": profile_agent_input(profile),
+            "repoTrajectoryReport": trajectory_agent_input(trajectory),
+            "rolePersonalityProjections": role_projections
+                .iter()
+                .map(|projection| role_projection_agent_input(projection))
+                .collect::<Vec<_>>(),
+        },
+        "expectedOutput": {
+            "verdict": "ready-for-review | needs-more-history | reject",
+            "summary": "short repo trajectory summary",
+            "confidence": "0.0..1.0",
+            "selfImage": "how the repo understands its own becoming",
+            "trajectoryNarrative": "how the repo has been moving over time",
+            "implicitGoals": [],
+            "antiGoals": [],
+            "roleBiases": [],
+            "selfPatchCandidates": [],
+            "initializationRecord": {
+                "repoId": profile.repo_id,
+                "terrainSchemaVersion": report.schema_version,
+                "profileSchemaVersion": profile.schema_version,
+                "trajectorySchemaVersion": trajectory.schema_version,
+                "acceptedOnce": true,
+                "distillerKind": "repo-trajectory"
+            },
+            "doNotMutate": [],
+            "nextSafeMove": "Self reviews trajectory-derived self-image and implicit-goal pressure before first mutation; later drift belongs to lived work, heartbeat, planning, and reviewed selfPatch."
+        },
+        "guardrails": [
+            "This packet is input to a startup-only trajectory distiller, not accepted truth.",
+            "Trajectory is directional bias, not a prison sentence or an active objective.",
+            "Do not dump commit logs, file lists, or project facts into role memory.",
+            "Keep trajectory pressure role-local, reviewable, and subordinate to later lived drift.",
+            "No authority claims, code edits, raw transcripts, or cross-workspace instructions in selfPatch."
+        ]
+    });
+    let packet_path = args
+        .artifact_dir
+        .join("repo-trajectory-distiller-packet.json");
+    let prompt_path = args
+        .artifact_dir
+        .join("repo-trajectory-distiller-prompt.md");
+    let summary_path = args
+        .artifact_dir
+        .join("repo-trajectory-distiller-packet.md");
+    write_json(&packet_path, &packet)?;
+    write_text(&prompt_path, REPO_TRAJECTORY_DISTILLER_PROMPT)?;
+    write_text(
+        &summary_path,
+        &render_trajectory_packet_markdown(report, profile, trajectory, role_projections.len()),
+    )?;
+    Ok(json!({
+        "schemaVersion": TRAJECTORY_DISTILLER_PACKET_SCHEMA_VERSION,
+        "mode": "trajectory-packet",
+        "repoId": profile.repo_id,
+        "artifactDir": args.artifact_dir,
+        "packetPath": packet_path,
+        "promptPath": prompt_path,
+        "summaryPath": summary_path,
+        "roleProjectionCount": role_projections.len(),
+        "trajectoryThemeCount": trajectory.theme_scores.len(),
+    }))
+}
+
+fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
+    fs::create_dir_all(&args.artifact_dir)
+        .with_context(|| format!("failed to create {}", args.artifact_dir.display()))?;
+    let mut cache = repo_personality_cache(&args.store)?;
+    cache.pull_all_backing_stores()?;
+    let reports = cache.get_all::<RepoTerrainReport>()?;
+    let profiles = cache.get_all::<RepoPersonalityProfile>()?;
+    let trajectories = cache.get_all::<RepoTrajectoryReport>()?;
+    let projections = cache.get_all::<RolePersonalityProjection>()?;
+    let profile = select_profile(&profiles, args.repo_id.as_deref())?;
+    let report = reports
+        .iter()
+        .find(|report| report.repo_id == profile.repo_id)
+        .ok_or_else(|| {
+            anyhow!(
+                "store has profile {:?} but no terrain report",
+                profile.repo_id
+            )
+        })?;
+    let trajectory = trajectories
+        .iter()
+        .find(|trajectory| trajectory.repo_id == profile.repo_id)
+        .ok_or_else(|| {
+            anyhow!(
+                "store has profile {:?} but no trajectory report",
                 profile.repo_id
             )
         })?;
@@ -884,6 +1105,7 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
         "input": {
             "repoTerrainReport": report_agent_input(report),
             "repoPersonalityProfile": profile_agent_input(profile),
+            "repoTrajectoryReport": trajectory_agent_input(trajectory),
             "rolePersonalityProjections": role_projections
                 .iter()
                 .map(|projection| role_projection_agent_input(projection))
@@ -925,7 +1147,7 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
     write_text(&prompt_path, REPO_PERSONALITY_DISTILLER_PROMPT)?;
     write_text(
         &summary_path,
-        &render_agent_packet_markdown(report, profile, role_projections.len()),
+        &render_agent_packet_markdown(report, profile, trajectory, role_projections.len()),
     )?;
     Ok(json!({
         "schemaVersion": DISTILLER_PACKET_SCHEMA_VERSION,
@@ -946,6 +1168,7 @@ fn run_memory_packet(args: AgentPacketArgs) -> Result<Value> {
     cache.pull_all_backing_stores()?;
     let reports = cache.get_all::<RepoTerrainReport>()?;
     let profiles = cache.get_all::<RepoPersonalityProfile>()?;
+    let trajectories = cache.get_all::<RepoTrajectoryReport>()?;
     let projections = cache.get_all::<RolePersonalityProjection>()?;
     let profile = select_profile(&profiles, args.repo_id.as_deref())?;
     let report = reports
@@ -954,6 +1177,15 @@ fn run_memory_packet(args: AgentPacketArgs) -> Result<Value> {
         .ok_or_else(|| {
             anyhow!(
                 "store has profile {:?} but no terrain report",
+                profile.repo_id
+            )
+        })?;
+    let trajectory = trajectories
+        .iter()
+        .find(|trajectory| trajectory.repo_id == profile.repo_id)
+        .ok_or_else(|| {
+            anyhow!(
+                "store has profile {:?} but no trajectory report",
                 profile.repo_id
             )
         })?;
@@ -978,6 +1210,7 @@ fn run_memory_packet(args: AgentPacketArgs) -> Result<Value> {
         "input": {
             "repoTerrainReport": report_agent_input(report),
             "repoPersonalityProfile": profile_agent_input(profile),
+            "repoTrajectoryReport": trajectory_agent_input(trajectory),
             "rolePersonalityProjections": role_projections
                 .iter()
                 .map(|projection| role_projection_agent_input(projection))
@@ -1035,7 +1268,7 @@ fn run_memory_packet(args: AgentPacketArgs) -> Result<Value> {
     write_text(&prompt_path, REPO_MEMORY_DISTILLER_PROMPT)?;
     write_text(
         &summary_path,
-        &render_memory_packet_markdown(report, profile, source_count as usize),
+        &render_memory_packet_markdown(report, profile, trajectory, source_count as usize),
     )?;
     Ok(json!({
         "schemaVersion": MEMORY_DISTILLER_PACKET_SCHEMA_VERSION,
@@ -1073,6 +1306,7 @@ fn repo_personality_cache(path: &Path) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<RepoTerrainReport>()?;
     cache.register_entry_type::<RepoPersonalityProfile>()?;
+    cache.register_entry_type::<RepoTrajectoryReport>()?;
     cache.register_entry_type::<RolePersonalityProjection>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path));
     Ok(cache)
@@ -1086,7 +1320,7 @@ fn repo_initialization_cache(path: &Path) -> Result<CultCache> {
 }
 
 fn initialization_kinds() -> &'static [&'static str] {
-    &["repo-personality", "repo-memory"]
+    &["repo-trajectory", "repo-personality", "repo-memory"]
 }
 
 fn accepted_initialization_kinds(store: &Path, repo_id: &str) -> Result<BTreeSet<String>> {
@@ -1113,8 +1347,14 @@ fn initialization_record_id(repo_id: &str, kind: &str) -> String {
 
 fn validate_initialization_kind(kind: &str, packet_schema: &str) -> Result<()> {
     match (kind, packet_schema) {
+        ("repo-trajectory", TRAJECTORY_DISTILLER_PACKET_SCHEMA_VERSION) => Ok(()),
         ("repo-personality", DISTILLER_PACKET_SCHEMA_VERSION) => Ok(()),
         ("repo-memory", MEMORY_DISTILLER_PACKET_SCHEMA_VERSION) => Ok(()),
+        ("repo-trajectory", other) => Err(anyhow!(
+            "repo-trajectory init requires packet schema {:?}, got {:?}",
+            TRAJECTORY_DISTILLER_PACKET_SCHEMA_VERSION,
+            other
+        )),
         ("repo-personality", other) => Err(anyhow!(
             "repo-personality init requires packet schema {:?}, got {:?}",
             DISTILLER_PACKET_SCHEMA_VERSION,
@@ -1126,7 +1366,7 @@ fn validate_initialization_kind(kind: &str, packet_schema: &str) -> Result<()> {
             other
         )),
         (other, _) => Err(anyhow!(
-            "unknown initialization kind {other:?}; expected repo-personality or repo-memory"
+            "unknown initialization kind {other:?}; expected repo-trajectory, repo-personality, or repo-memory"
         )),
     }
 }
@@ -1368,10 +1608,41 @@ fn extract_initialization_self_patches(
     result: &Value,
 ) -> Result<Vec<InitializationSelfPatch>> {
     match kind {
+        "repo-trajectory" => extract_trajectory_self_patches(result),
         "repo-personality" => extract_personality_self_patches(result),
         "repo-memory" => extract_memory_self_patches(result),
         other => Err(anyhow!("unknown initialization kind {other:?}")),
     }
+}
+
+fn extract_trajectory_self_patches(result: &Value) -> Result<Vec<InitializationSelfPatch>> {
+    let Some(items) = result.get("selfPatchCandidates").and_then(Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    let mut patches = Vec::new();
+    for (index, item) in items.iter().enumerate() {
+        let self_patch = item.get("selfPatch").unwrap_or(item).clone();
+        let role_id = item
+            .get("roleId")
+            .and_then(Value::as_str)
+            .map(str::to_string)
+            .or_else(|| {
+                self_patch
+                    .get("agentId")
+                    .and_then(Value::as_str)
+                    .and_then(role_id_for_agent_id)
+                    .map(str::to_string)
+            })
+            .ok_or_else(|| {
+                anyhow!("selfPatchCandidates[{index}] needs roleId or known selfPatch.agentId")
+            })?;
+        patches.push(InitializationSelfPatch {
+            role_id,
+            source: format!("selfPatchCandidates[{index}]"),
+            self_patch,
+        });
+    }
+    Ok(patches)
 }
 
 fn extract_personality_self_patches(result: &Value) -> Result<Vec<InitializationSelfPatch>> {
@@ -1981,6 +2252,607 @@ fn history_metrics(repo: &Path) -> Result<RepoHistoryMetrics> {
     }
     metrics.active_days = days.len();
     Ok(metrics)
+}
+
+fn derive_trajectory_report(
+    repo: &Path,
+    report: &RepoTerrainReport,
+    profile: &RepoPersonalityProfile,
+) -> Result<RepoTrajectoryReport> {
+    let early_commit_messages = git_commit_window(repo, true, 18)?;
+    let recent_commit_messages = git_commit_window(repo, false, 18)?;
+    let trajectory_sources = collect_trajectory_sources(repo, report)?;
+    let theme_scores = trajectory_theme_scores(
+        &early_commit_messages,
+        &recent_commit_messages,
+        &trajectory_sources,
+    );
+    let directional_pressures = trajectory_directional_pressures(&theme_scores);
+    let implicit_goal_candidates = trajectory_implicit_goals(&theme_scores, profile);
+    let anti_goal_candidates = trajectory_anti_goals(&theme_scores, profile);
+    let tensions = trajectory_tensions(&theme_scores, profile);
+    let confidence = trajectory_confidence(
+        report.confidence,
+        early_commit_messages.len(),
+        recent_commit_messages.len(),
+        trajectory_sources.len(),
+    );
+    let warnings = trajectory_warnings(
+        early_commit_messages.len(),
+        recent_commit_messages.len(),
+        trajectory_sources.len(),
+    );
+    let self_image = trajectory_self_image(report, &theme_scores);
+    let trajectory_summary = trajectory_summary_text(report, &theme_scores, &directional_pressures);
+    Ok(RepoTrajectoryReport {
+        schema_version: TRAJECTORY_SCHEMA_VERSION.to_string(),
+        repo_id: report.repo_id.clone(),
+        trajectory_summary,
+        self_image,
+        early_commit_messages,
+        recent_commit_messages,
+        trajectory_sources,
+        theme_scores,
+        directional_pressures,
+        implicit_goal_candidates,
+        anti_goal_candidates,
+        tensions,
+        confidence,
+        warnings,
+    })
+}
+
+fn git_commit_window(repo: &Path, oldest_first: bool, limit: usize) -> Result<Vec<String>> {
+    let mut owned = vec!["log".to_string()];
+    if oldest_first {
+        owned.push("--reverse".to_string());
+    }
+    owned.push(format!("-n{limit}"));
+    owned.push("--format=%s".to_string());
+    let borrowed: Vec<&str> = owned.iter().map(String::as_str).collect();
+    Ok(git_output(repo, &borrowed)
+        .unwrap_or_default()
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
+fn collect_trajectory_sources(
+    repo: &Path,
+    report: &RepoTerrainReport,
+) -> Result<Vec<TrajectorySourceExcerpt>> {
+    let mut candidates = BTreeSet::new();
+    for surface in report
+        .instruction_surfaces
+        .iter()
+        .chain(report.state_surfaces.iter())
+        .chain(report.test_surfaces.iter())
+    {
+        candidates.insert(surface.clone());
+    }
+    let walker = WalkBuilder::new(repo)
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .parents(true)
+        .max_depth(Some(4))
+        .build();
+    for entry in walker.filter_map(Result::ok) {
+        if !entry
+            .file_type()
+            .is_some_and(|file_type| file_type.is_file())
+        {
+            continue;
+        }
+        let path = entry.path();
+        if is_ignored_path(path) {
+            continue;
+        }
+        let rel = path.strip_prefix(repo).unwrap_or(path);
+        let rel_string = slash(rel);
+        if is_trajectory_source_candidate(&rel_string) {
+            candidates.insert(rel_string);
+        }
+    }
+    let mut ordered: Vec<_> = candidates.into_iter().collect();
+    ordered.sort_by_key(|path| trajectory_source_priority(path));
+    let mut sources = Vec::new();
+    let mut total_bytes = 0usize;
+    for rel in ordered {
+        if sources.len() >= TRAJECTORY_SOURCE_MAX_FILES
+            || total_bytes >= TRAJECTORY_SOURCE_MAX_TOTAL_BYTES
+        {
+            break;
+        }
+        let path = repo.join(&rel);
+        let bytes = fs::read(&path).unwrap_or_default();
+        if bytes.is_empty() || looks_binary(&bytes) {
+            continue;
+        }
+        let remaining = TRAJECTORY_SOURCE_MAX_TOTAL_BYTES.saturating_sub(total_bytes);
+        let limit = TRAJECTORY_SOURCE_MAX_BYTES_PER_FILE.min(remaining);
+        if limit == 0 {
+            break;
+        }
+        let take = bytes.len().min(limit);
+        total_bytes += take;
+        sources.push(TrajectorySourceExcerpt {
+            path: rel.clone(),
+            kind: trajectory_source_kind(&rel).to_string(),
+            bytes: bytes.len(),
+            truncated: take < bytes.len(),
+            text: String::from_utf8_lossy(&bytes[..take]).to_string(),
+        });
+    }
+    Ok(sources)
+}
+
+fn is_trajectory_source_candidate(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower == "agents.md"
+        || lower == "readme.md"
+        || lower.starts_with("docs/")
+        || lower.starts_with("notes/")
+        || lower.starts_with("research/")
+        || lower.starts_with("quartz/")
+        || lower.starts_with("chronicles/")
+        || lower.starts_with("world/")
+        || lower.starts_with("setting/")
+        || lower.starts_with(".epiphany/")
+        || lower.ends_with(".md")
+}
+
+fn trajectory_source_priority(path: &str) -> (usize, usize, String) {
+    let lower = path.to_ascii_lowercase();
+    let rank = if lower == "agents.md" {
+        0
+    } else if lower == "readme.md" {
+        1
+    } else if lower.starts_with(".epiphany/state/") || lower.starts_with(".epiphany/notes/") {
+        2
+    } else if lower.starts_with("notes/") || lower.starts_with("docs/") {
+        3
+    } else if lower.starts_with("research/") {
+        4
+    } else if lower.starts_with("chronicles/")
+        || lower.starts_with("world/")
+        || lower.starts_with("setting/")
+    {
+        5
+    } else if lower.starts_with("quartz/") {
+        6
+    } else {
+        7
+    };
+    (rank, path.len(), lower)
+}
+
+fn trajectory_source_kind(path: &str) -> &'static str {
+    let lower = path.to_ascii_lowercase();
+    if lower == "agents.md" {
+        "doctrine"
+    } else if lower == "readme.md" {
+        "readme"
+    } else if lower.starts_with(".epiphany/state/") || lower.starts_with(".epiphany/notes/") {
+        "state"
+    } else if lower.starts_with("notes/") || lower.starts_with("docs/") {
+        "documentation"
+    } else if lower.starts_with("research/") {
+        "research"
+    } else if lower.starts_with("quartz/") {
+        "site"
+    } else {
+        "content"
+    }
+}
+
+fn trajectory_theme_scores(
+    early_commits: &[String],
+    recent_commits: &[String],
+    sources: &[TrajectorySourceExcerpt],
+) -> Vec<RepoTrajectoryThemeScore> {
+    trajectory_theme_catalog()
+        .iter()
+        .map(|(theme, keywords)| {
+            let early = theme_score(early_commits.iter().map(String::as_str), keywords);
+            let recent = theme_score(recent_commits.iter().map(String::as_str), keywords);
+            let current = theme_score(sources.iter().map(|source| source.text.as_str()), keywords);
+            let mut evidence = Vec::new();
+            if let Some(message) =
+                first_matching_text(early_commits.iter().map(String::as_str), keywords)
+            {
+                evidence.push(format!("early: {}", trim_snippet(message, 96)));
+            }
+            if let Some(message) =
+                first_matching_text(recent_commits.iter().map(String::as_str), keywords)
+            {
+                evidence.push(format!("recent: {}", trim_snippet(message, 96)));
+            }
+            if let Some(source) = first_matching_source(sources, keywords) {
+                evidence.push(format!(
+                    "source:{} {}",
+                    source.path,
+                    trim_snippet(&source.text.replace('\n', " "), 96)
+                ));
+            }
+            RepoTrajectoryThemeScore {
+                theme: (*theme).to_string(),
+                early_history: early,
+                recent_history: recent,
+                current_sources: current,
+                delta: round3(recent - early),
+                evidence,
+            }
+        })
+        .collect()
+}
+
+fn trajectory_theme_catalog() -> &'static [(&'static str, &'static [&'static str])] {
+    &[
+        (
+            "worldbuilding_depth",
+            &[
+                "world", "lore", "canon", "setting", "faction", "culture", "society", "history",
+            ],
+        ),
+        (
+            "material_grounding",
+            &[
+                "econom",
+                "trade",
+                "labor",
+                "industry",
+                "resource",
+                "supply",
+                "production",
+                "infrastructure",
+                "logistic",
+            ],
+        ),
+        (
+            "historical_dialectic",
+            &[
+                "dialectic",
+                "ideology",
+                "empire",
+                "colonial",
+                "class",
+                "revolution",
+                "politic",
+                "contradiction",
+                "material",
+            ],
+        ),
+        (
+            "engineering_constraint",
+            &[
+                "engineer",
+                "orbital",
+                "orbit",
+                "delta-v",
+                "reactor",
+                "thermal",
+                "mass",
+                "habitat",
+                "fusion",
+                "radiator",
+                "propellant",
+                "structural",
+            ],
+        ),
+        (
+            "presentation_polish",
+            &[
+                "site", "quartz", "copy", "visual", "render", "layout", "theme", "polish",
+            ],
+        ),
+        (
+            "systems_formalization",
+            &[
+                "schema",
+                "graph",
+                "map",
+                "model",
+                "protocol",
+                "contract",
+                "typed",
+                "invariant",
+            ],
+        ),
+    ]
+}
+
+fn theme_score<'a>(texts: impl Iterator<Item = &'a str>, keywords: &[&str]) -> f64 {
+    let mut total = 0usize;
+    let mut hits = 0usize;
+    for text in texts {
+        total += 1;
+        let lower = text.to_ascii_lowercase();
+        if keywords.iter().any(|keyword| lower.contains(keyword)) {
+            hits += 1;
+        }
+    }
+    if total == 0 {
+        0.0
+    } else {
+        round3((hits as f64 / total as f64).min(1.0))
+    }
+}
+
+fn first_matching_text<'a>(
+    mut texts: impl Iterator<Item = &'a str>,
+    keywords: &[&str],
+) -> Option<&'a str> {
+    texts.find(|text| {
+        let lower = text.to_ascii_lowercase();
+        keywords.iter().any(|keyword| lower.contains(keyword))
+    })
+}
+
+fn first_matching_source<'a>(
+    sources: &'a [TrajectorySourceExcerpt],
+    keywords: &[&str],
+) -> Option<&'a TrajectorySourceExcerpt> {
+    sources.iter().find(|source| {
+        let lower = source.text.to_ascii_lowercase();
+        keywords.iter().any(|keyword| lower.contains(keyword))
+    })
+}
+
+fn trim_snippet(text: &str, limit: usize) -> String {
+    if text.len() <= limit {
+        text.to_string()
+    } else {
+        format!("{}...", &text[..limit])
+    }
+}
+
+fn trajectory_directional_pressures(scores: &[RepoTrajectoryThemeScore]) -> Vec<String> {
+    let mut out = Vec::new();
+    for score in scores {
+        if score.delta >= 0.12 || score.current_sources >= 0.35 {
+            out.push(format!(
+                "{} recent {:.2}, current {:.2}, delta {:.2}",
+                score.theme, score.recent_history, score.current_sources, score.delta
+            ));
+        }
+    }
+    if out.is_empty() {
+        out.extend(
+            scores
+                .iter()
+                .take(3)
+                .map(|score| format!("{} current {:.2}", score.theme, score.current_sources)),
+        );
+    }
+    out
+}
+
+fn trajectory_implicit_goals(
+    scores: &[RepoTrajectoryThemeScore],
+    profile: &RepoPersonalityProfile,
+) -> Vec<String> {
+    let mut goals = Vec::new();
+    if theme_current(scores, "worldbuilding_depth") >= 0.2 {
+        goals.push(
+            "Deepen the setting through causality, continuity, and consequence instead of ornament alone."
+                .to_string(),
+        );
+    }
+    if theme_current(scores, "material_grounding") >= 0.15
+        || theme_delta(scores, "material_grounding") >= 0.1
+    {
+        goals.push(
+            "Tie lore and public writing back to economic, logistical, and material constraints."
+                .to_string(),
+        );
+    }
+    if theme_current(scores, "historical_dialectic") >= 0.15
+        || theme_delta(scores, "historical_dialectic") >= 0.1
+    {
+        goals.push(
+            "Preserve historical contradiction, ideology, and power relations as active explanatory machinery."
+                .to_string(),
+        );
+    }
+    if theme_current(scores, "engineering_constraint") >= 0.15
+        || theme_delta(scores, "engineering_constraint") >= 0.1
+    {
+        goals.push(
+            "Keep engineering and hard-constraint reasoning visible wherever the setting claims physical or industrial plausibility."
+                .to_string(),
+        );
+    }
+    if goals.is_empty()
+        && profile
+            .dominant_pressures
+            .iter()
+            .any(|axis| axis.contains("content_canon_bias"))
+    {
+        goals.push("Preserve canon seriousness while making future additions denser in implication, not merely broader in surface area.".to_string());
+    }
+    goals
+}
+
+fn trajectory_anti_goals(
+    scores: &[RepoTrajectoryThemeScore],
+    profile: &RepoPersonalityProfile,
+) -> Vec<String> {
+    let mut anti = Vec::new();
+    if theme_current(scores, "material_grounding") >= 0.15
+        || theme_current(scores, "engineering_constraint") >= 0.15
+    {
+        anti.push(
+            "Do not let the repo drift into decorative lore or soft handwaving that ignores material and engineering consequences."
+                .to_string(),
+        );
+    }
+    if theme_current(scores, "historical_dialectic") >= 0.15 {
+        anti.push(
+            "Do not flatten historical struggle, ideology, or class contradiction into neutral encyclopedic paste."
+                .to_string(),
+        );
+    }
+    if profile
+        .dominant_pressures
+        .iter()
+        .any(|axis| axis.contains("editorial_restraint"))
+    {
+        anti.push(
+            "Do not mistake pretty phrasing or site polish for progress when the setting logic is still ungrounded."
+                .to_string(),
+        );
+    }
+    anti
+}
+
+fn trajectory_tensions(
+    scores: &[RepoTrajectoryThemeScore],
+    profile: &RepoPersonalityProfile,
+) -> Vec<String> {
+    let mut tensions = Vec::new();
+    if theme_current(scores, "presentation_polish") >= 0.18
+        && theme_current(scores, "material_grounding") >= 0.15
+    {
+        tensions.push(
+            "Presentation polish is welcome, but it should carry the same grounded causal weight as the lore beneath it."
+                .to_string(),
+        );
+    }
+    if theme_current(scores, "worldbuilding_depth") >= 0.2
+        && profile
+            .dominant_pressures
+            .iter()
+            .any(|axis| axis.contains("systems_formalization"))
+    {
+        tensions.push(
+            "The repo wants expansive setting depth, but it also wants that depth routed through explicit systems and maps rather than mystic fog."
+                .to_string(),
+        );
+    }
+    tensions
+}
+
+fn trajectory_confidence(
+    base: f64,
+    early_commits: usize,
+    recent_commits: usize,
+    sources: usize,
+) -> f64 {
+    let mut confidence = base * 0.55;
+    if early_commits > 0 {
+        confidence += 0.12;
+    }
+    if recent_commits > 0 {
+        confidence += 0.12;
+    }
+    if sources >= 4 {
+        confidence += 0.16;
+    } else if sources > 0 {
+        confidence += 0.08;
+    }
+    round3(confidence.min(1.0))
+}
+
+fn trajectory_warnings(early_commits: usize, recent_commits: usize, sources: usize) -> Vec<String> {
+    let mut warnings = Vec::new();
+    if early_commits == 0 {
+        warnings.push(
+            "No early-history commit window available for trajectory comparison.".to_string(),
+        );
+    }
+    if recent_commits == 0 {
+        warnings.push("No recent commit window available for trajectory comparison.".to_string());
+    }
+    if sources == 0 {
+        warnings.push(
+            "No doctrine or content excerpts were available for trajectory grounding.".to_string(),
+        );
+    }
+    warnings
+}
+
+fn trajectory_self_image(
+    report: &RepoTerrainReport,
+    scores: &[RepoTrajectoryThemeScore],
+) -> String {
+    let top = top_trajectory_themes(scores, 3);
+    format!(
+        "{} behaves like a {} workspace that has been moving toward {}.",
+        report.name,
+        report.source_families.join(" + "),
+        top.join(", ")
+    )
+}
+
+fn trajectory_summary_text(
+    report: &RepoTerrainReport,
+    scores: &[RepoTrajectoryThemeScore],
+    pressures: &[String],
+) -> String {
+    let rising = scores
+        .iter()
+        .filter(|score| score.delta >= 0.1)
+        .map(|score| score.theme.clone())
+        .collect::<Vec<_>>();
+    let current = top_trajectory_themes(scores, 3);
+    if !rising.is_empty() {
+        format!(
+            "{} shows a trajectory toward {} while currently centering {}.",
+            report.name,
+            rising.join(", "),
+            current.join(", ")
+        )
+    } else if !pressures.is_empty() {
+        format!(
+            "{} is currently steered by {}.",
+            report.name,
+            pressures
+                .iter()
+                .take(3)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    } else {
+        format!(
+            "{} has a weakly observed but still reviewable direction signal.",
+            report.name
+        )
+    }
+}
+
+fn top_trajectory_themes(scores: &[RepoTrajectoryThemeScore], limit: usize) -> Vec<String> {
+    let mut items = scores.to_vec();
+    items.sort_by(|a, b| {
+        let left = b.current_sources + b.recent_history + (b.delta.max(0.0) * 0.5);
+        let right = a.current_sources + a.recent_history + (a.delta.max(0.0) * 0.5);
+        left.partial_cmp(&right)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    items
+        .into_iter()
+        .take(limit)
+        .map(|score| score.theme)
+        .collect()
+}
+
+fn theme_current(scores: &[RepoTrajectoryThemeScore], theme: &str) -> f64 {
+    scores
+        .iter()
+        .find(|score| score.theme == theme)
+        .map(|score| score.current_sources.max(score.recent_history))
+        .unwrap_or(0.0)
+}
+
+fn theme_delta(scores: &[RepoTrajectoryThemeScore], theme: &str) -> f64 {
+    scores
+        .iter()
+        .find(|score| score.theme == theme)
+        .map(|score| score.delta)
+        .unwrap_or(0.0)
 }
 
 fn count_message_keywords(hits: &mut BTreeMap<String, usize>, message: &str) {
@@ -2714,6 +3586,19 @@ fn profile_summary(profile: &RepoPersonalityProfile) -> Value {
     })
 }
 
+fn trajectory_summary(trajectory: &RepoTrajectoryReport) -> Value {
+    json!({
+        "repoId": trajectory.repo_id,
+        "summary": trajectory.trajectory_summary,
+        "selfImage": trajectory.self_image,
+        "directionalPressures": trajectory.directional_pressures,
+        "implicitGoalCandidates": trajectory.implicit_goal_candidates,
+        "antiGoalCandidates": trajectory.anti_goal_candidates,
+        "confidence": trajectory.confidence,
+        "warnings": trajectory.warnings,
+    })
+}
+
 fn report_agent_input(report: &RepoTerrainReport) -> Value {
     json!({
         "schemaVersion": report.schema_version,
@@ -2748,6 +3633,25 @@ fn profile_agent_input(profile: &RepoPersonalityProfile) -> Value {
     })
 }
 
+fn trajectory_agent_input(trajectory: &RepoTrajectoryReport) -> Value {
+    json!({
+        "schemaVersion": trajectory.schema_version,
+        "repoId": trajectory.repo_id,
+        "trajectorySummary": trajectory.trajectory_summary,
+        "selfImage": trajectory.self_image,
+        "earlyCommitMessages": trajectory.early_commit_messages,
+        "recentCommitMessages": trajectory.recent_commit_messages,
+        "trajectorySources": trajectory.trajectory_sources,
+        "themeScores": trajectory.theme_scores,
+        "directionalPressures": trajectory.directional_pressures,
+        "implicitGoalCandidates": trajectory.implicit_goal_candidates,
+        "antiGoalCandidates": trajectory.anti_goal_candidates,
+        "tensions": trajectory.tensions,
+        "confidence": trajectory.confidence,
+        "warnings": trajectory.warnings,
+    })
+}
+
 fn role_projection_agent_input(projection: &RolePersonalityProjection) -> Value {
     json!({
         "schemaVersion": projection.schema_version,
@@ -2769,6 +3673,7 @@ fn role_projection_agent_input(projection: &RolePersonalityProjection) -> Value 
 fn render_scout_markdown(
     reports: &[RepoTerrainReport],
     profiles: &[RepoPersonalityProfile],
+    trajectories: &[RepoTrajectoryReport],
 ) -> String {
     let mut out = String::new();
     out.push_str("# Repo Personality Scout\n\n");
@@ -2786,17 +3691,37 @@ fn render_scout_markdown(
             "- Dominant axes: {}\n\n",
             top_axes(&report.axis_scores, 5).join(", ")
         ));
+        if let Some(trajectory) = trajectories
+            .iter()
+            .find(|trajectory| trajectory.repo_id == report.repo_id)
+        {
+            out.push_str(&format!(
+                "- Trajectory: {}\n\n",
+                trajectory.trajectory_summary
+            ));
+        }
     }
     out
 }
 
-fn render_project_markdown(report: &RepoTerrainReport, profile: &RepoPersonalityProfile) -> String {
+fn render_project_markdown(
+    report: &RepoTerrainReport,
+    profile: &RepoPersonalityProfile,
+    trajectory: &RepoTrajectoryReport,
+) -> String {
     let mut out = String::new();
     out.push_str(&format!(
         "# Repo Personality Projection: {}\n\n",
         report.name
     ));
     out.push_str(&format!("{}\n\n", profile.summary));
+    out.push_str("## Trajectory\n\n");
+    out.push_str(&format!("{}\n\n", trajectory.trajectory_summary));
+    out.push_str(&format!("- Self-image: {}\n", trajectory.self_image));
+    out.push_str(&format!(
+        "- Directional pressures: {}\n\n",
+        trajectory.directional_pressures.join(", ")
+    ));
     out.push_str("## Risk Pressures\n\n");
     for risk in &profile.risk_pressures {
         out.push_str(&format!("- {risk}\n"));
@@ -2820,6 +3745,7 @@ fn render_project_markdown(report: &RepoTerrainReport, profile: &RepoPersonality
 fn render_agent_packet_markdown(
     report: &RepoTerrainReport,
     profile: &RepoPersonalityProfile,
+    trajectory: &RepoTrajectoryReport,
     role_projection_count: usize,
 ) -> String {
     let mut out = String::new();
@@ -2845,6 +3771,16 @@ fn render_agent_packet_markdown(
         "- Role projections: {}\n\n",
         role_projection_count
     ));
+    out.push_str("## Trajectory Context\n\n");
+    out.push_str(&format!("- Self-image: {}\n", trajectory.self_image));
+    out.push_str(&format!(
+        "- Directional pressures: {}\n",
+        trajectory.directional_pressures.join(", ")
+    ));
+    out.push_str(&format!(
+        "- Implicit goal candidates: {}\n\n",
+        trajectory.implicit_goal_candidates.join(" | ")
+    ));
     out.push_str("## Guardrails\n\n");
     out.push_str("- The distiller petitions Self; it does not mutate memory.\n");
     out.push_str("- The distiller is birth-only; after accepted initialization, personality drift belongs to heartbeat, mood, rumination, sleep consolidation, lived evidence, and reviewed selfPatch.\n");
@@ -2859,6 +3795,7 @@ fn render_agent_packet_markdown(
 fn render_memory_packet_markdown(
     report: &RepoTerrainReport,
     profile: &RepoPersonalityProfile,
+    trajectory: &RepoTrajectoryReport,
     memory_source_count: usize,
 ) -> String {
     let mut out = String::new();
@@ -2892,6 +3829,62 @@ fn render_memory_packet_markdown(
         ));
     }
     out.push_str("\n## Profile Context\n\n");
+    out.push_str(&format!("- Repo id: `{}`\n", profile.repo_id));
+    out.push_str(&format!("- Summary: {}\n", profile.summary));
+    out.push_str(&format!(
+        "- Dominant pressures: {}\n",
+        profile.dominant_pressures.join(", ")
+    ));
+    out.push_str(&format!(
+        "- Trajectory: {}\n",
+        trajectory.trajectory_summary
+    ));
+    out
+}
+
+fn render_trajectory_packet_markdown(
+    report: &RepoTerrainReport,
+    profile: &RepoPersonalityProfile,
+    trajectory: &RepoTrajectoryReport,
+    role_projection_count: usize,
+) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "# Repo Trajectory Distiller Packet: {}\n\n",
+        report.name
+    ));
+    out.push_str("This packet is input to the Repo Trajectory Distiller specialist. It is not accepted truth.\n\n");
+    out.push_str("## Prompt\n\n");
+    out.push_str("See `repo-trajectory-distiller-prompt.md`.\n\n");
+    out.push_str("## Trajectory Readout\n\n");
+    out.push_str(&format!("- Summary: {}\n", trajectory.trajectory_summary));
+    out.push_str(&format!("- Self-image: {}\n", trajectory.self_image));
+    out.push_str(&format!(
+        "- Directional pressures: {}\n",
+        trajectory.directional_pressures.join(", ")
+    ));
+    out.push_str(&format!(
+        "- Implicit goal candidates: {}\n",
+        trajectory.implicit_goal_candidates.join(" | ")
+    ));
+    out.push_str(&format!(
+        "- Anti-goal candidates: {}\n",
+        trajectory.anti_goal_candidates.join(" | ")
+    ));
+    out.push_str(&format!(
+        "- Theme count: {}, role projections: {}\n\n",
+        trajectory.theme_scores.len(),
+        role_projection_count
+    ));
+    out.push_str("## Guardrails\n\n");
+    out.push_str("- Trajectory is directional bias, not active objective truth.\n");
+    out.push_str("- The distiller petitions Self; it does not mutate memory or planning.\n");
+    out.push_str("- Commit history is evidence of motion, not proof of permanent identity.\n");
+    out.push_str("- Keep self-image, implicit goals, and anti-goals subtle enough that later lived drift can still matter.\n");
+    out.push_str(
+        "- Do not stuff raw commit logs, file lists, or active backlog truth into selfPatch.\n\n",
+    );
+    out.push_str("## Profile Context\n\n");
     out.push_str(&format!("- Repo id: `{}`\n", profile.repo_id));
     out.push_str(&format!("- Summary: {}\n", profile.summary));
     out.push_str(&format!(
@@ -2996,13 +3989,14 @@ fn round3(value: f64) -> f64 {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-repo-personality <scout|project|agent-packet|memory-packet|startup|accept-init|status> ...\n\
+        "usage: epiphany-repo-personality <scout|project|agent-packet|trajectory-packet|memory-packet|startup|accept-init|status> ...\n\
          scout --root <path> --artifact-dir <path> [--max-repos <n>]\n\
          project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>\n\
          agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
+         trajectory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>\n\
-         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]\n\
+         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-trajectory|repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]\n\
          status --store <baseline-or-projection.msgpack>"
     );
 }

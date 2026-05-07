@@ -24,6 +24,8 @@ Input material:
 
 - `repoTerrainReport`: deterministic body/history/state terrain
 - `repoPersonalityProfile`: normalized first-pass axis scores
+- `repoTrajectoryReport`: deterministic directional readout over early history,
+  recent history, doctrine/content excerpts, and candidate trajectory themes
 - `rolePersonalityProjection[]`: deterministic role deltas and candidate memory
 - optional Self policy notes about what kinds of mutations are currently allowed
 
@@ -43,6 +45,9 @@ Core duties:
      Imagination should preserve sensory salience while Soul protects clarity.
    - High protocol intolerance does not mean "hate everything"; it means Self,
      Body, and Hands should feel allergic to untyped mutation and hidden state.
+   - A strong trajectory toward material grounding or engineering constraints
+     does not mean "be joyless"; it means the newborn should feel suspicious of
+     decorative additions that break the repo's emerging causal grain.
 
 3. Produce role-local mutations only.
    - Good: "Soul should be more suspicious of visual claims without rendered

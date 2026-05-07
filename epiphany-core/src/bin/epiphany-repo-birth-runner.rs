@@ -262,6 +262,7 @@ fn render_specialist_prompt(kind: &str, packet: &Value) -> Result<String> {
     Ok(format!(
         "{}\n\n# Startup-Only Birth Packet\n\nYou are executing exactly one repo initialization birth specialist packet. Do not edit files. Do not mutate state. Return only JSON that matches the provided schema. The coordinator/Self will review and decide whether to accept the result.\n\n```json\n{}\n```\n",
         packet["prompt"].as_str().unwrap_or(match kind {
+            "repo-trajectory" => "Act as the Epiphany Repo Trajectory Distiller.",
             "repo-personality" => "Act as the Epiphany Repo Personality Distiller.",
             "repo-memory" => "Act as the Epiphany Repo Memory Distiller.",
             _ => "Act as a startup-only Epiphany birth specialist.",
@@ -273,6 +274,26 @@ fn render_specialist_prompt(kind: &str, packet: &Value) -> Result<String> {
 fn output_schema_for_kind(kind: &str, packet: &Value) -> Result<Value> {
     let expected = packet.get("expectedOutput").cloned().unwrap_or(Value::Null);
     let schema = match kind {
+        "repo-trajectory" => json!({
+            "type": "object",
+            "required": ["verdict", "summary", "confidence", "selfImage", "trajectoryNarrative", "implicitGoals", "antiGoals", "roleBiases", "selfPatchCandidates", "initializationRecord", "doNotMutate", "nextSafeMove"],
+            "properties": {
+                "verdict": {"type": "string", "enum": ["ready-for-review", "needs-more-history", "reject"]},
+                "summary": {"type": "string"},
+                "confidence": {"type": "number"},
+                "selfImage": {"type": "string"},
+                "trajectoryNarrative": {"type": "string"},
+                "implicitGoals": {"type": "array", "items": {"type": "string"}},
+                "antiGoals": {"type": "array", "items": {"type": "string"}},
+                "roleBiases": {"type": "array", "items": {"type": "object"}},
+                "selfPatchCandidates": {"type": "array", "items": {"type": "object"}},
+                "initializationRecord": {"type": "object"},
+                "doNotMutate": {"type": "array", "items": {"type": "string"}},
+                "nextSafeMove": {"type": "string"}
+            },
+            "additionalProperties": true,
+            "xEpiphanyExpectedOutput": expected,
+        }),
         "repo-personality" => json!({
             "type": "object",
             "required": ["verdict", "summary", "confidence", "roleQuirks", "selfPatchCandidates", "initializationRecord", "doNotMutate", "nextSafeMove"],
