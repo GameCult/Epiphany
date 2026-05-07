@@ -29,6 +29,14 @@ the lane must ruminate on its own role and distill memory rather than invent
 project work. Bounded rumination can write a normal `selfPatch`; the coordinator
 review rules still apply. Idle organs dream; they do not declare crusades.
 
+Newborn Epiphanies get two separate birth rites. Repo personality initialization
+sets subtle temperament pressure once; repo memory initialization pre-fills each
+organ with mission-relevant knowledge from doctrine, docs, state, research,
+contracts, verification, runtime, and source. The native
+`epiphany-repo-personality memory-packet` command renders the role-specific
+memory distiller packet. It is a petition to Self, not a direct mutation, and it
+must not reset a living lane's learned memory after startup.
+
 Face's Discord boundary is still a small TOML configuration seam: it may
 interact only through #aquarium. If the channel id is not configured, Face must
 write candidate chat artifacts through the native `epiphany-face-discord draft`

@@ -467,6 +467,7 @@ Initial commands:
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- scout --root E:\Projects --artifact-dir .\.epiphany-imports\repo-personality-terrain
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- project --repo E:\Projects\AetheriaLore --baseline .\.epiphany-imports\repo-personality-terrain\baseline.msgpack --artifact-dir .\.epiphany-imports\aetheria-lore-personality
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- memory-packet --store .\.epiphany-imports\aetheria-lore-personality\projection.msgpack --artifact-dir .\.epiphany-imports\aetheria-lore-memory
 ```
 
 The first version can use deterministic scoring from local filesystem and git
@@ -494,6 +495,7 @@ It provides:
 - `scout --root <path> --artifact-dir <path> [--max-repos <n>]`
 - `project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>`
 - `agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
+- `memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
 - `status --store <baseline-or-projection.msgpack>`
 
 The first implementation is intentionally deterministic. It inventories git
@@ -526,11 +528,39 @@ must not rerun this specialist merely because terrain changed or the repo
 reopened; major terrain surprises should route to Eyes/Body/Self as normal
 modeling or review work, not as a personality reset.
 
+## Repo Memory Distillation
+
+Repo memory initialization is a separate birth organ. Personality answers what
+temperament pressure the repo should exert; memory answers what each newborn
+sub-agent should know before it starts work.
+
+The `memory-packet` command renders a dedicated Repo Memory Distiller packet.
+It uses the same typed terrain/profile/projection store, then adds a bounded
+source inventory from instruction, documentation, state, research, contract,
+verification, runtime, and code surfaces. The packet includes one role-specific
+distiller brief for each standing organ:
+
+- Self receives routing, authority, review-gate, and cross-swarm boundary memory.
+- Face receives public-surface, Aquarium, Discord, voice, and sealed-thought boundary memory.
+- Imagination receives roadmap, backlog, objective-shaping, dream, and rejected-path memory.
+- Eyes receives research, prior-art, canonical algorithm, vendor/API, and invention-avoidance memory.
+- Body receives architecture, graph, control/data-flow, invariant, and checkpoint memory.
+- Hands receives implementation conventions, build/edit constraints, dependency habits, and common patch traps.
+- Soul receives verification commands, evidence standards, invariant checks, and truth-refusal memory.
+- Life receives compaction, scratch, checkpoint, heartbeat, sleep, and continuity memory.
+
+The memory distiller petitions Self with Ghostlight-shaped `selfPatch`
+candidates. It must not mutate memory directly, adopt objectives, copy raw file
+dumps into role memory, or store detailed project maps where typed Epiphany
+state should live. If source is thin or stale, it names that risk instead of
+filling the newborn with pasteboard certainty.
+
 Smoke coverage lives in
 `epiphany-core/src/bin/epiphany-repo-personality-smoke.rs`. The smoke creates two
 tiny git repos, scouts them into a baseline store, projects one repo, and proves
 the projection store contains one terrain report, one profile, all eight
-standing role projections, and a rendered distiller packet plus prompt.
+standing role projections, a rendered personality distiller packet plus prompt,
+and a rendered role-specific memory distiller packet plus prompt.
 
 ## Next Implementation Step
 

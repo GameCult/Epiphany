@@ -33,6 +33,14 @@ fn run_smoke() -> Result<Value> {
             ),
             ("src/lib.rs", "pub fn schema_contract() {}\n"),
             (
+                "docs/architecture.md",
+                "# Architecture\nCultTiny stores typed contract surfaces.\n",
+            ),
+            (
+                "research/prior-art.md",
+                "# Prior Art\nPrefer known schema formats before invention.\n",
+            ),
+            (
                 "tests/contract_smoke.rs",
                 "#[test] fn contract_smoke() {}\n",
             ),
@@ -120,6 +128,43 @@ fn run_smoke() -> Result<Value> {
         "agent packet should write summary markdown",
     )?;
 
+    let memory_packet = run_personality(
+        &root,
+        &[
+            "memory-packet",
+            "--store",
+            store.to_str().unwrap_or_default(),
+            "--artifact-dir",
+            artifacts
+                .join("cult-memory-packet")
+                .to_str()
+                .unwrap_or_default(),
+        ],
+    )?;
+    require(
+        memory_packet["memorySourceCount"].as_u64().unwrap_or(0) > 0,
+        "memory packet should carry source excerpts",
+    )?;
+    require(
+        memory_packet["roleDistillerCount"] == 8,
+        "memory packet should carry all role distiller lanes",
+    )?;
+    let memory_packet_path = path_value(&memory_packet, "packetPath")?;
+    let memory_prompt_path = path_value(&memory_packet, "promptPath")?;
+    let memory_summary_path = path_value(&memory_packet, "summaryPath")?;
+    require(
+        memory_packet_path.exists(),
+        "memory packet should write packet json",
+    )?;
+    require(
+        memory_prompt_path.exists(),
+        "memory packet should write prompt markdown",
+    )?;
+    require(
+        memory_summary_path.exists(),
+        "memory packet should write summary markdown",
+    )?;
+
     let status = run_personality(
         &root,
         &["status", "--store", store.to_str().unwrap_or_default()],
@@ -147,6 +192,9 @@ fn run_smoke() -> Result<Value> {
         "packetPath": packet_path,
         "promptPath": prompt_path,
         "packetSummaryPath": packet_summary_path,
+        "memoryPacketPath": memory_packet_path,
+        "memoryPromptPath": memory_prompt_path,
+        "memorySummaryPath": memory_summary_path,
         "repoCount": scout["repoCount"],
         "roleProjections": status["roleProjections"],
     }))

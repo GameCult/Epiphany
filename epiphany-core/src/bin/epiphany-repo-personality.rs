@@ -23,8 +23,13 @@ const PROFILE_SCHEMA_VERSION: &str = "epiphany.repo_personality_profile.v0";
 const ROLE_PROJECTION_SCHEMA_VERSION: &str = "epiphany.role_personality_projection.v0";
 const ARTIFACT_SCHEMA_VERSION: &str = "epiphany.repo_personality_artifacts.v0";
 const DISTILLER_PACKET_SCHEMA_VERSION: &str = "epiphany.repo_personality_distiller_packet.v0";
+const MEMORY_DISTILLER_PACKET_SCHEMA_VERSION: &str = "epiphany.repo_memory_distiller_packet.v0";
 const REPO_PERSONALITY_DISTILLER_PROMPT: &str =
     include_str!("../prompts/repo_personality_distiller.md");
+const REPO_MEMORY_DISTILLER_PROMPT: &str = include_str!("../prompts/repo_memory_distiller.md");
+const MEMORY_SOURCE_MAX_FILES: usize = 48;
+const MEMORY_SOURCE_MAX_BYTES_PER_FILE: usize = 12_000;
+const MEMORY_SOURCE_MAX_TOTAL_BYTES: usize = 120_000;
 
 const ROLES: &[&str] = &[
     "coordinator",
@@ -201,7 +206,8 @@ fn main() -> Result<()> {
     let result = match command.as_str() {
         "scout" => run_scout(parse_scout_args(args)?),
         "project" => run_project(parse_project_args(args)?),
-        "agent-packet" => run_agent_packet(parse_agent_packet_args(args)?),
+        "agent-packet" => run_agent_packet(parse_packet_args(args, "agent-packet")?),
+        "memory-packet" => run_memory_packet(parse_packet_args(args, "memory-packet")?),
         "status" => run_status(parse_status_args(args)?),
         other => Err(anyhow!("unknown command {other:?}")),
     }?;
@@ -233,6 +239,16 @@ struct AgentPacketArgs {
     store: PathBuf,
     artifact_dir: PathBuf,
     repo_id: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MemorySourceExcerpt {
+    path: String,
+    kind: String,
+    bytes: usize,
+    truncated: bool,
+    text: String,
 }
 
 fn parse_scout_args(args: impl Iterator<Item = String>) -> Result<ScoutArgs> {
@@ -301,7 +317,10 @@ fn parse_status_args(args: impl Iterator<Item = String>) -> Result<StatusArgs> {
     })
 }
 
-fn parse_agent_packet_args(args: impl Iterator<Item = String>) -> Result<AgentPacketArgs> {
+fn parse_packet_args(
+    args: impl Iterator<Item = String>,
+    command_name: &'static str,
+) -> Result<AgentPacketArgs> {
     let mut store = None;
     let mut artifact_dir = None;
     let mut repo_id = None;
@@ -318,7 +337,7 @@ fn parse_agent_packet_args(args: impl Iterator<Item = String>) -> Result<AgentPa
             repo_id = Some(value);
             Ok(())
         }
-        other => Err(anyhow!("unexpected agent-packet argument {other}")),
+        other => Err(anyhow!("unexpected {command_name} argument {other}")),
     })?;
     Ok(AgentPacketArgs {
         store: store.context("missing --store")?,
@@ -550,6 +569,117 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
     }))
 }
 
+fn run_memory_packet(args: AgentPacketArgs) -> Result<Value> {
+    fs::create_dir_all(&args.artifact_dir)
+        .with_context(|| format!("failed to create {}", args.artifact_dir.display()))?;
+    let mut cache = repo_personality_cache(&args.store)?;
+    cache.pull_all_backing_stores()?;
+    let reports = cache.get_all::<RepoTerrainReport>()?;
+    let profiles = cache.get_all::<RepoPersonalityProfile>()?;
+    let projections = cache.get_all::<RolePersonalityProjection>()?;
+    let profile = select_profile(&profiles, args.repo_id.as_deref())?;
+    let report = reports
+        .iter()
+        .find(|report| report.repo_id == profile.repo_id)
+        .ok_or_else(|| {
+            anyhow!(
+                "store has profile {:?} but no terrain report",
+                profile.repo_id
+            )
+        })?;
+    let role_projections: Vec<_> = projections
+        .iter()
+        .filter(|projection| projection.repo_id == profile.repo_id)
+        .collect();
+    let repo_path = PathBuf::from(&report.path);
+    let memory_sources = collect_memory_sources(&repo_path, report)?;
+    let role_briefs = memory_role_briefs(report, profile);
+    let packet = json!({
+        "schemaVersion": MEMORY_DISTILLER_PACKET_SCHEMA_VERSION,
+        "createdAt": Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "store": args.store,
+        "repoId": profile.repo_id,
+        "lifecycle": {
+            "mode": "birth-only",
+            "contract": "Run this specialist only when the repo/swarm has no accepted memory initialization. Later memory growth belongs to heartbeat, work evidence, rumination, sleep consolidation, and reviewed selfPatch.",
+            "rerunPolicy": "If accepted memory initialization exists, do not rerun to refresh memory. Route stale or contradicted knowledge through normal Eyes/Body/Soul state, evidence, and sleep consolidation."
+        },
+        "prompt": REPO_MEMORY_DISTILLER_PROMPT,
+        "input": {
+            "repoTerrainReport": report_agent_input(report),
+            "repoPersonalityProfile": profile_agent_input(profile),
+            "rolePersonalityProjections": role_projections
+                .iter()
+                .map(|projection| role_projection_agent_input(projection))
+                .collect::<Vec<_>>(),
+            "roleMemoryDistillerBriefs": role_briefs,
+            "memorySourceInventory": {
+                "repoPath": report.path,
+                "sourceCount": memory_sources.len(),
+                "maxFiles": MEMORY_SOURCE_MAX_FILES,
+                "maxBytesPerFile": MEMORY_SOURCE_MAX_BYTES_PER_FILE,
+                "maxTotalBytes": MEMORY_SOURCE_MAX_TOTAL_BYTES,
+                "sourceKinds": memory_sources
+                    .iter()
+                    .map(|source| source.kind.clone())
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>()
+            },
+            "memorySources": memory_sources,
+            "recentHistory": report.history_metrics.recent_messages,
+        },
+        "expectedOutput": {
+            "verdict": "ready-for-review | needs-more-source | reject",
+            "summary": "short newborn memory initialization summary",
+            "confidence": "0.0..1.0",
+            "roleMemoryPatches": [],
+            "globalMemoryCandidates": [],
+            "initializationRecord": {
+                "repoId": profile.repo_id,
+                "terrainSchemaVersion": report.schema_version,
+                "profileSchemaVersion": profile.schema_version,
+                "acceptedOnce": true,
+                "distillerKind": "repo-memory"
+            },
+            "doNotMutate": [],
+            "nextSafeMove": "Self reviews role-specific memory patches before first initialization mutation; later memory growth uses heartbeat, evidence, rumination, sleep, and reviewed selfPatch."
+        },
+        "guardrails": [
+            "This packet is input to role-specific memory distillers, not accepted truth.",
+            "This packet is birth-only; it pre-fills newborn memory and then gets out of the way.",
+            "Memory distillation is separate from personality distillation.",
+            "Each role receives only knowledge relevant to its mission.",
+            "Do not copy raw file dumps into memory; compress into durable doctrine, source maps, invariants, risks, and practices.",
+            "Preserve uncertainty and staleness risk; repository documentation can lie by age.",
+            "No objectives, authority claims, active job state, raw transcripts, code edits, or arbitrary workspace access in selfPatch."
+        ]
+    });
+    let packet_path = args.artifact_dir.join("repo-memory-distiller-packet.json");
+    let prompt_path = args.artifact_dir.join("repo-memory-distiller-prompt.md");
+    let summary_path = args.artifact_dir.join("repo-memory-distiller-packet.md");
+    let source_count = packet["input"]["memorySourceInventory"]["sourceCount"]
+        .as_u64()
+        .unwrap_or_default();
+    write_json(&packet_path, &packet)?;
+    write_text(&prompt_path, REPO_MEMORY_DISTILLER_PROMPT)?;
+    write_text(
+        &summary_path,
+        &render_memory_packet_markdown(report, profile, source_count as usize),
+    )?;
+    Ok(json!({
+        "schemaVersion": MEMORY_DISTILLER_PACKET_SCHEMA_VERSION,
+        "mode": "memory-packet",
+        "repoId": profile.repo_id,
+        "artifactDir": args.artifact_dir,
+        "packetPath": packet_path,
+        "promptPath": prompt_path,
+        "summaryPath": summary_path,
+        "memorySourceCount": source_count,
+        "roleDistillerCount": ROLES.len(),
+    }))
+}
+
 fn select_profile<'a>(
     profiles: &'a [RepoPersonalityProfile],
     repo_id: Option<&str>,
@@ -576,6 +706,217 @@ fn repo_personality_cache(path: &Path) -> Result<CultCache> {
     cache.register_entry_type::<RolePersonalityProjection>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path));
     Ok(cache)
+}
+
+fn collect_memory_sources(
+    repo: &Path,
+    report: &RepoTerrainReport,
+) -> Result<Vec<MemorySourceExcerpt>> {
+    let mut candidates = BTreeSet::new();
+    for surface in report
+        .instruction_surfaces
+        .iter()
+        .chain(report.state_surfaces.iter())
+        .chain(report.test_surfaces.iter())
+        .chain(report.runtime_surfaces.iter())
+    {
+        candidates.insert(surface.clone());
+    }
+    let walker = WalkBuilder::new(repo)
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .parents(true)
+        .max_depth(Some(4))
+        .build();
+    for entry in walker.filter_map(Result::ok) {
+        if !entry
+            .file_type()
+            .is_some_and(|file_type| file_type.is_file())
+        {
+            continue;
+        }
+        let path = entry.path();
+        if is_ignored_path(path) {
+            continue;
+        }
+        let rel = path.strip_prefix(repo).unwrap_or(path);
+        let rel_string = slash(rel);
+        if is_memory_source_candidate(&rel_string) {
+            candidates.insert(rel_string);
+        }
+    }
+    let mut ordered: Vec<_> = candidates.into_iter().collect();
+    ordered.sort_by_key(|path| memory_source_priority(path));
+    let mut sources = Vec::new();
+    let mut total_bytes = 0usize;
+    for rel in ordered {
+        if sources.len() >= MEMORY_SOURCE_MAX_FILES || total_bytes >= MEMORY_SOURCE_MAX_TOTAL_BYTES
+        {
+            break;
+        }
+        let path = repo.join(&rel);
+        let bytes = fs::read(&path).unwrap_or_default();
+        if bytes.is_empty() || looks_binary(&bytes) {
+            continue;
+        }
+        let remaining = MEMORY_SOURCE_MAX_TOTAL_BYTES.saturating_sub(total_bytes);
+        let limit = MEMORY_SOURCE_MAX_BYTES_PER_FILE.min(remaining);
+        if limit == 0 {
+            break;
+        }
+        let take = bytes.len().min(limit);
+        let text = String::from_utf8_lossy(&bytes[..take]).to_string();
+        total_bytes += take;
+        sources.push(MemorySourceExcerpt {
+            kind: memory_source_kind(&rel).to_string(),
+            path: rel,
+            bytes: bytes.len(),
+            truncated: take < bytes.len(),
+            text,
+        });
+    }
+    Ok(sources)
+}
+
+fn is_memory_source_candidate(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower == "agents.md"
+        || lower.starts_with("docs/")
+        || lower.starts_with("notes/")
+        || lower.starts_with("state/")
+        || lower.starts_with("research/")
+        || lower.starts_with("architecture/")
+        || lower.starts_with(".epiphany/")
+        || lower.starts_with("schemas/")
+        || lower.starts_with("tests/")
+        || lower.starts_with("src/")
+        || lower.starts_with("crates/")
+        || lower.starts_with("packages/")
+        || lower.starts_with("app/")
+        || lower.starts_with("unity/")
+        || lower.starts_with("projectsettings/")
+        || lower.ends_with("readme.md")
+        || lower.ends_with(".md")
+        || lower.ends_with(".toml")
+        || lower.ends_with(".yaml")
+        || lower.ends_with(".yml")
+        || lower.ends_with(".rs")
+        || lower.ends_with(".cs")
+        || lower.ends_with(".ts")
+        || lower.ends_with(".tsx")
+}
+
+fn memory_source_kind(path: &str) -> &'static str {
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with("agents.md") {
+        "doctrine"
+    } else if lower.ends_with("readme.md") {
+        "readme"
+    } else if lower.starts_with("docs/")
+        || lower.starts_with("notes/")
+        || lower.starts_with("architecture/")
+    {
+        "documentation"
+    } else if lower.starts_with("state/") || lower.starts_with(".epiphany/") {
+        "state"
+    } else if lower.starts_with("research/") {
+        "research"
+    } else if lower.starts_with("tests/") || lower.contains("smoke") {
+        "verification"
+    } else if lower.starts_with("projectsettings/") || lower.starts_with("unity/") {
+        "runtime"
+    } else if lower.starts_with("schemas/") {
+        "contract"
+    } else {
+        "code"
+    }
+}
+
+fn memory_source_priority(path: &str) -> (usize, String) {
+    let kind_rank = match memory_source_kind(path) {
+        "doctrine" => 0,
+        "readme" => 1,
+        "documentation" => 2,
+        "state" => 3,
+        "research" => 4,
+        "contract" => 5,
+        "verification" => 6,
+        "runtime" => 7,
+        "code" => 8,
+        _ => 9,
+    };
+    (kind_rank, path.to_string())
+}
+
+fn looks_binary(bytes: &[u8]) -> bool {
+    bytes.iter().take(1024).any(|byte| *byte == 0)
+}
+
+fn memory_role_briefs(report: &RepoTerrainReport, profile: &RepoPersonalityProfile) -> Vec<Value> {
+    ROLES
+        .iter()
+        .map(|role_id| {
+            json!({
+                "roleId": role_id,
+                "roleName": role_display(role_id),
+                "missionFilter": memory_role_filter(role_id),
+                "sourceKindsToPrefer": memory_role_source_kinds(role_id),
+                "repoPressuresToKeepInMind": profile.dominant_pressures,
+                "terrainWarnings": report.warnings,
+                "outputContract": {
+                    "selfPatch": "Ghostlight-shaped memory only, addressed to this role.",
+                    "sourceRefs": "Use memorySources[].path or terrain/evidence refs.",
+                    "stalenessRisk": "Name when repo docs or code signals may be stale.",
+                    "forbidden": "No raw dumps, active objectives, authority claims, code edits, job state, or cross-workspace instructions."
+                }
+            })
+        })
+        .collect()
+}
+
+fn memory_role_filter(role_id: &str) -> &'static str {
+    match role_id {
+        "coordinator" => {
+            "Distill routing doctrine, authority boundaries, review gates, state acceptance rules, and failure patterns that should make Self stricter."
+        }
+        "face" => {
+            "Distill public voice, Aquarium affordances, Discord/social boundaries, user preference, and what internal state may be surfaced without leaking sealed thoughts."
+        }
+        "imagination" => {
+            "Distill roadmaps, backlog pressure, plausible futures, rejected dreams, and objective-shaping doctrine without adopting an objective."
+        }
+        "research" => {
+            "Distill known prior art, standard algorithms, vendor docs, research trails, and signals that should make Eyes search before invention."
+        }
+        "modeling" => {
+            "Distill architecture, control/data-flow, graph frontiers, invariants, source-map practices, and what Body must understand before Hands cuts."
+        }
+        "implementation" => {
+            "Distill build/edit conventions, harness constraints, source-touch rules, coding style, dependency policy, and common traps for Hands."
+        }
+        "verification" => {
+            "Distill tests, smoke commands, evidence standards, invariants, user-facing truth checks, and what Soul should refuse to bless."
+        }
+        "reorientation" => {
+            "Distill compaction, scratch, checkpoint, sleep, heartbeat, and continuity doctrine that Life must preserve across rupture."
+        }
+        _ => "Distill only durable role-relevant memory with source refs and uncertainty.",
+    }
+}
+
+fn memory_role_source_kinds(role_id: &str) -> &'static [&'static str] {
+    match role_id {
+        "coordinator" => &["doctrine", "state", "documentation", "contract"],
+        "face" => &["doctrine", "documentation", "state"],
+        "imagination" => &["documentation", "state", "research"],
+        "research" => &["research", "documentation", "readme", "code"],
+        "modeling" => &["documentation", "code", "contract", "state"],
+        "implementation" => &["code", "contract", "verification", "doctrine"],
+        "verification" => &["verification", "contract", "state", "documentation"],
+        "reorientation" => &["state", "doctrine", "documentation"],
+        _ => &["doctrine", "documentation", "state"],
+    }
 }
 
 fn discover_git_repos(root: &Path) -> Result<Vec<PathBuf>> {
@@ -1760,6 +2101,51 @@ fn render_agent_packet_markdown(
     out
 }
 
+fn render_memory_packet_markdown(
+    report: &RepoTerrainReport,
+    profile: &RepoPersonalityProfile,
+    memory_source_count: usize,
+) -> String {
+    let mut out = String::new();
+    out.push_str(&format!(
+        "# Repo Memory Distiller Packet: {}\n\n",
+        report.name
+    ));
+    out.push_str("This packet is input to the role-specific Repo Memory Distiller lanes. It is not accepted truth.\n\n");
+    out.push_str("## Prompt\n\n");
+    out.push_str("See `repo-memory-distiller-prompt.md`.\n\n");
+    out.push_str("## Source Budget\n\n");
+    out.push_str(&format!(
+        "- Memory sources: {} bounded excerpts\n",
+        memory_source_count
+    ));
+    out.push_str(&format!(
+        "- Max files: {}, max bytes/file: {}, max total bytes: {}\n\n",
+        MEMORY_SOURCE_MAX_FILES, MEMORY_SOURCE_MAX_BYTES_PER_FILE, MEMORY_SOURCE_MAX_TOTAL_BYTES
+    ));
+    out.push_str("## Birth Contract\n\n");
+    out.push_str("- This distiller initializes memory once for a newborn Epiphany.\n");
+    out.push_str("- Personality remains the job of `repo-personality-distiller`; memory remains repo knowledge, doctrine, maps, invariants, risks, and practices.\n");
+    out.push_str("- Each role receives a mission-specific filter and should write only role-relevant Ghostlight-shaped memory candidates.\n");
+    out.push_str("- The distiller petitions Self; it does not mutate memory.\n\n");
+    out.push_str("## Role Lanes\n\n");
+    for role_id in ROLES {
+        out.push_str(&format!(
+            "- {}: {}\n",
+            role_display(role_id),
+            memory_role_filter(role_id)
+        ));
+    }
+    out.push_str("\n## Profile Context\n\n");
+    out.push_str(&format!("- Repo id: `{}`\n", profile.repo_id));
+    out.push_str(&format!("- Summary: {}\n", profile.summary));
+    out.push_str(&format!(
+        "- Dominant pressures: {}\n",
+        profile.dominant_pressures.join(", ")
+    ));
+    out
+}
+
 fn write_json(path: &Path, value: &Value) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
@@ -1810,10 +2196,11 @@ fn round3(value: f64) -> f64 {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-repo-personality <scout|project|agent-packet|status> ...\n\
+        "usage: epiphany-repo-personality <scout|project|agent-packet|memory-packet|status> ...\n\
          scout --root <path> --artifact-dir <path> [--max-repos <n>]\n\
          project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>\n\
          agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
+         memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
          status --store <baseline-or-projection.msgpack>"
     );
 }
