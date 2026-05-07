@@ -198,6 +198,54 @@ fn run_smoke() -> Result<Value> {
         startup_memory_packet.exists(),
         "startup should write memory packet",
     )?;
+    let birth_runner = run_birth_runner(
+        &root,
+        &[
+            "--repo",
+            cult_repo.to_str().unwrap_or_default(),
+            "--baseline",
+            baseline.to_str().unwrap_or_default(),
+            "--artifact-dir",
+            artifacts
+                .join("birth-runner-plan")
+                .to_str()
+                .unwrap_or_default(),
+            "--init-store",
+            artifacts
+                .join("birth-runner-plan")
+                .join("repo-initialization.msgpack")
+                .to_str()
+                .unwrap_or_default(),
+            "--agent-store",
+            root.join("state")
+                .join("agents.msgpack")
+                .to_str()
+                .unwrap_or_default(),
+            "--heartbeat-store",
+            root.join("state")
+                .join("agent-heartbeats.msgpack")
+                .to_str()
+                .unwrap_or_default(),
+            "--mode",
+            "plan",
+        ],
+    )?;
+    require(
+        birth_runner["schemaVersion"] == "epiphany.repo_birth_runner.v0",
+        "birth runner should return its schema",
+    )?;
+    require(
+        birth_runner["executions"].as_array().map_or(0, Vec::len) == 2,
+        "birth runner plan should expose both startup-only specialist executions",
+    )?;
+    require(
+        birth_runner["executions"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .all(|execution| execution["heartbeatParticipant"].is_null()),
+        "birth runner executions should not be heartbeat participants",
+    )?;
     let heartbeat_store = artifacts.join("startup-heartbeats.msgpack");
     run_heartbeat(
         &root,
@@ -360,6 +408,7 @@ fn run_smoke() -> Result<Value> {
         "initStore": init_store,
         "agentStore": agent_store,
         "heartbeatStore": heartbeat_store,
+        "birthRunnerSummary": artifacts.join("birth-runner-plan").join("birth-runner-summary.json"),
         "startupPersonalityPacket": startup_personality_packet,
         "startupMemoryPacket": startup_memory_packet,
         "startupMemoryResult": memory_result_path,
@@ -412,6 +461,29 @@ fn run_personality(root: &Path, args: &[&str]) -> Result<Value> {
     })
 }
 
+fn run_birth_runner(root: &Path, args: &[&str]) -> Result<Value> {
+    let exe = native_birth_runner_exe()?;
+    ensure_built(root, "epiphany-repo-birth-runner", &exe)?;
+    let output = Command::new(exe)
+        .current_dir(root)
+        .args(args)
+        .output()
+        .context("failed to run epiphany-repo-birth-runner")?;
+    require(
+        output.status.success(),
+        &format!(
+            "epiphany-repo-birth-runner failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ),
+    )?;
+    serde_json::from_slice(&output.stdout).with_context(|| {
+        format!(
+            "epiphany-repo-birth-runner did not return JSON: {}",
+            String::from_utf8_lossy(&output.stdout)
+        )
+    })
+}
+
 fn run_heartbeat(root: &Path, args: &[&str]) -> Result<Value> {
     let exe = native_heartbeat_exe()?;
     ensure_built(root, "epiphany-heartbeat-store", &exe)?;
@@ -440,6 +512,15 @@ fn native_personality_exe() -> Result<PathBuf> {
         .unwrap_or_else(|| r"C:\Users\Meta\.cargo-target-codex".into());
     Ok(PathBuf::from(target_dir).join("debug").join(format!(
         "epiphany-repo-personality{}",
+        env::consts::EXE_SUFFIX
+    )))
+}
+
+fn native_birth_runner_exe() -> Result<PathBuf> {
+    let target_dir = env::var_os("CARGO_TARGET_DIR")
+        .unwrap_or_else(|| r"C:\Users\Meta\.cargo-target-codex".into());
+    Ok(PathBuf::from(target_dir).join("debug").join(format!(
+        "epiphany-repo-birth-runner{}",
         env::consts::EXE_SUFFIX
     )))
 }

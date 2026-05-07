@@ -562,7 +562,10 @@ Smoke coverage lives in
 tiny git repos, scouts them into a baseline store, projects one repo, and proves
 the projection store contains one terrain report, one profile, all eight
 standing role projections, a rendered personality distiller packet plus prompt,
-and a rendered role-specific memory distiller packet plus prompt.
+and a rendered role-specific memory distiller packet plus prompt. It also
+proves `epiphany-repo-birth-runner --mode plan` turns missing birth packets into
+startup-only Codex execution artifacts and accept commands without creating
+heartbeat participants.
 
 ## Next Implementation Step
 
@@ -592,9 +595,10 @@ hand. A relief, frankly.
 
 Remaining startup-routing gaps after the first valve:
 
-1. actual startup-only LLM specialist execution for the generated packets
-2. Aquarium review/action surfaces for generated birth packets and accepted
-   initialization records
+1. Aquarium review/action surfaces for generated birth packets, birth runner
+   results, and accepted initialization records
+2. live `--mode run` dogfood against a real repo initialization once the user is
+   ready to spend the model call
 
 Clarification: "drift detection" here does not mean rerunning the distiller to
 keep personality synchronized with repo terrain. It means detecting whether the
