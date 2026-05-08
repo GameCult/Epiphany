@@ -491,6 +491,35 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         && routine["routine"]["appraisals"]["schema_version"]
             == "epiphany.agent_thought_appraisals.v0"
         && routine["routine"]["reactions"]["schema_version"] == "epiphany.agent_reactions.v0"
+        && routine["routine"]["incubation"]["sourceCoverage"]["schema_version"]
+            == "epiphany.source_coverage.v0"
+        && routine["routine"]["incubation"]["themes"]
+            .as_array()
+            .and_then(|themes| themes.first())
+            .is_some_and(|theme| {
+                theme
+                    .get("noveltyToSelf")
+                    .and_then(serde_json::Value::as_f64)
+                    .is_some()
+                    && theme
+                        .get("noveltyToRoom")
+                        .and_then(serde_json::Value::as_f64)
+                        .is_some()
+                    && theme
+                        .get("saturationScore")
+                        .and_then(serde_json::Value::as_f64)
+                        .is_some()
+                    && theme
+                        .get("status")
+                        .and_then(serde_json::Value::as_str)
+                        .is_some()
+            })
+        && routine["routine"]["bridge"]["sourceCoverage"]["schema_version"]
+            == "epiphany.source_coverage.v0"
+        && routine["routine"]["bridge"]["refractoryTopics"].is_array()
+        && routine["routine"]["bridge"]["decision"]["reason"]
+            .as_str()
+            .is_some_and(|reason| !reason.is_empty())
         && routine_status["participants"]
             .as_array()
             .and_then(|participants| {

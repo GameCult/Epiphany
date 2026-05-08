@@ -498,7 +498,13 @@ pub fn run_void_routine_store(
     let appraisal_profiles = collect_role_appraisal_profiles(options.agent_store.as_deref())?;
     apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     let resonance = build_memory_resonance(&memory_records);
-    let incubation = build_incubation(&state.incubation, &resonance, &memory_records);
+    let incubation = build_incubation(
+        &state.incubation,
+        &state.bridge,
+        &state.candidate_interventions,
+        &resonance,
+        &memory_records,
+    );
     let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
     let bridge = build_thought_bridge(&state.bridge, &thought_lanes, &resonance, &incubation);
     let candidate_interventions = build_candidate_interventions(&bridge, &incubation);
@@ -1590,6 +1596,7 @@ fn rumination_patch(role_id: &str, action_id: &str) -> Value {
 struct RoleMemoryRecord {
     role_id: String,
     memory_id: String,
+    memory_kind: String,
     summary: String,
     salience: f64,
     confidence: f64,
@@ -1629,14 +1636,7 @@ fn collect_role_memory_records(agent_store: Option<&Path>) -> Result<Vec<RoleMem
         else {
             continue;
         };
-        for memory in entry
-            .agent
-            .memories
-            .semantic
-            .iter()
-            .chain(entry.agent.memories.episodic.iter())
-            .chain(entry.agent.memories.relationship_summaries.iter())
-        {
+        for memory in entry.agent.memories.semantic.iter() {
             let tokens = summary_tokens(&memory.summary);
             if tokens.is_empty() {
                 continue;
@@ -1644,6 +1644,37 @@ fn collect_role_memory_records(agent_store: Option<&Path>) -> Result<Vec<RoleMem
             records.push(RoleMemoryRecord {
                 role_id: (*role_id).to_string(),
                 memory_id: memory.memory_id.clone(),
+                memory_kind: "semantic".to_string(),
+                summary: memory.summary.clone(),
+                salience: memory.salience,
+                confidence: memory.confidence,
+                tokens,
+            });
+        }
+        for memory in &entry.agent.memories.episodic {
+            let tokens = summary_tokens(&memory.summary);
+            if tokens.is_empty() {
+                continue;
+            }
+            records.push(RoleMemoryRecord {
+                role_id: (*role_id).to_string(),
+                memory_id: memory.memory_id.clone(),
+                memory_kind: "episodic".to_string(),
+                summary: memory.summary.clone(),
+                salience: memory.salience,
+                confidence: memory.confidence,
+                tokens,
+            });
+        }
+        for memory in &entry.agent.memories.relationship_summaries {
+            let tokens = summary_tokens(&memory.summary);
+            if tokens.is_empty() {
+                continue;
+            }
+            records.push(RoleMemoryRecord {
+                role_id: (*role_id).to_string(),
+                memory_id: memory.memory_id.clone(),
+                memory_kind: "relationship_summary".to_string(),
                 summary: memory.summary.clone(),
                 salience: memory.salience,
                 confidence: memory.confidence,
@@ -2170,12 +2201,17 @@ fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
             pairs.push(serde_json::json!({
                 "leftRole": left.role_id,
                 "leftMemoryId": left.memory_id,
+                "leftMemoryKind": left.memory_kind,
                 "leftSummary": left.summary,
                 "rightRole": right.role_id,
                 "rightMemoryId": right.memory_id,
+                "rightMemoryKind": right.memory_kind,
                 "rightSummary": right.summary,
                 "strength": strength,
                 "sharedTokens": shared_tokens(&left.tokens, &right.tokens),
+                "sourceRoles": [left.role_id, right.role_id],
+                "sourceKinds": [left.memory_kind, right.memory_kind],
+                "evidenceRefs": [left.memory_id, right.memory_id],
             }));
         }
     }
@@ -2197,21 +2233,25 @@ fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
 
 fn build_incubation(
     previous: &Option<Value>,
+    bridge: &Option<Value>,
+    candidate_interventions: &Option<Value>,
     resonance: &Value,
     records: &[RoleMemoryRecord],
 ) -> Value {
-    let mut themes = previous
+    let previous_themes = previous
         .as_ref()
         .and_then(|value| value.get("themes"))
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default();
+    let source_coverage = build_source_coverage(records);
+    let mut themes = Vec::new();
     for pair in resonance
         .get("pairs")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .take(4)
+        .take(6)
     {
         let left_role = pair
             .get("leftRole")
@@ -2233,11 +2273,141 @@ fn build_incubation(
                     .join("/")
             })
             .unwrap_or_default();
+        let source_roles = unique_strings_from_value(pair.get("sourceRoles"));
+        let source_kinds = unique_strings_from_value(pair.get("sourceKinds"));
+        let source_memory_ids = unique_strings_from_value(pair.get("evidenceRefs"));
+        let summary = format!(
+            "{} and {} keep touching {}; let the swarm decide whether that is signal, stale echo, or a branch worth following.",
+            display_name_for_role(left_role),
+            display_name_for_role(right_role),
+            if tokens.is_empty() {
+                "an unnamed seam"
+            } else {
+                &tokens
+            }
+        );
+        let theme_id = format!(
+            "theme-{left_role}-{right_role}-{}",
+            stable_theme_suffix(&format!(
+                "{tokens}-{}-{}",
+                source_kinds.join("-"),
+                source_memory_ids.join("-")
+            ))
+        );
+        let previous_theme =
+            best_matching_theme(&previous_themes, &theme_id, &summary, &source_memory_ids);
+        let support_count = previous_support_count(previous_theme) + 1;
+        let novelty_to_self = novelty_to_self(
+            &theme_id,
+            &summary,
+            &source_memory_ids,
+            &previous_themes,
+            bridge,
+        );
+        let novelty_to_room = novelty_to_room(&theme_id, &summary, candidate_interventions, bridge);
+        let saturation = saturation_metrics(
+            &theme_id,
+            &summary,
+            &source_memory_ids,
+            &previous_themes,
+            bridge,
+            support_count,
+        );
+        let refractory_penalty = refractory_penalty(&theme_id, &summary, bridge);
+        let evidence_diversity =
+            evidence_diversity(&source_roles, &source_kinds, &source_memory_ids);
+        let exploration_bonus = exploration_bonus(&source_roles, &source_kinds, &source_coverage);
+        let quiet_signal_ratio = 0.0;
+        let prior_maturation = previous_theme
+            .and_then(|theme| theme.get("maturation"))
+            .and_then(Value::as_f64)
+            .unwrap_or(0.32);
+        let strength = pair.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
+        let maturation = round3(
+            (prior_maturation * 0.44
+                + strength * 0.24
+                + evidence_diversity * 0.14
+                + exploration_bonus * 0.12
+                + novelty_to_self * 0.06
+                + novelty_to_room * 0.06
+                + (support_count as f64 / 10.0).min(1.0) * 0.08
+                - saturation.score * 0.18
+                - refractory_penalty * 0.14
+                - quiet_signal_ratio * 0.12)
+                .clamp(0.0, 1.0),
+        );
+        let novelty = round3(
+            (novelty_to_self * 0.55 + novelty_to_room * 0.45 - quiet_signal_ratio * 0.1)
+                .clamp(0.0, 1.0),
+        );
+        let desire_to_speak = round3(
+            (strength * 0.18
+                + maturation * 0.18
+                + novelty_to_room * 0.18
+                + novelty_to_self * 0.10
+                + evidence_diversity * 0.12
+                + exploration_bonus * 0.10
+                - saturation.score * 0.24
+                - refractory_penalty * 0.16)
+                .clamp(0.0, 1.0),
+        );
+        let status = theme_status(
+            novelty_to_self,
+            novelty_to_room,
+            saturation.score,
+            refractory_penalty,
+            support_count,
+            evidence_diversity,
+            desire_to_speak,
+            maturation,
+        );
+        let priority_score = round3(
+            (desire_to_speak * 0.34
+                + novelty_to_self * 0.20
+                + novelty_to_room * 0.18
+                + evidence_diversity * 0.12
+                + exploration_bonus * 0.16
+                - saturation.score * 0.18
+                - refractory_penalty * 0.14)
+                .clamp(0.0, 1.0),
+        );
         themes.push(serde_json::json!({
-            "themeId": format!("theme-{left_role}-{right_role}-{}", stable_theme_suffix(&tokens)),
-            "summary": format!("{left_role} and {right_role} keep touching {tokens}; let the swarm dream on whether that is signal or stale echo."),
-            "strength": pair.get("strength").cloned().unwrap_or(Value::Null),
+            "themeId": previous_theme
+                .and_then(|theme| theme.get("themeId"))
+                .and_then(Value::as_str)
+                .unwrap_or(theme_id.as_str()),
+            "summary": summary,
+            "strength": round3(strength),
             "source": "memory_resonance",
+            "sourceRoles": source_roles,
+            "sourceKinds": source_kinds,
+            "sourceMemoryIds": source_memory_ids,
+            "supportCount": support_count,
+            "evidenceDiversity": round3(evidence_diversity),
+            "explorationBonus": round3(exploration_bonus),
+            "novelty": novelty,
+            "noveltyToSelf": round3(novelty_to_self),
+            "noveltyToRoom": round3(novelty_to_room),
+            "maturation": maturation,
+            "desireToSpeak": desire_to_speak,
+            "saturationScore": round3(saturation.score),
+            "recentMatchCount": saturation.recent_match_count,
+            "refractoryPenalty": round3(refractory_penalty),
+            "priorityScore": priority_score,
+            "status": status,
+            "latentQuestion": build_incubation_question(&source_roles, &source_kinds),
+            "whyItPulls": build_incubation_attraction(
+                &source_roles,
+                &source_kinds,
+                novelty_to_self,
+                evidence_diversity,
+            ),
+            "holdingCloseBecause": build_incubation_holding_line(
+                status,
+                saturation.score,
+                novelty_to_self,
+                exploration_bonus,
+            ),
             "updatedAt": now_iso(),
         }));
     }
@@ -2248,28 +2418,55 @@ fn build_incubation(
             "summary": format!("{} carries the hottest current memory: {}", display_name_for_role(&strongest.role_id), strongest.summary),
             "strength": round3(strongest.salience * strongest.confidence),
             "source": "strongest_memory",
+            "sourceRoles": [strongest.role_id.clone()],
+            "sourceKinds": [strongest.memory_kind.clone()],
+            "sourceMemoryIds": [strongest.memory_id.clone()],
+            "supportCount": 1,
+            "evidenceDiversity": 0.28,
+            "explorationBonus": 0.18,
+            "novelty": 0.62,
+            "noveltyToSelf": 0.62,
+            "noveltyToRoom": 0.58,
+            "maturation": round3((strongest.salience * strongest.confidence).clamp(0.18, 0.72)),
+            "desireToSpeak": round3((strongest.salience * strongest.confidence * 0.6).clamp(0.12, 0.55)),
+            "saturationScore": 0.0,
+            "recentMatchCount": 0,
+            "refractoryPenalty": 0.0,
+            "priorityScore": round3((strongest.salience * strongest.confidence * 0.7).clamp(0.14, 0.7)),
+            "status": "incubating",
+            "latentQuestion": "Does this hot memory deserve real follow-up, or is it just the loudest ember in the tray?",
+            "whyItPulls": "One strong memory is enough to seed a thought, but not enough to rule the room by default.",
+            "holdingCloseBecause": "This is a seed, not a verdict. Give it one more pass before it starts issuing prophecies.",
             "updatedAt": now_iso(),
         }));
     }
     themes.sort_by(|left, right| {
-        right["strength"]
+        right["priorityScore"]
             .as_f64()
             .unwrap_or_default()
-            .total_cmp(&left["strength"].as_f64().unwrap_or_default())
-    });
-    let mut seen_themes = BTreeSet::new();
-    themes.retain(|theme| {
-        let theme_id = theme
-            .get("themeId")
-            .and_then(Value::as_str)
-            .unwrap_or("unknown")
-            .to_string();
-        seen_themes.insert(theme_id)
+            .total_cmp(&left["priorityScore"].as_f64().unwrap_or_default())
+            .then_with(|| {
+                right["strength"]
+                    .as_f64()
+                    .unwrap_or_default()
+                    .total_cmp(&left["strength"].as_f64().unwrap_or_default())
+            })
     });
     themes.truncate(12);
     serde_json::json!({
         "schema_version": "epiphany.incubation.v0",
         "updatedAt": now_iso(),
+        "sourceCoverage": source_coverage,
+        "lastIncubationSummary": themes.first().map(|theme| {
+            format!(
+                "Strongest incubating seam: {} ({}, self={:.2}, room={:.2}, speak={:.2}).",
+                theme.get("themeId").and_then(Value::as_str).unwrap_or("unnamed-theme"),
+                theme.get("status").and_then(Value::as_str).unwrap_or("incubating"),
+                theme.get("noveltyToSelf").and_then(Value::as_f64).unwrap_or(0.0),
+                theme.get("noveltyToRoom").and_then(Value::as_f64).unwrap_or(0.0),
+                theme.get("desireToSpeak").and_then(Value::as_f64).unwrap_or(0.0),
+            )
+        }).unwrap_or_else(|| "No incubating thought currently has enough connective tissue to justify special treatment.".to_string()),
         "themes": themes,
     })
 }
@@ -2325,9 +2522,10 @@ fn build_thought_lanes(
                 "topic": topic,
                 "claim": theme.get("summary").and_then(Value::as_str).unwrap_or("An incubating thought wants another pass before it speaks."),
                 "sourceThemeId": topic,
-                "novelty": round3((0.42 + strength).min(0.92)),
-                "roomRelevance": round3((0.35 + strength).min(0.88)),
-                "desireToSpeak": round3((strength * 1.25).min(0.8)),
+                "novelty": theme.get("novelty").cloned().unwrap_or_else(|| serde_json::json!(round3((0.42 + strength).min(0.92)))),
+                "roomRelevance": theme.get("noveltyToRoom").cloned().unwrap_or_else(|| serde_json::json!(round3((0.35 + strength).min(0.88)))),
+                "desireToSpeak": theme.get("desireToSpeak").cloned().unwrap_or_else(|| serde_json::json!(round3((strength * 1.25).min(0.8)))),
+                "status": theme.get("status").cloned().unwrap_or_else(|| serde_json::json!("incubating")),
                 "counterweight": "A theme that keeps returning may be signal, obsession, or stale echo; the bridge must decide.",
                 "lastTouchedAt": now_iso(),
             })
@@ -2395,13 +2593,46 @@ fn build_thought_bridge(
         .and_then(Value::as_array)
         .and_then(|themes| themes.first())
         .cloned();
+    let strongest_status = strongest_theme
+        .as_ref()
+        .and_then(|theme| theme.get("status"))
+        .and_then(Value::as_str)
+        .unwrap_or("incubating");
+    let strongest_novelty_to_self = strongest_theme
+        .as_ref()
+        .and_then(|theme| theme.get("noveltyToSelf"))
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let strongest_novelty_to_room = strongest_theme
+        .as_ref()
+        .and_then(|theme| theme.get("noveltyToRoom"))
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let strongest_saturation = strongest_theme
+        .as_ref()
+        .and_then(|theme| theme.get("saturationScore"))
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let strongest_refractory = strongest_theme
+        .as_ref()
+        .and_then(|theme| theme.get("refractoryPenalty"))
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
     let lane_balance = match analytic_count.cmp(&associative_count) {
         std::cmp::Ordering::Greater => "analytic-heavy",
         std::cmp::Ordering::Less => "associative-heavy",
         std::cmp::Ordering::Equal => "balanced",
     };
-    let speak_decision = if resonance_count >= 3 && associative_count > 0 {
+    let speak_decision = if strongest_theme.is_none() && resonance_count == 0 {
+        "silence"
+    } else if strongest_status == "ripe"
+        && strongest_novelty_to_room >= 0.58
+        && strongest_saturation < 0.56
+        && strongest_refractory < 0.18
+    {
         "draft"
+    } else if matches!(strongest_status, "stalled" | "refractory") {
+        "silence"
     } else if resonance_count > 0 {
         "hold"
     } else {
@@ -2421,7 +2652,7 @@ fn build_thought_bridge(
     syntheses.push(serde_json::json!({
         "timestamp": now_iso(),
         "summary": if let Some(theme) = &strongest_theme {
-            format!("Analytic evidence edges and associative incubation currently converge on {}.", theme.get("themeId").and_then(Value::as_str).unwrap_or("an unnamed theme"))
+            bridge_summary(theme, speak_decision)
         } else {
             "No strong convergence yet; hold the lanes open without forcing speech.".to_string()
         },
@@ -2433,21 +2664,43 @@ fn build_thought_bridge(
             .unwrap_or_default(),
         "laneBalance": lane_balance,
         "speakDecision": speak_decision,
-        "saturationNote": if syntheses.len() > 4 {
-            Some("Recent syntheses are accumulating; cool repeated topics unless fresh evidence strengthens them.")
-        } else {
-            None
-        },
+        "themeStatus": strongest_status,
+        "noveltyToSelf": round3(strongest_novelty_to_self),
+        "noveltyToRoom": round3(strongest_novelty_to_room),
+        "saturationScore": round3(strongest_saturation),
+        "saturationNote": synthesis_saturation_note(strongest_status, strongest_saturation, strongest_novelty_to_self),
     }));
     syntheses.reverse();
     syntheses.truncate(8);
     syntheses.reverse();
+    let source_coverage = incubation
+        .get("sourceCoverage")
+        .cloned()
+        .unwrap_or_else(empty_source_coverage);
+    let topic_saturation = topic_saturation_from_syntheses_and_themes(
+        &syntheses,
+        incubation
+            .get("themes")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]),
+    );
+    let refractory_topics = refractory_topics_from_themes(
+        previous,
+        incubation
+            .get("themes")
+            .and_then(Value::as_array)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]),
+    );
 
     serde_json::json!({
         "schema_version": "epiphany.cognition_bridge.v0",
         "updatedAt": now_iso(),
         "recentSyntheses": syntheses,
-        "topicSaturation": topic_saturation_from_syntheses(&syntheses),
+        "sourceCoverage": source_coverage,
+        "topicSaturation": topic_saturation,
+        "refractoryTopics": refractory_topics,
         "unresolvedTensions": [{
             "topic": "thought authority boundary",
             "summary": "Cognition lanes may shape attention and drafts, but only reviewed Epiphany state surfaces change project truth.",
@@ -2456,7 +2709,14 @@ fn build_thought_bridge(
         "decision": {
             "laneBalance": lane_balance,
             "speakDecision": speak_decision,
-            "reason": "Bridge converts analytic and associative lanes into draft/hold/silence guidance without granting authority.",
+            "reason": bridge_decision_reason(
+                strongest_status,
+                strongest_novelty_to_self,
+                strongest_novelty_to_room,
+                strongest_saturation,
+                strongest_refractory,
+                speak_decision,
+            ),
         },
     })
 }
@@ -2470,16 +2730,23 @@ fn build_candidate_interventions(bridge: &Value, incubation: &Value) -> Value {
         .get("themes")
         .and_then(Value::as_array)
         .and_then(|themes| themes.first());
-    let items = if matches!(decision, "draft" | "hold") {
+    let strongest_status = strongest_theme
+        .as_ref()
+        .and_then(|theme| theme.get("status"))
+        .and_then(Value::as_str)
+        .unwrap_or("incubating");
+    let items = if decision == "draft" && strongest_status == "ripe" {
         strongest_theme
             .map(|theme| {
                 vec![serde_json::json!({
                     "interventionId": format!("candidate-{}", theme.get("themeId").and_then(Value::as_str).unwrap_or("theme")),
                     "summary": "Possible Aquarium-facing thought-weather note",
-                    "draft": format!("I keep seeing {} rhyme across the swarm; worth inspecting before it becomes either signal or superstition.", theme.get("themeId").and_then(Value::as_str).unwrap_or("an unnamed seam")),
+                    "draft": format!("I keep seeing {} rhyme across the swarm; this one finally has enough blood to inspect in the open.", theme.get("themeId").and_then(Value::as_str).unwrap_or("an unnamed seam")),
                     "decision": decision,
                     "requiresFace": true,
                     "requiresReview": true,
+                    "noveltyToRoom": theme.get("noveltyToRoom").cloned().unwrap_or(Value::Null),
+                    "saturationScore": theme.get("saturationScore").cloned().unwrap_or(Value::Null),
                     "createdAt": now_iso(),
                 })]
             })
@@ -2793,7 +3060,7 @@ fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
     }
 }
 
-fn topic_saturation_from_syntheses(syntheses: &[Value]) -> Vec<Value> {
+fn topic_saturation_from_syntheses_and_themes(syntheses: &[Value], themes: &[Value]) -> Vec<Value> {
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for synthesis in syntheses {
         for topic in synthesis
@@ -2804,6 +3071,19 @@ fn topic_saturation_from_syntheses(syntheses: &[Value]) -> Vec<Value> {
             .filter_map(Value::as_str)
         {
             *counts.entry(topic.to_string()).or_default() += 1;
+        }
+    }
+    for theme in themes {
+        if let Some(topic) = theme.get("themeId").and_then(Value::as_str) {
+            let bonus = if matches!(
+                theme.get("status").and_then(Value::as_str),
+                Some("refractory" | "stalled")
+            ) {
+                2
+            } else {
+                1
+            };
+            *counts.entry(topic.to_string()).or_default() += bonus;
         }
     }
     counts
@@ -2818,6 +3098,695 @@ fn topic_saturation_from_syntheses(syntheses: &[Value]) -> Vec<Value> {
             })
         })
         .collect()
+}
+
+fn refractory_topics_from_themes(previous_bridge: &Option<Value>, themes: &[Value]) -> Vec<Value> {
+    let previous_topics = previous_bridge
+        .as_ref()
+        .and_then(|value| value.get("refractoryTopics"))
+        .or_else(|| {
+            previous_bridge
+                .as_ref()
+                .and_then(|value| value.get("refractory_topics"))
+        })
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let now = chrono::Utc::now();
+    themes
+        .iter()
+        .filter_map(|theme| {
+            let status = theme.get("status").and_then(Value::as_str).unwrap_or("incubating");
+            let saturation = theme
+                .get("saturationScore")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            if !matches!(status, "refractory" | "stalled") && saturation < 0.62 {
+                return None;
+            }
+            let topic = theme
+                .get("themeId")
+                .and_then(Value::as_str)
+                .unwrap_or("unnamed-theme");
+            let previous_penalty = previous_topics
+                .iter()
+                .find(|entry| {
+                    theme_similarity(
+                        topic,
+                        "",
+                        entry.get("topic").and_then(Value::as_str).unwrap_or(""),
+                        "",
+                    ) >= 0.48
+                })
+                .and_then(|entry| entry.get("penalty"))
+                .and_then(Value::as_f64)
+                .unwrap_or(0.18);
+            let penalty = round3(
+                theme
+                    .get("refractoryPenalty")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(previous_penalty)
+                    .max(previous_penalty),
+            );
+            let hours = if penalty >= 0.28 {
+                4
+            } else if penalty >= 0.20 {
+                3
+            } else {
+                2
+            };
+            Some(serde_json::json!({
+                "topic": topic,
+                "penalty": penalty,
+                "coolsUntil": (now + Duration::hours(hours)).to_rfc3339_opts(chrono::SecondsFormat::Secs, false).replace('Z', "+00:00"),
+                "reason": build_refractory_reason(theme),
+                "lastTriggeredAt": now_iso(),
+            }))
+        })
+        .take(6)
+        .collect()
+}
+
+fn build_source_coverage(records: &[RoleMemoryRecord]) -> Value {
+    let mut role_counts: BTreeMap<String, usize> = BTreeMap::new();
+    let mut kind_counts: BTreeMap<String, usize> = BTreeMap::new();
+    for record in records {
+        *role_counts.entry(record.role_id.clone()).or_default() += 1;
+        *kind_counts.entry(record.memory_kind.clone()).or_default() += 1;
+    }
+    serde_json::json!({
+        "schema_version": "epiphany.source_coverage.v0",
+        "updatedAt": now_iso(),
+        "roles": role_counts.into_iter().map(|(role_id, count)| serde_json::json!({
+            "roleId": role_id,
+            "count": count,
+        })).collect::<Vec<_>>(),
+        "memoryKinds": kind_counts.into_iter().map(|(kind, count)| serde_json::json!({
+            "kind": kind,
+            "count": count,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+fn empty_source_coverage() -> Value {
+    serde_json::json!({
+        "schema_version": "epiphany.source_coverage.v0",
+        "updatedAt": now_iso(),
+        "roles": [],
+        "memoryKinds": [],
+    })
+}
+
+fn unique_strings_from_value(value: Option<&Value>) -> Vec<String> {
+    let mut seen = BTreeSet::new();
+    value
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .filter(|item| seen.insert((*item).to_string()))
+        .map(str::to_string)
+        .collect()
+}
+
+fn best_matching_theme<'a>(
+    previous_themes: &'a [Value],
+    theme_id: &str,
+    summary: &str,
+    source_memory_ids: &[String],
+) -> Option<&'a Value> {
+    let best =
+        previous_themes.iter().max_by(|left, right| {
+            theme_match_score(theme_id, summary, source_memory_ids, left).total_cmp(
+                &theme_match_score(theme_id, summary, source_memory_ids, right),
+            )
+        })?;
+    (theme_match_score(theme_id, summary, source_memory_ids, best) >= 0.42).then_some(best)
+}
+
+fn previous_support_count(previous_theme: Option<&Value>) -> usize {
+    previous_theme
+        .and_then(|theme| theme.get("supportCount"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0) as usize
+}
+
+fn novelty_to_self(
+    theme_id: &str,
+    summary: &str,
+    source_memory_ids: &[String],
+    previous_themes: &[Value],
+    bridge: &Option<Value>,
+) -> f64 {
+    let mut strongest_match = 0.0_f64;
+    for theme in previous_themes {
+        strongest_match = strongest_match.max(
+            theme_similarity(
+                theme_id,
+                summary,
+                theme.get("themeId").and_then(Value::as_str).unwrap_or(""),
+                theme.get("summary").and_then(Value::as_str).unwrap_or(""),
+            )
+            .max(overlap_ratio_strings(
+                source_memory_ids,
+                &unique_strings_from_value(theme.get("sourceMemoryIds")),
+            )),
+        );
+    }
+    for synthesis in bridge
+        .as_ref()
+        .and_then(|value| value.get("recentSyntheses"))
+        .or_else(|| {
+            bridge
+                .as_ref()
+                .and_then(|value| value.get("recent_syntheses"))
+        })
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(6)
+    {
+        strongest_match = strongest_match.max(theme_similarity(
+            theme_id,
+            summary,
+            synthesis
+                .get("dominantTopics")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" / ")
+                .as_str(),
+            synthesis
+                .get("summary")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+        ));
+    }
+    (1.0 - strongest_match).clamp(0.0, 1.0)
+}
+
+fn novelty_to_room(
+    theme_id: &str,
+    summary: &str,
+    previous_candidate_interventions: &Option<Value>,
+    bridge: &Option<Value>,
+) -> f64 {
+    let mut score = 0.64_f64;
+    for intervention in previous_candidate_interventions
+        .as_ref()
+        .and_then(|value| value.get("items"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(8)
+    {
+        let similarity = theme_similarity(
+            theme_id,
+            summary,
+            intervention
+                .get("interventionId")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+            intervention
+                .get("draft")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+        );
+        if similarity >= 0.42 {
+            return 0.22;
+        }
+    }
+    for synthesis in bridge
+        .as_ref()
+        .and_then(|value| value.get("recentSyntheses"))
+        .or_else(|| {
+            bridge
+                .as_ref()
+                .and_then(|value| value.get("recent_syntheses"))
+        })
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(6)
+    {
+        let similarity = theme_similarity(
+            theme_id,
+            summary,
+            synthesis
+                .get("dominantTopics")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" / ")
+                .as_str(),
+            synthesis
+                .get("summary")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+        );
+        if similarity >= 0.42 {
+            score = score.min(0.44);
+        }
+    }
+    score
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SaturationMetrics {
+    score: f64,
+    recent_match_count: usize,
+}
+
+fn saturation_metrics(
+    theme_id: &str,
+    summary: &str,
+    source_memory_ids: &[String],
+    previous_themes: &[Value],
+    bridge: &Option<Value>,
+    support_count: usize,
+) -> SaturationMetrics {
+    let mut recent_match_count = 0_usize;
+    for theme in previous_themes {
+        let similarity = theme_similarity(
+            theme_id,
+            summary,
+            theme.get("themeId").and_then(Value::as_str).unwrap_or(""),
+            theme.get("summary").and_then(Value::as_str).unwrap_or(""),
+        )
+        .max(overlap_ratio_strings(
+            source_memory_ids,
+            &unique_strings_from_value(theme.get("sourceMemoryIds")),
+        ));
+        if similarity >= 0.42 {
+            recent_match_count += 1;
+        }
+    }
+    for synthesis in bridge
+        .as_ref()
+        .and_then(|value| value.get("recentSyntheses"))
+        .or_else(|| {
+            bridge
+                .as_ref()
+                .and_then(|value| value.get("recent_syntheses"))
+        })
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(5)
+    {
+        let similarity = theme_similarity(
+            theme_id,
+            summary,
+            synthesis
+                .get("dominantTopics")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .collect::<Vec<_>>()
+                .join(" / ")
+                .as_str(),
+            synthesis
+                .get("summary")
+                .and_then(Value::as_str)
+                .unwrap_or(""),
+        );
+        if similarity >= 0.42 {
+            recent_match_count += 1;
+        }
+    }
+    let existing_topic_saturation = bridge
+        .as_ref()
+        .and_then(|value| value.get("topicSaturation"))
+        .or_else(|| {
+            bridge
+                .as_ref()
+                .and_then(|value| value.get("topic_saturation"))
+        })
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|entry| {
+            let similarity = theme_similarity(
+                theme_id,
+                summary,
+                entry.get("topic").and_then(Value::as_str).unwrap_or(""),
+                "",
+            );
+            (similarity >= 0.42).then(|| {
+                entry
+                    .get("dominance")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0)
+            })
+        })
+        .fold(0.0_f64, f64::max);
+    SaturationMetrics {
+        score: (recent_match_count as f64 * 0.16
+            + existing_topic_saturation * 0.42
+            + (support_count as f64 / 10.0).min(1.0) * 0.16)
+            .clamp(0.0, 1.0),
+        recent_match_count,
+    }
+}
+
+fn refractory_penalty(theme_id: &str, summary: &str, bridge: &Option<Value>) -> f64 {
+    let mut penalty = 0.0_f64;
+    let now = chrono::Utc::now();
+    for topic in bridge
+        .as_ref()
+        .and_then(|value| value.get("refractoryTopics"))
+        .or_else(|| {
+            bridge
+                .as_ref()
+                .and_then(|value| value.get("refractory_topics"))
+        })
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+    {
+        let cools_until = topic
+            .get("coolsUntil")
+            .and_then(Value::as_str)
+            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+            .map(|value| value.with_timezone(&chrono::Utc));
+        if cools_until.is_some_and(|deadline| deadline < now) {
+            continue;
+        }
+        let similarity = theme_similarity(
+            theme_id,
+            summary,
+            topic.get("topic").and_then(Value::as_str).unwrap_or(""),
+            topic.get("reason").and_then(Value::as_str).unwrap_or(""),
+        );
+        if similarity >= 0.48 {
+            penalty = penalty
+                .max(topic.get("penalty").and_then(Value::as_f64).unwrap_or(0.18) * similarity);
+        }
+    }
+    penalty.clamp(0.0, 0.45)
+}
+
+fn evidence_diversity(
+    source_roles: &[String],
+    source_kinds: &[String],
+    source_memory_ids: &[String],
+) -> f64 {
+    (source_roles.len() as f64 * 0.18
+        + source_kinds.len() as f64 * 0.16
+        + (source_memory_ids.len() as f64 / 4.0).min(1.0) * 0.10)
+        .clamp(0.0, 1.0)
+}
+
+fn exploration_bonus(
+    source_roles: &[String],
+    source_kinds: &[String],
+    source_coverage: &Value,
+) -> f64 {
+    let mut scores = Vec::new();
+    for role_id in source_roles {
+        scores.push(inverse_coverage_weight(
+            source_coverage.get("roles"),
+            "roleId",
+            role_id,
+        ));
+    }
+    for kind in source_kinds {
+        scores.push(inverse_coverage_weight(
+            source_coverage.get("memoryKinds"),
+            "kind",
+            kind,
+        ));
+    }
+    if scores.is_empty() {
+        return 0.18;
+    }
+    average(scores.into_iter()).unwrap_or(0.18).clamp(0.0, 1.0)
+}
+
+fn inverse_coverage_weight(entries: Option<&Value>, key: &str, needle: &str) -> f64 {
+    let count = entries
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .find(|entry| entry.get(key).and_then(Value::as_str) == Some(needle))
+        .and_then(|entry| entry.get("count"))
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
+    match count {
+        0 | 1 => 0.90,
+        2 => 0.64,
+        3 => 0.42,
+        _ => 0.20,
+    }
+}
+
+fn theme_status(
+    novelty_to_self: f64,
+    novelty_to_room: f64,
+    saturation_score: f64,
+    refractory_penalty: f64,
+    support_count: usize,
+    evidence_diversity: f64,
+    desire_to_speak: f64,
+    maturation: f64,
+) -> &'static str {
+    if novelty_to_self < 0.28 && saturation_score >= 0.62 {
+        "stalled"
+    } else if refractory_penalty >= 0.18 && novelty_to_room < 0.72 {
+        "refractory"
+    } else if support_count >= 6 && evidence_diversity < 0.34 {
+        "stalled"
+    } else if support_count >= 3 && novelty_to_self < 0.55 {
+        "cooling"
+    } else if saturation_score >= 0.56 && novelty_to_self < 0.42 {
+        "cooling"
+    } else if desire_to_speak >= 0.74
+        && (novelty_to_self >= 0.55 || novelty_to_room >= 0.82)
+        && saturation_score < 0.50
+        || maturation >= 0.82
+    {
+        "ripe"
+    } else {
+        "incubating"
+    }
+}
+
+fn build_incubation_question(source_roles: &[String], source_kinds: &[String]) -> &'static str {
+    if source_roles.len() > 1 && source_kinds.len() > 1 {
+        "Why are several organs and memory kinds rhyming here, and what would falsify the rhyme before it hardens into doctrine?"
+    } else if source_roles.len() > 1 {
+        "Is this cross-organ rhyme a real pressure seam or just shared vocabulary bouncing around the hull?"
+    } else {
+        "Does this hot local seam deserve reinforcement, or is it only loud because nothing else moved yet?"
+    }
+}
+
+fn build_incubation_attraction(
+    source_roles: &[String],
+    source_kinds: &[String],
+    novelty_to_self: f64,
+    evidence_diversity: f64,
+) -> &'static str {
+    if novelty_to_self >= 0.62 && evidence_diversity >= 0.45 {
+        "It keeps pulling because it is still finding genuinely different support instead of merely changing hats."
+    } else if source_roles.len() >= 2 {
+        "It keeps pulling because more than one organ is worrying the same seam at once."
+    } else if source_kinds.len() >= 2 {
+        "It keeps pulling because the same seam is surfacing across different memory kinds, not just one hot recollection."
+    } else {
+        "It keeps pulling because one live seam still has some blood in it; that does not make it king."
+    }
+}
+
+fn build_incubation_holding_line(
+    status: &str,
+    saturation_score: f64,
+    novelty_to_self: f64,
+    exploration_bonus: f64,
+) -> &'static str {
+    match status {
+        "stalled" => {
+            "This seam is repeating itself without earning new structure. Merge the receipts, cool it off, and go somewhere less domesticated."
+        }
+        "refractory" => {
+            "This seam has been chewing the same meat too recently. Let it cool unless a genuinely different source family forces it back open."
+        }
+        "ripe" => {
+            "This seam has enough connective tissue that silence should be a deliberate choice rather than a reflex."
+        }
+        _ if saturation_score >= 0.55 && novelty_to_self < 0.45 => {
+            "The family resemblance is getting too strong. Follow a stranger branch before this theme speaks again."
+        }
+        _ if exploration_bonus >= 0.45 => {
+            "This one is still drawing energy from underworked terrain, so another pass might actually change it."
+        }
+        _ => {
+            "Give it another pass so the thought can either grow teeth or admit it was only a pleasant loop."
+        }
+    }
+}
+
+fn build_refractory_reason(theme: &Value) -> String {
+    let topic = theme
+        .get("themeId")
+        .and_then(Value::as_str)
+        .unwrap_or("this seam");
+    let novelty_to_self = theme
+        .get("noveltyToSelf")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let saturation_score = theme
+        .get("saturationScore")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    if novelty_to_self < 0.3 {
+        format!(
+            "{topic} is matching Epiphany's own recent thought history too closely to deserve another immediate pass."
+        )
+    } else if saturation_score >= 0.62 {
+        format!(
+            "{topic} has dominated too many recent bridge syntheses and needs cooling before it becomes machine religion."
+        )
+    } else {
+        format!("{topic} needs a brief cooling period before it earns attention again.")
+    }
+}
+
+fn bridge_summary(theme: &Value, speak_decision: &str) -> String {
+    let topic = theme
+        .get("themeId")
+        .and_then(Value::as_str)
+        .unwrap_or("an unnamed theme");
+    let status = theme
+        .get("status")
+        .and_then(Value::as_str)
+        .unwrap_or("incubating");
+    let novelty_to_self = theme
+        .get("noveltyToSelf")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    let novelty_to_room = theme
+        .get("noveltyToRoom")
+        .and_then(Value::as_f64)
+        .unwrap_or(0.0);
+    match (speak_decision, status) {
+        ("draft", _) => format!(
+            "Analytic evidence edges and associative incubation currently converge on {topic}; this seam is still fresh enough to surface (self={novelty_to_self:.2}, room={novelty_to_room:.2})."
+        ),
+        (_, "refractory" | "stalled") => format!(
+            "{topic} is still loud, but the bridge is cooling it off because the machine has been worrying the same seam too hard."
+        ),
+        _ => format!(
+            "{topic} is still live, so the bridge is letting it sit and deepen instead of forcing novelty theater."
+        ),
+    }
+}
+
+fn synthesis_saturation_note(
+    status: &str,
+    saturation_score: f64,
+    novelty_to_self: f64,
+) -> Option<&'static str> {
+    if matches!(status, "refractory" | "stalled") {
+        Some(
+            "This topic is currently under cooling discipline; demand stranger support before resurfacing it.",
+        )
+    } else if saturation_score >= 0.55 && novelty_to_self < 0.45 {
+        Some(
+            "Recent syntheses are getting too familial; rebranch before letting this seam become doctrine.",
+        )
+    } else if status == "incubating" {
+        Some(
+            "A live thought is allowed to sit without performing a fresh retrieval errand every pass.",
+        )
+    } else {
+        None
+    }
+}
+
+fn bridge_decision_reason(
+    strongest_status: &str,
+    novelty_to_self: f64,
+    novelty_to_room: f64,
+    saturation_score: f64,
+    refractory_penalty: f64,
+    speak_decision: &str,
+) -> &'static str {
+    match speak_decision {
+        "draft" => {
+            "Bridge surfaces this seam because it is fresh enough to the swarm-facing surface and not yet overworked."
+        }
+        "hold" if strongest_status == "incubating" => {
+            "Bridge keeps this seam in incubation because it is still live and grounded; retrieval is support, not throat-clearing ritual."
+        }
+        "hold" => {
+            "Bridge holds the seam open without surfacing it yet; there is enough blood for another pass, but not enough freshness for speech."
+        }
+        "silence" if strongest_status == "refractory" || refractory_penalty >= 0.18 => {
+            "Bridge silences this seam temporarily because the machine has been circling it too hard."
+        }
+        "silence"
+            if strongest_status == "stalled"
+                || saturation_score >= 0.62
+                || novelty_to_self < 0.28 =>
+        {
+            "Bridge silences this seam because it is mostly self-echo at the moment."
+        }
+        _ if novelty_to_room < 0.40 => {
+            "Bridge withholds surface speech because the thought is not novel enough to the swarm-facing room."
+        }
+        _ => {
+            "Bridge converts analytic and associative lanes into draft/hold/silence guidance without granting authority."
+        }
+    }
+}
+
+fn theme_similarity(
+    left_topic: &str,
+    left_summary: &str,
+    right_topic: &str,
+    right_summary: &str,
+) -> f64 {
+    let left_tokens = summary_tokens(&format!("{left_topic} {left_summary}"));
+    let right_tokens = summary_tokens(&format!("{right_topic} {right_summary}"));
+    token_overlap(&left_tokens, &right_tokens)
+}
+
+fn theme_match_score(
+    theme_id: &str,
+    summary: &str,
+    source_memory_ids: &[String],
+    theme: &Value,
+) -> f64 {
+    theme_similarity(
+        theme_id,
+        summary,
+        theme.get("themeId").and_then(Value::as_str).unwrap_or(""),
+        theme.get("summary").and_then(Value::as_str).unwrap_or(""),
+    )
+    .max(overlap_ratio_strings(
+        source_memory_ids,
+        &unique_strings_from_value(theme.get("sourceMemoryIds")),
+    ))
+}
+
+fn overlap_ratio_strings(left: &[String], right: &[String]) -> f64 {
+    if left.is_empty() || right.is_empty() {
+        return 0.0;
+    }
+    let left_set = left.iter().cloned().collect::<BTreeSet<_>>();
+    let right_set = right.iter().cloned().collect::<BTreeSet<_>>();
+    let shared = left_set.intersection(&right_set).count() as f64;
+    if shared <= 0.0 {
+        return 0.0;
+    }
+    let union = left_set.union(&right_set).count() as f64;
+    if union <= 0.0 { 0.0 } else { shared / union }
 }
 
 fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream: bool) -> Value {

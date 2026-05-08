@@ -38,6 +38,24 @@ The heartbeat store currently carries:
   - `appraisals`
   - `reactions`
 
+The routine surfaces now have a little more anatomy than they used to:
+
+- `incubation.sourceCoverage`
+  - versioned coverage receipt for which role families and memory kinds have
+    been feeding the current routine
+- `incubation.themes[*]`
+  - now include `noveltyToSelf`, `noveltyToRoom`, `saturationScore`,
+    `refractoryPenalty`, `supportCount`, `evidenceDiversity`,
+    `explorationBonus`, `priorityScore`, `status`, and short holding/attraction
+    lines
+- `bridge.sourceCoverage`
+  - mirrored terrain coverage for the bridge decision layer
+- `bridge.topicSaturation`
+  - repeated-theme pressure derived from both bridge syntheses and current
+    incubating themes
+- `bridge.refractoryTopics`
+  - temporary cooling records for seams the machine has been worrying too hard
+
 ## Participant Shape
 
 Each participant tracks:
@@ -70,6 +88,14 @@ The important semantics are:
 - urgent systems can raise tempo and concurrency
 - idle turns are for rumination, not fake work
 - sleep/dream passes are the intended distillation window
+- a live, unsaturated thought is allowed to sit and deepen without performing a
+  fake novelty errand every pass
+- novelty is split in two on purpose:
+  - `noveltyToSelf` asks whether the swarm is repeating itself
+  - `noveltyToRoom` asks whether the swarm-facing surface has already been fed
+    the same seam
+- saturation and refractory cooling exist to keep one rewarding theme from
+  annexing the whole machine
 
 ## Relation To Agent Dossiers
 
