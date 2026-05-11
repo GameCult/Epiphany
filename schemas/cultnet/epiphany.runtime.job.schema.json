@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.job.schema.json",
+  "title": "Epiphany Runtime Job",
+  "description": "Native runtime-spine job state.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "jobId": {
+      "type": "string"
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "artifactRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "jobId",
+    "sessionId",
+    "role",
+    "status",
+    "createdAt",
+    "updatedAt"
+  ]
+}

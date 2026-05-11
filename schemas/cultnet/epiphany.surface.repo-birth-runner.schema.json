@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-birth-runner.schema.json",
+  "title": "Epiphany repo-birth-runner",
+  "description": "Startup-only birth runner summary mirrored from epiphany-repo-birth-runner.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "baseline": {
+      "type": "string"
+    },
+    "artifactDir": {
+      "type": "string"
+    },
+    "initStore": {
+      "type": "string"
+    },
+    "agentStore": {
+      "type": "string"
+    },
+    "heartbeatStore": {
+      "type": "string"
+    },
+    "startup": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "executions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "requiresReview": {
+      "type": "boolean"
+    },
+    "nextSafeMove": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "createdAt",
+    "mode",
+    "repo",
+    "baseline",
+    "artifactDir",
+    "initStore",
+    "agentStore",
+    "heartbeatStore",
+    "startup",
+    "executions",
+    "requiresReview",
+    "nextSafeMove"
+  ]
+}

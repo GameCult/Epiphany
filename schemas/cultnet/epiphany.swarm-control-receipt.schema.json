@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.swarm-control-receipt.schema.json",
+  "title": "Epiphany Swarm Control Receipt",
+  "description": "Generic receipt emitted after a coordinator-owned Epiphany control action.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "ok": {
+      "type": "boolean"
+    },
+    "action": {
+      "type": "string"
+    },
+    "authority": {
+      "type": "string"
+    },
+    "targetDocumentType": {
+      "type": "string"
+    },
+    "targetBindingId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targetRole": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targetThreadId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "artifactPaths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "ok",
+    "action",
+    "authority",
+    "targetDocumentType",
+    "status",
+    "summary"
+  ]
+}

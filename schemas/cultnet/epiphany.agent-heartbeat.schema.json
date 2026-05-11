@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
+  "title": "Epiphany Heartbeat State",
+  "description": "Typed heartbeat store entry for initiative, rumination, and routine physiology.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "targetHeartbeatRate": {
+      "type": "number"
+    },
+    "sceneClock": {
+      "type": "number"
+    },
+    "selectionPolicy": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "pacingPolicy": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "participants": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "sleepCycle": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "memoryResonance": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "incubation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "thoughtLanes": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "bridge": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "candidateInterventions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "appraisals": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reactions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "extra": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "targetHeartbeatRate",
+    "sceneClock",
+    "selectionPolicy",
+    "pacingPolicy",
+    "participants",
+    "history"
+  ]
+}

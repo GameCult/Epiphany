@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.graph-query.schema.json",
+  "title": "Epiphany graph-query",
+  "description": "Bounded graph traversal response mirrored from thread/epiphany/graphQuery.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "stateStatus": {
+      "type": "string"
+    },
+    "stateRevision": {
+      "type": "integer"
+    },
+    "graph": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "frontier": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "checkpoint": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "matched": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "missing": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "threadId",
+    "source",
+    "stateStatus",
+    "graph",
+    "matched",
+    "missing"
+  ]
+}

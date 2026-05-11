@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.rider-bridge.schema.json",
+  "title": "Epiphany rider-bridge",
+  "description": "Operator-safe Rider status/context/open-ref surface mirrored from epiphany-rider-bridge.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "status": {
+      "type": "string"
+    },
+    "projectRoot": {
+      "type": "string"
+    },
+    "rider": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "solution": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "vcs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "status"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.discord_persona_post_intent.v0.schema.json",
+  "title": "epiphany discord_persona_post_intent v0",
+  "description": "Face persona post intent for the #aquarium Discord mouth.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "channelId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "personaName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "personaAvatarUrl": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "replyToMessageId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "threadId",
+    "content"
+  ]
+}

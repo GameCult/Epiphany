@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.reorient_accept_intent.v0.schema.json",
+  "title": "epiphany reorient_accept_intent v0",
+  "description": "Review-gated reorientation finding acceptance intent mirroring thread/epiphany/reorientAccept.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "expectedRevision": {
+      "type": "integer"
+    },
+    "bindingId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "updateScratch": {
+      "type": "boolean"
+    },
+    "updateInvestigationCheckpoint": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "threadId"
+  ]
+}

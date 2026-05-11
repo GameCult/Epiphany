@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.role_launch_intent.v0.schema.json",
+  "title": "epiphany role_launch_intent v0",
+  "description": "Fixed-lane role launch intent mirroring thread/epiphany/roleLaunch.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "roleId": {
+      "type": "string"
+    },
+    "expectedRevision": {
+      "type": "integer"
+    },
+    "maxRuntimeSeconds": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "threadId",
+    "roleId"
+  ]
+}

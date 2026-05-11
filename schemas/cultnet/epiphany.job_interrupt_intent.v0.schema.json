@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.job_interrupt_intent.v0.schema.json",
+  "title": "epiphany job_interrupt_intent v0",
+  "description": "Bounded job interrupt intent mirroring thread/epiphany/jobInterrupt.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "bindingId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "threadId"
+  ]
+}

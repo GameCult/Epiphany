@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.face.schema.json",
+  "title": "Epiphany face",
+  "description": "Operator-safe Face bubble/draft/post surface mirrored from epiphany-face-discord and epiphany-character-loop artifacts.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "ok": {
+      "type": "boolean"
+    },
+    "status": {
+      "type": "string"
+    },
+    "latestArtifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "bubbles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "drafts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "posts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "ok"
+  ]
+}

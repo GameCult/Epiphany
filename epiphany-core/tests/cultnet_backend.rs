@@ -20,9 +20,9 @@ fn epiphany_agent_memory_can_move_over_cultnet_documents() -> Result<()> {
 
     let mut registry = CultNetDocumentRegistry::new();
     registry.register(
-        CultNetDocumentBinding::for_entry::<EpiphanyAgentMemoryEntry>(Some(
-            "ghostlight.agent_state.v0".to_string(),
-        )),
+        CultNetDocumentBinding::for_entry::<EpiphanyAgentMemoryEntry>(
+            "ghostlight.agent_state.v0",
+        ),
     );
     let snapshot = registry.create_snapshot_response(
         &source_cache,

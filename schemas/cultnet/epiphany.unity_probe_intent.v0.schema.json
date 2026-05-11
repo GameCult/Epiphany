@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.unity_probe_intent.v0.schema.json",
+  "title": "epiphany unity_probe_intent v0",
+  "description": "Unity bridge named probe intent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "projectPath": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string"
+    },
+    "scene": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "asset": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "guid": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "maxObjects": {
+      "type": "integer"
+    },
+    "maxProperties": {
+      "type": "integer"
+    },
+    "maxDependencies": {
+      "type": "integer"
+    },
+    "platform": {
+      "type": "string"
+    },
+    "filter": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "dryRun": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "projectPath",
+    "operation"
+  ]
+}

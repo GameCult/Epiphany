@@ -1,0 +1,46 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.heartbeat_pump_intent.v0.schema.json",
+  "title": "epiphany heartbeat_pump_intent v0",
+  "description": "Heartbeat pump intent for waking lanes and pacing the swarm.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "scheduleId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "sourceSceneRef": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "coordinatorAction": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "targetRole": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "externalUrgency": {
+      "type": "number"
+    },
+    "maxTicks": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "threadId"
+  ]
+}

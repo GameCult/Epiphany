@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-personality-artifacts.schema.json",
+  "title": "Epiphany Repo Personality Artifacts",
+  "description": "Repo scout/project/startup artifact family emitted by epiphany-repo-personality.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "root": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repo": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "repoId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifactDir": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "store": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "profile": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "terrain": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "trajectory": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "generatedPackets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "requiredActions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "nextSafeMove": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "mode"
+  ]
+}

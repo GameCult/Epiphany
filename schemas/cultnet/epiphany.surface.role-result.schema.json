@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.role-result.schema.json",
+  "title": "Epiphany role-result",
+  "description": "Reviewable role finding read-back mirrored from thread/epiphany/roleResult.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "roleId": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "stateStatus": {
+      "type": "string"
+    },
+    "stateRevision": {
+      "type": "integer"
+    },
+    "bindingId": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "threadId",
+    "roleId",
+    "source",
+    "stateStatus",
+    "bindingId",
+    "status",
+    "note"
+  ]
+}

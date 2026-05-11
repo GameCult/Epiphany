@@ -26,6 +26,10 @@ developer's damp recollection.
   heartbeat seeds.
 - [heartbeat-state-schema.md](./heartbeat-state-schema.md):
   typed initiative and routine-state contract for the swarm heartbeat organ.
+- [cultnet/README.md](./cultnet/README.md):
+  published CultNet-facing state, surface, intent, and receipt schemas that
+  Aquarium and other runtimes can discover through Epiphany's schema-catalog
+  response.
 
 ## Source Of Truth
 

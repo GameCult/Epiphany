@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.circadian_rhythm_intent.v0.schema.json",
+  "title": "epiphany circadian_rhythm_intent v0",
+  "description": "Circadian rhythm intent for letting the swarm sleep or wake.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "sleeping": {
+      "type": "boolean"
+    },
+    "targetHeartbeatRate": {
+      "type": "number"
+    },
+    "allowDream": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "threadId",
+    "sleeping"
+  ]
+}

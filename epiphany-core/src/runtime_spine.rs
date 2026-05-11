@@ -1,6 +1,11 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use crate::agent_memory::AGENT_MEMORY_TYPE;
+use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
+use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
+use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
+use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
 use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
@@ -8,7 +13,11 @@ use cultnet_rs::CultNetDocumentMutationContract;
 use cultnet_rs::CultNetDocumentOperation;
 use cultnet_rs::CultNetMessage;
 use cultnet_rs::CultNetMutationAuthority;
+use cultnet_rs::CultNetSchemaKind;
+use cultnet_rs::CultNetSchemaRegistration;
+use cultnet_rs::CultNetSchemaRegistry;
 use cultnet_rs::CultNetWireContract;
+use cultnet_rs::builtin_schema_registry;
 use cultnet_rs::encode_cultnet_message_to_vec;
 use cultnet_rs::encode_frame;
 use serde::Deserialize;
@@ -16,6 +25,7 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
+use std::path::PathBuf;
 
 pub const RUNTIME_IDENTITY_TYPE: &str = "epiphany.runtime.identity";
 pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
@@ -23,6 +33,9 @@ pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const RUNTIME_EVENT_TYPE: &str = "epiphany.runtime.event";
 pub const SURFACE_SCENE_TYPE: &str = "epiphany.surface.scene";
+pub const SURFACE_FRESHNESS_TYPE: &str = "epiphany.surface.freshness";
+pub const SURFACE_CONTEXT_TYPE: &str = "epiphany.surface.context";
+pub const SURFACE_GRAPH_QUERY_TYPE: &str = "epiphany.surface.graph_query";
 pub const SURFACE_PRESSURE_TYPE: &str = "epiphany.surface.pressure";
 pub const SURFACE_REORIENT_TYPE: &str = "epiphany.surface.reorient";
 pub const SURFACE_CRRC_TYPE: &str = "epiphany.surface.crrc";
@@ -41,6 +54,9 @@ pub const SURFACE_UNITY_BRIDGE_TYPE: &str = "epiphany.surface.unity_bridge";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const SCENE_SURFACE_SCHEMA_VERSION: &str = "epiphany.scene_surface.v0";
+pub const FRESHNESS_SURFACE_SCHEMA_VERSION: &str = "epiphany.freshness_surface.v0";
+pub const CONTEXT_SURFACE_SCHEMA_VERSION: &str = "epiphany.context_surface.v0";
+pub const GRAPH_QUERY_SURFACE_SCHEMA_VERSION: &str = "epiphany.graph_query_surface.v0";
 pub const PRESSURE_SURFACE_SCHEMA_VERSION: &str = "epiphany.pressure_surface.v0";
 pub const REORIENT_SURFACE_SCHEMA_VERSION: &str = "epiphany.reorient_surface.v0";
 pub const CRRC_SURFACE_SCHEMA_VERSION: &str = "epiphany.crrc_surface.v0";
@@ -58,6 +74,30 @@ pub const REPO_BIRTH_RUNNER_SURFACE_SCHEMA_VERSION: &str =
     "epiphany.repo_birth_runner_surface.v0";
 pub const RIDER_BRIDGE_SURFACE_SCHEMA_VERSION: &str = "epiphany.rider_bridge_surface.v0";
 pub const UNITY_BRIDGE_SURFACE_SCHEMA_VERSION: &str = "epiphany.unity_bridge_surface.v0";
+pub const AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION: &str = "epiphany.agent_memory.v0";
+pub const CULTNET_SCHEMA_INDEX_RELATIVE: &str = "schemas/cultnet/index.json";
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EpiphanyCultNetSchemaIndex {
+    schema_version: String,
+    schemas: Vec<EpiphanyCultNetSchemaIndexEntry>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EpiphanyCultNetSchemaIndexEntry {
+    schema_id: String,
+    kind: CultNetSchemaKind,
+    wire_contracts: Vec<CultNetWireContract>,
+    #[serde(default)]
+    schema_version: Option<String>,
+    #[serde(default)]
+    document_type: Option<String>,
+    #[serde(default)]
+    title: Option<String>,
+    path: String,
+}
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
 #[cultcache(type = "epiphany.runtime.identity", schema = "EpiphanyRuntimeIdentity")]
@@ -680,6 +720,85 @@ pub fn write_runtime_hello_frame(
     Ok(frame.len())
 }
 
+pub fn epiphany_schema_registry() -> Result<CultNetSchemaRegistry> {
+    let mut registry = builtin_schema_registry()?;
+    let schema_root = epiphany_schema_root();
+    let index_path = schema_root.join("index.json");
+    let raw_index = fs::read_to_string(&index_path)
+        .with_context(|| format!("failed to read {}", index_path.display()))?;
+    let index: EpiphanyCultNetSchemaIndex = serde_json::from_str(&raw_index)
+        .with_context(|| format!("failed to parse {}", index_path.display()))?;
+    if index.schema_version.trim().is_empty() {
+        return Err(anyhow!(
+            "CultNet schema index at {} is missing schemaVersion",
+            index_path.display()
+        ));
+    }
+
+    for entry in index.schemas {
+        let schema_path = schema_root.join(&entry.path);
+        let schema_json = fs::read_to_string(&schema_path)
+            .with_context(|| format!("failed to read {}", schema_path.display()))?;
+        registry.register(CultNetSchemaRegistration {
+            schema_id: entry.schema_id,
+            kind: entry.kind,
+            wire_contracts: entry.wire_contracts,
+            schema_version: entry.schema_version,
+            document_type: entry.document_type,
+            title: entry.title,
+            schema_json: Some(schema_json),
+        })?;
+    }
+
+    Ok(registry)
+}
+
+pub fn runtime_schema_catalog_response(
+    message_id: impl Into<String>,
+    include_schema_json: bool,
+    schema_ids: Option<Vec<String>>,
+    kinds: Option<Vec<CultNetSchemaKind>>,
+) -> Result<CultNetMessage> {
+    let registry = epiphany_schema_registry()?;
+    registry.create_catalog_response(&CultNetMessage::SchemaCatalogRequest {
+        message_id: message_id.into(),
+        include_schema_json: Some(include_schema_json),
+        schema_ids,
+        kinds,
+    })
+}
+
+pub fn write_runtime_schema_catalog_json(
+    output_path: impl AsRef<Path>,
+    include_schema_json: bool,
+) -> Result<usize> {
+    let output_path = output_path.as_ref();
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create {}", parent.display()))?;
+    }
+    let response = runtime_schema_catalog_response(
+        "runtime-spine-schema-catalog".to_string(),
+        include_schema_json,
+        None,
+        None,
+    )?;
+    let body = serde_json::to_vec_pretty(&response)?;
+    fs::write(output_path, &body)
+        .with_context(|| format!("failed to write {}", output_path.display()))?;
+    Ok(body.len())
+}
+
+fn epiphany_schema_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("epiphany-core has no parent repo root")
+        .join(CULTNET_SCHEMA_INDEX_RELATIVE)
+        .parent()
+        .expect("cultnet schema index has no parent directory")
+        .to_path_buf()
+}
+
 fn require_identity(cache: &CultCache) -> Result<EpiphanyRuntimeIdentity> {
     cache
         .get::<EpiphanyRuntimeIdentity>(RUNTIME_IDENTITY_KEY)?
@@ -824,8 +943,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Runtime events are append-only projections for inspection."],
         ),
         mutation_contract(
-            "epiphany.agent.memory",
-            "ghostlight.agent_state.v0",
+            AGENT_MEMORY_TYPE,
+            AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::IntentSubmit,
@@ -839,8 +958,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            "epiphany.heartbeat.state",
-            "epiphany.agent_heartbeat.v0",
+            HEARTBEAT_STATE_TYPE,
+            HEARTBEAT_STATE_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::IntentSubmit,
@@ -857,8 +976,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            "epiphany.state_ledger",
-            "epiphany.state_ledger.v0",
+            STATE_LEDGER_STORE_TYPE,
+            STATE_LEDGER_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
             CultNetMutationAuthority::ReadOnly,
             vec![],
@@ -873,6 +992,30 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Operator-safe scene reflection mirrored from thread/epiphany/scene.",
                 "Aquarium should read this before offering live coordination actions.",
+            ],
+        ),
+        read_only_surface_contract(
+            SURFACE_FRESHNESS_TYPE,
+            FRESHNESS_SURFACE_SCHEMA_VERSION,
+            vec![
+                "Freshness reflection mirrored from thread/epiphany/freshness.",
+                "Use this to visualize retrieval and graph staleness without inventing a hidden refresh daemon.",
+            ],
+        ),
+        read_only_surface_contract(
+            SURFACE_CONTEXT_TYPE,
+            CONTEXT_SURFACE_SCHEMA_VERSION,
+            vec![
+                "Targeted graph, frontier, checkpoint, observation, and evidence context mirrored from thread/epiphany/context.",
+                "Aquarium should inspect bounded state shards here instead of scraping state blobs by superstition.",
+            ],
+        ),
+        read_only_surface_contract(
+            SURFACE_GRAPH_QUERY_TYPE,
+            GRAPH_QUERY_SURFACE_SCHEMA_VERSION,
+            vec![
+                "Bounded graph traversal mirrored from thread/epiphany/graphQuery.",
+                "Use this for architecture/dataflow inspection and frontier neighborhoods without mutating state.",
             ],
         ),
         read_only_surface_contract(
@@ -1235,7 +1378,7 @@ mod tests {
                 let contracts = supported_mutation_contracts.unwrap();
                 let heartbeat_contract = contracts
                     .iter()
-                    .find(|contract| contract.document_type == "epiphany.heartbeat.state")
+                    .find(|contract| contract.document_type == HEARTBEAT_STATE_TYPE)
                     .expect("heartbeat state should advertise mutation contract");
                 assert_eq!(
                     heartbeat_contract.authority,
@@ -1288,6 +1431,33 @@ mod tests {
             }
             other => panic!("expected hello, got {other:?}"),
         }
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_spine_schema_catalog_includes_surface_and_control_receipts() -> Result<()> {
+        let registry = epiphany_schema_registry()?;
+        let schemas = registry.list(&cultnet_rs::CultNetSchemaCatalogOptions {
+            include_schema_json: false,
+            schema_ids: None,
+            kinds: None,
+        });
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(SURFACE_SCENE_TYPE)
+                && schema.schema_version.as_deref() == Some(SCENE_SURFACE_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(SURFACE_COORDINATOR_TYPE)
+                && schema.schema_version.as_deref() == Some(COORDINATOR_SURFACE_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some("epiphany.role_launch_intent.v0")
+                && schema.schema_version.as_deref() == Some("epiphany.role_launch_intent.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some("epiphany.swarm_control_receipt.v0")
+                && schema.schema_version.as_deref() == Some("epiphany.swarm_control_receipt.v0")
+        }));
         Ok(())
     }
 }

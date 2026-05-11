@@ -1,0 +1,87 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-initialization.schema.json",
+  "title": "Epiphany repo-initialization",
+  "description": "Startup-only repo initialization summary mirrored from epiphany-repo-personality startup.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "repoId": {
+      "type": "string"
+    },
+    "repo": {
+      "type": "string"
+    },
+    "baseline": {
+      "type": "string"
+    },
+    "artifactDir": {
+      "type": "string"
+    },
+    "initStore": {
+      "type": "string"
+    },
+    "acceptedKinds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missingKinds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "projectionStore": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "generatedPackets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "requiredActions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requiresReview": {
+      "type": "boolean"
+    },
+    "nextSafeMove": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "mode",
+    "action",
+    "repoId",
+    "repo",
+    "baseline",
+    "artifactDir",
+    "initStore",
+    "acceptedKinds",
+    "missingKinds",
+    "generatedPackets",
+    "requiredActions",
+    "requiresReview",
+    "nextSafeMove"
+  ]
+}

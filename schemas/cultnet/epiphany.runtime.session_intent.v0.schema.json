@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.session_intent.v0.schema.json",
+  "title": "epiphany runtime session_intent v0",
+  "description": "Coordinator-owned runtime session creation/update intent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "coordinatorNote": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "threadId",
+    "objective"
+  ]
+}

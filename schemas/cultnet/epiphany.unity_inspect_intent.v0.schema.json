@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.unity_inspect_intent.v0.schema.json",
+  "title": "epiphany unity_inspect_intent v0",
+  "description": "Unity bridge inspect intent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "projectPath": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "projectPath"
+  ]
+}

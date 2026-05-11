@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.coordinator.schema.json",
+  "title": "Epiphany coordinator",
+  "description": "Fixed-lane coordinator recommendation surface mirrored from thread/epiphany/coordinator.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "stateStatus": {
+      "type": "string"
+    },
+    "stateRevision": {
+      "type": "integer"
+    },
+    "action": {
+      "type": "string"
+    },
+    "targetRole": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "recommendedSceneAction": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "requiresReview": {
+      "type": "boolean"
+    },
+    "canAutoRun": {
+      "type": "boolean"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "sourceSignals": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "roles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "threadId",
+    "source",
+    "stateStatus",
+    "action",
+    "requiresReview",
+    "canAutoRun",
+    "reason",
+    "sourceSignals",
+    "roles",
+    "note"
+  ]
+}

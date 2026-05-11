@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_initialization_accept_intent.v0.schema.json",
+  "title": "epiphany repo_initialization_accept_intent v0",
+  "description": "Startup-only repo initialization acceptance intent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "kind": {
+      "type": "string"
+    },
+    "packetPath": {
+      "type": "string"
+    },
+    "resultPath": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "acceptedBy": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agentStore": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "applySelfPatches": {
+      "type": "boolean"
+    },
+    "applyTraitSeeds": {
+      "type": "boolean"
+    },
+    "heartbeatStore": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "applyHeartbeatSeeds": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "kind",
+    "packetPath"
+  ]
+}

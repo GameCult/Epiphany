@@ -13,6 +13,7 @@ use epiphany_core::create_runtime_job;
 use epiphany_core::create_runtime_session;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::runtime_spine_status;
+use epiphany_core::write_runtime_schema_catalog_json;
 use epiphany_core::write_runtime_hello_frame;
 use std::env;
 use std::path::PathBuf;
@@ -165,6 +166,15 @@ fn main() -> Result<()> {
             println!("path: {}", output.display());
             println!("bytes: {bytes}");
         }
+        Command::SchemaCatalog {
+            output,
+            include_schema_json,
+        } => {
+            let bytes = write_runtime_schema_catalog_json(&output, include_schema_json)?;
+            println!("cultnet schema catalog written");
+            println!("path: {}", output.display());
+            println!("bytes: {bytes}");
+        }
     }
     Ok(())
 }
@@ -213,6 +223,10 @@ enum Command {
     },
     HelloFrame {
         output: PathBuf,
+    },
+    SchemaCatalog {
+        output: PathBuf,
+        include_schema_json: bool,
     },
 }
 
@@ -444,6 +458,25 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
             })?;
             Ok(Command::HelloFrame { output })
         }
+        "schema-catalog" => {
+            let mut output = PathBuf::from(".epiphany-dogfood/runtime-spine/schema-catalog.json");
+            let mut include_schema_json = false;
+            parse_options(args, |name, value| match name {
+                "--output" => {
+                    output = PathBuf::from(value);
+                    Ok(())
+                }
+                "--include-schema-json" => {
+                    include_schema_json = parse_bool_flag(&value, "--include-schema-json")?;
+                    Ok(())
+                }
+                _ => Err(anyhow!("unknown schema-catalog argument: {name}")),
+            })?;
+            Ok(Command::SchemaCatalog {
+                output,
+                include_schema_json,
+            })
+        }
         _ => Err(anyhow!(usage())),
     }
 }
@@ -471,10 +504,18 @@ fn take_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Path
         .ok_or_else(|| anyhow!("{name} requires a value"))
 }
 
+fn parse_bool_flag(value: &str, name: &str) -> Result<bool> {
+    match value {
+        "true" | "1" | "yes" => Ok(true),
+        "false" | "0" | "no" => Ok(false),
+        _ => Err(anyhow!("{name} must be true/false")),
+    }
+}
+
 fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|open-session|open-job|complete-job|record-event|hello-frame>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|open-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
 }

@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.session.schema.json",
+  "title": "Epiphany Runtime Session",
+  "description": "Native runtime-spine session state.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "coordinatorNote": {
+      "type": "string"
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "sessionId",
+    "objective",
+    "status",
+    "createdAt",
+    "updatedAt"
+  ]
+}

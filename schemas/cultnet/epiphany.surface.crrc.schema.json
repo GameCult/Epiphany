@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.crrc.schema.json",
+  "title": "Epiphany crrc",
+  "description": "Read-only CRRC recommendation surface mirrored from thread/epiphany/crrc.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "stateStatus": {
+      "type": "string"
+    },
+    "stateRevision": {
+      "type": "integer"
+    },
+    "pressure": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reorientBindingId": {
+      "type": "string"
+    },
+    "reorientResultStatus": {
+      "type": "string"
+    },
+    "job": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "threadId",
+    "source",
+    "stateStatus",
+    "pressure",
+    "decision",
+    "recommendation",
+    "reorientBindingId",
+    "reorientResultStatus"
+  ]
+}

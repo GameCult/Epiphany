@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.face-bubble.schema.json",
+  "title": "Epiphany Face Bubble",
+  "description": "Aquarium-visible Face bubble artifact.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "target": {
+      "type": "string"
+    },
+    "roleId": {
+      "type": "string"
+    },
+    "agentId": {
+      "type": "string"
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "mood": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "bubble": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "createdAt",
+    "status",
+    "source",
+    "target",
+    "roleId",
+    "agentId",
+    "displayName",
+    "mood",
+    "content",
+    "bubble"
+  ]
+}

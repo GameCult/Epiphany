@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.character_turn_intent.v0.schema.json",
+  "title": "epiphany character_turn_intent v0",
+  "description": "Character-loop turn intent for Face or other embodied actors.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "roleId": {
+      "type": "string"
+    },
+    "stimulus": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "mood": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "threadId",
+    "roleId",
+    "stimulus"
+  ]
+}

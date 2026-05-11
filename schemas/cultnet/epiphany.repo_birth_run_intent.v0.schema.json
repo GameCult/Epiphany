@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_birth_run_intent.v0.schema.json",
+  "title": "epiphany repo_birth_run_intent v0",
+  "description": "Startup-only repo birth runner plan/run intent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "repo": {
+      "type": "string"
+    },
+    "baseline": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "artifactDir": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "initStore": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agentStore": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "heartbeatStore": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mode": {
+      "type": "string"
+    },
+    "model": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "timeoutSeconds": {
+      "type": "integer"
+    },
+    "autoAccept": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "repo"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.reorient_launch_intent.v0.schema.json",
+  "title": "epiphany reorient_launch_intent v0",
+  "description": "Bounded reorient-worker launch intent mirroring thread/epiphany/reorientLaunch.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "expectedRevision": {
+      "type": "integer"
+    },
+    "maxRuntimeSeconds": {
+      "type": "integer"
+    }
+  },
+  "required": [
+    "threadId"
+  ]
+}

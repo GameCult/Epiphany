@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-initialization-record.schema.json",
+  "title": "Epiphany Repo Initialization Record",
+  "description": "Accepted startup-only birth rite record.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "recordId": {
+      "type": "string"
+    },
+    "repoId": {
+      "type": "string"
+    },
+    "repoPath": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string"
+    },
+    "sourcePacketSchemaVersion": {
+      "type": "string"
+    },
+    "sourcePacketPath": {
+      "type": "string"
+    },
+    "acceptedAt": {
+      "type": "string"
+    },
+    "acceptedBy": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "recordId",
+    "repoId",
+    "repoPath",
+    "kind",
+    "sourcePacketSchemaVersion",
+    "sourcePacketPath",
+    "acceptedAt",
+    "acceptedBy",
+    "summary"
+  ]
+}

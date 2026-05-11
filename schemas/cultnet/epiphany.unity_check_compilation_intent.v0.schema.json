@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.unity_check_compilation_intent.v0.schema.json",
+  "title": "epiphany unity_check_compilation_intent v0",
+  "description": "Unity bridge compilation-check intent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "projectPath": {
+      "type": "string"
+    },
+    "dryRun": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "projectPath"
+  ]
+}

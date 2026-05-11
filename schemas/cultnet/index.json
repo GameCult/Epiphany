@@ -1,0 +1,654 @@
+{
+  "schemaVersion": "epiphany.cultnet_catalog.v0",
+  "schemas": [
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.identity.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime_spine.v0",
+      "documentType": "epiphany.runtime.identity",
+      "title": "Epiphany Runtime Identity",
+      "path": "epiphany.runtime.identity.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.session.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime_spine.v0",
+      "documentType": "epiphany.runtime.session",
+      "title": "Epiphany Runtime Session",
+      "path": "epiphany.runtime.session.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.job.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime_spine.v0",
+      "documentType": "epiphany.runtime.job",
+      "title": "Epiphany Runtime Job",
+      "path": "epiphany.runtime.job.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.job-result.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime_spine.v0",
+      "documentType": "epiphany.runtime.job_result",
+      "title": "Epiphany Runtime Job Result",
+      "path": "epiphany.runtime.job-result.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.event.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime_spine.v0",
+      "documentType": "epiphany.runtime.event",
+      "title": "Epiphany Runtime Event",
+      "path": "epiphany.runtime.event.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent.memory.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.agent_memory.v0",
+      "documentType": "epiphany.agent_memory",
+      "title": "Epiphany Agent Memory",
+      "path": "epiphany.agent.memory.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.agent_heartbeat.v0",
+      "documentType": "epiphany.agent_heartbeat",
+      "title": "Epiphany Heartbeat State",
+      "path": "epiphany.agent-heartbeat.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.state-ledger.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.state_ledger.v0",
+      "documentType": "epiphany.state_ledger",
+      "title": "Epiphany State Ledger",
+      "path": "epiphany.state-ledger.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.scene.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.scene_surface.v0",
+      "documentType": "epiphany.surface.scene",
+      "title": "Epiphany scene",
+      "path": "epiphany.surface.scene.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.freshness.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.freshness_surface.v0",
+      "documentType": "epiphany.surface.freshness",
+      "title": "Epiphany freshness",
+      "path": "epiphany.surface.freshness.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.context.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.context_surface.v0",
+      "documentType": "epiphany.surface.context",
+      "title": "Epiphany context",
+      "path": "epiphany.surface.context.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.graph-query.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.graph_query_surface.v0",
+      "documentType": "epiphany.surface.graph_query",
+      "title": "Epiphany graph-query",
+      "path": "epiphany.surface.graph-query.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.pressure.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.pressure_surface.v0",
+      "documentType": "epiphany.surface.pressure",
+      "title": "Epiphany pressure",
+      "path": "epiphany.surface.pressure.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.reorient.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.reorient_surface.v0",
+      "documentType": "epiphany.surface.reorient",
+      "title": "Epiphany reorient",
+      "path": "epiphany.surface.reorient.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.crrc.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.crrc_surface.v0",
+      "documentType": "epiphany.surface.crrc",
+      "title": "Epiphany crrc",
+      "path": "epiphany.surface.crrc.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.jobs.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.jobs_surface.v0",
+      "documentType": "epiphany.surface.jobs",
+      "title": "Epiphany jobs",
+      "path": "epiphany.surface.jobs.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.roles.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.roles_surface.v0",
+      "documentType": "epiphany.surface.roles",
+      "title": "Epiphany roles",
+      "path": "epiphany.surface.roles.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.role-result.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.role_result_surface.v0",
+      "documentType": "epiphany.surface.role_result",
+      "title": "Epiphany role-result",
+      "path": "epiphany.surface.role-result.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.reorient-result.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.reorient_result_surface.v0",
+      "documentType": "epiphany.surface.reorient_result",
+      "title": "Epiphany reorient-result",
+      "path": "epiphany.surface.reorient-result.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.planning.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.planning_surface.v0",
+      "documentType": "epiphany.surface.planning",
+      "title": "Epiphany planning",
+      "path": "epiphany.surface.planning.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.coordinator.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.coordinator_surface.v0",
+      "documentType": "epiphany.surface.coordinator",
+      "title": "Epiphany coordinator",
+      "path": "epiphany.surface.coordinator.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.face.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.face_surface.v0",
+      "documentType": "epiphany.surface.face",
+      "title": "Epiphany face",
+      "path": "epiphany.surface.face.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.void-memory.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.void_memory_surface.v0",
+      "documentType": "epiphany.surface.void_memory",
+      "title": "Epiphany void-memory",
+      "path": "epiphany.surface.void-memory.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-initialization.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_initialization_surface.v0",
+      "documentType": "epiphany.surface.repo_initialization",
+      "title": "Epiphany repo-initialization",
+      "path": "epiphany.surface.repo-initialization.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-birth-runner.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_birth_runner_surface.v0",
+      "documentType": "epiphany.surface.repo_birth_runner",
+      "title": "Epiphany repo-birth-runner",
+      "path": "epiphany.surface.repo-birth-runner.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.rider-bridge.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.rider_bridge_surface.v0",
+      "documentType": "epiphany.surface.rider_bridge",
+      "title": "Epiphany rider-bridge",
+      "path": "epiphany.surface.rider-bridge.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.unity-bridge.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.unity_bridge_surface.v0",
+      "documentType": "epiphany.surface.unity_bridge",
+      "title": "Epiphany unity-bridge",
+      "path": "epiphany.surface.unity-bridge.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.session_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.runtime.session_intent.v0",
+      "documentType": "epiphany.runtime.session_intent.v0",
+      "title": "epiphany runtime session_intent v0",
+      "path": "epiphany.runtime.session_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.heartbeat_pump_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.heartbeat_pump_intent.v0",
+      "documentType": "epiphany.heartbeat_pump_intent.v0",
+      "title": "epiphany heartbeat_pump_intent v0",
+      "path": "epiphany.heartbeat_pump_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.circadian_rhythm_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.circadian_rhythm_intent.v0",
+      "documentType": "epiphany.circadian_rhythm_intent.v0",
+      "title": "epiphany circadian_rhythm_intent v0",
+      "path": "epiphany.circadian_rhythm_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent_memory_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.agent_memory_intent.v0",
+      "documentType": "epiphany.agent_memory_intent.v0",
+      "title": "epiphany agent_memory_intent v0",
+      "path": "epiphany.agent_memory_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.job_launch_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.job_launch_intent.v0",
+      "documentType": "epiphany.job_launch_intent.v0",
+      "title": "epiphany job_launch_intent v0",
+      "path": "epiphany.job_launch_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.job_interrupt_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.job_interrupt_intent.v0",
+      "documentType": "epiphany.job_interrupt_intent.v0",
+      "title": "epiphany job_interrupt_intent v0",
+      "path": "epiphany.job_interrupt_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.role_launch_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.role_launch_intent.v0",
+      "documentType": "epiphany.role_launch_intent.v0",
+      "title": "epiphany role_launch_intent v0",
+      "path": "epiphany.role_launch_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.role_accept_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.role_accept_intent.v0",
+      "documentType": "epiphany.role_accept_intent.v0",
+      "title": "epiphany role_accept_intent v0",
+      "path": "epiphany.role_accept_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.reorient_launch_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.reorient_launch_intent.v0",
+      "documentType": "epiphany.reorient_launch_intent.v0",
+      "title": "epiphany reorient_launch_intent v0",
+      "path": "epiphany.reorient_launch_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.reorient_accept_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.reorient_accept_intent.v0",
+      "documentType": "epiphany.reorient_accept_intent.v0",
+      "title": "epiphany reorient_accept_intent v0",
+      "path": "epiphany.reorient_accept_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.planning_update_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.planning_update_intent.v0",
+      "documentType": "epiphany.planning_update_intent.v0",
+      "title": "epiphany planning_update_intent v0",
+      "path": "epiphany.planning_update_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.objective_adoption_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.objective_adoption_intent.v0",
+      "documentType": "epiphany.objective_adoption_intent.v0",
+      "title": "epiphany objective_adoption_intent v0",
+      "path": "epiphany.objective_adoption_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.face_bubble_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.face_bubble_intent.v0",
+      "documentType": "epiphany.face_bubble_intent.v0",
+      "title": "epiphany face_bubble_intent v0",
+      "path": "epiphany.face_bubble_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.character_turn_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.character_turn_intent.v0",
+      "documentType": "epiphany.character_turn_intent.v0",
+      "title": "epiphany character_turn_intent v0",
+      "path": "epiphany.character_turn_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.discord_persona_post_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.discord_persona_post_intent.v0",
+      "documentType": "epiphany.discord_persona_post_intent.v0",
+      "title": "epiphany discord_persona_post_intent v0",
+      "path": "epiphany.discord_persona_post_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_startup_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_startup_intent.v0",
+      "documentType": "epiphany.repo_startup_intent.v0",
+      "title": "epiphany repo_startup_intent v0",
+      "path": "epiphany.repo_startup_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_initialization_accept_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_initialization_accept_intent.v0",
+      "documentType": "epiphany.repo_initialization_accept_intent.v0",
+      "title": "epiphany repo_initialization_accept_intent v0",
+      "path": "epiphany.repo_initialization_accept_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo_birth_run_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_birth_run_intent.v0",
+      "documentType": "epiphany.repo_birth_run_intent.v0",
+      "title": "epiphany repo_birth_run_intent v0",
+      "path": "epiphany.repo_birth_run_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.rider_status_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.rider_status_intent.v0",
+      "documentType": "epiphany.rider_status_intent.v0",
+      "title": "epiphany rider_status_intent v0",
+      "path": "epiphany.rider_status_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.rider_context_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.rider_context_intent.v0",
+      "documentType": "epiphany.rider_context_intent.v0",
+      "title": "epiphany rider_context_intent v0",
+      "path": "epiphany.rider_context_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.rider_open_ref_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.rider_open_ref_intent.v0",
+      "documentType": "epiphany.rider_open_ref_intent.v0",
+      "title": "epiphany rider_open_ref_intent v0",
+      "path": "epiphany.rider_open_ref_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.unity_inspect_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.unity_inspect_intent.v0",
+      "documentType": "epiphany.unity_inspect_intent.v0",
+      "title": "epiphany unity_inspect_intent v0",
+      "path": "epiphany.unity_inspect_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.unity_probe_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.unity_probe_intent.v0",
+      "documentType": "epiphany.unity_probe_intent.v0",
+      "title": "epiphany unity_probe_intent v0",
+      "path": "epiphany.unity_probe_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.unity_check_compilation_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.unity_check_compilation_intent.v0",
+      "documentType": "epiphany.unity_check_compilation_intent.v0",
+      "title": "epiphany unity_check_compilation_intent v0",
+      "path": "epiphany.unity_check_compilation_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.unity_run_tests_intent.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.unity_run_tests_intent.v0",
+      "documentType": "epiphany.unity_run_tests_intent.v0",
+      "title": "epiphany unity_run_tests_intent v0",
+      "path": "epiphany.unity_run_tests_intent.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.swarm-control-receipt.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.swarm_control_receipt.v0",
+      "documentType": "epiphany.swarm_control_receipt.v0",
+      "title": "Epiphany Swarm Control Receipt",
+      "path": "epiphany.swarm-control-receipt.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.face-bubble.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.face_bubble.v0",
+      "documentType": "epiphany.face_bubble.v0",
+      "title": "Epiphany Face Bubble",
+      "path": "epiphany.face-bubble.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.face-chat.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.face_chat.v0",
+      "documentType": "epiphany.face_chat.v0",
+      "title": "Epiphany Face Chat Draft",
+      "path": "epiphany.face-chat.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.character-turn-packet.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.character_turn_packet.v0",
+      "documentType": "epiphany.character_turn_packet.v0",
+      "title": "Epiphany Character Turn Packet",
+      "path": "epiphany.character-turn-packet.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-personality-artifacts.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_personality_artifacts.v0",
+      "documentType": "epiphany.repo_personality_artifacts.v0",
+      "title": "Epiphany Repo Personality Artifacts",
+      "path": "epiphany.repo-personality-artifacts.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-initialization-record.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_initialization_record.v0",
+      "documentType": "epiphany.repo_initialization_record",
+      "title": "Epiphany Repo Initialization Record",
+      "path": "epiphany.repo-initialization-record.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.repo-birth-runner.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.repo_birth_runner.v0",
+      "documentType": "epiphany.repo_birth_runner.v0",
+      "title": "Epiphany Repo Birth Runner Summary",
+      "path": "epiphany.repo-birth-runner.schema.json"
+    }
+  ]
+}

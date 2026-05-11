@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.rider_context_intent.v0.schema.json",
+  "title": "epiphany rider_context_intent v0",
+  "description": "Rider bridge context capture intent.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "projectRoot": {
+      "type": "string"
+    },
+    "file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "line": {
+      "type": "integer"
+    },
+    "column": {
+      "type": "integer"
+    },
+    "selectionStart": {
+      "type": "integer"
+    },
+    "selectionEnd": {
+      "type": "integer"
+    },
+    "symbolName": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "symbolKind": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "symbolNamespace": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "projectRoot"
+  ]
+}

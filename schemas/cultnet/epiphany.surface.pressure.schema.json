@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.pressure.schema.json",
+  "title": "Epiphany pressure",
+  "description": "Read-only context pressure reflection mirrored from thread/epiphany/pressure.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "pressure": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "threadId",
+    "source",
+    "pressure"
+  ]
+}
