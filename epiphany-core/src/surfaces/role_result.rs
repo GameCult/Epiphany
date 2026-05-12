@@ -45,6 +45,51 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub item_error: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyRoleAcceptanceFinding {
+    pub role_id: EpiphanyRoleResultRoleId,
+    pub verdict: Option<String>,
+    pub summary: Option<String>,
+    pub next_safe_move: Option<String>,
+    pub files_inspected: Vec<String>,
+    pub runtime_result_id: Option<String>,
+    pub runtime_job_id: Option<String>,
+    pub projected_fields: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyReorientAcceptanceFinding {
+    pub mode: Option<String>,
+    pub summary: Option<String>,
+    pub next_safe_move: Option<String>,
+    pub checkpoint_still_valid: Option<bool>,
+    pub files_inspected: Vec<String>,
+    pub runtime_result_id: Option<String>,
+    pub runtime_job_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyAcceptanceBundle {
+    pub accepted_receipt_id: String,
+    pub accepted_observation_id: String,
+    pub accepted_evidence_id: String,
+    pub evidence: EpiphanyEvidenceRecord,
+    pub observation: EpiphanyObservation,
+    pub receipt: EpiphanyAcceptanceReceipt,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyReorientAcceptanceBundle {
+    pub accepted_receipt_id: String,
+    pub accepted_observation_id: String,
+    pub accepted_evidence_id: String,
+    pub evidence: EpiphanyEvidenceRecord,
+    pub observation: EpiphanyObservation,
+    pub receipt: EpiphanyAcceptanceReceipt,
+    pub scratch: Option<EpiphanyScratchPad>,
+    pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
+}
+
 pub fn interpret_role_finding(
     role_id: EpiphanyRoleResultRoleId,
     raw_result: &serde_json::Value,
@@ -102,6 +147,130 @@ pub fn interpret_role_finding(
     }
 }
 
+pub fn build_role_acceptance_bundle(
+    binding_id: &str,
+    role: EpiphanyRoleAcceptanceFinding,
+    accepted_evidence_id: String,
+    accepted_observation_id: String,
+    accepted_at: String,
+) -> Result<EpiphanyAcceptanceBundle, String> {
+    let accepted_kind = role_accepted_kind(role.role_id)?;
+    let accepted_prefix = role_label(role.role_id)?;
+    let runtime_result_id = role
+        .runtime_result_id
+        .clone()
+        .ok_or_else(|| "cannot accept role finding without a runtimeResultId".to_string())?;
+    let runtime_job_id = role
+        .runtime_job_id
+        .clone()
+        .ok_or_else(|| "cannot accept role finding without a runtimeJobId".to_string())?;
+    let accepted_receipt_id = format!("accept-{accepted_prefix}-{runtime_result_id}");
+    let code_refs = role_finding_code_refs(role.role_id, &role.files_inspected);
+    let evidence = EpiphanyEvidenceRecord {
+        id: accepted_evidence_id.clone(),
+        kind: accepted_kind.to_string(),
+        status: "accepted".to_string(),
+        summary: role_finding_summary(&role),
+        code_refs: code_refs.clone(),
+    };
+    let observation = EpiphanyObservation {
+        id: accepted_observation_id.clone(),
+        summary: role_finding_observation_summary(&role),
+        source_kind: accepted_kind.to_string(),
+        status: "accepted".to_string(),
+        code_refs,
+        evidence_ids: vec![accepted_evidence_id.clone()],
+    };
+    let receipt = EpiphanyAcceptanceReceipt {
+        id: accepted_receipt_id.clone(),
+        result_id: runtime_result_id,
+        job_id: runtime_job_id,
+        binding_id: binding_id.to_string(),
+        surface: "roleAccept".to_string(),
+        role_id: accepted_prefix.to_string(),
+        status: "accepted".to_string(),
+        accepted_at,
+        accepted_observation_id: Some(accepted_observation_id.clone()),
+        accepted_evidence_id: Some(accepted_evidence_id.clone()),
+        summary: role.summary.clone(),
+    };
+    Ok(EpiphanyAcceptanceBundle {
+        accepted_receipt_id,
+        accepted_observation_id,
+        accepted_evidence_id,
+        evidence,
+        observation,
+        receipt,
+    })
+}
+
+pub fn build_reorient_acceptance_bundle(
+    binding_id: &str,
+    finding: EpiphanyReorientAcceptanceFinding,
+    accepted_evidence_id: String,
+    accepted_observation_id: String,
+    accepted_at: String,
+    update_scratch: bool,
+    investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
+) -> Result<EpiphanyReorientAcceptanceBundle, String> {
+    let runtime_result_id = finding.runtime_result_id.clone().ok_or_else(|| {
+        "cannot accept reorientation finding without a runtimeResultId".to_string()
+    })?;
+    let runtime_job_id = finding
+        .runtime_job_id
+        .clone()
+        .ok_or_else(|| "cannot accept reorientation finding without a runtimeJobId".to_string())?;
+    let accepted_receipt_id = format!("accept-reorient-{runtime_result_id}");
+    let code_refs = reorient_finding_code_refs(&finding.files_inspected);
+    let evidence = EpiphanyEvidenceRecord {
+        id: accepted_evidence_id.clone(),
+        kind: "reorient_result".to_string(),
+        status: "accepted".to_string(),
+        summary: reorient_finding_summary(&finding),
+        code_refs: code_refs.clone(),
+    };
+    let observation = EpiphanyObservation {
+        id: accepted_observation_id.clone(),
+        summary: reorient_finding_observation_summary(&finding),
+        source_kind: "reorient_result".to_string(),
+        status: "accepted".to_string(),
+        code_refs: code_refs.clone(),
+        evidence_ids: vec![accepted_evidence_id.clone()],
+    };
+    let scratch = update_scratch.then(|| reorient_finding_scratch(binding_id, &finding));
+    let investigation_checkpoint = investigation_checkpoint.map(|checkpoint| {
+        reorient_finding_investigation_checkpoint(
+            checkpoint,
+            accepted_evidence_id.as_str(),
+            code_refs.as_slice(),
+            &finding,
+        )
+    });
+    let receipt = EpiphanyAcceptanceReceipt {
+        id: accepted_receipt_id.clone(),
+        result_id: runtime_result_id,
+        job_id: runtime_job_id,
+        binding_id: binding_id.to_string(),
+        surface: "reorientAccept".to_string(),
+        role_id: "reorientation".to_string(),
+        status: "accepted".to_string(),
+        accepted_at,
+        accepted_observation_id: Some(accepted_observation_id.clone()),
+        accepted_evidence_id: Some(accepted_evidence_id.clone()),
+        summary: finding.summary.clone(),
+    };
+    Ok(EpiphanyReorientAcceptanceBundle {
+        accepted_receipt_id,
+        accepted_observation_id,
+        accepted_evidence_id,
+        evidence,
+        observation,
+        receipt,
+        scratch,
+        investigation_checkpoint,
+    })
+}
+
 pub fn role_self_memory_target(role_id: EpiphanyRoleResultRoleId) -> (&'static str, &'static str) {
     match role_id {
         EpiphanyRoleResultRoleId::Imagination => (
@@ -120,6 +289,28 @@ pub fn role_self_memory_target(role_id: EpiphanyRoleResultRoleId) -> (&'static s
         EpiphanyRoleResultRoleId::Reorientation => {
             ("epiphany.life", "state/agents/life.agent-state.json")
         }
+    }
+}
+
+pub fn role_accepted_kind(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
+    match role_id {
+        EpiphanyRoleResultRoleId::Imagination => Ok("planning_synthesis"),
+        EpiphanyRoleResultRoleId::Modeling => Ok("modeling_result"),
+        EpiphanyRoleResultRoleId::Verification => Ok("verification_result"),
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => Err(
+            format!("role {role_id:?} cannot be accepted through roleAccept"),
+        ),
+    }
+}
+
+pub fn role_label(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
+    match role_id {
+        EpiphanyRoleResultRoleId::Imagination => Ok("imagination"),
+        EpiphanyRoleResultRoleId::Modeling => Ok("modeling"),
+        EpiphanyRoleResultRoleId::Verification => Ok("verification"),
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => Err(
+            format!("role {role_id:?} cannot be accepted through roleAccept"),
+        ),
     }
 }
 
@@ -444,6 +635,143 @@ fn merge_item_error(item_error: Option<String>, extra_error: Option<String>) -> 
         (None, Some(extra)) => Some(extra),
         (None, None) => None,
     }
+}
+
+fn role_finding_summary(finding: &EpiphanyRoleAcceptanceFinding) -> String {
+    let summary = finding
+        .summary
+        .clone()
+        .unwrap_or_else(|| "Role worker returned a structured finding.".to_string());
+    if let Some(next_safe_move) = finding.next_safe_move.as_deref() {
+        format!("{summary} Next safe move: {next_safe_move}")
+    } else {
+        summary
+    }
+}
+
+fn role_finding_observation_summary(finding: &EpiphanyRoleAcceptanceFinding) -> String {
+    let verdict = finding.verdict.as_deref().unwrap_or("unknown");
+    let changed = if finding.projected_fields.is_empty() {
+        "no typed state fields projected".to_string()
+    } else {
+        finding.projected_fields.join(", ")
+    };
+    format!(
+        "Accepted {:?} role result with verdict {verdict}; projected fields: {changed}. {}",
+        finding.role_id,
+        role_finding_summary(finding)
+    )
+}
+
+fn role_finding_code_refs(
+    role_id: EpiphanyRoleResultRoleId,
+    files_inspected: &[String],
+) -> Vec<EpiphanyCodeRef> {
+    files_inspected
+        .iter()
+        .filter(|path| !path.trim().is_empty())
+        .map(|path| EpiphanyCodeRef {
+            path: PathBuf::from(path),
+            start_line: None,
+            end_line: None,
+            symbol: None,
+            note: Some(format!("Inspected by accepted {role_id:?} role worker.")),
+        })
+        .collect()
+}
+
+fn reorient_finding_summary(finding: &EpiphanyReorientAcceptanceFinding) -> String {
+    let summary = finding
+        .summary
+        .clone()
+        .unwrap_or_else(|| "Reorientation worker returned a structured finding.".to_string());
+    if let Some(next_safe_move) = finding.next_safe_move.as_deref() {
+        format!("{summary} Next safe move: {next_safe_move}")
+    } else {
+        summary
+    }
+}
+
+fn reorient_finding_observation_summary(finding: &EpiphanyReorientAcceptanceFinding) -> String {
+    let mode = finding.mode.as_deref().unwrap_or("unknown");
+    let validity = match finding.checkpoint_still_valid {
+        Some(true) => "checkpoint still valid",
+        Some(false) => "checkpoint requires regather",
+        None => "checkpoint validity not reported",
+    };
+    format!(
+        "Accepted {mode} reorientation result: {validity}. {}",
+        reorient_finding_summary(finding)
+    )
+}
+
+fn reorient_finding_code_refs(files_inspected: &[String]) -> Vec<EpiphanyCodeRef> {
+    files_inspected
+        .iter()
+        .filter(|path| !path.trim().is_empty())
+        .map(|path| EpiphanyCodeRef {
+            path: PathBuf::from(path),
+            start_line: None,
+            end_line: None,
+            symbol: None,
+            note: Some("Inspected by accepted reorientation worker.".to_string()),
+        })
+        .collect()
+}
+
+fn reorient_finding_scratch(
+    binding_id: &str,
+    finding: &EpiphanyReorientAcceptanceFinding,
+) -> EpiphanyScratchPad {
+    let mode = finding.mode.as_deref().unwrap_or("unknown");
+    let checkpoint_validity = match finding.checkpoint_still_valid {
+        Some(true) => "valid",
+        Some(false) => "invalid",
+        None => "unknown",
+    };
+    EpiphanyScratchPad {
+        summary: finding.summary.clone(),
+        hypothesis: Some(format!(
+            "Accepted {mode} reorientation finding from {binding_id}; checkpoint validity is {checkpoint_validity}."
+        )),
+        next_probe: finding.next_safe_move.clone(),
+        notes: vec![format!(
+            "Files inspected: {}",
+            if finding.files_inspected.is_empty() {
+                "none reported".to_string()
+            } else {
+                finding.files_inspected.join(", ")
+            }
+        )],
+    }
+}
+
+fn reorient_finding_investigation_checkpoint(
+    mut checkpoint: EpiphanyInvestigationCheckpoint,
+    evidence_id: &str,
+    code_refs: &[EpiphanyCodeRef],
+    finding: &EpiphanyReorientAcceptanceFinding,
+) -> EpiphanyInvestigationCheckpoint {
+    checkpoint.summary = finding.summary.clone().or(checkpoint.summary);
+    checkpoint.next_action = finding.next_safe_move.clone().or(checkpoint.next_action);
+    checkpoint.disposition = EpiphanyInvestigationDisposition::ResumeReady;
+    if !checkpoint
+        .evidence_ids
+        .iter()
+        .any(|existing| existing == evidence_id)
+    {
+        checkpoint.evidence_ids.push(evidence_id.to_string());
+    }
+    for code_ref in code_refs {
+        if !checkpoint
+            .code_refs
+            .iter()
+            .any(|existing| existing.path == code_ref.path)
+        {
+            checkpoint.code_refs.push(code_ref.clone());
+        }
+    }
+    checkpoint
 }
 
 fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
@@ -877,4 +1205,145 @@ mod tests {
 
         assert!(reviewable.item_error.is_none());
     }
+
+    #[test]
+    fn builds_role_acceptance_bundle_from_runtime_identity() {
+        let bundle = build_role_acceptance_bundle(
+            "binding-modeling",
+            EpiphanyRoleAcceptanceFinding {
+                role_id: EpiphanyRoleResultRoleId::Modeling,
+                verdict: Some("checkpoint-ready".to_string()),
+                summary: Some("The map is source-grounded.".to_string()),
+                next_safe_move: Some("Run verification.".to_string()),
+                files_inspected: vec!["src/lib.rs".to_string(), "".to_string()],
+                runtime_result_id: Some("result-123".to_string()),
+                runtime_job_id: Some("job-123".to_string()),
+                projected_fields: vec!["Graphs".to_string(), "InvestigationCheckpoint".to_string()],
+            },
+            "ev-modeling-test".to_string(),
+            "obs-modeling-test".to_string(),
+            "2026-05-12T00:00:00Z".to_string(),
+        )
+        .expect("role acceptance bundle should build");
+
+        assert_eq!(bundle.accepted_receipt_id, "accept-modeling-result-123");
+        assert_eq!(bundle.evidence.kind, "modeling_result");
+        assert_eq!(bundle.observation.source_kind, "modeling_result");
+        assert_eq!(bundle.receipt.result_id, "result-123");
+        assert_eq!(bundle.receipt.job_id, "job-123");
+        assert_eq!(bundle.receipt.surface, "roleAccept");
+        assert_eq!(bundle.receipt.role_id, "modeling");
+        assert!(
+            bundle
+                .observation
+                .summary
+                .contains("Graphs, InvestigationCheckpoint")
+        );
+        assert_eq!(bundle.evidence.code_refs.len(), 1);
+        assert_eq!(
+            bundle.evidence.code_refs[0].path,
+            PathBuf::from("src/lib.rs")
+        );
+        assert!(
+            bundle.evidence.code_refs[0]
+                .note
+                .as_deref()
+                .is_some_and(|note| note.contains("Modeling role worker"))
+        );
+    }
+
+    #[test]
+    fn builds_reorient_acceptance_bundle_with_scratch_and_checkpoint() {
+        let checkpoint = EpiphanyInvestigationCheckpoint {
+            checkpoint_id: "checkpoint-1".to_string(),
+            kind: "implementation".to_string(),
+            disposition: EpiphanyInvestigationDisposition::RegatherRequired,
+            focus: "runtime acceptance".to_string(),
+            summary: Some("Old summary".to_string()),
+            next_action: Some("Old move".to_string()),
+            captured_at_turn_id: Some("turn-1".to_string()),
+            open_questions: vec!["Which result owns acceptance?".to_string()],
+            code_refs: vec![EpiphanyCodeRef {
+                path: PathBuf::from("src/old.rs"),
+                start_line: None,
+                end_line: None,
+                symbol: None,
+                note: None,
+            }],
+            evidence_ids: vec!["ev-old".to_string()],
+        };
+
+        let bundle = build_reorient_acceptance_bundle(
+            "reorient-worker",
+            EpiphanyReorientAcceptanceFinding {
+                mode: Some("resume".to_string()),
+                summary: Some("The checkpoint can resume.".to_string()),
+                next_safe_move: Some("Continue the migration.".to_string()),
+                checkpoint_still_valid: Some(true),
+                files_inspected: vec!["src/new.rs".to_string()],
+                runtime_result_id: Some("result-reorient".to_string()),
+                runtime_job_id: Some("job-reorient".to_string()),
+            },
+            "ev-reorient-test".to_string(),
+            "obs-reorient-test".to_string(),
+            "2026-05-12T00:00:00Z".to_string(),
+            true,
+            Some(checkpoint),
+        )
+        .expect("reorient acceptance bundle should build");
+
+        assert_eq!(
+            bundle.accepted_receipt_id,
+            "accept-reorient-result-reorient"
+        );
+        assert_eq!(bundle.receipt.surface, "reorientAccept");
+        assert_eq!(bundle.evidence.kind, "reorient_result");
+        assert!(
+            bundle
+                .observation
+                .summary
+                .contains("checkpoint still valid")
+        );
+        let scratch = bundle.scratch.expect("scratch should be updated");
+        assert_eq!(
+            scratch.summary.as_deref(),
+            Some("The checkpoint can resume.")
+        );
+        assert_eq!(
+            scratch.next_probe.as_deref(),
+            Some("Continue the migration.")
+        );
+        let checkpoint = bundle
+            .investigation_checkpoint
+            .expect("checkpoint should be updated");
+        assert_eq!(
+            checkpoint.disposition,
+            EpiphanyInvestigationDisposition::ResumeReady
+        );
+        assert_eq!(
+            checkpoint.summary.as_deref(),
+            Some("The checkpoint can resume.")
+        );
+        assert!(
+            checkpoint
+                .evidence_ids
+                .iter()
+                .any(|id| id == "ev-reorient-test")
+        );
+        assert!(checkpoint.code_refs.iter().any(|code_ref| {
+            code_ref.path == PathBuf::from("src/new.rs")
+                && code_ref
+                    .note
+                    .as_deref()
+                    .is_some_and(|note| note.contains("reorientation worker"))
+        }));
+    }
 }
+use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
+use codex_protocol::protocol::EpiphanyCodeRef;
+use codex_protocol::protocol::EpiphanyEvidenceRecord;
+use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
+use codex_protocol::protocol::EpiphanyInvestigationDisposition;
+use codex_protocol::protocol::EpiphanyObservation;
+use codex_protocol::protocol::EpiphanyScratchPad;
+use std::path::PathBuf;
