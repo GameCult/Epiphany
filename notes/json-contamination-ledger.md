@@ -48,8 +48,8 @@ Rule: JSON is allowed at external schema/wire boundaries. Inside Epiphany, live 
 - MCP tool call arguments/results in `vendor/codex/codex-rs/core/src/mcp_tool_call.rs`.
   - Current mechanism: arbitrary MCP payloads are raw JSON.
   - Real need: MCP is an external protocol with schema-bearing tools.
-  - Verdict: edge adapter. It does not belong in the Codex auth organ.
-  - Simpler architecture: CultNet MCP adapter with typed request/result wrappers and raw JSON sealed at the MCP edge.
+  - Verdict: allowed MCP wire JSON, but not allowed as Epiphany durable state or internal authority.
+  - Simpler architecture: an Epiphany-owned boundary with typed intent/result/receipt documents on the Epiphany side and normal MCP JSON-RPC on the MCP side. Do not pretend MCP itself should stop being JSON.
 - Unity/Rider/void-memory CLI outputs.
   - Current mechanism: JSON command output and ad hoc parsing.
   - Real need: bridge external tools while native surfaces mature.
@@ -62,5 +62,6 @@ Rule: JSON is allowed at external schema/wire boundaries. Inside Epiphany, live 
 3. Done: replace role `statePatch` JSON with typed map/planning/graph patch documents. `EpiphanyRoleFindingInterpretation` now carries `EpiphanyRoleStatePatchDocument`; app-server maps it to the legacy protocol patch without JSON round-tripping.
 4. Done: replace runtime job result JSON projections. Runtime-spine results now project through typed role/reorient interpreters instead of `runtime_job_result_to_role_json` and `runtime_job_result_to_reorient_json`.
 5. Done: replace app-server launch protocol `input_json` / `output_schema_json` with typed launch documents and `output_contract_id`.
-6. Seal MCP JSON behind a CultNet MCP adapter.
-7. Audit heartbeat cognition values and either type them or explicitly expire them.
+6. Continue the whale-carcass cut: the first cut moved Epiphany launch doctrine into `epiphany_launch.rs` and reduced `codex_message_processor.rs` from about 21,263 to 20,596 lines. Next move route handlers, result/projection mappers, coordinator glue, and policy-shaped code out of the processor; success means the processor keeps shrinking and ownership gets clearer, not merely better typed.
+7. Seal MCP payloads behind an Epiphany boundary that speaks typed Epiphany documents internally and MCP JSON externally.
+8. Audit heartbeat cognition values and either type them or explicitly expire them.

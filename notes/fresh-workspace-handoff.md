@@ -402,10 +402,26 @@ inventory and ledger now exist:
   `output_contract_id`, then maps that document into the native
   `EpiphanyWorkerLaunchDocument` for core.
 
-Continue by sealing MCP JSON behind a CultNet MCP adapter, then audit heartbeat
-cognition quarantine values for typing or explicit expiration. Do not resume
-Rider, Unity, Aquarium, Face, dogfood, planning, app, skill, marketplace, or
-bridge expansion until this organ is being cut cleanly.
+Correction after user challenge: the typing cuts above are useful receipts, but
+they were not enough to make the Codex organ materially smaller. The first real
+carcass cut has now moved Epiphany launch doctrine, prompt config, launch
+request builders, output schemas, binding ids, and launch-specific labels into
+`vendor/codex/codex-rs/app-server/src/epiphany_launch.rs`. The processor is
+down from about 21,263 lines to 20,596 lines. This is progress, not absolution:
+handlers, mappers, route orchestration, result projection, coordinator glue,
+and tests still keep too much Epiphany inside Codex.
+
+Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
+the target is an Epiphany-owned boundary that speaks typed Epiphany
+intent/result/receipt documents internally and normal MCP JSON-RPC externally.
+
+Continue with the actual whale-carcass cut: extract Epiphany route handlers,
+result/projection mappers, coordinator glue, and remaining policy-shaped code
+out of `codex_message_processor.rs` into Epiphany-owned app-server modules,
+moving logic further into `epiphany-core` whenever it owns real policy. Success
+is a visibly smaller `codex_message_processor.rs`, not merely nicer payload
+names. Do not resume Rider, Unity, Aquarium, Face, dogfood, planning, app,
+skill, marketplace, or bridge expansion until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
