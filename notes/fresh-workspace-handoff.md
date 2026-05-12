@@ -32,7 +32,7 @@ remembers doctrine; the branch remembers the blade.
 ## Current Orientation
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
-- Top priority is still foundation cleanup, not outward feature work. Read `notes/epiphany-architectural-teardown.md` before touching Epiphany control-plane code. The May 2026 suspicion pass found that the app-server Epiphany control plane had become architectural Jenga: too much policy, projection, lifecycle glue, prompt packet assembly, coordinator sequencing, and test authority lives in `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`. The rebuild has begun: pressure policy moved into `epiphany-core`, typed acceptance receipts replaced summary-string identity for live accept paths, runtime links are dual-written on launch, and result read-back now prefers runtime links.
+- Top priority is still foundation cleanup, not outward feature work. Read `notes/epiphany-architectural-teardown.md` before touching Epiphany control-plane code. The May 2026 suspicion pass found that the app-server Epiphany control plane had become architectural Jenga: too much policy, projection, lifecycle glue, prompt packet assembly, coordinator sequencing, and test authority lives in `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`. The rebuild has begun: pressure policy and pure CRRC recommendation policy moved into `epiphany-core`, typed acceptance receipts replaced summary-string identity for live accept paths, runtime links are dual-written on launch, and result read-back now prefers runtime links.
 - Read `notes/epiphany-ideal-architecture-rebuild-plan.md` immediately after the teardown. It defines the smallest coherent replacement architecture: durable `EpiphanyState`, runtime-spine-owned `RuntimeState`, separate role memory/heartbeat state, `epiphany-core` as policy owner, app-server as adapter, Aquarium as reflector, typed acceptance receipts, and derived view lenses instead of a protocol verb zoo.
 - Do not continue Aquarium UI, bridge, Face, or dogfood expansion until the teardown has a source-grounded cleanup slice plan. Epiphany is the foundation; patches on patches are not a purification rite, they are how the altar becomes load-bearing garbage.
 - Phase 1 through Phase 5 are complete enough.
@@ -366,16 +366,15 @@ The next real move is still foundation cleanup. Start from
 `notes/epiphany-architectural-teardown.md` and
 `notes/epiphany-ideal-architecture-rebuild-plan.md`, not from the older outward
 Phase 6 bridge/UI trail. Landed rebuild cuts: `epiphany-core/src/surfaces/`
-exists, pressure view derivation and tests live in core, live acceptance writes
-typed receipts keyed by runtime result id, summary-string acceptance identity
-is gone for live paths, launches dual-write runtime links, result read-back
-prefers those runtime links, normal public `raw_result` is sealed, MVP consumers
-use `thread/epiphany/view`, heartbeat cognition is quarantined, and the old
-pressure/reorient/CRRC/coordinator read wrappers are deleted. The next cut is to
-decide which remaining read verbs deserve to stay as true query surfaces and
-which should collapse behind view lenses, then keep moving policy out of
-app-server into `epiphany-core`. No Agile confetti. No new balcony on the
-swaying tower.
+exists, pressure view derivation/tests and pure CRRC recommendation policy/tests
+live in core, live acceptance writes typed receipts keyed by runtime result id,
+summary-string acceptance identity is gone for live paths, launches dual-write
+runtime links, result read-back prefers those runtime links, normal public
+`raw_result` is sealed, MVP consumers use `thread/epiphany/view`, heartbeat
+cognition is quarantined, and the old scene/jobs/roles/planning/pressure/reorient/
+CRRC/coordinator read wrappers are deleted. The next cut is fixed-lane
+coordinator or role-board policy extraction into `epiphany-core`. No Agile
+confetti. No new balcony on the swaying tower.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

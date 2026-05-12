@@ -495,6 +495,13 @@ use codex_thread_store::ThreadStoreError;
 use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataParams;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
+use epiphany_core::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
+use epiphany_core::EpiphanyCrrcInput;
+use epiphany_core::EpiphanyCrrcRecommendation as CoreEpiphanyCrrcRecommendation;
+use epiphany_core::EpiphanyCrrcReorientAction as CoreEpiphanyCrrcReorientAction;
+use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
+use epiphany_core::EpiphanyCrrcSceneAction as CoreEpiphanyCrrcSceneAction;
+use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
 use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis as CoreEpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
@@ -503,6 +510,7 @@ use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::derive_pressure_view;
+use epiphany_core::recommend_crrc_action;
 use epiphany_core::runtime_job_snapshot;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -14225,123 +14233,100 @@ fn map_epiphany_crrc_recommendation(
     finding_present: bool,
     finding_accepted: bool,
 ) -> ThreadEpiphanyCrrcRecommendation {
-    let build = |action: ThreadEpiphanyCrrcAction,
-                 recommended_scene_action: Option<ThreadEpiphanySceneAction>,
-                 reason: &str| ThreadEpiphanyCrrcRecommendation {
-        action,
-        recommended_scene_action,
-        reason: reason.to_string(),
-    };
+    map_core_crrc_recommendation(recommend_crrc_action(EpiphanyCrrcInput {
+        loaded,
+        state_status: map_core_crrc_state_status(state_status),
+        should_prepare_compaction: pressure.should_prepare_compaction,
+        reorient_action: map_core_crrc_reorient_action(decision.action),
+        result_status: map_core_crrc_result_status(result_status),
+        checkpoint_present,
+        finding_present,
+        finding_accepted,
+    }))
+}
 
-    if state_status == ThreadEpiphanyReorientStateStatus::Missing {
-        return build(
-            ThreadEpiphanyCrrcAction::RegatherManually,
-            None,
-            "No authoritative Epiphany state exists; re-gather source context before editing.",
-        );
+fn map_core_crrc_state_status(
+    status: ThreadEpiphanyReorientStateStatus,
+) -> CoreEpiphanyCrrcStateStatus {
+    match status {
+        ThreadEpiphanyReorientStateStatus::Missing => CoreEpiphanyCrrcStateStatus::Missing,
+        ThreadEpiphanyReorientStateStatus::Ready => CoreEpiphanyCrrcStateStatus::Ready,
     }
+}
 
-    if !checkpoint_present {
-        return build(
-            ThreadEpiphanyCrrcAction::PrepareCheckpoint,
-            Some(ThreadEpiphanySceneAction::Update),
-            "Epiphany state exists, but CRRC has no durable investigation checkpoint to resume.",
-        );
+fn map_core_crrc_reorient_action(
+    action: ThreadEpiphanyReorientAction,
+) -> CoreEpiphanyCrrcReorientAction {
+    match action {
+        ThreadEpiphanyReorientAction::Resume => CoreEpiphanyCrrcReorientAction::Resume,
+        ThreadEpiphanyReorientAction::Regather => CoreEpiphanyCrrcReorientAction::Regather,
     }
+}
 
-    match result_status {
-        ThreadEpiphanyReorientResultStatus::Pending
-        | ThreadEpiphanyReorientResultStatus::Running => {
-            return build(
-                ThreadEpiphanyCrrcAction::WaitForReorientWorker,
-                Some(ThreadEpiphanySceneAction::ReorientResult),
-                "A reorientation worker is already in flight; wait or read the bound result.",
-            );
-        }
-        ThreadEpiphanyReorientResultStatus::Completed => {
-            if finding_present && !finding_accepted {
-                return build(
-                    ThreadEpiphanyCrrcAction::AcceptReorientResult,
-                    Some(ThreadEpiphanySceneAction::ReorientAccept),
-                    "A completed reorientation finding is available; review and explicitly accept it before continuing.",
-                );
-            }
-            if finding_accepted && decision.action == ThreadEpiphanyReorientAction::Regather {
-                if loaded {
-                    return build(
-                        ThreadEpiphanyCrrcAction::LaunchReorientWorker,
-                        Some(ThreadEpiphanySceneAction::ReorientLaunch),
-                        "The accepted reorientation finding is stale against the current regather checkpoint; launch a fresh bounded worker before implementation continues.",
-                    );
-                }
-                return build(
-                    ThreadEpiphanyCrrcAction::RegatherManually,
-                    Some(ThreadEpiphanySceneAction::Reorient),
-                    "The accepted reorientation finding is stale against the current regather checkpoint, but the thread is not loaded.",
-                );
-            }
-            if finding_accepted {
-                return build(
-                    ThreadEpiphanyCrrcAction::Continue,
-                    Some(ThreadEpiphanySceneAction::Reorient),
-                    "The reorientation finding is already accepted and the checkpoint remains resume-ready; continue the bounded task.",
-                );
-            }
-            if finding_present {
-                return build(
-                    ThreadEpiphanyCrrcAction::ReviewReorientResult,
-                    Some(ThreadEpiphanySceneAction::ReorientResult),
-                    "A completed reorientation finding is available, but it has not been accepted yet.",
-                );
-            }
-            return build(
-                ThreadEpiphanyCrrcAction::ReviewReorientResult,
-                Some(ThreadEpiphanySceneAction::ReorientResult),
-                "The reorientation worker completed, but no structured finding was recorded.",
-            );
-        }
-        ThreadEpiphanyReorientResultStatus::Failed
-        | ThreadEpiphanyReorientResultStatus::Cancelled => {
-            return build(
-                ThreadEpiphanyCrrcAction::RegatherManually,
-                Some(ThreadEpiphanySceneAction::ReorientResult),
-                "The reorientation worker ended without a usable finding; inspect the failure before relaunching.",
-            );
-        }
+fn map_core_crrc_result_status(
+    status: ThreadEpiphanyReorientResultStatus,
+) -> CoreEpiphanyCrrcResultStatus {
+    match status {
         ThreadEpiphanyReorientResultStatus::MissingState => {
-            return build(
-                ThreadEpiphanyCrrcAction::RegatherManually,
-                None,
-                "No authoritative Epiphany state exists; re-gather source context before editing.",
-            );
+            CoreEpiphanyCrrcResultStatus::MissingState
         }
-        ThreadEpiphanyReorientResultStatus::MissingBinding
-        | ThreadEpiphanyReorientResultStatus::BackendUnavailable
-        | ThreadEpiphanyReorientResultStatus::BackendMissing => {}
-    }
-
-    if pressure.should_prepare_compaction
-        || decision.action == ThreadEpiphanyReorientAction::Regather
-    {
-        if loaded {
-            return build(
-                ThreadEpiphanyCrrcAction::LaunchReorientWorker,
-                Some(ThreadEpiphanySceneAction::ReorientLaunch),
-                "The current pressure/reorientation verdict needs a bounded worker before safe continuation.",
-            );
+        ThreadEpiphanyReorientResultStatus::MissingBinding => {
+            CoreEpiphanyCrrcResultStatus::MissingBinding
         }
-        return build(
-            ThreadEpiphanyCrrcAction::RegatherManually,
-            Some(ThreadEpiphanySceneAction::Reorient),
-            "The thread is not loaded, so CRRC can only report the regather verdict.",
-        );
+        ThreadEpiphanyReorientResultStatus::BackendUnavailable => {
+            CoreEpiphanyCrrcResultStatus::BackendUnavailable
+        }
+        ThreadEpiphanyReorientResultStatus::BackendMissing => {
+            CoreEpiphanyCrrcResultStatus::BackendMissing
+        }
+        ThreadEpiphanyReorientResultStatus::Pending => CoreEpiphanyCrrcResultStatus::Pending,
+        ThreadEpiphanyReorientResultStatus::Running => CoreEpiphanyCrrcResultStatus::Running,
+        ThreadEpiphanyReorientResultStatus::Completed => CoreEpiphanyCrrcResultStatus::Completed,
+        ThreadEpiphanyReorientResultStatus::Failed => CoreEpiphanyCrrcResultStatus::Failed,
+        ThreadEpiphanyReorientResultStatus::Cancelled => CoreEpiphanyCrrcResultStatus::Cancelled,
     }
+}
 
-    build(
-        ThreadEpiphanyCrrcAction::Continue,
-        Some(ThreadEpiphanySceneAction::Reorient),
-        "Pressure is tolerable and the checkpoint remains resume-ready; continue the bounded task.",
-    )
+fn map_core_crrc_action(action: CoreEpiphanyCrrcAction) -> ThreadEpiphanyCrrcAction {
+    match action {
+        CoreEpiphanyCrrcAction::Continue => ThreadEpiphanyCrrcAction::Continue,
+        CoreEpiphanyCrrcAction::PrepareCheckpoint => ThreadEpiphanyCrrcAction::PrepareCheckpoint,
+        CoreEpiphanyCrrcAction::LaunchReorientWorker => {
+            ThreadEpiphanyCrrcAction::LaunchReorientWorker
+        }
+        CoreEpiphanyCrrcAction::WaitForReorientWorker => {
+            ThreadEpiphanyCrrcAction::WaitForReorientWorker
+        }
+        CoreEpiphanyCrrcAction::ReviewReorientResult => {
+            ThreadEpiphanyCrrcAction::ReviewReorientResult
+        }
+        CoreEpiphanyCrrcAction::AcceptReorientResult => {
+            ThreadEpiphanyCrrcAction::AcceptReorientResult
+        }
+        CoreEpiphanyCrrcAction::RegatherManually => ThreadEpiphanyCrrcAction::RegatherManually,
+    }
+}
+
+fn map_core_crrc_scene_action(action: CoreEpiphanyCrrcSceneAction) -> ThreadEpiphanySceneAction {
+    match action {
+        CoreEpiphanyCrrcSceneAction::Update => ThreadEpiphanySceneAction::Update,
+        CoreEpiphanyCrrcSceneAction::Reorient => ThreadEpiphanySceneAction::Reorient,
+        CoreEpiphanyCrrcSceneAction::ReorientLaunch => ThreadEpiphanySceneAction::ReorientLaunch,
+        CoreEpiphanyCrrcSceneAction::ReorientResult => ThreadEpiphanySceneAction::ReorientResult,
+        CoreEpiphanyCrrcSceneAction::ReorientAccept => ThreadEpiphanySceneAction::ReorientAccept,
+    }
+}
+
+fn map_core_crrc_recommendation(
+    recommendation: CoreEpiphanyCrrcRecommendation,
+) -> ThreadEpiphanyCrrcRecommendation {
+    ThreadEpiphanyCrrcRecommendation {
+        action: map_core_crrc_action(recommendation.action),
+        recommended_scene_action: recommendation
+            .recommended_scene_action
+            .map(map_core_crrc_scene_action),
+        reason: recommendation.reason,
+    }
 }
 
 struct EpiphanyCoordinatorDecision {

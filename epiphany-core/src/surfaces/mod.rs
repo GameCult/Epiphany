@@ -1,10 +1,19 @@
+mod crrc;
 mod pressure;
 
+pub use crrc::recommend_crrc_action;
+pub use crrc::EpiphanyCrrcAction;
+pub use crrc::EpiphanyCrrcInput;
+pub use crrc::EpiphanyCrrcRecommendation;
+pub use crrc::EpiphanyCrrcReorientAction;
+pub use crrc::EpiphanyCrrcResultStatus;
+pub use crrc::EpiphanyCrrcSceneAction;
+pub use crrc::EpiphanyCrrcStateStatus;
+pub use pressure::derive_pressure_view;
 pub use pressure::EpiphanyPressure;
 pub use pressure::EpiphanyPressureBasis;
 pub use pressure::EpiphanyPressureLevel;
 pub use pressure::EpiphanyPressureStatus;
-pub use pressure::derive_pressure_view;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyViewInput {
