@@ -543,6 +543,7 @@ use epiphany_core::EpiphanyPressureStatus as CoreEpiphanyPressureStatus;
 use epiphany_core::EpiphanyReorientAcceptanceFinding;
 use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientCheckpointStatus as CoreEpiphanyReorientCheckpointStatus;
+use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshnessStatus;
 use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
@@ -589,6 +590,7 @@ use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
 use epiphany_core::imagination_role_state_patch_policy_errors;
+use epiphany_core::interpret_reorient_finding;
 use epiphany_core::interpret_role_finding;
 use epiphany_core::modeling_role_state_patch_policy_errors;
 use epiphany_core::recommend_coordinator_action;
@@ -13295,21 +13297,29 @@ fn map_epiphany_reorient_finding(
     job_error: Option<String>,
     item_error: Option<String>,
 ) -> ThreadEpiphanyReorientFinding {
-    ThreadEpiphanyReorientFinding {
-        mode: json_string_field(&raw_result, "mode"),
-        summary: json_string_field(&raw_result, "summary"),
-        next_safe_move: json_string_field(&raw_result, "nextSafeMove"),
-        checkpoint_still_valid: raw_result
-            .get("checkpointStillValid")
-            .and_then(serde_json::Value::as_bool),
-        files_inspected: json_string_array_field(&raw_result, "filesInspected"),
-        frontier_node_ids: json_string_array_field(&raw_result, "frontierNodeIds"),
-        evidence_ids: json_string_array_field(&raw_result, "evidenceIds"),
-        artifact_refs: json_string_array_field(&raw_result, "artifactRefs"),
-        runtime_result_id: json_string_field(&raw_result, "runtimeResultId"),
-        runtime_job_id: json_string_field(&raw_result, "runtimeJobId"),
+    map_protocol_reorient_finding(interpret_reorient_finding(
+        &raw_result,
         job_error,
         item_error,
+    ))
+}
+
+fn map_protocol_reorient_finding(
+    finding: EpiphanyReorientFindingInterpretation,
+) -> ThreadEpiphanyReorientFinding {
+    ThreadEpiphanyReorientFinding {
+        mode: finding.mode,
+        summary: finding.summary,
+        next_safe_move: finding.next_safe_move,
+        checkpoint_still_valid: finding.checkpoint_still_valid,
+        files_inspected: finding.files_inspected,
+        frontier_node_ids: finding.frontier_node_ids,
+        evidence_ids: finding.evidence_ids,
+        artifact_refs: finding.artifact_refs,
+        runtime_result_id: finding.runtime_result_id,
+        runtime_job_id: finding.runtime_job_id,
+        job_error: finding.job_error,
+        item_error: finding.item_error,
     }
 }
 
@@ -13422,13 +13432,6 @@ fn epiphany_imagination_finding_has_reviewable_state_patch(
             .is_some_and(|patch| imagination_role_accept_patch_errors(patch).is_empty())
 }
 
-fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
-    value
-        .get(key)
-        .and_then(serde_json::Value::as_str)
-        .map(str::to_string)
-}
-
 fn role_finding_runtime_result_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
     finding.runtime_result_id.clone()
 }
@@ -13443,20 +13446,6 @@ fn reorient_finding_runtime_result_id(finding: &ThreadEpiphanyReorientFinding) -
 
 fn reorient_finding_runtime_job_id(finding: &ThreadEpiphanyReorientFinding) -> Option<String> {
     finding.runtime_job_id.clone()
-}
-
-fn json_string_array_field(value: &serde_json::Value, key: &str) -> Vec<String> {
-    value
-        .get(key)
-        .and_then(serde_json::Value::as_array)
-        .map(|values| {
-            values
-                .iter()
-                .filter_map(serde_json::Value::as_str)
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 fn render_epiphany_role_result_note(

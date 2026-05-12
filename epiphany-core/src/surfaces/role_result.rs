@@ -69,6 +69,22 @@ pub struct EpiphanyReorientAcceptanceFinding {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyReorientFindingInterpretation {
+    pub mode: Option<String>,
+    pub summary: Option<String>,
+    pub next_safe_move: Option<String>,
+    pub checkpoint_still_valid: Option<bool>,
+    pub files_inspected: Vec<String>,
+    pub frontier_node_ids: Vec<String>,
+    pub evidence_ids: Vec<String>,
+    pub artifact_refs: Vec<String>,
+    pub runtime_result_id: Option<String>,
+    pub runtime_job_id: Option<String>,
+    pub job_error: Option<String>,
+    pub item_error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyAcceptanceBundle {
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
@@ -142,6 +158,29 @@ pub fn interpret_role_finding(
         state_patch,
         self_patch,
         self_persistence,
+        job_error,
+        item_error,
+    }
+}
+
+pub fn interpret_reorient_finding(
+    raw_result: &serde_json::Value,
+    job_error: Option<String>,
+    item_error: Option<String>,
+) -> EpiphanyReorientFindingInterpretation {
+    EpiphanyReorientFindingInterpretation {
+        mode: json_string_field(raw_result, "mode"),
+        summary: json_string_field(raw_result, "summary"),
+        next_safe_move: json_string_field(raw_result, "nextSafeMove"),
+        checkpoint_still_valid: raw_result
+            .get("checkpointStillValid")
+            .and_then(serde_json::Value::as_bool),
+        files_inspected: json_string_array_field(raw_result, "filesInspected"),
+        frontier_node_ids: json_string_array_field(raw_result, "frontierNodeIds"),
+        evidence_ids: json_string_array_field(raw_result, "evidenceIds"),
+        artifact_refs: json_string_array_field(raw_result, "artifactRefs"),
+        runtime_result_id: json_string_field(raw_result, "runtimeResultId"),
+        runtime_job_id: json_string_field(raw_result, "runtimeJobId"),
         job_error,
         item_error,
     }
@@ -1072,6 +1111,31 @@ mod tests {
         assert_eq!(finding.verdict.as_deref(), Some("pass"));
         assert_eq!(finding.files_inspected, vec!["src/lib.rs"]);
         assert_eq!(finding.runtime_result_id.as_deref(), Some("result-1"));
+    }
+
+    #[test]
+    fn projects_reorient_structured_output() {
+        let finding = interpret_reorient_finding(
+            &serde_json::json!({
+                "mode": "resume",
+                "summary": "Checkpoint is still warm.",
+                "nextSafeMove": "Continue the bounded cut.",
+                "checkpointStillValid": true,
+                "filesInspected": ["state/map.yaml"],
+                "frontierNodeIds": ["node-1"],
+                "evidenceIds": ["ev-1"],
+                "artifactRefs": ["artifact:reorient"],
+                "runtimeResultId": "result-1",
+                "runtimeJobId": "job-1"
+            }),
+            None,
+            None,
+        );
+
+        assert_eq!(finding.mode.as_deref(), Some("resume"));
+        assert_eq!(finding.checkpoint_still_valid, Some(true));
+        assert_eq!(finding.frontier_node_ids, vec!["node-1"]);
+        assert_eq!(finding.runtime_job_id.as_deref(), Some("job-1"));
     }
 
     #[test]
