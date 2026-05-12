@@ -33,11 +33,11 @@ Rule: JSON is allowed at external schema/wire boundaries. Inside Epiphany, live 
   - Simpler architecture: role interpretation stores `AgentSelfPatch`, and only the protocol projection serializes JSON for the existing app-server surface.
   - Files: `epiphany-core/src/agent_memory.rs`, `epiphany-core/src/surfaces/role_result.rs`, `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`, `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`.
 - `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`
-  - Current mechanism: `ThreadEpiphanyRoleFinding.self_patch: Option<serde_json::Value>`, `ThreadEpiphanyJobLaunchRequest.input_json`, and `output_schema_json`.
+  - Current mechanism: `ThreadEpiphanyRoleFinding.self_patch: Option<serde_json::Value>` remains for the legacy projection. Launch params now use typed worker launch documents and `output_contract_id`.
   - Real need: app-server compatibility while Epiphany is still hosted inside Codex.
   - What breaks if deleted: frontend/server protocol compilation.
   - Essential or bad ownership: temporary compatibility reliquary, not a final contract.
-  - Simpler architecture: CultNet schema messages generated from typed document structs.
+  - Simpler architecture: CultNet schema messages generated from typed document structs; keep app-server protocol only as a temporary compatibility reliquary.
 
 ## Quarantine JSON
 
@@ -61,5 +61,6 @@ Rule: JSON is allowed at external schema/wire boundaries. Inside Epiphany, live 
 2. Partly done: core worker launch `input_json` and `output_schema_json` are replaced by typed launch documents and output contract ids. Remaining cut is the protocol edge.
 3. Done: replace role `statePatch` JSON with typed map/planning/graph patch documents. `EpiphanyRoleFindingInterpretation` now carries `EpiphanyRoleStatePatchDocument`; app-server maps it to the legacy protocol patch without JSON round-tripping.
 4. Done: replace runtime job result JSON projections. Runtime-spine results now project through typed role/reorient interpreters instead of `runtime_job_result_to_role_json` and `runtime_job_result_to_reorient_json`.
-5. Seal MCP JSON behind a CultNet MCP adapter.
-6. Audit heartbeat cognition values and either type them or explicitly expire them.
+5. Done: replace app-server launch protocol `input_json` / `output_schema_json` with typed launch documents and `output_contract_id`.
+6. Seal MCP JSON behind a CultNet MCP adapter.
+7. Audit heartbeat cognition values and either type them or explicitly expire them.

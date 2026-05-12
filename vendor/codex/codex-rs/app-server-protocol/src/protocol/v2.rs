@@ -5492,14 +5492,116 @@ pub struct ThreadEpiphanyJobLaunchParams {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub linked_graph_node_ids: Vec<String>,
     pub instruction: String,
-    #[ts(type = "unknown")]
-    pub input_json: serde_json::Value,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable, type = "unknown | null")]
-    pub output_schema_json: Option<serde_json::Value>,
+    pub launch_document: ThreadEpiphanyWorkerLaunchDocument,
+    pub output_contract_id: String,
     #[serde(default)]
     #[ts(optional = nullable)]
     pub max_runtime_seconds: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase", tag = "documentKind")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyWorkerLaunchDocument {
+    Role(ThreadEpiphanyRoleWorkerLaunchDocument),
+    Reorient(ThreadEpiphanyReorientWorkerLaunchDocument),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyRoleWorkerLaunchDocument {
+    pub thread_id: String,
+    pub role_id: String,
+    pub state_revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub objective: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub active_subgoal_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_subgoals: Vec<CoreEpiphanySubgoal>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_graph_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub investigation_checkpoint: Option<CoreEpiphanyInvestigationCheckpoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub scratch: Option<CoreEpiphanyScratchPad>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invariants: Vec<CoreEpiphanyInvariant>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graphs: Option<CoreEpiphanyGraphs>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_evidence: Vec<CoreEpiphanyEvidenceRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_observations: Vec<CoreEpiphanyObservation>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graph_frontier: Option<CoreEpiphanyGraphFrontier>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graph_checkpoint: Option<CoreEpiphanyGraphCheckpoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub planning: Option<CoreEpiphanyPlanningState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub churn: Option<CoreEpiphanyChurnState>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyReorientWorkerLaunchDocument {
+    pub thread_id: String,
+    pub mode: String,
+    pub checkpoint_id: String,
+    pub checkpoint_kind: String,
+    pub checkpoint_disposition: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checkpoint_focus: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub checkpoint_summary: Option<String>,
+    pub checkpoint_next_action: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoint_open_questions: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoint_evidence_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoint_code_refs: Vec<CoreEpiphanyCodeRef>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decision_reasons: Vec<String>,
+    pub decision_note: String,
+    pub pressure_level: String,
+    pub retrieval_status: String,
+    pub graph_status: String,
+    pub watcher_status: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoint_dirty_paths: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub checkpoint_changed_paths: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub scratch: Option<CoreEpiphanyScratchPad>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub graphs: Option<CoreEpiphanyGraphs>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_evidence: Vec<CoreEpiphanyEvidenceRecord>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub recent_observations: Vec<CoreEpiphanyObservation>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub active_frontier_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub linked_subgoal_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub linked_graph_node_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

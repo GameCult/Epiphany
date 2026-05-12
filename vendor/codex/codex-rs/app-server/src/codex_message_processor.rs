@@ -207,6 +207,7 @@ use codex_app_server_protocol::ThreadEpiphanyReorientResultResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
+use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
@@ -228,6 +229,7 @@ use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
+use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanyScene;
 use codex_app_server_protocol::ThreadEpiphanySceneAction;
@@ -255,6 +257,7 @@ use codex_app_server_protocol::ThreadEpiphanyViewPlanning;
 use codex_app_server_protocol::ThreadEpiphanyViewReorient;
 use codex_app_server_protocol::ThreadEpiphanyViewResponse;
 use codex_app_server_protocol::ThreadEpiphanyViewRoles;
+use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadForkParams;
 use codex_app_server_protocol::ThreadForkResponse;
 use codex_app_server_protocol::ThreadIncrementElicitationParams;
@@ -6385,8 +6388,8 @@ impl CodexMessageProcessor {
             linked_subgoal_ids,
             linked_graph_node_ids,
             instruction,
-            input_json,
-            output_schema_json: _,
+            launch_document,
+            output_contract_id,
             max_runtime_seconds,
         } = params;
 
@@ -6411,19 +6414,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let launch_document =
-            match serde_json::from_value::<EpiphanyWorkerLaunchDocument>(input_json) {
-                Ok(document) => document,
-                Err(err) => {
-                    self.send_invalid_request_error(
-                        request_id,
-                        format!("invalid Epiphany job launch document: {err}"),
-                    )
-                    .await;
-                    return;
-                }
-            };
-        let output_contract_id = launch_document.output_contract_id().to_string();
+        let launch_document = map_core_worker_launch_document(launch_document);
         let changed_fields = epiphany_job_launch_changed_fields();
         let launched = match thread
             .epiphany_launch_job(EpiphanyJobLaunchRequest {
@@ -13409,6 +13400,78 @@ fn map_protocol_update_patch(patch: EpiphanyRoleStatePatchDocument) -> ThreadEpi
         churn: patch.churn,
         mode: patch.mode,
         planning: patch.planning,
+    }
+}
+
+fn map_core_worker_launch_document(
+    document: ThreadEpiphanyWorkerLaunchDocument,
+) -> EpiphanyWorkerLaunchDocument {
+    match document {
+        ThreadEpiphanyWorkerLaunchDocument::Role(document) => {
+            EpiphanyWorkerLaunchDocument::Role(map_core_role_worker_launch_document(document))
+        }
+        ThreadEpiphanyWorkerLaunchDocument::Reorient(document) => {
+            EpiphanyWorkerLaunchDocument::Reorient(map_core_reorient_worker_launch_document(
+                document,
+            ))
+        }
+    }
+}
+
+fn map_core_role_worker_launch_document(
+    document: ThreadEpiphanyRoleWorkerLaunchDocument,
+) -> EpiphanyRoleWorkerLaunchDocument {
+    EpiphanyRoleWorkerLaunchDocument {
+        thread_id: document.thread_id,
+        role_id: document.role_id,
+        state_revision: document.state_revision,
+        objective: document.objective,
+        active_subgoal_id: document.active_subgoal_id,
+        active_subgoals: document.active_subgoals,
+        active_graph_node_ids: document.active_graph_node_ids,
+        investigation_checkpoint: document.investigation_checkpoint,
+        scratch: document.scratch,
+        invariants: document.invariants,
+        graphs: document.graphs,
+        recent_evidence: document.recent_evidence,
+        recent_observations: document.recent_observations,
+        graph_frontier: document.graph_frontier,
+        graph_checkpoint: document.graph_checkpoint,
+        planning: document.planning,
+        churn: document.churn,
+    }
+}
+
+fn map_core_reorient_worker_launch_document(
+    document: ThreadEpiphanyReorientWorkerLaunchDocument,
+) -> EpiphanyReorientWorkerLaunchDocument {
+    EpiphanyReorientWorkerLaunchDocument {
+        thread_id: document.thread_id,
+        mode: document.mode,
+        checkpoint_id: document.checkpoint_id,
+        checkpoint_kind: document.checkpoint_kind,
+        checkpoint_disposition: document.checkpoint_disposition,
+        checkpoint_focus: document.checkpoint_focus,
+        checkpoint_summary: document.checkpoint_summary,
+        checkpoint_next_action: document.checkpoint_next_action,
+        checkpoint_open_questions: document.checkpoint_open_questions,
+        checkpoint_evidence_ids: document.checkpoint_evidence_ids,
+        checkpoint_code_refs: document.checkpoint_code_refs,
+        decision_reasons: document.decision_reasons,
+        decision_note: document.decision_note,
+        pressure_level: document.pressure_level,
+        retrieval_status: document.retrieval_status,
+        graph_status: document.graph_status,
+        watcher_status: document.watcher_status,
+        checkpoint_dirty_paths: document.checkpoint_dirty_paths,
+        checkpoint_changed_paths: document.checkpoint_changed_paths,
+        scratch: document.scratch,
+        graphs: document.graphs,
+        recent_evidence: document.recent_evidence,
+        recent_observations: document.recent_observations,
+        active_frontier_node_ids: document.active_frontier_node_ids,
+        linked_subgoal_ids: document.linked_subgoal_ids,
+        linked_graph_node_ids: document.linked_graph_node_ids,
     }
 }
 

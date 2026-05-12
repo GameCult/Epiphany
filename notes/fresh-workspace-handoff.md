@@ -396,12 +396,16 @@ inventory and ledger now exist:
   `epiphany-core` owns `EpiphanyRoleStatePatchDocument`, policy checks read
   typed fields directly, and the app-server maps the typed document to the
   legacy `ThreadEpiphanyUpdatePatch` without JSON round-tripping.
+- Fifth cut landed: `ThreadEpiphanyJobLaunchParams` no longer exposes
+  `input_json` / `output_schema_json`. The legacy app-server protocol launch
+  edge now carries a typed `ThreadEpiphanyWorkerLaunchDocument` and
+  `output_contract_id`, then maps that document into the native
+  `EpiphanyWorkerLaunchDocument` for core.
 
-Continue at the protocol edge. Replace
-`ThreadEpiphanyJobLaunchParams.input_json` / `output_schema_json` with CultNet
-typed launch-intent messages, then seal MCP JSON behind a CultNet MCP adapter.
-Do not resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
-marketplace, or bridge expansion until this organ is being cut cleanly.
+Continue by sealing MCP JSON behind a CultNet MCP adapter, then audit heartbeat
+cognition quarantine values for typing or explicit expiration. Do not resume
+Rider, Unity, Aquarium, Face, dogfood, planning, app, skill, marketplace, or
+bridge expansion until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
