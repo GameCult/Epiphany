@@ -38,7 +38,7 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub open_questions: Vec<String>,
     pub evidence_gaps: Vec<String>,
     pub risks: Vec<String>,
-    pub state_patch: Option<serde_json::Value>,
+    pub state_patch: Option<EpiphanyRoleStatePatchDocument>,
     pub self_patch: Option<AgentSelfPatch>,
     pub self_persistence: Option<EpiphanyRoleSelfPersistenceReview>,
     pub job_error: Option<String>,
@@ -109,11 +109,20 @@ pub struct EpiphanyReorientAcceptanceBundle {
 pub fn interpret_role_finding(
     role_id: EpiphanyRoleResultRoleId,
     raw_result: &serde_json::Value,
-    state_patch_parse_error: Option<String>,
+    _legacy_state_patch_parse_error: Option<String>,
     job_error: Option<String>,
     item_error: Option<String>,
 ) -> EpiphanyRoleFindingInterpretation {
-    let state_patch = raw_result.get("statePatch").cloned();
+    let state_patch_result = raw_result
+        .get("statePatch")
+        .cloned()
+        .map(serde_json::from_value::<EpiphanyRoleStatePatchDocument>);
+    let state_patch = state_patch_result
+        .as_ref()
+        .and_then(|result| result.as_ref().ok().cloned());
+    let state_patch_parse_error = state_patch_result
+        .as_ref()
+        .and_then(|result| result.as_ref().err().map(ToString::to_string));
     let (self_patch, self_persistence) = raw_result
         .get("selfPatch")
         .map(|patch| decode_role_self_patch(role_id, patch))
@@ -437,49 +446,51 @@ fn decode_role_self_patch(
     (decoded, Some(review))
 }
 
-pub fn modeling_role_state_patch_policy_errors(patch: &serde_json::Value) -> Vec<String> {
+pub fn modeling_role_state_patch_policy_errors(
+    patch: &EpiphanyRoleStatePatchDocument,
+) -> Vec<String> {
     let mut errors = Vec::new();
-    if has_field(patch, "objective") {
+    if patch.objective.is_some() {
         errors
             .push("objective changes are not allowed through modeling role acceptance".to_string());
     }
-    if has_field(patch, "activeSubgoalId") || has_field(patch, "subgoals") {
+    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
         errors.push("subgoal changes are not allowed through modeling role acceptance".to_string());
     }
-    if has_field(patch, "invariants") {
+    if patch.invariants.is_some() {
         errors
             .push("invariant changes are not allowed through modeling role acceptance".to_string());
     }
-    if has_field(patch, "jobBindings") {
+    if patch.job_bindings.is_some() {
         errors.push(
             "job binding changes are not allowed through modeling role acceptance".to_string(),
         );
     }
-    if non_empty_array_field(patch, "acceptanceReceipts") {
+    if !patch.acceptance_receipts.is_empty() {
         errors.push(
             "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
         );
     }
-    if non_empty_array_field(patch, "runtimeLinks") {
+    if !patch.runtime_links.is_empty() {
         errors.push(
             "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
                 .to_string(),
         );
     }
-    if has_field(patch, "planning") {
+    if patch.planning.is_some() {
         errors
             .push("planning changes are not allowed through modeling role acceptance".to_string());
     }
-    if has_field(patch, "churn") || has_field(patch, "mode") {
+    if patch.churn.is_some() || patch.mode.is_some() {
         errors.push(
             "churn or mode changes are not allowed through modeling role acceptance".to_string(),
         );
     }
-    if !has_field(patch, "graphs")
-        && !has_field(patch, "graphFrontier")
-        && !has_field(patch, "graphCheckpoint")
-        && !has_field(patch, "scratch")
-        && !has_field(patch, "investigationCheckpoint")
+    if patch.graphs.is_none()
+        && patch.graph_frontier.is_none()
+        && patch.graph_checkpoint.is_none()
+        && patch.scratch.is_none()
+        && patch.investigation_checkpoint.is_none()
     {
         errors.push(
             "statePatch must include a modeling field: graphs, graphFrontier, graphCheckpoint, scratch, or investigationCheckpoint"
@@ -489,106 +500,89 @@ pub fn modeling_role_state_patch_policy_errors(patch: &serde_json::Value) -> Vec
     errors
 }
 
-pub fn imagination_role_state_patch_policy_errors(patch: &serde_json::Value) -> Vec<String> {
+pub fn imagination_role_state_patch_policy_errors(
+    patch: &EpiphanyRoleStatePatchDocument,
+) -> Vec<String> {
     let mut errors = Vec::new();
-    if has_field(patch, "objective") {
+    if patch.objective.is_some() {
         errors.push(
             "objective changes are not allowed through imagination role acceptance".to_string(),
         );
     }
-    if has_field(patch, "activeSubgoalId") || has_field(patch, "subgoals") {
+    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
         errors.push(
             "subgoal changes are not allowed through imagination role acceptance".to_string(),
         );
     }
-    if has_field(patch, "invariants") {
+    if patch.invariants.is_some() {
         errors.push(
             "invariant changes are not allowed through imagination role acceptance".to_string(),
         );
     }
-    if has_field(patch, "graphs")
-        || has_field(patch, "graphFrontier")
-        || has_field(patch, "graphCheckpoint")
-        || has_field(patch, "investigationCheckpoint")
+    if patch.graphs.is_some()
+        || patch.graph_frontier.is_some()
+        || patch.graph_checkpoint.is_some()
+        || patch.investigation_checkpoint.is_some()
     {
         errors.push(
             "graph or checkpoint changes are not allowed through imagination role acceptance"
                 .to_string(),
         );
     }
-    if has_field(patch, "scratch") {
+    if patch.scratch.is_some() {
         errors.push(
             "scratch changes are not allowed through imagination role acceptance".to_string(),
         );
     }
-    if has_field(patch, "jobBindings") {
+    if patch.job_bindings.is_some() {
         errors.push(
             "job binding changes are not allowed through imagination role acceptance".to_string(),
         );
     }
-    if non_empty_array_field(patch, "acceptanceReceipts") {
+    if !patch.acceptance_receipts.is_empty() {
         errors.push(
             "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
         );
     }
-    if non_empty_array_field(patch, "runtimeLinks") {
+    if !patch.runtime_links.is_empty() {
         errors.push(
             "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
                 .to_string(),
         );
     }
-    if has_field(patch, "churn") || has_field(patch, "mode") {
+    if patch.churn.is_some() || patch.mode.is_some() {
         errors.push(
             "churn or mode changes are not allowed through imagination role acceptance".to_string(),
         );
     }
-    let Some(planning) = patch.get("planning") else {
+    let Some(planning) = patch.planning.as_ref() else {
         errors.push("statePatch must include planning changes".to_string());
         return errors;
     };
-    let objective_drafts = get_field(planning, "objectiveDrafts", "objective_drafts")
-        .and_then(serde_json::Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    if objective_drafts.is_empty() {
+    if planning.objective_drafts.is_empty() {
         errors.push("planning patch must include at least one objective draft".to_string());
     }
-    if !objective_drafts.iter().any(|draft| {
-        draft
-            .get("status")
-            .and_then(serde_json::Value::as_str)
-            .is_some_and(|status| status.eq_ignore_ascii_case("draft"))
-    }) {
+    if !planning
+        .objective_drafts
+        .iter()
+        .any(|draft| draft.status.eq_ignore_ascii_case("draft"))
+    {
         errors.push(
             "planning patch must include at least one objective draft with status draft"
                 .to_string(),
         );
     }
-    for draft in &objective_drafts {
-        let id = draft
-            .get("id")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("<missing>");
-        if !draft
-            .get("acceptanceCriteria")
-            .or_else(|| draft.get("acceptance_criteria"))
-            .and_then(serde_json::Value::as_array)
-            .is_some_and(|items| !items.is_empty())
-        {
+    for draft in &planning.objective_drafts {
+        if draft.acceptance_criteria.is_empty() {
             errors.push(format!(
                 "planning objective draft {:?} must include acceptance criteria",
-                id
+                draft.id
             ));
         }
-        if !draft
-            .get("reviewGates")
-            .or_else(|| draft.get("review_gates"))
-            .and_then(serde_json::Value::as_array)
-            .is_some_and(|items| !items.is_empty())
-        {
+        if draft.review_gates.is_empty() {
             errors.push(format!(
                 "planning objective draft {:?} must include review gates",
-                id
+                draft.id
             ));
         }
     }
@@ -597,10 +591,10 @@ pub fn imagination_role_state_patch_policy_errors(patch: &serde_json::Value) -> 
 
 fn modeling_role_state_patch_error(
     raw_result: &serde_json::Value,
-    state_patch: Option<&serde_json::Value>,
+    state_patch: Option<&EpiphanyRoleStatePatchDocument>,
     parse_error: Option<String>,
 ) -> Option<String> {
-    let Some(value) = raw_result.get("statePatch") else {
+    if raw_result.get("statePatch").is_none() {
         return Some("modeling result is not reviewable: missing required statePatch".to_string());
     };
     if let Some(error) = parse_error {
@@ -608,7 +602,10 @@ fn modeling_role_state_patch_error(
             "modeling result is not reviewable: invalid statePatch ({error})"
         ));
     }
-    let errors = modeling_role_state_patch_policy_errors(state_patch.unwrap_or(value));
+    let Some(state_patch) = state_patch else {
+        return Some("modeling result is not reviewable: invalid statePatch".to_string());
+    };
+    let errors = modeling_role_state_patch_policy_errors(state_patch);
     if errors.is_empty() {
         None
     } else {
@@ -621,10 +618,10 @@ fn modeling_role_state_patch_error(
 
 fn imagination_role_state_patch_error(
     raw_result: &serde_json::Value,
-    state_patch: Option<&serde_json::Value>,
+    state_patch: Option<&EpiphanyRoleStatePatchDocument>,
     parse_error: Option<String>,
 ) -> Option<String> {
-    let Some(value) = raw_result.get("statePatch") else {
+    if raw_result.get("statePatch").is_none() {
         return Some(
             "imagination result is not reviewable: missing required statePatch".to_string(),
         );
@@ -634,7 +631,10 @@ fn imagination_role_state_patch_error(
             "imagination result is not reviewable: invalid statePatch ({error})"
         ));
     }
-    let errors = imagination_role_state_patch_policy_errors(state_patch.unwrap_or(value));
+    let Some(state_patch) = state_patch else {
+        return Some("imagination result is not reviewable: invalid statePatch".to_string());
+    };
+    let errors = imagination_role_state_patch_policy_errors(state_patch);
     if errors.is_empty() {
         None
     } else {
@@ -816,25 +816,6 @@ fn json_string_array_field(value: &serde_json::Value, key: &str) -> Vec<String> 
         .unwrap_or_default()
 }
 
-fn has_field(value: &serde_json::Value, key: &str) -> bool {
-    value.get(key).is_some_and(|field| !field.is_null())
-}
-
-fn get_field<'a>(
-    value: &'a serde_json::Value,
-    camel_key: &str,
-    snake_key: &str,
-) -> Option<&'a serde_json::Value> {
-    value.get(camel_key).or_else(|| value.get(snake_key))
-}
-
-fn non_empty_array_field(value: &serde_json::Value, key: &str) -> bool {
-    value
-        .get(key)
-        .and_then(serde_json::Value::as_array)
-        .is_some_and(|items| !items.is_empty())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1004,11 +985,15 @@ mod tests {
             &serde_json::json!({
                 "statePatch": {
                     "planning": {
-                        "objectiveDrafts": [{
+                        "objective_drafts": [{
                             "id": "draft-imagination-test",
+                            "title": "Draft from imagination",
+                            "summary": "Reviewable objective draft.",
+                            "scope": {"includes": ["typed state"], "excludes": []},
                             "status": "draft",
-                            "acceptanceCriteria": ["A criterion"],
-                            "reviewGates": ["human review"]
+                            "lane_plan": {},
+                            "acceptance_criteria": ["A criterion"],
+                            "review_gates": ["human review"]
                         }]
                     }
                 }
@@ -1154,6 +1139,7 @@ mod tests {
         }));
     }
 }
+use super::state_patch::EpiphanyRoleStatePatchDocument;
 use crate::agent_memory::AgentSelfPatch;
 use crate::agent_memory::decode_agent_self_patch;
 use crate::agent_memory::review_agent_self_patch_contract;

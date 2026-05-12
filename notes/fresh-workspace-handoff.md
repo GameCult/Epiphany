@@ -391,14 +391,17 @@ inventory and ledger now exist:
   `runtime_job_result_to_role_json` or `runtime_job_result_to_reorient_json`.
   `epiphany-core` owns typed role/reorient runtime-result interpreters and the
   app-server maps those interpretations directly to protocol projections.
+- Fourth cut landed: role `statePatch` is no longer raw
+  `serde_json::Value` inside `EpiphanyRoleFindingInterpretation`.
+  `epiphany-core` owns `EpiphanyRoleStatePatchDocument`, policy checks read
+  typed fields directly, and the app-server maps the typed document to the
+  legacy `ThreadEpiphanyUpdatePatch` without JSON round-tripping.
 
 Continue at the protocol edge. Replace
 `ThreadEpiphanyJobLaunchParams.input_json` / `output_schema_json` with CultNet
-typed launch-intent messages, then type role `statePatch` map/planning/graph
-patch documents instead of carrying `serde_json::Value` through role finding
-interpretation. Do not resume Rider, Unity, Aquarium, Face, dogfood, planning,
-app, skill, marketplace, or bridge expansion until this organ is being cut
-cleanly.
+typed launch-intent messages, then seal MCP JSON behind a CultNet MCP adapter.
+Do not resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
+marketplace, or bridge expansion until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

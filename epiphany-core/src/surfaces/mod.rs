@@ -9,6 +9,7 @@ mod reorient;
 mod role_board;
 mod role_result;
 mod scene;
+mod state_patch;
 mod worker_launch;
 
 pub use coordinator::EpiphanyCoordinatorAction;
@@ -123,6 +124,7 @@ pub use scene::EpiphanySceneStateStatus;
 pub use scene::EpiphanySceneStatusCount;
 pub use scene::EpiphanySceneSubgoal;
 pub use scene::derive_scene;
+pub use state_patch::EpiphanyRoleStatePatchDocument;
 pub use worker_launch::EpiphanyReorientWorkerLaunchDocument;
 pub use worker_launch::EpiphanyRoleWorkerLaunchDocument;
 pub use worker_launch::EpiphanyWorkerLaunchDocument;

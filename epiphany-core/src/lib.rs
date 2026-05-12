@@ -204,6 +204,7 @@ pub use surfaces::EpiphanyRoleFindingInterpretation;
 pub use surfaces::EpiphanyRoleResultRoleId;
 pub use surfaces::EpiphanyRoleSelfPersistenceReview;
 pub use surfaces::EpiphanyRoleSelfPersistenceStatus;
+pub use surfaces::EpiphanyRoleStatePatchDocument;
 pub use surfaces::EpiphanyRoleWorkerLaunchDocument;
 pub use surfaces::EpiphanyScene;
 pub use surfaces::EpiphanySceneAction;

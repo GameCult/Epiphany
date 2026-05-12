@@ -563,6 +563,7 @@ use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleSelfPersistenceReview as CoreEpiphanyRoleSelfPersistenceReview;
 use epiphany_core::EpiphanyRoleSelfPersistenceStatus as CoreEpiphanyRoleSelfPersistenceStatus;
+use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
@@ -13345,31 +13346,21 @@ fn map_epiphany_role_finding(
     job_error: Option<String>,
     item_error: Option<String>,
 ) -> ThreadEpiphanyRoleFinding {
-    let state_patch_result = raw_result
-        .get("statePatch")
-        .cloned()
-        .map(serde_json::from_value::<ThreadEpiphanyUpdatePatch>);
-    let state_patch = state_patch_result
-        .as_ref()
-        .and_then(|result| result.as_ref().ok().cloned());
-    let state_patch_parse_error = state_patch_result
-        .as_ref()
-        .and_then(|result| result.as_ref().err().map(ToString::to_string));
     let finding = interpret_role_finding(
         map_core_role_result_role_id(role_id),
         &raw_result,
-        state_patch_parse_error,
+        None,
         job_error,
         item_error,
     );
-    map_protocol_role_finding(role_id, finding, state_patch)
+    map_protocol_role_finding(role_id, finding)
 }
 
 fn map_protocol_role_finding(
     role_id: ThreadEpiphanyRoleId,
     finding: EpiphanyRoleFindingInterpretation,
-    state_patch: Option<ThreadEpiphanyUpdatePatch>,
 ) -> ThreadEpiphanyRoleFinding {
+    let state_patch = finding.state_patch.map(map_protocol_update_patch);
     ThreadEpiphanyRoleFinding {
         role_id,
         verdict: finding.verdict,
@@ -13396,6 +13387,52 @@ fn map_protocol_role_finding(
             .map(map_protocol_role_self_persistence_review),
         job_error: finding.job_error,
         item_error: finding.item_error,
+    }
+}
+
+fn map_protocol_update_patch(patch: EpiphanyRoleStatePatchDocument) -> ThreadEpiphanyUpdatePatch {
+    ThreadEpiphanyUpdatePatch {
+        objective: patch.objective,
+        active_subgoal_id: patch.active_subgoal_id,
+        subgoals: patch.subgoals,
+        invariants: patch.invariants,
+        graphs: patch.graphs,
+        graph_frontier: patch.graph_frontier,
+        graph_checkpoint: patch.graph_checkpoint,
+        scratch: patch.scratch,
+        investigation_checkpoint: patch.investigation_checkpoint,
+        job_bindings: patch.job_bindings,
+        acceptance_receipts: patch.acceptance_receipts,
+        runtime_links: patch.runtime_links,
+        observations: patch.observations,
+        evidence: patch.evidence,
+        churn: patch.churn,
+        mode: patch.mode,
+        planning: patch.planning,
+    }
+}
+
+fn core_state_patch_from_protocol(
+    patch: &ThreadEpiphanyUpdatePatch,
+) -> EpiphanyRoleStatePatchDocument {
+    EpiphanyRoleStatePatchDocument {
+        objective: patch.objective.clone(),
+        active_subgoal_id: patch.active_subgoal_id.clone(),
+        subgoals: patch.subgoals.clone(),
+        invariants: patch.invariants.clone(),
+        graphs: patch.graphs.clone(),
+        graph_frontier: patch.graph_frontier.clone(),
+        graph_checkpoint: patch.graph_checkpoint.clone(),
+        scratch: patch.scratch.clone(),
+        investigation_checkpoint: patch.investigation_checkpoint.clone(),
+        job_bindings: patch.job_bindings.clone(),
+        acceptance_receipts: patch.acceptance_receipts.clone(),
+        runtime_links: patch.runtime_links.clone(),
+        observations: patch.observations.clone(),
+        evidence: patch.evidence.clone(),
+        churn: patch.churn.clone(),
+        mode: patch.mode.clone(),
+        planning: patch.planning.clone(),
     }
 }
 
@@ -13642,7 +13679,6 @@ fn load_epiphany_role_result_from_runtime_spine_job(
         map_protocol_role_finding(
             role_id,
             interpret_role_runtime_job_result(map_core_role_result_role_id(role_id), result),
-            None,
         )
     });
     let note = render_epiphany_role_result_note(role_id, status, finding.as_ref(), None);
@@ -14777,13 +14813,11 @@ fn parse_role_finding_state_patch(
 }
 
 fn imagination_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
-    let value = serde_json::to_value(patch).unwrap_or_else(|_| serde_json::Value::Null);
-    imagination_role_state_patch_policy_errors(&value)
+    imagination_role_state_patch_policy_errors(&core_state_patch_from_protocol(patch))
 }
 
 fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
-    let value = serde_json::to_value(patch).unwrap_or_else(|_| serde_json::Value::Null);
-    modeling_role_state_patch_policy_errors(&value)
+    modeling_role_state_patch_policy_errors(&core_state_patch_from_protocol(patch))
 }
 
 fn role_finding_summary(finding: &ThreadEpiphanyRoleFinding) -> String {
