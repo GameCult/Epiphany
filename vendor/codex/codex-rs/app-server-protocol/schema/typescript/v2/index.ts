@@ -387,7 +387,12 @@ export type { ThreadEpiphanyStateUpdatedField } from "./ThreadEpiphanyStateUpdat
 export type { ThreadEpiphanyStateUpdatedNotification } from "./ThreadEpiphanyStateUpdatedNotification";
 export type { ThreadEpiphanyStateUpdatedSource } from "./ThreadEpiphanyStateUpdatedSource";
 export type { ThreadEpiphanyUpdatePatch } from "./ThreadEpiphanyUpdatePatch";
+export type { ThreadEpiphanyViewCoordinator } from "./ThreadEpiphanyViewCoordinator";
+export type { ThreadEpiphanyViewCrrc } from "./ThreadEpiphanyViewCrrc";
 export type { ThreadEpiphanyViewLens } from "./ThreadEpiphanyViewLens";
+export type { ThreadEpiphanyViewPlanning } from "./ThreadEpiphanyViewPlanning";
+export type { ThreadEpiphanyViewReorient } from "./ThreadEpiphanyViewReorient";
+export type { ThreadEpiphanyViewRoles } from "./ThreadEpiphanyViewRoles";
 export type { ThreadForkParams } from "./ThreadForkParams";
 export type { ThreadForkResponse } from "./ThreadForkResponse";
 export type { ThreadInjectItemsParams } from "./ThreadInjectItemsParams";

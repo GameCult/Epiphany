@@ -17833,13 +17833,277 @@
         },
         "type": "object"
       },
+      "ThreadEpiphanyViewCoordinator": {
+        "properties": {
+          "action": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyCoordinatorAction"
+          },
+          "canAutoRun": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "recommendedSceneAction": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanySceneAction"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "requiresReview": {
+            "type": "boolean"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanyRoleLane"
+            },
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyRolesSource"
+          },
+          "sourceSignals": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyCoordinatorSignals"
+          },
+          "stateRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stateStatus": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientStateStatus"
+          },
+          "targetRole": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanyRoleId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "canAutoRun",
+          "note",
+          "reason",
+          "requiresReview",
+          "roles",
+          "source",
+          "sourceSignals",
+          "stateStatus",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanyViewCrrc": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanySceneAction"
+            },
+            "type": "array"
+          },
+          "decision": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientDecision"
+          },
+          "note": {
+            "type": "string"
+          },
+          "pressure": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyPressure"
+          },
+          "recommendation": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyCrrcRecommendation"
+          },
+          "reorientBindingId": {
+            "type": "string"
+          },
+          "reorientFinding": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanyReorientFinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reorientJob": {
+            "anyOf": [
+              {
+                "$ref": "#/definitions/v2/ThreadEpiphanyJob"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reorientResultStatus": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientResultStatus"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientSource"
+          },
+          "stateRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stateStatus": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientStateStatus"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "note",
+          "pressure",
+          "recommendation",
+          "reorientBindingId",
+          "reorientResultStatus",
+          "source",
+          "stateStatus",
+          "threadId"
+        ],
+        "type": "object"
+      },
       "ThreadEpiphanyViewLens": {
         "enum": [
           "scene",
           "jobs",
-          "pressure"
+          "roles",
+          "planning",
+          "pressure",
+          "reorient",
+          "crrc",
+          "coordinator"
         ],
         "type": "string"
+      },
+      "ThreadEpiphanyViewPlanning": {
+        "properties": {
+          "planning": {
+            "$ref": "#/definitions/v2/EpiphanyPlanningState"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyContextSource"
+          },
+          "stateRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stateStatus": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyContextStateStatus"
+          },
+          "summary": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyPlanningSummary"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "planning",
+          "source",
+          "stateStatus",
+          "summary",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanyViewReorient": {
+        "properties": {
+          "decision": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientDecision"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientSource"
+          },
+          "stateRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stateStatus": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientStateStatus"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "source",
+          "stateStatus",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "ThreadEpiphanyViewRoles": {
+        "properties": {
+          "note": {
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/definitions/v2/ThreadEpiphanyRoleLane"
+            },
+            "type": "array"
+          },
+          "source": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyRolesSource"
+          },
+          "stateRevision": {
+            "format": "uint64",
+            "minimum": 0.0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "stateStatus": {
+            "$ref": "#/definitions/v2/ThreadEpiphanyReorientStateStatus"
+          },
+          "threadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "note",
+          "roles",
+          "source",
+          "stateStatus",
+          "threadId"
+        ],
+        "type": "object"
       },
       "ThreadForkParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",

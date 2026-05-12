@@ -4753,7 +4753,12 @@
       "enum": [
         "scene",
         "jobs",
-        "pressure"
+        "roles",
+        "planning",
+        "pressure",
+        "reorient",
+        "crrc",
+        "coordinator"
       ],
       "type": "string"
     },

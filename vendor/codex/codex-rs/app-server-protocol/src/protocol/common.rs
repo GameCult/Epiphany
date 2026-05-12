@@ -1914,6 +1914,8 @@ mod tests {
                 lenses: vec![v2::ThreadEpiphanyViewLens::Pressure],
                 scene: None,
                 jobs: Vec::new(),
+                roles: None,
+                planning: None,
                 pressure: Some(v2::ThreadEpiphanyPressure {
                     status: v2::ThreadEpiphanyPressureStatus::Ready,
                     level: v2::ThreadEpiphanyPressureLevel::Low,
@@ -1927,6 +1929,9 @@ mod tests {
                     note: "Context window usage is below the compaction prep threshold."
                         .to_string(),
                 }),
+                reorient: None,
+                crrc: None,
+                coordinator: None,
             },
         };
 

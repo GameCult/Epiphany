@@ -161,7 +161,7 @@ fn run_status(args: &Args) -> Result<Value> {
     )?;
     let view = client.send(
         "thread/epiphany/view",
-        Some(json!({"threadId": thread_id, "lenses": ["scene", "pressure", "jobs"]})),
+        Some(json!({"threadId": thread_id, "lenses": ["scene", "pressure", "jobs", "roles", "planning", "reorient", "crrc", "coordinator"]})),
         true,
     )?;
     let scene = json!({
@@ -173,26 +173,14 @@ fn run_status(args: &Args) -> Result<Value> {
         "source": "live",
         "pressure": view.get("pressure").cloned().unwrap_or_else(|| json!(null)),
     });
-    let reorient = client.send(
-        "thread/epiphany/reorient",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
+    let reorient = view.get("reorient").cloned().unwrap_or_else(|| json!(null));
     let jobs = json!({
         "threadId": thread_id,
         "source": "live",
         "jobs": view.get("jobs").cloned().unwrap_or_else(|| json!([])),
     });
-    let roles = client.send(
-        "thread/epiphany/roles",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
-    let planning = client.send(
-        "thread/epiphany/planning",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
+    let roles = view.get("roles").cloned().unwrap_or_else(|| json!(null));
+    let planning = view.get("planning").cloned().unwrap_or_else(|| json!(null));
     let role_results = json!({
         "imagination": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "imagination"})), true)?,
         "modeling": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "modeling"})), true)?,
@@ -203,16 +191,8 @@ fn run_status(args: &Args) -> Result<Value> {
         Some(json!({"threadId": thread_id})),
         true,
     )?;
-    let crrc = client.send(
-        "thread/epiphany/crrc",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
-    let coordinator = client.send(
-        "thread/epiphany/coordinator",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
+    let crrc = view.get("crrc").cloned().unwrap_or_else(|| json!(null));
+    let coordinator = view.get("coordinator").cloned().unwrap_or_else(|| json!(null));
     let root = env::current_dir().context("failed to resolve current directory")?;
     let heartbeat_dir = root.join(".epiphany-heartbeats");
     let face_dir = root.join(".epiphany-face");

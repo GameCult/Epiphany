@@ -3946,7 +3946,12 @@ pub struct ThreadEpiphanySceneResponse {
 pub enum ThreadEpiphanyViewLens {
     Scene,
     Jobs,
+    Roles,
+    Planning,
     Pressure,
+    Reorient,
+    Crrc,
+    Coordinator,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
@@ -3956,23 +3961,6 @@ pub struct ThreadEpiphanyViewParams {
     pub thread_id: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub lenses: Vec<ThreadEpiphanyViewLens>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyViewResponse {
-    pub thread_id: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub lenses: Vec<ThreadEpiphanyViewLens>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub scene: Option<ThreadEpiphanyScene>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub jobs: Vec<ThreadEpiphanyJob>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub pressure: Option<ThreadEpiphanyPressure>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -5201,6 +5189,130 @@ pub struct ThreadEpiphanyCrrcRecommendation {
     #[ts(optional = nullable)]
     pub recommended_scene_action: Option<ThreadEpiphanySceneAction>,
     pub reason: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewResponse {
+    pub thread_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lenses: Vec<ThreadEpiphanyViewLens>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub scene: Option<ThreadEpiphanyScene>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<ThreadEpiphanyJob>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub roles: Option<ThreadEpiphanyViewRoles>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub planning: Option<ThreadEpiphanyViewPlanning>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub pressure: Option<ThreadEpiphanyPressure>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub reorient: Option<ThreadEpiphanyViewReorient>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub crrc: Option<ThreadEpiphanyViewCrrc>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub coordinator: Option<ThreadEpiphanyViewCoordinator>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewRoles {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyRolesSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub roles: Vec<ThreadEpiphanyRoleLane>,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewPlanning {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyContextSource,
+    pub state_status: ThreadEpiphanyContextStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub planning: CoreEpiphanyPlanningState,
+    pub summary: ThreadEpiphanyPlanningSummary,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewReorient {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyReorientSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub decision: ThreadEpiphanyReorientDecision,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewCrrc {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyReorientSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub pressure: ThreadEpiphanyPressure,
+    pub decision: ThreadEpiphanyReorientDecision,
+    pub recommendation: ThreadEpiphanyCrrcRecommendation,
+    pub reorient_binding_id: String,
+    pub reorient_result_status: ThreadEpiphanyReorientResultStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub reorient_job: Option<ThreadEpiphanyJob>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub reorient_finding: Option<ThreadEpiphanyReorientFinding>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub available_actions: Vec<ThreadEpiphanySceneAction>,
+    pub note: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewCoordinator {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyRolesSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub state_revision: Option<u64>,
+    pub action: ThreadEpiphanyCoordinatorAction,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub target_role: Option<ThreadEpiphanyRoleId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub recommended_scene_action: Option<ThreadEpiphanySceneAction>,
+    pub requires_review: bool,
+    pub can_auto_run: bool,
+    pub reason: String,
+    pub source_signals: ThreadEpiphanyCoordinatorSignals,
+    pub roles: Vec<ThreadEpiphanyRoleLane>,
+    pub note: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
