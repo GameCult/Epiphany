@@ -462,6 +462,7 @@ use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus;
+use codex_protocol::protocol::EpiphanyRuntimeLink;
 use codex_protocol::protocol::EpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::EventMsg;
@@ -14287,8 +14288,8 @@ fn render_epiphany_reorient_result_note(
     }
 }
 
-fn load_epiphany_role_result_from_runtime_spine(
-    binding: &EpiphanyJobBinding,
+fn load_epiphany_role_result_from_runtime_spine_job(
+    job_id: &str,
     runtime_store_path: Option<&Path>,
     role_id: ThreadEpiphanyRoleId,
 ) -> (
@@ -14296,13 +14297,6 @@ fn load_epiphany_role_result_from_runtime_spine(
     Option<ThreadEpiphanyRoleFinding>,
     String,
 ) {
-    let Some(job_id) = binding_backend_job_id(binding) else {
-        return (
-            ThreadEpiphanyRoleResultStatus::BackendMissing,
-            None,
-            "Heartbeat binding has no runtime-spine job id.".to_string(),
-        );
-    };
     let Some(runtime_store_path) = runtime_store_path else {
         return (
             ThreadEpiphanyRoleResultStatus::Pending,
@@ -14342,21 +14336,33 @@ fn load_epiphany_role_result_from_runtime_spine(
     (status, finding, note)
 }
 
-fn load_epiphany_reorient_result_from_runtime_spine(
+fn load_epiphany_role_result_from_runtime_spine(
     binding: &EpiphanyJobBinding,
+    runtime_store_path: Option<&Path>,
+    role_id: ThreadEpiphanyRoleId,
+) -> (
+    ThreadEpiphanyRoleResultStatus,
+    Option<ThreadEpiphanyRoleFinding>,
+    String,
+) {
+    let Some(job_id) = binding_backend_job_id(binding) else {
+        return (
+            ThreadEpiphanyRoleResultStatus::BackendMissing,
+            None,
+            "Heartbeat binding has no runtime-spine job id.".to_string(),
+        );
+    };
+    load_epiphany_role_result_from_runtime_spine_job(job_id, runtime_store_path, role_id)
+}
+
+fn load_epiphany_reorient_result_from_runtime_spine_job(
+    job_id: &str,
     runtime_store_path: Option<&Path>,
 ) -> (
     ThreadEpiphanyReorientResultStatus,
     Option<ThreadEpiphanyReorientFinding>,
     String,
 ) {
-    let Some(job_id) = binding_backend_job_id(binding) else {
-        return (
-            ThreadEpiphanyReorientResultStatus::BackendMissing,
-            None,
-            "Heartbeat binding has no runtime-spine job id.".to_string(),
-        );
-    };
     let Some(runtime_store_path) = runtime_store_path else {
         return (
             ThreadEpiphanyReorientResultStatus::Pending,
@@ -14394,6 +14400,24 @@ fn load_epiphany_reorient_result_from_runtime_spine(
     });
     let note = render_epiphany_reorient_result_note(status, finding.as_ref(), None);
     (status, finding, note)
+}
+
+fn load_epiphany_reorient_result_from_runtime_spine(
+    binding: &EpiphanyJobBinding,
+    runtime_store_path: Option<&Path>,
+) -> (
+    ThreadEpiphanyReorientResultStatus,
+    Option<ThreadEpiphanyReorientFinding>,
+    String,
+) {
+    let Some(job_id) = binding_backend_job_id(binding) else {
+        return (
+            ThreadEpiphanyReorientResultStatus::BackendMissing,
+            None,
+            "Heartbeat binding has no runtime-spine job id.".to_string(),
+        );
+    };
+    load_epiphany_reorient_result_from_runtime_spine_job(job_id, runtime_store_path)
 }
 
 fn map_runtime_role_result_status(
@@ -14471,6 +14495,14 @@ async fn load_epiphany_role_result_snapshot(
     Option<ThreadEpiphanyRoleFinding>,
     String,
 ) {
+    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
+        return load_epiphany_role_result_from_runtime_spine_job(
+            link.runtime_job_id.as_str(),
+            runtime_store_path,
+            role_id,
+        );
+    }
+
     let Some(binding) = state
         .job_bindings
         .iter()
@@ -14508,6 +14540,13 @@ async fn load_epiphany_reorient_result_snapshot(
             "No authoritative Epiphany state exists for this thread.".to_string(),
         );
     };
+    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
+        return load_epiphany_reorient_result_from_runtime_spine_job(
+            link.runtime_job_id.as_str(),
+            runtime_store_path,
+        );
+    }
+
     let Some(binding) = state
         .job_bindings
         .iter()
@@ -14527,6 +14566,16 @@ async fn load_epiphany_reorient_result_snapshot(
         None,
         "Non-heartbeat reorientation bindings are unsupported; launch a heartbeat-backed reorient worker for typed runtime-spine results.".to_string(),
     )
+}
+
+fn latest_epiphany_runtime_link_for_binding<'a>(
+    state: &'a EpiphanyThreadState,
+    binding_id: &str,
+) -> Option<&'a EpiphanyRuntimeLink> {
+    state
+        .runtime_links
+        .iter()
+        .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
 }
 
 fn map_epiphany_crrc_recommendation(
@@ -15568,6 +15617,26 @@ async fn load_completed_epiphany_reorient_finding(
     state: &EpiphanyThreadState,
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyReorientFinding> {
+    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
+        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine_job(
+            link.runtime_job_id.as_str(),
+            Some(runtime_store_path.as_path()),
+        );
+        if status != ThreadEpiphanyReorientResultStatus::Completed {
+            return Err(CodexErr::InvalidRequest(format!(
+                "cannot accept reorientation result while worker status is {:?}",
+                status
+            )));
+        }
+        return finding.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
+                    .to_string(),
+            )
+        });
+    }
+
     if let Some(binding) = state
         .job_bindings
         .iter()
@@ -15605,6 +15674,27 @@ async fn load_completed_epiphany_role_finding(
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyRoleFinding> {
+    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
+        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine_job(
+            link.runtime_job_id.as_str(),
+            Some(runtime_store_path.as_path()),
+            role_id,
+        );
+        if status != ThreadEpiphanyRoleResultStatus::Completed {
+            return Err(CodexErr::InvalidRequest(format!(
+                "cannot accept role result while worker status is {:?}",
+                status
+            )));
+        }
+        return finding.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "cannot accept completed role worker because no typed runtime-spine result was recorded"
+                    .to_string(),
+            )
+        });
+    }
+
     let binding = state
         .job_bindings
         .iter()
