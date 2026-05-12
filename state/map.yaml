@@ -15,13 +15,15 @@ objective:
     machinery they touch. The agent must know the machine before it cuts the
     machine.
   current: >
-    Stop outward feature work until the architectural teardown in
-    `notes/epiphany-architectural-teardown.md` and the rebuild blueprint in
-    `notes/epiphany-ideal-architecture-rebuild-plan.md` are acted on. Epiphany
-    is the foundation for everything else; the current app-server control plane
-    has absorbed too much policy, projection, lifecycle glue, and coordinator
-    sequencing. The next work is foundation cleanup, not another bridge,
-    Aquarium pane, Face surface, or convenience layer.
+    Continue the architectural teardown/rebuild migration in
+    `notes/epiphany-architectural-teardown.md` and
+    `notes/epiphany-ideal-architecture-rebuild-plan.md`. The first cuts are
+    landed: pressure derivation moved into `epiphany-core`, role/reorient
+    acceptance writes typed receipts keyed by runtime result id, summary-string
+    acceptance identity is deleted for live paths, runtime links are dual-written
+    on launch, and role/reorient result read-back prefers runtime links over
+    `jobBindings`. The next work is to shrink/delete `jobBindings` lifecycle
+    mirror fields, then continue endpoint/view and raw-result cleanup.
 
 constraints:
   - No frontier-scale training tithe.
@@ -270,5 +272,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend organs are landed, but the May 2026 architectural teardown found that the app-server Epiphany control plane has become architectural Jenga: policy, projection, lifecycle glue, prompt packet assembly, coordinator sequencing, and tests are concentrated in the host seam. The foundations are conceptually sound, and `notes/epiphany-ideal-architecture-rebuild-plan.md` now defines the smallest coherent replacement architecture.
-  next_action: Treat `notes/epiphany-architectural-teardown.md` and `notes/epiphany-ideal-architecture-rebuild-plan.md` as the active top-priority cleanup directive. Start with the first reversible rebuild slice: add `epiphany-core/src/surfaces/`, move pressure view derivation into core while leaving `thread/epiphany/pressure` as an app-server wrapper, and move pressure policy tests into core. Then pursue typed acceptance receipts, runtime-spine lifecycle ownership, endpoint collapse into view lenses, removal of public `raw_result`, and heartbeat cognition quarantine. Do not continue Aquarium UI, bridge, Face, or dogfood expansion until this foundation cleanup is underway.
+  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend organs are landed, and the May 2026 rebuild has started cutting the app-server control-plane tumor. Pressure policy now lives in `epiphany-core`; role/reorient acceptance writes typed `acceptance_receipts`; live duplicate-acceptance checks use runtime result receipt identity instead of summary strings; launch writes durable `runtime_links`; and role/reorient result read-back follows runtime links before falling back to legacy bindings.
+  next_action: Continue the teardown/rebuild migration from `notes/epiphany-ideal-architecture-rebuild-plan.md`. The next bounded cut is to shrink or delete `jobBindings` lifecycle/backend fields now that `runtime_links` can locate runtime-spine jobs, then remove normal public `raw_result`, add the canonical `epiphany/view` lens wrapper, migrate consumers, and quarantine heartbeat cognition blobs. Do not resume outward Aquarium/bridge/Face/dogfood expansion until this foundation cleanup is materially farther along.
