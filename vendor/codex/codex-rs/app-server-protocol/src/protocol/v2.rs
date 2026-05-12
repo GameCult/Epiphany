@@ -4364,38 +4364,6 @@ pub enum ThreadEpiphanyRoleResultStatus {
     Cancelled,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyCoordinatorParams {
-    pub thread_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyCoordinatorResponse {
-    pub thread_id: String,
-    pub source: ThreadEpiphanyRolesSource,
-    pub state_status: ThreadEpiphanyReorientStateStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub state_revision: Option<u64>,
-    pub action: ThreadEpiphanyCoordinatorAction,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub target_role: Option<ThreadEpiphanyRoleId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub recommended_scene_action: Option<ThreadEpiphanySceneAction>,
-    pub requires_review: bool,
-    pub can_auto_run: bool,
-    pub reason: String,
-    pub source_signals: ThreadEpiphanyCoordinatorSignals,
-    pub roles: Vec<ThreadEpiphanyRoleLane>,
-    pub note: String,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
@@ -4947,30 +4915,6 @@ pub struct ThreadEpiphanyGraphQueryMissing {
     pub edge_ids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyPressureParams {
-    pub thread_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyPressureResponse {
-    pub thread_id: String,
-    pub source: ThreadEpiphanyPressureSource,
-    pub pressure: ThreadEpiphanyPressure,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub enum ThreadEpiphanyPressureSource {
-    Stored,
-    Live,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
@@ -5023,26 +4967,6 @@ pub enum ThreadEpiphanyPressureBasis {
     Unknown,
     AutoCompactLimit,
     ModelContextWindow,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyReorientParams {
-    pub thread_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyReorientResponse {
-    pub thread_id: String,
-    pub source: ThreadEpiphanyReorientSource,
-    pub state_status: ThreadEpiphanyReorientStateStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub state_revision: Option<u64>,
-    pub decision: ThreadEpiphanyReorientDecision,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -5135,39 +5059,6 @@ pub struct ThreadEpiphanyReorientAcceptResponse {
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
     pub finding: ThreadEpiphanyReorientFinding,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyCrrcParams {
-    pub thread_id: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ThreadEpiphanyCrrcResponse {
-    pub thread_id: String,
-    pub source: ThreadEpiphanyReorientSource,
-    pub state_status: ThreadEpiphanyReorientStateStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub state_revision: Option<u64>,
-    pub pressure: ThreadEpiphanyPressure,
-    pub decision: ThreadEpiphanyReorientDecision,
-    pub recommendation: ThreadEpiphanyCrrcRecommendation,
-    pub reorient_binding_id: String,
-    pub reorient_result_status: ThreadEpiphanyReorientResultStatus,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub reorient_job: Option<ThreadEpiphanyJob>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub reorient_finding: Option<ThreadEpiphanyReorientFinding>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub available_actions: Vec<ThreadEpiphanySceneAction>,
-    pub note: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]

@@ -120,8 +120,8 @@ fn run_smoke(args: &Args) -> Result<Value> {
 
     let notification_start = client.notification_len();
     let response = client.send(
-        "thread/epiphany/pressure",
-        Some(json!({"threadId": thread_id})),
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["pressure"]})),
         true,
     )?;
     require(
@@ -148,7 +148,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
     let result = json!({
         "threadId": thread_id,
         "codexHome": codex_home,
-        "source": response["source"],
+        "source": "thread/epiphany/view",
         "status": response["pressure"]["status"],
         "level": response["pressure"]["level"],
         "basis": response["pressure"]["basis"],
@@ -164,10 +164,6 @@ fn run_smoke(args: &Args) -> Result<Value> {
 }
 
 fn assert_unknown_pressure(response: &Value) -> Result<()> {
-    require(
-        response.get("source").and_then(Value::as_str) == Some("live"),
-        "fresh pressure should report live source",
-    )?;
     let pressure = response
         .get("pressure")
         .ok_or_else(|| anyhow!("pressure response missing pressure object"))?;

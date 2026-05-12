@@ -16435,13 +16435,6 @@
         ],
         "type": "string"
       },
-      "ThreadEpiphanyPressureSource": {
-        "enum": [
-          "stored",
-          "live"
-        ],
-        "type": "string"
-      },
       "ThreadEpiphanyPressureStatus": {
         "enum": [
           "unknown",

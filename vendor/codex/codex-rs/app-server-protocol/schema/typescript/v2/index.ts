@@ -346,7 +346,6 @@ export type { ThreadEpiphanyPlanningSummary } from "./ThreadEpiphanyPlanningSumm
 export type { ThreadEpiphanyPressure } from "./ThreadEpiphanyPressure";
 export type { ThreadEpiphanyPressureBasis } from "./ThreadEpiphanyPressureBasis";
 export type { ThreadEpiphanyPressureLevel } from "./ThreadEpiphanyPressureLevel";
-export type { ThreadEpiphanyPressureSource } from "./ThreadEpiphanyPressureSource";
 export type { ThreadEpiphanyPressureStatus } from "./ThreadEpiphanyPressureStatus";
 export type { ThreadEpiphanyReorientAction } from "./ThreadEpiphanyReorientAction";
 export type { ThreadEpiphanyReorientCheckpointStatus } from "./ThreadEpiphanyReorientCheckpointStatus";

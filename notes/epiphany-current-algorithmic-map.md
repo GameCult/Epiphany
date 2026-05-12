@@ -30,14 +30,15 @@ The spine exists in more than twenty-five live paths:
 - targeted context reflection: app-server declares experimental read-only `thread/epiphany/context`, reads the same live/stored Epiphany state view used by scene/jobs, and derives a bounded state shard containing selected graph nodes/edges, links, active frontier, checkpoint, the full durable investigation-checkpoint packet, observations, direct evidence, linked evidence, and missing requested ids without retrieval, proposal, promotion, notification, mutation, or persistence in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:355), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4253), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4261), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11152).
 - graph traversal reflection: app-server declares experimental read-only `thread/epiphany/graphQuery`, reads the same live Epiphany state view used by context, and derives explicit node/edge lookup, path/symbol matches, bounded neighbors, edge-kind matches, and frontier neighborhoods with architecture/dataflow links plus frontier/checkpoint identity, matched selectors, and missing ids without retrieval, proposal, promotion, indexing, notification, mutation, or scheduling in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:379), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4720), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:5060), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:15201).
 - planning reflection: app-server declares experimental read-only `thread/epiphany/planning`, reads the same live/stored Epiphany state view, and returns typed captures, backlog items, roadmap streams, Objective Drafts, GitHub source refs, count summaries, and the separate active objective without adopting drafts, launching work, notifying, mutating, or scheduling in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:385), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4681), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:5353), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:16295).
-- context-pressure reflection: core token telemetry carries `model_auto_compact_token_limit` beside total/last usage and `model_context_window`; app-server declares experimental read-only `thread/epiphany/pressure`, reads live token usage or the latest stored rollout `TokenCount`, derives current context pressure from `last_token_usage` rather than cumulative thread spend, treats cumulative-only telemetry as unknown, and raises `shouldPrepareCompaction` at 80% of the active auto-compact/context limit without mutating Epiphany state or scheduling compaction in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:2237), [turn_context.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/turn_context.rs:103), [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2716), [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:360), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4361), [token_usage_replay.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor/token_usage_replay.rs:75), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4306), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11028).
+- canonical view lens reflection: app-server declares experimental read-only `thread/epiphany/view` with selectable lenses and uses it as the canonical operator read surface for pressure, reorient, CRRC, and coordinator projections. Those projections no longer have standalone protocol verbs; the separate `reorientLaunch`, `reorientResult`, and `reorientAccept` surfaces remain because they carry authority, result read-back, and review acceptance rather than mere reflection.
+- context-pressure reflection: core token telemetry carries `model_auto_compact_token_limit` beside total/last usage and `model_context_window`; the `pressure` view lens reads live token usage or the latest stored rollout `TokenCount`, derives current context pressure from `last_token_usage` rather than cumulative thread spend, treats cumulative-only telemetry as unknown, and raises `shouldPrepareCompaction` at 80% of the active auto-compact/context limit without mutating Epiphany state or scheduling compaction in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:2237), [turn_context.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/turn_context.rs:103), [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2716), [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:360), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4361), [token_usage_replay.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor/token_usage_replay.rs:75), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4306), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11028).
 - pre-compaction checkpoint intervention: app-server `TokenCount` handling now checks the same pressure mapper, and for loaded Epiphany threads crossing `shouldPrepareCompaction` it steers the active turn once with a bounded CRRC checkpoint directive to bank working context before compaction/reorientation. The per-turn dedupe bit and the pending compact handoff live in listener `ThreadState`; successful steering marks the active turn for a forced compact action at clean turn completion, while aborted turns clear the handoff. The intervention uses existing turn steering and turn-boundary automation rather than a new scheduler in [bespoke_event_handling.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/bespoke_event_handling.rs:1467), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:15405), and [thread_state.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/thread_state.rs:144).
-- reorientation policy: app-server declares experimental read-only `thread/epiphany/reorient`, reuses the same live/stored thread view plus mapped pressure/freshness/watcher signals, and derives a bounded `resume`/`regather` verdict with checkpoint-path/frontier reasons without mutating, compacting, scheduling, notifying, or continuing work in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:365), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4514), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4394), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11424).
-- CRRC coordinator recommendation: app-server declares experimental read-only `thread/epiphany/crrc`, reuses the same pressure/freshness/watcher/reorientation mapping plus the fixed `reorient-worker` binding and result read-back helper, recognizes already accepted reorientation findings so an accepted result is not recommended for acceptance again, and returns one bounded recommendation such as continue, prepare checkpoint, launch worker, wait, review, accept, or regather manually without mutating, launching, accepting, compacting, notifying, scheduling, or silently continuing work in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:370), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4661), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4546).
+- reorientation policy: the `reorient` view lens reuses the same live/stored thread view plus mapped pressure/freshness/watcher signals, and derives a bounded `resume`/`regather` verdict with checkpoint-path/frontier reasons without mutating, compacting, scheduling, notifying, or continuing work in [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4514), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4394), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11424).
+- CRRC coordinator recommendation: the `crrc` view lens reuses the same pressure/freshness/watcher/reorientation mapping plus the fixed `reorient-worker` binding and result read-back helper, recognizes already accepted reorientation findings so an accepted result is not recommended for acceptance again, and returns one bounded recommendation such as continue, prepare checkpoint, launch worker, wait, review, accept, or regather manually without mutating, launching, accepting, compacting, notifying, scheduling, or silently continuing work in [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4661), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4546).
 - role ownership projection: app-server declares experimental read-only `thread/epiphany/roles`, reuses the same state/jobs/pressure/reorient/result/CRRC signals as the coordinator loop, and projects implementation, Imagination/planning, modeling/checkpoint, verification/review, and reorientation lanes with owner roles, status, linked jobs, authority scopes, and recommended scene actions without launching, scheduling, accepting, compacting, notifying, or mutating state in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4161), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4310).
 - role specialist launch/read-back/acceptance: app-server declares experimental `thread/epiphany/roleLaunch`, read-only `thread/epiphany/roleResult`, and write-gated `thread/epiphany/roleAccept`. `roleLaunch` accepts fixed Imagination/planning, modeling/checkpoint, and verification/review role ids, builds bounded specialist payloads from authoritative Epiphany state, routes them through the heartbeat-backed `epiphany_launch_job` seam, opens a typed runtime-spine job receipt, and emits the normal `jobLaunch` state update for `jobBindings` only. `roleResult` resolves heartbeat bindings through typed runtime-spine job results and seals legacy `agent_jobs` bindings, projecting structured output as a reviewable finding with verdict, summary, next safe move, inspected files, frontier/evidence ids, optional `statePatch`, optional `selfPatch`, coordinator `selfPersistence` review, raw result, and errors without mutation, promotion, scheduling, or hidden continuation. `selfPatch` is a Ghostlight-shaped lane-memory request, not project truth: the coordinator accepts only role-matched, bounded, evidence-grounded memory/goal/value/private-note mutations and refuses objectives, graphs, checkpoints, scratch, planning, jobs, authority, code edits, or raw transcripts with reasons. `roleAccept` accepts completed heartbeat findings from typed runtime-spine results, accepts completed Imagination findings only when they contain a valid planning-only patch with draft Objective Draft review gates, accepts completed modeling/checkpoint findings only with a modeling-safe `statePatch`, applies accepted project patches through the existing Epiphany state validator, appends audit observation/evidence, and carries the same `selfPersistence` review. GUI/coordinator accept paths then apply accepted `selfPatch` requests to typed CultCache role dossiers in `state/agents.msgpack` through the native `epiphany-agent-memory-store` binary. Implementation stays owned by the main coding agent, verification output remains review-only, and reorientation stays on the CRRC-specific `reorientLaunch` / `reorientResult` / `reorientAccept` path.
 - shared prompt memory projection and role dossiers: the prompt config now carries `[shared].persistent_memory` in [epiphany_specialists.toml](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml:2). App-server parses that block, prepends it through `epiphany_agent_prompt_with_memory`, and therefore projects the same Ghostlight-derived memory into fixed role specialist instructions, reorientation-worker instructions, coordinator notes, and CRRC checkpoint steering. The base `<epiphany_state>` doctrine reinforces the Perfect Machine rule through [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:31) and [epiphany_doctrine.md](E:/Projects/EpiphanyAgent/epiphany-core/src/prompts/epiphany_doctrine.md:1). Individual Ghostlight-shaped role dossiers now live in typed CultCache `state/agents.msgpack`, and the native `epiphany-agent-memory-store` binary validates, reviews, and applies bounded self-memory patches through the Rust store.
-- fixed-lane coordinator: app-server declares experimental read-only `thread/epiphany/coordinator`, composes role, pressure, reorient, CRRC, role result, and reorient result signals, and returns one current action without mutation. Review acceptance and implementation clearance are intentionally different: an accepted verification finding clears implementation only when the verifier verdict is `pass`; accepted `needs-evidence`, `needs-review`, or `fail` findings route back toward modeling/checkpoint strengthening before code work resumes. `regatherManually` is now fallback, not a supervisor-puppeteering excuse: completed unaccepted modeling findings stop at `reviewModelingResult`, modeling acceptance precedes verification, and fixed lane actions are considered before manual regather.
+- fixed-lane coordinator: the `coordinator` view lens composes role, pressure, reorient, CRRC, role result, and reorient result signals, and returns one current action without mutation. Review acceptance and implementation clearance are intentionally different: an accepted verification finding clears implementation only when the verifier verdict is `pass`; accepted `needs-evidence`, `needs-review`, or `fail` findings route back toward modeling/checkpoint strengthening before code work resumes. `regatherManually` is now fallback, not a supervisor-puppeteering excuse: completed unaccepted modeling findings stop at `reviewModelingResult`, modeling acceptance precedes verification, and fixed lane actions are considered before manual regather.
 - MVP operator view: native `epiphany-mvp-status` launches app-server over stdio, starts or reads one thread, gathers scene, planning, pressure, reorient, jobs, roles, Imagination/modeling/verification role results, reorient result, CRRC responses, heartbeat, and Face bubble artifacts, and renders them as text or JSON so the loop can be dogfooded without Python owning the product surface.
 - MVP dogfood runner: the old Python runner was cut with the `agent_jobs` path. The replacement must be native Rust/CultCache/CultNet and complete heartbeat-owned runtime-spine job results with operator-safe artifacts.
 - Agent function/API telemetry: native `epiphany-agent-telemetry` mechanically parses sealed AppServerClient JSONL transcripts into operator-safe telemetry with method counts, request shape, job/status/path fields, and visible function/tool names while sealing text, turn items, raw results, and direct agent messages.
@@ -91,16 +92,18 @@ flowchart TD
     QG --> Q
     N --> QPLAN["thread/epiphany/planning projects captures/backlog/drafts"]
     QPLAN --> Q
+    N --> QVIEW["thread/epiphany/view selects read lenses"]
+    QVIEW --> Q
     A --> QP["TokenUsageInfo stores usage, context window, and auto-compact limit"]
-    QP --> QQ["thread/epiphany/pressure derives read-only context pressure"]
-    QQ --> Q
-    QF --> QR["thread/epiphany/reorient derives read-only resume/regather verdict"]
+    QP --> QQ["view.pressure derives read-only context pressure"]
+    QQ --> QVIEW
+    QF --> QR["view.reorient derives read-only resume/regather verdict"]
     QQ --> QR
-    QR --> Q
-    QR --> QCRRC["thread/epiphany/crrc recommends the next explicit CRRC action"]
+    QR --> QVIEW
+    QR --> QCRRC["view.crrc recommends the next explicit CRRC action"]
     QQ --> QCRRC
     QJ --> QCRRC
-    QCRRC --> Q
+    QCRRC --> QVIEW
     QR --> QRL["thread/epiphany/reorientLaunch can explicitly consume that verdict"]
     QRL --> QRLR["thread/epiphany/reorientResult reads back worker findings"]
     QRLR --> Q
@@ -161,7 +164,8 @@ What this means in plain English:
 - The app-server can expose a targeted read-only context shard for clients that need graph/evidence detail without pulling the full typed state.
 - The app-server can expose read-only graph traversal for clients and agents that need frontier neighborhoods, path/symbol matches, or local blast-radius walks without turning traversal into proposal or promotion.
 - The app-server can expose read-only planning state for clients that need captures, backlog, roadmap streams, and Objective Drafts without turning them into active objectives.
-- The app-server can expose context pressure derived from real token telemetry without starting compaction or pretending vibes are telemetry.
+- The app-server can expose pressure, reorient, CRRC, and coordinator projections through one canonical read-only view lens surface instead of preserving a private verb zoo.
+- The pressure lens exposes context pressure derived from real token telemetry without starting compaction or pretending vibes are telemetry.
 - A loaded thread can ask for a typed observation/evidence proposal without mutating state.
 - A loaded thread can ask a verifier-backed promotion gate to reject or apply that proposal.
 - A loaded thread can now accept explicit typed state patches and persist them immediately.
@@ -1277,23 +1281,25 @@ The response is a bounded traversal result for agents that need to move around t
 
 Graph query projection is read-only. It does not run retrieval, draft proposals, index code, promote observations, mutate `SessionState`, append rollout items, schedule work, or emit notifications. It is a map traversal, not a cartographer with a pen.
 
-## Flow 16: Context Pressure Reflection Control Flow
+## Flow 16: Context Pressure View Lens Control Flow
 
 ### Input
 
-A client sends experimental `thread/epiphany/pressure` with:
+A client sends experimental `thread/epiphany/view` with:
 
 - `threadId`
+- `lenses: ["pressure"]`
 
 ### Plain-language role
 
-Pressure projection is the fourth Phase 6 reflection boundary. It answers "how close is this thread to context pressure?" from runtime telemetry that already drives compaction, not from transcript vibes or user panic.
+Pressure projection is now a view lens. It answers "how close is this thread to context pressure?" from runtime telemetry that already drives compaction, not from transcript vibes or user panic.
 
 The useful distinction from automatic CRRC is that this surface only reflects. It reports pressure level, measurement basis, used tokens, remaining budget, ratio, and whether preparation is advisable. It does not compact, schedule, persist state, notify `stateUpdated`, or checkpoint in-flight planning.
 
 Protocol shape:
 
 - `threadId`
+- `lenses`
 
 Response shape:
 
@@ -1330,20 +1336,21 @@ Core telemetry:
 2. `TurnContext` exposes the same auto-compact limit that the compaction path uses.
 3. token usage updates, recomputation, and full-window marking carry the threshold into session history and `TokenCount` events.
 
-The app-server handler:
+The view handler:
 
 1. parses the thread id.
-2. checks whether the thread is loaded.
-3. reads live `CodexThread::token_usage_info()` for loaded threads.
-4. falls back to the latest stored rollout `TokenCount` for unloaded threads.
-5. maps missing telemetry to honest `unknown`.
-6. maps known telemetry against `model_auto_compact_token_limit` when present, otherwise falls back to `model_context_window`.
-7. derives `low`, `elevated`, `high`, or `critical` from used tokens over the selected limit.
-8. sets `shouldPrepareCompaction` only as advice when the selected ratio reaches high pressure.
+2. selects the `pressure` lens.
+3. checks whether the thread is loaded.
+4. reads live `CodexThread::token_usage_info()` for loaded threads.
+5. falls back to the latest stored rollout `TokenCount` for unloaded threads.
+6. maps missing telemetry to honest `unknown`.
+7. maps known telemetry against `model_auto_compact_token_limit` when present, otherwise falls back to `model_context_window`.
+8. derives `low`, `elevated`, `high`, or `critical` from used tokens over the selected limit.
+9. sets `shouldPrepareCompaction` only as advice when the selected ratio reaches high pressure.
 
 ### Output
 
-The response is a read-only gauge. The Phase 6 pressure smoke proved that a fresh live thread reports `unknown`, recommends no compaction prep, emits no `thread/epiphany/stateUpdated`, and does not create Epiphany state. Focused mapper tests cover auto-compact threshold preference and context-window fallback.
+The response is a read-only gauge under the view response. The Phase 6 pressure smoke proves the `thread/epiphany/view` pressure lens reports `unknown` for a fresh live thread, recommends no compaction prep, emits no `thread/epiphany/stateUpdated`, and does not create Epiphany state. Focused mapper tests cover auto-compact threshold preference and context-window fallback.
 
 ### Invariant
 
@@ -1367,7 +1374,7 @@ turn fresh working context into decorative smoke.
 The app-server event handler:
 
 1. clones the `TokenUsageInfo` from the `TokenCount` event before forwarding the normal token-usage notification.
-2. maps it through the same pressure helper used by `thread/epiphany/pressure`.
+2. maps it through the same pressure helper used by the `pressure` view lens.
 3. ignores unknown/low/elevated pressure and acts only when `shouldPrepareCompaction` is true.
 4. requires a loaded thread with existing Epiphany state.
 5. records one intervention per active turn id in listener `ThreadState`.
@@ -1384,37 +1391,39 @@ findings, promote evidence, launch arbitrary specialists, or continue
 implementation. It is a shove toward persistence, not a new little emperor with
 a queue.
 
-## Flow 17: Reorientation Policy Control Flow
+## Flow 17: Reorientation View Lens Control Flow
 
 ### Input
 
-A client sends experimental `thread/epiphany/reorient` with:
+A client sends experimental `thread/epiphany/view` with:
 
 - `threadId`
+- `lenses: ["reorient"]`
 
 ### Plain-language role
 
-Reorientation policy is the fifth Phase 6 reflection boundary. It answers one narrow question after wakeup or during a continuity check: does the current durable checkpoint still deserve `resume`, or has enough relevant drift accumulated that the honest answer is `regather`?
+Reorientation policy is now a view lens. It answers one narrow question after wakeup or during a continuity check: does the current durable checkpoint still deserve `resume`, or has enough relevant drift accumulated that the honest answer is `regather`?
 
 The useful distinction from automatic CRRC is that this surface only returns a verdict. It consumes the landed checkpoint, freshness, watcher, and pressure signals, but it does not compact, schedule, mutate, notify, or continue work by itself.
 
 ### Mechanism
 
-The app-server handler:
+The view handler:
 
 1. parses the thread id.
-2. reads the same live/stored thread view used by the other reflection surfaces.
-3. reuses live retrieval summary and watcher snapshots for loaded threads when available.
-4. reuses live token telemetry or the latest stored rollout `TokenCount`.
-5. maps freshness and pressure through the existing reflection helpers.
-6. evaluates one bounded verdict:
+2. selects the `reorient` lens.
+3. reads the same live/stored thread view used by the other reflection surfaces.
+4. reuses live retrieval summary and watcher snapshots for loaded threads when available.
+5. reuses live token telemetry or the latest stored rollout `TokenCount`.
+6. maps freshness and pressure through the existing reflection helpers.
+7. evaluates one bounded verdict:
    - `regather` when state is missing, the checkpoint is missing, the checkpoint explicitly requests re-gather, checkpoint code-ref paths are dirty or newly changed, active frontier watcher hits show live drift, or an unanchored checkpoint sits on top of stale signals.
    - `resume` when a `resume_ready` checkpoint remains aligned with the current signals.
-7. returns typed reasons, relevant changed/dirty checkpoint paths, active frontier hits, next action text, and a human-readable note.
+8. returns typed reasons, relevant changed/dirty checkpoint paths, active frontier hits, next action text, and a human-readable note.
 
 ### Output
 
-The response is a read-only wakeup verdict. The Phase 6 reorient smoke proved that a fresh live thread regathers when there is no ember, a clean checkpoint resumes, watcher-touched checkpoint paths flip the verdict back to regather, no `thread/epiphany/stateUpdated` notification is emitted, and final thread state revision does not change.
+The response is a read-only wakeup verdict under the view response. The Phase 6 reorient smoke proves the `thread/epiphany/view` reorient lens regathers when there is no ember, resumes for a clean checkpoint, flips watcher-touched checkpoint paths back to regather, emits no `thread/epiphany/stateUpdated`, and leaves final thread state revision unchanged.
 
 ### Invariant
 

@@ -178,7 +178,7 @@ Reads authoritative durable state.
 Revision-gated durable state patch. No runtime lifecycle mutation except stable
 links/receipts that are project truth.
 
-### `epiphany/view`
+### `thread/epiphany/view`
 
 Reads selected lenses from durable state plus runtime telemetry. It is
 read-only. The request specifies lenses such as:
@@ -267,7 +267,7 @@ Delete because it compensates for bad ownership:
 
 Collapse:
 
-- many `thread/epiphany/*` view endpoints into `epiphany/view` lenses
+- many `thread/epiphany/*` view endpoints into `thread/epiphany/view` lenses
 - job binding lifecycle fields into runtime-spine jobs/results
 - public findings into typed projections plus sealed forensic artifacts
 
@@ -456,25 +456,26 @@ Commit shape:
 
 Purpose: restore the operator-safe boundary.
 
-### 12. Collapse View Endpoints Behind `epiphany/view`
+### 12. Collapse View Endpoints Behind `thread/epiphany/view`
 
-Add `epiphany/view` with selectable lenses. Keep old endpoints as wrappers that
-call the same core view.
+Add `thread/epiphany/view` with selectable lenses. Keep old endpoints as wrappers
+only until their consumers have moved; wrappers are quarantine scaffolding, not
+heirlooms.
 
 Commit shape:
 
-- no client break at first
 - new view endpoint is canonical for new consumers
+- old wrappers survive only while a named consumer still needs them
 
 Purpose: stop protocol sprawl without a flag-day break.
 
-### 13. Migrate Consumers To `epiphany/view`
+### 13. Migrate Consumers To `thread/epiphany/view`
 
 Move MVP status/Aquarium/status bridge consumers lens by lens.
 
 Commit shape:
 
-- old endpoint wrappers remain
+- old endpoint wrappers remain only while migration is incomplete
 - each consumer move is independently reversible
 
 Purpose: reduce dependency on the exploded API.
@@ -486,6 +487,11 @@ Once consumers are off wrappers, remove obsolete endpoints in small groups:
 - scene/context/graph/planning
 - jobs/roles
 - pressure/freshness/reorient/CRRC/coordinator
+
+Current scar: pressure, reorient, CRRC, and coordinator standalone read wrappers
+are already deleted. Their live read surface is `thread/epiphany/view`; the
+reorient launch/result/accept verbs remain because they are authority and review
+gates, not duplicate reflection.
 
 Purpose: actually reduce the surface area instead of preserving a compatibility
 museum forever.
@@ -517,7 +523,7 @@ The smallest coherent first implementation slice is:
 
 1. add `epiphany-core/src/surfaces/`
 2. move pressure derivation into core
-3. leave `thread/epiphany/pressure` protocol unchanged as a wrapper
+3. leave `thread/epiphany/pressure` protocol unchanged as a wrapper only for the first slice
 4. move pressure policy tests into core
 5. run the existing pressure smoke
 

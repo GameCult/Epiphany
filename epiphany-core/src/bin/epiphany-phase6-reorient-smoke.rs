@@ -129,11 +129,14 @@ fn run_smoke(args: &Args) -> Result<Value> {
         .to_string();
 
     let missing_notification_start = client.notification_len();
-    let missing_response = client.send(
-        "thread/epiphany/reorient",
-        Some(json!({"threadId": thread_id})),
+    let missing_view = client.send(
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["reorient"]})),
         true,
     )?;
+    let missing_response = missing_view
+        .get("reorient")
+        .ok_or_else(|| anyhow!("view response missing reorient lens"))?;
     assert_missing_reorient(&missing_response)?;
     client.require_no_notification(
         "thread/epiphany/stateUpdated",
@@ -162,11 +165,14 @@ fn run_smoke(args: &Args) -> Result<Value> {
     )?;
 
     let ready_notification_start = client.notification_len();
-    let ready_response = client.send(
-        "thread/epiphany/reorient",
-        Some(json!({"threadId": thread_id})),
+    let ready_view = client.send(
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["reorient"]})),
         true,
     )?;
+    let ready_response = ready_view
+        .get("reorient")
+        .ok_or_else(|| anyhow!("view response missing reorient lens"))?;
     assert_ready_reorient(&ready_response)?;
     client.require_no_notification(
         "thread/epiphany/stateUpdated",
@@ -368,12 +374,15 @@ fn wait_for_regather_reorient(
     let mut last_response = Value::Null;
     while Instant::now() < deadline {
         let response = client.send(
-            "thread/epiphany/reorient",
-            Some(json!({"threadId": thread_id})),
+            "thread/epiphany/view",
+            Some(json!({"threadId": thread_id, "lenses": ["reorient"]})),
             true,
         )?;
-        if response.pointer("/decision/action").and_then(Value::as_str) == Some("regather") {
-            return Ok(response);
+        let reorient = response
+            .get("reorient")
+            .ok_or_else(|| anyhow!("view response missing reorient lens"))?;
+        if reorient.pointer("/decision/action").and_then(Value::as_str) == Some("regather") {
+            return Ok(reorient.clone());
         }
         last_response = response;
         thread::sleep(Duration::from_millis(200));
