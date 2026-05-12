@@ -381,14 +381,20 @@ inventory and ledger now exist:
   `AgentSelfPatch` document reviewed by the same contract used by agent memory.
   The legacy app-server protocol projection serializes it back to JSON only at
   the quarantine wall.
+- Second cut landed: `EpiphanyJobLaunchRequest` in core no longer accepts
+  `input_json` or `output_schema_json`. It carries a typed
+  `EpiphanyWorkerLaunchDocument` plus `output_contract_id`. Role and reorient
+  launch helpers build typed documents directly; the old app-server protocol
+  `input_json` is now hostile ingress that must parse into the typed document
+  before core sees it.
 
-Continue with worker launch/result cargo. Replace
-`EpiphanyJobLaunchRequest.input_json` and `output_schema_json` with typed
-launch/result documents plus schema ids in `epiphany-core`, then make
-`codex_message_processor.rs` project those documents instead of assembling
-loose JSON blobs. Do not resume Rider, Unity, Aquarium, Face, dogfood,
-planning, app, skill, marketplace, or bridge expansion until this organ is
-being cut cleanly.
+Continue at the protocol edge. Replace
+`ThreadEpiphanyJobLaunchParams.input_json` / `output_schema_json` with CultNet
+typed launch-intent messages, then replace runtime job result JSON projections
+(`runtime_job_result_to_role_json` and `runtime_job_result_to_reorient_json`)
+with typed role/reorient finding documents. Do not resume Rider, Unity,
+Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge expansion
+until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

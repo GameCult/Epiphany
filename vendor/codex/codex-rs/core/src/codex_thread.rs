@@ -56,6 +56,7 @@ use codex_protocol::protocol::TokenUsageInfo;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
@@ -70,7 +71,6 @@ use tokio::sync::Mutex;
 use tokio::sync::watch;
 
 use codex_rollout::state_db::StateDbHandle;
-use serde_json::Value;
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -146,8 +146,8 @@ pub struct EpiphanyJobLaunchRequest {
     pub linked_subgoal_ids: Vec<String>,
     pub linked_graph_node_ids: Vec<String>,
     pub instruction: String,
-    pub input_json: Value,
-    pub output_schema_json: Option<Value>,
+    pub launch_document: EpiphanyWorkerLaunchDocument,
+    pub output_contract_id: String,
     pub max_runtime_seconds: Option<u64>,
 }
 
@@ -793,9 +793,20 @@ fn validate_epiphany_job_launch_request(request: &EpiphanyJobLaunchRequest) -> C
             "epiphany job launch instruction must be non-empty".to_string(),
         ));
     }
-    if !request.input_json.is_object() {
+    if request.launch_document.thread_id().trim().is_empty() {
         return Err(CodexErr::InvalidRequest(
-            "epiphany job launch input_json must be a JSON object".to_string(),
+            "epiphany job launch document must include a thread id".to_string(),
+        ));
+    }
+    if request.output_contract_id.trim().is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch output_contract_id must be non-empty".to_string(),
+        ));
+    }
+    if request.output_contract_id != request.launch_document.output_contract_id() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job launch output_contract_id must match the typed launch document"
+                .to_string(),
         ));
     }
     if let Some(max_runtime_seconds) = request.max_runtime_seconds
@@ -2020,8 +2031,28 @@ mod epiphany_update_tests {
             linked_subgoal_ids: vec!["phase-6".to_string()],
             linked_graph_node_ids: vec!["runtime-spine".to_string()],
             instruction: "Model the target before implementation.".to_string(),
-            input_json: serde_json::json!({ "objective": "keep state typed" }),
-            output_schema_json: None,
+            launch_document: EpiphanyWorkerLaunchDocument::Role(
+                epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                    thread_id: "thread-1".to_string(),
+                    role_id: "modeling".to_string(),
+                    state_revision: 7,
+                    objective: Some("keep state typed".to_string()),
+                    active_subgoal_id: None,
+                    active_subgoals: Vec::new(),
+                    active_graph_node_ids: vec!["runtime-spine".to_string()],
+                    investigation_checkpoint: None,
+                    scratch: None,
+                    invariants: Vec::new(),
+                    graphs: None,
+                    recent_evidence: Vec::new(),
+                    recent_observations: Vec::new(),
+                    graph_frontier: None,
+                    graph_checkpoint: None,
+                    planning: None,
+                    churn: None,
+                },
+            ),
+            output_contract_id: "epiphany.worker.role_result.v0".to_string(),
             max_runtime_seconds: Some(60),
         };
 

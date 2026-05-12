@@ -549,6 +549,7 @@ use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
 use epiphany_core::EpiphanyReorientReason as CoreEpiphanyReorientReason;
 use epiphany_core::EpiphanyReorientStateStatus as CoreEpiphanyReorientStateStatus;
+use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRetrievalFreshness as CoreEpiphanyRetrievalFreshness;
 use epiphany_core::EpiphanyRetrievalFreshnessStatus as CoreEpiphanyRetrievalFreshnessStatus;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
@@ -562,6 +563,7 @@ use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleSelfPersistenceReview as CoreEpiphanyRoleSelfPersistenceReview;
 use epiphany_core::EpiphanyRoleSelfPersistenceStatus as CoreEpiphanyRoleSelfPersistenceStatus;
+use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
@@ -578,6 +580,7 @@ use epiphany_core::EpiphanySceneSource as CoreEpiphanySceneSource;
 use epiphany_core::EpiphanySceneStateStatus as CoreEpiphanySceneStateStatus;
 use epiphany_core::EpiphanySceneStatusCount as CoreEpiphanySceneStatusCount;
 use epiphany_core::EpiphanySceneSubgoal as CoreEpiphanySceneSubgoal;
+use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
@@ -6381,7 +6384,7 @@ impl CodexMessageProcessor {
             linked_graph_node_ids,
             instruction,
             input_json,
-            output_schema_json,
+            output_schema_json: _,
             max_runtime_seconds,
         } = params;
 
@@ -6406,6 +6409,19 @@ impl CodexMessageProcessor {
             }
         };
 
+        let launch_document =
+            match serde_json::from_value::<EpiphanyWorkerLaunchDocument>(input_json) {
+                Ok(document) => document,
+                Err(err) => {
+                    self.send_invalid_request_error(
+                        request_id,
+                        format!("invalid Epiphany job launch document: {err}"),
+                    )
+                    .await;
+                    return;
+                }
+            };
+        let output_contract_id = launch_document.output_contract_id().to_string();
         let changed_fields = epiphany_job_launch_changed_fields();
         let launched = match thread
             .epiphany_launch_job(EpiphanyJobLaunchRequest {
@@ -6418,8 +6434,8 @@ impl CodexMessageProcessor {
                 linked_subgoal_ids,
                 linked_graph_node_ids,
                 instruction,
-                input_json,
-                output_schema_json,
+                launch_document,
+                output_contract_id,
                 max_runtime_seconds,
             })
             .await
@@ -12841,52 +12857,51 @@ fn build_epiphany_role_launch_request(
     let owner_role = epiphany_role_owner(role_id)?;
     let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
     let linked_graph_node_ids = epiphany_active_graph_node_ids(Some(state));
-    let (scope, authority_scope, instruction, output_schema_json) = match role_id {
+    let (scope, authority_scope, instruction) = match role_id {
         ThreadEpiphanyRoleId::Imagination => (
             "role-scoped planning synthesis",
             "epiphany.role.imagination",
             build_epiphany_role_launch_instruction(role_id),
-            epiphany_role_launch_output_schema(role_id),
         ),
         ThreadEpiphanyRoleId::Modeling => (
             "role-scoped modeling/checkpoint maintenance",
             "epiphany.role.modeling",
             build_epiphany_role_launch_instruction(role_id),
-            epiphany_role_launch_output_schema(role_id),
         ),
         ThreadEpiphanyRoleId::Verification => (
             "role-scoped verification/review",
             "epiphany.role.verification",
             build_epiphany_role_launch_instruction(role_id),
-            epiphany_role_launch_output_schema(role_id),
         ),
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
             return Err(epiphany_role_binding_id(role_id).unwrap_err());
         }
     };
-    let input_json = serde_json::json!({
-        "threadId": thread_id,
-        "roleId": epiphany_role_label(role_id),
-        "stateRevision": state.revision,
-        "objective": &state.objective,
-        "activeSubgoalId": &state.active_subgoal_id,
-        "activeSubgoals": state
+    let launch_document = EpiphanyWorkerLaunchDocument::Role(EpiphanyRoleWorkerLaunchDocument {
+        thread_id: thread_id.to_string(),
+        role_id: epiphany_role_label(role_id).to_string(),
+        state_revision: state.revision,
+        objective: state.objective.clone(),
+        active_subgoal_id: state.active_subgoal_id.clone(),
+        active_subgoals: state
             .subgoals
             .iter()
             .filter(|subgoal| Some(subgoal.id.as_str()) == state.active_subgoal_id.as_deref())
-            .collect::<Vec<_>>(),
-        "activeGraphNodeIds": linked_graph_node_ids,
-        "investigationCheckpoint": &state.investigation_checkpoint,
-        "scratch": &state.scratch,
-        "invariants": &state.invariants,
-        "graphs": &state.graphs,
-        "recentEvidence": state.recent_evidence.iter().take(8).collect::<Vec<_>>(),
-        "recentObservations": state.observations.iter().take(8).collect::<Vec<_>>(),
-        "graphFrontier": &state.graph_frontier,
-        "graphCheckpoint": &state.graph_checkpoint,
-        "planning": &state.planning,
-        "churn": &state.churn,
+            .cloned()
+            .collect(),
+        active_graph_node_ids: linked_graph_node_ids.clone(),
+        investigation_checkpoint: state.investigation_checkpoint.clone(),
+        scratch: state.scratch.clone(),
+        invariants: state.invariants.clone(),
+        graphs: Some(state.graphs.clone()),
+        recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
+        recent_observations: state.observations.iter().take(8).cloned().collect(),
+        graph_frontier: state.graph_frontier.clone(),
+        graph_checkpoint: state.graph_checkpoint.clone(),
+        planning: Some(state.planning.clone()),
+        churn: state.churn.clone(),
     });
+    let output_contract_id = launch_document.output_contract_id().to_string();
 
     Ok(EpiphanyJobLaunchRequest {
         expected_revision,
@@ -12898,8 +12913,8 @@ fn build_epiphany_role_launch_request(
         linked_subgoal_ids,
         linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
         instruction,
-        input_json,
-        output_schema_json: Some(output_schema_json),
+        launch_document,
+        output_contract_id,
         max_runtime_seconds,
     })
 }
@@ -13149,50 +13164,50 @@ fn build_epiphany_reorient_launch_request(
         ThreadEpiphanyReorientAction::Regather => "reorient-guided checkpoint regather",
     };
     let instruction = build_epiphany_reorient_launch_instruction(decision.action);
-    let input_json = serde_json::json!({
-        "threadId": thread_id,
-        "mode": reorient_action_label(decision.action),
-        "checkpointId": checkpoint.checkpoint_id.clone(),
-        "checkpointKind": checkpoint.kind.clone(),
-        "checkpointDisposition": investigation_disposition_label(checkpoint.disposition),
-        "checkpointFocus": checkpoint.focus.clone(),
-        "checkpointSummary": checkpoint.summary.clone(),
-        "checkpointNextAction": checkpoint_next_action,
-        "checkpointOpenQuestions": checkpoint.open_questions.clone(),
-        "checkpointEvidenceIds": checkpoint.evidence_ids.clone(),
-        "checkpointCodeRefs": checkpoint
-            .code_refs
-            .iter()
-            .map(epiphany_code_ref_json)
-            .collect::<Vec<_>>(),
-        "decisionReasons": decision
-            .reasons
-            .iter()
-            .map(|reason| reorient_reason_label(*reason))
-            .collect::<Vec<_>>(),
-        "decisionNote": decision.note.clone(),
-        "pressureLevel": pressure_level_label(decision.pressure_level),
-        "retrievalStatus": retrieval_freshness_status_label(decision.retrieval_status),
-        "graphStatus": graph_freshness_status_label(decision.graph_status),
-        "watcherStatus": invalidation_status_label(decision.watcher_status),
-        "checkpointDirtyPaths": decision
-            .checkpoint_dirty_paths
-            .iter()
-            .map(path_to_display_string)
-            .collect::<Vec<_>>(),
-        "checkpointChangedPaths": decision
-            .checkpoint_changed_paths
-            .iter()
-            .map(path_to_display_string)
-            .collect::<Vec<_>>(),
-        "scratch": &state.scratch,
-        "graphs": &state.graphs,
-        "recentEvidence": state.recent_evidence.iter().take(8).collect::<Vec<_>>(),
-        "recentObservations": state.observations.iter().take(8).collect::<Vec<_>>(),
-        "activeFrontierNodeIds": decision.active_frontier_node_ids.clone(),
-        "linkedSubgoalIds": linked_subgoal_ids,
-        "linkedGraphNodeIds": linked_graph_node_ids,
-    });
+    let launch_document =
+        EpiphanyWorkerLaunchDocument::Reorient(EpiphanyReorientWorkerLaunchDocument {
+            thread_id: thread_id.to_string(),
+            mode: reorient_action_label(decision.action).to_string(),
+            checkpoint_id: checkpoint.checkpoint_id.clone(),
+            checkpoint_kind: checkpoint.kind.clone(),
+            checkpoint_disposition: investigation_disposition_label(checkpoint.disposition)
+                .to_string(),
+            checkpoint_focus: Some(checkpoint.focus.clone()),
+            checkpoint_summary: checkpoint.summary.clone(),
+            checkpoint_next_action,
+            checkpoint_open_questions: checkpoint.open_questions.clone(),
+            checkpoint_evidence_ids: checkpoint.evidence_ids.clone(),
+            checkpoint_code_refs: checkpoint.code_refs.clone(),
+            decision_reasons: decision
+                .reasons
+                .iter()
+                .map(|reason| reorient_reason_label(*reason).to_string())
+                .collect(),
+            decision_note: decision.note.clone(),
+            pressure_level: pressure_level_label(decision.pressure_level).to_string(),
+            retrieval_status: retrieval_freshness_status_label(decision.retrieval_status)
+                .to_string(),
+            graph_status: graph_freshness_status_label(decision.graph_status).to_string(),
+            watcher_status: invalidation_status_label(decision.watcher_status).to_string(),
+            checkpoint_dirty_paths: decision
+                .checkpoint_dirty_paths
+                .iter()
+                .map(path_to_display_string)
+                .collect(),
+            checkpoint_changed_paths: decision
+                .checkpoint_changed_paths
+                .iter()
+                .map(path_to_display_string)
+                .collect(),
+            scratch: state.scratch.clone(),
+            graphs: Some(state.graphs.clone()),
+            recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
+            recent_observations: state.observations.iter().take(8).cloned().collect(),
+            active_frontier_node_ids: decision.active_frontier_node_ids.clone(),
+            linked_subgoal_ids: linked_subgoal_ids.clone(),
+            linked_graph_node_ids: linked_graph_node_ids.clone(),
+        });
+    let output_contract_id = launch_document.output_contract_id().to_string();
 
     EpiphanyJobLaunchRequest {
         expected_revision,
@@ -13208,8 +13223,8 @@ fn build_epiphany_reorient_launch_request(
                 .chain(decision.active_frontier_node_ids.iter().cloned()),
         ),
         instruction,
-        input_json,
-        output_schema_json: Some(epiphany_reorient_launch_output_schema()),
+        launch_document,
+        output_contract_id,
         max_runtime_seconds,
     }
 }
@@ -14871,18 +14886,6 @@ fn reorient_finding_investigation_checkpoint(
         }
     }
     checkpoint
-}
-
-fn epiphany_code_ref_json(
-    code_ref: &codex_protocol::protocol::EpiphanyCodeRef,
-) -> serde_json::Value {
-    serde_json::json!({
-        "path": path_to_display_string(code_ref.path.as_path()),
-        "startLine": code_ref.start_line,
-        "endLine": code_ref.end_line,
-        "symbol": code_ref.symbol,
-        "note": code_ref.note,
-    })
 }
 
 fn path_to_display_string(path: impl AsRef<Path>) -> String {
@@ -19284,8 +19287,12 @@ mod tests {
         assert_eq!(imagination.binding_id, EPIPHANY_IMAGINATION_ROLE_BINDING_ID);
         assert_eq!(imagination.owner_role, EPIPHANY_IMAGINATION_OWNER_ROLE);
         assert_eq!(imagination.authority_scope, "epiphany.role.imagination");
-        assert_eq!(imagination.input_json["roleId"], "imagination");
-        assert!(imagination.input_json.get("planning").is_some());
+        let EpiphanyWorkerLaunchDocument::Role(imagination_document) = &imagination.launch_document
+        else {
+            panic!("imagination should build a role launch document");
+        };
+        assert_eq!(imagination_document.role_id, "imagination");
+        assert!(imagination_document.planning.is_some());
         assert!(
             imagination
                 .instruction
@@ -19296,13 +19303,17 @@ mod tests {
                 .instruction
                 .contains("Imagination of the machine")
         );
-        assert!(imagination.instruction.contains("best version of itself"));
         assert!(
             imagination
                 .instruction
                 .contains("reviewable `thread/epiphany/update` patch")
         );
-        let imagination_schema = imagination.output_schema_json.as_ref().unwrap();
+        assert_eq!(
+            imagination.output_contract_id,
+            "epiphany.worker.role_result.v0"
+        );
+        let imagination_schema =
+            epiphany_role_launch_output_schema(ThreadEpiphanyRoleId::Imagination);
         assert!(imagination_schema["properties"].get("selfPatch").is_some());
         assert!(imagination_schema["properties"].get("statePatch").is_some());
         assert_eq!(
@@ -19328,9 +19339,13 @@ mod tests {
         assert_eq!(modeling.authority_scope, "epiphany.role.modeling");
         assert_eq!(modeling.linked_subgoal_ids, vec!["sg-1".to_string()]);
         assert_eq!(modeling.linked_graph_node_ids, vec!["node-1".to_string()]);
-        assert_eq!(modeling.input_json["roleId"], "modeling");
-        assert!(modeling.input_json.get("graphs").is_some());
-        assert!(modeling.input_json.get("recentObservations").is_some());
+        let EpiphanyWorkerLaunchDocument::Role(modeling_document) = &modeling.launch_document
+        else {
+            panic!("modeling should build a role launch document");
+        };
+        assert_eq!(modeling_document.role_id, "modeling");
+        assert!(modeling_document.graphs.is_some());
+        assert!(modeling_document.recent_observations.is_empty());
         assert!(modeling.instruction.contains("Epiphany Persistent Memory"));
         assert!(modeling.instruction.contains("Body of the machine"));
         assert!(modeling.instruction.contains("coherent anatomy"));
@@ -19340,7 +19355,11 @@ mod tests {
                 .contains("`statePatch` is part of the modeling job")
         );
         assert!(modeling.instruction.contains("optional `selfPatch`"));
-        let modeling_schema = modeling.output_schema_json.as_ref().unwrap();
+        assert_eq!(
+            modeling.output_contract_id,
+            "epiphany.worker.role_result.v0"
+        );
+        let modeling_schema = epiphany_role_launch_output_schema(ThreadEpiphanyRoleId::Modeling);
         assert!(modeling_schema["properties"].get("openQuestions").is_some());
         assert!(modeling_schema["properties"].get("selfPatch").is_some());
         assert!(modeling_schema["properties"].get("statePatch").is_some());
@@ -19376,7 +19395,12 @@ mod tests {
         );
         assert_eq!(verification.owner_role, EPIPHANY_VERIFICATION_OWNER_ROLE);
         assert_eq!(verification.authority_scope, "epiphany.role.verification");
-        assert_eq!(verification.input_json["roleId"], "verification");
+        let EpiphanyWorkerLaunchDocument::Role(verification_document) =
+            &verification.launch_document
+        else {
+            panic!("verification should build a role launch document");
+        };
+        assert_eq!(verification_document.role_id, "verification");
         assert!(
             verification
                 .instruction
@@ -19384,23 +19408,17 @@ mod tests {
         );
         assert!(verification.instruction.contains("Soul of the machine"));
         assert!(verification.instruction.contains("falsify"));
+        let verification_schema =
+            epiphany_role_launch_output_schema(ThreadEpiphanyRoleId::Verification);
         assert!(
-            verification.output_schema_json.as_ref().unwrap()["properties"]
+            verification_schema["properties"]
                 .get("evidenceGaps")
                 .is_some()
         );
+        assert!(verification_schema["properties"].get("risks").is_some());
+        assert!(verification_schema["properties"].get("selfPatch").is_some());
         assert!(
-            verification.output_schema_json.as_ref().unwrap()["properties"]
-                .get("risks")
-                .is_some()
-        );
-        assert!(
-            verification.output_schema_json.as_ref().unwrap()["properties"]
-                .get("selfPatch")
-                .is_some()
-        );
-        assert!(
-            verification.output_schema_json.as_ref().unwrap()["properties"]
+            verification_schema["properties"]
                 .get("statePatch")
                 .is_none()
         );
@@ -19456,17 +19474,28 @@ mod tests {
         assert_eq!(request.binding_id, EPIPHANY_REORIENT_LAUNCH_BINDING_ID);
         assert_eq!(request.owner_role, EPIPHANY_REORIENT_OWNER_ROLE);
         assert_eq!(request.authority_scope, "epiphany.reorient.resume");
+        let EpiphanyWorkerLaunchDocument::Reorient(reorient_document) = &request.launch_document
+        else {
+            panic!("reorient should build a reorient launch document");
+        };
         assert_eq!(
-            request.input_json["scratch"]["summary"],
-            "Carry the current seam across compaction."
+            reorient_document
+                .scratch
+                .as_ref()
+                .and_then(|scratch| scratch.summary.as_deref()),
+            Some("Carry the current seam across compaction.")
         );
-        assert!(request.input_json.get("graphs").is_some());
-        assert!(request.input_json.get("recentEvidence").is_some());
-        assert!(request.input_json.get("recentObservations").is_some());
+        assert!(reorient_document.graphs.is_some());
+        assert!(reorient_document.recent_evidence.is_empty());
+        assert!(reorient_document.recent_observations.is_empty());
         assert!(request.instruction.contains("Epiphany Persistent Memory"));
         assert!(request.instruction.contains("Life across sleep"));
         assert!(request.instruction.contains("checkpoint as the ember"));
-        let schema = request.output_schema_json.as_ref().unwrap();
+        assert_eq!(
+            request.output_contract_id,
+            "epiphany.worker.reorient_result.v0"
+        );
+        let schema = epiphany_reorient_launch_output_schema();
         assert!(schema["properties"].get("openQuestions").is_some());
         assert!(schema["properties"].get("continuityRisks").is_some());
 

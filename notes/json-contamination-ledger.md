@@ -19,12 +19,12 @@ Rule: JSON is allowed at external schema/wire boundaries. Inside Epiphany, live 
 ## Internal JSON To Purge
 
 - `vendor/codex/codex-rs/core/src/codex_thread.rs`
-  - Current mechanism: `EpiphanyJobLaunchRequest.input_json` and `output_schema_json`.
+  - Former mechanism: `EpiphanyJobLaunchRequest.input_json` and `output_schema_json`.
   - Real need: launch role workers with structured instructions and expected response shape.
-  - What breaks if deleted: current job launch path cannot carry worker input/schema to Codex runtime.
-  - Essential or bad ownership: bad ownership. Worker launch intent should be a typed document plus schema id, not two loose blobs.
-  - Simpler architecture: `EpiphanyWorkerLaunchDocument` in CultCache/CultNet, with typed payload and `output_contract_id`.
-  - Files: `vendor/codex/codex-rs/core/src/codex_thread.rs`, `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`, `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`, `epiphany-core/src/runtime_spine.rs`.
+  - What broke when deleted: app-server helper tests and the manual launch handler had to stop treating launch cargo as loose JSON.
+  - Essential or bad ownership: bad ownership. The core request now carries `EpiphanyWorkerLaunchDocument` plus `output_contract_id`.
+  - Remaining contamination: `ThreadEpiphanyJobLaunchParams` still accepts `input_json` at the legacy app-server protocol edge and immediately parses it as hostile ingress. Final shape should be CultNet typed launch intent, not app-server JSON-RPC.
+  - Files: `epiphany-core/src/surfaces/worker_launch.rs`, `vendor/codex/codex-rs/core/src/codex_thread.rs`, `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`, `vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs`.
 - `epiphany-core/src/surfaces/role_result.rs`
   - Current mechanism: `state_patch` and `self_patch` are `serde_json::Value`; `selfPatch` is manually revalidated here.
   - Real need: interpret worker findings and review bounded lane-local memory petitions.
@@ -58,7 +58,7 @@ Rule: JSON is allowed at external schema/wire boundaries. Inside Epiphany, live 
 ## Ranking
 
 1. Done: purge `selfPatch` as internal JSON. Role-result interpretation now stores the typed `AgentSelfPatch` document and shares the agent-memory contract; JSON remains only at the legacy app-server projection.
-2. Replace worker launch `input_json` and `output_schema_json` with typed launch documents and schema ids.
+2. Partly done: core worker launch `input_json` and `output_schema_json` are replaced by typed launch documents and output contract ids. Remaining cut is the protocol edge.
 3. Replace role `statePatch` JSON with typed map/planning/graph patch documents.
 4. Seal MCP JSON behind a CultNet MCP adapter.
 5. Audit heartbeat cognition values and either type them or explicitly expire them.
