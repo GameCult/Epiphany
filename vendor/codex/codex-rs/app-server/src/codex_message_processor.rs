@@ -493,6 +493,11 @@ use codex_thread_store::ThreadStoreError;
 use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataParams;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
+use epiphany_core::EpiphanyContext as CoreEpiphanyContext;
+use epiphany_core::EpiphanyContextMissing as CoreEpiphanyContextMissing;
+use epiphany_core::EpiphanyContextParams as CoreEpiphanyContextParams;
+use epiphany_core::EpiphanyContextStateStatus as CoreEpiphanyContextStateStatus;
+use epiphany_core::EpiphanyContextView;
 use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use epiphany_core::EpiphanyCoordinatorAutomationAction as CoreEpiphanyCoordinatorAutomationAction;
 use epiphany_core::EpiphanyCoordinatorCrrcRecommendation;
@@ -514,8 +519,15 @@ use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
 use epiphany_core::EpiphanyFreshnessInput;
 use epiphany_core::EpiphanyFreshnessView;
 use epiphany_core::EpiphanyFreshnessWatcherInput;
+use epiphany_core::EpiphanyGraphContext as CoreEpiphanyGraphContext;
 use epiphany_core::EpiphanyGraphFreshness as CoreEpiphanyGraphFreshness;
 use epiphany_core::EpiphanyGraphFreshnessStatus as CoreEpiphanyGraphFreshnessStatus;
+use epiphany_core::EpiphanyGraphQuery as CoreEpiphanyGraphQuery;
+use epiphany_core::EpiphanyGraphQueryDirection as CoreEpiphanyGraphQueryDirection;
+use epiphany_core::EpiphanyGraphQueryKind as CoreEpiphanyGraphQueryKind;
+use epiphany_core::EpiphanyGraphQueryMatched as CoreEpiphanyGraphQueryMatched;
+use epiphany_core::EpiphanyGraphQueryMissing as CoreEpiphanyGraphQueryMissing;
+use epiphany_core::EpiphanyGraphQueryView;
 use epiphany_core::EpiphanyInvalidationInput as CoreEpiphanyInvalidationInput;
 use epiphany_core::EpiphanyInvalidationStatus as CoreEpiphanyInvalidationStatus;
 use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
@@ -568,7 +580,9 @@ use epiphany_core::EpiphanySceneSubgoal as CoreEpiphanySceneSubgoal;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
+use epiphany_core::derive_context;
 use epiphany_core::derive_freshness;
+use epiphany_core::derive_graph_query;
 use epiphany_core::derive_jobs;
 use epiphany_core::derive_planning_view;
 use epiphany_core::derive_pressure_view;
@@ -15363,165 +15377,74 @@ fn map_epiphany_context(
     ThreadEpiphanyContext,
     ThreadEpiphanyContextMissing,
 ) {
-    let include_active_frontier = params.include_active_frontier.unwrap_or(true);
-    let include_linked_evidence = params.include_linked_evidence.unwrap_or(true);
-    let Some(state) = state else {
-        return (
-            ThreadEpiphanyContextStateStatus::Missing,
-            None,
-            ThreadEpiphanyContext::default(),
-            ThreadEpiphanyContextMissing {
-                graph_node_ids: unique_strings(params.graph_node_ids.iter().cloned()),
-                graph_edge_ids: unique_strings(params.graph_edge_ids.iter().cloned()),
-                observation_ids: unique_strings(params.observation_ids.iter().cloned()),
-                evidence_ids: unique_strings(params.evidence_ids.iter().cloned()),
-            },
-        );
-    };
+    map_core_epiphany_context_view(derive_context(
+        state,
+        &CoreEpiphanyContextParams {
+            graph_node_ids: params.graph_node_ids.clone(),
+            graph_edge_ids: params.graph_edge_ids.clone(),
+            observation_ids: params.observation_ids.clone(),
+            evidence_ids: params.evidence_ids.clone(),
+            include_active_frontier: params.include_active_frontier,
+            include_linked_evidence: params.include_linked_evidence,
+        },
+    ))
+}
 
-    let mut graph_node_ids = unique_strings(params.graph_node_ids.iter().cloned());
-    let mut graph_edge_ids = unique_strings(params.graph_edge_ids.iter().cloned());
-    if include_active_frontier {
-        if let Some(frontier) = state.graph_frontier.as_ref() {
-            extend_unique_strings(
-                &mut graph_node_ids,
-                frontier.active_node_ids.iter().cloned(),
-            );
-            extend_unique_strings(
-                &mut graph_edge_ids,
-                frontier.active_edge_ids.iter().cloned(),
-            );
-        }
-    }
-
-    let graph_node_id_set: HashSet<&str> = graph_node_ids.iter().map(String::as_str).collect();
-    let graph_edge_id_set: HashSet<&str> = graph_edge_ids.iter().map(String::as_str).collect();
-
-    let architecture_nodes = state
-        .graphs
-        .architecture
-        .nodes
-        .iter()
-        .filter(|node| graph_node_id_set.contains(node.id.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    let dataflow_nodes = state
-        .graphs
-        .dataflow
-        .nodes
-        .iter()
-        .filter(|node| graph_node_id_set.contains(node.id.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-
-    let found_node_ids: HashSet<String> = architecture_nodes
-        .iter()
-        .chain(dataflow_nodes.iter())
-        .map(|node| node.id.clone())
-        .collect();
-
-    let architecture_edges = select_epiphany_graph_edges(
-        &state.graphs.architecture.edges,
-        &graph_node_id_set,
-        &graph_edge_id_set,
-    );
-    let dataflow_edges = select_epiphany_graph_edges(
-        &state.graphs.dataflow.edges,
-        &graph_node_id_set,
-        &graph_edge_id_set,
-    );
-
-    let found_edge_ids: HashSet<String> = architecture_edges
-        .iter()
-        .chain(dataflow_edges.iter())
-        .filter_map(|edge| edge.id.clone())
-        .filter(|id| graph_edge_id_set.contains(id.as_str()))
-        .collect();
-
-    let links = state
-        .graphs
-        .links
-        .iter()
-        .filter(|link| {
-            graph_node_id_set.contains(link.architecture_node_id.as_str())
-                || graph_node_id_set.contains(link.dataflow_node_id.as_str())
-        })
-        .cloned()
-        .collect();
-
-    let observation_ids = unique_strings(params.observation_ids.iter().cloned());
-    let observation_id_set: HashSet<&str> = observation_ids.iter().map(String::as_str).collect();
-    let observations = state
-        .observations
-        .iter()
-        .filter(|observation| observation_id_set.contains(observation.id.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    let found_observation_ids: HashSet<String> = observations
-        .iter()
-        .map(|observation| observation.id.clone())
-        .collect();
-
-    let mut evidence_ids = unique_strings(params.evidence_ids.iter().cloned());
-    if include_linked_evidence {
-        for observation in &observations {
-            extend_unique_strings(&mut evidence_ids, observation.evidence_ids.iter().cloned());
-        }
-    }
-    let evidence_id_set: HashSet<&str> = evidence_ids.iter().map(String::as_str).collect();
-    let evidence = state
-        .recent_evidence
-        .iter()
-        .filter(|evidence| evidence_id_set.contains(evidence.id.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    let found_evidence_ids: HashSet<String> = evidence
-        .iter()
-        .map(|evidence| evidence.id.clone())
-        .collect();
-
+fn map_core_epiphany_context_view(
+    view: EpiphanyContextView,
+) -> (
+    ThreadEpiphanyContextStateStatus,
+    Option<u64>,
+    ThreadEpiphanyContext,
+    ThreadEpiphanyContextMissing,
+) {
     (
-        ThreadEpiphanyContextStateStatus::Ready,
-        Some(state.revision),
-        ThreadEpiphanyContext {
-            graph: ThreadEpiphanyGraphContext {
-                architecture_nodes,
-                architecture_edges,
-                dataflow_nodes,
-                dataflow_edges,
-                links,
-            },
-            frontier: include_active_frontier
-                .then(|| state.graph_frontier.clone())
-                .flatten(),
-            checkpoint: state.graph_checkpoint.clone(),
-            investigation_checkpoint: state.investigation_checkpoint.clone(),
-            observations,
-            evidence,
-        },
-        ThreadEpiphanyContextMissing {
-            graph_node_ids: graph_node_ids
-                .iter()
-                .filter(|id| !found_node_ids.contains(*id))
-                .cloned()
-                .collect(),
-            graph_edge_ids: graph_edge_ids
-                .iter()
-                .filter(|id| !found_edge_ids.contains(*id))
-                .cloned()
-                .collect(),
-            observation_ids: observation_ids
-                .iter()
-                .filter(|id| !found_observation_ids.contains(*id))
-                .cloned()
-                .collect(),
-            evidence_ids: evidence_ids
-                .iter()
-                .filter(|id| !found_evidence_ids.contains(*id))
-                .cloned()
-                .collect(),
-        },
+        map_core_epiphany_context_state_status(view.state_status),
+        view.state_revision,
+        map_core_epiphany_context(view.context),
+        map_core_epiphany_context_missing(view.missing),
     )
+}
+
+fn map_core_epiphany_context_state_status(
+    status: CoreEpiphanyContextStateStatus,
+) -> ThreadEpiphanyContextStateStatus {
+    match status {
+        CoreEpiphanyContextStateStatus::Missing => ThreadEpiphanyContextStateStatus::Missing,
+        CoreEpiphanyContextStateStatus::Ready => ThreadEpiphanyContextStateStatus::Ready,
+    }
+}
+
+fn map_core_epiphany_context(context: CoreEpiphanyContext) -> ThreadEpiphanyContext {
+    ThreadEpiphanyContext {
+        graph: map_core_epiphany_graph_context(context.graph),
+        frontier: context.frontier,
+        checkpoint: context.checkpoint,
+        investigation_checkpoint: context.investigation_checkpoint,
+        observations: context.observations,
+        evidence: context.evidence,
+    }
+}
+
+fn map_core_epiphany_graph_context(graph: CoreEpiphanyGraphContext) -> ThreadEpiphanyGraphContext {
+    ThreadEpiphanyGraphContext {
+        architecture_nodes: graph.architecture_nodes,
+        architecture_edges: graph.architecture_edges,
+        dataflow_nodes: graph.dataflow_nodes,
+        dataflow_edges: graph.dataflow_edges,
+        links: graph.links,
+    }
+}
+
+fn map_core_epiphany_context_missing(
+    missing: CoreEpiphanyContextMissing,
+) -> ThreadEpiphanyContextMissing {
+    ThreadEpiphanyContextMissing {
+        graph_node_ids: missing.graph_node_ids,
+        graph_edge_ids: missing.graph_edge_ids,
+        observation_ids: missing.observation_ids,
+        evidence_ids: missing.evidence_ids,
+    }
 }
 
 fn map_epiphany_planning(
@@ -15584,352 +15507,90 @@ fn map_epiphany_graph_query(
     ThreadEpiphanyGraphQueryMatched,
     ThreadEpiphanyGraphQueryMissing,
 ) {
-    let Some(state) = state else {
-        return (
-            ThreadEpiphanyContextStateStatus::Missing,
-            None,
-            ThreadEpiphanyGraphContext::default(),
-            None,
-            None,
-            ThreadEpiphanyGraphQueryMatched::default(),
-            ThreadEpiphanyGraphQueryMissing {
-                node_ids: unique_strings(query.node_ids.iter().cloned()),
-                edge_ids: unique_strings(query.edge_ids.iter().cloned()),
-            },
-        );
-    };
-
-    let mut node_ids = unique_strings(query.node_ids.iter().cloned());
-    let mut edge_ids = unique_strings(query.edge_ids.iter().cloned());
-    let mut matched_paths: Vec<PathBuf> = Vec::new();
-    let mut matched_symbols: Vec<String> = Vec::new();
-    let mut matched_edge_kinds: Vec<String> = Vec::new();
-
-    match query.kind {
-        ThreadEpiphanyGraphQueryKind::Node => {}
-        ThreadEpiphanyGraphQueryKind::Path => {
-            collect_graph_query_path_matches(
-                state,
-                query,
-                &mut node_ids,
-                &mut edge_ids,
-                &mut matched_paths,
-                &mut matched_symbols,
-            );
-        }
-        ThreadEpiphanyGraphQueryKind::FrontierNeighborhood => {
-            if let Some(frontier) = state.graph_frontier.as_ref() {
-                extend_unique_strings(&mut node_ids, frontier.active_node_ids.iter().cloned());
-                extend_unique_strings(&mut edge_ids, frontier.active_edge_ids.iter().cloned());
-            }
-            expand_graph_query_neighbors(state, query, &mut node_ids, &mut edge_ids);
-        }
-        ThreadEpiphanyGraphQueryKind::Neighbors => {
-            expand_graph_query_neighbors(state, query, &mut node_ids, &mut edge_ids);
-        }
-    }
-
-    collect_graph_query_edge_kind_matches(
+    map_core_epiphany_graph_query_view(derive_graph_query(
         state,
-        query,
-        &mut node_ids,
-        &mut edge_ids,
-        &mut matched_edge_kinds,
-    );
+        &map_core_epiphany_graph_query(query),
+    ))
+}
 
-    if query.include_links.unwrap_or(true) {
-        expand_graph_query_links(state, &mut node_ids);
+fn map_core_epiphany_graph_query(query: &ThreadEpiphanyGraphQuery) -> CoreEpiphanyGraphQuery {
+    CoreEpiphanyGraphQuery {
+        kind: map_core_epiphany_graph_query_kind(query.kind),
+        node_ids: query.node_ids.clone(),
+        edge_ids: query.edge_ids.clone(),
+        paths: query.paths.clone(),
+        symbols: query.symbols.clone(),
+        edge_kinds: query.edge_kinds.clone(),
+        direction: query.direction.map(map_core_epiphany_graph_query_direction),
+        depth: query.depth,
+        include_links: query.include_links,
     }
+}
 
-    let node_id_set: HashSet<&str> = node_ids.iter().map(String::as_str).collect();
-    let edge_id_set: HashSet<&str> = edge_ids.iter().map(String::as_str).collect();
+fn map_core_epiphany_graph_query_kind(
+    kind: ThreadEpiphanyGraphQueryKind,
+) -> CoreEpiphanyGraphQueryKind {
+    match kind {
+        ThreadEpiphanyGraphQueryKind::Node => CoreEpiphanyGraphQueryKind::Node,
+        ThreadEpiphanyGraphQueryKind::Path => CoreEpiphanyGraphQueryKind::Path,
+        ThreadEpiphanyGraphQueryKind::FrontierNeighborhood => {
+            CoreEpiphanyGraphQueryKind::FrontierNeighborhood
+        }
+        ThreadEpiphanyGraphQueryKind::Neighbors => CoreEpiphanyGraphQueryKind::Neighbors,
+    }
+}
 
-    let architecture_nodes = state
-        .graphs
-        .architecture
-        .nodes
-        .iter()
-        .filter(|node| node_id_set.contains(node.id.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    let dataflow_nodes = state
-        .graphs
-        .dataflow
-        .nodes
-        .iter()
-        .filter(|node| node_id_set.contains(node.id.as_str()))
-        .cloned()
-        .collect::<Vec<_>>();
-    let found_node_ids: HashSet<String> = architecture_nodes
-        .iter()
-        .chain(dataflow_nodes.iter())
-        .map(|node| node.id.clone())
-        .collect();
-    let matched_node_ids = architecture_nodes
-        .iter()
-        .chain(dataflow_nodes.iter())
-        .map(|node| node.id.clone())
-        .collect::<Vec<_>>();
+fn map_core_epiphany_graph_query_direction(
+    direction: ThreadEpiphanyGraphQueryDirection,
+) -> CoreEpiphanyGraphQueryDirection {
+    match direction {
+        ThreadEpiphanyGraphQueryDirection::Incoming => CoreEpiphanyGraphQueryDirection::Incoming,
+        ThreadEpiphanyGraphQueryDirection::Outgoing => CoreEpiphanyGraphQueryDirection::Outgoing,
+        ThreadEpiphanyGraphQueryDirection::Both => CoreEpiphanyGraphQueryDirection::Both,
+    }
+}
 
-    let architecture_edges =
-        select_epiphany_graph_edges(&state.graphs.architecture.edges, &node_id_set, &edge_id_set);
-    let dataflow_edges =
-        select_epiphany_graph_edges(&state.graphs.dataflow.edges, &node_id_set, &edge_id_set);
-    let found_edge_ids: HashSet<String> = architecture_edges
-        .iter()
-        .chain(dataflow_edges.iter())
-        .filter_map(|edge| edge.id.clone())
-        .collect();
-    let matched_edge_ids = architecture_edges
-        .iter()
-        .chain(dataflow_edges.iter())
-        .filter_map(|edge| edge.id.clone())
-        .collect::<Vec<_>>();
-
-    let links = state
-        .graphs
-        .links
-        .iter()
-        .filter(|link| {
-            node_id_set.contains(link.architecture_node_id.as_str())
-                || node_id_set.contains(link.dataflow_node_id.as_str())
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-
+fn map_core_epiphany_graph_query_view(
+    view: EpiphanyGraphQueryView,
+) -> (
+    ThreadEpiphanyContextStateStatus,
+    Option<u64>,
+    ThreadEpiphanyGraphContext,
+    Option<codex_protocol::protocol::EpiphanyGraphFrontier>,
+    Option<codex_protocol::protocol::EpiphanyGraphCheckpoint>,
+    ThreadEpiphanyGraphQueryMatched,
+    ThreadEpiphanyGraphQueryMissing,
+) {
     (
-        ThreadEpiphanyContextStateStatus::Ready,
-        Some(state.revision),
-        ThreadEpiphanyGraphContext {
-            architecture_nodes,
-            architecture_edges,
-            dataflow_nodes,
-            dataflow_edges,
-            links,
-        },
-        state.graph_frontier.clone(),
-        state.graph_checkpoint.clone(),
-        ThreadEpiphanyGraphQueryMatched {
-            node_ids: matched_node_ids,
-            edge_ids: matched_edge_ids,
-            paths: matched_paths,
-            symbols: matched_symbols,
-            edge_kinds: matched_edge_kinds,
-        },
-        ThreadEpiphanyGraphQueryMissing {
-            node_ids: node_ids
-                .iter()
-                .filter(|id| !found_node_ids.contains(*id))
-                .cloned()
-                .collect(),
-            edge_ids: edge_ids
-                .iter()
-                .filter(|id| !found_edge_ids.contains(*id))
-                .cloned()
-                .collect(),
-        },
+        map_core_epiphany_context_state_status(view.state_status),
+        view.state_revision,
+        map_core_epiphany_graph_context(view.graph),
+        view.frontier,
+        view.checkpoint,
+        map_core_epiphany_graph_query_matched(view.matched),
+        map_core_epiphany_graph_query_missing(view.missing),
     )
 }
 
-fn collect_graph_query_path_matches(
-    state: &EpiphanyThreadState,
-    query: &ThreadEpiphanyGraphQuery,
-    node_ids: &mut Vec<String>,
-    edge_ids: &mut Vec<String>,
-    matched_paths: &mut Vec<PathBuf>,
-    matched_symbols: &mut Vec<String>,
-) {
-    if query.paths.is_empty() && query.symbols.is_empty() {
-        return;
-    }
-    for node in state
-        .graphs
-        .architecture
-        .nodes
-        .iter()
-        .chain(state.graphs.dataflow.nodes.iter())
-    {
-        if code_refs_match_query(&node.code_refs, query, matched_paths, matched_symbols) {
-            extend_unique_strings(node_ids, [node.id.clone()]);
-        }
-    }
-    for edge in state
-        .graphs
-        .architecture
-        .edges
-        .iter()
-        .chain(state.graphs.dataflow.edges.iter())
-    {
-        if code_refs_match_query(&edge.code_refs, query, matched_paths, matched_symbols) {
-            if let Some(id) = edge.id.clone() {
-                extend_unique_strings(edge_ids, [id]);
-            }
-            extend_unique_strings(node_ids, [edge.source_id.clone(), edge.target_id.clone()]);
-        }
-    }
-    for link in &state.graphs.links {
-        if code_refs_match_query(&link.code_refs, query, matched_paths, matched_symbols) {
-            extend_unique_strings(
-                node_ids,
-                [
-                    link.dataflow_node_id.clone(),
-                    link.architecture_node_id.clone(),
-                ],
-            );
-        }
+fn map_core_epiphany_graph_query_matched(
+    matched: CoreEpiphanyGraphQueryMatched,
+) -> ThreadEpiphanyGraphQueryMatched {
+    ThreadEpiphanyGraphQueryMatched {
+        node_ids: matched.node_ids,
+        edge_ids: matched.edge_ids,
+        paths: matched.paths,
+        symbols: matched.symbols,
+        edge_kinds: matched.edge_kinds,
     }
 }
 
-fn collect_graph_query_edge_kind_matches(
-    state: &EpiphanyThreadState,
-    query: &ThreadEpiphanyGraphQuery,
-    node_ids: &mut Vec<String>,
-    edge_ids: &mut Vec<String>,
-    matched_edge_kinds: &mut Vec<String>,
-) {
-    if query.edge_kinds.is_empty() {
-        return;
+fn map_core_epiphany_graph_query_missing(
+    missing: CoreEpiphanyGraphQueryMissing,
+) -> ThreadEpiphanyGraphQueryMissing {
+    ThreadEpiphanyGraphQueryMissing {
+        node_ids: missing.node_ids,
+        edge_ids: missing.edge_ids,
     }
-    let wanted: HashSet<&str> = query.edge_kinds.iter().map(String::as_str).collect();
-    for edge in state
-        .graphs
-        .architecture
-        .edges
-        .iter()
-        .chain(state.graphs.dataflow.edges.iter())
-    {
-        if wanted.contains(edge.kind.as_str()) {
-            extend_unique_strings(matched_edge_kinds, [edge.kind.clone()]);
-            if let Some(id) = edge.id.clone() {
-                extend_unique_strings(edge_ids, [id]);
-            }
-            extend_unique_strings(node_ids, [edge.source_id.clone(), edge.target_id.clone()]);
-        }
-    }
-}
-
-fn expand_graph_query_neighbors(
-    state: &EpiphanyThreadState,
-    query: &ThreadEpiphanyGraphQuery,
-    node_ids: &mut Vec<String>,
-    edge_ids: &mut Vec<String>,
-) {
-    let direction = query
-        .direction
-        .unwrap_or(ThreadEpiphanyGraphQueryDirection::Both);
-    let depth = query.depth.unwrap_or(1).clamp(1, 3);
-    for _ in 0..depth {
-        let current: HashSet<String> = node_ids.iter().cloned().collect();
-        let before = node_ids.len();
-        for edge in state
-            .graphs
-            .architecture
-            .edges
-            .iter()
-            .chain(state.graphs.dataflow.edges.iter())
-        {
-            let source_selected = current.contains(&edge.source_id);
-            let target_selected = current.contains(&edge.target_id);
-            let include_outgoing = matches!(
-                direction,
-                ThreadEpiphanyGraphQueryDirection::Outgoing
-                    | ThreadEpiphanyGraphQueryDirection::Both
-            ) && source_selected;
-            let include_incoming = matches!(
-                direction,
-                ThreadEpiphanyGraphQueryDirection::Incoming
-                    | ThreadEpiphanyGraphQueryDirection::Both
-            ) && target_selected;
-            if include_outgoing || include_incoming {
-                if let Some(id) = edge.id.clone() {
-                    extend_unique_strings(edge_ids, [id]);
-                }
-            }
-            if include_outgoing {
-                extend_unique_strings(node_ids, [edge.target_id.clone()]);
-            }
-            if include_incoming {
-                extend_unique_strings(node_ids, [edge.source_id.clone()]);
-            }
-        }
-        if node_ids.len() == before {
-            break;
-        }
-    }
-}
-
-fn expand_graph_query_links(state: &EpiphanyThreadState, node_ids: &mut Vec<String>) {
-    let current: HashSet<&str> = node_ids.iter().map(String::as_str).collect();
-    let mut linked = Vec::new();
-    for link in &state.graphs.links {
-        if current.contains(link.dataflow_node_id.as_str()) {
-            linked.push(link.architecture_node_id.clone());
-        }
-        if current.contains(link.architecture_node_id.as_str()) {
-            linked.push(link.dataflow_node_id.clone());
-        }
-    }
-    extend_unique_strings(node_ids, linked);
-}
-
-fn code_refs_match_query(
-    code_refs: &[codex_protocol::protocol::EpiphanyCodeRef],
-    query: &ThreadEpiphanyGraphQuery,
-    matched_paths: &mut Vec<PathBuf>,
-    matched_symbols: &mut Vec<String>,
-) -> bool {
-    code_refs.iter().any(|code_ref| {
-        let path_matches = query.paths.is_empty()
-            || query.paths.iter().any(|path| {
-                code_ref.path == *path
-                    || code_ref.path.ends_with(path)
-                    || path.ends_with(code_ref.path.as_path())
-            });
-        let symbol_matches = query.symbols.is_empty()
-            || code_ref
-                .symbol
-                .as_deref()
-                .is_some_and(|symbol| query.symbols.iter().any(|wanted| wanted == symbol));
-        if path_matches && symbol_matches {
-            if !query.paths.is_empty() {
-                extend_unique_paths(matched_paths, [code_ref.path.clone()]);
-            }
-            if let Some(symbol) = code_ref.symbol.clone()
-                && !query.symbols.is_empty()
-            {
-                extend_unique_strings(matched_symbols, [symbol]);
-            }
-            true
-        } else {
-            false
-        }
-    })
-}
-
-fn extend_unique_paths(target: &mut Vec<PathBuf>, values: impl IntoIterator<Item = PathBuf>) {
-    for value in values {
-        if !target.iter().any(|existing| existing == &value) {
-            target.push(value);
-        }
-    }
-}
-
-fn select_epiphany_graph_edges(
-    edges: &[codex_protocol::protocol::EpiphanyGraphEdge],
-    graph_node_id_set: &HashSet<&str>,
-    graph_edge_id_set: &HashSet<&str>,
-) -> Vec<codex_protocol::protocol::EpiphanyGraphEdge> {
-    edges
-        .iter()
-        .filter(|edge| {
-            edge.id
-                .as_deref()
-                .is_some_and(|id| graph_edge_id_set.contains(id))
-                || graph_node_id_set.contains(edge.source_id.as_str())
-                || graph_node_id_set.contains(edge.target_id.as_str())
-        })
-        .cloned()
-        .collect()
 }
 
 fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {

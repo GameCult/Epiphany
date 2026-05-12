@@ -337,15 +337,16 @@ Commit shape:
 
 Purpose: stop fresh surface sprawl while the foundation is being rebuilt.
 
-### 2. Introduce Core View Types
+### 2. Introduce Core Surface Modules
 
-Add `epiphany-core/src/surfaces/` with domain-level view input/output structs:
+Add `epiphany-core/src/surfaces/` with domain-level surface contracts for the
+live lenses and read models:
 
-- `EpiphanyViewInput`
-- `EpiphanyViewLens`
-- `EpiphanyViewOutput`
-- shared source snapshots for durable state, runtime state, retrieval summary,
-  watcher snapshot, and token pressure
+- pressure, freshness, jobs, planning, scene, role board, reorient, CRRC, and
+  coordinator view derivation
+- targeted graph/evidence context and bounded graph query derivation
+- role and reorient result acceptance bundle policy
+- typed inputs that carry only the source snapshots each surface actually needs
 
 Do not move behavior yet.
 

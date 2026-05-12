@@ -1,6 +1,7 @@
 mod coordinator;
 mod crrc;
 mod freshness;
+mod graph_context;
 mod jobs;
 mod planning;
 mod pressure;
@@ -42,6 +43,20 @@ pub use freshness::EpiphanyInvalidationStatus;
 pub use freshness::EpiphanyRetrievalFreshness;
 pub use freshness::EpiphanyRetrievalFreshnessStatus;
 pub use freshness::derive_freshness;
+pub use graph_context::EpiphanyContext;
+pub use graph_context::EpiphanyContextMissing;
+pub use graph_context::EpiphanyContextParams;
+pub use graph_context::EpiphanyContextStateStatus;
+pub use graph_context::EpiphanyContextView;
+pub use graph_context::EpiphanyGraphContext;
+pub use graph_context::EpiphanyGraphQuery;
+pub use graph_context::EpiphanyGraphQueryDirection;
+pub use graph_context::EpiphanyGraphQueryKind;
+pub use graph_context::EpiphanyGraphQueryMatched;
+pub use graph_context::EpiphanyGraphQueryMissing;
+pub use graph_context::EpiphanyGraphQueryView;
+pub use graph_context::derive_context;
+pub use graph_context::derive_graph_query;
 pub use jobs::EpiphanyJobStatus;
 pub use jobs::EpiphanyJobView;
 pub use jobs::EpiphanyJobsInput;
@@ -103,18 +118,3 @@ pub use scene::EpiphanySceneStateStatus;
 pub use scene::EpiphanySceneStatusCount;
 pub use scene::EpiphanySceneSubgoal;
 pub use scene::derive_scene;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EpiphanyViewInput {
-    pub pressure: Option<EpiphanyPressure>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EpiphanyViewLens {
-    Pressure,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct EpiphanyViewOutput {
-    pub pressure: Option<EpiphanyPressure>,
-}

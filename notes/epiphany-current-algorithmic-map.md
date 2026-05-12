@@ -1177,6 +1177,7 @@ Code refs:
 
 - [app-server-protocol/common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:350)
 - [app-server-protocol/v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4182)
+- [epiphany-core/src/surfaces/graph_context.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/graph_context.rs:104)
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4186)
 - [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:10791)
 
@@ -1187,10 +1188,12 @@ The app-server handler:
 1. parses the thread id.
 2. checks whether the thread is loaded so the response can report live/stored source.
 3. calls `read_thread_view(..., include_turns: false)` to reuse the live/stored Epiphany projection path.
-4. passes the optional `thread.epiphany_state` and selectors into `map_epiphany_context`.
-5. returns the derived context shard and missing-id lists.
+4. maps protocol selectors into `epiphany-core::EpiphanyContextParams`.
+5. calls `epiphany-core::derive_context`.
+6. maps the core context view back into the protocol response.
+7. returns the derived context shard and missing-id lists.
 
-`map_epiphany_context`:
+`epiphany-core::derive_context`:
 
 1. returns missing state with an empty context and echoes requested ids when no Epiphany state exists.
 2. defaults `includeActiveFrontier` to true, so a client can ask for the current working slice with only a thread id.
@@ -1261,10 +1264,12 @@ The app-server handler:
 1. parses the thread id.
 2. requires a loaded thread.
 3. calls `read_thread_view(..., include_turns: false)` to reuse the live Epiphany projection path.
-4. passes the optional `thread.epiphany_state` and query into `map_epiphany_graph_query`.
-5. returns the selected graph records, current frontier/checkpoint, matched selectors, and missing explicit ids.
+4. maps the protocol query into `epiphany-core::EpiphanyGraphQuery`.
+5. calls `epiphany-core::derive_graph_query`.
+6. maps the core graph query view back into the protocol response.
+7. returns the selected graph records, current frontier/checkpoint, matched selectors, and missing explicit ids.
 
-`map_epiphany_graph_query`:
+`epiphany-core::derive_graph_query`:
 
 1. returns missing state with an empty graph and echoes requested node/edge ids when no Epiphany state exists.
 2. starts from explicit node/edge ids.
