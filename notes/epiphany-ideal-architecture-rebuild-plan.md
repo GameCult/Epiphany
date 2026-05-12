@@ -547,3 +547,27 @@ The rebuild is working when:
 - adding a new view lens requires a core contract, not copying a mapper cluster
 
 That is the smallest machine that still deserves the name Epiphany.
+
+## Completion Audit
+
+As of 2026-05-12, the documented rebuild migration is complete enough to
+defend:
+
+- app-server Epiphany code is routing/adaptation for the MVP surfaces, runtime
+  loading, and protocol response assembly.
+- scene, jobs, roles, planning, pressure, reorient, CRRC, coordinator,
+  freshness, context, graph traversal, role/reorient result interpretation, and
+  role/reorient acceptance policy have core contracts in `epiphany-core`.
+- runtime-spine owns job/result lifecycle identity through `runtime_links`;
+  durable `jobBindings` are only authority slots.
+- live duplicate acceptance is keyed by typed acceptance receipts.
+- normal public findings project typed fields and artifact refs rather than
+  raw worker payloads.
+- Aquarium-facing read models use the canonical `thread/epiphany/view` lens
+  plus bounded read-only freshness/context/graph/result surfaces.
+- heartbeat state is typed and cognition experiments remain quarantined.
+- adding a new view lens now means adding or reusing a core surface contract,
+  not copying another app-server mapper pile.
+
+Remaining work after this point is outward product/bridge/dogfood work or a new
+documented migration, not this teardown plan wearing a fake mustache.
