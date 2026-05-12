@@ -387,14 +387,18 @@ inventory and ledger now exist:
   launch helpers build typed documents directly; the old app-server protocol
   `input_json` is now hostile ingress that must parse into the typed document
   before core sees it.
+- Third cut landed: runtime-spine job results no longer round-trip through
+  `runtime_job_result_to_role_json` or `runtime_job_result_to_reorient_json`.
+  `epiphany-core` owns typed role/reorient runtime-result interpreters and the
+  app-server maps those interpretations directly to protocol projections.
 
 Continue at the protocol edge. Replace
 `ThreadEpiphanyJobLaunchParams.input_json` / `output_schema_json` with CultNet
-typed launch-intent messages, then replace runtime job result JSON projections
-(`runtime_job_result_to_role_json` and `runtime_job_result_to_reorient_json`)
-with typed role/reorient finding documents. Do not resume Rider, Unity,
-Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge expansion
-until this organ is being cut cleanly.
+typed launch-intent messages, then type role `statePatch` map/planning/graph
+patch documents instead of carrying `serde_json::Value` through role finding
+interpretation. Do not resume Rider, Unity, Aquarium, Face, dogfood, planning,
+app, skill, marketplace, or bridge expansion until this organ is being cut
+cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

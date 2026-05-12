@@ -564,7 +564,6 @@ use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleSelfPersistenceReview as CoreEpiphanyRoleSelfPersistenceReview;
 use epiphany_core::EpiphanyRoleSelfPersistenceStatus as CoreEpiphanyRoleSelfPersistenceStatus;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
-use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::EpiphanyScene as CoreEpiphanyScene;
@@ -594,7 +593,9 @@ use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
 use epiphany_core::imagination_role_state_patch_policy_errors;
 use epiphany_core::interpret_reorient_finding;
+use epiphany_core::interpret_reorient_runtime_job_result;
 use epiphany_core::interpret_role_finding;
+use epiphany_core::interpret_role_runtime_job_result;
 use epiphany_core::modeling_role_state_patch_policy_errors;
 use epiphany_core::recommend_coordinator_action;
 use epiphany_core::recommend_crrc_action;
@@ -13638,7 +13639,11 @@ fn load_epiphany_role_result_from_runtime_spine_job(
     };
     let status = map_runtime_role_result_status(&snapshot);
     let finding = snapshot.result.as_ref().map(|result| {
-        map_epiphany_role_finding(role_id, runtime_job_result_to_role_json(result), None, None)
+        map_protocol_role_finding(
+            role_id,
+            interpret_role_runtime_job_result(map_core_role_result_role_id(role_id), result),
+            None,
+        )
     });
     let note = render_epiphany_role_result_note(role_id, status, finding.as_ref(), None);
     (status, finding, note)
@@ -13684,9 +13689,10 @@ fn load_epiphany_reorient_result_from_runtime_spine_job(
         }
     };
     let status = map_runtime_reorient_result_status(&snapshot);
-    let finding = snapshot.result.as_ref().map(|result| {
-        map_epiphany_reorient_finding(runtime_job_result_to_reorient_json(result), None, None)
-    });
+    let finding = snapshot
+        .result
+        .as_ref()
+        .map(|result| map_protocol_reorient_finding(interpret_reorient_runtime_job_result(result)));
     let note = render_epiphany_reorient_result_note(status, finding.as_ref(), None);
     (status, finding, note)
 }
@@ -13729,31 +13735,6 @@ fn map_runtime_reorient_result_status(
         EpiphanyRuntimeJobStatus::Failed => ThreadEpiphanyReorientResultStatus::Failed,
         EpiphanyRuntimeJobStatus::Cancelled => ThreadEpiphanyReorientResultStatus::Cancelled,
     }
-}
-
-fn runtime_job_result_to_role_json(result: &EpiphanyRuntimeJobResult) -> serde_json::Value {
-    serde_json::json!({
-        "verdict": result.verdict,
-        "summary": result.summary,
-        "nextSafeMove": result.next_safe_move,
-        "evidenceIds": result.evidence_refs,
-        "artifactRefs": result.artifact_refs,
-        "runtimeResultId": result.result_id,
-        "runtimeJobId": result.job_id,
-    })
-}
-
-fn runtime_job_result_to_reorient_json(result: &EpiphanyRuntimeJobResult) -> serde_json::Value {
-    serde_json::json!({
-        "mode": result.role,
-        "summary": result.summary,
-        "nextSafeMove": result.next_safe_move,
-        "checkpointStillValid": result.verdict != "fail",
-        "evidenceIds": result.evidence_refs,
-        "artifactRefs": result.artifact_refs,
-        "runtimeResultId": result.result_id,
-        "runtimeJobId": result.job_id,
-    })
 }
 
 async fn load_epiphany_role_result_snapshot(

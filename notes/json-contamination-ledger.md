@@ -60,5 +60,6 @@ Rule: JSON is allowed at external schema/wire boundaries. Inside Epiphany, live 
 1. Done: purge `selfPatch` as internal JSON. Role-result interpretation now stores the typed `AgentSelfPatch` document and shares the agent-memory contract; JSON remains only at the legacy app-server projection.
 2. Partly done: core worker launch `input_json` and `output_schema_json` are replaced by typed launch documents and output contract ids. Remaining cut is the protocol edge.
 3. Replace role `statePatch` JSON with typed map/planning/graph patch documents.
-4. Seal MCP JSON behind a CultNet MCP adapter.
-5. Audit heartbeat cognition values and either type them or explicitly expire them.
+4. Done: replace runtime job result JSON projections. Runtime-spine results now project through typed role/reorient interpreters instead of `runtime_job_result_to_role_json` and `runtime_job_result_to_reorient_json`.
+5. Seal MCP JSON behind a CultNet MCP adapter.
+6. Audit heartbeat cognition values and either type them or explicitly expire them.

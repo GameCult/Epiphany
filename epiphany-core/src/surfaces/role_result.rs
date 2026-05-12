@@ -186,6 +186,52 @@ pub fn interpret_reorient_finding(
     }
 }
 
+pub fn interpret_role_runtime_job_result(
+    _role_id: EpiphanyRoleResultRoleId,
+    result: &EpiphanyRuntimeJobResult,
+) -> EpiphanyRoleFindingInterpretation {
+    EpiphanyRoleFindingInterpretation {
+        verdict: Some(result.verdict.clone()),
+        summary: Some(result.summary.clone()),
+        next_safe_move: empty_string_as_none(&result.next_safe_move),
+        checkpoint_summary: None,
+        scratch_summary: None,
+        files_inspected: Vec::new(),
+        frontier_node_ids: Vec::new(),
+        evidence_ids: result.evidence_refs.clone(),
+        artifact_refs: result.artifact_refs.clone(),
+        runtime_result_id: Some(result.result_id.clone()),
+        runtime_job_id: Some(result.job_id.clone()),
+        open_questions: Vec::new(),
+        evidence_gaps: Vec::new(),
+        risks: Vec::new(),
+        state_patch: None,
+        self_patch: None,
+        self_persistence: None,
+        job_error: None,
+        item_error: None,
+    }
+}
+
+pub fn interpret_reorient_runtime_job_result(
+    result: &EpiphanyRuntimeJobResult,
+) -> EpiphanyReorientFindingInterpretation {
+    EpiphanyReorientFindingInterpretation {
+        mode: Some(result.role.clone()),
+        summary: Some(result.summary.clone()),
+        next_safe_move: empty_string_as_none(&result.next_safe_move),
+        checkpoint_still_valid: Some(result.verdict != "fail"),
+        files_inspected: Vec::new(),
+        frontier_node_ids: Vec::new(),
+        evidence_ids: result.evidence_refs.clone(),
+        artifact_refs: result.artifact_refs.clone(),
+        runtime_result_id: Some(result.result_id.clone()),
+        runtime_job_id: Some(result.job_id.clone()),
+        job_error: None,
+        item_error: None,
+    }
+}
+
 pub fn build_role_acceptance_bundle(
     binding_id: &str,
     role: EpiphanyRoleAcceptanceFinding,
@@ -606,6 +652,10 @@ fn merge_item_error(item_error: Option<String>, extra_error: Option<String>) -> 
         (None, Some(extra)) => Some(extra),
         (None, None) => None,
     }
+}
+
+fn empty_string_as_none(value: &str) -> Option<String> {
+    (!value.trim().is_empty()).then(|| value.to_string())
 }
 
 fn role_finding_summary(finding: &EpiphanyRoleAcceptanceFinding) -> String {
@@ -1107,6 +1157,7 @@ mod tests {
 use crate::agent_memory::AgentSelfPatch;
 use crate::agent_memory::decode_agent_self_patch;
 use crate::agent_memory::review_agent_self_patch_contract;
+use crate::runtime_spine::EpiphanyRuntimeJobResult;
 use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
 use codex_protocol::protocol::EpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
