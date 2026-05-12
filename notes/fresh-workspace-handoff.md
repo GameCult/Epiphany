@@ -19,6 +19,7 @@ Get-Content '.\state\map.yaml'
 Get-Content '.\notes\fresh-workspace-handoff.md'
 Get-Content '.\notes\epiphany-current-algorithmic-map.md'
 Get-Content '.\notes\epiphany-architectural-teardown.md'
+Get-Content '.\notes\epiphany-ideal-architecture-rebuild-plan.md'
 Get-Content '.\notes\epiphany-fork-implementation-plan.md'
 git status --short --branch
 git log --oneline -5
@@ -32,6 +33,7 @@ remembers doctrine; the branch remembers the blade.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - Top priority is now foundation cleanup, not outward feature work. Read `notes/epiphany-architectural-teardown.md` before touching Epiphany control-plane code. The May 2026 suspicion pass found that the app-server Epiphany control plane has become architectural Jenga: too much policy, projection, lifecycle glue, prompt packet assembly, coordinator sequencing, and test authority lives in `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs`.
+- Read `notes/epiphany-ideal-architecture-rebuild-plan.md` immediately after the teardown. It defines the smallest coherent replacement architecture: durable `EpiphanyState`, runtime-spine-owned `RuntimeState`, separate role memory/heartbeat state, `epiphany-core` as policy owner, app-server as adapter, Aquarium as reflector, typed acceptance receipts, and derived view lenses instead of a protocol verb zoo.
 - Do not continue Aquarium UI, bridge, Face, or dogfood expansion until the teardown has a source-grounded cleanup slice plan. Epiphany is the foundation; patches on patches are not a purification rite, they are how the altar becomes load-bearing garbage.
 - Phase 1 through Phase 5 are complete enough.
 - Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/pressure`, `thread/epiphany/reorient`, `thread/epiphany/crrc`, `thread/epiphany/coordinator`, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` now act as a thin Epiphany-owned launcher seam with launcher id, authority scope, and heartbeat backend/job id. New `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/roleLaunch`, and `thread/epiphany/reorientLaunch` writes open typed runtime-spine job receipts under `state/runtime-spine.msgpack` and do not require the Codex SQLite state runtime. Freshness carries watcher-backed invalidation inputs, graphQuery traverses authoritative typed graph neighborhoods and path/symbol matches without mutation, planning projects typed captures/backlog/roadmap/objective drafts without adopting work, roles project implementation/imagination/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleResult` and `reorientResult` read heartbeat-backed typed runtime-spine job results when present, `roleAccept` and `reorientAccept` accept completed heartbeat findings from typed runtime-spine results while remaining explicit review gates, `thread/epiphany/crrc` recommends the next explicit CRRC action without launching, accepting, compacting, scheduling, or mutating, and `thread/epiphany/coordinator` composes those signals into a fixed-lane MVP action recommendation without becoming a writer.
@@ -351,6 +353,7 @@ Rules now in force:
 - this handoff is a compact re-entry packet.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.
 - `notes/epiphany-architectural-teardown.md` is the active foundation-cleanup directive until the app-server control-plane ownership problems are resolved.
+- `notes/epiphany-ideal-architecture-rebuild-plan.md` is the active rebuild blueprint and migration plan.
 - `notes/epiphany-rider-unity-integration-plan.md` is the detailed Rider-as-IDE and Unity-as-editor/runtime integration plan.
 - The stable live surface contract now lives in `state/map.yaml` plus `notes/epiphany-current-algorithmic-map.md`; the stale harness-surface duplicate was cut.
 - `notes/epiphany-current-algorithmic-map.md` is the source-grounded control-flow map.
@@ -368,15 +371,15 @@ that change what the next agent should believe.
 Do not continue implementation automatically from a rehydrate-only request.
 
 The next real move is foundation cleanup. Start from
-`notes/epiphany-architectural-teardown.md`, not from the older outward Phase 6
-bridge/UI trail. The first cleanup slice should be source-grounded and should
-target the control-plane ownership problem: extract Epiphany view/coordinator
-policy from the vendored app-server host seam into `epiphany-core`, make
-runtime-spine the sole job/result lifecycle authority, replace summary-string
-acceptance matching with typed receipts, collapse endpoint proliferation into
-intentional lenses/mutation intents, remove normal public `raw_result` leakage,
-and split stable heartbeat scheduling from experimental cognition receipts.
-No Agile confetti. No new balcony on the swaying tower.
+`notes/epiphany-architectural-teardown.md` and
+`notes/epiphany-ideal-architecture-rebuild-plan.md`, not from the older outward
+Phase 6 bridge/UI trail. The first reversible rebuild slice is to add
+`epiphany-core/src/surfaces/`, move pressure view derivation into core while
+leaving `thread/epiphany/pressure` as an app-server wrapper, and move pressure
+policy tests into core. The next cuts are typed acceptance receipts,
+runtime-spine lifecycle ownership, endpoint collapse into view lenses, removal
+of normal public `raw_result`, and heartbeat cognition quarantine. No Agile
+confetti. No new balcony on the swaying tower.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

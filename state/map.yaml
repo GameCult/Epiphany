@@ -16,9 +16,10 @@ objective:
     machine.
   current: >
     Stop outward feature work until the architectural teardown in
-    `notes/epiphany-architectural-teardown.md` is acted on. Epiphany is the
-    foundation for everything else; the current app-server control plane has
-    absorbed too much policy, projection, lifecycle glue, and coordinator
+    `notes/epiphany-architectural-teardown.md` and the rebuild blueprint in
+    `notes/epiphany-ideal-architecture-rebuild-plan.md` are acted on. Epiphany
+    is the foundation for everything else; the current app-server control plane
+    has absorbed too much policy, projection, lifecycle glue, and coordinator
     sequencing. The next work is foundation cleanup, not another bridge,
     Aquarium pane, Face surface, or convenience layer.
 
@@ -65,7 +66,7 @@ data_flow:
     - move historical proof to git, commits, smoke artifacts, or distilled evidence rather than plan prose
 
 active_subgoals:
-  - Top priority: execute the teardown plan in `notes/epiphany-architectural-teardown.md`; rebuild/extract the Epiphany app-server control plane before adding outward features. Move Epiphany view/coordinator policy into `epiphany-core`, make runtime-spine the sole job/result lifecycle authority, replace summary-string acceptance identity with typed receipts, reduce API surface proliferation, remove normal public raw-result leakage, and type or quarantine heartbeat cognition blobs.
+  - Top priority: execute the teardown/rebuild plan in `notes/epiphany-architectural-teardown.md` and `notes/epiphany-ideal-architecture-rebuild-plan.md`; rebuild/extract the Epiphany app-server control plane before adding outward features. Move Epiphany view/coordinator policy into `epiphany-core`, make runtime-spine the sole job/result lifecycle authority, replace summary-string acceptance identity with typed receipts, reduce API surface proliferation into a lens-based view surface, remove normal public raw-result leakage, and type or quarantine heartbeat cognition blobs.
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
   - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, roleResult, freshness, context, graphQuery, planning, pressure, reorient, crrc, coordinator, and reorientResult.
   - Keep the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention ready for the next bridge-equipped dogfood run.
@@ -88,6 +89,7 @@ active_subgoals:
 
 accepted_design:
   - `notes/epiphany-architectural-teardown.md` is the current foundation-cleanup directive. Its suspicion pass supersedes outward Phase 6 expansion as the active priority until the control-plane ownership problems are resolved.
+  - `notes/epiphany-ideal-architecture-rebuild-plan.md` is the replacement blueprint: the smallest coherent architecture is durable `EpiphanyState`, runtime-spine-owned `RuntimeState`, separate role memory/heartbeat state, `epiphany-core` as policy owner, app-server as adapter, Aquarium as reflector, typed result acceptance receipts, and derived view lenses instead of a protocol verb zoo.
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
   - Authoritative Epiphany state lives in Codex protocol/core session and rollout state.
   - The prompt reads typed state through a bounded `<epiphany_state>` developer fragment.
@@ -268,5 +270,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend organs are landed, but the May 2026 architectural teardown found that the app-server Epiphany control plane has become architectural Jenga: policy, projection, lifecycle glue, prompt packet assembly, coordinator sequencing, and tests are concentrated in the host seam. The foundations are conceptually sound, but the control plane must be extracted/rebuilt before outward feature work resumes.
-  next_action: Treat `notes/epiphany-architectural-teardown.md` as the active top-priority cleanup directive. Start with the control-plane rebuild: extract Epiphany view/coordinator policy from `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs` into `epiphany-core`, make runtime-spine the sole job/result lifecycle authority, replace summary-string acceptance detection with typed acceptance receipts, collapse endpoint proliferation into intentional view lenses/mutation intents, remove normal public `raw_result` leakage, and split stable heartbeat scheduling from experimental cognition receipts. Do not continue Aquarium UI, bridge, Face, or dogfood expansion until this foundation cleanup has a source-grounded slice plan.
+  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend organs are landed, but the May 2026 architectural teardown found that the app-server Epiphany control plane has become architectural Jenga: policy, projection, lifecycle glue, prompt packet assembly, coordinator sequencing, and tests are concentrated in the host seam. The foundations are conceptually sound, and `notes/epiphany-ideal-architecture-rebuild-plan.md` now defines the smallest coherent replacement architecture.
+  next_action: Treat `notes/epiphany-architectural-teardown.md` and `notes/epiphany-ideal-architecture-rebuild-plan.md` as the active top-priority cleanup directive. Start with the first reversible rebuild slice: add `epiphany-core/src/surfaces/`, move pressure view derivation into core while leaving `thread/epiphany/pressure` as an app-server wrapper, and move pressure policy tests into core. Then pursue typed acceptance receipts, runtime-spine lifecycle ownership, endpoint collapse into view lenses, removal of public `raw_result`, and heartbeat cognition quarantine. Do not continue Aquarium UI, bridge, Face, or dogfood expansion until this foundation cleanup is underway.

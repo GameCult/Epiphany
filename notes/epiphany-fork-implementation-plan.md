@@ -95,9 +95,10 @@ The landed machine now has:
 
 The current phase is Phase 6: reflection boundary and observable harness state.
 The immediate next phase is foundation cleanup, recorded in
-`notes/epiphany-architectural-teardown.md`. The May 2026 suspicion pass found
-that the app-server Epiphany control plane has become architectural Jenga:
-policy, projection, lifecycle glue, prompt packet assembly, coordinator
+`notes/epiphany-architectural-teardown.md`, and the replacement blueprint is
+`notes/epiphany-ideal-architecture-rebuild-plan.md`. The May 2026 suspicion
+pass found that the app-server Epiphany control plane has become architectural
+Jenga: policy, projection, lifecycle glue, prompt packet assembly, coordinator
 sequencing, and tests are concentrated in the Codex host seam. Native-spine
 extraction remains the direction, but the first duty is to rebuild/extract the
 control plane so Codex app-server becomes an adapter again instead of the
@@ -170,10 +171,10 @@ The plan should get shorter after a phase completes, not longer by default.
 The next unknown is not whether Epiphany can preserve, read, propose, promote,
 and notify typed state. It can.
 
-The active priority is now the teardown plan in
-`notes/epiphany-architectural-teardown.md`. Do not add outward feature surfaces
-until there is a source-grounded cleanup slice for the control-plane ownership
-problem.
+The active priority is now the teardown/rebuild pair:
+`notes/epiphany-architectural-teardown.md` and
+`notes/epiphany-ideal-architecture-rebuild-plan.md`. Do not add outward feature
+surfaces until the control-plane rebuild is underway.
 
 The next unknowns are:
 
@@ -188,6 +189,9 @@ The next unknowns are:
   mutation intents without hiding authority from Aquarium or the operator
 - how to remove public `raw_result` leakage from normal role/reorient findings
   while preserving explicit forensic debugging
+- how to land the first reversible rebuild slice: `epiphany-core/src/surfaces/`
+  plus pressure view derivation moved into core behind the existing
+  `thread/epiphany/pressure` wrapper
 - what bridge surface is sufficient for the next Aetheria run: named Unity operations, Aetheria-side editor probes, GUI environment status, Rider context capture, and a Rider plugin MVP
 - how much controlled runtime/editor access the richer Unity bridge gives implementation and verification lanes before deeper engine probes need another slice
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
@@ -326,18 +330,21 @@ Phase 6 must stop growing observable harness state outward until the control
 plane is purified. The live surfaces are guardrails and evidence, not
 permission to keep stacking protocols on the host seam.
 
-Cleanup candidates:
+Cleanup candidates, in the intended migration order:
 
-1. Move Epiphany surface derivation and fixed-lane coordinator policy out of
+1. Add `epiphany-core/src/surfaces/` and move pressure view derivation into
+   core while keeping the current app-server endpoint as a wrapper.
+2. Move CRRC and fixed-lane coordinator policy out of
    `codex_message_processor.rs` and into `epiphany-core`.
-2. Make runtime-spine the single lifecycle authority for launched jobs and
+3. Add typed acceptance receipts keyed by runtime result id; then switch
+   already-accepted checks to receipts and delete summary-string matching.
+4. Make runtime-spine the single lifecycle authority for launched jobs and
    results; thread state may link to jobs but must not mirror the job table.
-3. Replace accepted-result summary matching with typed acceptance receipts.
-4. Reduce the scene/jobs/roles/freshness/context/planning/pressure/reorient/
+5. Reduce the scene/jobs/roles/freshness/context/planning/pressure/reorient/
    CRRC/coordinator sprawl into fewer deliberate lenses and mutation intents.
-5. Remove normal public raw-result exposure from role/reorient finding
+6. Remove normal public raw-result exposure from role/reorient finding
    contracts; keep forensic raw payloads explicit and sealed.
-6. Split stable heartbeat scheduling from experimental cognition receipt blobs.
+7. Split stable heartbeat scheduling from experimental cognition receipt blobs.
 
 Do not spend Phase 6 adding another convenience surface because the current ones
 work. Passing smokes prove behavior, not architecture. The Perfect Machine gets
