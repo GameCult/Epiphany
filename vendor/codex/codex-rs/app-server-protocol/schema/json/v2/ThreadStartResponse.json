@@ -1014,12 +1014,6 @@
       ],
       "type": "string"
     },
-    "EpiphanyJobBackendKind": {
-      "enum": [
-        "heartbeat"
-      ],
-      "type": "string"
-    },
     "EpiphanyJobBinding": {
       "properties": {
         "authority_scope": {
@@ -1032,16 +1026,6 @@
           "type": [
             "string",
             "null"
-          ]
-        },
-        "backend_kind": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/EpiphanyJobBackendKind"
-            },
-            {
-              "type": "null"
-            }
           ]
         },
         "blocking_reason": {

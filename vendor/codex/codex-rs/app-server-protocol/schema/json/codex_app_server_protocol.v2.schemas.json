@@ -4976,12 +4976,6 @@
       ],
       "type": "string"
     },
-    "EpiphanyJobBackendKind": {
-      "enum": [
-        "heartbeat"
-      ],
-      "type": "string"
-    },
     "EpiphanyJobBinding": {
       "properties": {
         "authority_scope": {
@@ -4994,16 +4988,6 @@
           "type": [
             "string",
             "null"
-          ]
-        },
-        "backend_kind": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/EpiphanyJobBackendKind"
-            },
-            {
-              "type": "null"
-            }
           ]
         },
         "blocking_reason": {
@@ -14047,16 +14031,6 @@
             "null"
           ]
         },
-        "backendKind": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ThreadEpiphanyJobBackendKind"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "blockingReason": {
           "type": [
             "string",
@@ -14134,12 +14108,6 @@
         "status"
       ],
       "type": "object"
-    },
-    "ThreadEpiphanyJobBackendKind": {
-      "enum": [
-        "heartbeat"
-      ],
-      "type": "string"
     },
     "ThreadEpiphanyJobKind": {
       "enum": [

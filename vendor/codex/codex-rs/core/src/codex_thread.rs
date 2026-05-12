@@ -33,8 +33,6 @@ use codex_protocol::protocol::EpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-#[cfg(test)]
-use codex_protocol::protocol::EpiphanyJobBackendKind;
 use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyModeState;
@@ -848,7 +846,6 @@ fn build_epiphany_job_launch_binding(
         owner_role: request.owner_role.clone(),
         launcher_job_id: None,
         authority_scope: Some(request.authority_scope.clone()),
-        backend_kind: None,
         backend_job_id: None,
         linked_subgoal_ids: request.linked_subgoal_ids.clone(),
         linked_graph_node_ids: request.linked_graph_node_ids.clone(),
@@ -960,7 +957,6 @@ fn clear_epiphany_job_binding_backend(
 ) -> Vec<EpiphanyJobBinding> {
     let binding = &mut bindings[binding_index];
     binding.launcher_job_id = None;
-    binding.backend_kind = None;
     binding.backend_job_id = None;
     binding.progress_note = None;
     binding.blocking_reason = Some(blocking_reason.to_string());
@@ -1197,17 +1193,6 @@ fn validate_epiphany_job_bindings(job_bindings: &[EpiphanyJobBinding]) -> Vec<St
         }
         if let Some(blocking_reason) = binding.blocking_reason.as_deref() {
             require_nonempty_update(blocking_reason, "job_binding.blocking_reason", &mut errors);
-        }
-        match (binding.backend_kind, binding.backend_job_id.as_deref()) {
-            (Some(_), None) => errors.push(format!(
-                "job binding {:?} sets backend_kind without backend_job_id",
-                binding.id
-            )),
-            (None, Some(_)) => errors.push(format!(
-                "job binding {:?} sets backend_job_id without backend_kind",
-                binding.id
-            )),
-            _ => {}
         }
         if !binding.id.is_empty() && !seen_ids.insert(binding.id.as_str()) {
             errors.push(format!("duplicate job binding id {:?}", binding.id));
@@ -1527,7 +1512,6 @@ mod epiphany_update_tests {
             owner_role: "epiphany-harness".to_string(),
             launcher_job_id: Some(format!("launcher-{id}")),
             authority_scope: Some("epiphany.specialist".to_string()),
-            backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
             backend_job_id: Some(format!("heartbeat-job-{id}")),
             linked_subgoal_ids: vec!["phase-6".to_string()],
             linked_graph_node_ids: vec!["job-surface".to_string()],
@@ -2017,7 +2001,6 @@ mod epiphany_update_tests {
                     owner_role: String::new(),
                     launcher_job_id: Some(String::new()),
                     authority_scope: Some(String::new()),
-                    backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some(String::new()),
                     linked_subgoal_ids: Vec::new(),
                     linked_graph_node_ids: Vec::new(),
@@ -2079,38 +2062,7 @@ mod epiphany_update_tests {
     }
 
     #[test]
-    fn validate_epiphany_state_update_rejects_incomplete_or_conflicting_job_backend_bindings() {
-        let update = EpiphanyStateUpdate {
-            job_bindings: Some(vec![
-                EpiphanyJobBinding {
-                    backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
-                    backend_job_id: None,
-                    ..job_binding("missing-backend-job-id")
-                },
-                EpiphanyJobBinding {
-                    backend_kind: None,
-                    backend_job_id: Some("heartbeat-job-orphan".to_string()),
-                    ..job_binding("orphan-backend-job-id")
-                },
-            ]),
-            ..Default::default()
-        };
-
-        let errors =
-            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &update);
-
-        assert!(errors.iter().any(|error| {
-            error.contains("backend_kind without backend_job_id")
-                && error.contains("missing-backend-job-id")
-        }));
-        assert!(errors.iter().any(|error| {
-            error.contains("backend_job_id without backend_kind")
-                && error.contains("orphan-backend-job-id")
-        }));
-    }
-
-    #[test]
-    fn build_epiphany_job_launch_binding_targets_heartbeat_backend() {
+    fn build_epiphany_job_launch_binding_leaves_lifecycle_to_runtime_links() {
         let request = EpiphanyJobLaunchRequest {
             expected_revision: Some(7),
             binding_id: "modeling-checkpoint-worker".to_string(),
@@ -2131,7 +2083,6 @@ mod epiphany_update_tests {
         let runtime_link = build_epiphany_runtime_link(&request, "turn-1");
 
         assert_eq!(binding.launcher_job_id, None);
-        assert_eq!(binding.backend_kind, None);
         assert_eq!(binding.backend_job_id, None);
         assert_eq!(binding.progress_note, None);
         assert_eq!(

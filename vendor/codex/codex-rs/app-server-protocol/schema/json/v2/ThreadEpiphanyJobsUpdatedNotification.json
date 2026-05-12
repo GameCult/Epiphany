@@ -21,16 +21,6 @@
             "null"
           ]
         },
-        "backendKind": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ThreadEpiphanyJobBackendKind"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "blockingReason": {
           "type": [
             "string",
@@ -108,12 +98,6 @@
         "status"
       ],
       "type": "object"
-    },
-    "ThreadEpiphanyJobBackendKind": {
-      "enum": [
-        "heartbeat"
-      ],
-      "type": "string"
     },
     "ThreadEpiphanyJobKind": {
       "enum": [

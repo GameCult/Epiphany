@@ -182,7 +182,6 @@ use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
 use codex_app_server_protocol::ThreadEpiphanyJob;
-use codex_app_server_protocol::ThreadEpiphanyJobBackendKind;
 use codex_app_server_protocol::ThreadEpiphanyJobInterruptParams;
 use codex_app_server_protocol::ThreadEpiphanyJobInterruptResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
@@ -463,7 +462,6 @@ use codex_protocol::protocol::EpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-use codex_protocol::protocol::EpiphanyJobBackendKind as CoreEpiphanyJobBackendKind;
 use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyObservation;
@@ -5318,7 +5316,6 @@ impl CodexMessageProcessor {
                 owner_role: "epiphany-harness".to_string(),
                 launcher_job_id: Some(launched.launcher_job_id.clone()),
                 authority_scope: None,
-                backend_kind: Some(ThreadEpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some(launched.backend_job_id.clone()),
                 status: ThreadEpiphanyJobStatus::Pending,
                 items_processed: None,
@@ -7275,7 +7272,6 @@ impl CodexMessageProcessor {
                 owner_role: "epiphany-harness".to_string(),
                 launcher_job_id: Some(launched.launcher_job_id.clone()),
                 authority_scope: None,
-                backend_kind: Some(ThreadEpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some(launched.backend_job_id.clone()),
                 status: ThreadEpiphanyJobStatus::Pending,
                 items_processed: None,
@@ -15001,13 +14997,13 @@ async fn load_epiphany_role_result_snapshot(
             "No matching Epiphany role specialist binding exists.".to_string(),
         );
     };
-    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
+    if binding_backend_job_id(binding).is_some() {
         return load_epiphany_role_result_from_runtime_spine(binding, runtime_store_path, role_id);
     }
     (
         ThreadEpiphanyRoleResultStatus::BackendUnavailable,
         None,
-        "Non-heartbeat role bindings are unsupported; launch a heartbeat-backed role worker for typed runtime-spine results.".to_string(),
+        "Role binding has no runtime-spine job id; launch a runtime-linked role worker for typed results.".to_string(),
     )
 }
 
@@ -15045,13 +15041,13 @@ async fn load_epiphany_reorient_result_snapshot(
             "No matching Epiphany reorientation worker binding exists.".to_string(),
         );
     };
-    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
+    if binding_backend_job_id(binding).is_some() {
         return load_epiphany_reorient_result_from_runtime_spine(binding, runtime_store_path);
     }
     (
         ThreadEpiphanyReorientResultStatus::BackendUnavailable,
         None,
-        "Non-heartbeat reorientation bindings are unsupported; launch a heartbeat-backed reorient worker for typed runtime-spine results.".to_string(),
+        "Reorientation binding has no runtime-spine job id; launch a runtime-linked reorient worker for typed results.".to_string(),
     )
 }
 
@@ -16128,7 +16124,7 @@ async fn load_completed_epiphany_reorient_finding(
         .job_bindings
         .iter()
         .find(|binding| binding.id == binding_id)
-        && binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat)
+        && binding_backend_job_id(binding).is_some()
     {
         let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
         let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine(
@@ -16150,7 +16146,7 @@ async fn load_completed_epiphany_reorient_finding(
     }
 
     Err(CodexErr::InvalidRequest(
-        "non-heartbeat reorientation findings are unsupported; accept only typed runtime-spine heartbeat results"
+        "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
             .to_string(),
     ))
 }
@@ -16192,7 +16188,7 @@ async fn load_completed_epiphany_role_finding(
                 binding_id
             ))
         })?;
-    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat) {
+    if binding_backend_job_id(binding).is_some() {
         let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
         let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine(
             binding,
@@ -16214,7 +16210,7 @@ async fn load_completed_epiphany_role_finding(
     }
 
     Err(CodexErr::InvalidRequest(
-        "non-heartbeat role findings are unsupported; accept only typed runtime-spine heartbeat results"
+        "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
             .to_string(),
     ))
 }
@@ -17879,10 +17875,6 @@ fn binding_launcher_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
     binding.launcher_job_id.as_deref()
 }
 
-fn binding_backend_kind(binding: &EpiphanyJobBinding) -> Option<CoreEpiphanyJobBackendKind> {
-    binding.backend_kind
-}
-
 fn binding_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
     binding.backend_job_id.as_deref()
 }
@@ -18183,9 +18175,6 @@ fn map_epiphany_bound_job(
             owner_role: binding.owner_role.clone(),
             launcher_job_id: binding_launcher_job_id(binding).map(str::to_string),
             authority_scope: binding.authority_scope.clone(),
-            backend_kind: runtime_link
-                .map(|_| ThreadEpiphanyJobBackendKind::Heartbeat)
-                .or_else(|| binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind)),
             backend_job_id: runtime_link
                 .map(|link| link.runtime_job_id.clone())
                 .or_else(|| binding_projected_backend_job_id(binding).map(str::to_string)),
@@ -18218,9 +18207,6 @@ fn overlay_epiphany_job_binding(
     job.owner_role = binding.owner_role.clone();
     job.launcher_job_id = binding_launcher_job_id(binding).map(str::to_string);
     job.authority_scope = binding.authority_scope.clone();
-    job.backend_kind = runtime_link
-        .map(|_| ThreadEpiphanyJobBackendKind::Heartbeat)
-        .or_else(|| binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind));
     job.backend_job_id = runtime_link
         .map(|link| link.runtime_job_id.clone())
         .or_else(|| binding_projected_backend_job_id(binding).map(str::to_string));
@@ -18241,10 +18227,7 @@ fn overlay_epiphany_job_binding(
         return job;
     }
 
-    if runtime_link.is_some()
-        || (binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat)
-            && binding_backend_job_id(binding).is_some())
-    {
+    if runtime_link.is_some() || binding_backend_job_id(binding).is_some() {
         job.status = ThreadEpiphanyJobStatus::Pending;
         job.blocking_reason = None;
         job.progress_note = Some(
@@ -18260,18 +18243,7 @@ fn overlay_epiphany_job_binding(
 }
 
 fn binding_projected_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
-    match binding_backend_kind(binding) {
-        Some(CoreEpiphanyJobBackendKind::Heartbeat) => binding_backend_job_id(binding),
-        None => None,
-    }
-}
-
-fn map_core_epiphany_job_backend_kind(
-    kind: CoreEpiphanyJobBackendKind,
-) -> ThreadEpiphanyJobBackendKind {
-    match kind {
-        CoreEpiphanyJobBackendKind::Heartbeat => ThreadEpiphanyJobBackendKind::Heartbeat,
-    }
+    binding_backend_job_id(binding)
 }
 
 fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJobKind {
@@ -18301,7 +18273,6 @@ fn map_epiphany_index_job(
             owner_role: "epiphany-core".to_string(),
             launcher_job_id: None,
             authority_scope: None,
-            backend_kind: None,
             backend_job_id: None,
             status: ThreadEpiphanyJobStatus::Unavailable,
             items_processed: None,
@@ -18337,7 +18308,6 @@ fn map_epiphany_index_job(
         owner_role: "epiphany-core".to_string(),
         launcher_job_id: None,
         authority_scope: None,
-        backend_kind: None,
         backend_job_id: None,
         status: epiphany_job_status_from_retrieval_status(retrieval.status),
         items_processed: retrieval.indexed_file_count,
@@ -18403,7 +18373,6 @@ fn map_epiphany_remap_job(state: Option<&EpiphanyThreadState>) -> ThreadEpiphany
         owner_role: "epiphany-core".to_string(),
         launcher_job_id: None,
         authority_scope: None,
-        backend_kind: None,
         backend_job_id: None,
         status: if needs_work {
             ThreadEpiphanyJobStatus::Needed
@@ -18457,7 +18426,6 @@ fn map_epiphany_verification_job(state: Option<&EpiphanyThreadState>) -> ThreadE
         owner_role: "epiphany-harness".to_string(),
         launcher_job_id: None,
         authority_scope: None,
-        backend_kind: None,
         backend_job_id: None,
         status,
         items_processed: Some(verified),
@@ -18479,7 +18447,6 @@ fn map_epiphany_specialist_job() -> ThreadEpiphanyJob {
         owner_role: "epiphany-harness".to_string(),
         launcher_job_id: None,
         authority_scope: None,
-        backend_kind: None,
         backend_job_id: None,
         status: ThreadEpiphanyJobStatus::Unavailable,
         items_processed: None,
@@ -18509,7 +18476,6 @@ fn epiphany_blocked_state_job(
         owner_role: "epiphany-harness".to_string(),
         launcher_job_id: None,
         authority_scope: None,
-        backend_kind: None,
         backend_job_id: None,
         status: ThreadEpiphanyJobStatus::Blocked,
         items_processed: None,
@@ -20662,7 +20628,6 @@ mod tests {
                 owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
                 launcher_job_id: Some("launcher-1".to_string()),
                 authority_scope: Some("epiphany.reorient.resume".to_string()),
-                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
                 backend_job_id: Some("backend-1".to_string()),
                 linked_subgoal_ids: Vec::new(),
                 linked_graph_node_ids: Vec::new(),
@@ -20975,7 +20940,6 @@ mod tests {
             owner_role: "epiphany-verifier".to_string(),
             launcher_job_id: None,
             authority_scope: None,
-            backend_kind: None,
             backend_job_id: None,
             status: ThreadEpiphanyJobStatus::Needed,
             items_processed: None,
@@ -23327,7 +23291,6 @@ mod tests {
                 owner_role: "epiphany-modeler".to_string(),
                 launcher_job_id: None,
                 authority_scope: Some("epiphany.role.modeling".to_string()),
-                backend_kind: None,
                 backend_job_id: None,
                 linked_subgoal_ids: vec!["phase-6".to_string()],
                 linked_graph_node_ids: vec!["runtime-spine".to_string()],
@@ -23355,10 +23318,6 @@ mod tests {
             .expect("heartbeat specialist slot should exist");
 
         assert_eq!(specialist.status, ThreadEpiphanyJobStatus::Pending);
-        assert_eq!(
-            specialist.backend_kind,
-            Some(ThreadEpiphanyJobBackendKind::Heartbeat)
-        );
         assert_eq!(
             specialist.backend_job_id.as_deref(),
             Some("heartbeat-turn-1")
@@ -23429,7 +23388,6 @@ mod tests {
             owner_role: "epiphany-modeler".to_string(),
             launcher_job_id: Some("epiphany-heartbeat-launch-1".to_string()),
             authority_scope: Some("epiphany.role.modeling".to_string()),
-            backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
             backend_job_id: Some("heartbeat-job-1".to_string()),
             linked_subgoal_ids: Vec::new(),
             linked_graph_node_ids: Vec::new(),
@@ -23460,7 +23418,6 @@ mod tests {
                 owner_role: "epiphany-harness".to_string(),
                 launcher_job_id: None,
                 authority_scope: Some("epiphany.specialist".to_string()),
-                backend_kind: None,
                 backend_job_id: None,
                 linked_subgoal_ids: vec!["phase-6".to_string()],
                 linked_graph_node_ids: vec!["job-control".to_string()],
@@ -23485,7 +23442,6 @@ mod tests {
             Some("epiphany.specialist")
         );
         assert_eq!(specialist.launcher_job_id, None);
-        assert_eq!(specialist.backend_kind, None);
         assert_eq!(specialist.backend_job_id, None);
         assert_eq!(specialist.linked_subgoal_ids, vec!["phase-6".to_string()]);
         assert_eq!(
