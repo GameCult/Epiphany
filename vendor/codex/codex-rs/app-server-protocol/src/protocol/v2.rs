@@ -76,6 +76,7 @@ use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
 use codex_protocol::protocol::EpiphanyPlanningState as CoreEpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus as CoreEpiphanyRetrievalStatus;
+use codex_protocol::protocol::EpiphanyRuntimeLink as CoreEpiphanyRuntimeLink;
 use codex_protocol::protocol::EpiphanyScratchPad as CoreEpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanySubgoal as CoreEpiphanySubgoal;
 use codex_protocol::protocol::EpiphanyThreadState as CoreEpiphanyThreadState;
@@ -5426,6 +5427,8 @@ pub struct ThreadEpiphanyUpdatePatch {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub acceptance_receipts: Vec<CoreEpiphanyAcceptanceReceipt>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runtime_links: Vec<CoreEpiphanyRuntimeLink>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observations: Vec<CoreEpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<CoreEpiphanyEvidenceRecord>,
@@ -5487,6 +5490,7 @@ pub enum ThreadEpiphanyStateUpdatedField {
     InvestigationCheckpoint,
     JobBindings,
     AcceptanceReceipts,
+    RuntimeLinks,
     Observations,
     Evidence,
     Churn,

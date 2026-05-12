@@ -3027,6 +3027,9 @@ pub struct EpiphanyThreadState {
     #[ts(type = "Array<EpiphanyAcceptanceReceipt>")]
     pub acceptance_receipts: Vec<EpiphanyAcceptanceReceipt>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyRuntimeLink>")]
+    pub runtime_links: Vec<EpiphanyRuntimeLink>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyObservation>")]
     pub observations: Vec<EpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -3065,6 +3068,23 @@ pub struct EpiphanyAcceptanceReceipt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub summary: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyRuntimeLink {
+    pub id: String,
+    pub binding_id: String,
+    pub surface: String,
+    pub role_id: String,
+    pub authority_scope: String,
+    pub runtime_job_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub runtime_result_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub linked_subgoal_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub linked_graph_node_ids: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]

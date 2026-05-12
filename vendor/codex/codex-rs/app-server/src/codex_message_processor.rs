@@ -5207,6 +5207,7 @@ impl CodexMessageProcessor {
                 investigation_checkpoint: patch.investigation_checkpoint,
                 job_bindings: patch.job_bindings,
                 acceptance_receipts: patch.acceptance_receipts,
+                runtime_links: patch.runtime_links,
                 observations: patch.observations,
                 evidence: patch.evidence,
                 churn: patch.churn,
@@ -6567,6 +6568,7 @@ impl CodexMessageProcessor {
             investigation_checkpoint: patch.investigation_checkpoint,
             job_bindings: patch.job_bindings,
             acceptance_receipts: patch.acceptance_receipts,
+            runtime_links: patch.runtime_links,
             observations: patch.observations,
             evidence,
             churn: patch.churn,
@@ -6658,6 +6660,7 @@ impl CodexMessageProcessor {
             investigation_checkpoint: patch.investigation_checkpoint,
             job_bindings: patch.job_bindings,
             acceptance_receipts: patch.acceptance_receipts,
+            runtime_links: patch.runtime_links,
             observations: patch.observations,
             evidence: patch.evidence,
             churn: patch.churn,
@@ -15691,6 +15694,12 @@ fn imagination_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Ve
             "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
         );
     }
+    if !patch.runtime_links.is_empty() {
+        errors.push(
+            "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
+                .to_string(),
+        );
+    }
     if patch.churn.is_some() || patch.mode.is_some() {
         errors.push(
             "churn or mode changes are not allowed through imagination role acceptance".to_string(),
@@ -15751,6 +15760,12 @@ fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<S
     if !patch.acceptance_receipts.is_empty() {
         errors.push(
             "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
+        );
+    }
+    if !patch.runtime_links.is_empty() {
+        errors.push(
+            "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
+                .to_string(),
         );
     }
     if patch.planning.is_some() {
@@ -17956,6 +17971,7 @@ fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatc
         || patch.investigation_checkpoint.is_some()
         || patch.job_bindings.is_some()
         || !patch.acceptance_receipts.is_empty()
+        || !patch.runtime_links.is_empty()
         || patch.churn.is_some()
         || patch.mode.is_some()
         || patch.planning.is_some()
@@ -18063,6 +18079,9 @@ fn epiphany_update_patch_changed_fields(
     }
     if !patch.acceptance_receipts.is_empty() {
         fields.push(ThreadEpiphanyStateUpdatedField::AcceptanceReceipts);
+    }
+    if !patch.runtime_links.is_empty() {
+        fields.push(ThreadEpiphanyStateUpdatedField::RuntimeLinks);
     }
     if !patch.observations.is_empty() {
         fields.push(ThreadEpiphanyStateUpdatedField::Observations);

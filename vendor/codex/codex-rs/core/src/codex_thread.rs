@@ -40,6 +40,7 @@ use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalState;
+use codex_protocol::protocol::EpiphanyRuntimeLink;
 use codex_protocol::protocol::EpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanyStateItem;
 use codex_protocol::protocol::EpiphanySubgoal;
@@ -127,6 +128,7 @@ pub struct EpiphanyStateUpdate {
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub job_bindings: Option<Vec<EpiphanyJobBinding>>,
     pub acceptance_receipts: Vec<EpiphanyAcceptanceReceipt>,
+    pub runtime_links: Vec<EpiphanyRuntimeLink>,
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
     pub churn: Option<EpiphanyChurnState>,
@@ -186,6 +188,7 @@ impl EpiphanyStateUpdate {
             && self.investigation_checkpoint.is_none()
             && self.job_bindings.is_none()
             && self.acceptance_receipts.is_empty()
+            && self.runtime_links.is_empty()
             && self.observations.is_empty()
             && self.evidence.is_empty()
             && self.churn.is_none()
@@ -525,15 +528,22 @@ impl CodexThread {
             launcher_job_id.as_str(),
             backend_job_id.as_str(),
         );
+        let replacement_runtime_link =
+            build_epiphany_runtime_link(&request, backend_job_id.as_str());
         let next_job_bindings = replace_or_append_epiphany_job_binding(
             current_state.job_bindings.clone(),
             replacement_binding,
+        );
+        let next_runtime_links = replace_or_append_epiphany_runtime_link(
+            current_state.runtime_links.clone(),
+            replacement_runtime_link,
         );
 
         let validation_errors = epiphany_state_update_validation_errors(
             &current_state,
             &EpiphanyStateUpdate {
                 job_bindings: Some(next_job_bindings.clone()),
+                runtime_links: next_runtime_links.clone(),
                 ..Default::default()
             },
         );
@@ -548,6 +558,7 @@ impl CodexThread {
             .epiphany_update_state(EpiphanyStateUpdate {
                 expected_revision: request.expected_revision,
                 job_bindings: Some(next_job_bindings),
+                runtime_links: next_runtime_links,
                 ..Default::default()
             })
             .await?;
@@ -852,6 +863,23 @@ fn build_epiphany_job_launch_binding(
     }
 }
 
+fn build_epiphany_runtime_link(
+    request: &EpiphanyJobLaunchRequest,
+    runtime_job_id: &str,
+) -> EpiphanyRuntimeLink {
+    EpiphanyRuntimeLink {
+        id: format!("runtime-link-{}-{runtime_job_id}", request.binding_id),
+        binding_id: request.binding_id.clone(),
+        surface: "jobLaunch".to_string(),
+        role_id: request.owner_role.clone(),
+        authority_scope: request.authority_scope.clone(),
+        runtime_job_id: runtime_job_id.to_string(),
+        runtime_result_id: None,
+        linked_subgoal_ids: request.linked_subgoal_ids.clone(),
+        linked_graph_node_ids: request.linked_graph_node_ids.clone(),
+    }
+}
+
 fn open_epiphany_runtime_spine_job(
     store_path: &std::path::Path,
     state: &EpiphanyThreadState,
@@ -929,6 +957,18 @@ fn replace_or_append_epiphany_job_binding(
     }
     bindings.push(replacement);
     bindings
+}
+
+fn replace_or_append_epiphany_runtime_link(
+    mut links: Vec<EpiphanyRuntimeLink>,
+    replacement: EpiphanyRuntimeLink,
+) -> Vec<EpiphanyRuntimeLink> {
+    if let Some(existing) = links.iter_mut().find(|link| link.id == replacement.id) {
+        *existing = replacement;
+        return links;
+    }
+    links.push(replacement);
+    links
 }
 
 fn clear_epiphany_job_binding_backend(
@@ -1050,11 +1090,48 @@ fn epiphany_state_update_validation_errors(
             &known_evidence_ids,
         ));
     }
+    if !update.runtime_links.is_empty() {
+        errors.extend(validate_epiphany_runtime_links(
+            &state.runtime_links,
+            &update.runtime_links,
+        ));
+    }
     if let Some(planning) = update.planning.as_ref() {
         errors.extend(validate_epiphany_planning_state(planning));
     }
 
     errors.extend(epiphany_state_replacement_validation_errors(state, update));
+    errors
+}
+
+fn validate_epiphany_runtime_links(
+    existing: &[EpiphanyRuntimeLink],
+    links: &[EpiphanyRuntimeLink],
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut seen_ids = existing
+        .iter()
+        .map(|link| link.id.as_str())
+        .collect::<HashSet<_>>();
+    for link in links {
+        require_nonempty_update(&link.id, "runtime_link.id", &mut errors);
+        require_nonempty_update(&link.binding_id, "runtime_link.binding_id", &mut errors);
+        require_nonempty_update(&link.surface, "runtime_link.surface", &mut errors);
+        require_nonempty_update(&link.role_id, "runtime_link.role_id", &mut errors);
+        require_nonempty_update(
+            &link.authority_scope,
+            "runtime_link.authority_scope",
+            &mut errors,
+        );
+        require_nonempty_update(
+            &link.runtime_job_id,
+            "runtime_link.runtime_job_id",
+            &mut errors,
+        );
+        if !seen_ids.insert(link.id.as_str()) {
+            errors.push(format!("runtime link id {:?} is duplicated", link.id));
+        }
+    }
     errors
 }
 
@@ -1407,6 +1484,7 @@ fn apply_epiphany_state_update(
         state.job_bindings = job_bindings;
     }
     prepend_recent(&mut state.acceptance_receipts, update.acceptance_receipts);
+    prepend_recent(&mut state.runtime_links, update.runtime_links);
     if let Some(churn) = update.churn {
         state.churn = Some(churn);
     }
@@ -2072,6 +2150,7 @@ mod epiphany_update_tests {
 
         let binding =
             build_epiphany_job_launch_binding(&request, "epiphany-heartbeat-launch-1", "turn-1");
+        let runtime_link = build_epiphany_runtime_link(&request, "turn-1");
 
         assert_eq!(
             binding.backend_kind,
@@ -2084,6 +2163,13 @@ mod epiphany_update_tests {
                 .as_deref()
                 .is_some_and(|note| note.contains("heartbeat activation"))
         );
+        assert_eq!(
+            runtime_link.id,
+            "runtime-link-modeling-checkpoint-worker-turn-1"
+        );
+        assert_eq!(runtime_link.runtime_job_id, "turn-1");
+        assert_eq!(runtime_link.runtime_result_id, None);
+        assert_eq!(runtime_link.role_id, "epiphany-modeler");
     }
 }
 
