@@ -77,6 +77,7 @@ mod device_key_api;
 mod dynamic_tools;
 mod epiphany_invalidation;
 mod epiphany_launch;
+mod epiphany_results;
 mod error_code;
 mod external_agent_config_api;
 mod filters;

@@ -407,9 +407,12 @@ they were not enough to make the Codex organ materially smaller. The first real
 carcass cut has now moved Epiphany launch doctrine, prompt config, launch
 request builders, output schemas, binding ids, and launch-specific labels into
 `vendor/codex/codex-rs/app-server/src/epiphany_launch.rs`. The processor is
-down from about 21,263 lines to 20,596 lines. This is progress, not absolution:
-handlers, mappers, route orchestration, result projection, coordinator glue,
-and tests still keep too much Epiphany inside Codex.
+down from about 21,263 lines to 20,596 lines. The second cut moved role/reorient
+result projection and note rendering into
+`vendor/codex/codex-rs/app-server/src/epiphany_results.rs`, taking the processor
+to about 20,331 lines. This is progress, not absolution: handlers, scene/view
+mappers, route orchestration, coordinator glue, accept policy plumbing, and
+tests still keep too much Epiphany inside Codex.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
