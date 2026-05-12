@@ -511,6 +511,13 @@ use epiphany_core::EpiphanyCrrcReorientAction as CoreEpiphanyCrrcReorientAction;
 use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcSceneAction as CoreEpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
+use epiphany_core::EpiphanyFreshnessInput;
+use epiphany_core::EpiphanyFreshnessView;
+use epiphany_core::EpiphanyFreshnessWatcherInput;
+use epiphany_core::EpiphanyGraphFreshness as CoreEpiphanyGraphFreshness;
+use epiphany_core::EpiphanyGraphFreshnessStatus as CoreEpiphanyGraphFreshnessStatus;
+use epiphany_core::EpiphanyInvalidationInput as CoreEpiphanyInvalidationInput;
+use epiphany_core::EpiphanyInvalidationStatus as CoreEpiphanyInvalidationStatus;
 use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
 use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyJobsInput;
@@ -526,6 +533,8 @@ use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
 use epiphany_core::EpiphanyReorientReason as CoreEpiphanyReorientReason;
 use epiphany_core::EpiphanyReorientStateStatus as CoreEpiphanyReorientStateStatus;
+use epiphany_core::EpiphanyRetrievalFreshness as CoreEpiphanyRetrievalFreshness;
+use epiphany_core::EpiphanyRetrievalFreshnessStatus as CoreEpiphanyRetrievalFreshnessStatus;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
 use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
 use epiphany_core::EpiphanyRoleBoardInput;
@@ -543,6 +552,7 @@ use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
+use epiphany_core::derive_freshness;
 use epiphany_core::derive_jobs;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
@@ -14917,307 +14927,106 @@ fn map_epiphany_freshness(
     ThreadEpiphanyGraphFreshness,
     ThreadEpiphanyInvalidationInput,
 ) {
-    let retrieval = epiphany_retrieval_state_for_reflection(state, retrieval_override);
+    let watcher = watcher_snapshot.map(|snapshot| EpiphanyFreshnessWatcherInput {
+        available: snapshot.available,
+        workspace_root: snapshot.workspace_root.as_deref(),
+        observed_at_unix_seconds: snapshot.observed_at_unix_seconds,
+        changed_paths: snapshot.changed_paths.as_slice(),
+    });
+    let freshness = derive_freshness(EpiphanyFreshnessInput {
+        state,
+        retrieval_override,
+        watcher,
+    });
+    map_core_epiphany_freshness(freshness)
+}
+
+fn map_core_epiphany_freshness(
+    freshness: EpiphanyFreshnessView,
+) -> (
+    Option<u64>,
+    ThreadEpiphanyRetrievalFreshness,
+    ThreadEpiphanyGraphFreshness,
+    ThreadEpiphanyInvalidationInput,
+) {
     (
-        state.map(|state| state.revision),
-        map_epiphany_retrieval_freshness(retrieval),
-        map_epiphany_graph_freshness(state),
-        map_epiphany_invalidation_input(state, watcher_snapshot),
+        freshness.state_revision,
+        map_core_epiphany_retrieval_freshness(freshness.retrieval),
+        map_core_epiphany_graph_freshness(freshness.graph),
+        map_core_epiphany_invalidation_input(freshness.watcher),
     )
 }
 
-fn epiphany_retrieval_state_for_reflection<'a>(
-    state: Option<&'a EpiphanyThreadState>,
-    retrieval_override: Option<&'a EpiphanyRetrievalState>,
-) -> Option<&'a EpiphanyRetrievalState> {
-    retrieval_override.or_else(|| state.and_then(|state| state.retrieval.as_ref()))
-}
-
-fn map_epiphany_retrieval_freshness(
-    retrieval: Option<&EpiphanyRetrievalState>,
+fn map_core_epiphany_retrieval_freshness(
+    retrieval: CoreEpiphanyRetrievalFreshness,
 ) -> ThreadEpiphanyRetrievalFreshness {
-    let Some(retrieval) = retrieval else {
-        return ThreadEpiphanyRetrievalFreshness {
-            status: ThreadEpiphanyRetrievalFreshnessStatus::Missing,
-            semantic_available: None,
-            last_indexed_at_unix_seconds: None,
-            indexed_file_count: None,
-            indexed_chunk_count: None,
-            dirty_paths: Vec::new(),
-            note: "No retrieval freshness is available for this thread view.".to_string(),
-        };
-    };
-
-    let dirty_path_count = retrieval.dirty_paths.len();
-    let note = match retrieval.status {
-        EpiphanyRetrievalStatus::Ready if dirty_path_count == 0 => {
-            "Retrieval catalog is ready.".to_string()
-        }
-        EpiphanyRetrievalStatus::Ready => {
-            format!("Retrieval catalog is ready with {dirty_path_count} dirty path(s) noted.")
-        }
-        EpiphanyRetrievalStatus::Stale => {
-            format!("Retrieval catalog is stale; {dirty_path_count} dirty path(s) need refresh.")
-        }
-        EpiphanyRetrievalStatus::Indexing => "Retrieval catalog is indexing.".to_string(),
-        EpiphanyRetrievalStatus::Unavailable => "Retrieval catalog is unavailable.".to_string(),
-    };
-
     ThreadEpiphanyRetrievalFreshness {
         status: match retrieval.status {
-            EpiphanyRetrievalStatus::Ready => ThreadEpiphanyRetrievalFreshnessStatus::Ready,
-            EpiphanyRetrievalStatus::Stale => ThreadEpiphanyRetrievalFreshnessStatus::Stale,
-            EpiphanyRetrievalStatus::Indexing => ThreadEpiphanyRetrievalFreshnessStatus::Indexing,
-            EpiphanyRetrievalStatus::Unavailable => {
+            CoreEpiphanyRetrievalFreshnessStatus::Missing => {
+                ThreadEpiphanyRetrievalFreshnessStatus::Missing
+            }
+            CoreEpiphanyRetrievalFreshnessStatus::Ready => {
+                ThreadEpiphanyRetrievalFreshnessStatus::Ready
+            }
+            CoreEpiphanyRetrievalFreshnessStatus::Stale => {
+                ThreadEpiphanyRetrievalFreshnessStatus::Stale
+            }
+            CoreEpiphanyRetrievalFreshnessStatus::Indexing => {
+                ThreadEpiphanyRetrievalFreshnessStatus::Indexing
+            }
+            CoreEpiphanyRetrievalFreshnessStatus::Unavailable => {
                 ThreadEpiphanyRetrievalFreshnessStatus::Unavailable
             }
         },
-        semantic_available: Some(retrieval.semantic_available),
+        semantic_available: retrieval.semantic_available,
         last_indexed_at_unix_seconds: retrieval.last_indexed_at_unix_seconds,
         indexed_file_count: retrieval.indexed_file_count,
         indexed_chunk_count: retrieval.indexed_chunk_count,
-        dirty_paths: retrieval.dirty_paths.clone(),
-        note,
+        dirty_paths: retrieval.dirty_paths,
+        note: retrieval.note,
     }
 }
 
-fn map_epiphany_graph_freshness(
-    state: Option<&EpiphanyThreadState>,
+fn map_core_epiphany_graph_freshness(
+    graph: CoreEpiphanyGraphFreshness,
 ) -> ThreadEpiphanyGraphFreshness {
-    let Some(state) = state else {
-        return ThreadEpiphanyGraphFreshness {
-            status: ThreadEpiphanyGraphFreshnessStatus::Missing,
-            graph_freshness: None,
-            checkpoint_id: None,
-            dirty_path_count: 0,
-            dirty_paths: Vec::new(),
-            open_question_count: 0,
-            open_gap_count: 0,
-            note: "Epiphany state is missing, so graph freshness cannot be assessed.".to_string(),
-        };
-    };
-
-    let frontier = state.graph_frontier.as_ref();
-    let dirty_paths = frontier
-        .map(|frontier| frontier.dirty_paths.clone())
-        .unwrap_or_default();
-    let dirty_path_count = dirty_paths.len() as u32;
-    let open_question_count = frontier
-        .map(|frontier| frontier.open_question_ids.len() as u32)
-        .unwrap_or_default();
-    let open_gap_count = frontier
-        .map(|frontier| frontier.open_gap_ids.len() as u32)
-        .unwrap_or_default();
-    let graph_freshness = state
-        .churn
-        .as_ref()
-        .and_then(|churn| churn.graph_freshness.clone());
-    let freshness_hint_stale = graph_freshness
-        .as_deref()
-        .is_some_and(|freshness| !matches!(freshness, "fresh" | "ready" | "current" | "ok"));
-    let is_stale = dirty_path_count > 0
-        || open_question_count > 0
-        || open_gap_count > 0
-        || freshness_hint_stale;
-    let note = if is_stale {
-        format!(
-            "Graph freshness is stale; frontier has {dirty_path_count} dirty path(s), {open_question_count} open question id(s), and {open_gap_count} open gap id(s)."
-        )
-    } else {
-        "Graph freshness is ready.".to_string()
-    };
-
     ThreadEpiphanyGraphFreshness {
-        status: if is_stale {
-            ThreadEpiphanyGraphFreshnessStatus::Stale
-        } else {
-            ThreadEpiphanyGraphFreshnessStatus::Ready
+        status: match graph.status {
+            CoreEpiphanyGraphFreshnessStatus::Missing => {
+                ThreadEpiphanyGraphFreshnessStatus::Missing
+            }
+            CoreEpiphanyGraphFreshnessStatus::Ready => ThreadEpiphanyGraphFreshnessStatus::Ready,
+            CoreEpiphanyGraphFreshnessStatus::Stale => ThreadEpiphanyGraphFreshnessStatus::Stale,
         },
-        graph_freshness,
-        checkpoint_id: state
-            .graph_checkpoint
-            .as_ref()
-            .map(|checkpoint| checkpoint.checkpoint_id.clone()),
-        dirty_path_count,
-        dirty_paths,
-        open_question_count,
-        open_gap_count,
-        note,
+        graph_freshness: graph.graph_freshness,
+        checkpoint_id: graph.checkpoint_id,
+        dirty_path_count: graph.dirty_path_count,
+        dirty_paths: graph.dirty_paths,
+        open_question_count: graph.open_question_count,
+        open_gap_count: graph.open_gap_count,
+        note: graph.note,
     }
 }
 
-fn map_epiphany_invalidation_input(
-    state: Option<&EpiphanyThreadState>,
-    watcher_snapshot: Option<&EpiphanyInvalidationSnapshot>,
+fn map_core_epiphany_invalidation_input(
+    watcher: CoreEpiphanyInvalidationInput,
 ) -> ThreadEpiphanyInvalidationInput {
-    let Some(watcher_snapshot) = watcher_snapshot else {
-        return ThreadEpiphanyInvalidationInput {
-            status: ThreadEpiphanyInvalidationStatus::Unavailable,
-            watched_root: None,
-            observed_at_unix_seconds: None,
-            changed_path_count: 0,
-            changed_paths: Vec::new(),
-            graph_node_ids: Vec::new(),
-            active_frontier_node_ids: Vec::new(),
-            note: "Watcher-backed invalidation inputs are only available for loaded threads."
-                .to_string(),
-        };
-    };
-
-    if !watcher_snapshot.available {
-        return ThreadEpiphanyInvalidationInput {
-            status: ThreadEpiphanyInvalidationStatus::Unavailable,
-            watched_root: None,
-            observed_at_unix_seconds: None,
-            changed_path_count: 0,
-            changed_paths: Vec::new(),
-            graph_node_ids: Vec::new(),
-            active_frontier_node_ids: Vec::new(),
-            note: "The workspace watcher is unavailable for this app-server process.".to_string(),
-        };
-    }
-
-    let changed_paths = watcher_snapshot.changed_paths.clone();
-    let changed_path_count = changed_paths.len() as u32;
-    let watched_root = watcher_snapshot
-        .workspace_root
-        .as_ref()
-        .map(|root| root.to_path_buf());
-
-    if changed_paths.is_empty() {
-        return ThreadEpiphanyInvalidationInput {
-            status: ThreadEpiphanyInvalidationStatus::Clean,
-            watched_root,
-            observed_at_unix_seconds: watcher_snapshot.observed_at_unix_seconds,
-            changed_path_count,
-            changed_paths,
-            graph_node_ids: Vec::new(),
-            active_frontier_node_ids: Vec::new(),
-            note: "Watcher has not observed recent filesystem changes under the workspace root."
-                .to_string(),
-        };
-    }
-
-    let graph_node_ids = state
-        .map(|state| {
-            graph_node_ids_for_changed_paths(
-                state,
-                &changed_paths,
-                watcher_snapshot
-                    .workspace_root
-                    .as_ref()
-                    .map(|root| root.as_path()),
-            )
-        })
-        .unwrap_or_default();
-    let active_frontier_node_ids = state
-        .map(|state| {
-            active_frontier_node_ids_for_changed_paths(
-                state,
-                &changed_paths,
-                watcher_snapshot
-                    .workspace_root
-                    .as_ref()
-                    .map(|root| root.as_path()),
-            )
-        })
-        .unwrap_or_default();
-    let note = if graph_node_ids.is_empty() {
-        format!(
-            "Watcher observed {changed_path_count} recent changed path(s), but no mapped graph node code refs matched yet."
-        )
-    } else if active_frontier_node_ids.is_empty() {
-        format!(
-            "Watcher observed {changed_path_count} recent changed path(s) touching {} mapped graph node(s).",
-            graph_node_ids.len()
-        )
-    } else {
-        format!(
-            "Watcher observed {changed_path_count} recent changed path(s) touching {} mapped graph node(s), including {} active frontier node(s).",
-            graph_node_ids.len(),
-            active_frontier_node_ids.len()
-        )
-    };
-
     ThreadEpiphanyInvalidationInput {
-        status: ThreadEpiphanyInvalidationStatus::Changed,
-        watched_root,
-        observed_at_unix_seconds: watcher_snapshot.observed_at_unix_seconds,
-        changed_path_count,
-        changed_paths,
-        graph_node_ids,
-        active_frontier_node_ids,
-        note,
+        status: match watcher.status {
+            CoreEpiphanyInvalidationStatus::Unavailable => {
+                ThreadEpiphanyInvalidationStatus::Unavailable
+            }
+            CoreEpiphanyInvalidationStatus::Clean => ThreadEpiphanyInvalidationStatus::Clean,
+            CoreEpiphanyInvalidationStatus::Changed => ThreadEpiphanyInvalidationStatus::Changed,
+        },
+        watched_root: watcher.watched_root,
+        observed_at_unix_seconds: watcher.observed_at_unix_seconds,
+        changed_path_count: watcher.changed_path_count,
+        changed_paths: watcher.changed_paths,
+        graph_node_ids: watcher.graph_node_ids,
+        active_frontier_node_ids: watcher.active_frontier_node_ids,
+        note: watcher.note,
     }
-}
-
-fn graph_node_ids_for_changed_paths(
-    state: &EpiphanyThreadState,
-    changed_paths: &[PathBuf],
-    workspace_root: Option<&Path>,
-) -> Vec<String> {
-    let changed_path_keys: HashSet<String> = changed_paths
-        .iter()
-        .map(|path| epiphany_path_key(path.as_path()))
-        .collect();
-    let mut node_ids = Vec::new();
-    let mut seen = HashSet::new();
-
-    for node in state
-        .graphs
-        .architecture
-        .nodes
-        .iter()
-        .chain(state.graphs.dataflow.nodes.iter())
-    {
-        let matches_changed_path = node.code_refs.iter().any(|code_ref| {
-            changed_path_keys.contains(&code_ref_path_key(
-                Path::new(&code_ref.path),
-                workspace_root,
-            ))
-        });
-        if matches_changed_path && seen.insert(node.id.as_str()) {
-            node_ids.push(node.id.clone());
-        }
-    }
-
-    node_ids
-}
-
-fn active_frontier_node_ids_for_changed_paths(
-    state: &EpiphanyThreadState,
-    changed_paths: &[PathBuf],
-    workspace_root: Option<&Path>,
-) -> Vec<String> {
-    let graph_node_ids = graph_node_ids_for_changed_paths(state, changed_paths, workspace_root);
-    let frontier_node_ids = state
-        .graph_frontier
-        .as_ref()
-        .map(|frontier| frontier.active_node_ids.as_slice())
-        .unwrap_or_default();
-    let graph_node_ids: HashSet<&str> = graph_node_ids.iter().map(String::as_str).collect();
-
-    frontier_node_ids
-        .iter()
-        .filter(|node_id| graph_node_ids.contains(node_id.as_str()))
-        .cloned()
-        .collect()
-}
-
-fn epiphany_path_key(path: &Path) -> String {
-    path.to_string_lossy()
-        .replace('\\', "/")
-        .trim_start_matches("./")
-        .to_string()
-}
-
-fn code_ref_path_key(path: &Path, workspace_root: Option<&Path>) -> String {
-    if let Some(workspace_root) = workspace_root
-        && let Ok(relative_path) = path.strip_prefix(workspace_root)
-    {
-        return epiphany_path_key(relative_path);
-    }
-    epiphany_path_key(path)
 }
 
 fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
