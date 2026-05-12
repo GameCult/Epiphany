@@ -510,26 +510,30 @@ fn collect_coordinator_status(
         Some(json!({"threadId": thread_id, "includeTurns": false})),
         true,
     )?;
-    let scene = client.send(
-        "thread/epiphany/scene",
-        Some(json!({"threadId": thread_id})),
+    let view = client.send(
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["scene", "pressure", "jobs"]})),
         true,
     )?;
-    let pressure = client.send(
-        "thread/epiphany/pressure",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
+    let scene = json!({
+        "threadId": thread_id,
+        "scene": view.get("scene").cloned().unwrap_or_else(|| json!(null)),
+    });
+    let pressure = json!({
+        "threadId": thread_id,
+        "source": "live",
+        "pressure": view.get("pressure").cloned().unwrap_or_else(|| json!(null)),
+    });
     let reorient = client.send(
         "thread/epiphany/reorient",
         Some(json!({"threadId": thread_id})),
         true,
     )?;
-    let jobs = client.send(
-        "thread/epiphany/jobs",
-        Some(json!({"threadId": thread_id})),
-        true,
-    )?;
+    let jobs = json!({
+        "threadId": thread_id,
+        "source": "live",
+        "jobs": view.get("jobs").cloned().unwrap_or_else(|| json!([])),
+    });
     let roles = client.send(
         "thread/epiphany/roles",
         Some(json!({"threadId": thread_id})),
@@ -589,6 +593,7 @@ fn collect_coordinator_status(
     Ok(json!({
         "threadId": thread_id,
         "read": read,
+        "view": view,
         "scene": scene,
         "pressure": pressure,
         "reorient": reorient,
