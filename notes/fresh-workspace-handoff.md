@@ -410,7 +410,9 @@ request builders, output schemas, binding ids, and launch-specific labels into
 down from about 21,263 lines to 20,596 lines. The second cut moved role/reorient
 result projection and note rendering into
 `vendor/codex/codex-rs/app-server/src/epiphany_results.rs`, taking the processor
-to about 20,331 lines. This is progress, not absolution: handlers, scene/view
+to about 20,331 lines. The third cut moved protocol-to-core launch document
+mapping into `epiphany_launch.rs`, taking the processor to about 20,255 lines.
+This is progress, not absolution: handlers, scene/view
 mappers, route orchestration, coordinator glue, accept policy plumbing, and
 tests still keep too much Epiphany inside Codex.
 

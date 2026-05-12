@@ -7,8 +7,11 @@ use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
 use codex_app_server_protocol::ThreadEpiphanyReorientReason;
+use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
+use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
+use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
 use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
@@ -576,6 +579,78 @@ pub(super) fn build_epiphany_reorient_launch_instruction(
         ThreadEpiphanyReorientAction::Regather => prompts.regather.as_str(),
     };
     epiphany_agent_prompt_with_memory(body)
+}
+
+pub(super) fn map_core_worker_launch_document(
+    document: ThreadEpiphanyWorkerLaunchDocument,
+) -> EpiphanyWorkerLaunchDocument {
+    match document {
+        ThreadEpiphanyWorkerLaunchDocument::Role(document) => {
+            EpiphanyWorkerLaunchDocument::Role(map_core_role_worker_launch_document(document))
+        }
+        ThreadEpiphanyWorkerLaunchDocument::Reorient(document) => {
+            EpiphanyWorkerLaunchDocument::Reorient(map_core_reorient_worker_launch_document(
+                document,
+            ))
+        }
+    }
+}
+
+fn map_core_role_worker_launch_document(
+    document: ThreadEpiphanyRoleWorkerLaunchDocument,
+) -> EpiphanyRoleWorkerLaunchDocument {
+    EpiphanyRoleWorkerLaunchDocument {
+        thread_id: document.thread_id,
+        role_id: document.role_id,
+        state_revision: document.state_revision,
+        objective: document.objective,
+        active_subgoal_id: document.active_subgoal_id,
+        active_subgoals: document.active_subgoals,
+        active_graph_node_ids: document.active_graph_node_ids,
+        investigation_checkpoint: document.investigation_checkpoint,
+        scratch: document.scratch,
+        invariants: document.invariants,
+        graphs: document.graphs,
+        recent_evidence: document.recent_evidence,
+        recent_observations: document.recent_observations,
+        graph_frontier: document.graph_frontier,
+        graph_checkpoint: document.graph_checkpoint,
+        planning: document.planning,
+        churn: document.churn,
+    }
+}
+
+fn map_core_reorient_worker_launch_document(
+    document: ThreadEpiphanyReorientWorkerLaunchDocument,
+) -> EpiphanyReorientWorkerLaunchDocument {
+    EpiphanyReorientWorkerLaunchDocument {
+        thread_id: document.thread_id,
+        mode: document.mode,
+        checkpoint_id: document.checkpoint_id,
+        checkpoint_kind: document.checkpoint_kind,
+        checkpoint_disposition: document.checkpoint_disposition,
+        checkpoint_focus: document.checkpoint_focus,
+        checkpoint_summary: document.checkpoint_summary,
+        checkpoint_next_action: document.checkpoint_next_action,
+        checkpoint_open_questions: document.checkpoint_open_questions,
+        checkpoint_evidence_ids: document.checkpoint_evidence_ids,
+        checkpoint_code_refs: document.checkpoint_code_refs,
+        decision_reasons: document.decision_reasons,
+        decision_note: document.decision_note,
+        pressure_level: document.pressure_level,
+        retrieval_status: document.retrieval_status,
+        graph_status: document.graph_status,
+        watcher_status: document.watcher_status,
+        checkpoint_dirty_paths: document.checkpoint_dirty_paths,
+        checkpoint_changed_paths: document.checkpoint_changed_paths,
+        scratch: document.scratch,
+        graphs: document.graphs,
+        recent_evidence: document.recent_evidence,
+        recent_observations: document.recent_observations,
+        active_frontier_node_ids: document.active_frontier_node_ids,
+        linked_subgoal_ids: document.linked_subgoal_ids,
+        linked_graph_node_ids: document.linked_graph_node_ids,
+    }
 }
 
 pub(super) fn render_epiphany_coordinator_note(
