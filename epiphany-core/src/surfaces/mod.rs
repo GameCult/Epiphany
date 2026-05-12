@@ -1,6 +1,7 @@
 mod coordinator;
 mod crrc;
 mod pressure;
+mod reorient;
 mod role_board;
 mod role_result;
 
@@ -32,6 +33,15 @@ pub use pressure::EpiphanyPressureBasis;
 pub use pressure::EpiphanyPressureLevel;
 pub use pressure::EpiphanyPressureStatus;
 pub use pressure::derive_pressure_view;
+pub use reorient::EpiphanyReorientAction;
+pub use reorient::EpiphanyReorientCheckpointStatus;
+pub use reorient::EpiphanyReorientDecision;
+pub use reorient::EpiphanyReorientFreshnessStatus;
+pub use reorient::EpiphanyReorientInput;
+pub use reorient::EpiphanyReorientPressureLevel;
+pub use reorient::EpiphanyReorientReason;
+pub use reorient::EpiphanyReorientStateStatus;
+pub use reorient::recommend_reorientation;
 pub use role_board::EpiphanyRoleBoardCheckpointSummary;
 pub use role_board::EpiphanyRoleBoardInput;
 pub use role_board::EpiphanyRoleBoardJob;
