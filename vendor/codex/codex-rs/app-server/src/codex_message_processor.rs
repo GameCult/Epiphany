@@ -15060,12 +15060,7 @@ fn epiphany_reorient_finding_already_accepted(
         return true;
     }
 
-    let accepted_summary = reorient_finding_summary(finding);
-    state.recent_evidence.iter().any(|evidence| {
-        evidence.kind == "reorient_result"
-            && evidence.status == "accepted"
-            && evidence.summary == accepted_summary
-    })
+    false
 }
 
 fn epiphany_role_finding_already_accepted(
@@ -15081,11 +15076,6 @@ fn epiphany_role_finding_accepted_evidence_id(
 ) -> Option<String> {
     epiphany_role_finding_acceptance_receipt(state, finding)
         .and_then(|receipt| receipt.accepted_evidence_id.clone())
-        .or_else(|| {
-            epiphany_role_finding_accepted_index(state, finding)
-                .and_then(|index| state.recent_evidence.get(index))
-                .map(|evidence| evidence.id.clone())
-        })
 }
 
 fn epiphany_verification_finding_covers_current_modeling(
@@ -15185,7 +15175,7 @@ fn epiphany_role_finding_accepted_index(
             })
             .or(Some(0));
     }
-    epiphany_role_finding_summary_accepted_index(state, finding)
+    None
 }
 
 fn epiphany_role_finding_accepted_order_index(
@@ -15193,7 +15183,6 @@ fn epiphany_role_finding_accepted_order_index(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> Option<usize> {
     epiphany_role_finding_acceptance_receipt_index(state, finding)
-        .or_else(|| epiphany_role_finding_summary_accepted_index(state, finding))
 }
 
 fn epiphany_role_finding_acceptance_receipt<'a>(
@@ -15219,26 +15208,6 @@ fn epiphany_role_finding_acceptance_receipt_index(
             && receipt.status == "accepted"
             && receipt.surface == "roleAccept"
             && receipt.role_id == epiphany_role_label(finding.role_id)
-    })
-}
-
-fn epiphany_role_finding_summary_accepted_index(
-    state: &EpiphanyThreadState,
-    finding: &ThreadEpiphanyRoleFinding,
-) -> Option<usize> {
-    let accepted_kind = match finding.role_id {
-        ThreadEpiphanyRoleId::Imagination => "planning_synthesis",
-        ThreadEpiphanyRoleId::Modeling => "modeling_result",
-        ThreadEpiphanyRoleId::Verification => "verification_result",
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
-            return None;
-        }
-    };
-    let accepted_summary = role_finding_summary(finding);
-    state.recent_evidence.iter().position(|evidence| {
-        evidence.kind == accepted_kind
-            && evidence.status == "accepted"
-            && evidence.summary == accepted_summary
     })
 }
 
@@ -21861,6 +21830,8 @@ mod tests {
                 "verdict": "checkpoint-update-needed",
                 "summary": "Newer modeling checkpoint.",
                 "nextSafeMove": "Verify the new model.",
+                "runtimeResultId": "runtime-result-modeling-new",
+                "runtimeJobId": "runtime-job-modeling-new",
                 "statePatch": {
                     "scratch": {
                         "summary": "New model.",
@@ -21877,12 +21848,42 @@ mod tests {
                 "roleId": "verification",
                 "verdict": "needs-evidence",
                 "summary": "Older verification finding.",
-                "nextSafeMove": "Strengthen modeling."
+                "nextSafeMove": "Strengthen modeling.",
+                "runtimeResultId": "runtime-result-verification-old",
+                "runtimeJobId": "runtime-job-verification-old"
             }),
             None,
             None,
         );
         let state = EpiphanyThreadState {
+            acceptance_receipts: vec![
+                EpiphanyAcceptanceReceipt {
+                    id: "accept-modeling-new".to_string(),
+                    result_id: "runtime-result-modeling-new".to_string(),
+                    job_id: "runtime-job-modeling-new".to_string(),
+                    binding_id: "modeling".to_string(),
+                    surface: "roleAccept".to_string(),
+                    role_id: "modeling".to_string(),
+                    status: "accepted".to_string(),
+                    accepted_at: "2026-05-12T00:00:01Z".to_string(),
+                    accepted_observation_id: Some("obs-modeling-new".to_string()),
+                    accepted_evidence_id: Some("ev-modeling-new".to_string()),
+                    summary: Some("Newer modeling checkpoint.".to_string()),
+                },
+                EpiphanyAcceptanceReceipt {
+                    id: "accept-verification-old".to_string(),
+                    result_id: "runtime-result-verification-old".to_string(),
+                    job_id: "runtime-job-verification-old".to_string(),
+                    binding_id: "verification".to_string(),
+                    surface: "roleAccept".to_string(),
+                    role_id: "verification".to_string(),
+                    status: "accepted".to_string(),
+                    accepted_at: "2026-05-12T00:00:00Z".to_string(),
+                    accepted_observation_id: Some("obs-verification-old".to_string()),
+                    accepted_evidence_id: Some("ev-verification-old".to_string()),
+                    summary: Some("Older verification finding.".to_string()),
+                },
+            ],
             recent_evidence: vec![
                 EpiphanyEvidenceRecord {
                     id: "ev-modeling-new".to_string(),
@@ -21976,6 +21977,8 @@ mod tests {
                 "summary": "Modeling found the source seam.",
                 "nextSafeMove": "Verify the modeled seam.",
                 "evidenceIds": ["ev-model-source"],
+                "runtimeResultId": "runtime-result-model-source",
+                "runtimeJobId": "runtime-job-model-source",
                 "statePatch": {
                     "scratch": {
                         "summary": "Modeling checkpoint.",
@@ -22011,6 +22014,19 @@ mod tests {
             None,
         );
         let state = EpiphanyThreadState {
+            acceptance_receipts: vec![EpiphanyAcceptanceReceipt {
+                id: "accept-modeling-source".to_string(),
+                result_id: "runtime-result-model-source".to_string(),
+                job_id: "runtime-job-model-source".to_string(),
+                binding_id: "modeling".to_string(),
+                surface: "roleAccept".to_string(),
+                role_id: "modeling".to_string(),
+                status: "accepted".to_string(),
+                accepted_at: "2026-05-12T00:00:00Z".to_string(),
+                accepted_observation_id: Some("obs-modeling-accepted".to_string()),
+                accepted_evidence_id: Some("ev-modeling-accepted".to_string()),
+                summary: Some("Modeling found the source seam.".to_string()),
+            }],
             recent_evidence: vec![EpiphanyEvidenceRecord {
                 id: "ev-modeling-accepted".to_string(),
                 kind: "modeling_result".to_string(),
