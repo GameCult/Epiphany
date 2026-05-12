@@ -36,7 +36,7 @@ remembers doctrine; the branch remembers the blade.
 - Read `notes/epiphany-ideal-architecture-rebuild-plan.md` immediately after the teardown. It defines the smallest coherent replacement architecture: durable `EpiphanyState`, runtime-spine-owned `RuntimeState`, separate role memory/heartbeat state, `epiphany-core` as policy owner, app-server as adapter, Aquarium as reflector, typed acceptance receipts, and derived view lenses instead of a protocol verb zoo.
 - Do not continue Aquarium UI, bridge, Face, or dogfood expansion until the teardown has a source-grounded cleanup slice plan. Epiphany is the foundation; patches on patches are not a purification rite, they are how the altar becomes load-bearing garbage.
 - Phase 1 through Phase 5 are complete enough.
-- Phase 6 has read-only `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`, `thread/epiphany/freshness`, `thread/epiphany/context`, `thread/epiphany/graphQuery`, `thread/epiphany/planning`, canonical `thread/epiphany/view` lenses, `thread/epiphany/reorientResult`, and `thread/epiphany/roleResult`; durable `jobBindings` are now legacy launcher compatibility while new durable `runtimeLinks` hold the stable runtime-spine association. The old standalone pressure, reorient, CRRC, and coordinator read verbs have been deleted; read those projections through the `pressure`, `reorient`, `crrc`, and `coordinator` view lenses. New `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/roleLaunch`, and `thread/epiphany/reorientLaunch` writes open typed runtime-spine job receipts under `state/runtime-spine.msgpack` and do not require the Codex SQLite state runtime. Freshness carries watcher-backed invalidation inputs, graphQuery traverses authoritative typed graph neighborhoods and path/symbol matches without mutation, planning projects typed captures/backlog/roadmap/objective drafts without adopting work, roles project implementation/imagination/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleResult` and `reorientResult` read heartbeat-backed typed runtime-spine job results through runtime links when present, and `roleAccept` / `reorientAccept` accept completed heartbeat findings by writing typed acceptance receipts while remaining explicit review gates.
+- Phase 6 has canonical read-only `thread/epiphany/view` lenses for scene, jobs, roles, planning, pressure, reorient, CRRC, and coordinator; separate read-only `thread/epiphany/freshness`, `thread/epiphany/context`, and `thread/epiphany/graphQuery` query surfaces; `thread/epiphany/reorientResult`; and `thread/epiphany/roleResult`. Durable `jobBindings` are now legacy launcher compatibility while new durable `runtimeLinks` hold the stable runtime-spine association. The old standalone scene/jobs/roles/planning/pressure/reorient/CRRC/coordinator read verbs have been deleted; read those projections through view lenses. New `thread/epiphany/jobLaunch`, `thread/epiphany/jobInterrupt`, `thread/epiphany/roleLaunch`, and `thread/epiphany/reorientLaunch` writes open typed runtime-spine job receipts under `state/runtime-spine.msgpack` and do not require the Codex SQLite state runtime. Freshness carries watcher-backed invalidation inputs, graphQuery traverses authoritative typed graph neighborhoods and path/symbol matches without mutation, planning projects typed captures/backlog/roadmap/objective drafts without adopting work, roles project implementation/imagination/modeling/verification/reorientation ownership from existing signals without becoming a scheduler, `roleResult` and `reorientResult` read heartbeat-backed typed runtime-spine job results through runtime links when present, and `roleAccept` / `reorientAccept` accept completed heartbeat findings by writing typed acceptance receipts while remaining explicit review gates.
 - Native `epiphany-mvp-status` is the first dogfood operator view. It starts or reads a thread through app-server and prints scene, planning, pressure, reorient, jobs, roles, Imagination/modeling/verification role result read-backs, reorient result, heartbeat, Face bubbles, and CRRC recommendation as text or machine output. The old Python status module has been cut; native Rust/CultCache/CultNet surfaces are the smoked product path.
 - Native `epiphany-mvp-coordinator` is the first auditable fixed-lane coordinator runner. It starts or reads a thread through app-server, opens a native runtime-spine session, follows the harness-native coordinator action, can auto-launch modeling, verification, or reorient-worker jobs, records native runtime job/result receipts for terminal launched work, keeps semantic findings review-gated by default, and writes summary, steps, rendered snapshots, transcript, stderr, runtime-spine status, and final next-action artifacts under `.epiphany-dogfood/coordinator` or a caller-provided artifact directory. It refuses direct backend-completion mutation; full completion smoke needs live workers while execution is being cauterized into CultNet.
 - Native `epiphany-runtime-spine` is the first Codex-independent runtime vertebra. It owns typed CultCache documents for runtime identity, sessions, jobs, job results, and events; opens/completes native jobs; snapshots jobs/results by runtime job id; projects job-result counts; and can emit a framed CultNet hello message advertising the native document and mutation contract surface. Codex app-server launch/read-back/acceptance is now a typed heartbeat/runtime-spine bridge with no Epiphany job-result dependency on the Codex SQLite runtime.
@@ -79,7 +79,7 @@ remembers doctrine; the branch remembers the blade.
 - Aetheria dogfood exposed and then landed the first editor/runtime bridge. An implementation worker launched legacy `D:\Unity\Editor\Unity.exe -version` (Unity 5.5.0f3) even though Aetheria pins Unity `6000.1.10f1`; the stray process was killed. Native `epiphany-unity-bridge` now resolves the project-pinned Unity editor, refuses wrong/missing versions, owns `-batchmode`, `-quit`, and `-projectPath`, and writes inspection/command/log artifacts. Aquarium should surface those bridge artifacts through native/backend calls, not deleted Python action shims.
 - The current Aetheria runtime truth is blocked but legible: the project pins Unity `6000.1.10f1`, this machine currently has Hub editor `6000.4.2f1`, and the bridge wrote `.epiphany-gui/runtime/unity-inspect-1777549218802064800-23832` proving the exact editor is missing. Treat that artifact as the evidence gap until the pinned editor exists. The `.epiphany-gui` directory name is still a backend artifact contract, even though the client repo is now Aquarium.
 - The GUI parses `implementation-result.json` into artifact metadata, surfaces the latest implementation diff/no-diff outcome, and pauses immediate `Continue Implementation` repeats when the newest artifact is a no-diff implementation audit.
-- The planning loop is now runtime-backed and operator-visible. Typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub issue source refs live in `EpiphanyThreadState`, validate through revision-gated `thread/epiphany/update`, render into prompts when present, project read-only through `thread/epiphany/planning`, render in the GUI Planning panel, can be synthesized by the fixed Imagination/planning lane, and can be explicitly adopted through the artifacted `adoptObjectiveDraft` GUI action. Chat is deliberation, not an objective pipe; ideas and GitHub Issues remain planning state until explicit human adoption.
+- The planning loop is now runtime-backed and operator-visible. Typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub issue source refs live in `EpiphanyThreadState`, validate through revision-gated `thread/epiphany/update`, render into prompts when present, project read-only through the `planning` view lens, render in the GUI Planning panel, can be synthesized by the fixed Imagination/planning lane, and can be explicitly adopted through the artifacted `adoptObjectiveDraft` GUI action. Chat is deliberation, not an objective pipe; ideas and GitHub Issues remain planning state until explicit human adoption.
 - The bridge/dashboard slice is now landed far enough to test locally. Native `epiphany-rider-bridge` inspects Rider installation, solution, VCS, changed files, and captures file/selection/symbol context into `.epiphany-gui/rider` artifacts; Aquarium has Inspect Rider and renders Rider audit artifacts in Environment; Aquarium also embeds the adjacent EpiphanyGraph viewer over typed `graphs.architecture`, `graphs.dataflow`, and `graphs.links`.
 - A first Rider plugin scaffold lives under `integrations/rider`: tool window, Refresh status, and Send Context to Epiphany action. It shells through native `epiphany-rider-bridge` and does not own state. `gradle` is not installed on this machine, so the scaffold is not build-verified yet.
 - Next real product move: surface the repo birth runner review flow in Aquarium and then live-dogfood `epiphany-repo-birth-runner --mode run` on a real newborn repo. Continue Aquarium UI work in `E:\Projects\EpiphanyAquarium` after that; surface native heartbeat `sleepCycle`, `memoryResonance`, `incubation`, `thoughtLanes`, `bridge`, `candidateInterventions`, `appraisals`, and `reactions`; keep EpiphanyAgent focused on backend contracts, typed state, coordinator policy, bridge tools, heartbeat scheduling, Face guardrails, and the ongoing purification from Python/JSON scaffolding into Rust/CultCache/CultNet organs. Then build-verify/package the Rider plugin scaffold when Gradle/wrapper support is available, install the Aetheria-pinned Unity `6000.1.10f1` editor, and run the next Aetheria dogfood pass through Aquarium/Rider/Unity bridge artifacts. GitHub Issues import is deferred until the backlog source is fresh enough to deserve Imagination's attention.
@@ -139,13 +139,13 @@ The current spine, blessed but not yet finished:
 - CRRC now recognizes already accepted reorientation findings so `reorientAccept` does not leave the operator stuck on a repeat `acceptReorientResult` recommendation.
 - thin launcher metadata in durable `jobBindings`
 - `thread/epiphany/jobsUpdated` remains protocol shape only for sealed legacy evacuation telemetry; app-server no longer emits Epiphany updates from old runtime `agent_job_progress` events
-- read-only compact reflection through `thread/epiphany/scene`
-- read-only job/progress reflection through `thread/epiphany/jobs`, with durable launcher metadata and heartbeat pending projection
-- read-only role ownership reflection through `thread/epiphany/roles`
+- read-only compact reflection through the `scene` view lens
+- read-only job/progress reflection through the `jobs` view lens, with durable launcher metadata and heartbeat pending projection
+- read-only role ownership reflection through the `roles` view lens
 - read-only retrieval/graph freshness reflection plus watcher-backed invalidation inputs through `thread/epiphany/freshness`
 - read-only targeted state-shard reflection through `thread/epiphany/context`
 - read-only graph traversal through `thread/epiphany/graphQuery`
-- read-only planning projection through `thread/epiphany/planning`
+- read-only planning projection through the `planning` view lens
 - GUI planning adoption now belongs to Aquarium/backend API surfaces; the old EpiphanyAgent Python GUI action shim has been cut
 - read-only current-context pressure reflection through the `pressure` view lens
 - read-only CRRC reorientation policy through the `reorient` view lens
@@ -185,14 +185,10 @@ The exact current control flow is documented in
 - `thread/epiphany/retrieve` is read-only.
 - `thread/epiphany/distill` is read-only.
 - `thread/epiphany/propose` is read-only.
-- `thread/epiphany/scene` is read-only.
-- `thread/epiphany/jobs` is read-only.
 - `thread/epiphany/freshness` is read-only.
 - `thread/epiphany/context` is read-only.
 - `thread/epiphany/graphQuery` is read-only.
-- `thread/epiphany/planning` is read-only.
 - `thread/epiphany/view` is read-only; its current lenses include pressure, reorient, CRRC, and coordinator projections.
-- `thread/epiphany/roles` is read-only.
 - `thread/epiphany/roleResult` is read-only.
 - `thread/epiphany/roleAccept` is a narrow write surface for completed Imagination/planning and modeling/checkpoint `statePatch` findings only; it must not accept verification output, broad authority fields, job bindings, arbitrary implementation work, or implicit objective adoption.
 - `thread/epiphany/reorientResult` is read-only.
@@ -409,7 +405,7 @@ The Phase 6 planning substrate runtime slice is also landed. It stores captures,
 backlog items, roadmap streams, Objective Drafts, and GitHub source refs inside
 typed Epiphany state, validates them through the revision-gated update path,
 renders a bounded planning section into prompts, and exposes read-only
-`thread/epiphany/planning` for clients. The GUI planning operator slice is
+planning through `thread/epiphany/view` for clients. The GUI planning operator slice is
 landed on top of that projection: it renders planning summaries, captures,
 backlog, roadmap streams, and Objective Drafts, and its `adoptObjectiveDraft`
 action requires an explicit selected draft before writing active
@@ -517,9 +513,8 @@ coordinator into a broad hidden dispatcher, arbitrary marketplace, alternate
 job backend, automatic semantic acceptance path, target-repo implementation
 worker, direct-thought feed, random editor launcher, or GUI-as-source-of-truth.
 
-Live `thread/epiphany/scene`, `thread/epiphany/jobs`, `thread/epiphany/roles`,
-`thread/epiphany/freshness`, `thread/epiphany/context`,
-`thread/epiphany/graphQuery`, `thread/epiphany/planning`, `thread/epiphany/view`,
+Live `thread/epiphany/view`, `thread/epiphany/freshness`, `thread/epiphany/context`,
+`thread/epiphany/graphQuery`,
 native `epiphany-mvp-status`, native `epiphany-mvp-coordinator`, and
 native `epiphany-phase6-graph-query-smoke` / native `epiphany-phase6-planning-smoke`
 smokes are now guardrails, not the next organs. The architectural teardown says

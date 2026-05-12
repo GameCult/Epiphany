@@ -184,11 +184,6 @@ use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyJobLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
-use codex_app_server_protocol::ThreadEpiphanyJobsParams;
-use codex_app_server_protocol::ThreadEpiphanyJobsResponse;
-use codex_app_server_protocol::ThreadEpiphanyJobsSource;
-use codex_app_server_protocol::ThreadEpiphanyPlanningParams;
-use codex_app_server_protocol::ThreadEpiphanyPlanningResponse;
 use codex_app_server_protocol::ThreadEpiphanyPlanningSummary;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
@@ -233,18 +228,14 @@ use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
-use codex_app_server_protocol::ThreadEpiphanyRolesParams;
-use codex_app_server_protocol::ThreadEpiphanyRolesResponse;
 use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanyScene;
 use codex_app_server_protocol::ThreadEpiphanySceneAction;
 use codex_app_server_protocol::ThreadEpiphanySceneChurn;
 use codex_app_server_protocol::ThreadEpiphanySceneGraph;
 use codex_app_server_protocol::ThreadEpiphanySceneInvestigationCheckpoint;
-use codex_app_server_protocol::ThreadEpiphanySceneParams;
 use codex_app_server_protocol::ThreadEpiphanySceneRecord;
 use codex_app_server_protocol::ThreadEpiphanySceneRecords;
-use codex_app_server_protocol::ThreadEpiphanySceneResponse;
 use codex_app_server_protocol::ThreadEpiphanySceneRetrieval;
 use codex_app_server_protocol::ThreadEpiphanySceneSource;
 use codex_app_server_protocol::ThreadEpiphanySceneStateStatus;
@@ -1113,20 +1104,8 @@ impl CodexMessageProcessor {
                 self.thread_read(to_connection_request_id(request_id), params)
                     .await;
             }
-            ClientRequest::ThreadEpiphanyScene { request_id, params } => {
-                self.thread_epiphany_scene(to_connection_request_id(request_id), params)
-                    .await;
-            }
             ClientRequest::ThreadEpiphanyView { request_id, params } => {
                 self.thread_epiphany_view(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyJobs { request_id, params } => {
-                self.thread_epiphany_jobs(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyRoles { request_id, params } => {
-                self.thread_epiphany_roles(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyRoleLaunch { request_id, params } => {
@@ -1147,10 +1126,6 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyContext { request_id, params } => {
                 self.thread_epiphany_context(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::ThreadEpiphanyPlanning { request_id, params } => {
-                self.thread_epiphany_planning(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyGraphQuery { request_id, params } => {
@@ -4240,41 +4215,6 @@ impl CodexMessageProcessor {
         self.outgoing.send_response(request_id, response).await;
     }
 
-    async fn thread_epiphany_scene(
-        &self,
-        request_id: ConnectionRequestId,
-        params: ThreadEpiphanySceneParams,
-    ) {
-        let ThreadEpiphanySceneParams { thread_id } = params;
-
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded = self.thread_manager.get_thread(thread_uuid).await.is_ok();
-        let thread = match self.read_thread_view(thread_uuid, false).await {
-            Ok(thread) => thread,
-            Err(ThreadReadViewError::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(ThreadReadViewError::Internal(message)) => {
-                self.send_internal_error(request_id, message).await;
-                return;
-            }
-        };
-        let response = ThreadEpiphanySceneResponse {
-            thread_id,
-            scene: map_epiphany_scene(thread.epiphany_state.as_ref(), loaded),
-        };
-        self.outgoing.send_response(request_id, response).await;
-    }
-
     async fn thread_epiphany_view(
         &self,
         request_id: ConnectionRequestId,
@@ -4742,200 +4682,6 @@ impl CodexMessageProcessor {
                 .flatten(),
             coordinator: coordinator_response,
             lenses,
-        };
-        self.outgoing.send_response(request_id, response).await;
-    }
-
-    async fn thread_epiphany_jobs(
-        &self,
-        request_id: ConnectionRequestId,
-        params: ThreadEpiphanyJobsParams,
-    ) {
-        let ThreadEpiphanyJobsParams { thread_id } = params;
-
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
-        let loaded = loaded_thread.is_some();
-        let thread = match self.read_thread_view(thread_uuid, false).await {
-            Ok(thread) => thread,
-            Err(ThreadReadViewError::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(ThreadReadViewError::Internal(message)) => {
-                self.send_internal_error(request_id, message).await;
-                return;
-            }
-        };
-
-        let retrieval_override = if thread
-            .epiphany_state
-            .as_ref()
-            .and_then(|state| state.retrieval.as_ref())
-            .is_none()
-        {
-            if let Some(loaded_thread) = loaded_thread.as_ref() {
-                Some(loaded_thread.epiphany_retrieval_state().await)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        let response = ThreadEpiphanyJobsResponse {
-            thread_id,
-            source: if loaded {
-                ThreadEpiphanyJobsSource::Live
-            } else {
-                ThreadEpiphanyJobsSource::Stored
-            },
-            state_revision: thread
-                .epiphany_state
-                .as_ref()
-                .map(|epiphany_state| epiphany_state.revision),
-            jobs: map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref()),
-        };
-        self.outgoing.send_response(request_id, response).await;
-    }
-
-    async fn thread_epiphany_roles(
-        &self,
-        request_id: ConnectionRequestId,
-        params: ThreadEpiphanyRolesParams,
-    ) {
-        let ThreadEpiphanyRolesParams { thread_id } = params;
-
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
-        let loaded = loaded_thread.is_some();
-        let thread = match self.read_thread_view(thread_uuid, false).await {
-            Ok(thread) => thread,
-            Err(ThreadReadViewError::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(ThreadReadViewError::Internal(message)) => {
-                self.send_internal_error(request_id, message).await;
-                return;
-            }
-        };
-
-        let retrieval_override = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_retrieval_state().await)
-        } else {
-            None
-        };
-        let watcher_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            let config_snapshot = loaded_thread.config_snapshot().await;
-            self.epiphany_invalidation_manager
-                .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
-                .await;
-            Some(
-                self.epiphany_invalidation_manager
-                    .snapshot(&thread_id)
-                    .await,
-            )
-        } else {
-            None
-        };
-        let (source, token_usage_info) = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            (
-                ThreadEpiphanyRolesSource::Live,
-                loaded_thread.token_usage_info().await,
-            )
-        } else {
-            let token_usage_info = match thread.path.as_deref() {
-                Some(path) => latest_token_usage_info_from_rollout_path(path).await,
-                None => None,
-            };
-            (ThreadEpiphanyRolesSource::Stored, token_usage_info)
-        };
-
-        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
-            thread.epiphany_state.as_ref(),
-            retrieval_override.as_ref(),
-            watcher_snapshot.as_ref(),
-        );
-        let pressure = map_epiphany_pressure(token_usage_info.as_ref());
-        let (state_status, decision) = map_epiphany_reorient(
-            thread.epiphany_state.as_ref(),
-            &pressure,
-            &retrieval,
-            &graph,
-            &watcher,
-        );
-
-        let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
-        } else {
-            None
-        };
-        let jobs = map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref());
-        let reorient_job = jobs
-            .iter()
-            .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
-            .cloned();
-        let (result_status, finding, _) = load_epiphany_reorient_result_snapshot(
-            thread.epiphany_state.as_ref(),
-            runtime_store_path.as_deref(),
-            EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
-        )
-        .await;
-        let checkpoint_present = thread
-            .epiphany_state
-            .as_ref()
-            .and_then(|state| state.investigation_checkpoint.as_ref())
-            .is_some();
-        let recommendation = map_epiphany_crrc_recommendation(
-            loaded,
-            state_status,
-            &pressure,
-            &decision,
-            result_status,
-            checkpoint_present,
-            finding.is_some(),
-            finding.as_ref().is_some_and(|finding| {
-                thread
-                    .epiphany_state
-                    .as_ref()
-                    .is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
-            }),
-        );
-
-        let roles = map_epiphany_roles(
-            thread.epiphany_state.as_ref(),
-            &jobs,
-            &decision,
-            &pressure,
-            &recommendation,
-            result_status,
-            reorient_job.as_ref(),
-        );
-        let note = render_epiphany_roles_note(&roles, state_status, recommendation.action);
-
-        let response = ThreadEpiphanyRolesResponse {
-            thread_id,
-            source,
-            state_status,
-            state_revision,
-            roles,
-            note,
         };
         self.outgoing.send_response(request_id, response).await;
     }
@@ -5567,51 +5313,6 @@ impl CodexMessageProcessor {
             state_revision,
             context,
             missing,
-        };
-        self.outgoing.send_response(request_id, response).await;
-    }
-
-    async fn thread_epiphany_planning(
-        &self,
-        request_id: ConnectionRequestId,
-        params: ThreadEpiphanyPlanningParams,
-    ) {
-        let thread_id = params.thread_id.clone();
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded = self.thread_manager.get_thread(thread_uuid).await.is_ok();
-        let thread = match self.read_thread_view(thread_uuid, false).await {
-            Ok(thread) => thread,
-            Err(ThreadReadViewError::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(ThreadReadViewError::Internal(message)) => {
-                self.send_internal_error(request_id, message).await;
-                return;
-            }
-        };
-
-        let (state_status, state_revision, planning, summary) =
-            map_epiphany_planning(thread.epiphany_state.as_ref());
-        let response = ThreadEpiphanyPlanningResponse {
-            thread_id,
-            source: if loaded {
-                ThreadEpiphanyContextSource::Live
-            } else {
-                ThreadEpiphanyContextSource::Stored
-            },
-            state_status,
-            state_revision,
-            planning,
-            summary,
         };
         self.outgoing.send_response(request_id, response).await;
     }

@@ -14132,13 +14132,6 @@
       ],
       "type": "string"
     },
-    "ThreadEpiphanyJobsSource": {
-      "enum": [
-        "stored",
-        "live"
-      ],
-      "type": "string"
-    },
     "ThreadEpiphanyJobsUpdatedNotification": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "properties": {

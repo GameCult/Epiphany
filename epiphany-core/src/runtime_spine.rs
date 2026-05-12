@@ -990,7 +990,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_SCENE_TYPE,
             SCENE_SURFACE_SCHEMA_VERSION,
             vec![
-                "Operator-safe scene reflection mirrored from thread/epiphany/scene.",
+                "Operator-safe scene reflection mirrored from the thread/epiphany/view scene lens.",
                 "Aquarium should read this before offering live coordination actions.",
             ],
         ),
@@ -1059,7 +1059,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Job reflection and launch/interrupt affordances mirrored from thread/epiphany/jobs, jobLaunch, and jobInterrupt.",
+                "Job reflection mirrored from the thread/epiphany/view jobs lens, with launch/interrupt affordances on jobLaunch and jobInterrupt.",
                 "Heartbeat/runtime-spine owns activation; callers submit typed intents and watch receipts.",
             ],
         ),
@@ -1069,7 +1069,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.role_launch_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Role ownership and launch affordances mirrored from thread/epiphany/roles and roleLaunch.",
+                "Role ownership mirrored from the thread/epiphany/view roles lens, with launch affordances on roleLaunch.",
                 "Treat this as the discoverable lane catalog for Aquarium.",
             ],
         ),
@@ -1101,7 +1101,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Planning projection is mirrored from thread/epiphany/planning.",
+                "Planning projection is mirrored from the thread/epiphany/view planning lens.",
                 "Backlog, captures, and Objective Drafts are planning state until explicit adoption.",
             ],
         ),

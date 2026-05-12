@@ -117,8 +117,8 @@ fn run_smoke(args: &Args) -> Result<Value> {
         .to_string();
 
     let missing_response = client.send(
-        "thread/epiphany/scene",
-        Some(json!({"threadId": thread_id})),
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["scene"]})),
         true,
     )?;
     assert_missing_scene(&missing_response["scene"])?;
@@ -184,8 +184,8 @@ fn run_smoke(args: &Args) -> Result<Value> {
 
     let scene_notification_start = client.notification_len();
     let ready_response = client.send(
-        "thread/epiphany/scene",
-        Some(json!({"threadId": thread_id})),
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["scene"]})),
         true,
     )?;
     require(
@@ -300,7 +300,7 @@ fn initial_scene_patch() -> Value {
         "invariants": [
             {
                 "id": "inv-scene-read-only",
-                "description": "thread/epiphany/scene must not mutate Epiphany state.",
+                "description": "thread/epiphany/view scene lens must not mutate Epiphany state.",
                 "status": "ok"
             },
             {

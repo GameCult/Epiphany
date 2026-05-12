@@ -119,11 +119,14 @@ fn run_smoke(args: &Args) -> Result<Value> {
         .to_string();
 
     let missing_notification_start = client.notification_len();
-    let missing_response = client.send(
-        "thread/epiphany/planning",
-        Some(json!({"threadId": thread_id})),
+    let missing_view = client.send(
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["planning"]})),
         true,
     )?;
+    let missing_response = missing_view
+        .get("planning")
+        .ok_or_else(|| anyhow!("view response missing planning lens"))?;
     require(
         missing_response.get("threadId").and_then(Value::as_str) == Some(&thread_id),
         "planning response should echo thread id",
@@ -165,11 +168,14 @@ fn run_smoke(args: &Args) -> Result<Value> {
     )?;
 
     let planning_notification_start = client.notification_len();
-    let ready_response = client.send(
-        "thread/epiphany/planning",
-        Some(json!({"threadId": thread_id})),
+    let ready_view = client.send(
+        "thread/epiphany/view",
+        Some(json!({"threadId": thread_id, "lenses": ["planning"]})),
         true,
     )?;
+    let ready_response = ready_view
+        .get("planning")
+        .ok_or_else(|| anyhow!("view response missing planning lens"))?;
     assert_ready_planning(&ready_response)?;
     client.require_no_notification(
         "thread/epiphany/stateUpdated",
