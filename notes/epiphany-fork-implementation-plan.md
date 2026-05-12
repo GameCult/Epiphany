@@ -94,20 +94,36 @@ The landed machine now has:
 - live Phase 6 MVP status smoke coverage through native `epiphany-mvp-status-smoke`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
-The immediate next phase is foundation cleanup, recorded in
-`notes/epiphany-architectural-teardown.md`, and the replacement blueprint is
-`notes/epiphany-ideal-architecture-rebuild-plan.md`. The May 2026 suspicion
-pass found that the app-server Epiphany control plane has become architectural
-Jenga: policy, projection, lifecycle glue, prompt packet assembly, coordinator
-sequencing, and tests are concentrated in the Codex host seam. Native-spine
-extraction remains the direction, but the first duty is to rebuild/extract the
-control plane so Codex app-server becomes an adapter again instead of the
-machine's extra brain.
+The immediate next phase is Codex starvation and CultNet liberation, recorded
+in `notes/codex-starvation-and-cultnet-liberation-plan.md`. The May 2026
+control-plane rebuild made the app-server Epiphany seam cleaner, but the user's
+current doctrine is stricter: a cleaner Codex host is still the wrong organ.
+Epiphany data must live as typed CultCache documents, Epiphany-owned
+subsystems must communicate through CultNet contracts, and vendored Codex must
+shrink to the minimum OpenAI subscription auth/model-transport adapter.
+
+The older teardown/rebuild pair remains useful source history:
+`notes/epiphany-architectural-teardown.md` names the host-seam rot, and
+`notes/epiphany-ideal-architecture-rebuild-plan.md` records the completed
+cleanup inside Codex. They no longer authorize outward product work while
+Epiphany still depends on Codex app-server, apps, skills, marketplace, or
+generic JSON cargo as internal machinery.
 
 ## Boundary Rules
 
 These boundaries are more important than the individual method names:
 
+- CultCache documents are the data model. CultNet is the wire for
+  Epiphany-controlled subsystems.
+- JSON is allowed only for schema description, hostile/external ingress before
+  immediate typed parsing, sealed forensic artifacts, or named quarantine
+  experiments with an expiration path. Generic `serde_json::Value` must not be
+  passed between Epiphany-owned organs as runtime data.
+- Codex is a vestigial compatibility organ for OpenAI subscription auth and
+  model transport. Codex apps, skills, marketplace, app-server lifecycle, and
+  plugin UX are not Epiphany foundations.
+- MCP may survive only as a separate CultNet-speaking adapter; it does not
+  justify preserving the Codex host brain.
 - `thread/epiphany/retrieve` is read-only.
 - `thread/epiphany/distill` is read-only.
 - `thread/epiphany/propose` is read-only.
@@ -171,27 +187,30 @@ The plan should get shorter after a phase completes, not longer by default.
 The next unknown is not whether Epiphany can preserve, read, propose, promote,
 and notify typed state. It can.
 
-The active priority is now the teardown/rebuild pair:
-`notes/epiphany-architectural-teardown.md` and
-`notes/epiphany-ideal-architecture-rebuild-plan.md`. Do not add outward feature
-surfaces until the control-plane rebuild is underway.
+The active priority is now the Codex starvation plan:
+`notes/codex-starvation-and-cultnet-liberation-plan.md`. Do not add outward
+feature surfaces until the auth/model spine and JSON contamination inventories
+exist and the first typed-document replacement cut is underway.
 
 The next unknowns are:
 
-- how to extract Epiphany view/coordinator policy from
-  `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs` into
-  `epiphany-core` without breaking the existing operator contracts
-- how to make runtime-spine the sole job/result lifecycle authority while
-  reducing `EpiphanyThreadState.job_bindings` to typed links or intents
-- how to replace summary-string accepted-result matching with typed acceptance
-  receipts keyed by runtime result identity
-- how to collapse endpoint proliferation into intentional view lenses and
-  mutation intents without hiding authority from Aquarium or the operator
-- how to remove public `raw_result` leakage from normal role/reorient findings
-  while preserving explicit forensic debugging
-- how to land the first reversible rebuild slice: `epiphany-core/src/surfaces/`
-  plus pressure view derivation moved into core behind the existing
-  `thread/epiphany/pressure` wrapper
+- what exact vendored Codex crates, files, config, and runtime paths are needed
+  solely for OpenAI subscription auth and model transport
+- which Codex dependencies can be deleted, ignored, or sealed because they are
+  apps, skills, marketplace, app-server UX, plugin plumbing, or thread
+  lifecycle machinery outside the OpenAI auth/model spine
+- which Epiphany-relevant `serde_json::Value`, `json!`, `from_value`, and
+  `to_value` uses are legitimate schema/wire/forensic/quarantine edges and
+  which are heretek internal blobs
+- how to replace worker launch `input_json` / `output_schema_json`,
+  role-result parsing, and `selfPatch` with typed CultCache documents
+- how to expose state read/update, view lenses, runtime launch/read/interrupt,
+  result accept/refuse, retrieval, checkpoint, CRRC, coordinator, heartbeat,
+  and role-memory actions as CultNet contracts instead of Codex JSON-RPC verbs
+- how to split MCP into a CultNet-speaking adapter without preserving Codex
+  app-server/plugin organs
+- how to make Aquarium and CLI status use CultNet contracts instead of
+  `thread/epiphany/*`
 - what bridge surface is sufficient for the next Aetheria run: named Unity operations, Aetheria-side editor probes, GUI environment status, Rider context capture, and a Rider plugin MVP
 - how much controlled runtime/editor access the richer Unity bridge gives implementation and verification lanes before deeper engine probes need another slice
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
@@ -326,29 +345,34 @@ work remains non-authoritative until the human explicitly adopts an objective.
 
 ## Phase 6 Direction
 
-Phase 6 must stop growing observable harness state outward until the control
-plane is purified. The live surfaces are guardrails and evidence, not
-permission to keep stacking protocols on the host seam.
+Phase 6 must stop growing observable harness state outward until Epiphany is
+free of the Codex host organ. The previous control-plane cleanup is a landed
+scar, not the final architecture. The live surfaces are guardrails and evidence,
+not permission to keep stacking protocols on the host seam.
 
-Cleanup candidates, in the intended migration order:
+Liberation candidates, in the intended order:
 
-1. Add `epiphany-core/src/surfaces/` and move pressure view derivation into
-   core while keeping the current app-server endpoint as a wrapper.
-2. Move CRRC and fixed-lane coordinator policy out of
-   `codex_message_processor.rs` and into `epiphany-core`.
-3. Add typed acceptance receipts keyed by runtime result id; then switch
-   already-accepted checks to receipts and delete summary-string matching.
-4. Make runtime-spine the single lifecycle authority for launched jobs and
-   results; thread state may link to jobs but must not mirror the job table.
-5. Reduce the scene/jobs/roles/freshness/context/planning/pressure/reorient/
-   CRRC/coordinator sprawl into fewer deliberate lenses and mutation intents.
-6. Remove normal public raw-result exposure from role/reorient finding
-   contracts; keep forensic raw payloads explicit and sealed.
-7. Split stable heartbeat scheduling from experimental cognition receipt blobs.
+1. Inventory the minimal Codex auth/model-call spine needed for the user's
+   Codex subscription.
+2. Classify Epiphany-relevant JSON usage into schema/wire descriptor, hostile
+   ingress, sealed forensic artifact, quarantine experiment, or internal blob.
+3. Define the native Epiphany runtime boundary over typed CultCache documents
+   and CultNet read/mutation/event contracts.
+4. Replace worker launch/result/selfPatch cargo with typed document contracts.
+5. Move Aquarium/CLI/operator reads and actions from `thread/epiphany/*`
+   JSON-RPC to CultNet contracts.
+6. Split MCP into a CultNet adapter if it remains useful.
+7. Starve `codex_message_processor.rs` until Epiphany no longer depends on it
+   for state, scheduling, runtime, views, acceptance, notifications, or tests.
+8. Delete or seal Codex apps, skills, marketplace, and plugin UX from the
+   Epiphany runtime path.
+9. Extract the OpenAI auth/model transport adapter as the only surviving Codex
+   compatibility relic.
 
 Do not spend Phase 6 adding another convenience surface because the current ones
 work. Passing smokes prove behavior, not architecture. The Perfect Machine gets
-fewer thrones, not a new one for every button.
+fewer thrones, not a new one for every button, and certainly not a 21k-line
+host-organ cathedral with plugin pews.
 
 ## Aquarium Operator Plan
 

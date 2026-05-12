@@ -18,6 +18,7 @@ cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-state -- sta
 Get-Content '.\state\map.yaml'
 Get-Content '.\notes\fresh-workspace-handoff.md'
 Get-Content '.\notes\epiphany-current-algorithmic-map.md'
+Get-Content '.\notes\codex-starvation-and-cultnet-liberation-plan.md'
 Get-Content '.\notes\epiphany-architectural-teardown.md'
 Get-Content '.\notes\epiphany-ideal-architecture-rebuild-plan.md'
 Get-Content '.\notes\epiphany-fork-implementation-plan.md'
@@ -32,6 +33,8 @@ remembers doctrine; the branch remembers the blade.
 ## Current Orientation
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
+- The active foundation directive is now `notes/codex-starvation-and-cultnet-liberation-plan.md`. The previous Codex app-server control-plane rebuild made Epiphany less rotten inside Codex, but that is not the destination. Epiphany must become a native CultCache/CultNet runtime. Codex is a compatibility reliquary for OpenAI subscription auth and model transport, not the host brain.
+- Edge JSON is allowed for schema description, hostile ingress before immediate typed parsing, sealed forensic artifacts, or named quarantine experiments. When both subsystems are ours, runtime data must remain typed CultCache documents and move over CultNet typed contracts. Generic `serde_json::Value` in worker launch/result/selfPatch/runtime flow is contamination until classified and replaced.
 - The May 2026 foundation migration in `notes/epiphany-ideal-architecture-rebuild-plan.md` is complete enough to defend. Read `notes/epiphany-architectural-teardown.md` before touching Epiphany control-plane code, but do not treat it as an open-ended excuse to keep shaving the altar. The rebuild moved scene projection, freshness derivation, pressure policy, targeted context shards, bounded graph traversal, job/progress view derivation, planning view derivation, reorientation resume/regather verdict policy, pure CRRC recommendation policy, fixed-lane coordinator decision policy, role-board projection policy, role/reorient result interpretation, role self-persistence review policy, and role/reorient acceptance bundle policy into `epiphany-core`; typed acceptance receipts replaced summary-string identity for live accept paths, runtime links are dual-written on launch, and result read-back now prefers runtime links.
 - Read `notes/epiphany-ideal-architecture-rebuild-plan.md` immediately after the teardown. It defines the smallest coherent replacement architecture: durable `EpiphanyState`, runtime-spine-owned `RuntimeState`, separate role memory/heartbeat state, `epiphany-core` as policy owner, app-server as adapter, Aquarium as reflector, typed acceptance receipts, and derived view lenses instead of a protocol verb zoo.
 - Do not continue Aquarium UI, bridge, Face, or dogfood expansion until the teardown has a source-grounded cleanup slice plan. Epiphany is the foundation; patches on patches are not a purification rite, they are how the altar becomes load-bearing garbage.
@@ -343,6 +346,7 @@ Rules now in force:
 - `state/ledgers.msgpack` is a distilled durable belief and branch ledger.
 - `epiphany-prepare-compaction` is the native pre-compaction persistence check; run it before and after imminent-compaction persistence passes.
 - this handoff is a compact re-entry packet.
+- `notes/codex-starvation-and-cultnet-liberation-plan.md` is the active foundation directive until Epiphany no longer depends on Codex as anything beyond OpenAI subscription auth/model transport.
 - `notes/epiphany-fork-implementation-plan.md` is the distilled forward plan.
 - `notes/epiphany-architectural-teardown.md` is the active foundation-cleanup directive until the app-server control-plane ownership problems are resolved.
 - `notes/epiphany-ideal-architecture-rebuild-plan.md` is the active rebuild blueprint and migration plan.
@@ -362,23 +366,23 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
-The next real move is no longer the rebuild migration. That rite is closed
-unless a concrete regression reopens it. Landed rebuild cuts:
-`epiphany-core/src/surfaces/`
-exists, pressure view derivation/tests, pure CRRC recommendation policy/tests,
-fixed-lane coordinator decision policy/tests, role-board projection policy/tests,
-role-result interpretation/self-persistence review policy/tests, and role/reorient
-acceptance bundle policy/tests, scene projection/tests, freshness derivation/tests, targeted context and graph traversal derivation/tests, planning view derivation/tests, reorientation resume/regather verdict policy/tests, role/reorient result interpretation/tests, and job/progress view derivation/tests live in core, live acceptance writes typed receipts keyed by runtime result id,
-summary-string acceptance identity is gone for live paths, launches dual-write
-runtime links, result read-back prefers those runtime links, normal public
-`raw_result` is sealed, MVP consumers use `thread/epiphany/view`, heartbeat
-cognition is quarantined, and the old scene/jobs/roles/planning/pressure/reorient/
-CRRC/coordinator read wrappers are deleted, and durable `jobBindings` no longer
-carry launcher/backend/progress lifecycle fields. The next pass is outward:
-build-verify/package the Rider plugin scaffold when Gradle/wrapper support
-exists, install Unity `6000.1.10f1`, then run the next bridge-equipped Aetheria
-dogfood pass through Epiphany's GUI/coordinator/fixed lanes with operator-safe
-artifacts. No Agile confetti. No new balcony on the swaying tower.
+The next real move is Codex starvation, not outward bridge work. The first
+bounded slice is:
+
+1. create `notes/codex-auth-spine-inventory.md`
+2. inventory the minimum vendored Codex path required for OpenAI subscription
+   auth, account/session refresh, model provider config, model request
+   construction, streaming response handling, and rate/error handling
+3. create `notes/json-contamination-ledger.md`
+4. classify every Epiphany-relevant `serde_json::Value`, `json!`,
+   `from_value`, and `to_value` as schema/wire descriptor, hostile ingress,
+   sealed forensic artifact, quarantine experiment, or heretek internal blob
+5. choose the first typed-document replacement target, preferably `selfPatch`
+   or worker launch/result cargo
+
+Do not resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
+marketplace, or bridge expansion until this liberation pass has an inventory,
+ledger, and first cut. No fresh balcony on the contaminated cathedral.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
@@ -535,7 +539,8 @@ the next organ is control-plane purification.
 - broad event stream beyond the landed state update notification
 - typed repetitive-work queues plus final-answer gates, so batch/tile/import/migration work cannot end merely because the pattern was demonstrated or the partial result sounds tidy
 
-The machine is no longer cleared to move outward. Fix the foundation first.
+The machine is no longer cleared to move outward. Free it from the Codex organ
+first.
 
 ## Immediate Re-entry Instruction
 
