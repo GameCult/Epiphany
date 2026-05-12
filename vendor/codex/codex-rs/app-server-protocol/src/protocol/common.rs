@@ -341,6 +341,11 @@ client_request_definitions! {
         params: v2::ThreadEpiphanySceneParams,
         response: v2::ThreadEpiphanySceneResponse,
     },
+    #[experimental("thread/epiphany/view")]
+    ThreadEpiphanyView => "thread/epiphany/view" {
+        params: v2::ThreadEpiphanyViewParams,
+        response: v2::ThreadEpiphanyViewResponse,
+    },
     #[experimental("thread/epiphany/jobs")]
     ThreadEpiphanyJobs => "thread/epiphany/jobs" {
         params: v2::ThreadEpiphanyJobsParams,
@@ -1883,6 +1888,68 @@ mod tests {
                             "propose",
                             "promote"
                         ]
+                    }
+                }
+            }),
+            serde_json::to_value(&response)?,
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn serialize_thread_epiphany_view_response() -> Result<()> {
+        let request = ClientRequest::ThreadEpiphanyView {
+            request_id: RequestId::Integer(8),
+            params: v2::ThreadEpiphanyViewParams {
+                thread_id: "thr_123".to_string(),
+                lenses: vec![v2::ThreadEpiphanyViewLens::Pressure],
+            },
+        };
+        assert_eq!(request.method(), "thread/epiphany/view");
+
+        let response = ClientResponse::ThreadEpiphanyView {
+            request_id: RequestId::Integer(8),
+            response: v2::ThreadEpiphanyViewResponse {
+                thread_id: "thr_123".to_string(),
+                lenses: vec![v2::ThreadEpiphanyViewLens::Pressure],
+                scene: None,
+                jobs: Vec::new(),
+                pressure: Some(v2::ThreadEpiphanyPressure {
+                    status: v2::ThreadEpiphanyPressureStatus::Ready,
+                    level: v2::ThreadEpiphanyPressureLevel::Low,
+                    basis: v2::ThreadEpiphanyPressureBasis::ModelContextWindow,
+                    used_tokens: Some(10),
+                    model_context_window: Some(100),
+                    model_auto_compact_token_limit: Some(100),
+                    remaining_tokens: Some(90),
+                    ratio_per_mille: Some(100),
+                    should_prepare_compaction: false,
+                    note: "Context window usage is below the compaction prep threshold."
+                        .to_string(),
+                }),
+            },
+        };
+
+        assert_eq!(response.id(), &RequestId::Integer(8));
+        assert_eq!(response.method(), "thread/epiphany/view");
+        assert_eq!(
+            json!({
+                "method": "thread/epiphany/view",
+                "id": 8,
+                "response": {
+                    "threadId": "thr_123",
+                    "lenses": ["pressure"],
+                    "pressure": {
+                        "status": "ready",
+                        "level": "low",
+                        "basis": "modelContextWindow",
+                        "usedTokens": 10,
+                        "modelContextWindow": 100,
+                        "modelAutoCompactTokenLimit": 100,
+                        "remainingTokens": 90,
+                        "ratioPerMille": 100,
+                        "shouldPrepareCompaction": false,
+                        "note": "Context window usage is below the compaction prep threshold."
                     }
                 }
             }),

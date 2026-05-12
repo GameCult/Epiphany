@@ -3940,6 +3940,41 @@ pub struct ThreadEpiphanySceneResponse {
     pub scene: ThreadEpiphanyScene,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub enum ThreadEpiphanyViewLens {
+    Scene,
+    Jobs,
+    Pressure,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewParams {
+    pub thread_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lenses: Vec<ThreadEpiphanyViewLens>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadEpiphanyViewResponse {
+    pub thread_id: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub lenses: Vec<ThreadEpiphanyViewLens>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub scene: Option<ThreadEpiphanyScene>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jobs: Vec<ThreadEpiphanyJob>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub pressure: Option<ThreadEpiphanyPressure>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]

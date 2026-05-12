@@ -266,6 +266,9 @@ use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdateParams;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyUpdateResponse;
+use codex_app_server_protocol::ThreadEpiphanyViewLens;
+use codex_app_server_protocol::ThreadEpiphanyViewParams;
+use codex_app_server_protocol::ThreadEpiphanyViewResponse;
 use codex_app_server_protocol::ThreadForkParams;
 use codex_app_server_protocol::ThreadForkResponse;
 use codex_app_server_protocol::ThreadIncrementElicitationParams;
@@ -1118,6 +1121,10 @@ impl CodexMessageProcessor {
             }
             ClientRequest::ThreadEpiphanyScene { request_id, params } => {
                 self.thread_epiphany_scene(to_connection_request_id(request_id), params)
+                    .await;
+            }
+            ClientRequest::ThreadEpiphanyView { request_id, params } => {
+                self.thread_epiphany_view(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::ThreadEpiphanyJobs { request_id, params } => {
@@ -4286,6 +4293,88 @@ impl CodexMessageProcessor {
         let response = ThreadEpiphanySceneResponse {
             thread_id,
             scene: map_epiphany_scene(thread.epiphany_state.as_ref(), loaded),
+        };
+        self.outgoing.send_response(request_id, response).await;
+    }
+
+    async fn thread_epiphany_view(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadEpiphanyViewParams,
+    ) {
+        let ThreadEpiphanyViewParams { thread_id, lenses } = params;
+        let lenses = if lenses.is_empty() {
+            vec![
+                ThreadEpiphanyViewLens::Scene,
+                ThreadEpiphanyViewLens::Jobs,
+                ThreadEpiphanyViewLens::Pressure,
+            ]
+        } else {
+            lenses
+        };
+
+        let thread_uuid = match ThreadId::from_string(&thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+                    .await;
+                return;
+            }
+        };
+
+        let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
+        let loaded = loaded_thread.is_some();
+        let thread = match self.read_thread_view(thread_uuid, false).await {
+            Ok(thread) => thread,
+            Err(ThreadReadViewError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(ThreadReadViewError::Internal(message)) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
+
+        let retrieval_override = if lenses.contains(&ThreadEpiphanyViewLens::Jobs)
+            && thread
+                .epiphany_state
+                .as_ref()
+                .and_then(|state| state.retrieval.as_ref())
+                .is_none()
+        {
+            if let Some(loaded_thread) = loaded_thread.as_ref() {
+                Some(loaded_thread.epiphany_retrieval_state().await)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        let token_usage_info = if lenses.contains(&ThreadEpiphanyViewLens::Pressure) {
+            if let Some(loaded_thread) = loaded_thread.as_ref() {
+                loaded_thread.token_usage_info().await
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        let response = ThreadEpiphanyViewResponse {
+            thread_id,
+            scene: lenses
+                .contains(&ThreadEpiphanyViewLens::Scene)
+                .then(|| map_epiphany_scene(thread.epiphany_state.as_ref(), loaded)),
+            jobs: if lenses.contains(&ThreadEpiphanyViewLens::Jobs) {
+                map_epiphany_jobs(thread.epiphany_state.as_ref(), retrieval_override.as_ref())
+            } else {
+                Vec::new()
+            },
+            pressure: lenses
+                .contains(&ThreadEpiphanyViewLens::Pressure)
+                .then(|| map_epiphany_pressure(token_usage_info.as_ref())),
+            lenses,
         };
         self.outgoing.send_response(request_id, response).await;
     }

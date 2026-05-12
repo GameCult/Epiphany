@@ -387,6 +387,7 @@ export type { ThreadEpiphanyStateUpdatedField } from "./ThreadEpiphanyStateUpdat
 export type { ThreadEpiphanyStateUpdatedNotification } from "./ThreadEpiphanyStateUpdatedNotification";
 export type { ThreadEpiphanyStateUpdatedSource } from "./ThreadEpiphanyStateUpdatedSource";
 export type { ThreadEpiphanyUpdatePatch } from "./ThreadEpiphanyUpdatePatch";
+export type { ThreadEpiphanyViewLens } from "./ThreadEpiphanyViewLens";
 export type { ThreadForkParams } from "./ThreadForkParams";
 export type { ThreadForkResponse } from "./ThreadForkResponse";
 export type { ThreadInjectItemsParams } from "./ThreadInjectItemsParams";
