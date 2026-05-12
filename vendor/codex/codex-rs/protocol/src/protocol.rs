@@ -3364,22 +3364,13 @@ pub struct EpiphanyJobBinding {
     pub owner_role: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
-    pub launcher_job_id: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
     pub authority_scope: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub backend_job_id: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub linked_subgoal_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub linked_graph_node_ids: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(type = "string | null")]
-    pub progress_note: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub blocking_reason: Option<String>,

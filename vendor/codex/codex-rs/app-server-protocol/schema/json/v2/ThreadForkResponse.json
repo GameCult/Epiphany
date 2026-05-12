@@ -1022,12 +1022,6 @@
             "null"
           ]
         },
-        "backend_job_id": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "blocking_reason": {
           "type": [
             "string",
@@ -1039,12 +1033,6 @@
         },
         "kind": {
           "$ref": "#/definitions/EpiphanyJobKind"
-        },
-        "launcher_job_id": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "linked_graph_node_ids": {
           "items": {
@@ -1060,12 +1048,6 @@
         },
         "owner_role": {
           "type": "string"
-        },
-        "progress_note": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "scope": {
           "type": "string"

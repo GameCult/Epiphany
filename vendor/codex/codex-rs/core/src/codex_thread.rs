@@ -522,11 +522,7 @@ impl CodexThread {
             &request,
             backend_job_id.as_str(),
         )?;
-        let replacement_binding = build_epiphany_job_launch_binding(
-            &request,
-            launcher_job_id.as_str(),
-            backend_job_id.as_str(),
-        );
+        let replacement_binding = build_epiphany_job_launch_binding(&request);
         let replacement_runtime_link =
             build_epiphany_runtime_link(&request, backend_job_id.as_str());
         let next_job_bindings = replace_or_append_epiphany_job_binding(
@@ -834,22 +830,15 @@ fn validate_epiphany_job_launch_target(
     Ok(())
 }
 
-fn build_epiphany_job_launch_binding(
-    request: &EpiphanyJobLaunchRequest,
-    _launcher_job_id: &str,
-    _backend_job_id: &str,
-) -> EpiphanyJobBinding {
+fn build_epiphany_job_launch_binding(request: &EpiphanyJobLaunchRequest) -> EpiphanyJobBinding {
     EpiphanyJobBinding {
         id: request.binding_id.clone(),
         kind: request.kind,
         scope: request.scope.clone(),
         owner_role: request.owner_role.clone(),
-        launcher_job_id: None,
         authority_scope: Some(request.authority_scope.clone()),
-        backend_job_id: None,
         linked_subgoal_ids: request.linked_subgoal_ids.clone(),
         linked_graph_node_ids: request.linked_graph_node_ids.clone(),
-        progress_note: None,
         blocking_reason: None,
     }
 }
@@ -956,9 +945,6 @@ fn clear_epiphany_job_binding_backend(
     blocking_reason: &str,
 ) -> Vec<EpiphanyJobBinding> {
     let binding = &mut bindings[binding_index];
-    binding.launcher_job_id = None;
-    binding.backend_job_id = None;
-    binding.progress_note = None;
     binding.blocking_reason = Some(blocking_reason.to_string());
     bindings
 }
@@ -1178,18 +1164,8 @@ fn validate_epiphany_job_bindings(job_bindings: &[EpiphanyJobBinding]) -> Vec<St
         require_nonempty_update(&binding.id, "job_binding.id", &mut errors);
         require_nonempty_update(&binding.scope, "job_binding.scope", &mut errors);
         require_nonempty_update(&binding.owner_role, "job_binding.owner_role", &mut errors);
-        if let Some(launcher_job_id) = binding.launcher_job_id.as_deref() {
-            require_nonempty_update(launcher_job_id, "job_binding.launcher_job_id", &mut errors);
-        }
         if let Some(authority_scope) = binding.authority_scope.as_deref() {
             require_nonempty_update(authority_scope, "job_binding.authority_scope", &mut errors);
-        }
-        if let Some(backend_job_id) = binding.backend_job_id.as_deref() {
-            require_nonempty_update(backend_job_id, "job_binding.backend_job_id", &mut errors);
-        }
-
-        if let Some(progress_note) = binding.progress_note.as_deref() {
-            require_nonempty_update(progress_note, "job_binding.progress_note", &mut errors);
         }
         if let Some(blocking_reason) = binding.blocking_reason.as_deref() {
             require_nonempty_update(blocking_reason, "job_binding.blocking_reason", &mut errors);
@@ -1510,12 +1486,9 @@ mod epiphany_update_tests {
             kind: EpiphanyJobKind::Specialist,
             scope: "role-scoped specialist work".to_string(),
             owner_role: "epiphany-harness".to_string(),
-            launcher_job_id: Some(format!("launcher-{id}")),
             authority_scope: Some("epiphany.specialist".to_string()),
-            backend_job_id: Some(format!("heartbeat-job-{id}")),
             linked_subgoal_ids: vec!["phase-6".to_string()],
             linked_graph_node_ids: vec!["job-surface".to_string()],
-            progress_note: Some("Bound to a heartbeat runtime-spine job.".to_string()),
             blocking_reason: None,
         }
     }
@@ -1626,16 +1599,8 @@ mod epiphany_update_tests {
         assert_eq!(state.job_bindings.len(), 1);
         assert_eq!(state.job_bindings[0].id, "new");
         assert_eq!(
-            state.job_bindings[0].launcher_job_id.as_deref(),
-            Some("launcher-new")
-        );
-        assert_eq!(
             state.job_bindings[0].authority_scope.as_deref(),
             Some("epiphany.specialist")
-        );
-        assert_eq!(
-            state.job_bindings[0].backend_job_id.as_deref(),
-            Some("heartbeat-job-new")
         );
         assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-jobs"));
     }
@@ -1999,12 +1964,9 @@ mod epiphany_update_tests {
                     kind: EpiphanyJobKind::Verification,
                     scope: String::new(),
                     owner_role: String::new(),
-                    launcher_job_id: Some(String::new()),
                     authority_scope: Some(String::new()),
-                    backend_job_id: Some(String::new()),
                     linked_subgoal_ids: Vec::new(),
                     linked_graph_node_ids: Vec::new(),
-                    progress_note: Some(String::new()),
                     blocking_reason: Some(String::new()),
                 },
             ]),
@@ -2037,22 +1999,7 @@ mod epiphany_update_tests {
         assert!(
             errors
                 .iter()
-                .any(|error| error.contains("job_binding.launcher_job_id must not be empty"))
-        );
-        assert!(
-            errors
-                .iter()
                 .any(|error| error.contains("job_binding.authority_scope must not be empty"))
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains("job_binding.backend_job_id must not be empty"))
-        );
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains("job_binding.progress_note must not be empty"))
         );
         assert!(
             errors
@@ -2078,13 +2025,13 @@ mod epiphany_update_tests {
             max_runtime_seconds: Some(60),
         };
 
-        let binding =
-            build_epiphany_job_launch_binding(&request, "epiphany-heartbeat-launch-1", "turn-1");
+        let binding = build_epiphany_job_launch_binding(&request);
         let runtime_link = build_epiphany_runtime_link(&request, "turn-1");
 
-        assert_eq!(binding.launcher_job_id, None);
-        assert_eq!(binding.backend_job_id, None);
-        assert_eq!(binding.progress_note, None);
+        assert_eq!(
+            binding.authority_scope.as_deref(),
+            Some("epiphany.role.modeling")
+        );
         assert_eq!(
             runtime_link.id,
             "runtime-link-modeling-checkpoint-worker-turn-1"

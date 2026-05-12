@@ -13569,25 +13569,6 @@ fn load_epiphany_role_result_from_runtime_spine_job(
     (status, finding, note)
 }
 
-fn load_epiphany_role_result_from_runtime_spine(
-    binding: &EpiphanyJobBinding,
-    runtime_store_path: Option<&Path>,
-    role_id: ThreadEpiphanyRoleId,
-) -> (
-    ThreadEpiphanyRoleResultStatus,
-    Option<ThreadEpiphanyRoleFinding>,
-    String,
-) {
-    let Some(job_id) = binding_backend_job_id(binding) else {
-        return (
-            ThreadEpiphanyRoleResultStatus::BackendMissing,
-            None,
-            "Heartbeat binding has no runtime-spine job id.".to_string(),
-        );
-    };
-    load_epiphany_role_result_from_runtime_spine_job(job_id, runtime_store_path, role_id)
-}
-
 fn load_epiphany_reorient_result_from_runtime_spine_job(
     job_id: &str,
     runtime_store_path: Option<&Path>,
@@ -13633,24 +13614,6 @@ fn load_epiphany_reorient_result_from_runtime_spine_job(
     });
     let note = render_epiphany_reorient_result_note(status, finding.as_ref(), None);
     (status, finding, note)
-}
-
-fn load_epiphany_reorient_result_from_runtime_spine(
-    binding: &EpiphanyJobBinding,
-    runtime_store_path: Option<&Path>,
-) -> (
-    ThreadEpiphanyReorientResultStatus,
-    Option<ThreadEpiphanyReorientFinding>,
-    String,
-) {
-    let Some(job_id) = binding_backend_job_id(binding) else {
-        return (
-            ThreadEpiphanyReorientResultStatus::BackendMissing,
-            None,
-            "Heartbeat binding has no runtime-spine job id.".to_string(),
-        );
-    };
-    load_epiphany_reorient_result_from_runtime_spine_job(job_id, runtime_store_path)
 }
 
 fn map_runtime_role_result_status(
@@ -13736,19 +13699,16 @@ async fn load_epiphany_role_result_snapshot(
         );
     }
 
-    let Some(binding) = state
+    if !state
         .job_bindings
         .iter()
-        .find(|binding| binding.id == binding_id)
-    else {
+        .any(|binding| binding.id == binding_id)
+    {
         return (
             ThreadEpiphanyRoleResultStatus::MissingBinding,
             None,
             "No matching Epiphany role specialist binding exists.".to_string(),
         );
-    };
-    if binding_backend_job_id(binding).is_some() {
-        return load_epiphany_role_result_from_runtime_spine(binding, runtime_store_path, role_id);
     }
     (
         ThreadEpiphanyRoleResultStatus::BackendUnavailable,
@@ -13780,19 +13740,16 @@ async fn load_epiphany_reorient_result_snapshot(
         );
     }
 
-    let Some(binding) = state
+    if !state
         .job_bindings
         .iter()
-        .find(|binding| binding.id == binding_id)
-    else {
+        .any(|binding| binding.id == binding_id)
+    {
         return (
             ThreadEpiphanyReorientResultStatus::MissingBinding,
             None,
             "No matching Epiphany reorientation worker binding exists.".to_string(),
         );
-    };
-    if binding_backend_job_id(binding).is_some() {
-        return load_epiphany_reorient_result_from_runtime_spine(binding, runtime_store_path);
     }
     (
         ThreadEpiphanyReorientResultStatus::BackendUnavailable,
@@ -14693,29 +14650,15 @@ async fn load_completed_epiphany_reorient_finding(
         });
     }
 
-    if let Some(binding) = state
+    if !state
         .job_bindings
         .iter()
-        .find(|binding| binding.id == binding_id)
-        && binding_backend_job_id(binding).is_some()
+        .any(|binding| binding.id == binding_id)
     {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
-        let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine(
-            binding,
-            Some(runtime_store_path.as_path()),
-        );
-        if status != ThreadEpiphanyReorientResultStatus::Completed {
-            return Err(CodexErr::InvalidRequest(format!(
-                "cannot accept reorientation result while worker status is {:?}",
-                status
-            )));
-        }
-        return finding.ok_or_else(|| {
-            CodexErr::InvalidRequest(
-                "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
-                    .to_string(),
-            )
-        });
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany reorientation binding {:?} was not found",
+            binding_id
+        )));
     }
 
     Err(CodexErr::InvalidRequest(
@@ -14751,35 +14694,15 @@ async fn load_completed_epiphany_role_finding(
         });
     }
 
-    let binding = state
+    if !state
         .job_bindings
         .iter()
-        .find(|binding| binding.id == binding_id)
-        .ok_or_else(|| {
-            CodexErr::InvalidRequest(format!(
-                "epiphany role binding {:?} was not found",
-                binding_id
-            ))
-        })?;
-    if binding_backend_job_id(binding).is_some() {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
-        let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine(
-            binding,
-            Some(runtime_store_path.as_path()),
-            role_id,
-        );
-        if status != ThreadEpiphanyRoleResultStatus::Completed {
-            return Err(CodexErr::InvalidRequest(format!(
-                "cannot accept role result while worker status is {:?}",
-                status
-            )));
-        }
-        return finding.ok_or_else(|| {
-            CodexErr::InvalidRequest(
-                "cannot accept completed role worker because no typed runtime-spine result was recorded"
-                    .to_string(),
-            )
-        });
+        .any(|binding| binding.id == binding_id)
+    {
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany role binding {:?} was not found",
+            binding_id
+        )));
     }
 
     Err(CodexErr::InvalidRequest(
@@ -16250,14 +16173,6 @@ fn extend_unique_strings(target: &mut Vec<String>, values: impl IntoIterator<Ite
     }
 }
 
-fn binding_launcher_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
-    binding.launcher_job_id.as_deref()
-}
-
-fn binding_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
-    binding.backend_job_id.as_deref()
-}
-
 pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     thread_id: ThreadId,
     thread: Arc<CodexThread>,
@@ -16551,11 +16466,9 @@ fn map_epiphany_bound_job(
             kind: map_core_epiphany_job_kind(binding.kind),
             scope: binding.scope.clone(),
             owner_role: binding.owner_role.clone(),
-            launcher_job_id: binding_launcher_job_id(binding).map(str::to_string),
+            launcher_job_id: None,
             authority_scope: binding.authority_scope.clone(),
-            backend_job_id: runtime_link
-                .map(|link| link.runtime_job_id.clone())
-                .or_else(|| binding_projected_backend_job_id(binding).map(str::to_string)),
+            backend_job_id: runtime_link.map(|link| link.runtime_job_id.clone()),
             status: if binding.blocking_reason.is_some() {
                 ThreadEpiphanyJobStatus::Blocked
             } else {
@@ -16583,19 +16496,14 @@ fn overlay_epiphany_job_binding(
     job.kind = map_core_epiphany_job_kind(binding.kind);
     job.scope = binding.scope.clone();
     job.owner_role = binding.owner_role.clone();
-    job.launcher_job_id = binding_launcher_job_id(binding).map(str::to_string);
+    job.launcher_job_id = None;
     job.authority_scope = binding.authority_scope.clone();
-    job.backend_job_id = runtime_link
-        .map(|link| link.runtime_job_id.clone())
-        .or_else(|| binding_projected_backend_job_id(binding).map(str::to_string));
+    job.backend_job_id = runtime_link.map(|link| link.runtime_job_id.clone());
     if !binding.linked_subgoal_ids.is_empty() {
         job.linked_subgoal_ids = binding.linked_subgoal_ids.clone();
     }
     if !binding.linked_graph_node_ids.is_empty() {
         job.linked_graph_node_ids = binding.linked_graph_node_ids.clone();
-    }
-    if let Some(progress_note) = binding.progress_note.clone() {
-        job.progress_note = Some(progress_note);
     }
     if let Some(blocking_reason) = binding.blocking_reason.clone() {
         job.blocking_reason = Some(blocking_reason);
@@ -16605,23 +16513,15 @@ fn overlay_epiphany_job_binding(
         return job;
     }
 
-    if runtime_link.is_some() || binding_backend_job_id(binding).is_some() {
+    if runtime_link.is_some() {
         job.status = ThreadEpiphanyJobStatus::Pending;
         job.blocking_reason = None;
-        job.progress_note = Some(
-            binding
-                .progress_note
-                .clone()
-                .unwrap_or_else(|| "Queued for Epiphany heartbeat activation.".to_string()),
-        );
+        job.progress_note =
+            Some("Queued for Epiphany heartbeat activation through runtime_links.".to_string());
         return job;
     }
 
     job
-}
-
-fn binding_projected_backend_job_id(binding: &EpiphanyJobBinding) -> Option<&str> {
-    binding_backend_job_id(binding)
 }
 
 fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJobKind {
@@ -18980,12 +18880,9 @@ mod tests {
                 kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                 scope: "reorient-guided checkpoint resume".to_string(),
                 owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
-                launcher_job_id: Some("launcher-1".to_string()),
                 authority_scope: Some("epiphany.reorient.resume".to_string()),
-                backend_job_id: Some("backend-1".to_string()),
                 linked_subgoal_ids: Vec::new(),
                 linked_graph_node_ids: Vec::new(),
-                progress_note: None,
                 blocking_reason: None,
             }],
             ..Default::default()
@@ -21641,12 +21538,9 @@ mod tests {
                 kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                 scope: "role-scoped modeling/checkpoint maintenance".to_string(),
                 owner_role: "epiphany-modeler".to_string(),
-                launcher_job_id: None,
                 authority_scope: Some("epiphany.role.modeling".to_string()),
-                backend_job_id: None,
                 linked_subgoal_ids: vec!["phase-6".to_string()],
                 linked_graph_node_ids: vec!["runtime-spine".to_string()],
-                progress_note: None,
                 blocking_reason: None,
             }],
             runtime_links: vec![codex_protocol::protocol::EpiphanyRuntimeLink {
@@ -21733,21 +21627,8 @@ mod tests {
         )
         .expect("runtime result");
 
-        let binding = codex_protocol::protocol::EpiphanyJobBinding {
-            id: "modeling-checkpoint-worker".to_string(),
-            kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
-            scope: "role-scoped modeling/checkpoint maintenance".to_string(),
-            owner_role: "epiphany-modeler".to_string(),
-            launcher_job_id: Some("epiphany-heartbeat-launch-1".to_string()),
-            authority_scope: Some("epiphany.role.modeling".to_string()),
-            backend_job_id: Some("heartbeat-job-1".to_string()),
-            linked_subgoal_ids: Vec::new(),
-            linked_graph_node_ids: Vec::new(),
-            progress_note: None,
-            blocking_reason: None,
-        };
-        let (status, finding, note) = load_epiphany_role_result_from_runtime_spine(
-            &binding,
+        let (status, finding, note) = load_epiphany_role_result_from_runtime_spine_job(
+            "heartbeat-job-1",
             Some(store.as_path()),
             ThreadEpiphanyRoleId::Modeling,
         );
@@ -21768,12 +21649,9 @@ mod tests {
                 kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                 scope: "role-scoped specialist work".to_string(),
                 owner_role: "epiphany-harness".to_string(),
-                launcher_job_id: None,
                 authority_scope: Some("epiphany.specialist".to_string()),
-                backend_job_id: None,
                 linked_subgoal_ids: vec!["phase-6".to_string()],
                 linked_graph_node_ids: vec!["job-control".to_string()],
-                progress_note: None,
                 blocking_reason: Some(
                     "No active runtime backend is currently bound; launch explicitly to resume specialist work."
                         .to_string(),

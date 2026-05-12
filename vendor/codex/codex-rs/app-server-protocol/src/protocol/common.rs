@@ -1724,15 +1724,9 @@ mod tests {
                         kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                         scope: "role-scoped modeling/checkpoint maintenance".to_string(),
                         owner_role: "epiphany-modeler".to_string(),
-                        launcher_job_id: Some("epiphany-launch-1".to_string()),
                         authority_scope: Some("epiphany.role.modeling".to_string()),
-                        backend_job_id: Some("backend-1".to_string()),
                         linked_subgoal_ids: vec!["phase-6".to_string()],
                         linked_graph_node_ids: vec!["state-spine".to_string()],
-                        progress_note: Some(
-                            "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
-                                .to_string(),
-                        ),
                         blocking_reason: None,
                     }],
                     ..Default::default()
@@ -1779,12 +1773,9 @@ mod tests {
                             "kind": "specialist",
                             "scope": "role-scoped modeling/checkpoint maintenance",
                             "owner_role": "epiphany-modeler",
-                            "launcher_job_id": "epiphany-launch-1",
                             "authority_scope": "epiphany.role.modeling",
-                            "backend_job_id": "backend-1",
                             "linked_subgoal_ids": ["phase-6"],
-                            "linked_graph_node_ids": ["state-spine"],
-                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
+                            "linked_graph_node_ids": ["state-spine"]
                         }]
                     },
                     "job": {
@@ -2367,15 +2358,9 @@ mod tests {
                         kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                         scope: "reorient-guided checkpoint regather".to_string(),
                         owner_role: "epiphany-reorient".to_string(),
-                        launcher_job_id: Some("epiphany-launch-1".to_string()),
                         authority_scope: Some("epiphany.reorient.regather".to_string()),
-                        backend_job_id: Some("backend-1".to_string()),
                         linked_subgoal_ids: vec!["phase-6".to_string()],
                         linked_graph_node_ids: vec!["state-spine".to_string()],
-                        progress_note: Some(
-                            "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
-                                .to_string(),
-                        ),
                         blocking_reason: None,
                     }],
                     ..Default::default()
@@ -2442,12 +2427,9 @@ mod tests {
                             "kind": "specialist",
                             "scope": "reorient-guided checkpoint regather",
                             "owner_role": "epiphany-reorient",
-                            "launcher_job_id": "epiphany-launch-1",
                             "authority_scope": "epiphany.reorient.regather",
-                            "backend_job_id": "backend-1",
                             "linked_subgoal_ids": ["phase-6"],
-                            "linked_graph_node_ids": ["state-spine"],
-                            "progress_note": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend."
+                            "linked_graph_node_ids": ["state-spine"]
                         }]
                     },
                     "job": {
@@ -2955,12 +2937,9 @@ mod tests {
                         kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                         scope: "role-scoped specialist work".to_string(),
                         owner_role: "epiphany-harness".to_string(),
-                        launcher_job_id: None,
                         authority_scope: Some("epiphany.specialist".to_string()),
-                        backend_job_id: None,
                         linked_subgoal_ids: Vec::new(),
                         linked_graph_node_ids: Vec::new(),
-                        progress_note: None,
                         blocking_reason: None,
                     }],
                     runtime_links: vec![codex_protocol::protocol::EpiphanyRuntimeLink {
@@ -3057,12 +3036,9 @@ mod tests {
                         kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                         scope: "role-scoped specialist work".to_string(),
                         owner_role: "epiphany-harness".to_string(),
-                        launcher_job_id: None,
                         authority_scope: Some("epiphany.specialist".to_string()),
-                        backend_job_id: None,
                         linked_subgoal_ids: Vec::new(),
                         linked_graph_node_ids: Vec::new(),
-                        progress_note: None,
                         blocking_reason: Some(
                             "Launch explicitly to resume specialist work.".to_string(),
                         ),
