@@ -39,7 +39,7 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub evidence_gaps: Vec<String>,
     pub risks: Vec<String>,
     pub state_patch: Option<serde_json::Value>,
-    pub self_patch: Option<serde_json::Value>,
+    pub self_patch: Option<AgentSelfPatch>,
     pub self_persistence: Option<EpiphanyRoleSelfPersistenceReview>,
     pub job_error: Option<String>,
     pub item_error: Option<String>,
@@ -114,10 +114,10 @@ pub fn interpret_role_finding(
     item_error: Option<String>,
 ) -> EpiphanyRoleFindingInterpretation {
     let state_patch = raw_result.get("statePatch").cloned();
-    let self_patch = raw_result.get("selfPatch").cloned();
-    let self_persistence = self_patch
-        .as_ref()
-        .map(|patch| review_role_self_patch(role_id, patch));
+    let (self_patch, self_persistence) = raw_result
+        .get("selfPatch")
+        .map(|patch| decode_role_self_patch(role_id, patch))
+        .unwrap_or((None, None));
     let item_error = match role_id {
         EpiphanyRoleResultRoleId::Imagination => merge_item_error(
             item_error,
@@ -358,94 +358,10 @@ pub fn review_role_self_patch(
     patch: &serde_json::Value,
 ) -> EpiphanyRoleSelfPersistenceReview {
     let (expected_agent_id, target_path) = role_self_memory_target(role_id);
-    let mut reasons = Vec::new();
-    let Some(object) = patch.as_object() else {
-        return EpiphanyRoleSelfPersistenceReview {
-            status: EpiphanyRoleSelfPersistenceStatus::Rejected,
-            target_agent_id: Some(expected_agent_id.to_string()),
-            target_path: Some(target_path.to_string()),
-            reasons: vec!["selfPatch must be a JSON object".to_string()],
-        };
+    let reasons = match decode_agent_self_patch(patch) {
+        Ok(patch) => review_agent_self_patch_contract(expected_agent_id, &patch),
+        Err(reason) => vec![reason],
     };
-
-    let agent_id = object.get("agentId").and_then(serde_json::Value::as_str);
-    match agent_id {
-        Some(id) if id == expected_agent_id => {}
-        Some(id) => reasons.push(format!(
-            "selfPatch agentId {id:?} does not match this lane; expected {expected_agent_id:?}"
-        )),
-        None => reasons.push(format!(
-            "selfPatch must include agentId {expected_agent_id:?}"
-        )),
-    }
-    match object.get("reason").and_then(serde_json::Value::as_str) {
-        Some(reason) if reason.trim().len() >= 16 && reason.len() <= 800 => {}
-        Some(_) => reasons.push(
-            "selfPatch reason must be a bounded explanation of at least 16 characters".to_string(),
-        ),
-        None => reasons.push(
-            "selfPatch must include a reason explaining why this improves the lane".to_string(),
-        ),
-    }
-
-    let allowed = [
-        "agentId",
-        "reason",
-        "evidenceIds",
-        "semanticMemories",
-        "episodicMemories",
-        "relationshipMemories",
-        "goals",
-        "values",
-        "privateNotes",
-    ];
-    let forbidden = [
-        "statePatch",
-        "objective",
-        "activeSubgoalId",
-        "subgoals",
-        "invariants",
-        "graphs",
-        "graphFrontier",
-        "graphCheckpoint",
-        "scratch",
-        "investigationCheckpoint",
-        "jobBindings",
-        "planning",
-        "churn",
-        "mode",
-        "codeEdits",
-        "files",
-        "authorityScope",
-        "backendJobId",
-        "rawResult",
-    ];
-    for key in object.keys() {
-        if forbidden.contains(&key.as_str()) {
-            reasons.push(format!(
-                "selfPatch field {key:?} is project truth or authority; use statePatch, roleAccept, or another explicit control surface instead"
-            ));
-        } else if !allowed.contains(&key.as_str()) {
-            reasons.push(format!(
-                "selfPatch field {key:?} is not part of the bounded memory mutation contract"
-            ));
-        }
-    }
-
-    let mut mutation_count = 0usize;
-    mutation_count += review_self_patch_memories(&mut reasons, object, "semanticMemories");
-    mutation_count += review_self_patch_memories(&mut reasons, object, "episodicMemories");
-    mutation_count += review_self_patch_memories(&mut reasons, object, "relationshipMemories");
-    mutation_count += review_self_patch_goals(&mut reasons, object);
-    mutation_count += review_self_patch_values(&mut reasons, object);
-    mutation_count += review_self_patch_private_notes(&mut reasons, object);
-    review_self_patch_string_array(&mut reasons, object, "evidenceIds", 16, 160);
-    if mutation_count == 0 {
-        reasons.push(
-            "selfPatch must contain at least one semantic memory, episodic memory, relationship memory, goal, value, or private note"
-                .to_string(),
-        );
-    }
 
     EpiphanyRoleSelfPersistenceReview {
         status: if reasons.is_empty() {
@@ -457,6 +373,22 @@ pub fn review_role_self_patch(
         target_path: Some(target_path.to_string()),
         reasons,
     }
+}
+
+fn decode_role_self_patch(
+    role_id: EpiphanyRoleResultRoleId,
+    patch: &serde_json::Value,
+) -> (
+    Option<AgentSelfPatch>,
+    Option<EpiphanyRoleSelfPersistenceReview>,
+) {
+    let review = review_role_self_patch(role_id, patch);
+    let decoded = if review.status == EpiphanyRoleSelfPersistenceStatus::Accepted {
+        decode_agent_self_patch(patch).ok()
+    } else {
+        None
+    };
+    (decoded, Some(review))
 }
 
 pub fn modeling_role_state_patch_policy_errors(patch: &serde_json::Value) -> Vec<String> {
@@ -853,237 +785,6 @@ fn non_empty_array_field(value: &serde_json::Value, key: &str) -> bool {
         .is_some_and(|items| !items.is_empty())
 }
 
-fn review_self_patch_memories(
-    reasons: &mut Vec<String>,
-    object: &serde_json::Map<String, serde_json::Value>,
-    field: &str,
-) -> usize {
-    let Some(value) = object.get(field) else {
-        return 0;
-    };
-    let Some(items) = value.as_array() else {
-        reasons.push(format!("selfPatch {field} must be an array"));
-        return 0;
-    };
-    if items.len() > 8 {
-        reasons.push(format!("selfPatch {field} may contain at most 8 records"));
-    }
-    let mut valid = 0usize;
-    for (index, item) in items.iter().enumerate() {
-        let Some(record) = item.as_object() else {
-            reasons.push(format!("selfPatch {field}[{index}] must be an object"));
-            continue;
-        };
-        review_self_patch_id(reasons, record, field, index, "memoryId", "mem-");
-        review_self_patch_summary(reasons, record, field, index, "summary", 600);
-        review_self_patch_unit(reasons, record, field, index, "salience");
-        review_self_patch_unit(reasons, record, field, index, "confidence");
-        valid += 1;
-    }
-    valid
-}
-
-fn review_self_patch_goals(
-    reasons: &mut Vec<String>,
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> usize {
-    let Some(value) = object.get("goals") else {
-        return 0;
-    };
-    let Some(items) = value.as_array() else {
-        reasons.push("selfPatch goals must be an array".to_string());
-        return 0;
-    };
-    if items.len() > 6 {
-        reasons.push("selfPatch goals may contain at most 6 records".to_string());
-    }
-    let mut valid = 0usize;
-    for (index, item) in items.iter().enumerate() {
-        let Some(record) = item.as_object() else {
-            reasons.push(format!("selfPatch goals[{index}] must be an object"));
-            continue;
-        };
-        review_self_patch_id(reasons, record, "goals", index, "goalId", "goal-");
-        review_self_patch_summary(reasons, record, "goals", index, "description", 700);
-        review_self_patch_string(reasons, record, "goals", index, "scope", 80);
-        review_self_patch_unit(reasons, record, "goals", index, "priority");
-        review_self_patch_string(reasons, record, "goals", index, "emotionalStake", 400);
-        review_self_patch_string(reasons, record, "goals", index, "status", 80);
-        valid += 1;
-    }
-    valid
-}
-
-fn review_self_patch_values(
-    reasons: &mut Vec<String>,
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> usize {
-    let Some(value) = object.get("values") else {
-        return 0;
-    };
-    let Some(items) = value.as_array() else {
-        reasons.push("selfPatch values must be an array".to_string());
-        return 0;
-    };
-    if items.len() > 6 {
-        reasons.push("selfPatch values may contain at most 6 records".to_string());
-    }
-    let mut valid = 0usize;
-    for (index, item) in items.iter().enumerate() {
-        let Some(record) = item.as_object() else {
-            reasons.push(format!("selfPatch values[{index}] must be an object"));
-            continue;
-        };
-        review_self_patch_id(reasons, record, "values", index, "valueId", "value-");
-        review_self_patch_summary(reasons, record, "values", index, "label", 240);
-        review_self_patch_unit(reasons, record, "values", index, "priority");
-        if !record
-            .get("unforgivableIfBetrayed")
-            .is_some_and(serde_json::Value::is_boolean)
-        {
-            reasons.push(format!(
-                "selfPatch values[{index}].unforgivableIfBetrayed must be a boolean"
-            ));
-        }
-        valid += 1;
-    }
-    valid
-}
-
-fn review_self_patch_private_notes(
-    reasons: &mut Vec<String>,
-    object: &serde_json::Map<String, serde_json::Value>,
-) -> usize {
-    let Some(value) = object.get("privateNotes") else {
-        return 0;
-    };
-    let Some(items) = value.as_array() else {
-        reasons.push("selfPatch privateNotes must be an array".to_string());
-        return 0;
-    };
-    if items.len() > 6 {
-        reasons.push("selfPatch privateNotes may contain at most 6 records".to_string());
-    }
-    for (index, item) in items.iter().enumerate() {
-        match item.as_str() {
-            Some(text) if !text.trim().is_empty() && text.len() <= 600 => {}
-            _ => reasons.push(format!(
-                "selfPatch privateNotes[{index}] must be non-empty text under 600 characters"
-            )),
-        }
-    }
-    items.len()
-}
-
-fn review_self_patch_string_array(
-    reasons: &mut Vec<String>,
-    object: &serde_json::Map<String, serde_json::Value>,
-    field: &str,
-    max_items: usize,
-    max_len: usize,
-) {
-    let Some(value) = object.get(field) else {
-        return;
-    };
-    let Some(items) = value.as_array() else {
-        reasons.push(format!("selfPatch {field} must be an array"));
-        return;
-    };
-    if items.len() > max_items {
-        reasons.push(format!(
-            "selfPatch {field} may contain at most {max_items} records"
-        ));
-    }
-    for (index, item) in items.iter().enumerate() {
-        match item.as_str() {
-            Some(text) if !text.trim().is_empty() && text.len() <= max_len => {}
-            _ => reasons.push(format!(
-                "selfPatch {field}[{index}] must be non-empty text under {max_len} characters"
-            )),
-        }
-    }
-}
-
-fn review_self_patch_id(
-    reasons: &mut Vec<String>,
-    record: &serde_json::Map<String, serde_json::Value>,
-    collection: &str,
-    index: usize,
-    field: &str,
-    prefix: &str,
-) {
-    match record.get(field).and_then(serde_json::Value::as_str) {
-        Some(id)
-            if id.starts_with(prefix)
-                && id.len() <= 120
-                && id
-                    .chars()
-                    .all(|ch| ch.is_ascii_alphanumeric() || "-_.".contains(ch)) => {}
-        Some(_) => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} must start with {prefix:?}, avoid whitespace, and stay under 120 characters"
-        )),
-        None => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} is required"
-        )),
-    }
-}
-
-fn review_self_patch_summary(
-    reasons: &mut Vec<String>,
-    record: &serde_json::Map<String, serde_json::Value>,
-    collection: &str,
-    index: usize,
-    field: &str,
-    max_len: usize,
-) {
-    match record.get(field).and_then(serde_json::Value::as_str) {
-        Some(text) if !text.trim().is_empty() && text.len() <= max_len => {}
-        Some(_) => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} must be non-empty text under {max_len} characters"
-        )),
-        None => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} is required"
-        )),
-    }
-}
-
-fn review_self_patch_string(
-    reasons: &mut Vec<String>,
-    record: &serde_json::Map<String, serde_json::Value>,
-    collection: &str,
-    index: usize,
-    field: &str,
-    max_len: usize,
-) {
-    match record.get(field).and_then(serde_json::Value::as_str) {
-        Some(text) if !text.trim().is_empty() && text.len() <= max_len => {}
-        Some(_) => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} must be non-empty text under {max_len} characters"
-        )),
-        None => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} is required"
-        )),
-    }
-}
-
-fn review_self_patch_unit(
-    reasons: &mut Vec<String>,
-    record: &serde_json::Map<String, serde_json::Value>,
-    collection: &str,
-    index: usize,
-    field: &str,
-) {
-    match record.get(field).and_then(serde_json::Value::as_f64) {
-        Some(value) if (0.0..=1.0).contains(&value) => {}
-        Some(_) => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} must be between 0 and 1"
-        )),
-        None => reasons.push(format!(
-            "selfPatch {collection}[{index}].{field} is required"
-        )),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1403,6 +1104,9 @@ mod tests {
         }));
     }
 }
+use crate::agent_memory::AgentSelfPatch;
+use crate::agent_memory::decode_agent_self_patch;
+use crate::agent_memory::review_agent_self_patch_contract;
 use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
 use codex_protocol::protocol::EpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;

@@ -366,15 +366,45 @@ pub fn review_agent_self_patch(
         }
     };
 
-    if !patch_value.is_object() {
-        reasons.push("selfPatch must be a JSON object".to_string());
+    match decode_agent_self_patch(patch_value) {
+        Ok(patch) => reasons.extend(review_agent_self_patch_contract(&target_agent_id, &patch)),
+        Err(reason) => reasons.push(reason),
     }
 
-    let patch: AgentSelfPatch = serde_json::from_value(patch_value.clone()).unwrap_or_default();
-    if patch.agent_id.as_deref() != Some(target_agent_id.as_str()) {
+    AgentMemoryReview {
+        status: if reasons.is_empty() {
+            "accepted"
+        } else {
+            "rejected"
+        }
+        .to_string(),
+        target_agent_id,
+        target_role_id: role_id.to_string(),
+        target_store: store_path.display().to_string(),
+        reasons,
+        applied: None,
+    }
+}
+
+pub(crate) fn decode_agent_self_patch(
+    patch_value: &Value,
+) -> std::result::Result<AgentSelfPatch, String> {
+    if !patch_value.is_object() {
+        return Err("selfPatch must be a JSON object".to_string());
+    }
+    serde_json::from_value(patch_value.clone())
+        .map_err(|err| format!("selfPatch is not a valid AgentSelfPatch document: {err}"))
+}
+
+pub(crate) fn review_agent_self_patch_contract(
+    expected_agent_id: &str,
+    patch: &AgentSelfPatch,
+) -> Vec<String> {
+    let mut reasons = Vec::new();
+    if patch.agent_id.as_deref() != Some(expected_agent_id) {
         reasons.push(format!(
             "selfPatch agentId {:?} does not match this lane; expected {:?}",
-            patch.agent_id, target_agent_id
+            patch.agent_id, expected_agent_id
         ));
     }
     match patch.reason.as_deref() {
@@ -384,17 +414,15 @@ pub fn review_agent_self_patch(
         ),
     }
 
-    if let Some(object) = patch_value.as_object() {
-        for key in object.keys() {
-            if forbidden_patch_field(key) {
-                reasons.push(format!(
-                    "selfPatch field {key:?} is project truth or authority; use the proper Epiphany control surface instead"
-                ));
-            } else if !allowed_patch_field(key) {
-                reasons.push(format!(
-                    "selfPatch field {key:?} is not part of the bounded memory mutation contract"
-                ));
-            }
+    for key in patch.extra.keys() {
+        if forbidden_patch_field(key) {
+            reasons.push(format!(
+                "selfPatch field {key:?} is project truth or authority; use the proper Epiphany control surface instead"
+            ));
+        } else if !allowed_patch_field(key) {
+            reasons.push(format!(
+                "selfPatch field {key:?} is not part of the bounded memory mutation contract"
+            ));
         }
     }
 
@@ -431,19 +459,7 @@ pub fn review_agent_self_patch(
         );
     }
 
-    AgentMemoryReview {
-        status: if reasons.is_empty() {
-            "accepted"
-        } else {
-            "rejected"
-        }
-        .to_string(),
-        target_agent_id,
-        target_role_id: role_id.to_string(),
-        target_store: store_path.display().to_string(),
-        reasons,
-        applied: None,
-    }
+    reasons
 }
 
 pub fn apply_agent_self_patch(

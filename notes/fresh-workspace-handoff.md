@@ -366,23 +366,29 @@ that change what the next agent should believe.
 
 Do not continue implementation automatically from a rehydrate-only request.
 
-The next real move is Codex starvation, not outward bridge work. The first
-bounded slice is:
+The next real move remains Codex starvation, not outward bridge work. The
+inventory and ledger now exist:
 
-1. create `notes/codex-auth-spine-inventory.md`
-2. inventory the minimum vendored Codex path required for OpenAI subscription
-   auth, account/session refresh, model provider config, model request
-   construction, streaming response handling, and rate/error handling
-3. create `notes/json-contamination-ledger.md`
-4. classify every Epiphany-relevant `serde_json::Value`, `json!`,
-   `from_value`, and `to_value` as schema/wire descriptor, hostile ingress,
-   sealed forensic artifact, quarantine experiment, or heretek internal blob
-5. choose the first typed-document replacement target, preferably `selfPatch`
-   or worker launch/result cargo
+- `notes/codex-auth-spine-inventory.md` maps the minimal Codex auth/model-call
+  reliquary: `login` auth/token refresh, `codex-api` auth/provider/session and
+  Responses edge, `codex-client` transport, and the suspect current
+  `core/src/client.rs` orchestration.
+- `notes/json-contamination-ledger.md` classifies the major Epiphany JSON
+  contamination. Edge JSON is allowed only for schema/wire boundaries,
+  hostile ingress before typed parse, sealed forensic artifacts, or named
+  quarantine.
+- First cut landed: role-result `selfPatch` is now an internal typed
+  `AgentSelfPatch` document reviewed by the same contract used by agent memory.
+  The legacy app-server protocol projection serializes it back to JSON only at
+  the quarantine wall.
 
-Do not resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
-marketplace, or bridge expansion until this liberation pass has an inventory,
-ledger, and first cut. No fresh balcony on the contaminated cathedral.
+Continue with worker launch/result cargo. Replace
+`EpiphanyJobLaunchRequest.input_json` and `output_schema_json` with typed
+launch/result documents plus schema ids in `epiphany-core`, then make
+`codex_message_processor.rs` project those documents instead of assembling
+loose JSON blobs. Do not resume Rider, Unity, Aquarium, Face, dogfood,
+planning, app, skill, marketplace, or bridge expansion until this organ is
+being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
