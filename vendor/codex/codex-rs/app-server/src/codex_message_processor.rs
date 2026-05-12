@@ -521,6 +521,9 @@ use epiphany_core::EpiphanyInvalidationStatus as CoreEpiphanyInvalidationStatus;
 use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
 use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyJobsInput;
+use epiphany_core::EpiphanyPlanningStateStatus as CoreEpiphanyPlanningStateStatus;
+use epiphany_core::EpiphanyPlanningSummary as CoreEpiphanyPlanningSummary;
+use epiphany_core::EpiphanyPlanningView;
 use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis as CoreEpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
@@ -554,6 +557,7 @@ use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
 use epiphany_core::derive_freshness;
 use epiphany_core::derive_jobs;
+use epiphany_core::derive_planning_view;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::imagination_role_state_patch_policy_errors;
@@ -15543,71 +15547,44 @@ fn map_epiphany_planning(
     EpiphanyPlanningState,
     ThreadEpiphanyPlanningSummary,
 ) {
-    let Some(state) = state else {
-        return (
-            ThreadEpiphanyContextStateStatus::Missing,
-            None,
-            EpiphanyPlanningState::default(),
-            ThreadEpiphanyPlanningSummary {
-                capture_count: 0,
-                pending_capture_count: 0,
-                github_issue_capture_count: 0,
-                backlog_item_count: 0,
-                ready_backlog_item_count: 0,
-                roadmap_stream_count: 0,
-                objective_draft_count: 0,
-                draft_objective_count: 0,
-                active_objective: None,
-                note: "No authoritative Epiphany state exists for this thread.".to_string(),
-            },
-        );
-    };
+    let view = derive_planning_view(state);
+    map_core_epiphany_planning_view(view)
+}
 
-    let planning = state.planning.clone();
-    let pending_capture_count = planning
-        .captures
-        .iter()
-        .filter(|capture| capture.status == "new" || capture.status == "inbox")
-        .count() as u32;
-    let github_issue_capture_count = planning
-        .captures
-        .iter()
-        .filter(|capture| capture.source.kind == "github_issue")
-        .count() as u32;
-    let ready_backlog_item_count = planning
-        .backlog_items
-        .iter()
-        .filter(|item| item.status == "ready")
-        .count() as u32;
-    let draft_objective_count = planning
-        .objective_drafts
-        .iter()
-        .filter(|draft| draft.status == "draft")
-        .count() as u32;
-    let note = if planning.is_empty() {
-        "Planning substrate is present but empty; captures, backlog, roadmap streams, and objective drafts have not been written yet."
-    } else {
-        "Planning substrate is available. These records are planning state only until a human explicitly adopts an objective."
-    }
-    .to_string();
-
+fn map_core_epiphany_planning_view(
+    view: EpiphanyPlanningView,
+) -> (
+    ThreadEpiphanyContextStateStatus,
+    Option<u64>,
+    EpiphanyPlanningState,
+    ThreadEpiphanyPlanningSummary,
+) {
     (
-        ThreadEpiphanyContextStateStatus::Ready,
-        Some(state.revision),
-        planning.clone(),
-        ThreadEpiphanyPlanningSummary {
-            capture_count: planning.captures.len() as u32,
-            pending_capture_count,
-            github_issue_capture_count,
-            backlog_item_count: planning.backlog_items.len() as u32,
-            ready_backlog_item_count,
-            roadmap_stream_count: planning.roadmap_streams.len() as u32,
-            objective_draft_count: planning.objective_drafts.len() as u32,
-            draft_objective_count,
-            active_objective: state.objective.clone(),
-            note,
+        match view.state_status {
+            CoreEpiphanyPlanningStateStatus::Missing => ThreadEpiphanyContextStateStatus::Missing,
+            CoreEpiphanyPlanningStateStatus::Ready => ThreadEpiphanyContextStateStatus::Ready,
         },
+        view.state_revision,
+        view.planning,
+        map_core_epiphany_planning_summary(view.summary),
     )
+}
+
+fn map_core_epiphany_planning_summary(
+    summary: CoreEpiphanyPlanningSummary,
+) -> ThreadEpiphanyPlanningSummary {
+    ThreadEpiphanyPlanningSummary {
+        capture_count: summary.capture_count,
+        pending_capture_count: summary.pending_capture_count,
+        github_issue_capture_count: summary.github_issue_capture_count,
+        backlog_item_count: summary.backlog_item_count,
+        ready_backlog_item_count: summary.ready_backlog_item_count,
+        roadmap_stream_count: summary.roadmap_stream_count,
+        objective_draft_count: summary.objective_draft_count,
+        draft_objective_count: summary.draft_objective_count,
+        active_objective: summary.active_objective,
+        note: summary.note,
+    }
 }
 
 fn map_epiphany_graph_query(
