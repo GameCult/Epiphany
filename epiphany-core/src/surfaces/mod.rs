@@ -1,5 +1,6 @@
 mod coordinator;
 mod crrc;
+mod jobs;
 mod pressure;
 mod reorient;
 mod role_board;
@@ -28,6 +29,10 @@ pub use crrc::EpiphanyCrrcResultStatus;
 pub use crrc::EpiphanyCrrcSceneAction;
 pub use crrc::EpiphanyCrrcStateStatus;
 pub use crrc::recommend_crrc_action;
+pub use jobs::EpiphanyJobStatus;
+pub use jobs::EpiphanyJobView;
+pub use jobs::EpiphanyJobsInput;
+pub use jobs::derive_jobs;
 pub use pressure::EpiphanyPressure;
 pub use pressure::EpiphanyPressureBasis;
 pub use pressure::EpiphanyPressureLevel;
