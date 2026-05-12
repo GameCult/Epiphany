@@ -4430,6 +4430,14 @@ pub struct ThreadEpiphanyRoleFinding {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifact_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub runtime_result_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub runtime_job_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub open_questions: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence_gaps: Vec<String>,
@@ -4450,8 +4458,6 @@ pub struct ThreadEpiphanyRoleFinding {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub item_error: Option<String>,
-    #[ts(type = "unknown")]
-    pub raw_result: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
@@ -5212,14 +5218,20 @@ pub struct ThreadEpiphanyReorientFinding {
     pub frontier_node_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifact_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub runtime_result_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable)]
+    pub runtime_job_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub job_error: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub item_error: Option<String>,
-    #[ts(type = "unknown")]
-    pub raw_result: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]

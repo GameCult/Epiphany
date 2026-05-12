@@ -7871,6 +7871,63 @@
         ],
         "type": "object"
       },
+      "EpiphanyAcceptanceReceipt": {
+        "properties": {
+          "accepted_at": {
+            "type": "string"
+          },
+          "accepted_evidence_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "accepted_observation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "binding_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "result_id": {
+            "type": "string"
+          },
+          "role_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "surface": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted_at",
+          "binding_id",
+          "id",
+          "job_id",
+          "result_id",
+          "role_id",
+          "status",
+          "surface"
+        ],
+        "type": "object"
+      },
       "EpiphanyBacklogItem": {
         "properties": {
           "acceptance_sketch": {
@@ -8381,7 +8438,7 @@
       },
       "EpiphanyJobBackendKind": {
         "enum": [
-          "agent_jobs"
+          "heartbeat"
         ],
         "type": "string"
       },
@@ -8443,12 +8500,6 @@
             "type": "string"
           },
           "progress_note": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "runtime_agent_job_id": {
             "type": [
               "string",
               "null"
@@ -9091,6 +9142,55 @@
         ],
         "type": "object"
       },
+      "EpiphanyRuntimeLink": {
+        "properties": {
+          "authority_scope": {
+            "type": "string"
+          },
+          "binding_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "linked_graph_node_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linked_subgoal_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "role_id": {
+            "type": "string"
+          },
+          "runtime_job_id": {
+            "type": "string"
+          },
+          "runtime_result_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "surface": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "authority_scope",
+          "binding_id",
+          "id",
+          "role_id",
+          "runtime_job_id",
+          "surface"
+        ],
+        "type": "object"
+      },
       "EpiphanyScratchPad": {
         "properties": {
           "hypothesis": {
@@ -9147,6 +9247,12 @@
       },
       "EpiphanyThreadState": {
         "properties": {
+          "acceptance_receipts": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyAcceptanceReceipt"
+            },
+            "type": "array"
+          },
           "active_subgoal_id": {
             "type": [
               "string",
@@ -9259,6 +9365,12 @@
             "format": "uint64",
             "minimum": 0.0,
             "type": "integer"
+          },
+          "runtime_links": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyRuntimeLink"
+            },
+            "type": "array"
           },
           "scratch": {
             "anyOf": [
@@ -16120,12 +16232,6 @@
               "null"
             ]
           },
-          "runtimeAgentJobId": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "scope": {
             "type": "string"
           },
@@ -16144,7 +16250,7 @@
       },
       "ThreadEpiphanyJobBackendKind": {
         "enum": [
-          "agentJobs"
+          "heartbeat"
         ],
         "type": "string"
       },
@@ -16461,6 +16567,12 @@
       },
       "ThreadEpiphanyReorientFinding": {
         "properties": {
+          "artifactRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "checkpointStillValid": {
             "type": [
               "boolean",
@@ -16509,7 +16621,18 @@
               "null"
             ]
           },
-          "rawResult": true,
+          "runtimeJobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtimeResultId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "summary": {
             "type": [
               "string",
@@ -16517,9 +16640,6 @@
             ]
           }
         },
-        "required": [
-          "rawResult"
-        ],
         "type": "object"
       },
       "ThreadEpiphanyReorientReason": {
@@ -16780,6 +16900,12 @@
       },
       "ThreadEpiphanyRoleFinding": {
         "properties": {
+          "artifactRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "checkpointSummary": {
             "type": [
               "string",
@@ -16834,7 +16960,6 @@
             },
             "type": "array"
           },
-          "rawResult": true,
           "risks": {
             "items": {
               "type": "string"
@@ -16843,6 +16968,18 @@
           },
           "roleId": {
             "$ref": "#/definitions/v2/ThreadEpiphanyRoleId"
+          },
+          "runtimeJobId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "runtimeResultId": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "scratchSummary": {
             "type": [
@@ -16885,7 +17022,6 @@
           }
         },
         "required": [
-          "rawResult",
           "roleId"
         ],
         "type": "object"
@@ -17494,6 +17630,8 @@
           "scratch",
           "investigationCheckpoint",
           "jobBindings",
+          "acceptanceReceipts",
+          "runtimeLinks",
           "observations",
           "evidence",
           "churn",
@@ -17549,6 +17687,12 @@
       },
       "ThreadEpiphanyUpdatePatch": {
         "properties": {
+          "acceptanceReceipts": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyAcceptanceReceipt"
+            },
+            "type": "array"
+          },
           "activeSubgoalId": {
             "type": [
               "string",
@@ -17660,6 +17804,12 @@
                 "type": "null"
               }
             ]
+          },
+          "runtimeLinks": {
+            "items": {
+              "$ref": "#/definitions/v2/EpiphanyRuntimeLink"
+            },
+            "type": "array"
           },
           "scratch": {
             "anyOf": [

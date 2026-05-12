@@ -2263,6 +2263,9 @@ mod tests {
                     files_inspected: vec!["src/lib.rs".to_string()],
                     frontier_node_ids: vec!["state-spine".to_string()],
                     evidence_ids: vec!["ev-1".to_string()],
+                    artifact_refs: Vec::new(),
+                    runtime_result_id: Some("result-verification-1".to_string()),
+                    runtime_job_id: Some("backend-2".to_string()),
                     open_questions: Vec::new(),
                     evidence_gaps: Vec::new(),
                     risks: Vec::new(),
@@ -2271,11 +2274,6 @@ mod tests {
                     self_persistence: None,
                     job_error: None,
                     item_error: None,
-                    raw_result: json!({
-                        "verdict": "pass",
-                        "summary": "Evidence covers the bounded change.",
-                        "nextSafeMove": "Promote the verified patch."
-                    }),
                 }),
                 note: "Verification role specialist completed. Next safe move: Promote the verified patch."
                     .to_string(),
@@ -2320,11 +2318,8 @@ mod tests {
                         "filesInspected": ["src/lib.rs"],
                         "frontierNodeIds": ["state-spine"],
                         "evidenceIds": ["ev-1"],
-                        "rawResult": {
-                            "verdict": "pass",
-                            "summary": "Evidence covers the bounded change.",
-                            "nextSafeMove": "Promote the verified patch."
-                        }
+                        "runtimeResultId": "result-verification-1",
+                        "runtimeJobId": "backend-2"
                     },
                     "note": "Verification role specialist completed. Next safe move: Promote the verified patch."
                 }
@@ -2353,6 +2348,9 @@ mod tests {
             files_inspected: vec!["src/lib.rs".to_string()],
             frontier_node_ids: vec!["state-spine".to_string()],
             evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            runtime_result_id: Some("result-modeling-1".to_string()),
+            runtime_job_id: Some("backend-1".to_string()),
             open_questions: Vec::new(),
             evidence_gaps: Vec::new(),
             risks: Vec::new(),
@@ -2361,16 +2359,6 @@ mod tests {
             self_persistence: None,
             job_error: None,
             item_error: None,
-            raw_result: json!({
-                "verdict": "checkpoint-update-needed",
-                "summary": "Graph frontier should keep state-spine active.",
-                "nextSafeMove": "Accept the reviewed modeling patch.",
-                "statePatch": {
-                    "graphFrontier": {
-                        "active_node_ids": ["state-spine"]
-                    }
-                }
-            }),
         };
         let response = ClientResponse::ThreadEpiphanyRoleAccept {
             request_id: RequestId::Integer(10),
@@ -2425,19 +2413,11 @@ mod tests {
                         "nextSafeMove": "Accept the reviewed modeling patch.",
                         "filesInspected": ["src/lib.rs"],
                         "frontierNodeIds": ["state-spine"],
+                        "runtimeResultId": "result-modeling-1",
+                        "runtimeJobId": "backend-1",
                         "statePatch": {
                             "graphFrontier": {
                                 "active_node_ids": ["state-spine"]
-                            }
-                        },
-                        "rawResult": {
-                            "verdict": "checkpoint-update-needed",
-                            "summary": "Graph frontier should keep state-spine active.",
-                            "nextSafeMove": "Accept the reviewed modeling patch.",
-                            "statePatch": {
-                                "graphFrontier": {
-                                    "active_node_ids": ["state-spine"]
-                                }
                             }
                         }
                     }
@@ -3352,14 +3332,11 @@ mod tests {
                     files_inspected: vec!["src/lib.rs".to_string()],
                     frontier_node_ids: vec!["state-spine".to_string()],
                     evidence_ids: vec!["ev-1".to_string()],
+                    artifact_refs: Vec::new(),
+                    runtime_result_id: Some("result-reorient-1".to_string()),
+                    runtime_job_id: Some("backend-1".to_string()),
                     job_error: None,
                     item_error: None,
-                    raw_result: json!({
-                        "mode": "resume",
-                        "summary": "Checkpoint remains source-grounded.",
-                        "nextSafeMove": "Continue the read-back slice.",
-                        "checkpointStillValid": true
-                    }),
                 }),
                 note:
                     "Reorientation worker completed. Next safe move: Continue the read-back slice."
@@ -3405,12 +3382,8 @@ mod tests {
                         "filesInspected": ["src/lib.rs"],
                         "frontierNodeIds": ["state-spine"],
                         "evidenceIds": ["ev-1"],
-                        "rawResult": {
-                            "mode": "resume",
-                            "summary": "Checkpoint remains source-grounded.",
-                            "nextSafeMove": "Continue the read-back slice.",
-                            "checkpointStillValid": true
-                        }
+                        "runtimeResultId": "result-reorient-1",
+                        "runtimeJobId": "backend-1"
                     },
                     "note": "Reorientation worker completed. Next safe move: Continue the read-back slice."
                 }
@@ -3463,13 +3436,11 @@ mod tests {
                     files_inspected: Vec::new(),
                     frontier_node_ids: Vec::new(),
                     evidence_ids: Vec::new(),
+                    artifact_refs: Vec::new(),
+                    runtime_result_id: Some("result-reorient-1".to_string()),
+                    runtime_job_id: Some("backend-1".to_string()),
                     job_error: None,
                     item_error: None,
-                    raw_result: json!({
-                        "mode": "resume",
-                        "summary": "Checkpoint remains source-grounded.",
-                        "nextSafeMove": "Continue the bounded slice."
-                    }),
                 },
             },
         };
@@ -3508,11 +3479,8 @@ mod tests {
                         "summary": "Checkpoint remains source-grounded.",
                         "nextSafeMove": "Continue the bounded slice.",
                         "checkpointStillValid": true,
-                        "rawResult": {
-                            "mode": "resume",
-                            "summary": "Checkpoint remains source-grounded.",
-                            "nextSafeMove": "Continue the bounded slice."
-                        }
+                        "runtimeResultId": "result-reorient-1",
+                        "runtimeJobId": "backend-1"
                     }
                 }
             }),

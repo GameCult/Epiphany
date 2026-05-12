@@ -93,12 +93,6 @@
             "null"
           ]
         },
-        "runtimeAgentJobId": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
         "scope": {
           "type": "string"
         },
@@ -117,7 +111,7 @@
     },
     "ThreadEpiphanyJobBackendKind": {
       "enum": [
-        "agentJobs"
+        "heartbeat"
       ],
       "type": "string"
     },

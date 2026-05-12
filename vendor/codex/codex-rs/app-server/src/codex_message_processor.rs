@@ -13629,9 +13629,11 @@ fn map_epiphany_reorient_finding(
         files_inspected: json_string_array_field(&raw_result, "filesInspected"),
         frontier_node_ids: json_string_array_field(&raw_result, "frontierNodeIds"),
         evidence_ids: json_string_array_field(&raw_result, "evidenceIds"),
+        artifact_refs: json_string_array_field(&raw_result, "artifactRefs"),
+        runtime_result_id: json_string_field(&raw_result, "runtimeResultId"),
+        runtime_job_id: json_string_field(&raw_result, "runtimeJobId"),
         job_error,
         item_error,
-        raw_result,
     }
 }
 
@@ -13672,6 +13674,9 @@ fn map_epiphany_role_finding(
         files_inspected: json_string_array_field(&raw_result, "filesInspected"),
         frontier_node_ids: json_string_array_field(&raw_result, "frontierNodeIds"),
         evidence_ids: json_string_array_field(&raw_result, "evidenceIds"),
+        artifact_refs: json_string_array_field(&raw_result, "artifactRefs"),
+        runtime_result_id: json_string_field(&raw_result, "runtimeResultId"),
+        runtime_job_id: json_string_field(&raw_result, "runtimeJobId"),
         open_questions: json_string_array_field(&raw_result, "openQuestions"),
         evidence_gaps: json_string_array_field(&raw_result, "evidenceGaps"),
         risks: json_string_array_field(&raw_result, "risks"),
@@ -13680,7 +13685,6 @@ fn map_epiphany_role_finding(
         self_persistence,
         job_error,
         item_error,
-        raw_result,
     }
 }
 
@@ -14129,19 +14133,19 @@ fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
 }
 
 fn role_finding_runtime_result_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
-    json_string_field(&finding.raw_result, "runtimeResultId")
+    finding.runtime_result_id.clone()
 }
 
 fn role_finding_runtime_job_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
-    json_string_field(&finding.raw_result, "runtimeJobId")
+    finding.runtime_job_id.clone()
 }
 
 fn reorient_finding_runtime_result_id(finding: &ThreadEpiphanyReorientFinding) -> Option<String> {
-    json_string_field(&finding.raw_result, "runtimeResultId")
+    finding.runtime_result_id.clone()
 }
 
 fn reorient_finding_runtime_job_id(finding: &ThreadEpiphanyReorientFinding) -> Option<String> {
-    json_string_field(&finding.raw_result, "runtimeJobId")
+    finding.runtime_job_id.clone()
 }
 
 fn json_string_array_field(value: &serde_json::Value, key: &str) -> Vec<String> {
@@ -15735,11 +15739,10 @@ async fn load_completed_epiphany_role_finding(
 fn parse_role_finding_state_patch(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> Result<ThreadEpiphanyUpdatePatch, String> {
-    let Some(value) = finding.raw_result.get("statePatch") else {
-        return Err("completed role finding did not include a reviewable statePatch".to_string());
-    };
-    serde_json::from_value(value.clone())
-        .map_err(|err| format!("completed role finding has invalid statePatch: {err}"))
+    finding
+        .state_patch
+        .clone()
+        .ok_or_else(|| "completed role finding did not include a reviewable statePatch".to_string())
 }
 
 fn imagination_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
@@ -20206,6 +20209,9 @@ mod tests {
             "filesInspected": ["src/a.rs", "src/b.rs"],
             "frontierNodeIds": ["node-1"],
             "evidenceIds": ["ev-1"],
+            "artifactRefs": ["artifact:reorient"],
+            "runtimeResultId": "result-1",
+            "runtimeJobId": "job-1",
             "extra": {"left": "intact"}
         });
 
@@ -20228,8 +20234,10 @@ mod tests {
         assert_eq!(finding.files_inspected, vec!["src/a.rs", "src/b.rs"]);
         assert_eq!(finding.frontier_node_ids, vec!["node-1"]);
         assert_eq!(finding.evidence_ids, vec!["ev-1"]);
+        assert_eq!(finding.artifact_refs, vec!["artifact:reorient"]);
+        assert_eq!(finding.runtime_result_id.as_deref(), Some("result-1"));
+        assert_eq!(finding.runtime_job_id.as_deref(), Some("job-1"));
         assert_eq!(finding.job_error.as_deref(), Some("job warning"));
-        assert_eq!(finding.raw_result, raw_result);
     }
 
     #[test]
@@ -21635,7 +21643,10 @@ mod tests {
             "nextSafeMove": "Promote after human review.",
             "filesInspected": ["src/lib.rs"],
             "frontierNodeIds": ["node-1"],
-            "evidenceIds": ["ev-1"]
+            "evidenceIds": ["ev-1"],
+            "artifactRefs": ["artifact:role"],
+            "runtimeResultId": "result-1",
+            "runtimeJobId": "job-1"
         });
 
         let finding = map_epiphany_role_finding(
@@ -21654,7 +21665,9 @@ mod tests {
         assert_eq!(finding.files_inspected, vec!["src/lib.rs"]);
         assert_eq!(finding.frontier_node_ids, vec!["node-1"]);
         assert_eq!(finding.evidence_ids, vec!["ev-1"]);
-        assert_eq!(finding.raw_result, raw_result);
+        assert_eq!(finding.artifact_refs, vec!["artifact:role"]);
+        assert_eq!(finding.runtime_result_id.as_deref(), Some("result-1"));
+        assert_eq!(finding.runtime_job_id.as_deref(), Some("job-1"));
     }
 
     #[test]
@@ -22260,14 +22273,11 @@ mod tests {
             files_inspected: vec!["src/lib.rs".to_string()],
             frontier_node_ids: vec!["node-1".to_string()],
             evidence_ids: Vec::new(),
+            artifact_refs: Vec::new(),
+            runtime_result_id: None,
+            runtime_job_id: None,
             job_error: None,
             item_error: None,
-            raw_result: serde_json::json!({
-                "mode": "regather",
-                "summary": "The old checkpoint no longer matches source.",
-                "nextSafeMove": "Re-read src/lib.rs before editing.",
-                "checkpointStillValid": false
-            }),
         };
 
         let scratch = reorient_finding_scratch("reorient-worker", &finding);
