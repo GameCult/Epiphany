@@ -1100,15 +1100,14 @@ The app-server handler:
 
 `map_epiphany_jobs`:
 
-1. returns base `retrieval-index`, `graph-remap`, `verification`, and `specialist-work` slots from retrieval state, frontier/churn state, invariant counts, and the no-scheduler boundary.
+1. returns only the base `retrieval-index`, `graph-remap`, and `verification` slots from retrieval state, frontier/churn state, and invariant counts; specialist rows appear only from explicit durable bindings/runtime links.
 2. copies active subgoal and graph-node ids into relevant slots so clients can link progress pressure back to the visible model.
-3. if authoritative typed state carries `jobBindings`, matches those bindings onto the base slots by id/kind and reflects launcher identity, authority scope, backend kind, and backend job id.
-4. when a binding targets the old `agent_jobs` backend, projects it as sealed instead of crawling SQLite for live progress.
-5. when the state runtime is unavailable or the referenced backend job is missing, blocks the bound slot with an explicit reason instead of pretending the work is running.
+3. if authoritative typed state carries `jobBindings`, matches those bindings onto the base slots by id/kind or appends a bound specialist row, reflecting launcher identity, authority scope, and runtime job id.
+4. when a binding has no runtime link or runtime job id, leaves it idle or blocked from binding state instead of inventing lifecycle.
 
 ### Output
 
-The response is a typed progress board derived from the current Epiphany machine. The jobs projection reflects retrieval while graph/remap and verification stay blocked when state is missing, ready-state jobs expose revision identity and launcher metadata, heartbeat-backed specialist bindings project as pending heartbeat turns, stale `agent_jobs` bindings are sealed instead of crawled through SQLite, no `thread/epiphany/stateUpdated` or `thread/epiphany/jobsUpdated` notification is emitted by the read, and final thread state revision does not change.
+The response is a typed progress board derived from the current Epiphany machine. The jobs projection reflects retrieval while graph/remap and verification stay blocked when state is missing, ready-state jobs expose revision identity and launcher metadata, runtime-linked specialist bindings project as pending runtime turns, no placeholder specialist row is fabricated, no `thread/epiphany/stateUpdated` or `thread/epiphany/jobsUpdated` notification is emitted by the read, and final thread state revision does not change.
 
 ### Invariant
 

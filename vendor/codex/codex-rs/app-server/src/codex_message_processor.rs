@@ -6350,7 +6350,14 @@ impl CodexMessageProcessor {
         let job = map_epiphany_jobs(Some(&epiphany_state), None)
             .into_iter()
             .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
-            .unwrap_or_else(map_epiphany_specialist_job);
+            .unwrap_or_else(|| {
+                epiphany_blocked_state_job(
+                    EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+                    ThreadEpiphanyJobKind::Specialist,
+                    "reorient-guided checkpoint regather",
+                    "Launched reorientation worker was not reflected in Epiphany state.",
+                )
+            });
 
         self.outgoing
             .send_response(
@@ -7370,7 +7377,14 @@ impl CodexMessageProcessor {
         let job = map_epiphany_jobs(Some(&epiphany_state), None)
             .into_iter()
             .find(|job| job.id == binding_id)
-            .unwrap_or_else(|| map_epiphany_specialist_job());
+            .unwrap_or_else(|| {
+                epiphany_blocked_state_job(
+                    &binding_id,
+                    ThreadEpiphanyJobKind::Specialist,
+                    "role-scoped specialist work",
+                    "Interrupted job binding was not reflected in Epiphany state.",
+                )
+            });
 
         self.outgoing
             .send_response(
@@ -18138,7 +18152,6 @@ fn map_epiphany_jobs(
         map_epiphany_index_job(state, retrieval_override),
         map_epiphany_remap_job(state),
         map_epiphany_verification_job(state),
-        map_epiphany_specialist_job(),
     ];
 
     let Some(state) = state else {
@@ -18436,30 +18449,6 @@ fn map_epiphany_verification_job(state: Option<&EpiphanyThreadState>) -> ThreadE
         active_thread_ids: Vec::new(),
         linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
         linked_graph_node_ids: epiphany_active_graph_node_ids(Some(state)),
-    }
-}
-
-fn map_epiphany_specialist_job() -> ThreadEpiphanyJob {
-    ThreadEpiphanyJob {
-        id: "specialist-work".to_string(),
-        kind: ThreadEpiphanyJobKind::Specialist,
-        scope: "role-scoped specialist work".to_string(),
-        owner_role: "epiphany-harness".to_string(),
-        launcher_job_id: None,
-        authority_scope: None,
-        backend_job_id: None,
-        status: ThreadEpiphanyJobStatus::Unavailable,
-        items_processed: None,
-        items_total: None,
-        progress_note: None,
-        last_checkpoint_at_unix_seconds: None,
-        blocking_reason: Some(
-            "Specialist scheduling is not landed; this slot prevents clients from inventing private scheduler state."
-                .to_string(),
-        ),
-        active_thread_ids: Vec::new(),
-        linked_subgoal_ids: Vec::new(),
-        linked_graph_node_ids: Vec::new(),
     }
 }
 
@@ -23238,7 +23227,7 @@ mod tests {
 
         let jobs = map_epiphany_jobs(Some(&state), None);
 
-        assert_eq!(jobs.len(), 4);
+        assert_eq!(jobs.len(), 3);
         assert_eq!(jobs[0].id, "retrieval-index");
         assert_eq!(jobs[0].kind, ThreadEpiphanyJobKind::Indexing);
         assert_eq!(jobs[0].status, ThreadEpiphanyJobStatus::Needed);
@@ -23258,10 +23247,8 @@ mod tests {
         assert_eq!(jobs[2].items_processed, Some(1));
         assert_eq!(jobs[2].items_total, Some(2));
 
-        assert_eq!(jobs[3].id, "specialist-work");
-        assert_eq!(jobs[3].kind, ThreadEpiphanyJobKind::Specialist);
-        assert_eq!(jobs[3].status, ThreadEpiphanyJobStatus::Unavailable);
-        assert!(jobs[3].blocking_reason.is_some());
+        assert_eq!(jobs.len(), 3);
+        assert!(!jobs.iter().any(|job| job.id == "specialist-work"));
     }
 
     #[test]
