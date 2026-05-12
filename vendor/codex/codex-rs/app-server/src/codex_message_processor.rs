@@ -552,6 +552,19 @@ use epiphany_core::EpiphanyRoleSelfPersistenceStatus as CoreEpiphanyRoleSelfPers
 use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
+use epiphany_core::EpiphanyScene as CoreEpiphanyScene;
+use epiphany_core::EpiphanySceneAction as CoreEpiphanySceneAction;
+use epiphany_core::EpiphanySceneChurn as CoreEpiphanySceneChurn;
+use epiphany_core::EpiphanySceneGraph as CoreEpiphanySceneGraph;
+use epiphany_core::EpiphanySceneInput;
+use epiphany_core::EpiphanySceneInvestigationCheckpoint as CoreEpiphanySceneInvestigationCheckpoint;
+use epiphany_core::EpiphanySceneRecord as CoreEpiphanySceneRecord;
+use epiphany_core::EpiphanySceneRecords as CoreEpiphanySceneRecords;
+use epiphany_core::EpiphanySceneRetrieval as CoreEpiphanySceneRetrieval;
+use epiphany_core::EpiphanySceneSource as CoreEpiphanySceneSource;
+use epiphany_core::EpiphanySceneStateStatus as CoreEpiphanySceneStateStatus;
+use epiphany_core::EpiphanySceneStatusCount as CoreEpiphanySceneStatusCount;
+use epiphany_core::EpiphanySceneSubgoal as CoreEpiphanySceneSubgoal;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
@@ -560,6 +573,7 @@ use epiphany_core::derive_jobs;
 use epiphany_core::derive_planning_view;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
+use epiphany_core::derive_scene;
 use epiphany_core::imagination_role_state_patch_policy_errors;
 use epiphany_core::interpret_role_finding;
 use epiphany_core::modeling_role_state_patch_policy_errors;
@@ -569,7 +583,6 @@ use epiphany_core::recommend_reorientation;
 use epiphany_core::render_role_board_note;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_core::select_coordinator_automation_action;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::Error as IoError;
@@ -4714,12 +4727,15 @@ impl CodexMessageProcessor {
                     let pressure = pressure.clone()?;
                     let decision = reorient_decision.clone()?;
                     let recommendation = recommendation.clone()?;
-                    let available_actions = epiphany_scene_available_actions(
+                    let available_actions = derive_scene(EpiphanySceneInput {
+                        state: thread.epiphany_state.as_ref(),
                         loaded,
-                        thread.epiphany_state.is_some(),
-                        checkpoint_present,
-                        reorient_job.is_some(),
-                    );
+                        reorient_binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+                    })
+                    .available_actions
+                    .into_iter()
+                    .map(map_core_epiphany_scene_action)
+                    .collect();
                     let note = format!(
                         "{} Result status: {:?}. {}",
                         recommendation.reason, reorient_result_status, reorient_result_note
@@ -12495,126 +12511,184 @@ async fn client_visible_live_thread_epiphany_state(
 }
 
 fn map_epiphany_scene(state: Option<&EpiphanyThreadState>, loaded: bool) -> ThreadEpiphanyScene {
-    let source = if loaded {
-        ThreadEpiphanySceneSource::Live
-    } else {
-        ThreadEpiphanySceneSource::Stored
-    };
-    let available_actions = epiphany_scene_available_actions(
+    map_core_epiphany_scene(derive_scene(EpiphanySceneInput {
+        state,
         loaded,
-        state.is_some(),
-        state
-            .and_then(|state| state.investigation_checkpoint.as_ref())
-            .is_some(),
-        state.is_some_and(|state| {
-            state
-                .job_bindings
-                .iter()
-                .any(|binding| binding.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
-        }),
-    );
-    let Some(state) = state else {
-        return ThreadEpiphanyScene {
-            state_status: ThreadEpiphanySceneStateStatus::Missing,
-            source,
-            revision: None,
-            objective: None,
-            active_subgoal: None,
-            subgoals: Vec::new(),
-            invariant_status_counts: Vec::new(),
-            graph: ThreadEpiphanySceneGraph::default(),
-            retrieval: None,
-            investigation_checkpoint: None,
-            observations: ThreadEpiphanySceneRecords::default(),
-            evidence: ThreadEpiphanySceneRecords::default(),
-            churn: None,
-            available_actions,
-        };
-    };
+        reorient_binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+    }))
+}
 
-    let subgoals = map_epiphany_scene_subgoals(state);
-    let active_subgoal = subgoals.iter().find(|subgoal| subgoal.active).cloned();
-
+fn map_core_epiphany_scene(scene: CoreEpiphanyScene) -> ThreadEpiphanyScene {
     ThreadEpiphanyScene {
-        state_status: ThreadEpiphanySceneStateStatus::Ready,
-        source,
-        revision: Some(state.revision),
-        objective: state.objective.clone(),
-        active_subgoal,
-        subgoals,
-        invariant_status_counts: status_counts(
-            state.invariants.iter().map(|item| item.status.as_str()),
-        ),
-        graph: map_epiphany_scene_graph(state),
-        retrieval: state
-            .retrieval
-            .as_ref()
-            .map(|retrieval| ThreadEpiphanySceneRetrieval {
-                workspace_root: retrieval.workspace_root.clone(),
-                status: retrieval.status,
-                semantic_available: retrieval.semantic_available,
-                index_revision: retrieval.index_revision.clone(),
-                indexed_file_count: retrieval.indexed_file_count,
-                indexed_chunk_count: retrieval.indexed_chunk_count,
-                shard_count: retrieval.shards.len() as u32,
-                dirty_path_count: retrieval.dirty_paths.len() as u32,
-            }),
-        investigation_checkpoint: state.investigation_checkpoint.as_ref().map(|checkpoint| {
-            ThreadEpiphanySceneInvestigationCheckpoint {
-                checkpoint_id: checkpoint.checkpoint_id.clone(),
-                kind: checkpoint.kind.clone(),
-                disposition: checkpoint.disposition,
-                focus: checkpoint.focus.clone(),
-                summary: checkpoint.summary.clone(),
-                next_action: checkpoint.next_action.clone(),
-                captured_at_turn_id: checkpoint.captured_at_turn_id.clone(),
-                open_question_count: checkpoint.open_questions.len() as u32,
-                code_ref_count: checkpoint.code_refs.len() as u32,
-                evidence_count: checkpoint.evidence_ids.len() as u32,
-            }
-        }),
-        observations: ThreadEpiphanySceneRecords {
-            total_count: state.observations.len() as u32,
-            latest: state
-                .observations
-                .iter()
-                .take(EPIPHANY_SCENE_RECORD_LIMIT)
-                .map(|observation| ThreadEpiphanySceneRecord {
-                    id: observation.id.clone(),
-                    kind: observation.source_kind.clone(),
-                    status: observation.status.clone(),
-                    summary: observation.summary.clone(),
-                    code_ref_count: observation.code_refs.len() as u32,
-                })
-                .collect(),
+        state_status: match scene.state_status {
+            CoreEpiphanySceneStateStatus::Missing => ThreadEpiphanySceneStateStatus::Missing,
+            CoreEpiphanySceneStateStatus::Ready => ThreadEpiphanySceneStateStatus::Ready,
         },
-        evidence: ThreadEpiphanySceneRecords {
-            total_count: state.recent_evidence.len() as u32,
-            latest: state
-                .recent_evidence
-                .iter()
-                .take(EPIPHANY_SCENE_RECORD_LIMIT)
-                .map(|evidence| ThreadEpiphanySceneRecord {
-                    id: evidence.id.clone(),
-                    kind: evidence.kind.clone(),
-                    status: evidence.status.clone(),
-                    summary: evidence.summary.clone(),
-                    code_ref_count: evidence.code_refs.len() as u32,
-                })
-                .collect(),
+        source: match scene.source {
+            CoreEpiphanySceneSource::Stored => ThreadEpiphanySceneSource::Stored,
+            CoreEpiphanySceneSource::Live => ThreadEpiphanySceneSource::Live,
         },
-        churn: state.churn.as_ref().map(|churn| ThreadEpiphanySceneChurn {
-            understanding_status: churn.understanding_status.clone(),
-            diff_pressure: churn.diff_pressure.clone(),
-            graph_freshness: churn.graph_freshness.clone(),
-            warning: churn.warning.clone(),
-            unexplained_writes: churn.unexplained_writes,
-        }),
-        available_actions,
+        revision: scene.revision,
+        objective: scene.objective,
+        active_subgoal: scene.active_subgoal.map(map_core_epiphany_scene_subgoal),
+        subgoals: scene
+            .subgoals
+            .into_iter()
+            .map(map_core_epiphany_scene_subgoal)
+            .collect(),
+        invariant_status_counts: scene
+            .invariant_status_counts
+            .into_iter()
+            .map(map_core_epiphany_scene_status_count)
+            .collect(),
+        graph: map_core_epiphany_scene_graph(scene.graph),
+        retrieval: scene.retrieval.map(map_core_epiphany_scene_retrieval),
+        investigation_checkpoint: scene
+            .investigation_checkpoint
+            .map(map_core_epiphany_scene_investigation_checkpoint),
+        observations: map_core_epiphany_scene_records(scene.observations),
+        evidence: map_core_epiphany_scene_records(scene.evidence),
+        churn: scene.churn.map(map_core_epiphany_scene_churn),
+        available_actions: scene
+            .available_actions
+            .into_iter()
+            .map(map_core_epiphany_scene_action)
+            .collect(),
     }
 }
 
-const EPIPHANY_SCENE_RECORD_LIMIT: usize = 5;
+fn map_core_epiphany_scene_action(action: CoreEpiphanySceneAction) -> ThreadEpiphanySceneAction {
+    match action {
+        CoreEpiphanySceneAction::Index => ThreadEpiphanySceneAction::Index,
+        CoreEpiphanySceneAction::Retrieve => ThreadEpiphanySceneAction::Retrieve,
+        CoreEpiphanySceneAction::Distill => ThreadEpiphanySceneAction::Distill,
+        CoreEpiphanySceneAction::Context => ThreadEpiphanySceneAction::Context,
+        CoreEpiphanySceneAction::Planning => ThreadEpiphanySceneAction::Planning,
+        CoreEpiphanySceneAction::GraphQuery => ThreadEpiphanySceneAction::GraphQuery,
+        CoreEpiphanySceneAction::Jobs => ThreadEpiphanySceneAction::Jobs,
+        CoreEpiphanySceneAction::Roles => ThreadEpiphanySceneAction::Roles,
+        CoreEpiphanySceneAction::Coordinator => ThreadEpiphanySceneAction::Coordinator,
+        CoreEpiphanySceneAction::RoleLaunch => ThreadEpiphanySceneAction::RoleLaunch,
+        CoreEpiphanySceneAction::RoleResult => ThreadEpiphanySceneAction::RoleResult,
+        CoreEpiphanySceneAction::RoleAccept => ThreadEpiphanySceneAction::RoleAccept,
+        CoreEpiphanySceneAction::JobLaunch => ThreadEpiphanySceneAction::JobLaunch,
+        CoreEpiphanySceneAction::JobInterrupt => ThreadEpiphanySceneAction::JobInterrupt,
+        CoreEpiphanySceneAction::Freshness => ThreadEpiphanySceneAction::Freshness,
+        CoreEpiphanySceneAction::Pressure => ThreadEpiphanySceneAction::Pressure,
+        CoreEpiphanySceneAction::Reorient => ThreadEpiphanySceneAction::Reorient,
+        CoreEpiphanySceneAction::Crrc => ThreadEpiphanySceneAction::Crrc,
+        CoreEpiphanySceneAction::ReorientLaunch => ThreadEpiphanySceneAction::ReorientLaunch,
+        CoreEpiphanySceneAction::ReorientResult => ThreadEpiphanySceneAction::ReorientResult,
+        CoreEpiphanySceneAction::ReorientAccept => ThreadEpiphanySceneAction::ReorientAccept,
+        CoreEpiphanySceneAction::Propose => ThreadEpiphanySceneAction::Propose,
+        CoreEpiphanySceneAction::Promote => ThreadEpiphanySceneAction::Promote,
+        CoreEpiphanySceneAction::Update => ThreadEpiphanySceneAction::Update,
+    }
+}
+
+fn map_core_epiphany_scene_subgoal(
+    subgoal: CoreEpiphanySceneSubgoal,
+) -> ThreadEpiphanySceneSubgoal {
+    ThreadEpiphanySceneSubgoal {
+        id: subgoal.id,
+        title: subgoal.title,
+        status: subgoal.status,
+        summary: subgoal.summary,
+        active: subgoal.active,
+    }
+}
+
+fn map_core_epiphany_scene_status_count(
+    count: CoreEpiphanySceneStatusCount,
+) -> ThreadEpiphanySceneStatusCount {
+    ThreadEpiphanySceneStatusCount {
+        status: count.status,
+        count: count.count,
+    }
+}
+
+fn map_core_epiphany_scene_graph(graph: CoreEpiphanySceneGraph) -> ThreadEpiphanySceneGraph {
+    ThreadEpiphanySceneGraph {
+        architecture_node_count: graph.architecture_node_count,
+        architecture_edge_count: graph.architecture_edge_count,
+        dataflow_node_count: graph.dataflow_node_count,
+        dataflow_edge_count: graph.dataflow_edge_count,
+        link_count: graph.link_count,
+        active_node_ids: graph.active_node_ids,
+        active_edge_ids: graph.active_edge_ids,
+        open_question_count: graph.open_question_count,
+        open_gap_count: graph.open_gap_count,
+        dirty_paths: graph.dirty_paths,
+        checkpoint_id: graph.checkpoint_id,
+        checkpoint_summary: graph.checkpoint_summary,
+    }
+}
+
+fn map_core_epiphany_scene_retrieval(
+    retrieval: CoreEpiphanySceneRetrieval,
+) -> ThreadEpiphanySceneRetrieval {
+    ThreadEpiphanySceneRetrieval {
+        workspace_root: retrieval.workspace_root,
+        status: retrieval.status,
+        semantic_available: retrieval.semantic_available,
+        index_revision: retrieval.index_revision,
+        indexed_file_count: retrieval.indexed_file_count,
+        indexed_chunk_count: retrieval.indexed_chunk_count,
+        shard_count: retrieval.shard_count,
+        dirty_path_count: retrieval.dirty_path_count,
+    }
+}
+
+fn map_core_epiphany_scene_investigation_checkpoint(
+    checkpoint: CoreEpiphanySceneInvestigationCheckpoint,
+) -> ThreadEpiphanySceneInvestigationCheckpoint {
+    ThreadEpiphanySceneInvestigationCheckpoint {
+        checkpoint_id: checkpoint.checkpoint_id,
+        kind: checkpoint.kind,
+        disposition: checkpoint.disposition,
+        focus: checkpoint.focus,
+        summary: checkpoint.summary,
+        next_action: checkpoint.next_action,
+        captured_at_turn_id: checkpoint.captured_at_turn_id,
+        open_question_count: checkpoint.open_question_count,
+        code_ref_count: checkpoint.code_ref_count,
+        evidence_count: checkpoint.evidence_count,
+    }
+}
+
+fn map_core_epiphany_scene_records(
+    records: CoreEpiphanySceneRecords,
+) -> ThreadEpiphanySceneRecords {
+    ThreadEpiphanySceneRecords {
+        total_count: records.total_count,
+        latest: records
+            .latest
+            .into_iter()
+            .map(map_core_epiphany_scene_record)
+            .collect(),
+    }
+}
+
+fn map_core_epiphany_scene_record(record: CoreEpiphanySceneRecord) -> ThreadEpiphanySceneRecord {
+    ThreadEpiphanySceneRecord {
+        id: record.id,
+        kind: record.kind,
+        status: record.status,
+        summary: record.summary,
+        code_ref_count: record.code_ref_count,
+    }
+}
+
+fn map_core_epiphany_scene_churn(churn: CoreEpiphanySceneChurn) -> ThreadEpiphanySceneChurn {
+    ThreadEpiphanySceneChurn {
+        understanding_status: churn.understanding_status,
+        diff_pressure: churn.diff_pressure,
+        graph_freshness: churn.graph_freshness,
+        warning: churn.warning,
+        unexplained_writes: churn.unexplained_writes,
+    }
+}
+
 const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
 const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
 const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker";
@@ -12623,51 +12697,6 @@ const EPIPHANY_VERIFICATION_ROLE_BINDING_ID: &str = "verification-review-worker"
 const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
 const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
-
-fn epiphany_scene_available_actions(
-    loaded: bool,
-    state_present: bool,
-    checkpoint_present: bool,
-    reorient_binding_present: bool,
-) -> Vec<ThreadEpiphanySceneAction> {
-    if !loaded {
-        return Vec::new();
-    }
-
-    let mut actions = vec![
-        ThreadEpiphanySceneAction::Index,
-        ThreadEpiphanySceneAction::Retrieve,
-        ThreadEpiphanySceneAction::Distill,
-        ThreadEpiphanySceneAction::Context,
-        ThreadEpiphanySceneAction::Planning,
-        ThreadEpiphanySceneAction::GraphQuery,
-        ThreadEpiphanySceneAction::Jobs,
-        ThreadEpiphanySceneAction::Roles,
-        ThreadEpiphanySceneAction::Coordinator,
-        ThreadEpiphanySceneAction::RoleLaunch,
-        ThreadEpiphanySceneAction::RoleResult,
-        ThreadEpiphanySceneAction::RoleAccept,
-        ThreadEpiphanySceneAction::JobLaunch,
-        ThreadEpiphanySceneAction::Freshness,
-        ThreadEpiphanySceneAction::Pressure,
-        ThreadEpiphanySceneAction::Reorient,
-        ThreadEpiphanySceneAction::Crrc,
-    ];
-    if checkpoint_present {
-        actions.push(ThreadEpiphanySceneAction::ReorientLaunch);
-    }
-    if reorient_binding_present {
-        actions.push(ThreadEpiphanySceneAction::ReorientResult);
-        actions.push(ThreadEpiphanySceneAction::ReorientAccept);
-    }
-    actions.push(ThreadEpiphanySceneAction::Update);
-    if state_present {
-        actions.push(ThreadEpiphanySceneAction::JobInterrupt);
-        actions.push(ThreadEpiphanySceneAction::Propose);
-        actions.push(ThreadEpiphanySceneAction::Promote);
-    }
-    actions
-}
 
 fn epiphany_role_binding_id(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
     match role_id {
@@ -15325,50 +15354,6 @@ fn map_protocol_reorient_reason(
     }
 }
 
-fn map_epiphany_scene_subgoals(state: &EpiphanyThreadState) -> Vec<ThreadEpiphanySceneSubgoal> {
-    let active_id = state.active_subgoal_id.as_deref();
-    state
-        .subgoals
-        .iter()
-        .map(|subgoal| ThreadEpiphanySceneSubgoal {
-            id: subgoal.id.clone(),
-            title: subgoal.title.clone(),
-            status: subgoal.status.clone(),
-            summary: subgoal.summary.clone(),
-            active: active_id == Some(subgoal.id.as_str()),
-        })
-        .collect()
-}
-
-fn map_epiphany_scene_graph(state: &EpiphanyThreadState) -> ThreadEpiphanySceneGraph {
-    let frontier = state.graph_frontier.as_ref();
-    let checkpoint = state.graph_checkpoint.as_ref();
-    ThreadEpiphanySceneGraph {
-        architecture_node_count: state.graphs.architecture.nodes.len() as u32,
-        architecture_edge_count: state.graphs.architecture.edges.len() as u32,
-        dataflow_node_count: state.graphs.dataflow.nodes.len() as u32,
-        dataflow_edge_count: state.graphs.dataflow.edges.len() as u32,
-        link_count: state.graphs.links.len() as u32,
-        active_node_ids: frontier
-            .map(|frontier| frontier.active_node_ids.clone())
-            .unwrap_or_default(),
-        active_edge_ids: frontier
-            .map(|frontier| frontier.active_edge_ids.clone())
-            .unwrap_or_default(),
-        open_question_count: frontier
-            .map(|frontier| frontier.open_question_ids.len() as u32)
-            .unwrap_or_default(),
-        open_gap_count: frontier
-            .map(|frontier| frontier.open_gap_ids.len() as u32)
-            .unwrap_or_default(),
-        dirty_paths: frontier
-            .map(|frontier| frontier.dirty_paths.clone())
-            .unwrap_or_default(),
-        checkpoint_id: checkpoint.map(|checkpoint| checkpoint.checkpoint_id.clone()),
-        checkpoint_summary: checkpoint.and_then(|checkpoint| checkpoint.summary.clone()),
-    }
-}
-
 fn map_epiphany_context(
     state: Option<&EpiphanyThreadState>,
     params: &ThreadEpiphanyContextParams,
@@ -16307,19 +16292,6 @@ fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<St
         .and_then(|state| state.graph_frontier.as_ref())
         .map(|frontier| frontier.active_node_ids.clone())
         .unwrap_or_default()
-}
-
-fn status_counts<'a>(
-    statuses: impl Iterator<Item = &'a str>,
-) -> Vec<ThreadEpiphanySceneStatusCount> {
-    let mut counts = BTreeMap::<String, u32>::new();
-    for status in statuses {
-        *counts.entry(status.to_string()).or_default() += 1;
-    }
-    counts
-        .into_iter()
-        .map(|(status, count)| ThreadEpiphanySceneStatusCount { status, count })
-        .collect()
 }
 
 fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatch) -> bool {

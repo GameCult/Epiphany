@@ -7,6 +7,7 @@ mod pressure;
 mod reorient;
 mod role_board;
 mod role_result;
+mod scene;
 
 pub use coordinator::EpiphanyCoordinatorAction;
 pub use coordinator::EpiphanyCoordinatorAutomationAction;
@@ -88,6 +89,20 @@ pub use role_result::interpret_role_finding;
 pub use role_result::modeling_role_state_patch_policy_errors;
 pub use role_result::review_role_self_patch;
 pub use role_result::role_self_memory_target;
+pub use scene::EpiphanyScene;
+pub use scene::EpiphanySceneAction;
+pub use scene::EpiphanySceneChurn;
+pub use scene::EpiphanySceneGraph;
+pub use scene::EpiphanySceneInput;
+pub use scene::EpiphanySceneInvestigationCheckpoint;
+pub use scene::EpiphanySceneRecord;
+pub use scene::EpiphanySceneRecords;
+pub use scene::EpiphanySceneRetrieval;
+pub use scene::EpiphanySceneSource;
+pub use scene::EpiphanySceneStateStatus;
+pub use scene::EpiphanySceneStatusCount;
+pub use scene::EpiphanySceneSubgoal;
+pub use scene::derive_scene;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyViewInput {
