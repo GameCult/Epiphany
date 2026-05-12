@@ -68,7 +68,7 @@ data_flow:
     - move historical proof to git, commits, smoke artifacts, or distilled evidence rather than plan prose
 
 active_subgoals:
-  - Top priority: execute the teardown/rebuild plan in `notes/epiphany-architectural-teardown.md` and `notes/epiphany-ideal-architecture-rebuild-plan.md`; rebuild/extract the Epiphany app-server control plane before adding outward features. Move Epiphany view/coordinator policy into `epiphany-core`, make runtime-spine the sole job/result lifecycle authority, replace summary-string acceptance identity with typed receipts, reduce API surface proliferation into a lens-based view surface, remove normal public raw-result leakage, and type or quarantine heartbeat cognition blobs.
+  - The May 2026 teardown/rebuild migration in `notes/epiphany-ideal-architecture-rebuild-plan.md` is closed unless a concrete regression reopens it. Preserve the new foundation: Epiphany view/coordinator policy lives in `epiphany-core`, runtime-spine owns job/result lifecycle identity through `runtime_links`, duplicate acceptance is receipt-keyed, public findings stay typed/sealed, view expansion requires a core contract, and app-server remains routing/adaptation rather than a second policy throne.
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
   - Preserve read-only boundaries for retrieve, distill, propose, freshness, context, graphQuery, roleResult, reorientResult, and the canonical view lenses for scene, jobs, roles, planning, pressure, reorient, crrc, and coordinator.
   - Keep the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention ready for the next bridge-equipped dogfood run.
