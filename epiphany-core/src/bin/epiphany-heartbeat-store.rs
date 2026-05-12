@@ -520,6 +520,10 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         && routine["routine"]["bridge"]["decision"]["reason"]
             .as_str()
             .is_some_and(|reason| !reason.is_empty())
+        && routine_status["cognitionQuarantine"]["schema_version"]
+            == "epiphany.agent_heartbeat_cognition.v0"
+        && routine_status["cognitionQuarantine"]["latestRunId"].as_str()
+            == routine["routine"]["runId"].as_str()
         && routine_status["participants"]
             .as_array()
             .and_then(|participants| {

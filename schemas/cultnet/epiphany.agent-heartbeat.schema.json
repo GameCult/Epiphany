@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
   "title": "Epiphany Heartbeat State",
-  "description": "Typed heartbeat store entry for initiative, rumination, and routine physiology.",
+  "description": "Stable typed heartbeat scheduler state for initiative, readiness, pacing, pending turns, and history. Experimental cognition thought-weather lives in epiphany.agent-heartbeat-cognition.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -36,38 +36,6 @@
         "type": "object",
         "additionalProperties": true
       }
-    },
-    "sleepCycle": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "memoryResonance": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "incubation": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "thoughtLanes": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "bridge": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "candidateInterventions": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "appraisals": {
-      "type": "object",
-      "additionalProperties": true
-    },
-    "reactions": {
-      "type": "object",
-      "additionalProperties": true
     },
     "extra": {
       "type": "object",

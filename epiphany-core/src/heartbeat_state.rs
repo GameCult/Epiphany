@@ -17,6 +17,9 @@ use std::path::Path;
 pub const HEARTBEAT_STATE_TYPE: &str = "epiphany.agent_heartbeat";
 pub const HEARTBEAT_STATE_KEY: &str = "default";
 pub const HEARTBEAT_STATE_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat.v0";
+pub const HEARTBEAT_COGNITION_TYPE: &str = "epiphany.agent_heartbeat_cognition";
+pub const HEARTBEAT_COGNITION_KEY: &str = "default";
+pub const HEARTBEAT_COGNITION_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat_cognition.v0";
 pub const HEARTBEAT_STATUS_SCHEMA_VERSION: &str = "epiphany.agent_heartbeat_status.v0";
 pub const INITIATIVE_SCHEMA_VERSION: &str = "ghostlight.initiative_schedule.v0";
 pub const VOID_ROUTINE_SCHEMA_VERSION: &str = "epiphany.void_routine.v0";
@@ -57,24 +60,84 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub participants: Vec<HeartbeatParticipant>,
     #[cultcache(key = 6)]
     pub history: Vec<HeartbeatHistoryEvent>,
-    #[cultcache(key = 7, default)]
-    pub sleep_cycle: Option<Value>,
-    #[cultcache(key = 8, default)]
-    pub memory_resonance: Option<Value>,
-    #[cultcache(key = 9, default)]
-    pub incubation: Option<Value>,
-    #[cultcache(key = 10, default)]
-    pub thought_lanes: Option<Value>,
-    #[cultcache(key = 11, default)]
-    pub bridge: Option<Value>,
-    #[cultcache(key = 12, default)]
-    pub candidate_interventions: Option<Value>,
-    #[cultcache(key = 13, default)]
-    pub appraisals: Option<Value>,
-    #[cultcache(key = 14, default)]
-    pub reactions: Option<Value>,
     #[cultcache(key = 15, default)]
     pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.agent_heartbeat_cognition",
+    schema = "EpiphanyHeartbeatCognitionEntry"
+)]
+pub struct EpiphanyHeartbeatCognitionEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub updated_at: String,
+    #[cultcache(key = 2, default)]
+    pub latest_run_id: Option<String>,
+    #[cultcache(key = 3, default)]
+    pub latest_artifact_ref: Option<String>,
+    #[cultcache(key = 4, default)]
+    pub source: Option<String>,
+    #[cultcache(key = 5, default)]
+    pub sleep_cycle: Option<Value>,
+    #[cultcache(key = 6, default)]
+    pub memory_resonance: Option<Value>,
+    #[cultcache(key = 7, default)]
+    pub incubation: Option<Value>,
+    #[cultcache(key = 8, default)]
+    pub thought_lanes: Option<Value>,
+    #[cultcache(key = 9, default)]
+    pub bridge: Option<Value>,
+    #[cultcache(key = 10, default)]
+    pub candidate_interventions: Option<Value>,
+    #[cultcache(key = 11, default)]
+    pub appraisals: Option<Value>,
+    #[cultcache(key = 12, default)]
+    pub reactions: Option<Value>,
+    #[cultcache(key = 13, default)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.agent_heartbeat",
+    schema = "EpiphanyHeartbeatStateEntry"
+)]
+struct LegacyHeartbeatStateWithCognition {
+    #[cultcache(key = 0)]
+    schema_version: String,
+    #[cultcache(key = 1)]
+    target_heartbeat_rate: f64,
+    #[cultcache(key = 2)]
+    scene_clock: f64,
+    #[cultcache(key = 3)]
+    selection_policy: HeartbeatSelectionPolicy,
+    #[cultcache(key = 4)]
+    pacing_policy: HeartbeatPacingPolicy,
+    #[cultcache(key = 5)]
+    participants: Vec<HeartbeatParticipant>,
+    #[cultcache(key = 6)]
+    history: Vec<HeartbeatHistoryEvent>,
+    #[cultcache(key = 7, default)]
+    sleep_cycle: Option<Value>,
+    #[cultcache(key = 8, default)]
+    memory_resonance: Option<Value>,
+    #[cultcache(key = 9, default)]
+    incubation: Option<Value>,
+    #[cultcache(key = 10, default)]
+    thought_lanes: Option<Value>,
+    #[cultcache(key = 11, default)]
+    bridge: Option<Value>,
+    #[cultcache(key = 12, default)]
+    candidate_interventions: Option<Value>,
+    #[cultcache(key = 13, default)]
+    appraisals: Option<Value>,
+    #[cultcache(key = 14, default)]
+    reactions: Option<Value>,
+    #[cultcache(key = 15, default)]
+    extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -257,6 +320,16 @@ struct HeartbeatAction {
 pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     let mut cache = CultCache::new();
     cache.register_entry_type::<EpiphanyHeartbeatStateEntry>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
+    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
+    cache.pull_all_backing_stores()?;
+    Ok(cache)
+}
+
+fn legacy_heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
+    let mut cache = CultCache::new();
+    cache.register_entry_type::<LegacyHeartbeatStateWithCognition>()?;
+    cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
     cache.pull_all_backing_stores()?;
     Ok(cache)
@@ -276,6 +349,90 @@ pub fn write_heartbeat_state_entry(
     validate_heartbeat_state(state)?;
     let mut cache = heartbeat_state_cache(store_path)?;
     cache.put(HEARTBEAT_STATE_KEY, state)
+}
+
+pub fn load_heartbeat_cognition_entry(
+    store_path: impl AsRef<Path>,
+) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
+    let store_path = store_path.as_ref();
+    let cache = heartbeat_state_cache(store_path)?;
+    if let Some(cognition) = cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
+    {
+        return Ok(Some(cognition));
+    }
+    let legacy_cache = legacy_heartbeat_state_cache(store_path)?;
+    let Some(legacy) =
+        legacy_cache.get::<LegacyHeartbeatStateWithCognition>(HEARTBEAT_STATE_KEY)?
+    else {
+        return Ok(None);
+    };
+    legacy_heartbeat_cognition_entry(legacy)
+}
+
+pub fn write_heartbeat_cognition_entry(
+    store_path: impl AsRef<Path>,
+    cognition: &EpiphanyHeartbeatCognitionEntry,
+) -> Result<EpiphanyHeartbeatCognitionEntry> {
+    validate_heartbeat_cognition(cognition)?;
+    let mut cache = heartbeat_state_cache(store_path)?;
+    cache.put(HEARTBEAT_COGNITION_KEY, cognition)
+}
+
+pub fn validate_heartbeat_cognition(cognition: &EpiphanyHeartbeatCognitionEntry) -> Result<()> {
+    if cognition.schema_version != HEARTBEAT_COGNITION_SCHEMA_VERSION {
+        return Err(anyhow!(
+            "heartbeat cognition schema_version is {:?}, expected {:?}",
+            cognition.schema_version,
+            HEARTBEAT_COGNITION_SCHEMA_VERSION
+        ));
+    }
+    Ok(())
+}
+
+fn legacy_heartbeat_cognition_entry(
+    legacy: LegacyHeartbeatStateWithCognition,
+) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
+    if legacy.sleep_cycle.is_none()
+        && legacy.memory_resonance.is_none()
+        && legacy.incubation.is_none()
+        && legacy.thought_lanes.is_none()
+        && legacy.bridge.is_none()
+        && legacy.candidate_interventions.is_none()
+        && legacy.appraisals.is_none()
+        && legacy.reactions.is_none()
+    {
+        return Ok(None);
+    }
+    let routine = legacy.extra.get("voidRoutine");
+    let latest_run_id = routine
+        .and_then(|value| value.get("lastRunId"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let source = routine
+        .and_then(|value| value.get("source"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    let updated_at = routine
+        .and_then(|value| value.get("lastRunAt"))
+        .and_then(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(now_iso);
+    Ok(Some(EpiphanyHeartbeatCognitionEntry {
+        schema_version: HEARTBEAT_COGNITION_SCHEMA_VERSION.to_string(),
+        updated_at,
+        latest_run_id,
+        latest_artifact_ref: None,
+        source,
+        sleep_cycle: legacy.sleep_cycle,
+        memory_resonance: legacy.memory_resonance,
+        incubation: legacy.incubation,
+        thought_lanes: legacy.thought_lanes,
+        bridge: legacy.bridge,
+        candidate_interventions: legacy.candidate_interventions,
+        appraisals: legacy.appraisals,
+        reactions: legacy.reactions,
+        extra: BTreeMap::new(),
+    }))
 }
 
 pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<()> {
@@ -363,14 +520,6 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
             .map(|role_id| default_participant(role_id))
             .collect(),
         history: Vec::new(),
-        sleep_cycle: None,
-        memory_resonance: None,
-        incubation: None,
-        thought_lanes: None,
-        bridge: None,
-        candidate_interventions: None,
-        appraisals: None,
-        reactions: None,
         extra: BTreeMap::new(),
     }
 }
@@ -446,6 +595,7 @@ pub fn heartbeat_status_projection(
             "availableActions": ["init", "tick", "pump", "complete", "status"],
         }));
     };
+    let cognition = load_heartbeat_cognition_entry(store_path)?;
     let history: Vec<_> = state
         .history
         .iter()
@@ -471,14 +621,15 @@ pub fn heartbeat_status_projection(
         "latestEvent": history.last().cloned(),
         "history": history,
         "latestArtifacts": latest_json_artifacts(artifact_dir, artifact_limit),
-        "sleepCycle": state.sleep_cycle,
-        "memoryResonance": state.memory_resonance,
-        "incubation": state.incubation,
-        "thoughtLanes": state.thought_lanes,
-        "bridge": state.bridge,
-        "candidateInterventions": state.candidate_interventions,
-        "appraisals": state.appraisals,
-        "reactions": state.reactions,
+        "cognitionQuarantine": cognition.as_ref().map(heartbeat_cognition_status_json),
+        "sleepCycle": cognition.as_ref().and_then(|entry| entry.sleep_cycle.clone()),
+        "memoryResonance": cognition.as_ref().and_then(|entry| entry.memory_resonance.clone()),
+        "incubation": cognition.as_ref().and_then(|entry| entry.incubation.clone()),
+        "thoughtLanes": cognition.as_ref().and_then(|entry| entry.thought_lanes.clone()),
+        "bridge": cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.clone()),
+        "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.clone()),
+        "reactions": cognition.as_ref().and_then(|entry| entry.reactions.clone()),
         "adaptivePacing": state.extra.get("adaptivePacing"),
         "availableActions": ["init", "tick", "pump", "complete", "status", "routine"],
     }))
@@ -493,28 +644,45 @@ pub fn run_void_routine_store(
     let mut state =
         load_heartbeat_state_entry(store_path)?.unwrap_or_else(|| default_heartbeat_state(1.0));
     patch_missing_participants(&mut state);
+    let previous_cognition = load_heartbeat_cognition_entry(store_path)?;
 
     let memory_records = collect_role_memory_records(options.agent_store.as_deref())?;
     let appraisal_profiles = collect_role_appraisal_profiles(options.agent_store.as_deref())?;
     apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     let resonance = build_memory_resonance(&memory_records);
     let incubation = build_incubation(
-        &state.incubation,
-        &state.bridge,
-        &state.candidate_interventions,
+        &previous_cognition.as_ref().and_then(|entry| entry.incubation.clone()),
+        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.candidate_interventions.clone()),
         &resonance,
         &memory_records,
     );
     let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
-    let bridge = build_thought_bridge(&state.bridge, &thought_lanes, &resonance, &incubation);
+    let bridge = build_thought_bridge(
+        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &thought_lanes,
+        &resonance,
+        &incubation,
+    );
     let candidate_interventions = build_candidate_interventions(&bridge, &incubation);
     let appraisals =
         build_agent_appraisals(&appraisal_profiles, &thought_lanes, &incubation, &bridge);
     let reactions = build_agent_reactions(&appraisals, &bridge);
     apply_mood_timing_from_appraisals(&mut state, &appraisals);
-    let sleep_cycle =
-        update_sleep_cycle(state.sleep_cycle.as_ref(), &incubation, options.allow_dream);
+    let sleep_cycle = update_sleep_cycle(
+        previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.sleep_cycle.as_ref()),
+        &incubation,
+        options.allow_dream,
+    );
     let run_id = format!("epiphany-void-routine-{}", now_stamp());
+    let artifact_dir = artifact_dir.as_ref();
+    fs::create_dir_all(artifact_dir)
+        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
+    let artifact_path = artifact_dir.join(format!("{run_id}.routine.json"));
     let routine = serde_json::json!({
         "schema_version": VOID_ROUTINE_SCHEMA_VERSION,
         "runId": run_id,
@@ -540,30 +708,27 @@ pub fn run_void_routine_store(
         ],
     });
 
-    state.sleep_cycle = Some(sleep_cycle);
-    state.memory_resonance = Some(resonance);
-    state.incubation = Some(incubation);
-    state.thought_lanes = Some(thought_lanes);
-    state.bridge = Some(bridge);
-    state.candidate_interventions = Some(candidate_interventions);
-    state.appraisals = Some(appraisals);
-    state.reactions = Some(reactions);
-    state.extra.insert(
-        "voidRoutine".to_string(),
-        serde_json::json!({
-            "lastRunId": run_id,
-            "lastRunAt": now_iso(),
-            "source": options.source,
-            "referenceLineage": "VoidBot reference; Epiphany-native implementation.",
-        }),
-    );
-    write_heartbeat_state_entry(store_path, &state)?;
-
-    let artifact_dir = artifact_dir.as_ref();
-    fs::create_dir_all(artifact_dir)
-        .with_context(|| format!("failed to create {}", artifact_dir.display()))?;
-    let artifact_path = artifact_dir.join(format!("{run_id}.routine.json"));
     write_json_artifact(&artifact_path, &routine)?;
+    write_heartbeat_cognition_entry(
+        store_path,
+        &EpiphanyHeartbeatCognitionEntry {
+            schema_version: HEARTBEAT_COGNITION_SCHEMA_VERSION.to_string(),
+            updated_at: now_iso(),
+            latest_run_id: Some(run_id),
+            latest_artifact_ref: Some(artifact_path.display().to_string()),
+            source: Some(options.source),
+            sleep_cycle: Some(sleep_cycle),
+            memory_resonance: Some(resonance),
+            incubation: Some(incubation),
+            thought_lanes: Some(thought_lanes),
+            bridge: Some(bridge),
+            candidate_interventions: Some(candidate_interventions),
+            appraisals: Some(appraisals),
+            reactions: Some(reactions),
+            extra: BTreeMap::new(),
+        },
+    )?;
+    write_heartbeat_state_entry(store_path, &state)?;
 
     Ok(serde_json::json!({
         "ok": true,
@@ -589,7 +754,9 @@ pub fn tick_heartbeat_store(
         let appraisal_profiles = collect_role_appraisal_profiles(Some(agent_store))?;
         apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     }
-    if let Some(appraisals) = state.appraisals.clone() {
+    if let Some(appraisals) =
+        load_heartbeat_cognition_entry(store_path)?.and_then(|entry| entry.appraisals)
+    {
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
     }
     let result = tick_once(&mut state, &options)?;
@@ -634,7 +801,9 @@ pub fn pump_heartbeat_store(
         let appraisal_profiles = collect_role_appraisal_profiles(Some(agent_store))?;
         apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     }
-    if let Some(appraisals) = state.appraisals.clone() {
+    if let Some(appraisals) =
+        load_heartbeat_cognition_entry(store_path)?.and_then(|entry| entry.appraisals)
+    {
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
     }
 
@@ -1468,6 +1637,19 @@ fn cultcache_status(store_path: &Path) -> Value {
         "modifiedAt": modified_at,
         "entryType": HEARTBEAT_STATE_TYPE,
         "entryKey": HEARTBEAT_STATE_KEY,
+        "cognitionEntryType": HEARTBEAT_COGNITION_TYPE,
+        "cognitionEntryKey": HEARTBEAT_COGNITION_KEY,
+    })
+}
+
+fn heartbeat_cognition_status_json(cognition: &EpiphanyHeartbeatCognitionEntry) -> Value {
+    serde_json::json!({
+        "schema_version": cognition.schema_version,
+        "updatedAt": cognition.updated_at,
+        "latestRunId": cognition.latest_run_id,
+        "latestArtifactRef": cognition.latest_artifact_ref,
+        "source": cognition.source,
+        "contract": "Experimental Void/Ghostlight thought-weather is quarantined outside stable heartbeat scheduling state. Status may project it for inspection, but scheduler policy owns only typed timing physiology.",
     })
 }
 

@@ -79,6 +79,17 @@
       "path": "epiphany.agent-heartbeat.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat-cognition.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.agent_heartbeat_cognition.v0",
+      "documentType": "epiphany.agent_heartbeat_cognition",
+      "title": "Epiphany Heartbeat Cognition Quarantine",
+      "path": "epiphany.agent-heartbeat-cognition.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.state-ledger.schema.json",
       "kind": "document_payload",
       "wireContracts": [

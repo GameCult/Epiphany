@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat-cognition.schema.json",
+  "title": "Epiphany Heartbeat Cognition Quarantine",
+  "description": "Experimental Void/Ghostlight routine thought-weather kept outside stable heartbeat scheduler state. These values are inspectable receipts, not project truth or scheduling authority.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "latestRunId": {
+      "type": ["string", "null"]
+    },
+    "latestArtifactRef": {
+      "type": ["string", "null"]
+    },
+    "source": {
+      "type": ["string", "null"]
+    },
+    "sleepCycle": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "memoryResonance": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "incubation": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "thoughtLanes": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "bridge": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "candidateInterventions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "appraisals": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reactions": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "extra": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "updatedAt"
+  ]
+}
