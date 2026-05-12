@@ -517,13 +517,21 @@ use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis as CoreEpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use epiphany_core::EpiphanyPressureStatus as CoreEpiphanyPressureStatus;
+use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
+use epiphany_core::EpiphanyRoleBoardInput;
+use epiphany_core::EpiphanyRoleBoardJob;
+use epiphany_core::EpiphanyRoleBoardJobStatus;
+use epiphany_core::EpiphanyRoleBoardLane;
+use epiphany_core::EpiphanyRoleBoardPlanningSummary;
 use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::coordinator_automation_action;
 use epiphany_core::derive_pressure_view;
+use epiphany_core::derive_role_board;
 use epiphany_core::recommend_coordinator_action;
 use epiphany_core::recommend_crrc_action;
+use epiphany_core::render_role_board_note;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_core::select_coordinator_automation_action;
 use std::collections::BTreeMap;
@@ -14910,305 +14918,160 @@ fn map_epiphany_roles(
     result_status: ThreadEpiphanyReorientResultStatus,
     reorient_job: Option<&ThreadEpiphanyJob>,
 ) -> Vec<ThreadEpiphanyRoleLane> {
-    let state_present = state.is_some();
+    let planning = state.map(|state| &state.planning);
     let checkpoint = state.and_then(|state| state.investigation_checkpoint.as_ref());
-    let imagination_jobs = jobs
-        .iter()
-        .filter(|job| job.id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID)
-        .cloned()
-        .collect::<Vec<_>>();
-    let imagination_bound_job = imagination_jobs
-        .iter()
-        .find(|job| job.id == EPIPHANY_IMAGINATION_ROLE_BINDING_ID);
-    let imagination_has_bound_job = imagination_bound_job.is_some();
-    let imagination_status = imagination_bound_job
-        .as_ref()
-        .map(|job| map_epiphany_job_status_to_role_status(job.status))
-        .unwrap_or_else(|| map_epiphany_imagination_role_status(state));
-    let imagination_note = imagination_bound_job
-        .as_ref()
-        .and_then(|job| {
-            job.blocking_reason
-                .clone()
-                .or_else(|| job.progress_note.clone())
-        })
-        .unwrap_or_else(|| render_epiphany_imagination_role_note(state));
-    let imagination_recommended_action = if imagination_has_bound_job {
-        Some(ThreadEpiphanySceneAction::RoleResult)
-    } else if state_present {
-        Some(ThreadEpiphanySceneAction::RoleLaunch)
-    } else {
-        Some(ThreadEpiphanySceneAction::Update)
-    };
-    let modeling_jobs = jobs
-        .iter()
-        .filter(|job| {
-            matches!(
-                job.id.as_str(),
-                EPIPHANY_MODELING_ROLE_BINDING_ID | "graph-remap"
-            )
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    let modeling_bound_job = modeling_jobs
-        .iter()
-        .find(|job| job.id == EPIPHANY_MODELING_ROLE_BINDING_ID);
-    let modeling_has_bound_job = modeling_bound_job.is_some();
-    let modeling_status = map_epiphany_modeling_role_status(
-        checkpoint.is_some(),
-        modeling_bound_job.or_else(|| modeling_jobs.first()),
-    );
-    let modeling_recommended_action = if modeling_has_bound_job {
-        Some(ThreadEpiphanySceneAction::RoleResult)
-    } else if state_present {
-        Some(ThreadEpiphanySceneAction::RoleLaunch)
-    } else {
-        Some(ThreadEpiphanySceneAction::Update)
-    };
-    let verification_jobs = jobs
-        .iter()
-        .filter(|job| {
-            matches!(
-                job.id.as_str(),
-                EPIPHANY_VERIFICATION_ROLE_BINDING_ID | "verification"
-            )
-        })
-        .cloned()
-        .collect::<Vec<_>>();
-    let verification_bound_job = verification_jobs
-        .iter()
-        .find(|job| job.id == EPIPHANY_VERIFICATION_ROLE_BINDING_ID);
-    let verification_has_bound_job = verification_bound_job.is_some();
-    let verification_primary_job = verification_bound_job.or_else(|| verification_jobs.first());
-    let verification_status = verification_primary_job
-        .as_ref()
-        .map(|job| map_epiphany_job_status_to_role_status(job.status))
-        .unwrap_or(ThreadEpiphanyRoleStatus::Unavailable);
-    let verification_note = verification_primary_job
-        .as_ref()
-        .and_then(|job| {
-            job.blocking_reason
-                .clone()
-                .or_else(|| job.progress_note.clone())
-        })
-        .unwrap_or_else(|| {
-            "Review evidence, worker findings, and verifier results before promotion.".to_string()
-        });
-    let verification_recommended_action = if verification_has_bound_job {
-        Some(ThreadEpiphanySceneAction::RoleResult)
-    } else if state_present {
-        Some(ThreadEpiphanySceneAction::RoleLaunch)
-    } else {
-        None
-    };
-    let reorientation_jobs = reorient_job.cloned().into_iter().collect::<Vec<_>>();
-
-    vec![
-        ThreadEpiphanyRoleLane {
-            id: ThreadEpiphanyRoleId::Implementation,
-            title: "Implementation".to_string(),
-            owner_role: "coding-agent".to_string(),
-            status: if recommendation.action == ThreadEpiphanyCrrcAction::Continue {
-                ThreadEpiphanyRoleStatus::Ready
-            } else {
-                ThreadEpiphanyRoleStatus::Blocked
-            },
-            note: if recommendation.action == ThreadEpiphanyCrrcAction::Continue {
-                "Continue the bounded coding task.".to_string()
-            } else {
-                format!("Wait for CRRC action: {:?}.", recommendation.action)
-            },
-            jobs: jobs
-                .iter()
-                .filter(|job| {
-                    matches!(
-                        job.owner_role.as_str(),
-                        "coding-agent" | "implementation" | "epiphany-implementation"
-                    )
-                })
-                .cloned()
-                .collect(),
-            authority_scopes: Vec::new(),
-            recommended_action: if recommendation.action == ThreadEpiphanyCrrcAction::Continue {
-                None
-            } else {
-                recommendation.recommended_scene_action
-            },
-        },
-        ThreadEpiphanyRoleLane {
-            id: ThreadEpiphanyRoleId::Imagination,
-            title: "Imagination / Planning".to_string(),
-            owner_role: EPIPHANY_IMAGINATION_OWNER_ROLE.to_string(),
-            status: imagination_status,
-            note: imagination_note,
-            jobs: imagination_jobs,
-            authority_scopes: vec![
-                "thread/epiphany/roleLaunch".to_string(),
-                "thread/epiphany/roleResult".to_string(),
-                "thread/epiphany/roleAccept".to_string(),
-                "thread/epiphany/update".to_string(),
-            ],
-            recommended_action: imagination_recommended_action,
-        },
-        ThreadEpiphanyRoleLane {
-            id: ThreadEpiphanyRoleId::Modeling,
-            title: "Modeling / Checkpoint".to_string(),
-            owner_role: "epiphany-modeler".to_string(),
-            status: modeling_status,
-            note: render_epiphany_modeling_role_note(checkpoint, decision),
-            jobs: modeling_jobs,
-            authority_scopes: vec![
-                "thread/epiphany/roleLaunch".to_string(),
-                "thread/epiphany/roleResult".to_string(),
-                "thread/epiphany/roleAccept".to_string(),
-                "thread/epiphany/update".to_string(),
-            ],
-            recommended_action: modeling_recommended_action,
-        },
-        ThreadEpiphanyRoleLane {
-            id: ThreadEpiphanyRoleId::Verification,
-            title: "Verification / Review".to_string(),
-            owner_role: "epiphany-verifier".to_string(),
-            status: verification_status,
-            note: verification_note,
-            jobs: verification_jobs,
-            authority_scopes: vec![
-                "thread/epiphany/roleLaunch".to_string(),
-                "thread/epiphany/roleResult".to_string(),
-                "thread/epiphany/roleAccept".to_string(),
-                "thread/epiphany/distill".to_string(),
-                "thread/epiphany/propose".to_string(),
-                "thread/epiphany/promote".to_string(),
-            ],
-            recommended_action: verification_recommended_action,
-        },
-        ThreadEpiphanyRoleLane {
-            id: ThreadEpiphanyRoleId::Reorientation,
-            title: "Reorientation".to_string(),
-            owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
-            status: map_epiphany_reorientation_role_status(recommendation.action, result_status),
-            note: format!(
-                "{:?} verdict, result {:?}, pressure {:?}. {}",
-                decision.action, result_status, pressure.level, recommendation.reason
-            ),
-            jobs: reorientation_jobs,
-            authority_scopes: vec![
-                "thread/epiphany/reorientLaunch".to_string(),
-                "thread/epiphany/reorientResult".to_string(),
-                "thread/epiphany/reorientAccept".to_string(),
-            ],
-            recommended_action: recommendation.recommended_scene_action,
-        },
-    ]
-}
-
-fn map_epiphany_imagination_role_status(
-    state: Option<&EpiphanyThreadState>,
-) -> ThreadEpiphanyRoleStatus {
-    let Some(state) = state else {
-        return ThreadEpiphanyRoleStatus::Blocked;
-    };
-    if state.planning.is_empty() {
-        ThreadEpiphanyRoleStatus::Needed
-    } else {
-        ThreadEpiphanyRoleStatus::Ready
-    }
-}
-
-fn render_epiphany_imagination_role_note(state: Option<&EpiphanyThreadState>) -> String {
-    let Some(state) = state else {
-        return "No authoritative Epiphany state exists for planning synthesis.".to_string();
-    };
-    let planning = &state.planning;
-    if planning.is_empty() {
-        return "Planning substrate is empty; capture or import backlog material before synthesis."
-            .to_string();
-    }
-    format!(
-        "Planning material ready: {} captures, {} backlog items, {} roadmap streams, {} objective drafts.",
-        planning.captures.len(),
-        planning.backlog_items.len(),
-        planning.roadmap_streams.len(),
-        planning.objective_drafts.len()
-    )
-}
-
-fn map_epiphany_modeling_role_status(
-    checkpoint_present: bool,
-    graph_remap_job: Option<&ThreadEpiphanyJob>,
-) -> ThreadEpiphanyRoleStatus {
-    if let Some(job) = graph_remap_job
-        && matches!(
-            job.status,
-            ThreadEpiphanyJobStatus::Pending | ThreadEpiphanyJobStatus::Running
-        )
+    let mut source_jobs = jobs.to_vec();
+    if let Some(job) = reorient_job
+        && !source_jobs
+            .iter()
+            .any(|source_job| source_job.id == job.id && source_job.owner_role == job.owner_role)
     {
-        return ThreadEpiphanyRoleStatus::Running;
+        source_jobs.push(job.clone());
     }
-    if checkpoint_present {
-        ThreadEpiphanyRoleStatus::Ready
-    } else {
-        ThreadEpiphanyRoleStatus::Needed
+    derive_role_board(EpiphanyRoleBoardInput {
+        state_present: state.is_some(),
+        planning: EpiphanyRoleBoardPlanningSummary {
+            capture_count: planning
+                .map(|planning| planning.captures.len())
+                .unwrap_or(0),
+            backlog_item_count: planning
+                .map(|planning| planning.backlog_items.len())
+                .unwrap_or(0),
+            roadmap_stream_count: planning
+                .map(|planning| planning.roadmap_streams.len())
+                .unwrap_or(0),
+            objective_draft_count: planning
+                .map(|planning| planning.objective_drafts.len())
+                .unwrap_or(0),
+        },
+        checkpoint: checkpoint.map(|checkpoint| EpiphanyRoleBoardCheckpointSummary {
+            disposition: Some(format!("{:?}", checkpoint.disposition)),
+            next_action: checkpoint.next_action.clone(),
+        }),
+        reorient_next_action: decision.next_action.clone(),
+        jobs: source_jobs.iter().map(map_core_role_board_job).collect(),
+        crrc_action: map_core_crrc_action_from_protocol(recommendation.action),
+        crrc_recommended_scene_action: recommendation
+            .recommended_scene_action
+            .map(map_core_coordinator_scene_action_from_protocol),
+        crrc_reason: recommendation.reason.clone(),
+        reorient_decision_action: format!("{:?}", decision.action),
+        pressure_level: format!("{:?}", pressure.level),
+        reorient_result_status: map_core_crrc_result_status(result_status),
+        reorient_job: reorient_job.map(map_core_role_board_job),
+        imagination_binding_id: EPIPHANY_IMAGINATION_ROLE_BINDING_ID.to_string(),
+        modeling_binding_id: EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
+        verification_binding_id: EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
+        reorient_owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
+        imagination_owner_role: EPIPHANY_IMAGINATION_OWNER_ROLE.to_string(),
+    })
+    .into_iter()
+    .map(|lane| map_protocol_role_board_lane(lane, &source_jobs))
+    .collect()
+}
+
+fn map_core_role_board_job(job: &ThreadEpiphanyJob) -> EpiphanyRoleBoardJob {
+    EpiphanyRoleBoardJob {
+        id: job.id.clone(),
+        owner_role: job.owner_role.clone(),
+        status: map_core_role_board_job_status(job.status),
+        progress_note: job.progress_note.clone(),
+        blocking_reason: job.blocking_reason.clone(),
     }
 }
 
-fn render_epiphany_modeling_role_note(
-    checkpoint: Option<&EpiphanyInvestigationCheckpoint>,
-    decision: &ThreadEpiphanyReorientDecision,
-) -> String {
-    let Some(checkpoint) = checkpoint else {
-        return format!("Checkpoint missing: {}", decision.next_action);
-    };
-    let next_action = checkpoint
-        .next_action
-        .as_deref()
-        .unwrap_or(decision.next_action.as_str());
-    format!("{:?}: {next_action}", checkpoint.disposition)
+fn map_core_role_board_job_status(status: ThreadEpiphanyJobStatus) -> EpiphanyRoleBoardJobStatus {
+    match status {
+        ThreadEpiphanyJobStatus::Idle => EpiphanyRoleBoardJobStatus::Idle,
+        ThreadEpiphanyJobStatus::Needed => EpiphanyRoleBoardJobStatus::Needed,
+        ThreadEpiphanyJobStatus::Pending => EpiphanyRoleBoardJobStatus::Pending,
+        ThreadEpiphanyJobStatus::Running => EpiphanyRoleBoardJobStatus::Running,
+        ThreadEpiphanyJobStatus::Completed => EpiphanyRoleBoardJobStatus::Completed,
+        ThreadEpiphanyJobStatus::Failed => EpiphanyRoleBoardJobStatus::Failed,
+        ThreadEpiphanyJobStatus::Cancelled => EpiphanyRoleBoardJobStatus::Cancelled,
+        ThreadEpiphanyJobStatus::Blocked => EpiphanyRoleBoardJobStatus::Blocked,
+        ThreadEpiphanyJobStatus::Unavailable => EpiphanyRoleBoardJobStatus::Unavailable,
+    }
 }
 
-fn map_epiphany_job_status_to_role_status(
-    status: ThreadEpiphanyJobStatus,
+fn map_protocol_role_board_lane(
+    lane: EpiphanyRoleBoardLane,
+    source_jobs: &[ThreadEpiphanyJob],
+) -> ThreadEpiphanyRoleLane {
+    ThreadEpiphanyRoleLane {
+        id: map_protocol_coordinator_role_id(lane.id),
+        title: lane.title,
+        owner_role: lane.owner_role,
+        status: map_protocol_coordinator_role_status(lane.status),
+        note: lane.note,
+        jobs: lane
+            .jobs
+            .iter()
+            .map(|job| map_protocol_role_board_job(job, source_jobs))
+            .collect(),
+        authority_scopes: lane.authority_scopes,
+        recommended_action: lane
+            .recommended_action
+            .map(map_protocol_coordinator_scene_action),
+    }
+}
+
+fn map_protocol_role_board_job(
+    job: &EpiphanyRoleBoardJob,
+    source_jobs: &[ThreadEpiphanyJob],
+) -> ThreadEpiphanyJob {
+    source_jobs
+        .iter()
+        .find(|source_job| source_job.id == job.id && source_job.owner_role == job.owner_role)
+        .cloned()
+        .unwrap_or_else(|| ThreadEpiphanyJob {
+            id: job.id.clone(),
+            kind: ThreadEpiphanyJobKind::Specialist,
+            scope: job.id.clone(),
+            owner_role: job.owner_role.clone(),
+            launcher_job_id: None,
+            authority_scope: None,
+            backend_job_id: None,
+            status: map_protocol_role_board_job_status(job.status),
+            items_processed: None,
+            items_total: None,
+            progress_note: job.progress_note.clone(),
+            last_checkpoint_at_unix_seconds: None,
+            blocking_reason: job.blocking_reason.clone(),
+            active_thread_ids: Vec::new(),
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+        })
+}
+
+fn map_protocol_role_board_job_status(
+    status: EpiphanyRoleBoardJobStatus,
+) -> ThreadEpiphanyJobStatus {
+    match status {
+        EpiphanyRoleBoardJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,
+        EpiphanyRoleBoardJobStatus::Needed => ThreadEpiphanyJobStatus::Needed,
+        EpiphanyRoleBoardJobStatus::Pending => ThreadEpiphanyJobStatus::Pending,
+        EpiphanyRoleBoardJobStatus::Running => ThreadEpiphanyJobStatus::Running,
+        EpiphanyRoleBoardJobStatus::Completed => ThreadEpiphanyJobStatus::Completed,
+        EpiphanyRoleBoardJobStatus::Failed => ThreadEpiphanyJobStatus::Failed,
+        EpiphanyRoleBoardJobStatus::Cancelled => ThreadEpiphanyJobStatus::Cancelled,
+        EpiphanyRoleBoardJobStatus::Blocked => ThreadEpiphanyJobStatus::Blocked,
+        EpiphanyRoleBoardJobStatus::Unavailable => ThreadEpiphanyJobStatus::Unavailable,
+    }
+}
+
+fn map_protocol_coordinator_role_status(
+    status: CoreEpiphanyCoordinatorRoleStatus,
 ) -> ThreadEpiphanyRoleStatus {
     match status {
-        ThreadEpiphanyJobStatus::Idle => ThreadEpiphanyRoleStatus::Ready,
-        ThreadEpiphanyJobStatus::Needed => ThreadEpiphanyRoleStatus::Needed,
-        ThreadEpiphanyJobStatus::Pending | ThreadEpiphanyJobStatus::Running => {
-            ThreadEpiphanyRoleStatus::Running
-        }
-        ThreadEpiphanyJobStatus::Completed => ThreadEpiphanyRoleStatus::Completed,
-        ThreadEpiphanyJobStatus::Failed
-        | ThreadEpiphanyJobStatus::Cancelled
-        | ThreadEpiphanyJobStatus::Blocked => ThreadEpiphanyRoleStatus::Blocked,
-        ThreadEpiphanyJobStatus::Unavailable => ThreadEpiphanyRoleStatus::Unavailable,
-    }
-}
-
-fn map_epiphany_reorientation_role_status(
-    action: ThreadEpiphanyCrrcAction,
-    result_status: ThreadEpiphanyReorientResultStatus,
-) -> ThreadEpiphanyRoleStatus {
-    match result_status {
-        ThreadEpiphanyReorientResultStatus::Pending
-        | ThreadEpiphanyReorientResultStatus::Running => {
-            return ThreadEpiphanyRoleStatus::Waiting;
-        }
-        ThreadEpiphanyReorientResultStatus::Failed
-        | ThreadEpiphanyReorientResultStatus::Cancelled
-        | ThreadEpiphanyReorientResultStatus::BackendUnavailable
-        | ThreadEpiphanyReorientResultStatus::BackendMissing => {
-            return ThreadEpiphanyRoleStatus::Blocked;
-        }
-        _ => {}
-    }
-
-    match action {
-        ThreadEpiphanyCrrcAction::Continue => ThreadEpiphanyRoleStatus::Ready,
-        ThreadEpiphanyCrrcAction::PrepareCheckpoint
-        | ThreadEpiphanyCrrcAction::LaunchReorientWorker
-        | ThreadEpiphanyCrrcAction::RegatherManually => ThreadEpiphanyRoleStatus::Needed,
-        ThreadEpiphanyCrrcAction::WaitForReorientWorker => ThreadEpiphanyRoleStatus::Waiting,
-        ThreadEpiphanyCrrcAction::ReviewReorientResult
-        | ThreadEpiphanyCrrcAction::AcceptReorientResult => ThreadEpiphanyRoleStatus::Review,
+        CoreEpiphanyCoordinatorRoleStatus::Ready => ThreadEpiphanyRoleStatus::Ready,
+        CoreEpiphanyCoordinatorRoleStatus::Needed => ThreadEpiphanyRoleStatus::Needed,
+        CoreEpiphanyCoordinatorRoleStatus::Running => ThreadEpiphanyRoleStatus::Running,
+        CoreEpiphanyCoordinatorRoleStatus::Waiting => ThreadEpiphanyRoleStatus::Waiting,
+        CoreEpiphanyCoordinatorRoleStatus::Review => ThreadEpiphanyRoleStatus::Review,
+        CoreEpiphanyCoordinatorRoleStatus::Blocked => ThreadEpiphanyRoleStatus::Blocked,
+        CoreEpiphanyCoordinatorRoleStatus::Unavailable => ThreadEpiphanyRoleStatus::Unavailable,
+        CoreEpiphanyCoordinatorRoleStatus::Completed => ThreadEpiphanyRoleStatus::Completed,
     }
 }
 
@@ -15217,18 +15080,25 @@ fn render_epiphany_roles_note(
     state_status: ThreadEpiphanyReorientStateStatus,
     recommendation: ThreadEpiphanyCrrcAction,
 ) -> String {
-    let blocked_count = roles
+    let core_roles = roles
         .iter()
-        .filter(|role| {
-            matches!(
-                role.status,
-                ThreadEpiphanyRoleStatus::Blocked | ThreadEpiphanyRoleStatus::Needed
-            )
+        .map(|role| EpiphanyRoleBoardLane {
+            id: map_core_coordinator_role_id(role.id),
+            title: role.title.clone(),
+            owner_role: role.owner_role.clone(),
+            status: map_core_coordinator_role_status(role.status),
+            note: role.note.clone(),
+            jobs: role.jobs.iter().map(map_core_role_board_job).collect(),
+            authority_scopes: role.authority_scopes.clone(),
+            recommended_action: role
+                .recommended_action
+                .map(map_core_coordinator_scene_action_from_protocol),
         })
-        .count();
-    format!(
-        "Role ownership is derived read-only from Epiphany state, jobs, and CRRC. State: {:?}; recommendation: {:?}; blocked-or-needed lanes: {blocked_count}.",
-        state_status, recommendation
+        .collect::<Vec<_>>();
+    render_role_board_note(
+        &core_roles,
+        format!("{:?}", state_status).as_str(),
+        map_core_crrc_action_from_protocol(recommendation),
     )
 }
 

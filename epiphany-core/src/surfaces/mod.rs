@@ -1,6 +1,7 @@
 mod coordinator;
 mod crrc;
 mod pressure;
+mod role_board;
 
 pub use coordinator::EpiphanyCoordinatorAction;
 pub use coordinator::EpiphanyCoordinatorAutomationAction;
@@ -30,6 +31,16 @@ pub use pressure::EpiphanyPressureBasis;
 pub use pressure::EpiphanyPressureLevel;
 pub use pressure::EpiphanyPressureStatus;
 pub use pressure::derive_pressure_view;
+pub use role_board::EpiphanyRoleBoardCheckpointSummary;
+pub use role_board::EpiphanyRoleBoardInput;
+pub use role_board::EpiphanyRoleBoardJob;
+pub use role_board::EpiphanyRoleBoardJobStatus;
+pub use role_board::EpiphanyRoleBoardLane;
+pub use role_board::EpiphanyRoleBoardPlanningSummary;
+pub use role_board::derive_role_board;
+pub use role_board::render_role_board_note;
+pub use role_board::reorientation_role_status;
+pub use role_board::role_board_job_status_to_role_status;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyViewInput {
