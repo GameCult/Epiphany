@@ -25,6 +25,7 @@ use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
+use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
 use codex_protocol::protocol::EpiphanyChurnState;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyGraphCheckpoint;
@@ -125,6 +126,7 @@ pub struct EpiphanyStateUpdate {
     pub scratch: Option<EpiphanyScratchPad>,
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     pub job_bindings: Option<Vec<EpiphanyJobBinding>>,
+    pub acceptance_receipts: Vec<EpiphanyAcceptanceReceipt>,
     pub observations: Vec<EpiphanyObservation>,
     pub evidence: Vec<EpiphanyEvidenceRecord>,
     pub churn: Option<EpiphanyChurnState>,
@@ -183,6 +185,7 @@ impl EpiphanyStateUpdate {
             && self.scratch.is_none()
             && self.investigation_checkpoint.is_none()
             && self.job_bindings.is_none()
+            && self.acceptance_receipts.is_empty()
             && self.observations.is_empty()
             && self.evidence.is_empty()
             && self.churn.is_none()
@@ -1040,11 +1043,79 @@ fn epiphany_state_update_validation_errors(
     if let Some(job_bindings) = update.job_bindings.as_ref() {
         errors.extend(validate_epiphany_job_bindings(job_bindings));
     }
+    if !update.acceptance_receipts.is_empty() {
+        errors.extend(validate_epiphany_acceptance_receipts(
+            &state.acceptance_receipts,
+            &update.acceptance_receipts,
+            &known_evidence_ids,
+        ));
+    }
     if let Some(planning) = update.planning.as_ref() {
         errors.extend(validate_epiphany_planning_state(planning));
     }
 
     errors.extend(epiphany_state_replacement_validation_errors(state, update));
+    errors
+}
+
+fn validate_epiphany_acceptance_receipts(
+    existing: &[EpiphanyAcceptanceReceipt],
+    receipts: &[EpiphanyAcceptanceReceipt],
+    known_evidence_ids: &HashSet<&str>,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    let mut seen_ids = existing
+        .iter()
+        .map(|receipt| receipt.id.as_str())
+        .collect::<HashSet<_>>();
+    let mut seen_result_ids = existing
+        .iter()
+        .map(|receipt| receipt.result_id.as_str())
+        .collect::<HashSet<_>>();
+
+    for receipt in receipts {
+        require_nonempty_update(&receipt.id, "acceptance_receipt.id", &mut errors);
+        require_nonempty_update(
+            &receipt.result_id,
+            "acceptance_receipt.result_id",
+            &mut errors,
+        );
+        require_nonempty_update(&receipt.job_id, "acceptance_receipt.job_id", &mut errors);
+        require_nonempty_update(
+            &receipt.binding_id,
+            "acceptance_receipt.binding_id",
+            &mut errors,
+        );
+        require_nonempty_update(&receipt.surface, "acceptance_receipt.surface", &mut errors);
+        require_nonempty_update(&receipt.role_id, "acceptance_receipt.role_id", &mut errors);
+        require_nonempty_update(&receipt.status, "acceptance_receipt.status", &mut errors);
+        require_nonempty_update(
+            &receipt.accepted_at,
+            "acceptance_receipt.accepted_at",
+            &mut errors,
+        );
+        if !seen_ids.insert(receipt.id.as_str()) {
+            errors.push(format!(
+                "acceptance receipt id {:?} is duplicated",
+                receipt.id
+            ));
+        }
+        if !seen_result_ids.insert(receipt.result_id.as_str()) {
+            errors.push(format!(
+                "runtime result {:?} already has an acceptance receipt",
+                receipt.result_id
+            ));
+        }
+        if let Some(evidence_id) = receipt.accepted_evidence_id.as_deref()
+            && !known_evidence_ids.contains(evidence_id)
+        {
+            errors.push(format!(
+                "acceptance receipt {:?} cites missing evidence id {:?}",
+                receipt.id, evidence_id
+            ));
+        }
+    }
+
     errors
 }
 
@@ -1335,6 +1406,7 @@ fn apply_epiphany_state_update(
     if let Some(job_bindings) = update.job_bindings {
         state.job_bindings = job_bindings;
     }
+    prepend_recent(&mut state.acceptance_receipts, update.acceptance_receipts);
     if let Some(churn) = update.churn {
         state.churn = Some(churn);
     }
@@ -1405,6 +1477,26 @@ mod epiphany_update_tests {
             linked_graph_node_ids: vec!["job-surface".to_string()],
             progress_note: Some("Bound to a heartbeat runtime-spine job.".to_string()),
             blocking_reason: None,
+        }
+    }
+
+    fn acceptance_receipt(
+        id: &str,
+        result_id: &str,
+        evidence_id: &str,
+    ) -> EpiphanyAcceptanceReceipt {
+        EpiphanyAcceptanceReceipt {
+            id: id.to_string(),
+            result_id: result_id.to_string(),
+            job_id: "runtime-job-1".to_string(),
+            binding_id: "modeling".to_string(),
+            surface: "roleAccept".to_string(),
+            role_id: "modeling".to_string(),
+            status: "accepted".to_string(),
+            accepted_at: "2026-05-12T00:00:00Z".to_string(),
+            accepted_observation_id: Some("obs-modeling".to_string()),
+            accepted_evidence_id: Some(evidence_id.to_string()),
+            summary: Some("Accepted modeling result.".to_string()),
         }
     }
 
@@ -1506,6 +1598,29 @@ mod epiphany_update_tests {
             Some("heartbeat-job-new")
         );
         assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-jobs"));
+    }
+
+    #[test]
+    fn apply_epiphany_state_update_prepends_acceptance_receipts() {
+        let mut state = EpiphanyThreadState {
+            revision: 2,
+            recent_evidence: vec![evidence("ev-new")],
+            acceptance_receipts: vec![acceptance_receipt("accept-old", "result-old", "ev-old")],
+            ..Default::default()
+        };
+
+        apply_epiphany_state_update(
+            &mut state,
+            EpiphanyStateUpdate {
+                acceptance_receipts: vec![acceptance_receipt("accept-new", "result-new", "ev-new")],
+                ..Default::default()
+            },
+            Some("turn-accept".to_string()),
+        );
+
+        assert_eq!(state.revision, 3);
+        assert_eq!(state.acceptance_receipts[0].id, "accept-new");
+        assert_eq!(state.acceptance_receipts[1].id, "accept-old");
     }
 
     #[test]
@@ -1739,6 +1854,39 @@ mod epiphany_update_tests {
             errors
                 .iter()
                 .any(|error| error.contains("patch.observations.id must not be empty"))
+        );
+    }
+
+    #[test]
+    fn validate_epiphany_state_update_rejects_duplicate_acceptance_result() {
+        let state = EpiphanyThreadState {
+            acceptance_receipts: vec![acceptance_receipt(
+                "accept-existing",
+                "result-existing",
+                "ev-existing",
+            )],
+            recent_evidence: vec![evidence("ev-existing"), evidence("ev-new")],
+            ..Default::default()
+        };
+        let update = EpiphanyStateUpdate {
+            acceptance_receipts: vec![
+                acceptance_receipt("accept-new", "result-existing", "ev-new"),
+                acceptance_receipt("accept-new", "result-new", "ev-new"),
+            ],
+            ..Default::default()
+        };
+
+        let errors = epiphany_state_update_validation_errors(&state, &update);
+
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("runtime result \"result-existing\" already has"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("acceptance receipt id \"accept-new\" is duplicated"))
         );
     }
 

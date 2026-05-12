@@ -3024,6 +3024,9 @@ pub struct EpiphanyThreadState {
     #[ts(type = "Array<EpiphanyJobBinding>")]
     pub job_bindings: Vec<EpiphanyJobBinding>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyAcceptanceReceipt>")]
+    pub acceptance_receipts: Vec<EpiphanyAcceptanceReceipt>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyObservation>")]
     pub observations: Vec<EpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -3041,6 +3044,27 @@ pub struct EpiphanyThreadState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub last_updated_turn_id: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyAcceptanceReceipt {
+    pub id: String,
+    pub result_id: String,
+    pub job_id: String,
+    pub binding_id: String,
+    pub surface: String,
+    pub role_id: String,
+    pub status: String,
+    pub accepted_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub accepted_observation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub accepted_evidence_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(type = "string | null")]
+    pub summary: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]

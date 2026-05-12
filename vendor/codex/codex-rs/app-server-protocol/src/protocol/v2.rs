@@ -57,6 +57,7 @@ use codex_protocol::protocol::AgentStatus as CoreAgentStatus;
 use codex_protocol::protocol::AskForApproval as CoreAskForApproval;
 use codex_protocol::protocol::CodexErrorInfo as CoreCodexErrorInfo;
 use codex_protocol::protocol::CreditsSnapshot as CoreCreditsSnapshot;
+use codex_protocol::protocol::EpiphanyAcceptanceReceipt as CoreEpiphanyAcceptanceReceipt;
 use codex_protocol::protocol::EpiphanyChurnState as CoreEpiphanyChurnState;
 use codex_protocol::protocol::EpiphanyCodeRef as CoreEpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyEvidenceRecord as CoreEpiphanyEvidenceRecord;
@@ -4317,6 +4318,7 @@ pub struct ThreadEpiphanyRoleAcceptResponse {
     pub epiphany_state: CoreEpiphanyThreadState,
     pub role_id: ThreadEpiphanyRoleId,
     pub binding_id: String,
+    pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
     pub applied_patch: ThreadEpiphanyUpdatePatch,
@@ -5109,6 +5111,7 @@ pub struct ThreadEpiphanyReorientAcceptResponse {
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: CoreEpiphanyThreadState,
     pub binding_id: String,
+    pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
     pub finding: ThreadEpiphanyReorientFinding,
@@ -5421,6 +5424,8 @@ pub struct ThreadEpiphanyUpdatePatch {
     #[ts(optional = nullable)]
     pub job_bindings: Option<Vec<CoreEpiphanyJobBinding>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub acceptance_receipts: Vec<CoreEpiphanyAcceptanceReceipt>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub observations: Vec<CoreEpiphanyObservation>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub evidence: Vec<CoreEpiphanyEvidenceRecord>,
@@ -5481,6 +5486,7 @@ pub enum ThreadEpiphanyStateUpdatedField {
     Scratch,
     InvestigationCheckpoint,
     JobBindings,
+    AcceptanceReceipts,
     Observations,
     Evidence,
     Churn,
