@@ -2,6 +2,7 @@ mod coordinator;
 mod crrc;
 mod pressure;
 mod role_board;
+mod role_result;
 
 pub use coordinator::EpiphanyCoordinatorAction;
 pub use coordinator::EpiphanyCoordinatorAutomationAction;
@@ -41,6 +42,15 @@ pub use role_board::derive_role_board;
 pub use role_board::render_role_board_note;
 pub use role_board::reorientation_role_status;
 pub use role_board::role_board_job_status_to_role_status;
+pub use role_result::EpiphanyRoleFindingInterpretation;
+pub use role_result::EpiphanyRoleResultRoleId;
+pub use role_result::EpiphanyRoleSelfPersistenceReview;
+pub use role_result::EpiphanyRoleSelfPersistenceStatus;
+pub use role_result::imagination_role_state_patch_policy_errors;
+pub use role_result::interpret_role_finding;
+pub use role_result::modeling_role_state_patch_policy_errors;
+pub use role_result::review_role_self_patch;
+pub use role_result::role_self_memory_target;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyViewInput {
