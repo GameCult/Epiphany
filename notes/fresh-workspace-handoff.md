@@ -414,9 +414,12 @@ to about 20,331 lines. The third cut moved protocol-to-core launch document
 mapping into `epiphany_launch.rs`, taking the processor to about 20,255 lines.
 The fourth cut moved scene projection into
 `vendor/codex/codex-rs/app-server/src/epiphany_scene.rs`, taking the processor
-to about 20,059 lines. This is progress, not absolution: handlers, remaining
-view mappers, route orchestration, coordinator glue, accept policy plumbing,
-and tests still keep too much Epiphany inside Codex.
+to about 20,059 lines. The fifth cut moved freshness/reorientation input
+mapping into `vendor/codex/codex-rs/app-server/src/epiphany_reorient.rs`,
+taking the processor to about 19,708 lines. This is progress, not absolution:
+handlers, context/planning/graph/jobs/roles/coordinator mappers, route
+orchestration, accept policy plumbing, and tests still keep too much Epiphany
+inside Codex.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

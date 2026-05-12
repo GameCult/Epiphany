@@ -77,6 +77,7 @@ mod device_key_api;
 mod dynamic_tools;
 mod epiphany_invalidation;
 mod epiphany_launch;
+mod epiphany_reorient;
 mod epiphany_results;
 mod epiphany_scene;
 mod error_code;
