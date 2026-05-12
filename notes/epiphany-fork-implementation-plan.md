@@ -94,11 +94,14 @@ The landed machine now has:
 - live Phase 6 MVP status smoke coverage through native `epiphany-mvp-status-smoke`
 
 The current phase is Phase 6: reflection boundary and observable harness state.
-The next phase direction is native-spine extraction: Codex app-server is a
-temporary evacuation bridge, not the throne. Epiphany sessions, jobs, results,
-events, heartbeats, role memory, and coordinator state move into CultCache-backed
-domain documents spoken over CultNet, and new runtime contracts land native
-first.
+The immediate next phase is foundation cleanup, recorded in
+`notes/epiphany-architectural-teardown.md`. The May 2026 suspicion pass found
+that the app-server Epiphany control plane has become architectural Jenga:
+policy, projection, lifecycle glue, prompt packet assembly, coordinator
+sequencing, and tests are concentrated in the Codex host seam. Native-spine
+extraction remains the direction, but the first duty is to rebuild/extract the
+control plane so Codex app-server becomes an adapter again instead of the
+machine's extra brain.
 
 ## Boundary Rules
 
@@ -167,8 +170,24 @@ The plan should get shorter after a phase completes, not longer by default.
 The next unknown is not whether Epiphany can preserve, read, propose, promote,
 and notify typed state. It can.
 
+The active priority is now the teardown plan in
+`notes/epiphany-architectural-teardown.md`. Do not add outward feature surfaces
+until there is a source-grounded cleanup slice for the control-plane ownership
+problem.
+
 The next unknowns are:
 
+- how to extract Epiphany view/coordinator policy from
+  `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs` into
+  `epiphany-core` without breaking the existing operator contracts
+- how to make runtime-spine the sole job/result lifecycle authority while
+  reducing `EpiphanyThreadState.job_bindings` to typed links or intents
+- how to replace summary-string accepted-result matching with typed acceptance
+  receipts keyed by runtime result identity
+- how to collapse endpoint proliferation into intentional view lenses and
+  mutation intents without hiding authority from Aquarium or the operator
+- how to remove public `raw_result` leakage from normal role/reorient findings
+  while preserving explicit forensic debugging
 - what bridge surface is sufficient for the next Aetheria run: named Unity operations, Aetheria-side editor probes, GUI environment status, Rider context capture, and a Rider plugin MVP
 - how much controlled runtime/editor access the richer Unity bridge gives implementation and verification lanes before deeper engine probes need another slice
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
@@ -303,19 +322,26 @@ work remains non-authoritative until the human explicitly adopts an objective.
 
 ## Phase 6 Direction
 
-Phase 6 should grow observable harness state outward from the typed spine.
+Phase 6 must stop growing observable harness state outward until the control
+plane is purified. The live surfaces are guardrails and evidence, not
+permission to keep stacking protocols on the host seam.
 
-Useful candidates:
+Cleanup candidates:
 
-1. Treat the first three-pronged Rider/Epiphany GUI/Unity workflow as landed enough for local bridge testing: Aetheria-side resident Unity editor package, named Unity bridge operations over that package, GUI Environment panel, EpiphanyGraph-backed GUI graph dashboard, Rider context bridge CLI, and a Rider plugin MVP source scaffold now exist.
-2. Before the next Aetheria dogfood run, build-verify or package the Rider plugin scaffold when Gradle/wrapper support is available and install the Aetheria-pinned Unity `6000.1.10f1` editor; do not rediscover that Epiphany cannot prove runtime/editor assumptions from source inspection alone.
-3. Keep dogfood execution agent-run and auditable through the fixed-lane coordinator and GUI/operator view over the same status/artifact surfaces once the bridges exist.
-4. Keep accepted worker findings review-gated; do not convert acceptance into automatic promotion of arbitrary worker output.
-5. Keep pre-compaction intervention narrow: steer once at `shouldPrepareCompaction`, latch the compact handoff only after successful steering, then let explicit checkpointing, compact/resume/reorient, and review gates do their jobs.
+1. Move Epiphany surface derivation and fixed-lane coordinator policy out of
+   `codex_message_processor.rs` and into `epiphany-core`.
+2. Make runtime-spine the single lifecycle authority for launched jobs and
+   results; thread state may link to jobs but must not mirror the job table.
+3. Replace accepted-result summary matching with typed acceptance receipts.
+4. Reduce the scene/jobs/roles/freshness/context/planning/pressure/reorient/
+   CRRC/coordinator sprawl into fewer deliberate lenses and mutation intents.
+5. Remove normal public raw-result exposure from role/reorient finding
+   contracts; keep forensic raw payloads explicit and sealed.
+6. Split stable heartbeat scheduling from experimental cognition receipt blobs.
 
-Do not spend Phase 6 polishing Phase 5 out of anxiety. The Phase 5 smoke harness
-is a regression guardrail, not a ritual drum circle for summoning more tiny
-hardening slices.
+Do not spend Phase 6 adding another convenience surface because the current ones
+work. Passing smokes prove behavior, not architecture. The Perfect Machine gets
+fewer thrones, not a new one for every button.
 
 ## Aquarium Operator Plan
 

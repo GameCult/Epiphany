@@ -15,10 +15,12 @@ objective:
     machinery they touch. The agent must know the machine before it cuts the
     machine.
   current: >
-    Keep EpiphanyAgent focused on harness organs, typed-state reliquaries,
-    coordinator rites, bridge tools, and backend surfaces while the Aquarium
-    operator shrine lives in its own sibling repo with its own persistent
-    interface memory and doctrine.
+    Stop outward feature work until the architectural teardown in
+    `notes/epiphany-architectural-teardown.md` is acted on. Epiphany is the
+    foundation for everything else; the current app-server control plane has
+    absorbed too much policy, projection, lifecycle glue, and coordinator
+    sequencing. The next work is foundation cleanup, not another bridge,
+    Aquarium pane, Face surface, or convenience layer.
 
 constraints:
   - No frontier-scale training tithe.
@@ -63,6 +65,7 @@ data_flow:
     - move historical proof to git, commits, smoke artifacts, or distilled evidence rather than plan prose
 
 active_subgoals:
+  - Top priority: execute the teardown plan in `notes/epiphany-architectural-teardown.md`; rebuild/extract the Epiphany app-server control plane before adding outward features. Move Epiphany view/coordinator policy into `epiphany-core`, make runtime-spine the sole job/result lifecycle authority, replace summary-string acceptance identity with typed receipts, reduce API surface proliferation, remove normal public raw-result leakage, and type or quarantine heartbeat cognition blobs.
   - Treat Phase 5 update/distill/propose/promote/read/notification as complete enough unless a concrete regression appears.
   - Preserve read-only boundaries for retrieve, distill, propose, scene, jobs, roles, roleResult, freshness, context, graphQuery, planning, pressure, reorient, crrc, coordinator, and reorientResult.
   - Keep the landed Phase 6 coordinator, limited safe-boundary CRRC automation, and pre-compaction checkpoint intervention ready for the next bridge-equipped dogfood run.
@@ -84,6 +87,7 @@ active_subgoals:
   - Keep repo trajectory initialization birth-only and review-gated: startup may distill historical direction, self-image, implicit goals, and anti-goals into role-local pressure, but it must not auto-adopt work or keep repainting a living repo with its first silhouette.
 
 accepted_design:
+  - `notes/epiphany-architectural-teardown.md` is the current foundation-cleanup directive. Its suspicion pass supersedes outward Phase 6 expansion as the active priority until the control-plane ownership problems are resolved.
   - Epiphany is a fork-level modeling architecture, not merely a Codex collaboration mode.
   - Authoritative Epiphany state lives in Codex protocol/core session and rollout state.
   - The prompt reads typed state through a bounded `<epiphany_state>` developer fragment.
@@ -264,5 +268,5 @@ rejected_paths:
     reason: persistent state that accumulates every local truth becomes memory cruft and weakens rehydration
 
 current_status:
-  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend organs are landed. The Aquarium operator shrine has been split into sibling repo `E:\Projects\EpiphanyAquarium` with its own distilled interface doctrine and persistent memory. EpiphanyAgent now also has a Ghostlight-derived heartbeat initiative seam, Epiphany-native character-loop packets over its own role dossiers, VoidBot-derived native routine physiology and cognition lanes in the heartbeat store, a Face lane for public agent thought-weather, and a Discord-independent Face bubble API for Aquarium. Runtime Unity execution remains blocked until the exact project-pinned editor exists.
-  next_action: Continue Aquarium UI work in `E:\Projects\EpiphanyAquarium`; configure the #aquarium channel id before allowing Face to post; wire Aquarium Face interactions to `epiphany-character-loop` packets before choosing bubble/draft/silence; surface heartbeat `sleepCycle`, `memoryResonance`, `incubation`, `thoughtLanes`, `bridge`, `candidateInterventions`, `appraisals`, and `reactions` from native status in Aquarium; keep EpiphanyAgent changes to backend contracts, typed state, coordinator policy, bridge tools, heartbeat scheduling, and Face guardrails. Keep purging Python/JSON impurity only when the replacement is a typed Rust, CultCache, or CultNet surface with receipts.
+  summary: Phase 1 durable state through Phase 6 coordinator/specialist/CRRC/backend organs are landed, but the May 2026 architectural teardown found that the app-server Epiphany control plane has become architectural Jenga: policy, projection, lifecycle glue, prompt packet assembly, coordinator sequencing, and tests are concentrated in the host seam. The foundations are conceptually sound, but the control plane must be extracted/rebuilt before outward feature work resumes.
+  next_action: Treat `notes/epiphany-architectural-teardown.md` as the active top-priority cleanup directive. Start with the control-plane rebuild: extract Epiphany view/coordinator policy from `vendor/codex/codex-rs/app-server/src/codex_message_processor.rs` into `epiphany-core`, make runtime-spine the sole job/result lifecycle authority, replace summary-string acceptance detection with typed acceptance receipts, collapse endpoint proliferation into intentional view lenses/mutation intents, remove normal public `raw_result` leakage, and split stable heartbeat scheduling from experimental cognition receipts. Do not continue Aquarium UI, bridge, Face, or dogfood expansion until this foundation cleanup has a source-grounded slice plan.
