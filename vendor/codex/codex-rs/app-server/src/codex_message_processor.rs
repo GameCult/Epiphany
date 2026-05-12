@@ -4803,7 +4803,7 @@ impl CodexMessageProcessor {
             }
         };
         let binding_id = launch_request.binding_id.clone();
-        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+        let changed_fields = epiphany_job_launch_changed_fields();
         let launched = match loaded_thread.epiphany_launch_job(launch_request).await {
             Ok(launched) => launched,
             Err(CodexErr::InvalidRequest(message)) => {
@@ -5843,7 +5843,7 @@ impl CodexMessageProcessor {
             checkpoint,
             &decision,
         );
-        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+        let changed_fields = epiphany_job_launch_changed_fields();
         let launched = match loaded_thread.epiphany_launch_job(launch_request).await {
             Ok(launched) => launched,
             Err(CodexErr::InvalidRequest(message)) => {
@@ -6747,7 +6747,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+        let changed_fields = epiphany_job_launch_changed_fields();
         let launched = match thread
             .epiphany_launch_job(EpiphanyJobLaunchRequest {
                 expected_revision,
@@ -17583,13 +17583,20 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
                         thread_id: thread_id_text,
                         source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
                         revision: epiphany_state.revision,
-                        changed_fields: vec![ThreadEpiphanyStateUpdatedField::JobBindings],
+                        changed_fields: epiphany_job_launch_changed_fields(),
                         epiphany_state,
                     },
                 ))
                 .await;
         }
     }
+}
+
+fn epiphany_job_launch_changed_fields() -> Vec<ThreadEpiphanyStateUpdatedField> {
+    vec![
+        ThreadEpiphanyStateUpdatedField::JobBindings,
+        ThreadEpiphanyStateUpdatedField::RuntimeLinks,
+    ]
 }
 
 pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count(
@@ -17661,10 +17668,11 @@ fn map_epiphany_jobs(
     };
 
     for binding in &state.job_bindings {
+        let runtime_link = latest_epiphany_runtime_link_for_binding(state, binding.id.as_str());
         let replacement = if let Some(existing) = jobs.iter().find(|job| job.id == binding.id) {
-            overlay_epiphany_job_binding(existing.clone(), binding)
+            overlay_epiphany_job_binding(existing.clone(), binding, runtime_link)
         } else {
-            map_epiphany_bound_job(binding)
+            map_epiphany_bound_job(binding, runtime_link)
         };
 
         if let Some(existing) = jobs.iter_mut().find(|job| job.id == binding.id) {
@@ -17677,7 +17685,10 @@ fn map_epiphany_jobs(
     jobs
 }
 
-fn map_epiphany_bound_job(binding: &EpiphanyJobBinding) -> ThreadEpiphanyJob {
+fn map_epiphany_bound_job(
+    binding: &EpiphanyJobBinding,
+    runtime_link: Option<&EpiphanyRuntimeLink>,
+) -> ThreadEpiphanyJob {
     overlay_epiphany_job_binding(
         ThreadEpiphanyJob {
             id: binding.id.clone(),
@@ -17686,8 +17697,12 @@ fn map_epiphany_bound_job(binding: &EpiphanyJobBinding) -> ThreadEpiphanyJob {
             owner_role: binding.owner_role.clone(),
             launcher_job_id: binding_launcher_job_id(binding).map(str::to_string),
             authority_scope: binding.authority_scope.clone(),
-            backend_kind: binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind),
-            backend_job_id: binding_projected_backend_job_id(binding).map(str::to_string),
+            backend_kind: runtime_link
+                .map(|_| ThreadEpiphanyJobBackendKind::Heartbeat)
+                .or_else(|| binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind)),
+            backend_job_id: runtime_link
+                .map(|link| link.runtime_job_id.clone())
+                .or_else(|| binding_projected_backend_job_id(binding).map(str::to_string)),
             status: if binding.blocking_reason.is_some() {
                 ThreadEpiphanyJobStatus::Blocked
             } else {
@@ -17703,20 +17718,26 @@ fn map_epiphany_bound_job(binding: &EpiphanyJobBinding) -> ThreadEpiphanyJob {
             linked_graph_node_ids: binding.linked_graph_node_ids.clone(),
         },
         binding,
+        runtime_link,
     )
 }
 
 fn overlay_epiphany_job_binding(
     mut job: ThreadEpiphanyJob,
     binding: &EpiphanyJobBinding,
+    runtime_link: Option<&EpiphanyRuntimeLink>,
 ) -> ThreadEpiphanyJob {
     job.kind = map_core_epiphany_job_kind(binding.kind);
     job.scope = binding.scope.clone();
     job.owner_role = binding.owner_role.clone();
     job.launcher_job_id = binding_launcher_job_id(binding).map(str::to_string);
     job.authority_scope = binding.authority_scope.clone();
-    job.backend_kind = binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind);
-    job.backend_job_id = binding_projected_backend_job_id(binding).map(str::to_string);
+    job.backend_kind = runtime_link
+        .map(|_| ThreadEpiphanyJobBackendKind::Heartbeat)
+        .or_else(|| binding_backend_kind(binding).map(map_core_epiphany_job_backend_kind));
+    job.backend_job_id = runtime_link
+        .map(|link| link.runtime_job_id.clone())
+        .or_else(|| binding_projected_backend_job_id(binding).map(str::to_string));
     if !binding.linked_subgoal_ids.is_empty() {
         job.linked_subgoal_ids = binding.linked_subgoal_ids.clone();
     }
@@ -17729,13 +17750,14 @@ fn overlay_epiphany_job_binding(
     if let Some(blocking_reason) = binding.blocking_reason.clone() {
         job.blocking_reason = Some(blocking_reason);
     }
-    if binding.blocking_reason.is_some() && binding_backend_job_id(binding).is_none() {
+    if binding.blocking_reason.is_some() {
         job.status = ThreadEpiphanyJobStatus::Blocked;
         return job;
     }
 
-    if binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat)
-        && binding_backend_job_id(binding).is_some()
+    if runtime_link.is_some()
+        || (binding_backend_kind(binding) == Some(CoreEpiphanyJobBackendKind::Heartbeat)
+            && binding_backend_job_id(binding).is_some())
     {
         job.status = ThreadEpiphanyJobStatus::Pending;
         job.blocking_reason = None;
@@ -22810,17 +22832,25 @@ mod tests {
                 kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                 scope: "role-scoped modeling/checkpoint maintenance".to_string(),
                 owner_role: "epiphany-modeler".to_string(),
-                launcher_job_id: Some("epiphany-heartbeat-launch-1".to_string()),
+                launcher_job_id: None,
                 authority_scope: Some("epiphany.role.modeling".to_string()),
-                backend_kind: Some(codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat),
-                backend_job_id: Some("heartbeat-turn-1".to_string()),
+                backend_kind: None,
+                backend_job_id: None,
                 linked_subgoal_ids: vec!["phase-6".to_string()],
                 linked_graph_node_ids: vec!["runtime-spine".to_string()],
-                progress_note: Some(
-                    "Explicitly queued through the Epiphany authority surface for heartbeat activation."
-                        .to_string(),
-                ),
+                progress_note: None,
                 blocking_reason: None,
+            }],
+            runtime_links: vec![codex_protocol::protocol::EpiphanyRuntimeLink {
+                id: "runtime-link-modeling-checkpoint-worker-heartbeat-turn-1".to_string(),
+                binding_id: "modeling-checkpoint-worker".to_string(),
+                surface: "roleLaunch".to_string(),
+                role_id: "epiphany-modeler".to_string(),
+                authority_scope: "epiphany.role.modeling".to_string(),
+                runtime_job_id: "heartbeat-turn-1".to_string(),
+                runtime_result_id: None,
+                linked_subgoal_ids: vec!["phase-6".to_string()],
+                linked_graph_node_ids: vec!["runtime-spine".to_string()],
             }],
             ..Default::default()
         };

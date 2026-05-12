@@ -1866,6 +1866,7 @@ mod tests {
                             "retrieve",
                             "distill",
                             "context",
+                            "planning",
                             "jobs",
                             "roles",
                             "coordinator",
@@ -2207,7 +2208,7 @@ mod tests {
                         "ownerRole": "epiphany-modeler",
                         "launcherJobId": "epiphany-launch-1",
                         "authorityScope": "epiphany.role.modeling",
-                        "backendKind": "agentJobs",
+                        "backendKind": "heartbeat",
                         "backendJobId": "backend-1",
                         "status": "pending",
                         "progressNote": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend.",
@@ -2302,7 +2303,7 @@ mod tests {
                         "ownerRole": "epiphany-verifier",
                         "launcherJobId": "epiphany-launch-2",
                         "authorityScope": "epiphany.role.verification",
-                        "backendKind": "agentJobs",
+                        "backendKind": "heartbeat",
                         "backendJobId": "backend-2",
                         "status": "completed",
                         "itemsProcessed": 1,
@@ -2376,6 +2377,7 @@ mod tests {
             response: v2::ThreadEpiphanyRoleAcceptResponse {
                 revision: 5,
                 changed_fields: vec![
+                    v2::ThreadEpiphanyStateUpdatedField::AcceptanceReceipts,
                     v2::ThreadEpiphanyStateUpdatedField::GraphFrontier,
                     v2::ThreadEpiphanyStateUpdatedField::Observations,
                     v2::ThreadEpiphanyStateUpdatedField::Evidence,
@@ -2386,6 +2388,7 @@ mod tests {
                 },
                 role_id: v2::ThreadEpiphanyRoleId::Modeling,
                 binding_id: "modeling-checkpoint-worker".to_string(),
+                accepted_receipt_id: "accept-modeling-1".to_string(),
                 accepted_observation_id: "obs-modeling-1".to_string(),
                 accepted_evidence_id: "ev-modeling-1".to_string(),
                 applied_patch: patch,
@@ -2401,12 +2404,13 @@ mod tests {
                 "id": 10,
                 "response": {
                     "revision": 5,
-                    "changedFields": ["graphFrontier", "observations", "evidence"],
+                    "changedFields": ["acceptanceReceipts", "graphFrontier", "observations", "evidence"],
                     "epiphanyState": {
                         "revision": 5
                     },
                     "roleId": "modeling",
                     "bindingId": "modeling-checkpoint-worker",
+                    "acceptedReceiptId": "accept-modeling-1",
                     "acceptedObservationId": "obs-modeling-1",
                     "acceptedEvidenceId": "ev-modeling-1",
                     "appliedPatch": {
@@ -3296,7 +3300,7 @@ mod tests {
                         "ownerRole": "epiphany-reorient",
                         "launcherJobId": "epiphany-launch-1",
                         "authorityScope": "epiphany.reorient.regather",
-                        "backendKind": "agentJobs",
+                        "backendKind": "heartbeat",
                         "backendJobId": "backend-1",
                         "status": "pending",
                         "progressNote": "Explicitly launched through the Epiphany authority surface onto the heartbeat backend.",
@@ -3383,7 +3387,7 @@ mod tests {
                         "ownerRole": "epiphany-reorient",
                         "launcherJobId": "epiphany-launch-1",
                         "authorityScope": "epiphany.reorient.resume",
-                        "backendKind": "agentJobs",
+                        "backendKind": "heartbeat",
                         "backendJobId": "backend-1",
                         "status": "completed",
                         "itemsProcessed": 1,
@@ -3423,6 +3427,7 @@ mod tests {
             response: v2::ThreadEpiphanyReorientAcceptResponse {
                 revision: 6,
                 changed_fields: vec![
+                    v2::ThreadEpiphanyStateUpdatedField::AcceptanceReceipts,
                     v2::ThreadEpiphanyStateUpdatedField::Observations,
                     v2::ThreadEpiphanyStateUpdatedField::Evidence,
                     v2::ThreadEpiphanyStateUpdatedField::Scratch,
@@ -3447,6 +3452,7 @@ mod tests {
                     ..Default::default()
                 },
                 binding_id: "reorient-worker".to_string(),
+                accepted_receipt_id: "accept-reorient-1".to_string(),
                 accepted_observation_id: "obs-reorient-1".to_string(),
                 accepted_evidence_id: "ev-reorient-1".to_string(),
                 finding: v2::ThreadEpiphanyReorientFinding {
@@ -3476,7 +3482,7 @@ mod tests {
                 "id": 10,
                 "response": {
                     "revision": 6,
-                    "changedFields": ["observations", "evidence", "scratch"],
+                    "changedFields": ["acceptanceReceipts", "observations", "evidence", "scratch"],
                     "epiphanyState": {
                         "revision": 6,
                         "observations": [{
@@ -3494,6 +3500,7 @@ mod tests {
                         }]
                     },
                     "bindingId": "reorient-worker",
+                    "acceptedReceiptId": "accept-reorient-1",
                     "acceptedObservationId": "obs-reorient-1",
                     "acceptedEvidenceId": "ev-reorient-1",
                     "finding": {
@@ -3795,7 +3802,10 @@ mod tests {
             request_id: RequestId::Integer(12),
             response: v2::ThreadEpiphanyJobLaunchResponse {
                 revision: 3,
-                changed_fields: vec![v2::ThreadEpiphanyStateUpdatedField::JobBindings],
+                changed_fields: vec![
+                    v2::ThreadEpiphanyStateUpdatedField::JobBindings,
+                    v2::ThreadEpiphanyStateUpdatedField::RuntimeLinks,
+                ],
                 epiphany_state: codex_protocol::protocol::EpiphanyThreadState {
                     revision: 3,
                     job_bindings: vec![codex_protocol::protocol::EpiphanyJobBinding {
@@ -3803,16 +3813,25 @@ mod tests {
                         kind: codex_protocol::protocol::EpiphanyJobKind::Specialist,
                         scope: "role-scoped specialist work".to_string(),
                         owner_role: "epiphany-harness".to_string(),
-                        launcher_job_id: Some("launcher-specialist".to_string()),
+                        launcher_job_id: None,
                         authority_scope: Some("epiphany.specialist".to_string()),
-                        backend_kind: Some(
-                            codex_protocol::protocol::EpiphanyJobBackendKind::Heartbeat,
-                        ),
-                        backend_job_id: Some("job-123".to_string()),
+                        backend_kind: None,
+                        backend_job_id: None,
                         linked_subgoal_ids: Vec::new(),
                         linked_graph_node_ids: Vec::new(),
-                        progress_note: Some("Launched explicitly.".to_string()),
+                        progress_note: None,
                         blocking_reason: None,
+                    }],
+                    runtime_links: vec![codex_protocol::protocol::EpiphanyRuntimeLink {
+                        id: "runtime-link-specialist-work-job-123".to_string(),
+                        binding_id: "specialist-work".to_string(),
+                        surface: "jobLaunch".to_string(),
+                        role_id: "epiphany-harness".to_string(),
+                        authority_scope: "epiphany.specialist".to_string(),
+                        runtime_job_id: "job-123".to_string(),
+                        runtime_result_id: None,
+                        linked_subgoal_ids: Vec::new(),
+                        linked_graph_node_ids: Vec::new(),
                     }],
                     ..Default::default()
                 },
@@ -3821,7 +3840,7 @@ mod tests {
                     kind: v2::ThreadEpiphanyJobKind::Specialist,
                     scope: "role-scoped specialist work".to_string(),
                     owner_role: "epiphany-harness".to_string(),
-                    launcher_job_id: Some("launcher-specialist".to_string()),
+                    launcher_job_id: None,
                     authority_scope: Some("epiphany.specialist".to_string()),
                     backend_kind: Some(v2::ThreadEpiphanyJobBackendKind::Heartbeat),
                     backend_job_id: Some("job-123".to_string()),
@@ -3846,7 +3865,7 @@ mod tests {
                 "id": 12,
                 "response": {
                     "revision": 3,
-                    "changedFields": ["jobBindings"],
+                    "changedFields": ["jobBindings", "runtimeLinks"],
                     "epiphanyState": {
                         "revision": 3,
                         "job_bindings": [{
@@ -3854,11 +3873,15 @@ mod tests {
                             "kind": "specialist",
                             "scope": "role-scoped specialist work",
                             "owner_role": "epiphany-harness",
-                            "launcher_job_id": "launcher-specialist",
+                            "authority_scope": "epiphany.specialist"
+                        }],
+                        "runtime_links": [{
+                            "id": "runtime-link-specialist-work-job-123",
+                            "binding_id": "specialist-work",
+                            "surface": "jobLaunch",
+                            "role_id": "epiphany-harness",
                             "authority_scope": "epiphany.specialist",
-                            "backend_kind": "heartbeat",
-                            "backend_job_id": "job-123",
-                            "progress_note": "Launched explicitly."
+                            "runtime_job_id": "job-123"
                         }]
                     },
                     "job": {
@@ -3866,9 +3889,8 @@ mod tests {
                         "kind": "specialist",
                         "scope": "role-scoped specialist work",
                         "ownerRole": "epiphany-harness",
-                        "launcherJobId": "launcher-specialist",
                         "authorityScope": "epiphany.specialist",
-                        "backendKind": "agentJobs",
+                        "backendKind": "heartbeat",
                         "backendJobId": "job-123",
                         "status": "pending",
                         "progressNote": "Runtime agent job is pending."
@@ -4117,7 +4139,7 @@ mod tests {
                         "ownerRole": "epiphany-harness",
                         "launcherJobId": "launcher-specialist",
                         "authorityScope": "epiphany.specialist",
-                        "backendKind": "agentJobs",
+                        "backendKind": "heartbeat",
                         "backendJobId": "job-123",
                         "status": "running",
                         "itemsProcessed": 1,

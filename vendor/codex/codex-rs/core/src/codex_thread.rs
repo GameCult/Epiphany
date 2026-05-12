@@ -33,6 +33,7 @@ use codex_protocol::protocol::EpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
+#[cfg(test)]
 use codex_protocol::protocol::EpiphanyJobBackendKind;
 use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind;
@@ -534,16 +535,12 @@ impl CodexThread {
             current_state.job_bindings.clone(),
             replacement_binding,
         );
-        let next_runtime_links = replace_or_append_epiphany_runtime_link(
-            current_state.runtime_links.clone(),
-            replacement_runtime_link,
-        );
 
         let validation_errors = epiphany_state_update_validation_errors(
             &current_state,
             &EpiphanyStateUpdate {
                 job_bindings: Some(next_job_bindings.clone()),
-                runtime_links: next_runtime_links.clone(),
+                runtime_links: vec![replacement_runtime_link.clone()],
                 ..Default::default()
             },
         );
@@ -558,7 +555,7 @@ impl CodexThread {
             .epiphany_update_state(EpiphanyStateUpdate {
                 expected_revision: request.expected_revision,
                 job_bindings: Some(next_job_bindings),
-                runtime_links: next_runtime_links,
+                runtime_links: vec![replacement_runtime_link],
                 ..Default::default()
             })
             .await?;
@@ -821,15 +818,15 @@ fn validate_epiphany_job_launch_target(
     state: &EpiphanyThreadState,
     request: &EpiphanyJobLaunchRequest,
 ) -> CodexResult<()> {
-    let Some(existing_binding) = state
+    let existing_binding = state
         .job_bindings
         .iter()
-        .find(|binding| binding.id == request.binding_id)
-    else {
-        return Ok(());
-    };
-    if binding_backend_job_id_core(existing_binding).is_some()
-        && existing_binding.blocking_reason.is_none()
+        .find(|binding| binding.id == request.binding_id);
+    let existing_runtime_link = state.runtime_links.iter().find(|link| {
+        link.binding_id == request.binding_id && !link.runtime_job_id.trim().is_empty()
+    });
+    if existing_runtime_link.is_some()
+        && existing_binding.is_none_or(|binding| binding.blocking_reason.is_none())
     {
         return Err(CodexErr::InvalidRequest(format!(
             "epiphany job binding {:?} is already bound to an active heartbeat turn; interrupt it before launching a replacement",
@@ -841,24 +838,21 @@ fn validate_epiphany_job_launch_target(
 
 fn build_epiphany_job_launch_binding(
     request: &EpiphanyJobLaunchRequest,
-    launcher_job_id: &str,
-    backend_job_id: &str,
+    _launcher_job_id: &str,
+    _backend_job_id: &str,
 ) -> EpiphanyJobBinding {
     EpiphanyJobBinding {
         id: request.binding_id.clone(),
         kind: request.kind,
         scope: request.scope.clone(),
         owner_role: request.owner_role.clone(),
-        launcher_job_id: Some(launcher_job_id.to_string()),
+        launcher_job_id: None,
         authority_scope: Some(request.authority_scope.clone()),
-        backend_kind: Some(EpiphanyJobBackendKind::Heartbeat),
-        backend_job_id: Some(backend_job_id.to_string()),
+        backend_kind: None,
+        backend_job_id: None,
         linked_subgoal_ids: request.linked_subgoal_ids.clone(),
         linked_graph_node_ids: request.linked_graph_node_ids.clone(),
-        progress_note: Some(
-            "Explicitly queued through the Epiphany authority surface for heartbeat activation."
-                .to_string(),
-        ),
+        progress_note: None,
         blocking_reason: None,
     }
 }
@@ -959,18 +953,6 @@ fn replace_or_append_epiphany_job_binding(
     bindings
 }
 
-fn replace_or_append_epiphany_runtime_link(
-    mut links: Vec<EpiphanyRuntimeLink>,
-    replacement: EpiphanyRuntimeLink,
-) -> Vec<EpiphanyRuntimeLink> {
-    if let Some(existing) = links.iter_mut().find(|link| link.id == replacement.id) {
-        *existing = replacement;
-        return links;
-    }
-    links.push(replacement);
-    links
-}
-
 fn clear_epiphany_job_binding_backend(
     mut bindings: Vec<EpiphanyJobBinding>,
     binding_index: usize,
@@ -983,10 +965,6 @@ fn clear_epiphany_job_binding_backend(
     binding.progress_note = None;
     binding.blocking_reason = Some(blocking_reason.to_string());
     bindings
-}
-
-fn binding_backend_job_id_core(binding: &EpiphanyJobBinding) -> Option<&str> {
-    binding.backend_job_id.as_deref()
 }
 
 fn epiphany_state_update_validation_errors(
@@ -2152,17 +2130,10 @@ mod epiphany_update_tests {
             build_epiphany_job_launch_binding(&request, "epiphany-heartbeat-launch-1", "turn-1");
         let runtime_link = build_epiphany_runtime_link(&request, "turn-1");
 
-        assert_eq!(
-            binding.backend_kind,
-            Some(EpiphanyJobBackendKind::Heartbeat)
-        );
-        assert_eq!(binding.backend_job_id.as_deref(), Some("turn-1"));
-        assert!(
-            binding
-                .progress_note
-                .as_deref()
-                .is_some_and(|note| note.contains("heartbeat activation"))
-        );
+        assert_eq!(binding.launcher_job_id, None);
+        assert_eq!(binding.backend_kind, None);
+        assert_eq!(binding.backend_job_id, None);
+        assert_eq!(binding.progress_note, None);
         assert_eq!(
             runtime_link.id,
             "runtime-link-modeling-checkpoint-worker-turn-1"
