@@ -81,8 +81,6 @@ use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::ClientRequest;
 use codex_app_server_protocol::CodexErrorInfo as AppServerCodexErrorInfo;
 use codex_app_server_protocol::ConfigLayerSource;
-use codex_app_server_protocol::ConfigValueWriteParams;
-use codex_app_server_protocol::ConfigWriteResponse;
 use codex_app_server_protocol::FeedbackUploadParams;
 use codex_app_server_protocol::FeedbackUploadResponse;
 use codex_app_server_protocol::GetAccountRateLimitsResponse;
@@ -90,15 +88,6 @@ use codex_app_server_protocol::ListMcpServerStatusParams;
 use codex_app_server_protocol::ListMcpServerStatusResponse;
 use codex_app_server_protocol::McpServerStatus;
 use codex_app_server_protocol::McpServerStatusDetail;
-use codex_app_server_protocol::MergeStrategy;
-use codex_app_server_protocol::PluginInstallParams;
-use codex_app_server_protocol::PluginInstallResponse;
-use codex_app_server_protocol::PluginListParams;
-use codex_app_server_protocol::PluginListResponse;
-use codex_app_server_protocol::PluginReadParams;
-use codex_app_server_protocol::PluginReadResponse;
-use codex_app_server_protocol::PluginUninstallParams;
-use codex_app_server_protocol::PluginUninstallResponse;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::SendAddCreditsNudgeEmailParams;
 use codex_app_server_protocol::ServerNotification;
@@ -555,10 +544,6 @@ pub(crate) struct App {
     primary_session_configured: Option<ThreadSessionState>,
     pending_primary_events: VecDeque<ThreadBufferedEvent>,
     pending_app_server_requests: PendingAppServerRequests,
-    // Serialize plugin enablement writes per plugin so stale completions cannot
-    // overwrite a newer toggle, even if the plugin is toggled from different
-    // cwd contexts.
-    pending_plugin_enabled_writes: HashMap<String, Option<bool>>,
 }
 
 fn active_turn_not_steerable_turn_error(error: &TypedRequestError) -> Option<AppServerTurnError> {
@@ -916,7 +901,6 @@ impl App {
             primary_session_configured: None,
             pending_primary_events: VecDeque::new(),
             pending_app_server_requests: PendingAppServerRequests::default(),
-            pending_plugin_enabled_writes: HashMap::new(),
         };
         if let Some(started) = initial_started_thread {
             app.enqueue_primary_thread_session(started.session, started.turns)

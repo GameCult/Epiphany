@@ -81,7 +81,6 @@ use crate::version::CODEX_CLI_VERSION;
 use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
 use codex_app_server_protocol::AppInfo;
-use codex_app_server_protocol::AppSummary;
 use codex_app_server_protocol::CodexErrorInfo as AppServerCodexErrorInfo;
 use codex_app_server_protocol::CollabAgentState as AppServerCollabAgentState;
 use codex_app_server_protocol::CollabAgentStatus as AppServerCollabAgentStatus;
@@ -371,8 +370,6 @@ mod slash_dispatch;
 use self::skills::collect_tool_mentions;
 use self::skills::find_app_mentions;
 use self::skills::find_skill_mentions_with_tool_mentions;
-mod plugins;
-use self::plugins::PluginsCacheState;
 mod plan_implementation;
 use self::plan_implementation::PLAN_IMPLEMENTATION_TITLE;
 mod realtime;
@@ -606,18 +603,6 @@ enum ConnectorsCacheState {
     Loading,
     Ready(ConnectorsSnapshot),
     Failed(String),
-}
-
-#[derive(Debug, Clone, Default)]
-struct PluginListFetchState {
-    cache_cwd: Option<PathBuf>,
-    in_flight_cwd: Option<PathBuf>,
-}
-
-#[derive(Debug, Clone)]
-struct PluginInstallAuthFlowState {
-    plugin_display_name: String,
-    next_app_index: usize,
 }
 
 #[derive(Debug)]
@@ -862,11 +847,6 @@ pub(crate) struct ChatWidget {
     connectors_partial_snapshot: Option<ConnectorsSnapshot>,
     connectors_prefetch_in_flight: bool,
     connectors_force_refetch_pending: bool,
-    plugins_cache: PluginsCacheState,
-    plugins_fetch_state: PluginListFetchState,
-    plugin_install_apps_needing_auth: Vec<AppSummary>,
-    plugin_install_auth_flow: Option<PluginInstallAuthFlowState>,
-    plugins_active_tab_id: Option<String>,
     // Queue of interruptive UI events deferred during an active write cycle
     interrupts: InterruptManager,
     // Accumulates the current reasoning block text to extract a header
@@ -2157,8 +2137,6 @@ impl ChatWidget {
         self.refresh_status_surfaces();
         self.sync_fast_command_enabled();
         self.sync_personality_command_enabled();
-        self.sync_plugins_command_enabled();
-        self.refresh_plugin_mentions();
         if display == SessionConfiguredDisplay::Normal {
             let startup_tooltip_override = self.startup_tooltip_override.take();
             let show_fast_status =
@@ -5173,11 +5151,6 @@ impl ChatWidget {
             connectors_partial_snapshot: None,
             connectors_prefetch_in_flight: false,
             connectors_force_refetch_pending: false,
-            plugins_cache: PluginsCacheState::default(),
-            plugins_fetch_state: PluginListFetchState::default(),
-            plugin_install_apps_needing_auth: Vec::new(),
-            plugin_install_auth_flow: None,
-            plugins_active_tab_id: None,
             interrupts: InterruptManager::new(),
             reasoning_buffer: String::new(),
             full_reasoning_buffer: String::new(),
@@ -5257,7 +5230,6 @@ impl ChatWidget {
             .set_collaboration_modes_enabled(/*enabled*/ true);
         widget.sync_fast_command_enabled();
         widget.sync_personality_command_enabled();
-        widget.sync_plugins_command_enabled();
         widget
             .bottom_pane
             .set_queued_message_edit_binding(widget.queued_message_edit_binding);
@@ -9723,10 +9695,6 @@ impl ChatWidget {
         if feature == Feature::Personality {
             self.sync_personality_command_enabled();
         }
-        if feature == Feature::Plugins {
-            self.sync_plugins_command_enabled();
-            self.refresh_plugin_mentions();
-        }
         if feature == Feature::PreventIdleSleep {
             self.turn_sleep_inhibitor = SleepInhibitor::new(enabled);
             self.turn_sleep_inhibitor
@@ -9963,11 +9931,6 @@ impl ChatWidget {
     fn sync_personality_command_enabled(&mut self) {
         self.bottom_pane
             .set_personality_command_enabled(self.config.features.enabled(Feature::Personality));
-    }
-
-    fn sync_plugins_command_enabled(&mut self) {
-        self.bottom_pane
-            .set_plugins_command_enabled(self.config.features.enabled(Feature::Plugins));
     }
 
     fn current_model_supports_personality(&self) -> bool {
@@ -10859,7 +10822,6 @@ impl ChatWidget {
 
     fn on_list_skills(&mut self, ev: ListSkillsResponseEvent) {
         self.set_skills_from_response(&ev);
-        self.refresh_plugin_mentions();
     }
 
     pub(crate) fn on_connectors_loaded(
@@ -10956,15 +10918,6 @@ impl ChatWidget {
         self.bottom_pane.set_connectors_snapshot(Some(snapshot));
     }
 
-    pub(crate) fn refresh_plugin_mentions(&mut self) {
-    }
-
-    pub(crate) fn sync_plugin_mentions_config(&mut self, config: &Config) {
-        self.config.features = config.features.clone();
-        self.config.config_layer_stack = config.config_layer_stack.clone();
-        self.config.realtime = config.realtime.clone();
-        self.config.memories = config.memories.clone();
-    }
 
     pub(crate) fn open_review_popup(&mut self) {
         let mut items: Vec<SelectionItem> = Vec::new();

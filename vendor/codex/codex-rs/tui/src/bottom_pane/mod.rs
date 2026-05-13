@@ -90,8 +90,6 @@ mod skills_toggle_view;
 pub(crate) mod slash_commands;
 pub(crate) use footer::CollaborationModeIndicator;
 pub(crate) use list_selection_view::ColumnWidthMode;
-pub(crate) use list_selection_view::SelectionRowDisplay;
-pub(crate) use list_selection_view::SelectionToggle;
 pub(crate) use list_selection_view::SelectionViewParams;
 pub(crate) use list_selection_view::SideContentWidth;
 pub(crate) use list_selection_view::popup_content_width;
@@ -124,7 +122,6 @@ mod selection_tabs;
 mod textarea;
 mod unified_exec_footer;
 pub(crate) use feedback_view::FeedbackNoteView;
-pub(crate) use selection_tabs::SelectionTab;
 
 /// How long the "press again to quit" hint stays visible.
 ///
@@ -271,11 +268,6 @@ impl BottomPane {
 
     pub fn set_connectors_snapshot(&mut self, snapshot: Option<ConnectorsSnapshot>) {
         self.composer.set_connector_mentions(snapshot);
-        self.request_redraw();
-    }
-
-    pub fn set_plugins_command_enabled(&mut self, enabled: bool) {
-        self.composer.set_plugins_command_enabled(enabled);
         self.request_redraw();
     }
 
@@ -859,13 +851,6 @@ impl BottomPane {
             .last()
             .filter(|view| view.view_id() == Some(view_id))
             .and_then(|view| view.selected_index())
-    }
-
-    pub(crate) fn active_tab_id_for_active_view(&self, view_id: &'static str) -> Option<&str> {
-        self.view_stack
-            .last()
-            .filter(|view| view.view_id() == Some(view_id))
-            .and_then(|view| view.active_tab_id())
     }
 
     /// Update the pending-input preview shown above the composer.

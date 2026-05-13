@@ -868,6 +868,14 @@ mentions, and `codex-tui` no longer depends on `codex-plugin` or
 `codex-utils-plugins`. The remaining TUI marketplace code is a product UI
 compatibility stump to cut next, not auth/model spine machinery.
 
+That stump is now cut from TUI. `/plugins` is no longer a slash command, the
+`chatwidget/plugins.rs` marketplace popup module is deleted, plugin AppEvent
+variants and background RPC helpers are gone, plugin enablement write queuing
+is gone, and the plugin marketplace popup tests/helpers were deleted. TUI still
+has ordinary app connector fields whose protocol shape mentions historical
+`plugin_display_names`; those are connector metadata compatibility, not plugin
+runtime authority.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

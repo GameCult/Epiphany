@@ -1,6 +1,6 @@
 //! Background app-server requests launched by the TUI app.
 //!
-//! This module owns fire-and-forget fetch/write helpers for MCP inventory, skills, plugins, rate
+//! This module owns fire-and-forget fetch/write helpers for MCP inventory, skills, rate
 //! limits, add-credit nudges, and feedback uploads. Results are routed back through `AppEvent` so
 //! the main event loop remains single-threaded.
 
@@ -75,126 +75,6 @@ impl App {
                 .await
                 .map_err(|err| format!("{err:#}"));
             app_event_tx.send(AppEvent::SkillsListLoaded { result });
-        });
-    }
-
-    pub(super) fn fetch_plugins_list(&mut self, app_server: &AppServerSession, cwd: PathBuf) {
-        let request_handle = app_server.request_handle();
-        let app_event_tx = self.app_event_tx.clone();
-        tokio::spawn(async move {
-            let result = fetch_plugins_list(request_handle, cwd.clone())
-                .await
-                .map_err(|err| err.to_string());
-            app_event_tx.send(AppEvent::PluginsLoaded { cwd, result });
-        });
-    }
-
-    pub(super) fn fetch_plugin_detail(
-        &mut self,
-        app_server: &AppServerSession,
-        cwd: PathBuf,
-        params: PluginReadParams,
-    ) {
-        let request_handle = app_server.request_handle();
-        let app_event_tx = self.app_event_tx.clone();
-        tokio::spawn(async move {
-            let result = fetch_plugin_detail(request_handle, params)
-                .await
-                .map_err(|err| err.to_string());
-            app_event_tx.send(AppEvent::PluginDetailLoaded { cwd, result });
-        });
-    }
-
-    pub(super) fn fetch_plugin_install(
-        &mut self,
-        app_server: &AppServerSession,
-        cwd: PathBuf,
-        marketplace_path: AbsolutePathBuf,
-        plugin_name: String,
-        plugin_display_name: String,
-    ) {
-        let request_handle = app_server.request_handle();
-        let app_event_tx = self.app_event_tx.clone();
-        tokio::spawn(async move {
-            let cwd_for_event = cwd.clone();
-            let marketplace_path_for_event = marketplace_path.clone();
-            let plugin_name_for_event = plugin_name.clone();
-            let result = fetch_plugin_install(request_handle, marketplace_path, plugin_name)
-                .await
-                .map_err(|err| format!("Failed to install plugin: {err}"));
-            app_event_tx.send(AppEvent::PluginInstallLoaded {
-                cwd: cwd_for_event,
-                marketplace_path: marketplace_path_for_event,
-                plugin_name: plugin_name_for_event,
-                plugin_display_name,
-                result,
-            });
-        });
-    }
-
-    pub(super) fn fetch_plugin_uninstall(
-        &mut self,
-        app_server: &AppServerSession,
-        cwd: PathBuf,
-        plugin_id: String,
-        plugin_display_name: String,
-    ) {
-        let request_handle = app_server.request_handle();
-        let app_event_tx = self.app_event_tx.clone();
-        tokio::spawn(async move {
-            let cwd_for_event = cwd.clone();
-            let plugin_id_for_event = plugin_id.clone();
-            let result = fetch_plugin_uninstall(request_handle, plugin_id)
-                .await
-                .map_err(|err| format!("Failed to uninstall plugin: {err}"));
-            app_event_tx.send(AppEvent::PluginUninstallLoaded {
-                cwd: cwd_for_event,
-                plugin_id: plugin_id_for_event,
-                plugin_display_name,
-                result,
-            });
-        });
-    }
-
-    pub(super) fn set_plugin_enabled(
-        &mut self,
-        app_server: &AppServerSession,
-        cwd: PathBuf,
-        plugin_id: String,
-        enabled: bool,
-    ) {
-        if let Some(queued_enabled) = self.pending_plugin_enabled_writes.get_mut(&plugin_id) {
-            *queued_enabled = Some(enabled);
-            return;
-        }
-
-        self.pending_plugin_enabled_writes
-            .insert(plugin_id.clone(), None);
-        self.spawn_plugin_enabled_write(app_server, cwd, plugin_id, enabled);
-    }
-
-    pub(super) fn spawn_plugin_enabled_write(
-        &mut self,
-        app_server: &AppServerSession,
-        cwd: PathBuf,
-        plugin_id: String,
-        enabled: bool,
-    ) {
-        let request_handle = app_server.request_handle();
-        let app_event_tx = self.app_event_tx.clone();
-        tokio::spawn(async move {
-            let cwd_for_event = cwd.clone();
-            let plugin_id_for_event = plugin_id.clone();
-            let result = write_plugin_enabled(request_handle, plugin_id, enabled)
-                .await
-                .map(|_| ())
-                .map_err(|err| format!("Failed to update plugin config: {err}"));
-            app_event_tx.send(AppEvent::PluginEnabledSet {
-                cwd: cwd_for_event,
-                plugin_id: plugin_id_for_event,
-                enabled,
-                result,
-            });
         });
     }
 
@@ -451,98 +331,6 @@ pub(super) async fn fetch_skills_list(
         .wrap_err("skills/list failed in TUI")
 }
 
-pub(super) async fn fetch_plugins_list(
-    request_handle: AppServerRequestHandle,
-    cwd: PathBuf,
-) -> Result<PluginListResponse> {
-    let cwd = AbsolutePathBuf::try_from(cwd).wrap_err("plugin list cwd must be absolute")?;
-    let request_id = RequestId::String(format!("plugin-list-{}", Uuid::new_v4()));
-    let mut response = request_handle
-        .request_typed(ClientRequest::PluginList {
-            request_id,
-            params: PluginListParams {
-                cwds: Some(vec![cwd]),
-            },
-        })
-        .await
-        .wrap_err("plugin/list failed in TUI")?;
-    hide_cli_only_plugin_marketplaces(&mut response);
-    Ok(response)
-}
-
-const CLI_HIDDEN_PLUGIN_MARKETPLACES: &[&str] = &["openai-bundled"];
-
-pub(super) fn hide_cli_only_plugin_marketplaces(response: &mut PluginListResponse) {
-    response
-        .marketplaces
-        .retain(|marketplace| !CLI_HIDDEN_PLUGIN_MARKETPLACES.contains(&marketplace.name.as_str()));
-}
-
-pub(super) async fn fetch_plugin_detail(
-    request_handle: AppServerRequestHandle,
-    params: PluginReadParams,
-) -> Result<PluginReadResponse> {
-    let request_id = RequestId::String(format!("plugin-read-{}", Uuid::new_v4()));
-    request_handle
-        .request_typed(ClientRequest::PluginRead { request_id, params })
-        .await
-        .wrap_err("plugin/read failed in TUI")
-}
-
-pub(super) async fn fetch_plugin_install(
-    request_handle: AppServerRequestHandle,
-    marketplace_path: AbsolutePathBuf,
-    plugin_name: String,
-) -> Result<PluginInstallResponse> {
-    let request_id = RequestId::String(format!("plugin-install-{}", Uuid::new_v4()));
-    request_handle
-        .request_typed(ClientRequest::PluginInstall {
-            request_id,
-            params: PluginInstallParams {
-                marketplace_path: Some(marketplace_path),
-                remote_marketplace_name: None,
-                plugin_name,
-            },
-        })
-        .await
-        .wrap_err("plugin/install failed in TUI")
-}
-
-pub(super) async fn fetch_plugin_uninstall(
-    request_handle: AppServerRequestHandle,
-    plugin_id: String,
-) -> Result<PluginUninstallResponse> {
-    let request_id = RequestId::String(format!("plugin-uninstall-{}", Uuid::new_v4()));
-    request_handle
-        .request_typed(ClientRequest::PluginUninstall {
-            request_id,
-            params: PluginUninstallParams { plugin_id },
-        })
-        .await
-        .wrap_err("plugin/uninstall failed in TUI")
-}
-
-pub(super) async fn write_plugin_enabled(
-    request_handle: AppServerRequestHandle,
-    plugin_id: String,
-    enabled: bool,
-) -> Result<ConfigWriteResponse> {
-    let request_id = RequestId::String(format!("plugin-enable-{}", Uuid::new_v4()));
-    request_handle
-        .request_typed(ClientRequest::ConfigValueWrite {
-            request_id,
-            params: ConfigValueWriteParams {
-                key_path: format!("plugins.{plugin_id}"),
-                value: serde_json::json!({ "enabled": enabled }),
-                merge_strategy: MergeStrategy::Upsert,
-                file_path: None,
-                expected_version: None,
-            },
-        })
-        .await
-        .wrap_err("config/value/write failed while updating plugin enablement in TUI")
-}
-
 pub(super) fn build_feedback_upload_params(
     origin_thread_id: Option<ThreadId>,
     rollout_path: Option<PathBuf>,
@@ -621,48 +409,8 @@ pub(super) fn mcp_inventory_maps_from_statuses(statuses: Vec<McpServerStatus>) -
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_app_server_protocol::PluginMarketplaceEntry;
     use codex_protocol::mcp::Tool;
-    use codex_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
-
-    fn test_absolute_path(path: &str) -> AbsolutePathBuf {
-        AbsolutePathBuf::try_from(PathBuf::from(path)).expect("absolute test path")
-    }
-
-    #[test]
-    fn hide_cli_only_plugin_marketplaces_removes_openai_bundled() {
-        let mut response = PluginListResponse {
-            marketplaces: vec![
-                PluginMarketplaceEntry {
-                    name: "openai-bundled".to_string(),
-                    path: Some(test_absolute_path("/marketplaces/openai-bundled")),
-                    interface: None,
-                    plugins: Vec::new(),
-                },
-                PluginMarketplaceEntry {
-                    name: "openai-curated".to_string(),
-                    path: Some(test_absolute_path("/marketplaces/openai-curated")),
-                    interface: None,
-                    plugins: Vec::new(),
-                },
-            ],
-            marketplace_load_errors: Vec::new(),
-            featured_plugin_ids: Vec::new(),
-        };
-
-        hide_cli_only_plugin_marketplaces(&mut response);
-
-        assert_eq!(
-            response.marketplaces,
-            vec![PluginMarketplaceEntry {
-                name: "openai-curated".to_string(),
-                path: Some(test_absolute_path("/marketplaces/openai-curated")),
-                interface: None,
-                plugins: Vec::new(),
-            }]
-        );
-    }
 
     #[test]
     fn mcp_inventory_maps_prefix_tool_names_by_server() {

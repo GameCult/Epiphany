@@ -31,7 +31,6 @@ pub(super) use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
 pub(super) use codex_app_server_protocol::AdditionalFileSystemPermissions as AppServerAdditionalFileSystemPermissions;
 pub(super) use codex_app_server_protocol::AdditionalNetworkPermissions as AppServerAdditionalNetworkPermissions;
 pub(super) use codex_app_server_protocol::AdditionalPermissionProfile as AppServerAdditionalPermissionProfile;
-pub(super) use codex_app_server_protocol::AppSummary;
 pub(super) use codex_app_server_protocol::AutoReviewDecisionSource as AppServerGuardianApprovalReviewDecisionSource;
 pub(super) use codex_app_server_protocol::CollabAgentState as AppServerCollabAgentState;
 pub(super) use codex_app_server_protocol::CollabAgentStatus as AppServerCollabAgentStatus;
@@ -65,25 +64,14 @@ pub(super) use codex_app_server_protocol::ItemCompletedNotification;
 pub(super) use codex_app_server_protocol::ItemGuardianApprovalReviewCompletedNotification;
 pub(super) use codex_app_server_protocol::ItemGuardianApprovalReviewStartedNotification;
 pub(super) use codex_app_server_protocol::ItemStartedNotification;
-pub(super) use codex_app_server_protocol::MarketplaceInterface;
 pub(super) use codex_app_server_protocol::McpServerStartupState;
 pub(super) use codex_app_server_protocol::McpServerStatusDetail;
 pub(super) use codex_app_server_protocol::McpServerStatusUpdatedNotification;
 pub(super) use codex_app_server_protocol::PatchApplyStatus as AppServerPatchApplyStatus;
 pub(super) use codex_app_server_protocol::PatchChangeKind;
 pub(super) use codex_app_server_protocol::PermissionsRequestApprovalParams as AppServerPermissionsRequestApprovalParams;
-pub(super) use codex_app_server_protocol::PluginAuthPolicy;
-pub(super) use codex_app_server_protocol::PluginDetail;
-pub(super) use codex_app_server_protocol::PluginInstallPolicy;
-pub(super) use codex_app_server_protocol::PluginInterface;
-pub(super) use codex_app_server_protocol::PluginListResponse;
-pub(super) use codex_app_server_protocol::PluginMarketplaceEntry;
-pub(super) use codex_app_server_protocol::PluginReadResponse;
-pub(super) use codex_app_server_protocol::PluginSource;
-pub(super) use codex_app_server_protocol::PluginSummary;
 pub(super) use codex_app_server_protocol::ReasoningSummaryTextDeltaNotification;
 pub(super) use codex_app_server_protocol::ServerNotification;
-pub(super) use codex_app_server_protocol::SkillSummary;
 pub(super) use codex_app_server_protocol::ThreadClosedNotification;
 pub(super) use codex_app_server_protocol::ThreadItem as AppServerThreadItem;
 pub(super) use codex_app_server_protocol::Turn as AppServerTurn;
@@ -225,7 +213,6 @@ pub(super) use tokio::sync::mpsc::error::TryRecvError;
 pub(super) use tokio::sync::mpsc::unbounded_channel;
 pub(super) use toml::Value as TomlValue;
 
-pub(super) const OPENAI_CURATED_MARKETPLACE_NAME: &str = "openai-curated";
 
 pub(super) fn chatwidget_snapshot_dir() -> PathBuf {
     let snapshot_file = codex_utils_cargo_bin::find_resource!(

@@ -154,7 +154,7 @@ impl App {
 
     async fn handle_server_notification_event(
         &mut self,
-        app_server_client: &AppServerSession,
+        _app_server_client: &AppServerSession,
         notification: ServerNotification,
     ) {
         match &notification {
@@ -190,16 +190,13 @@ impl App {
                 return;
             }
             ServerNotification::ExternalAgentConfigImportCompleted(_) => {
-                let cwd = self.chat_widget.config_ref().cwd.to_path_buf();
                 if let Err(err) = self.refresh_in_memory_config_from_disk().await {
                     tracing::warn!(
                         error = %err,
                         "failed to refresh config after external agent config import"
                     );
                 }
-                self.chat_widget.refresh_plugin_mentions();
                 self.chat_widget.submit_op(AppCommand::reload_user_config());
-                self.fetch_plugins_list(app_server_client, cwd);
                 return;
             }
             _ => {}
