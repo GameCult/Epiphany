@@ -615,6 +615,16 @@ persistence validation, and rollout/session writeback. The remaining impurity
 is route-facing orchestration in `codex_message_processor.rs` /
 `epiphany_mutation_routes.rs`; move that behind a native service boundary next.
 
+The first route-facing mutation service cut has started. Update/promote
+mutation application now routes through
+`epiphany-codex-bridge::mutation_service::{apply_thread_epiphany_update,
+apply_thread_epiphany_promote}` so the vendored app-server handler no longer
+owns promotion evaluation, patch-to-update projection, changed-field derivation,
+or state application for those two write verbs. The handler still owns
+thread-id parsing, loaded-thread lookup, JSON-RPC response shaping, and
+notification emission; role/reorient accept plus launch/interrupt route
+orchestration remain to cut.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

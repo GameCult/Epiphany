@@ -3,8 +3,6 @@ use chrono::Utc;
 use codex_app_server_protocol::*;
 use codex_core::EpiphanyJobInterruptRequest;
 use codex_core::EpiphanyJobLaunchRequest;
-use codex_core::EpiphanyPromotionInput;
-use codex_core::evaluate_promotion;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
@@ -21,11 +19,11 @@ use epiphany_codex_bridge::launch::map_core_worker_launch_document;
 use epiphany_codex_bridge::mutation::build_reorient_acceptance_update;
 use epiphany_codex_bridge::mutation::build_role_acceptance_update;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
-use epiphany_codex_bridge::mutation::epiphany_promote_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
-use epiphany_codex_bridge::mutation::epiphany_update_patch_changed_fields;
 use epiphany_codex_bridge::mutation::state_update_from_thread_patch;
-use epiphany_codex_bridge::mutation::thread_epiphany_patch_has_state_replacements;
+use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
+use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
+use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_update;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::reorient::map_epiphany_reorient;
@@ -727,42 +725,15 @@ impl CodexMessageProcessor {
             }
         };
 
-        let decision = evaluate_promotion(EpiphanyPromotionInput {
-            has_state_replacements: thread_epiphany_patch_has_state_replacements(&patch),
-            active_subgoal_id: patch.active_subgoal_id.clone(),
-            subgoals: patch.subgoals.clone(),
-            invariants: patch.invariants.clone(),
-            graphs: patch.graphs.clone(),
-            graph_frontier: patch.graph_frontier.clone(),
-            graph_checkpoint: patch.graph_checkpoint.clone(),
-            investigation_checkpoint: patch.investigation_checkpoint.clone(),
-            churn: patch.churn.clone(),
-            observations: patch.observations.clone(),
-            evidence: patch.evidence.clone(),
-            verifier_evidence: verifier_evidence.clone(),
-        });
-        if !decision.accepted {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    ThreadEpiphanyPromoteResponse {
-                        accepted: false,
-                        reasons: decision.reasons,
-                        revision: None,
-                        changed_fields: Vec::new(),
-                        epiphany_state: None,
-                    },
-                )
-                .await;
-            return;
-        }
-
-        let changed_fields = epiphany_promote_changed_fields(&patch);
-        let mut patch = patch;
-        patch.evidence.push(verifier_evidence);
-        let update = state_update_from_thread_patch(expected_revision, patch);
-        let epiphany_state = match thread.epiphany_update_state(update).await {
-            Ok(epiphany_state) => epiphany_state,
+        let applied = match apply_thread_epiphany_promote(
+            thread.as_ref(),
+            expected_revision,
+            patch,
+            verifier_evidence,
+        )
+        .await
+        {
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -776,12 +747,31 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let epiphany_state =
-            client_visible_live_thread_epiphany_state(thread.as_ref(), epiphany_state).await;
+
+        let applied = match applied {
+            EpiphanyThreadPromoteApplied::Accepted(applied) => applied,
+            EpiphanyThreadPromoteApplied::Rejected { reasons } => {
+                self.outgoing
+                    .send_response(
+                        request_id,
+                        ThreadEpiphanyPromoteResponse {
+                            accepted: false,
+                            reasons,
+                            revision: None,
+                            changed_fields: Vec::new(),
+                            epiphany_state: None,
+                        },
+                    )
+                    .await;
+                return;
+            }
+        };
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyPromoteResponse {
             accepted: true,
             reasons: Vec::new(),
-            revision: Some(epiphany_state.revision),
+            revision: Some(applied.revision),
             changed_fields: changed_fields.clone(),
             epiphany_state: Some(epiphany_state.clone()),
         };
@@ -832,10 +822,10 @@ impl CodexMessageProcessor {
             }
         };
 
-        let changed_fields = epiphany_update_patch_changed_fields(&patch);
-        let update = state_update_from_thread_patch(expected_revision, patch);
-        let epiphany_state = match thread.epiphany_update_state(update).await {
-            Ok(epiphany_state) => epiphany_state,
+        let applied = match apply_thread_epiphany_update(thread.as_ref(), expected_revision, patch)
+            .await
+        {
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -849,10 +839,10 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let epiphany_state =
-            client_visible_live_thread_epiphany_state(thread.as_ref(), epiphany_state).await;
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyUpdateResponse {
-            revision: epiphany_state.revision,
+            revision: applied.revision,
             changed_fields: changed_fields.clone(),
             epiphany_state: epiphany_state.clone(),
         };

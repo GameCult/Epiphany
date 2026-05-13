@@ -3,6 +3,7 @@ pub mod coordinator;
 pub mod jobs;
 pub mod launch;
 pub mod mutation;
+pub mod mutation_service;
 pub mod pressure;
 pub mod reorient;
 pub mod results;
