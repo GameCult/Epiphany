@@ -1,6 +1,6 @@
-use codex_protocol::protocol::EpiphanyRetrievalState;
-use codex_protocol::protocol::EpiphanyRetrievalStatus;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyRetrievalStatus;
+use epiphany_state_model::EpiphanyThreadState;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
@@ -374,10 +374,10 @@ fn epiphany_path_key(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::protocol::EpiphanyCodeRef;
-    use codex_protocol::protocol::EpiphanyGraphFrontier;
-    use codex_protocol::protocol::EpiphanyGraphNode;
-    use codex_protocol::protocol::EpiphanyGraphs;
+    use epiphany_state_model::EpiphanyCodeRef;
+    use epiphany_state_model::EpiphanyGraphFrontier;
+    use epiphany_state_model::EpiphanyGraphNode;
+    use epiphany_state_model::EpiphanyGraphs;
 
     #[test]
     fn missing_state_reports_missing_freshness() {
@@ -440,7 +440,7 @@ mod tests {
                 ..Default::default()
             }),
             graphs: EpiphanyGraphs {
-                architecture: codex_protocol::protocol::EpiphanyGraph {
+                architecture: epiphany_state_model::EpiphanyGraph {
                     nodes: vec![EpiphanyGraphNode {
                         id: "node-1".to_string(),
                         title: "node".to_string(),

@@ -1,6 +1,6 @@
-use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-use codex_protocol::protocol::EpiphanyRetrievalStatus;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyInvestigationDisposition;
+use epiphany_state_model::EpiphanyRetrievalStatus;
+use epiphany_state_model::EpiphanyThreadState;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -376,10 +376,10 @@ fn status_counts<'a>(statuses: impl Iterator<Item = &'a str>) -> Vec<EpiphanySce
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::protocol::EpiphanyInvariant;
-    use codex_protocol::protocol::EpiphanyJobBinding;
-    use codex_protocol::protocol::EpiphanyJobKind;
-    use codex_protocol::protocol::EpiphanySubgoal;
+    use epiphany_state_model::EpiphanyInvariant;
+    use epiphany_state_model::EpiphanyJobBinding;
+    use epiphany_state_model::EpiphanyJobKind;
+    use epiphany_state_model::EpiphanySubgoal;
 
     #[test]
     fn missing_stored_scene_has_no_actions() {

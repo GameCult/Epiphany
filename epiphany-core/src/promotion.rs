@@ -1,13 +1,13 @@
-use codex_protocol::protocol::EpiphanyChurnState;
-use codex_protocol::protocol::EpiphanyEvidenceRecord;
-use codex_protocol::protocol::EpiphanyGraph;
-use codex_protocol::protocol::EpiphanyGraphCheckpoint;
-use codex_protocol::protocol::EpiphanyGraphFrontier;
-use codex_protocol::protocol::EpiphanyGraphs;
-use codex_protocol::protocol::EpiphanyInvariant;
-use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-use codex_protocol::protocol::EpiphanyObservation;
-use codex_protocol::protocol::EpiphanySubgoal;
+use epiphany_state_model::EpiphanyChurnState;
+use epiphany_state_model::EpiphanyEvidenceRecord;
+use epiphany_state_model::EpiphanyGraph;
+use epiphany_state_model::EpiphanyGraphCheckpoint;
+use epiphany_state_model::EpiphanyGraphFrontier;
+use epiphany_state_model::EpiphanyGraphs;
+use epiphany_state_model::EpiphanyInvariant;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyObservation;
+use epiphany_state_model::EpiphanySubgoal;
 use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
@@ -606,8 +606,8 @@ fn is_strong_verifier_kind(kind: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::protocol::EpiphanyGraphEdge;
-    use codex_protocol::protocol::EpiphanyGraphNode;
+    use epiphany_state_model::EpiphanyGraphEdge;
+    use epiphany_state_model::EpiphanyGraphNode;
 
     fn verifier(status: &str) -> EpiphanyEvidenceRecord {
         EpiphanyEvidenceRecord {

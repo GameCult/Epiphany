@@ -1,19 +1,19 @@
-use codex_protocol::protocol::EpiphanyChurnState;
-use codex_protocol::protocol::EpiphanyCodeRef;
-use codex_protocol::protocol::EpiphanyEvidenceRecord;
-use codex_protocol::protocol::EpiphanyGraph;
-use codex_protocol::protocol::EpiphanyGraphCheckpoint;
-use codex_protocol::protocol::EpiphanyGraphEdge;
-use codex_protocol::protocol::EpiphanyGraphFrontier;
-use codex_protocol::protocol::EpiphanyGraphLink;
-use codex_protocol::protocol::EpiphanyGraphNode;
-use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-use codex_protocol::protocol::EpiphanyModeState;
-use codex_protocol::protocol::EpiphanyObservation;
-use codex_protocol::protocol::EpiphanyPlanningState;
-use codex_protocol::protocol::EpiphanyScratchPad;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyChurnState;
+use epiphany_state_model::EpiphanyCodeRef;
+use epiphany_state_model::EpiphanyEvidenceRecord;
+use epiphany_state_model::EpiphanyGraph;
+use epiphany_state_model::EpiphanyGraphCheckpoint;
+use epiphany_state_model::EpiphanyGraphEdge;
+use epiphany_state_model::EpiphanyGraphFrontier;
+use epiphany_state_model::EpiphanyGraphLink;
+use epiphany_state_model::EpiphanyGraphNode;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyInvestigationDisposition;
+use epiphany_state_model::EpiphanyModeState;
+use epiphany_state_model::EpiphanyObservation;
+use epiphany_state_model::EpiphanyPlanningState;
+use epiphany_state_model::EpiphanyScratchPad;
+use epiphany_state_model::EpiphanyThreadState;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -799,18 +799,18 @@ fn push_omitted_count(lines: &mut Vec<String>, total: usize, shown: usize, label
 mod tests {
     use super::render_epiphany_state;
     use codex_protocol::config_types::ModeKind;
-    use codex_protocol::protocol::EpiphanyChurnState;
-    use codex_protocol::protocol::EpiphanyCodeRef;
-    use codex_protocol::protocol::EpiphanyGraph;
-    use codex_protocol::protocol::EpiphanyGraphCheckpoint;
-    use codex_protocol::protocol::EpiphanyGraphEdge;
-    use codex_protocol::protocol::EpiphanyGraphFrontier;
-    use codex_protocol::protocol::EpiphanyGraphNode;
-    use codex_protocol::protocol::EpiphanyGraphs;
-    use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-    use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-    use codex_protocol::protocol::EpiphanyModeState;
-    use codex_protocol::protocol::EpiphanyThreadState;
+    use epiphany_state_model::EpiphanyChurnState;
+    use epiphany_state_model::EpiphanyCodeRef;
+    use epiphany_state_model::EpiphanyGraph;
+    use epiphany_state_model::EpiphanyGraphCheckpoint;
+    use epiphany_state_model::EpiphanyGraphEdge;
+    use epiphany_state_model::EpiphanyGraphFrontier;
+    use epiphany_state_model::EpiphanyGraphNode;
+    use epiphany_state_model::EpiphanyGraphs;
+    use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+    use epiphany_state_model::EpiphanyInvestigationDisposition;
+    use epiphany_state_model::EpiphanyModeState;
+    use epiphany_state_model::EpiphanyThreadState;
     use std::path::PathBuf;
 
     #[test]

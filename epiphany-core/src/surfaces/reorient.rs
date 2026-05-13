@@ -1,5 +1,5 @@
-use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-use codex_protocol::protocol::EpiphanyInvestigationDisposition;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyInvestigationDisposition;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
@@ -336,7 +336,7 @@ fn epiphany_path_key(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::protocol::EpiphanyCodeRef;
+    use epiphany_state_model::EpiphanyCodeRef;
 
     fn checkpoint() -> EpiphanyInvestigationCheckpoint {
         EpiphanyInvestigationCheckpoint {

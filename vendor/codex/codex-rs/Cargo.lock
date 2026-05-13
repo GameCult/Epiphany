@@ -3120,6 +3120,7 @@ dependencies = [
  "codex-utils-string",
  "codex-utils-template",
  "encoding_rs",
+ "epiphany-state-model",
  "globset",
  "http 1.4.0",
  "icu_decimal",
@@ -5248,6 +5249,7 @@ dependencies = [
  "cultcache-rs",
  "cultnet-rs",
  "epiphany-openai-adapter",
+ "epiphany-state-model",
  "ignore",
  "postgres",
  "reqwest",
@@ -5282,6 +5284,15 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "epiphany-state-model"
+version = "0.1.0"
+dependencies = [
+ "schemars 0.8.22",
+ "serde",
+ "ts-rs",
 ]
 
 [[package]]

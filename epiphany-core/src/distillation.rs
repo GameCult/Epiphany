@@ -1,8 +1,8 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use codex_protocol::protocol::EpiphanyCodeRef;
-use codex_protocol::protocol::EpiphanyEvidenceRecord;
-use codex_protocol::protocol::EpiphanyObservation;
+use epiphany_state_model::EpiphanyCodeRef;
+use epiphany_state_model::EpiphanyEvidenceRecord;
+use epiphany_state_model::EpiphanyObservation;
 use sha1::Digest;
 use sha1::Sha1;
 

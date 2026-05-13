@@ -1,5 +1,5 @@
-use codex_protocol::protocol::EpiphanyPlanningState;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyPlanningState;
+use epiphany_state_model::EpiphanyThreadState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EpiphanyPlanningStateStatus {
@@ -100,8 +100,8 @@ pub fn derive_planning_view(state: Option<&EpiphanyThreadState>) -> EpiphanyPlan
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::protocol::EpiphanyPlanningCapture;
-    use codex_protocol::protocol::EpiphanyPlanningSourceRef;
+    use epiphany_state_model::EpiphanyPlanningCapture;
+    use epiphany_state_model::EpiphanyPlanningSourceRef;
 
     #[test]
     fn missing_state_returns_empty_planning() {

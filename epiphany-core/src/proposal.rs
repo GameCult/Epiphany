@@ -1,14 +1,14 @@
 use anyhow::Result;
 use anyhow::anyhow;
-use codex_protocol::protocol::EpiphanyChurnState;
-use codex_protocol::protocol::EpiphanyCodeRef;
-use codex_protocol::protocol::EpiphanyEvidenceRecord;
-use codex_protocol::protocol::EpiphanyGraphEdge;
-use codex_protocol::protocol::EpiphanyGraphFrontier;
-use codex_protocol::protocol::EpiphanyGraphNode;
-use codex_protocol::protocol::EpiphanyGraphs;
-use codex_protocol::protocol::EpiphanyObservation;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyChurnState;
+use epiphany_state_model::EpiphanyCodeRef;
+use epiphany_state_model::EpiphanyEvidenceRecord;
+use epiphany_state_model::EpiphanyGraphEdge;
+use epiphany_state_model::EpiphanyGraphFrontier;
+use epiphany_state_model::EpiphanyGraphNode;
+use epiphany_state_model::EpiphanyGraphs;
+use epiphany_state_model::EpiphanyObservation;
+use epiphany_state_model::EpiphanyThreadState;
 use sha1::Digest;
 use sha1::Sha1;
 use std::collections::HashSet;
@@ -1121,9 +1121,9 @@ mod tests {
     use super::*;
     use crate::promotion::EpiphanyPromotionInput;
     use crate::promotion::evaluate_promotion;
-    use codex_protocol::protocol::EpiphanyGraph;
-    use codex_protocol::protocol::EpiphanyGraphEdge;
-    use codex_protocol::protocol::EpiphanyGraphLink;
+    use epiphany_state_model::EpiphanyGraph;
+    use epiphany_state_model::EpiphanyGraphEdge;
+    use epiphany_state_model::EpiphanyGraphLink;
 
     fn code_ref(path: &str) -> EpiphanyCodeRef {
         EpiphanyCodeRef {

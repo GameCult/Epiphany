@@ -1,9 +1,9 @@
-use codex_protocol::protocol::EpiphanyJobBinding;
-use codex_protocol::protocol::EpiphanyJobKind;
-use codex_protocol::protocol::EpiphanyRetrievalState;
-use codex_protocol::protocol::EpiphanyRetrievalStatus;
-use codex_protocol::protocol::EpiphanyRuntimeLink;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyJobBinding;
+use epiphany_state_model::EpiphanyJobKind;
+use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyRetrievalStatus;
+use epiphany_state_model::EpiphanyRuntimeLink;
+use epiphany_state_model::EpiphanyThreadState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EpiphanyJobStatus {
@@ -375,8 +375,8 @@ fn latest_runtime_link_for_binding<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::protocol::EpiphanyGraphFrontier;
-    use codex_protocol::protocol::EpiphanyInvariant;
+    use epiphany_state_model::EpiphanyGraphFrontier;
+    use epiphany_state_model::EpiphanyInvariant;
     use std::path::PathBuf;
 
     #[test]

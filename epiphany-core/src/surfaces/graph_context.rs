@@ -1,13 +1,13 @@
-use codex_protocol::protocol::EpiphanyCodeRef;
-use codex_protocol::protocol::EpiphanyEvidenceRecord;
-use codex_protocol::protocol::EpiphanyGraphCheckpoint;
-use codex_protocol::protocol::EpiphanyGraphEdge;
-use codex_protocol::protocol::EpiphanyGraphFrontier;
-use codex_protocol::protocol::EpiphanyGraphLink;
-use codex_protocol::protocol::EpiphanyGraphNode;
-use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-use codex_protocol::protocol::EpiphanyObservation;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_state_model::EpiphanyCodeRef;
+use epiphany_state_model::EpiphanyEvidenceRecord;
+use epiphany_state_model::EpiphanyGraphCheckpoint;
+use epiphany_state_model::EpiphanyGraphEdge;
+use epiphany_state_model::EpiphanyGraphFrontier;
+use epiphany_state_model::EpiphanyGraphLink;
+use epiphany_state_model::EpiphanyGraphNode;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyObservation;
+use epiphany_state_model::EpiphanyThreadState;
 use std::collections::HashSet;
 use std::path::PathBuf;
 
@@ -648,8 +648,8 @@ mod tests {
     fn graph_state() -> EpiphanyThreadState {
         EpiphanyThreadState {
             revision: 9,
-            graphs: codex_protocol::protocol::EpiphanyGraphs {
-                architecture: codex_protocol::protocol::EpiphanyGraph {
+            graphs: epiphany_state_model::EpiphanyGraphs {
+                architecture: epiphany_state_model::EpiphanyGraph {
                     nodes: vec![
                         EpiphanyGraphNode {
                             id: "a".to_string(),

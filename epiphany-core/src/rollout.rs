@@ -1,7 +1,7 @@
 use codex_protocol::models::ResponseItem;
-use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::RolloutItem;
+use epiphany_state_model::EpiphanyThreadState;
 
 #[derive(Debug, Default)]
 struct ActiveEpiphanyReplaySegment {
@@ -159,14 +159,14 @@ mod tests {
     use codex_protocol::models::ContentItem;
     use codex_protocol::models::ResponseItem;
     use codex_protocol::protocol::CompactedItem;
-    use codex_protocol::protocol::EpiphanyStateItem;
-    use codex_protocol::protocol::EpiphanyThreadState;
     use codex_protocol::protocol::EventMsg;
     use codex_protocol::protocol::RolloutItem;
     use codex_protocol::protocol::ThreadRolledBackEvent;
     use codex_protocol::protocol::TurnCompleteEvent;
     use codex_protocol::protocol::TurnStartedEvent;
     use codex_protocol::protocol::UserMessageEvent;
+    use epiphany_state_model::EpiphanyStateItem;
+    use epiphany_state_model::EpiphanyThreadState;
 
     fn simple_is_user_turn_boundary(item: &ResponseItem) -> bool {
         matches!(
