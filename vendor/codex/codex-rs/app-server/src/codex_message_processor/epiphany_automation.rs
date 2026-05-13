@@ -26,7 +26,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     let (_state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
         Some(&state),
         Some(&retrieval_override),
-        Some(&watcher_snapshot),
+        Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
     );
     let pressure = map_epiphany_pressure(token_usage_info.as_ref());
     let (state_status, reorient_decision) =

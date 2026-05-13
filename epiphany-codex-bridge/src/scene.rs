@@ -26,16 +26,15 @@ use epiphany_core::EpiphanySceneStatusCount as CoreEpiphanySceneStatusCount;
 use epiphany_core::EpiphanySceneSubgoal as CoreEpiphanySceneSubgoal;
 use epiphany_core::derive_scene;
 
-use crate::epiphany_launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
-
-pub(super) fn map_epiphany_scene(
+pub fn map_epiphany_scene(
     state: Option<&EpiphanyThreadState>,
     loaded: bool,
+    reorient_binding_id: &str,
 ) -> ThreadEpiphanyScene {
     map_core_epiphany_scene(derive_scene(EpiphanySceneInput {
         state,
         loaded,
-        reorient_binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        reorient_binding_id,
     }))
 }
 
@@ -78,7 +77,7 @@ fn map_core_epiphany_scene(scene: CoreEpiphanyScene) -> ThreadEpiphanyScene {
     }
 }
 
-pub(super) fn map_core_epiphany_scene_action(
+pub fn map_core_epiphany_scene_action(
     action: CoreEpiphanySceneAction,
 ) -> ThreadEpiphanySceneAction {
     match action {

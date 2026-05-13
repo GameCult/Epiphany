@@ -32,7 +32,7 @@ use epiphany_core::derive_context;
 use epiphany_core::derive_graph_query;
 use epiphany_core::derive_planning_view;
 
-pub(super) fn map_epiphany_context(
+pub fn map_epiphany_context(
     state: Option<&EpiphanyThreadState>,
     params: &ThreadEpiphanyContextParams,
 ) -> (
@@ -111,7 +111,7 @@ fn map_core_epiphany_context_missing(
     }
 }
 
-pub(super) fn map_epiphany_planning(
+pub fn map_epiphany_planning(
     state: Option<&EpiphanyThreadState>,
 ) -> (
     ThreadEpiphanyContextStateStatus,
@@ -159,7 +159,7 @@ fn map_core_epiphany_planning_summary(
     }
 }
 
-pub(super) fn map_epiphany_graph_query(
+pub fn map_epiphany_graph_query(
     state: Option<&EpiphanyThreadState>,
     query: &ThreadEpiphanyGraphQuery,
 ) -> (

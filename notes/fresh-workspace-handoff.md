@@ -462,19 +462,32 @@ The seventeenth cut moved live-state hydration, state-patch conversion,
 reviewability checks, and rollout-state loading into
 `vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_state_helpers.rs`,
 taking the processor to about 10,433 lines.
+The eighteenth cut stopped pretending that "less code in the processor" was the
+same as "less Epiphany in vendored Codex." A new outside-vendor crate,
+`epiphany-codex-bridge`, now owns the Codex-facing Epiphany adapters for scene,
+jobs, context/planning/graph query, retrieval, result projection,
+launch/prompt doctrine, pressure/pre-compaction rendering,
+freshness/reorientation projection, CRRC/coordinator/role-board projection, and
+acceptance/evidence signal helpers. The specialist prompt TOML moved with the
+launch spine. Vendored app-server now retains only `epiphany_invalidation.rs`
+as a root Epiphany module because watcher lifecycle is still app-server
+machinery. This pass removed roughly 3.3k lines of Epiphany-owned adapter/prompt
+code from `vendor/codex`, but `codex_message_processor.rs` is still about
+10,445 lines and still owns route dispatch, mutation orchestration,
+runtime-result loading, state hydration, and child modules with parent
+visibility.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
 Continue with the actual whale-carcass cut: replace child-module parent
-visibility with explicit typed service boundaries and move remaining Epiphany
-prompt/state/runtime helpers out of
-`codex_message_processor.rs` into Epiphany-owned app-server modules, moving
-logic further into `epiphany-core` whenever it owns real policy. Success is a
-visibly smaller `codex_message_processor.rs`, not merely nicer payload names. Do
-not resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
-marketplace, or bridge expansion until this organ is being cut cleanly.
+visibility with explicit typed bridge/service calls, then move route-independent
+state/runtime helpers out of `codex_message_processor.rs`. Success is a visibly
+smaller processor and less mutation authority in Codex, not merely nicer payload
+names or another adapter reliquary. Do not resume Rider, Unity, Aquarium, Face,
+dogfood, planning, app, skill, marketplace, or bridge expansion until this organ
+is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

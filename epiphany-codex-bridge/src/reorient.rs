@@ -31,13 +31,20 @@ use epiphany_core::EpiphanyRetrievalFreshness as CoreEpiphanyRetrievalFreshness;
 use epiphany_core::EpiphanyRetrievalFreshnessStatus as CoreEpiphanyRetrievalFreshnessStatus;
 use epiphany_core::derive_freshness;
 use epiphany_core::recommend_reorientation;
+use std::path::Path;
+use std::path::PathBuf;
 
-use crate::epiphany_invalidation::EpiphanyInvalidationSnapshot;
+pub struct EpiphanyFreshnessWatcherSnapshot<'a> {
+    pub available: bool,
+    pub workspace_root: Option<&'a Path>,
+    pub observed_at_unix_seconds: Option<i64>,
+    pub changed_paths: &'a [PathBuf],
+}
 
-pub(super) fn map_epiphany_freshness(
+pub fn map_epiphany_freshness(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
-    watcher_snapshot: Option<&EpiphanyInvalidationSnapshot>,
+    watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'_>>,
 ) -> (
     Option<u64>,
     ThreadEpiphanyRetrievalFreshness,
@@ -46,9 +53,9 @@ pub(super) fn map_epiphany_freshness(
 ) {
     let watcher = watcher_snapshot.map(|snapshot| EpiphanyFreshnessWatcherInput {
         available: snapshot.available,
-        workspace_root: snapshot.workspace_root.as_deref(),
+        workspace_root: snapshot.workspace_root,
         observed_at_unix_seconds: snapshot.observed_at_unix_seconds,
-        changed_paths: snapshot.changed_paths.as_slice(),
+        changed_paths: snapshot.changed_paths,
     });
     let freshness = derive_freshness(EpiphanyFreshnessInput {
         state,
@@ -146,7 +153,7 @@ fn map_core_epiphany_invalidation_input(
     }
 }
 
-pub(super) fn map_epiphany_reorient(
+pub fn map_epiphany_reorient(
     state: Option<&EpiphanyThreadState>,
     pressure: &ThreadEpiphanyPressure,
     retrieval: &ThreadEpiphanyRetrievalFreshness,

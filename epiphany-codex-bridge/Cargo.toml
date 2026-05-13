@@ -1,0 +1,21 @@
+[package]
+name = "epiphany-codex-bridge"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license-file = "../LICENSE"
+
+[lib]
+name = "epiphany_codex_bridge"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+codex-app-server-protocol = { path = "../vendor/codex/codex-rs/app-server-protocol" }
+codex-core = { path = "../vendor/codex/codex-rs/core" }
+codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
+codex-utils-absolute-path = { path = "../vendor/codex/codex-rs/utils/absolute-path" }
+epiphany-core = { path = "../epiphany-core" }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"

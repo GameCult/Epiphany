@@ -9,7 +9,7 @@ use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyJobsInput;
 use epiphany_core::derive_jobs;
 
-pub(super) fn map_epiphany_jobs(
+pub fn map_epiphany_jobs(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
 ) -> Vec<ThreadEpiphanyJob> {
@@ -43,7 +43,7 @@ fn map_core_epiphany_job_view(job: EpiphanyJobView) -> ThreadEpiphanyJob {
     }
 }
 
-pub(super) fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJobKind {
+pub fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJobKind {
     match kind {
         CoreEpiphanyJobKind::Indexing => ThreadEpiphanyJobKind::Indexing,
         CoreEpiphanyJobKind::Remap => ThreadEpiphanyJobKind::Remap,
@@ -66,7 +66,7 @@ fn map_core_epiphany_job_status(status: CoreEpiphanyJobStatus) -> ThreadEpiphany
     }
 }
 
-pub(super) fn epiphany_blocked_state_job(
+pub fn epiphany_blocked_state_job(
     id: &str,
     kind: ThreadEpiphanyJobKind,
     scope: &str,

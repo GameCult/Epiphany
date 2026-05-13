@@ -9,11 +9,11 @@ use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use epiphany_core::EpiphanyPressureStatus as CoreEpiphanyPressureStatus;
 use epiphany_core::derive_pressure_view;
 
-use crate::epiphany_launch::epiphany_agent_prompt_with_memory;
-use crate::epiphany_launch::epiphany_specialist_prompt_config;
-use crate::epiphany_launch::pressure_level_label;
+use crate::launch::epiphany_agent_prompt_with_memory;
+use crate::launch::epiphany_specialist_prompt_config;
+use crate::launch::pressure_level_label;
 
-pub(super) fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
+pub fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
     map_core_epiphany_pressure(derive_pressure_view(info))
 }
 
@@ -49,13 +49,13 @@ fn map_core_epiphany_pressure(pressure: EpiphanyPressure) -> ThreadEpiphanyPress
     }
 }
 
-pub(super) fn should_run_epiphany_pre_compaction_checkpoint_intervention(
+pub fn should_run_epiphany_pre_compaction_checkpoint_intervention(
     pressure: &ThreadEpiphanyPressure,
 ) -> bool {
     pressure.status == ThreadEpiphanyPressureStatus::Ready && pressure.should_prepare_compaction
 }
 
-pub(super) fn render_epiphany_pre_compaction_checkpoint_intervention(
+pub fn render_epiphany_pre_compaction_checkpoint_intervention(
     pressure: &ThreadEpiphanyPressure,
 ) -> String {
     let usage = match (

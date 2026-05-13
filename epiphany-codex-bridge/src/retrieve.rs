@@ -9,7 +9,7 @@ use codex_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_utils_absolute_path::AbsolutePathBuf;
 
-pub(super) fn map_epiphany_retrieve_response(
+pub fn map_epiphany_retrieve_response(
     response: CoreEpiphanyRetrieveResponse,
 ) -> anyhow::Result<ThreadEpiphanyRetrieveResponse> {
     Ok(ThreadEpiphanyRetrieveResponse {
@@ -23,7 +23,7 @@ pub(super) fn map_epiphany_retrieve_response(
     })
 }
 
-pub(super) fn map_epiphany_retrieve_index_summary(
+pub fn map_epiphany_retrieve_index_summary(
     summary: EpiphanyRetrievalState,
 ) -> anyhow::Result<ThreadEpiphanyRetrieveIndexSummary> {
     Ok(ThreadEpiphanyRetrieveIndexSummary {

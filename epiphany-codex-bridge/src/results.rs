@@ -15,7 +15,7 @@ use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::interpret_reorient_finding;
 use epiphany_core::interpret_role_finding;
 
-pub(super) fn map_epiphany_reorient_finding(
+pub fn map_epiphany_reorient_finding(
     raw_result: serde_json::Value,
     job_error: Option<String>,
     item_error: Option<String>,
@@ -27,7 +27,7 @@ pub(super) fn map_epiphany_reorient_finding(
     ))
 }
 
-pub(super) fn map_protocol_reorient_finding(
+pub fn map_protocol_reorient_finding(
     finding: EpiphanyReorientFindingInterpretation,
 ) -> ThreadEpiphanyReorientFinding {
     ThreadEpiphanyReorientFinding {
@@ -46,7 +46,7 @@ pub(super) fn map_protocol_reorient_finding(
     }
 }
 
-pub(super) fn map_epiphany_role_finding(
+pub fn map_epiphany_role_finding(
     role_id: ThreadEpiphanyRoleId,
     raw_result: serde_json::Value,
     job_error: Option<String>,
@@ -62,7 +62,7 @@ pub(super) fn map_epiphany_role_finding(
     map_protocol_role_finding(role_id, finding)
 }
 
-pub(super) fn map_protocol_role_finding(
+pub fn map_protocol_role_finding(
     role_id: ThreadEpiphanyRoleId,
     finding: EpiphanyRoleFindingInterpretation,
 ) -> ThreadEpiphanyRoleFinding {
@@ -118,7 +118,7 @@ fn map_protocol_update_patch(patch: EpiphanyRoleStatePatchDocument) -> ThreadEpi
     }
 }
 
-pub(super) fn map_core_role_result_role_id(
+pub fn map_core_role_result_role_id(
     role_id: ThreadEpiphanyRoleId,
 ) -> EpiphanyRoleResultRoleId {
     match role_id {
@@ -151,7 +151,7 @@ fn map_protocol_role_self_persistence_review(
     }
 }
 
-pub(super) fn render_epiphany_role_result_note(
+pub fn render_epiphany_role_result_note(
     role_id: ThreadEpiphanyRoleId,
     status: ThreadEpiphanyRoleResultStatus,
     finding: Option<&ThreadEpiphanyRoleFinding>,
@@ -240,7 +240,7 @@ fn render_epiphany_self_persistence_note(
     }
 }
 
-pub(super) fn render_epiphany_reorient_result_note(
+pub fn render_epiphany_reorient_result_note(
     status: ThreadEpiphanyReorientResultStatus,
     finding: Option<&ThreadEpiphanyReorientFinding>,
     item_error: Option<&str>,

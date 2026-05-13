@@ -50,16 +50,16 @@ use epiphany_core::recommend_crrc_action;
 use epiphany_core::render_role_board_note;
 use epiphany_core::select_coordinator_automation_action;
 
-use crate::epiphany_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
-use crate::epiphany_launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
-use crate::epiphany_launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
-use crate::epiphany_launch::EPIPHANY_REORIENT_OWNER_ROLE;
-use crate::epiphany_launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
-use crate::epiphany_launch::epiphany_role_label;
+use crate::launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
+use crate::launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
+use crate::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
+use crate::launch::EPIPHANY_REORIENT_OWNER_ROLE;
+use crate::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
+use crate::launch::epiphany_role_label;
 
 use std::collections::HashSet;
 
-pub(super) fn map_epiphany_crrc_recommendation(
+pub fn map_epiphany_crrc_recommendation(
     loaded: bool,
     state_status: ThreadEpiphanyReorientStateStatus,
     pressure: &ThreadEpiphanyPressure,
@@ -165,23 +165,23 @@ fn map_core_crrc_recommendation(
     }
 }
 
-pub(super) struct EpiphanyCoordinatorDecision {
-    pub(super) action: ThreadEpiphanyCoordinatorAction,
-    pub(super) target_role: Option<ThreadEpiphanyRoleId>,
-    pub(super) recommended_scene_action: Option<ThreadEpiphanySceneAction>,
-    pub(super) requires_review: bool,
-    pub(super) can_auto_run: bool,
-    pub(super) reason: String,
+pub struct EpiphanyCoordinatorDecision {
+    pub action: ThreadEpiphanyCoordinatorAction,
+    pub target_role: Option<ThreadEpiphanyRoleId>,
+    pub recommended_scene_action: Option<ThreadEpiphanySceneAction>,
+    pub requires_review: bool,
+    pub can_auto_run: bool,
+    pub reason: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum EpiphanyCoordinatorAutomationAction {
+pub enum EpiphanyCoordinatorAutomationAction {
     None,
     CompactRehydrateReorient,
     LaunchReorientWorker,
 }
 
-pub(super) fn map_epiphany_coordinator_automation_action(
+pub fn map_epiphany_coordinator_automation_action(
     decision: &EpiphanyCoordinatorDecision,
 ) -> EpiphanyCoordinatorAutomationAction {
     map_protocol_coordinator_automation_action(coordinator_automation_action(
@@ -189,7 +189,7 @@ pub(super) fn map_epiphany_coordinator_automation_action(
     ))
 }
 
-pub(super) fn select_epiphany_coordinator_automation_action(
+pub fn select_epiphany_coordinator_automation_action(
     decision: &EpiphanyCoordinatorDecision,
     force_checkpoint_compaction: bool,
 ) -> EpiphanyCoordinatorAutomationAction {
@@ -199,7 +199,7 @@ pub(super) fn select_epiphany_coordinator_automation_action(
     ))
 }
 
-pub(super) fn map_epiphany_coordinator(
+pub fn map_epiphany_coordinator(
     state_status: ThreadEpiphanyReorientStateStatus,
     checkpoint_present: bool,
     pressure: &ThreadEpiphanyPressure,
@@ -540,7 +540,7 @@ fn map_protocol_coordinator_automation_action(
     }
 }
 
-pub(super) fn epiphany_reorient_finding_already_accepted(
+pub fn epiphany_reorient_finding_already_accepted(
     state: &EpiphanyThreadState,
     finding: &ThreadEpiphanyReorientFinding,
 ) -> bool {
@@ -557,14 +557,14 @@ pub(super) fn epiphany_reorient_finding_already_accepted(
     false
 }
 
-pub(super) fn epiphany_role_finding_already_accepted(
+pub fn epiphany_role_finding_already_accepted(
     state: &EpiphanyThreadState,
     finding: &ThreadEpiphanyRoleFinding,
 ) -> bool {
     epiphany_role_finding_accepted_index(state, finding).is_some()
 }
 
-pub(super) fn epiphany_role_finding_accepted_evidence_id(
+pub fn epiphany_role_finding_accepted_evidence_id(
     state: &EpiphanyThreadState,
     finding: &ThreadEpiphanyRoleFinding,
 ) -> Option<String> {
@@ -572,7 +572,7 @@ pub(super) fn epiphany_role_finding_accepted_evidence_id(
         .and_then(|receipt| receipt.accepted_evidence_id.clone())
 }
 
-pub(super) fn epiphany_verification_finding_covers_current_modeling(
+pub fn epiphany_verification_finding_covers_current_modeling(
     state: &EpiphanyThreadState,
     modeling_result_accepted: bool,
     modeling_finding: Option<&ThreadEpiphanyRoleFinding>,
@@ -602,7 +602,7 @@ pub(super) fn epiphany_verification_finding_covers_current_modeling(
         .any(|id| modeling_evidence_ids.contains(id))
 }
 
-pub(super) fn role_finding_accepted_after(
+pub fn role_finding_accepted_after(
     state: &EpiphanyThreadState,
     later: Option<&ThreadEpiphanyRoleFinding>,
     earlier: Option<&ThreadEpiphanyRoleFinding>,
@@ -622,7 +622,7 @@ pub(super) fn role_finding_accepted_after(
     later_index < earlier_index
 }
 
-pub(super) fn implementation_evidence_after_role_finding(
+pub fn implementation_evidence_after_role_finding(
     state: &EpiphanyThreadState,
     earlier: Option<&ThreadEpiphanyRoleFinding>,
 ) -> bool {
@@ -639,7 +639,7 @@ pub(super) fn implementation_evidence_after_role_finding(
         .is_some_and(|(_, evidence)| evidence.status == "ok")
 }
 
-pub(super) fn epiphany_role_finding_cites_implementation_evidence(
+pub fn epiphany_role_finding_cites_implementation_evidence(
     state: &EpiphanyThreadState,
     finding: Option<&ThreadEpiphanyRoleFinding>,
 ) -> bool {
@@ -705,7 +705,7 @@ fn epiphany_role_finding_acceptance_receipt_index(
     })
 }
 
-pub(super) fn epiphany_verification_finding_allows_implementation(
+pub fn epiphany_verification_finding_allows_implementation(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> bool {
     finding.role_id == ThreadEpiphanyRoleId::Verification
@@ -715,7 +715,7 @@ pub(super) fn epiphany_verification_finding_allows_implementation(
             .is_some_and(|verdict| verdict.eq_ignore_ascii_case("pass"))
 }
 
-pub(super) fn epiphany_verification_finding_needs_evidence(
+pub fn epiphany_verification_finding_needs_evidence(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> bool {
     finding.role_id == ThreadEpiphanyRoleId::Verification
@@ -733,7 +733,7 @@ fn reorient_finding_runtime_result_id(finding: &ThreadEpiphanyReorientFinding) -
     finding.runtime_result_id.clone()
 }
 
-pub(super) fn map_epiphany_roles(
+pub fn map_epiphany_roles(
     state: Option<&EpiphanyThreadState>,
     jobs: &[ThreadEpiphanyJob],
     decision: &ThreadEpiphanyReorientDecision,
@@ -899,7 +899,7 @@ fn map_protocol_coordinator_role_status(
     }
 }
 
-pub(super) fn render_epiphany_roles_note(
+pub fn render_epiphany_roles_note(
     roles: &[ThreadEpiphanyRoleLane],
     state_status: ThreadEpiphanyReorientStateStatus,
     recommendation: ThreadEpiphanyCrrcAction,

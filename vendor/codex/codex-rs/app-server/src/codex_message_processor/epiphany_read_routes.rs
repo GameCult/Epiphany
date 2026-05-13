@@ -104,7 +104,9 @@ impl CodexMessageProcessor {
             map_epiphany_freshness(
                 thread.epiphany_state.as_ref(),
                 retrieval_override.as_ref(),
-                watcher_snapshot.as_ref(),
+                watcher_snapshot
+                    .as_ref()
+                    .map(epiphany_freshness_watcher_snapshot),
             )
         });
         let (state_revision, reorient_state_status, reorient_decision) =
@@ -361,9 +363,13 @@ impl CodexMessageProcessor {
 
         let response = ThreadEpiphanyViewResponse {
             thread_id: thread_id.clone(),
-            scene: lenses
-                .contains(&ThreadEpiphanyViewLens::Scene)
-                .then(|| map_epiphany_scene(thread.epiphany_state.as_ref(), loaded)),
+            scene: lenses.contains(&ThreadEpiphanyViewLens::Scene).then(|| {
+                map_epiphany_scene(
+                    thread.epiphany_state.as_ref(),
+                    loaded,
+                    EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+                )
+            }),
             jobs: if lenses.contains(&ThreadEpiphanyViewLens::Jobs) {
                 jobs.clone()
             } else {
@@ -634,7 +640,9 @@ impl CodexMessageProcessor {
         let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
             thread.epiphany_state.as_ref(),
             retrieval_override.as_ref(),
-            watcher_snapshot.as_ref(),
+            watcher_snapshot
+                .as_ref()
+                .map(epiphany_freshness_watcher_snapshot),
         );
         let response = ThreadEpiphanyFreshnessResponse {
             thread_id,

@@ -437,7 +437,7 @@ impl CodexMessageProcessor {
         let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
             thread.epiphany_state.as_ref(),
             Some(&retrieval_override),
-            Some(&watcher_snapshot),
+            Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
         );
         let pressure = map_epiphany_pressure(token_usage_info.as_ref());
         let (state_status, decision) = map_epiphany_reorient(

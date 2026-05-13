@@ -1163,6 +1163,7 @@ fn map_epiphany_scene_projects_client_reflection_without_mutation_shape() {
             ..Default::default()
         }),
         true,
+        EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
     );
 
     assert_eq!(scene.state_status, ThreadEpiphanySceneStateStatus::Ready);
@@ -1230,7 +1231,7 @@ fn map_epiphany_scene_projects_client_reflection_without_mutation_shape() {
 
 #[test]
 fn map_epiphany_scene_handles_missing_state_without_write_actions() {
-    let scene = map_epiphany_scene(None, false);
+    let scene = map_epiphany_scene(None, false, EPIPHANY_REORIENT_LAUNCH_BINDING_ID);
 
     assert_eq!(scene.state_status, ThreadEpiphanySceneStateStatus::Missing);
     assert_eq!(scene.source, ThreadEpiphanySceneSource::Stored);
@@ -1323,8 +1324,11 @@ fn map_epiphany_freshness_marks_graph_and_retrieval_stale() {
         changed_paths: vec![PathBuf::from("src/router.rs")],
     };
 
-    let (state_revision, retrieval, graph, watcher) =
-        map_epiphany_freshness(Some(&state), Some(&retrieval), Some(&watcher_snapshot));
+    let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+        Some(&state),
+        Some(&retrieval),
+        Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
+    );
 
     assert_eq!(state_revision, Some(7));
     assert_eq!(
@@ -1359,7 +1363,11 @@ fn map_epiphany_freshness_reports_clean_watcher_when_no_changes_were_seen() {
         changed_paths: Vec::new(),
     };
 
-    let (_, _, _, watcher) = map_epiphany_freshness(None, None, Some(&watcher_snapshot));
+    let (_, _, _, watcher) = map_epiphany_freshness(
+        None,
+        None,
+        Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
+    );
 
     assert_eq!(watcher.status, ThreadEpiphanyInvalidationStatus::Clean);
     assert_eq!(watcher.changed_path_count, 0);
@@ -1400,7 +1408,11 @@ fn map_epiphany_freshness_reports_unmatched_changed_paths_without_inventing_node
         changed_paths: vec![PathBuf::from("src/other.rs")],
     };
 
-    let (_, _, _, watcher) = map_epiphany_freshness(Some(&state), None, Some(&watcher_snapshot));
+    let (_, _, _, watcher) = map_epiphany_freshness(
+        Some(&state),
+        None,
+        Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
+    );
 
     assert_eq!(watcher.status, ThreadEpiphanyInvalidationStatus::Changed);
     assert!(watcher.graph_node_ids.is_empty());
@@ -1662,7 +1674,7 @@ fn map_epiphany_scene_latest_records_preserve_newest_first_order() {
         ..Default::default()
     };
 
-    let scene = map_epiphany_scene(Some(&state), true);
+    let scene = map_epiphany_scene(Some(&state), true, EPIPHANY_REORIENT_LAUNCH_BINDING_ID);
     let observation_ids: Vec<_> = scene
         .observations
         .latest
@@ -1699,7 +1711,7 @@ fn map_epiphany_scene_exposes_reorient_result_when_binding_exists() {
         ..Default::default()
     };
 
-    let scene = map_epiphany_scene(Some(&state), true);
+    let scene = map_epiphany_scene(Some(&state), true, EPIPHANY_REORIENT_LAUNCH_BINDING_ID);
 
     assert!(
         scene

@@ -21,16 +21,16 @@ use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 
-pub(super) const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
-pub(super) const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
-pub(super) const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker";
-pub(super) const EPIPHANY_MODELING_OWNER_ROLE: &str = "epiphany-modeler";
-pub(super) const EPIPHANY_VERIFICATION_ROLE_BINDING_ID: &str = "verification-review-worker";
-pub(super) const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
-pub(super) const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
-pub(super) const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
+pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
+pub const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
+pub const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker";
+pub const EPIPHANY_MODELING_OWNER_ROLE: &str = "epiphany-modeler";
+pub const EPIPHANY_VERIFICATION_ROLE_BINDING_ID: &str = "verification-review-worker";
+pub const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
+pub const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
+pub const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
-pub(super) fn epiphany_role_binding_id(
+pub fn epiphany_role_binding_id(
     role_id: ThreadEpiphanyRoleId,
 ) -> Result<&'static str, String> {
     match role_id {
@@ -48,7 +48,7 @@ pub(super) fn epiphany_role_binding_id(
     }
 }
 
-pub(super) fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
+pub fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
     match role_id {
         ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
         ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
@@ -59,7 +59,7 @@ pub(super) fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'sta
     }
 }
 
-pub(super) fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
+pub fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
     match role_id {
         ThreadEpiphanyRoleId::Implementation => "implementation",
         ThreadEpiphanyRoleId::Imagination => "imagination",
@@ -69,7 +69,7 @@ pub(super) fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str
     }
 }
 
-pub(super) fn epiphany_role_launch_output_schema(
+pub fn epiphany_role_launch_output_schema(
     role_id: ThreadEpiphanyRoleId,
 ) -> serde_json::Value {
     let verdict_enum = match role_id {
@@ -276,7 +276,7 @@ pub(super) fn epiphany_role_launch_output_schema(
     })
 }
 
-pub(super) fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
+pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
     serde_json::json!({
         "type": "object",
         "properties": {
@@ -316,60 +316,60 @@ pub(super) fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
 const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_specialists.toml");
 
 #[derive(Debug, serde::Deserialize)]
-pub(super) struct EpiphanySpecialistPromptConfig {
-    pub(super) shared: EpiphanySharedPromptConfig,
-    pub(super) roles: EpiphanyRolePromptConfig,
+pub struct EpiphanySpecialistPromptConfig {
+    pub shared: EpiphanySharedPromptConfig,
+    pub roles: EpiphanyRolePromptConfig,
     // Parsed here so the bundled prompt config fails fast even though the GUI runner consumes it.
     #[allow(dead_code)]
-    pub(super) implementation: EpiphanyImplementationPromptConfig,
-    pub(super) reorientation: EpiphanyReorientationPromptConfig,
-    pub(super) coordinator: EpiphanyCoordinatorPromptConfig,
-    pub(super) crrc: EpiphanyCrrcPromptConfig,
+    pub implementation: EpiphanyImplementationPromptConfig,
+    pub reorientation: EpiphanyReorientationPromptConfig,
+    pub coordinator: EpiphanyCoordinatorPromptConfig,
+    pub crrc: EpiphanyCrrcPromptConfig,
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub(super) struct EpiphanySharedPromptConfig {
-    pub(super) persistent_memory: String,
+pub struct EpiphanySharedPromptConfig {
+    pub persistent_memory: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub(super) struct EpiphanyRolePromptConfig {
-    pub(super) imagination: String,
-    pub(super) modeling: String,
-    pub(super) verification: String,
+pub struct EpiphanyRolePromptConfig {
+    pub imagination: String,
+    pub modeling: String,
+    pub verification: String,
     #[allow(dead_code)]
-    pub(super) research: String,
+    pub research: String,
     #[allow(dead_code)]
-    pub(super) repo_personality: String,
+    pub repo_personality: String,
     #[allow(dead_code)]
-    pub(super) repo_memory: String,
+    pub repo_memory: String,
     #[allow(dead_code)]
-    pub(super) face: String,
+    pub face: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub(super) struct EpiphanyImplementationPromptConfig {
+pub struct EpiphanyImplementationPromptConfig {
     #[allow(dead_code)]
-    pub(super) continue_template: String,
+    pub continue_template: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub(super) struct EpiphanyReorientationPromptConfig {
-    pub(super) resume: String,
-    pub(super) regather: String,
+pub struct EpiphanyReorientationPromptConfig {
+    pub resume: String,
+    pub regather: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub(super) struct EpiphanyCoordinatorPromptConfig {
-    pub(super) note_template: String,
+pub struct EpiphanyCoordinatorPromptConfig {
+    pub note_template: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub(super) struct EpiphanyCrrcPromptConfig {
-    pub(super) pre_compaction_checkpoint_intervention: String,
+pub struct EpiphanyCrrcPromptConfig {
+    pub pre_compaction_checkpoint_intervention: String,
 }
 
-pub(super) fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialistPromptConfig {
+pub fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialistPromptConfig {
     static CONFIG: OnceLock<EpiphanySpecialistPromptConfig> = OnceLock::new();
     CONFIG.get_or_init(|| {
         toml::from_str(EPIPHANY_SPECIALIST_PROMPTS_TOML)
@@ -377,7 +377,7 @@ pub(super) fn epiphany_specialist_prompt_config() -> &'static EpiphanySpecialist
     })
 }
 
-pub(super) fn epiphany_agent_prompt_with_memory(body: &str) -> String {
+pub fn epiphany_agent_prompt_with_memory(body: &str) -> String {
     let memory = epiphany_specialist_prompt_config()
         .shared
         .persistent_memory
@@ -392,7 +392,7 @@ pub(super) fn epiphany_agent_prompt_with_memory(body: &str) -> String {
     }
 }
 
-pub(super) fn build_epiphany_role_launch_request(
+pub fn build_epiphany_role_launch_request(
     thread_id: &str,
     role_id: ThreadEpiphanyRoleId,
     expected_revision: Option<u64>,
@@ -478,7 +478,7 @@ fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> Stri
     epiphany_agent_prompt_with_memory(body)
 }
 
-pub(super) fn build_epiphany_reorient_launch_request(
+pub fn build_epiphany_reorient_launch_request(
     thread_id: &str,
     expected_revision: Option<u64>,
     max_runtime_seconds: Option<u64>,
@@ -570,7 +570,7 @@ pub(super) fn build_epiphany_reorient_launch_request(
     }
 }
 
-pub(super) fn build_epiphany_reorient_launch_instruction(
+pub fn build_epiphany_reorient_launch_instruction(
     action: ThreadEpiphanyReorientAction,
 ) -> String {
     let prompts = &epiphany_specialist_prompt_config().reorientation;
@@ -581,7 +581,7 @@ pub(super) fn build_epiphany_reorient_launch_instruction(
     epiphany_agent_prompt_with_memory(body)
 }
 
-pub(super) fn map_core_worker_launch_document(
+pub fn map_core_worker_launch_document(
     document: ThreadEpiphanyWorkerLaunchDocument,
 ) -> EpiphanyWorkerLaunchDocument {
     match document {
@@ -653,7 +653,7 @@ fn map_core_reorient_worker_launch_document(
     }
 }
 
-pub(super) fn render_epiphany_coordinator_note(
+pub fn render_epiphany_coordinator_note(
     crrc_action: codex_app_server_protocol::ThreadEpiphanyCrrcAction,
     pressure_level: ThreadEpiphanyPressureLevel,
     modeling_result_status: codex_app_server_protocol::ThreadEpiphanyRoleResultStatus,
@@ -685,7 +685,7 @@ pub(super) fn render_epiphany_coordinator_note(
         .replace("{coordinator_action}", &format!("{coordinator_action:?}"))
 }
 
-pub(super) fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {
+pub fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {
     let mut unique = Vec::new();
     extend_unique_strings(&mut unique, values);
     unique
@@ -746,7 +746,7 @@ fn reorient_reason_label(reason: ThreadEpiphanyReorientReason) -> &'static str {
     }
 }
 
-pub(super) fn pressure_level_label(level: ThreadEpiphanyPressureLevel) -> &'static str {
+pub fn pressure_level_label(level: ThreadEpiphanyPressureLevel) -> &'static str {
     match level {
         ThreadEpiphanyPressureLevel::Unknown => "unknown",
         ThreadEpiphanyPressureLevel::Low => "low",
