@@ -122,9 +122,16 @@ The first workspace-verified wrapper now exists as
 keeper Codex auth types and projects `AuthManager` / `CodexAuth` into a typed
 `EpiphanyOpenAiAdapterStatus`. `epiphany-codex-bridge` re-exports this spine so
 the current app-server compatibility shell can compile it without making the
-pure document crate depend on Codex. The remaining extraction is model
-transport: typed Epiphany model requests must call the keeper Responses API
-transport through this boundary rather than route through Epiphany JSON-RPC or
+pure document crate depend on Codex.
+
+The first transport wrapper is now also in that spine. It maps typed
+`EpiphanyOpenAiModelRequest` documents into Codex API `ResponsesApiRequest`,
+resolves auth/provider through `codex-login` + `codex-model-provider`, opens an
+HTTP Responses stream with `codex-api`, and converts stream deltas/completion
+into typed `EpiphanyOpenAiStreamEvent` / `EpiphanyOpenAiModelReceipt`
+documents. This is still a compatibility reliquary, not final native purity:
+the next cut is to make an Epiphany-native runtime call this transport boundary
+directly instead of reaching model turns through `thread/epiphany/*` JSON-RPC or
 the Codex host brain.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside

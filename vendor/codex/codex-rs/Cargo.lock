@@ -5266,9 +5266,15 @@ dependencies = [
 name = "epiphany-openai-codex-spine"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "codex-api",
  "codex-app-server-protocol",
  "codex-login",
+ "codex-model-provider",
+ "codex-model-provider-info",
+ "codex-protocol",
  "epiphany-openai-adapter",
+ "futures",
 ]
 
 [[package]]

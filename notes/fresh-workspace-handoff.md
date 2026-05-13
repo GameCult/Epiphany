@@ -555,18 +555,25 @@ workspace-verified wrapper now exists as `epiphany-openai-codex-spine`: it
 depends on the pure typed adapter plus the keeper Codex auth types and projects
 `AuthManager` / `CodexAuth` into a typed `EpiphanyOpenAiAdapterStatus`.
 `epiphany-codex-bridge` re-exports that spine so the current app-server shell
-can compile the attachment without contaminating the pure document crate.
+can compile the attachment without contaminating the pure document crate. The
+same spine now owns the first HTTP Responses transport wrapper: typed
+`EpiphanyOpenAiModelRequest` documents map into Codex API
+`ResponsesApiRequest`, auth/provider resolves through `codex-login` and
+`codex-model-provider`, the stream opens through `codex-api`, and deltas /
+completion map back into typed `EpiphanyOpenAiStreamEvent` and
+`EpiphanyOpenAiModelReceipt` documents.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
-Continue with the actual whale-carcass cut: add model transport behind the
-native typed request/event/receipt surface, using the keeper Responses API
-transport identified in `notes/codex-auth-spine-inventory.md`. Success is
-Epiphany calling a model adapter rather than living inside the Codex host brain.
-Do not resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
-marketplace, or bridge expansion until this organ is being cut cleanly.
+Continue with the actual whale-carcass cut: make an Epiphany-native runtime
+surface call the typed OpenAI adapter/spine directly, then starve the old model
+turn path out of `thread/epiphany/*` JSON-RPC and `codex_message_processor.rs`.
+Success is Epiphany calling the model adapter from its own CultCache/CultNet
+runtime boundary rather than living inside the Codex host brain. Do not resume
+Rider, Unity, Aquarium, Face, dogfood, planning, app, skill, marketplace, or
+bridge expansion until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
