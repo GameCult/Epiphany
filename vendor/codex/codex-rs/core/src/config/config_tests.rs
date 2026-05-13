@@ -5,7 +5,6 @@ use crate::config::edit::ConfigEditsBuilder;
 use crate::config::edit::apply_blocking;
 use crate::config_loader::RequirementSource;
 use crate::config_loader::project_trust_key;
-use crate::plugins::PluginsManager;
 use assert_matches::assert_matches;
 use codex_config::CONFIG_TOML_FILE;
 use codex_config::config_toml::AgentRoleToml;
@@ -2594,7 +2593,7 @@ approval_mode = "approve"
 }
 
 #[tokio::test]
-async fn to_mcp_config_preserves_apps_feature_from_config() -> std::io::Result<()> {
+async fn to_mcp_config_quarantines_codex_product_surfaces() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
     let mut config = Config::load_from_base_config_with_overrides(
         ConfigToml::default(),
@@ -2602,18 +2601,19 @@ async fn to_mcp_config_preserves_apps_feature_from_config() -> std::io::Result<(
         codex_home.abs(),
     )
     .await?;
-    let plugins_manager = PluginsManager::new(codex_home.path().to_path_buf());
 
-    let mcp_config = config.to_mcp_config(&plugins_manager).await;
-    assert!(mcp_config.apps_enabled);
+    let mcp_config = config.to_mcp_config();
+    assert!(!mcp_config.apps_enabled);
+    assert!(!mcp_config.skill_mcp_dependency_install_enabled);
+    assert!(mcp_config.plugin_capability_summaries.is_empty());
 
     let _ = config.features.disable(Feature::Apps);
-    let mcp_config = config.to_mcp_config(&plugins_manager).await;
+    let mcp_config = config.to_mcp_config();
     assert!(!mcp_config.apps_enabled);
 
     let _ = config.features.enable(Feature::Apps);
-    let mcp_config = config.to_mcp_config(&plugins_manager).await;
-    assert!(mcp_config.apps_enabled);
+    let mcp_config = config.to_mcp_config();
+    assert!(!mcp_config.apps_enabled);
 
     Ok(())
 }

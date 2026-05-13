@@ -767,6 +767,13 @@ host-lifecycle calls that create, snapshot, and remove watches for loaded
 threads. There is no longer a root `epiphany_invalidation.rs` module under
 vendored app-server.
 
+The MCP config path is now product-quarantined. `Config::to_mcp_config` keeps
+user-declared MCP servers but no longer accepts a `PluginsManager`, folds
+plugin-provided MCP servers into the runtime, enables Codex apps, enables skill
+MCP dependency install, or advertises plugin capability summaries. MCP remains
+a JSON-RPC protocol edge; Codex apps/skills/plugins no longer get smuggled
+through that edge as if they were the protocol.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

@@ -806,31 +806,20 @@ impl Config {
         }
     }
 
-    pub async fn to_mcp_config(
-        &self,
-        plugins_manager: &crate::plugins::PluginsManager,
-    ) -> McpConfig {
-        let loaded_plugins = plugins_manager.plugins_for_config(self).await;
-        let mut configured_mcp_servers = self.mcp_servers.get().clone();
-        for (name, plugin_server) in loaded_plugins.effective_mcp_servers() {
-            configured_mcp_servers.entry(name).or_insert(plugin_server);
-        }
-
+    pub fn to_mcp_config(&self) -> McpConfig {
         McpConfig {
             chatgpt_base_url: self.chatgpt_base_url.clone(),
             codex_home: self.codex_home.to_path_buf(),
             mcp_oauth_credentials_store_mode: self.mcp_oauth_credentials_store_mode,
             mcp_oauth_callback_port: self.mcp_oauth_callback_port,
             mcp_oauth_callback_url: self.mcp_oauth_callback_url.clone(),
-            skill_mcp_dependency_install_enabled: self
-                .features
-                .enabled(Feature::SkillMcpDependencyInstall),
+            skill_mcp_dependency_install_enabled: false,
             approval_policy: self.permissions.approval_policy.clone(),
             codex_linux_sandbox_exe: self.codex_linux_sandbox_exe.clone(),
             use_legacy_landlock: self.features.use_legacy_landlock(),
-            apps_enabled: self.features.enabled(Feature::Apps),
-            configured_mcp_servers,
-            plugin_capability_summaries: loaded_plugins.capability_summaries().to_vec(),
+            apps_enabled: false,
+            configured_mcp_servers: self.mcp_servers.get().clone(),
+            plugin_capability_summaries: Vec::new(),
         }
     }
 
