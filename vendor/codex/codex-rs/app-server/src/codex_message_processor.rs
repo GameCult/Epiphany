@@ -1,4 +1,5 @@
-mod epiphany_routes;
+mod epiphany_mutation_routes;
+mod epiphany_read_routes;
 
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
