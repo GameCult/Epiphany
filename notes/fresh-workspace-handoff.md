@@ -509,6 +509,12 @@ about 1,271 lines and `epiphany_state_helpers.rs` is down to a 19-line
 rollout-state loader. This is a real authority cut, but not a sufficient
 carcass cut: route-level launch/accept/update/promote/interrupt orchestration
 still lives in vendored Codex.
+The twenty-fourth cut moved launched-job fallback projection into
+`epiphany-codex-bridge/src/jobs.rs`, so role launch and generic job launch no
+longer hand-build duplicate `ThreadEpiphanyJob` fallback structs inside
+`epiphany_mutation_routes.rs`. The route module is about 1,245 lines. Small
+cut, real smell: duplicate projection authority belonged with the job adapter,
+not in each JSON-RPC launch handler.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

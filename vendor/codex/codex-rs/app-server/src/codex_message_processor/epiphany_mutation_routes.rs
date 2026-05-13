@@ -8,9 +8,10 @@ use codex_core::EpiphanyStateUpdate;
 use codex_core::evaluate_promotion;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
+use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_codex_bridge::jobs::epiphany_blocked_state_job;
-use epiphany_codex_bridge::jobs::map_core_epiphany_job_kind;
 use epiphany_codex_bridge::jobs::map_epiphany_jobs;
+use epiphany_codex_bridge::jobs::map_launched_epiphany_job;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
 use epiphany_codex_bridge::launch::build_epiphany_role_launch_request;
@@ -106,7 +107,6 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let binding_id = launch_request.binding_id.clone();
         let changed_fields = epiphany_job_launch_changed_fields();
         let launched = match loaded_thread.epiphany_launch_job(launch_request).await {
             Ok(launched) => launched,
@@ -129,27 +129,14 @@ impl CodexMessageProcessor {
             launched.epiphany_state,
         )
         .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None)
-            .into_iter()
-            .find(|job| job.id == binding_id)
-            .unwrap_or_else(|| ThreadEpiphanyJob {
-                id: launched.binding_id.clone(),
-                kind: ThreadEpiphanyJobKind::Specialist,
-                scope: "missing launched role projection".to_string(),
-                owner_role: "epiphany-harness".to_string(),
-                launcher_job_id: Some(launched.launcher_job_id.clone()),
-                authority_scope: None,
-                backend_job_id: Some(launched.backend_job_id.clone()),
-                status: ThreadEpiphanyJobStatus::Pending,
-                items_processed: None,
-                items_total: None,
-                progress_note: None,
-                last_checkpoint_at_unix_seconds: None,
-                blocking_reason: None,
-                active_thread_ids: Vec::new(),
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-            });
+        let job = map_launched_epiphany_job(
+            &epiphany_state,
+            launched.binding_id.as_str(),
+            launched.launcher_job_id.as_str(),
+            launched.backend_job_id.as_str(),
+            CoreEpiphanyJobKind::Specialist,
+            "missing launched role projection",
+        );
 
         self.outgoing
             .send_response(
@@ -1126,27 +1113,14 @@ impl CodexMessageProcessor {
         let epiphany_state =
             client_visible_live_thread_epiphany_state(thread.as_ref(), launched.epiphany_state)
                 .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None)
-            .into_iter()
-            .find(|job| job.id == binding_id)
-            .unwrap_or_else(|| ThreadEpiphanyJob {
-                id: launched.binding_id.clone(),
-                kind: map_core_epiphany_job_kind(kind),
-                scope: "missing launched job projection".to_string(),
-                owner_role: "epiphany-harness".to_string(),
-                launcher_job_id: Some(launched.launcher_job_id.clone()),
-                authority_scope: None,
-                backend_job_id: Some(launched.backend_job_id.clone()),
-                status: ThreadEpiphanyJobStatus::Pending,
-                items_processed: None,
-                items_total: None,
-                progress_note: None,
-                last_checkpoint_at_unix_seconds: None,
-                blocking_reason: None,
-                active_thread_ids: Vec::new(),
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-            });
+        let job = map_launched_epiphany_job(
+            &epiphany_state,
+            launched.binding_id.as_str(),
+            launched.launcher_job_id.as_str(),
+            launched.backend_job_id.as_str(),
+            kind,
+            "missing launched job projection",
+        );
 
         self.outgoing
             .send_response(

@@ -52,6 +52,37 @@ pub fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJo
     }
 }
 
+pub fn map_launched_epiphany_job(
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+    launcher_job_id: &str,
+    backend_job_id: &str,
+    fallback_kind: CoreEpiphanyJobKind,
+    fallback_scope: &str,
+) -> ThreadEpiphanyJob {
+    map_epiphany_jobs(Some(state), None)
+        .into_iter()
+        .find(|job| job.id == binding_id)
+        .unwrap_or_else(|| ThreadEpiphanyJob {
+            id: binding_id.to_string(),
+            kind: map_core_epiphany_job_kind(fallback_kind),
+            scope: fallback_scope.to_string(),
+            owner_role: "epiphany-harness".to_string(),
+            launcher_job_id: Some(launcher_job_id.to_string()),
+            authority_scope: None,
+            backend_job_id: Some(backend_job_id.to_string()),
+            status: ThreadEpiphanyJobStatus::Pending,
+            items_processed: None,
+            items_total: None,
+            progress_note: None,
+            last_checkpoint_at_unix_seconds: None,
+            blocking_reason: None,
+            active_thread_ids: Vec::new(),
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+        })
+}
+
 fn map_core_epiphany_job_status(status: CoreEpiphanyJobStatus) -> ThreadEpiphanyJobStatus {
     match status {
         CoreEpiphanyJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,
