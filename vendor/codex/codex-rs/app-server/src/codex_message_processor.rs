@@ -2,6 +2,7 @@ mod epiphany_automation;
 mod epiphany_mutation_routes;
 mod epiphany_read_routes;
 mod epiphany_runtime_results;
+mod epiphany_state_helpers;
 
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count;
@@ -23,6 +24,12 @@ use self::epiphany_runtime_results::reorient_finding_runtime_job_id;
 use self::epiphany_runtime_results::reorient_finding_runtime_result_id;
 use self::epiphany_runtime_results::role_finding_runtime_job_id;
 use self::epiphany_runtime_results::role_finding_runtime_result_id;
+use self::epiphany_state_helpers::client_visible_live_thread_epiphany_state;
+use self::epiphany_state_helpers::core_state_patch_from_protocol;
+use self::epiphany_state_helpers::epiphany_imagination_finding_has_reviewable_state_patch;
+use self::epiphany_state_helpers::epiphany_modeling_finding_has_reviewable_state_patch;
+use self::epiphany_state_helpers::live_thread_epiphany_state;
+use self::epiphany_state_helpers::load_epiphany_state_from_rollout_path;
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
 use crate::command_exec::CommandExecManager;
@@ -10201,68 +10208,6 @@ fn build_thread_from_snapshot(
     }
 }
 
-async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<EpiphanyThreadState> {
-    let mut epiphany_state = thread.epiphany_state().await;
-    if let Some(state) = epiphany_state.as_mut()
-        && state.retrieval.is_none()
-    {
-        state.retrieval = Some(thread.epiphany_retrieval_state().await);
-    }
-    epiphany_state
-}
-
-async fn client_visible_live_thread_epiphany_state(
-    thread: &CodexThread,
-    fallback: EpiphanyThreadState,
-) -> EpiphanyThreadState {
-    live_thread_epiphany_state(thread).await.unwrap_or(fallback)
-}
-
-fn core_state_patch_from_protocol(
-    patch: &ThreadEpiphanyUpdatePatch,
-) -> EpiphanyRoleStatePatchDocument {
-    EpiphanyRoleStatePatchDocument {
-        objective: patch.objective.clone(),
-        active_subgoal_id: patch.active_subgoal_id.clone(),
-        subgoals: patch.subgoals.clone(),
-        invariants: patch.invariants.clone(),
-        graphs: patch.graphs.clone(),
-        graph_frontier: patch.graph_frontier.clone(),
-        graph_checkpoint: patch.graph_checkpoint.clone(),
-        scratch: patch.scratch.clone(),
-        investigation_checkpoint: patch.investigation_checkpoint.clone(),
-        job_bindings: patch.job_bindings.clone(),
-        acceptance_receipts: patch.acceptance_receipts.clone(),
-        runtime_links: patch.runtime_links.clone(),
-        observations: patch.observations.clone(),
-        evidence: patch.evidence.clone(),
-        churn: patch.churn.clone(),
-        mode: patch.mode.clone(),
-        planning: patch.planning.clone(),
-    }
-}
-
-fn epiphany_modeling_finding_has_reviewable_state_patch(
-    finding: &ThreadEpiphanyRoleFinding,
-) -> bool {
-    finding.role_id == ThreadEpiphanyRoleId::Modeling
-        && finding
-            .state_patch
-            .as_ref()
-            .is_some_and(|patch| modeling_role_accept_patch_errors(patch).is_empty())
-}
-
-#[cfg(test)]
-fn epiphany_imagination_finding_has_reviewable_state_patch(
-    finding: &ThreadEpiphanyRoleFinding,
-) -> bool {
-    finding.role_id == ThreadEpiphanyRoleId::Imagination
-        && finding
-            .state_patch
-            .as_ref()
-            .is_some_and(|patch| imagination_role_accept_patch_errors(patch).is_empty())
-}
-
 pub(crate) fn summary_to_thread(
     summary: ConversationSummary,
     fallback_cwd: &AbsolutePathBuf,
@@ -10317,20 +10262,6 @@ pub(crate) fn summary_to_thread(
         epiphany_state: None,
         turns: Vec::new(),
     }
-}
-
-async fn load_epiphany_state_from_rollout_path(
-    rollout_path: &Path,
-) -> std::result::Result<Option<EpiphanyThreadState>, String> {
-    let items = read_rollout_items_from_rollout(rollout_path)
-        .await
-        .map_err(|err| {
-            format!(
-                "failed to load rollout `{}` for Epiphany state: {err}",
-                rollout_path.display()
-            )
-        })?;
-    Ok(latest_epiphany_state_from_rollout_items(&items))
 }
 
 fn thread_backwards_cursor_for_sort_key(

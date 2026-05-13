@@ -458,6 +458,10 @@ The sixteenth cut moved the old in-file processor test tail into
 `vendor/codex/codex-rs/app-server/src/codex_message_processor/processor_tests.rs`,
 taking the processor to about 10,502 lines. Treat this as test-ownership relief,
 not runtime purification by itself.
+The seventeenth cut moved live-state hydration, state-patch conversion,
+reviewability checks, and rollout-state loading into
+`vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_state_helpers.rs`,
+taking the processor to about 10,433 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
