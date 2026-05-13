@@ -779,6 +779,11 @@ notifies remote control after successful config writes, but it no longer pokes
 `plugins_manager` or `skills_manager` as a dead compensator for disabled
 product surfaces.
 
+The model-turn app activation predicate is also hard-off:
+`TurnContext::apps_enabled()` returns false regardless of ChatGPT auth or
+feature flags. The subscription auth organ may authenticate and route models;
+it does not awaken Codex Apps during turns.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

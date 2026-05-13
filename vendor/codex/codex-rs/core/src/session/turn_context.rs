@@ -105,13 +105,7 @@ impl TurnContext {
     }
 
     pub(crate) fn apps_enabled(&self) -> bool {
-        let is_chatgpt_auth = self
-            .auth_manager
-            .as_deref()
-            .and_then(AuthManager::auth_cached)
-            .as_ref()
-            .is_some_and(CodexAuth::is_chatgpt_auth);
-        self.features.apps_enabled_for_auth(is_chatgpt_auth)
+        false
     }
 
     pub(crate) async fn with_model(&self, model: String, models_manager: &ModelsManager) -> Self {
