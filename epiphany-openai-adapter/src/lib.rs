@@ -77,11 +77,23 @@ pub struct EpiphanyOpenAiStreamEvent {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum EpiphanyOpenAiStreamPayload {
-    TextDelta { text: String },
-    ReasoningDelta { text: String },
-    ToolCall { call_id: String, name: String, arguments: String },
-    Completed { receipt: EpiphanyOpenAiModelReceipt },
-    Failed { message: String },
+    TextDelta {
+        text: String,
+    },
+    ReasoningDelta {
+        text: String,
+    },
+    ToolCall {
+        call_id: String,
+        name: String,
+        arguments: String,
+    },
+    Completed {
+        receipt: EpiphanyOpenAiModelReceipt,
+    },
+    Failed {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

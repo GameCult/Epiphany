@@ -1,0 +1,15 @@
+[package]
+name = "epiphany-openai-codex-spine"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license-file = "../LICENSE"
+
+[lib]
+name = "epiphany_openai_codex_spine"
+path = "src/lib.rs"
+
+[dependencies]
+codex-app-server-protocol = { path = "../vendor/codex/codex-rs/app-server-protocol" }
+codex-login = { path = "../vendor/codex/codex-rs/login" }
+epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }

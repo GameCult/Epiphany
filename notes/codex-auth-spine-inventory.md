@@ -115,10 +115,17 @@ surface:
 
 The first attempt to wire `codex-core` directly as a standalone path dependency
 escaped the vendored workspace lock and hit transitive ICU/temporal dependency
-skew. Do not paper over that with random version pins. The next implementation
-slice should add a Codex-transport feature or workspace-verified wrapper that
-builds under the same dependency regime as vendored Codex, while preserving the
-typed request/event/receipt surface as the Epiphany-owned contract.
+skew. Do not paper over that with random version pins.
+
+The first workspace-verified wrapper now exists as
+`epiphany-openai-codex-spine`. It depends on the pure typed adapter plus the
+keeper Codex auth types and projects `AuthManager` / `CodexAuth` into a typed
+`EpiphanyOpenAiAdapterStatus`. `epiphany-codex-bridge` re-exports this spine so
+the current app-server compatibility shell can compile it without making the
+pure document crate depend on Codex. The remaining extraction is model
+transport: typed Epiphany model requests must call the keeper Responses API
+transport through this boundary rather than route through Epiphany JSON-RPC or
+the Codex host brain.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.
