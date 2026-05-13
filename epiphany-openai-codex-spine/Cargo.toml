@@ -12,7 +12,6 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1"
 codex-api = { path = "../vendor/codex/codex-rs/codex-api" }
-codex-app-server-protocol = { path = "../vendor/codex/codex-rs/app-server-protocol" }
 codex-login = { path = "../vendor/codex/codex-rs/login" }
 codex-model-provider = { path = "../vendor/codex/codex-rs/model-provider" }
 codex-model-provider-info = { path = "../vendor/codex/codex-rs/model-provider-info" }

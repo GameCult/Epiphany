@@ -561,11 +561,13 @@ same spine now owns the first HTTP Responses transport wrapper: typed
 `ResponsesApiRequest`, auth/provider resolves through `codex-login` and
 `codex-model-provider`, the stream opens through `codex-api`, and deltas /
 completion map back into typed `EpiphanyOpenAiStreamEvent` and
-`EpiphanyOpenAiModelReceipt` documents. The CultNet schema catalog now advertises
-OpenAI adapter status, model request, stream event, and receipt document types
-plus the coordinator-owned model request contract. The native runtime should
-consume that contract next; do not make a new JSON-RPC model endpoint and
-pretend the whale got lighter.
+`EpiphanyOpenAiModelReceipt` documents. The spine no longer directly depends on
+`codex-app-server-protocol` merely to name auth mode; `codex-login` re-exports
+that type as part of the keeper auth organ. The CultNet schema catalog now
+advertises OpenAI adapter status, model request, stream event, and receipt
+document types plus the coordinator-owned model request contract. The native
+runtime should consume that contract next; do not make a new JSON-RPC model
+endpoint and pretend the whale got lighter.
 
 The `epiphany-openai-spine` binary is now the first native edge for that
 wrapper. It can print typed adapter status and consume a serialized
