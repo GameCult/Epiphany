@@ -61,6 +61,7 @@ use crate::legacy_core::DEFAULT_AGENTS_MD_FILENAME;
 use crate::legacy_core::config::Config;
 use crate::legacy_core::config::Constrained;
 use crate::legacy_core::config::ConstraintResult;
+use crate::legacy_core::connectors;
 #[cfg(target_os = "windows")]
 use crate::legacy_core::windows_sandbox::WindowsSandboxLevelExt;
 use crate::mention_codec::LinkedMention;
@@ -105,7 +106,6 @@ use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnCompletedNotification;
 use codex_app_server_protocol::TurnPlanStepStatus;
 use codex_app_server_protocol::TurnStatus;
-use crate::legacy_core::connectors;
 use codex_config::ConfigLayerStackOrdering;
 use codex_config::types::ApprovalsReviewer;
 use codex_config::types::Notifications;
@@ -7773,8 +7773,6 @@ impl ChatWidget {
                         return;
                     }
                 };
-            let should_schedule_force_refetch =
-                !force_refetch && !accessible_result.codex_apps_ready;
             let accessible_connectors = accessible_result.connectors;
 
             app_event_tx.send(AppEvent::ConnectorsLoaded {
@@ -7801,12 +7799,6 @@ impl ChatWidget {
                 result,
                 is_final: true,
             });
-
-            if should_schedule_force_refetch {
-                app_event_tx.send(AppEvent::RefreshConnectors {
-                    force_refetch: true,
-                });
-            }
         });
     }
 
@@ -10184,7 +10176,7 @@ impl ChatWidget {
     }
 
     fn connectors_enabled(&self) -> bool {
-        self.config.features.enabled(Feature::Apps) && self.has_chatgpt_account
+        false
     }
 
     fn connectors_for_mentions(&self) -> Option<&[AppInfo]> {
@@ -10916,7 +10908,6 @@ impl ChatWidget {
         self.connectors_cache = ConnectorsCacheState::Ready(snapshot.clone());
         self.bottom_pane.set_connectors_snapshot(Some(snapshot));
     }
-
 
     pub(crate) fn open_review_popup(&mut self) {
         let mut items: Vec<SelectionItem> = Vec::new();

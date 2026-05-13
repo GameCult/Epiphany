@@ -826,6 +826,13 @@ stale MCP tests for the deleted Codex Apps cache/startup snapshot/provenance
 path were removed. If attribution returns, it belongs in an Epiphany-owned typed
 adapter receipt, not as universal connector state.
 
+The Codex Apps readiness flag is gone as well. `AccessibleConnectorsStatus` no
+longer carries `codex_apps_ready`, the TUI no longer schedules a second forced
+connector fetch waiting for a deleted app cache, and `connectors_enabled()` is
+hard-off. Connector listing remains an inert compatibility stub until the whole
+app connector surface is deleted or replaced by an Epiphany-owned typed MCP
+adapter.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

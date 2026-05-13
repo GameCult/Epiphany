@@ -8,7 +8,6 @@ use crate::config::Config;
 #[derive(Debug, Clone)]
 pub struct AccessibleConnectorsStatus {
     pub connectors: Vec<AppInfo>,
-    pub codex_apps_ready: bool,
 }
 
 pub async fn list_accessible_connectors_from_mcp_tools(
@@ -51,7 +50,6 @@ pub async fn list_accessible_connectors_from_mcp_tools_with_options_and_status(
 ) -> anyhow::Result<AccessibleConnectorsStatus> {
     Ok(AccessibleConnectorsStatus {
         connectors: Vec::new(),
-        codex_apps_ready: true,
     })
 }
 
@@ -62,7 +60,6 @@ pub async fn list_accessible_connectors_from_mcp_tools_with_environment_manager(
 ) -> anyhow::Result<AccessibleConnectorsStatus> {
     Ok(AccessibleConnectorsStatus {
         connectors: Vec::new(),
-        codex_apps_ready: true,
     })
 }
 
