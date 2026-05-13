@@ -1,5 +1,3 @@
-use chrono::SecondsFormat;
-use chrono::Utc;
 use codex_app_server_protocol::*;
 use codex_core::EpiphanyJobInterruptRequest;
 use codex_core::EpiphanyJobLaunchRequest;
@@ -14,24 +12,19 @@ use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
 use epiphany_codex_bridge::launch::build_epiphany_role_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::launch::epiphany_role_label;
 use epiphany_codex_bridge::launch::map_core_worker_launch_document;
-use epiphany_codex_bridge::mutation::build_reorient_acceptance_update;
-use epiphany_codex_bridge::mutation::build_role_acceptance_update;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
-use epiphany_codex_bridge::mutation::state_update_from_thread_patch;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
+use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
+use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_role_accept;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_update;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::reorient::map_epiphany_reorient;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_index_summary;
-use epiphany_codex_bridge::runtime_results::load_completed_epiphany_reorient_finding;
-use epiphany_codex_bridge::runtime_results::load_completed_epiphany_role_finding;
 use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
-use uuid::Uuid;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -195,83 +188,15 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let Some(state) = loaded_thread.epiphany_state().await else {
-            self.send_invalid_request_error(
-                request_id,
-                "cannot accept an Epiphany role finding without authoritative Epiphany state"
-                    .to_string(),
-            )
-            .await;
-            return;
-        };
-        if let Some(expected_revision) = expected_revision
-            && state.revision != expected_revision
-        {
-            self.send_invalid_request_error(
-                request_id,
-                format!(
-                    "epiphany state revision mismatch: expected {expected_revision}, found {}",
-                    state.revision
-                ),
-            )
-            .await;
-            return;
-        }
-
-        let finding = match load_completed_epiphany_role_finding(
+        let applied = match apply_thread_epiphany_role_accept(
             loaded_thread.as_ref(),
-            &state,
             role_id,
+            expected_revision,
             &binding_id,
         )
         .await
         {
-            Ok(finding) => finding,
-            Err(CodexErr::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to accept Epiphany role finding: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let accepted_prefix = epiphany_role_label(role_id);
-        let accepted_evidence_id = format!("ev-{accepted_prefix}-{}", Uuid::new_v4());
-        let accepted_observation_id = format!("obs-{accepted_prefix}-{}", Uuid::new_v4());
-        let acceptance_update = match build_role_acceptance_update(
-            role_id,
-            &binding_id,
-            &finding,
-            accepted_evidence_id,
-            accepted_observation_id,
-            Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-        ) {
-            Ok(update) => update,
-            Err(message) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-        };
-        let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
-        let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
-        let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
-        let changed_fields = acceptance_update.changed_fields.clone();
-        let patch = acceptance_update.patch;
-        let applied_patch = patch.clone();
-
-        let epiphany_state = match loaded_thread
-            .epiphany_update_state(state_update_from_thread_patch(expected_revision, patch))
-            .await
-        {
-            Ok(state) => {
-                client_visible_live_thread_epiphany_state(loaded_thread.as_ref(), state).await
-            }
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -285,21 +210,23 @@ impl CodexMessageProcessor {
                 return;
             }
         };
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
 
         self.outgoing
             .send_response(
                 request_id,
                 ThreadEpiphanyRoleAcceptResponse {
-                    revision: epiphany_state.revision,
+                    revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
                     role_id,
                     binding_id: binding_id.clone(),
-                    accepted_receipt_id,
-                    accepted_observation_id,
-                    accepted_evidence_id,
-                    applied_patch,
-                    finding,
+                    accepted_receipt_id: applied.accepted_receipt_id,
+                    accepted_observation_id: applied.accepted_observation_id,
+                    accepted_evidence_id: applied.accepted_evidence_id,
+                    applied_patch: applied.applied_patch,
+                    finding: applied.finding,
                 },
             )
             .await;
@@ -513,37 +440,16 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let Some(state) = loaded_thread.epiphany_state().await else {
-            self.send_invalid_request_error(
-                request_id,
-                "cannot accept a reorientation finding without authoritative Epiphany state"
-                    .to_string(),
-            )
-            .await;
-            return;
-        };
-        if let Some(expected_revision) = expected_revision
-            && state.revision != expected_revision
-        {
-            self.send_invalid_request_error(
-                request_id,
-                format!(
-                    "epiphany state revision mismatch: expected {expected_revision}, found {}",
-                    state.revision
-                ),
-            )
-            .await;
-            return;
-        }
-
-        let finding = match load_completed_epiphany_reorient_finding(
+        let applied = match apply_thread_epiphany_reorient_accept(
             loaded_thread.as_ref(),
-            &state,
+            expected_revision,
             binding_id.as_str(),
+            update_scratch,
+            update_investigation_checkpoint,
         )
         .await
         {
-            Ok(finding) => finding,
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -557,74 +463,21 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-
-        if update_investigation_checkpoint && state.investigation_checkpoint.is_none() {
-            self.send_invalid_request_error(
-                request_id,
-                "cannot update investigation checkpoint because this thread has no durable checkpoint"
-                    .to_string(),
-            )
-            .await;
-            return;
-        }
-
-        let accepted_evidence_id = format!("ev-reorient-{}", Uuid::new_v4());
-        let accepted_observation_id = format!("obs-reorient-{}", Uuid::new_v4());
-        let acceptance_update = match build_reorient_acceptance_update(
-            expected_revision,
-            &binding_id,
-            &finding,
-            accepted_evidence_id,
-            accepted_observation_id,
-            Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-            update_scratch,
-            update_investigation_checkpoint,
-            state.investigation_checkpoint.clone(),
-        ) {
-            Ok(update) => update,
-            Err(message) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-        };
-        let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
-        let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
-        let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
-        let changed_fields = acceptance_update.changed_fields.clone();
-
-        let epiphany_state = match loaded_thread
-            .epiphany_update_state(acceptance_update.state_update)
-            .await
-        {
-            Ok(state) => {
-                client_visible_live_thread_epiphany_state(loaded_thread.as_ref(), state).await
-            }
-            Err(CodexErr::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to apply Epiphany reorientation finding: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
 
         self.outgoing
             .send_response(
                 request_id,
                 ThreadEpiphanyReorientAcceptResponse {
-                    revision: epiphany_state.revision,
+                    revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
                     binding_id: binding_id.clone(),
-                    accepted_receipt_id,
-                    accepted_observation_id,
-                    accepted_evidence_id,
-                    finding,
+                    accepted_receipt_id: applied.accepted_receipt_id,
+                    accepted_observation_id: applied.accepted_observation_id,
+                    accepted_evidence_id: applied.accepted_evidence_id,
+                    finding: applied.finding,
                 },
             )
             .await;

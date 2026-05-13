@@ -11,6 +11,7 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 codex-app-server-protocol = { path = "../vendor/codex/codex-rs/app-server-protocol" }
 codex-core = { path = "../vendor/codex/codex-rs/core" }
 codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
@@ -21,3 +22,4 @@ epiphany-openai-codex-spine = { path = "../epiphany-openai-codex-spine" }
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }
 toml = "0.9"
+uuid = { version = "1", features = ["v4"] }

@@ -622,8 +622,16 @@ apply_thread_epiphany_promote}` so the vendored app-server handler no longer
 owns promotion evaluation, patch-to-update projection, changed-field derivation,
 or state application for those two write verbs. The handler still owns
 thread-id parsing, loaded-thread lookup, JSON-RPC response shaping, and
-notification emission; role/reorient accept plus launch/interrupt route
-orchestration remain to cut.
+notification emission.
+
+Role/reorient accept have followed into the same bridge service.
+`apply_thread_epiphany_role_accept` and
+`apply_thread_epiphany_reorient_accept` now own authoritative state/revision
+checks, typed runtime-spine finding load, acceptance id/timestamp generation,
+acceptance update construction, state application, and client-visible state
+projection. The vendored mutation route still parses JSON-RPC params, loads the
+thread, shapes responses, and emits notifications. Launch/interrupt route
+orchestration remains to cut.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
