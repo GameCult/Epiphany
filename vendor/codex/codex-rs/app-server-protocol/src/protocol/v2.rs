@@ -1027,92 +1027,6 @@ pub struct ConfigRequirementsReadResponse {
     pub requirements: Option<ConfigRequirements>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash, JsonSchema, TS)]
-#[ts(export_to = "v2/")]
-pub enum ExternalAgentConfigMigrationItemType {
-    #[serde(rename = "AGENTS_MD")]
-    #[ts(rename = "AGENTS_MD")]
-    AgentsMd,
-    #[serde(rename = "CONFIG")]
-    #[ts(rename = "CONFIG")]
-    Config,
-    #[serde(rename = "SKILLS")]
-    #[ts(rename = "SKILLS")]
-    Skills,
-    #[serde(rename = "PLUGINS")]
-    #[ts(rename = "PLUGINS")]
-    Plugins,
-    #[serde(rename = "MCP_SERVER_CONFIG")]
-    #[ts(rename = "MCP_SERVER_CONFIG")]
-    McpServerConfig,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct PluginsMigration {
-    #[serde(rename = "marketplaceName")]
-    #[ts(rename = "marketplaceName")]
-    pub marketplace_name: String,
-    #[serde(rename = "pluginNames")]
-    #[ts(rename = "pluginNames")]
-    pub plugin_names: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct MigrationDetails {
-    pub plugins: Vec<PluginsMigration>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ExternalAgentConfigMigrationItem {
-    pub item_type: ExternalAgentConfigMigrationItemType,
-    pub description: String,
-    /// Null or empty means home-scoped migration; non-empty means repo-scoped migration.
-    pub cwd: Option<PathBuf>,
-    pub details: Option<MigrationDetails>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ExternalAgentConfigDetectResponse {
-    pub items: Vec<ExternalAgentConfigMigrationItem>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ExternalAgentConfigDetectParams {
-    /// If true, include detection under the user's home (~/.claude, ~/.codex, etc.).
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub include_home: bool,
-    /// Zero or more working directories to include for repo-scoped detection.
-    #[ts(optional = nullable)]
-    pub cwds: Option<Vec<PathBuf>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ExternalAgentConfigImportParams {
-    pub migration_items: Vec<ExternalAgentConfigMigrationItem>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ExternalAgentConfigImportResponse {}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct ExternalAgentConfigImportCompletedNotification {}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
@@ -9014,39 +8928,6 @@ mod tests {
             CollabAgentState {
                 status: CollabAgentStatus::Interrupted,
                 message: None,
-            }
-        );
-    }
-
-    #[test]
-    fn external_agent_config_plugins_details_round_trip() {
-        let item: ExternalAgentConfigMigrationItem = serde_json::from_value(json!({
-            "itemType": "PLUGINS",
-            "description": "Install supported plugins from Claude settings",
-            "cwd": absolute_path_string("repo"),
-            "details": {
-                "plugins": [
-                    {
-                        "marketplaceName": "team-marketplace",
-                        "pluginNames": ["asana"]
-                    }
-                ]
-            }
-        }))
-        .expect("plugins migration item should deserialize");
-
-        assert_eq!(
-            item,
-            ExternalAgentConfigMigrationItem {
-                item_type: ExternalAgentConfigMigrationItemType::Plugins,
-                description: "Install supported plugins from Claude settings".to_string(),
-                cwd: Some(PathBuf::from(absolute_path_string("repo"))),
-                details: Some(MigrationDetails {
-                    plugins: vec![PluginsMigration {
-                        marketplace_name: "team-marketplace".to_string(),
-                        plugin_names: vec!["asana".to_string()],
-                    }],
-                }),
             }
         );
     }

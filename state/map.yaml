@@ -332,6 +332,10 @@ current_status:
     orphaned app-server-protocol `Plugin*` / marketplace plugin structs and
     their serialization tests were deleted from source after the route and
     schema surfaces disappeared. The unreferenced curated plugin startup-sync
-    metric constants are gone from `codex-otel`. MCP remains JSON-RPC at the
-    edge; user-declared MCP servers are the only runtime MCP authority.
+    metric constants are gone from `codex-otel`. The external agent config
+    import product is gone too: no `externalAgentConfig/detect`,
+    `externalAgentConfig/import`, import-completed notification, TUI startup
+    prompt, migration modules, snapshots, disabled app-server handlers, or
+    generated schemas remain. MCP remains JSON-RPC at the edge; user-declared
+    MCP servers are the only runtime MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

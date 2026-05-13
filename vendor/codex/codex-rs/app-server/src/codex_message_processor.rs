@@ -1191,10 +1191,6 @@ impl CodexMessageProcessor {
             ClientRequest::ConfigRequirementsRead { .. } => {
                 warn!("ConfigRequirementsRead request reached CodexMessageProcessor unexpectedly");
             }
-            ClientRequest::ExternalAgentConfigDetect { .. }
-            | ClientRequest::ExternalAgentConfigImport { .. } => {
-                warn!("ExternalAgentConfig request reached CodexMessageProcessor unexpectedly");
-            }
             ClientRequest::GetAccountRateLimits {
                 request_id,
                 params: _,

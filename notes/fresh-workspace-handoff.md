@@ -894,6 +894,13 @@ orphaned app-server-protocol `Plugin*` / marketplace plugin structs and their
 serialization tests are now deleted from source too. The unreferenced curated
 plugin startup-sync metric constants were removed from `codex-otel`.
 
+The external agent config import product is gone. There are no
+`externalAgentConfig/detect`, `externalAgentConfig/import`, import-completed
+notification, TUI startup prompt, migration modules, snapshots, disabled
+app-server handlers, or generated schemas left. This was not keeper
+auth/model-routing machinery; it was a disabled migration product orbiting the
+Codex organ.
+
 The orphaned `codex-chatgpt` crate is deleted from the vendored workspace. Do
 not confuse that with ChatGPT auth itself: originator strings and login/model
 auth surfaces that preserve the user's Codex subscription compatibility remain

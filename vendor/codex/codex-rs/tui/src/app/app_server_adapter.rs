@@ -12,7 +12,6 @@ should shrink and eventually disappear.
 */
 
 use super::App;
-use crate::app_command::AppCommand;
 use crate::app_event::AppEvent;
 use crate::app_server_session::AppServerSession;
 use crate::app_server_session::app_server_rate_limit_snapshot_to_core;
@@ -187,16 +186,6 @@ impl App {
                         Some(AuthMode::Chatgpt) | Some(AuthMode::ChatgptAuthTokens)
                     ),
                 );
-                return;
-            }
-            ServerNotification::ExternalAgentConfigImportCompleted(_) => {
-                if let Err(err) = self.refresh_in_memory_config_from_disk().await {
-                    tracing::warn!(
-                        error = %err,
-                        "failed to refresh config after external agent config import"
-                    );
-                }
-                self.chat_widget.submit_op(AppCommand::reload_user_config());
                 return;
             }
             _ => {}
@@ -435,7 +424,6 @@ fn server_notification_thread_target(
         | ServerNotification::AccountUpdated(_)
         | ServerNotification::AccountRateLimitsUpdated(_)
         | ServerNotification::AppListUpdated(_)
-        | ServerNotification::ExternalAgentConfigImportCompleted(_)
         | ServerNotification::DeprecationNotice(_)
         | ServerNotification::ConfigWarning(_)
         | ServerNotification::FuzzyFileSearchSessionUpdated(_)

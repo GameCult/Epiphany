@@ -40,9 +40,6 @@ use codex_app_server_protocol::DeviceKeyPublicParams;
 use codex_app_server_protocol::DeviceKeySignParams;
 use codex_app_server_protocol::ExperimentalApi;
 use codex_app_server_protocol::ExperimentalFeatureEnablementSetParams;
-use codex_app_server_protocol::ExternalAgentConfigDetectParams;
-use codex_app_server_protocol::ExternalAgentConfigDetectResponse;
-use codex_app_server_protocol::ExternalAgentConfigImportParams;
 use codex_app_server_protocol::FsCopyParams;
 use codex_app_server_protocol::FsCreateDirectoryParams;
 use codex_app_server_protocol::FsGetMetadataParams;
@@ -790,26 +787,6 @@ impl MessageProcessor {
                 )
                 .await;
             }
-            ClientRequest::ExternalAgentConfigDetect { request_id, params } => {
-                self.handle_external_agent_config_detect(
-                    ConnectionRequestId {
-                        connection_id,
-                        request_id,
-                    },
-                    params,
-                )
-                .await;
-            }
-            ClientRequest::ExternalAgentConfigImport { request_id, params } => {
-                self.handle_external_agent_config_import(
-                    ConnectionRequestId {
-                        connection_id,
-                        request_id,
-                    },
-                    params,
-                )
-                .await;
-            }
             ClientRequest::ConfigValueWrite { request_id, params } => {
                 self.handle_config_value_write(
                     ConnectionRequestId {
@@ -1163,38 +1140,6 @@ impl MessageProcessor {
             )
             .await;
         true
-    }
-
-    async fn handle_external_agent_config_detect(
-        &self,
-        request_id: ConnectionRequestId,
-        _params: ExternalAgentConfigDetectParams,
-    ) {
-        self.outgoing
-            .send_response(
-                request_id,
-                ExternalAgentConfigDetectResponse { items: Vec::new() },
-            )
-            .await;
-    }
-
-    async fn handle_external_agent_config_import(
-        &self,
-        request_id: ConnectionRequestId,
-        _params: ExternalAgentConfigImportParams,
-    ) {
-        self.outgoing
-            .send_error(
-                request_id,
-                JSONRPCErrorError {
-                    code: INVALID_REQUEST_ERROR_CODE,
-                    message:
-                        "externalAgentConfig/import is disabled in Epiphany's vestigial Codex organ"
-                            .to_string(),
-                    data: None,
-                },
-            )
-            .await;
     }
 
     async fn handle_fs_read_file(&self, request_id: ConnectionRequestId, params: FsReadFileParams) {
