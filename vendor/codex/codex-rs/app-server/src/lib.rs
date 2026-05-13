@@ -81,6 +81,7 @@ mod epiphany_jobs;
 mod epiphany_launch;
 mod epiphany_reorient;
 mod epiphany_results;
+mod epiphany_retrieve;
 mod epiphany_scene;
 mod error_code;
 mod external_agent_config_api;

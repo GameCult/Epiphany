@@ -423,7 +423,9 @@ to about 19,462 lines. The seventh cut moved jobs projection into
 `vendor/codex/codex-rs/app-server/src/epiphany_jobs.rs`, taking the processor to
 about 19,377 lines. This is progress, not absolution: handlers,
 roles/coordinator mappers, route orchestration, accept policy plumbing, and
-tests still keep too much Epiphany inside Codex.
+tests still keep too much Epiphany inside Codex. The eighth cut moved retrieve
+projection into `vendor/codex/codex-rs/app-server/src/epiphany_retrieve.rs`,
+taking the processor to about 19,307 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
