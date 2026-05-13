@@ -486,6 +486,11 @@ The twentieth cut removed `use super::*` from `epiphany_automation.rs` and made
 the coordinator/pre-compaction automation dependencies explicit. The processor
 is about 10,429 lines. Remaining Epiphany child modules with parent wildcard
 visibility are `epiphany_read_routes.rs` and `epiphany_mutation_routes.rs`.
+The twenty-first cut removed `use super::*` from `epiphany_read_routes.rs` and
+made its read/proposal dependencies explicit. The processor is about 10,388
+lines. The remaining Epiphany wildcard route module is
+`epiphany_mutation_routes.rs`; it owns the dangerous launch/accept/update/
+promote/interrupt path and should be the next incision.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

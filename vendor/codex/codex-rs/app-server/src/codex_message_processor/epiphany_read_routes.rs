@@ -1,4 +1,49 @@
-use super::*;
+use codex_app_server_protocol::*;
+use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
+use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
+use codex_core::EpiphanyDistillInput;
+use codex_core::EpiphanyMapProposalInput;
+use codex_core::EpiphanyRetrieveQuery;
+use codex_core::distill_observation;
+use codex_protocol::ThreadId;
+use epiphany_codex_bridge::context::map_epiphany_context;
+use epiphany_codex_bridge::context::map_epiphany_graph_query;
+use epiphany_codex_bridge::context::map_epiphany_planning;
+use epiphany_codex_bridge::coordinator::epiphany_reorient_finding_already_accepted;
+use epiphany_codex_bridge::coordinator::epiphany_role_finding_already_accepted;
+use epiphany_codex_bridge::coordinator::epiphany_role_finding_cites_implementation_evidence;
+use epiphany_codex_bridge::coordinator::epiphany_verification_finding_allows_implementation;
+use epiphany_codex_bridge::coordinator::epiphany_verification_finding_covers_current_modeling;
+use epiphany_codex_bridge::coordinator::epiphany_verification_finding_needs_evidence;
+use epiphany_codex_bridge::coordinator::implementation_evidence_after_role_finding;
+use epiphany_codex_bridge::coordinator::map_epiphany_coordinator;
+use epiphany_codex_bridge::coordinator::map_epiphany_crrc_recommendation;
+use epiphany_codex_bridge::coordinator::map_epiphany_roles;
+use epiphany_codex_bridge::coordinator::render_epiphany_roles_note;
+use epiphany_codex_bridge::coordinator::role_finding_accepted_after;
+use epiphany_codex_bridge::jobs::map_epiphany_jobs;
+use epiphany_codex_bridge::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
+use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use epiphany_codex_bridge::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
+use epiphany_codex_bridge::launch::epiphany_role_binding_id;
+use epiphany_codex_bridge::launch::render_epiphany_coordinator_note;
+use epiphany_codex_bridge::pressure::map_epiphany_pressure;
+use epiphany_codex_bridge::reorient::map_epiphany_freshness;
+use epiphany_codex_bridge::reorient::map_epiphany_reorient;
+use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
+use epiphany_codex_bridge::runtime_results::load_epiphany_reorient_result_snapshot;
+use epiphany_codex_bridge::runtime_results::load_epiphany_role_result_snapshot;
+use epiphany_codex_bridge::scene::map_core_epiphany_scene_action;
+use epiphany_codex_bridge::scene::map_epiphany_scene;
+use epiphany_core::EpiphanySceneInput;
+use epiphany_core::derive_scene;
+
+use super::CodexMessageProcessor;
+use super::ConnectionRequestId;
+use super::ThreadReadViewError;
+use super::epiphany_freshness_watcher_snapshot;
+use super::epiphany_state_helpers::epiphany_modeling_finding_has_reviewable_state_patch;
+use super::latest_token_usage_info_from_rollout_path;
 
 impl CodexMessageProcessor {
     pub(super) async fn thread_epiphany_view(
