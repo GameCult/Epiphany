@@ -7,6 +7,8 @@ use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::derive_scene;
 
+use crate::context::map_epiphany_context;
+use crate::context::map_epiphany_graph_query;
 use crate::context::map_epiphany_planning;
 use crate::coordinator::derive_epiphany_coordinator_status;
 use crate::coordinator::epiphany_reorient_finding_already_accepted;
@@ -61,6 +63,82 @@ pub fn epiphany_view_needs_runtime_store(lenses: &[ThreadEpiphanyViewLens]) -> b
     lenses.contains(&ThreadEpiphanyViewLens::Roles)
         || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
         || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
+}
+
+pub struct EpiphanyFreshnessResponseInput<'a> {
+    pub thread_id: String,
+    pub loaded: bool,
+    pub state: Option<&'a EpiphanyThreadState>,
+    pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
+    pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
+}
+
+pub fn map_epiphany_freshness_response(
+    input: EpiphanyFreshnessResponseInput<'_>,
+) -> ThreadEpiphanyFreshnessResponse {
+    let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+        input.state,
+        input.retrieval_override,
+        input.watcher_snapshot,
+    );
+    ThreadEpiphanyFreshnessResponse {
+        thread_id: input.thread_id,
+        source: if input.loaded {
+            ThreadEpiphanyFreshnessSource::Live
+        } else {
+            ThreadEpiphanyFreshnessSource::Stored
+        },
+        state_revision,
+        retrieval,
+        graph,
+        watcher,
+    }
+}
+
+pub fn map_epiphany_context_response(
+    thread_id: String,
+    loaded: bool,
+    state: Option<&EpiphanyThreadState>,
+    params: &ThreadEpiphanyContextParams,
+) -> ThreadEpiphanyContextResponse {
+    let (state_status, state_revision, context, missing) = map_epiphany_context(state, params);
+    ThreadEpiphanyContextResponse {
+        thread_id,
+        source: if loaded {
+            ThreadEpiphanyContextSource::Live
+        } else {
+            ThreadEpiphanyContextSource::Stored
+        },
+        state_status,
+        state_revision,
+        context,
+        missing,
+    }
+}
+
+pub fn map_epiphany_graph_query_response(
+    thread_id: String,
+    loaded: bool,
+    state: Option<&EpiphanyThreadState>,
+    query: &ThreadEpiphanyGraphQuery,
+) -> ThreadEpiphanyGraphQueryResponse {
+    let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
+        map_epiphany_graph_query(state, query);
+    ThreadEpiphanyGraphQueryResponse {
+        thread_id,
+        source: if loaded {
+            ThreadEpiphanyContextSource::Live
+        } else {
+            ThreadEpiphanyContextSource::Stored
+        },
+        state_status,
+        state_revision,
+        graph,
+        frontier,
+        checkpoint,
+        matched,
+        missing,
+    }
 }
 
 pub struct EpiphanyViewResponseInput<'a> {

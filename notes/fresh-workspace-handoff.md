@@ -715,6 +715,13 @@ legacy read verbs (`roleResult`, `freshness`, `context`, `graphQuery`,
 `reorientResult`, `retrieve`, `distill`, `propose`) plus host loading and
 response/error shaping.
 
+Freshness/context/graph-query response construction is also bridge-owned now.
+`epiphany-codex-bridge::view` builds `ThreadEpiphanyFreshnessResponse`,
+`ThreadEpiphanyContextResponse`, and `ThreadEpiphanyGraphQueryResponse` from
+typed state plus host-supplied watcher/retrieval inputs. App-server still owns
+loading and watcher registration because those are host lifecycle seams.
+`epiphany_read_routes.rs` is about 620 lines after this cut.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

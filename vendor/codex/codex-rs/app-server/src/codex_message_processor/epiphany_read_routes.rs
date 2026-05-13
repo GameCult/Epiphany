@@ -6,12 +6,10 @@ use codex_core::EpiphanyMapProposalInput;
 use codex_core::EpiphanyRetrieveQuery;
 use codex_core::distill_observation;
 use codex_protocol::ThreadId;
-use epiphany_codex_bridge::context::map_epiphany_context;
-use epiphany_codex_bridge::context::map_epiphany_graph_query;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
+use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyViewResponseInput;
@@ -20,6 +18,9 @@ use epiphany_codex_bridge::view::epiphany_view_needs_jobs;
 use epiphany_codex_bridge::view::epiphany_view_needs_pressure;
 use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
+use epiphany_codex_bridge::view::map_epiphany_context_response;
+use epiphany_codex_bridge::view::map_epiphany_freshness_response;
+use epiphany_codex_bridge::view::map_epiphany_graph_query_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
@@ -257,25 +258,15 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
-            thread.epiphany_state.as_ref(),
-            retrieval_override.as_ref(),
-            watcher_snapshot
+        let response = map_epiphany_freshness_response(EpiphanyFreshnessResponseInput {
+            thread_id,
+            loaded: loaded_thread.is_some(),
+            state: thread.epiphany_state.as_ref(),
+            retrieval_override: retrieval_override.as_ref(),
+            watcher_snapshot: watcher_snapshot
                 .as_ref()
                 .map(epiphany_freshness_watcher_snapshot),
-        );
-        let response = ThreadEpiphanyFreshnessResponse {
-            thread_id,
-            source: if loaded_thread.is_some() {
-                ThreadEpiphanyFreshnessSource::Live
-            } else {
-                ThreadEpiphanyFreshnessSource::Stored
-            },
-            state_revision,
-            retrieval,
-            graph,
-            watcher,
-        };
+        });
         self.outgoing.send_response(request_id, response).await;
     }
 
@@ -307,20 +298,12 @@ impl CodexMessageProcessor {
             }
         };
 
-        let (state_status, state_revision, context, missing) =
-            map_epiphany_context(thread.epiphany_state.as_ref(), &params);
-        let response = ThreadEpiphanyContextResponse {
+        let response = map_epiphany_context_response(
             thread_id,
-            source: if loaded {
-                ThreadEpiphanyContextSource::Live
-            } else {
-                ThreadEpiphanyContextSource::Stored
-            },
-            state_status,
-            state_revision,
-            context,
-            missing,
-        };
+            loaded,
+            thread.epiphany_state.as_ref(),
+            &params,
+        );
         self.outgoing.send_response(request_id, response).await;
     }
 
@@ -352,23 +335,12 @@ impl CodexMessageProcessor {
             }
         };
 
-        let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
-            map_epiphany_graph_query(thread.epiphany_state.as_ref(), &params.query);
-        let response = ThreadEpiphanyGraphQueryResponse {
+        let response = map_epiphany_graph_query_response(
             thread_id,
-            source: if loaded {
-                ThreadEpiphanyContextSource::Live
-            } else {
-                ThreadEpiphanyContextSource::Stored
-            },
-            state_status,
-            state_revision,
-            graph,
-            frontier,
-            checkpoint,
-            matched,
-            missing,
-        };
+            loaded,
+            thread.epiphany_state.as_ref(),
+            &params.query,
+        );
         self.outgoing.send_response(request_id, response).await;
     }
 
