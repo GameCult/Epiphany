@@ -37,10 +37,6 @@ const MAX_MEMORIES_MAX_RAW_MEMORIES_FOR_CONSOLIDATION: usize = 4096;
 const MIN_MEMORIES_MAX_ROLLOUTS_PER_STARTUP: usize = 1;
 const MAX_MEMORIES_MAX_ROLLOUTS_PER_STARTUP: usize = 128;
 
-const fn default_enabled() -> bool {
-    true
-}
-
 /// Determine where Codex should store CLI auth credentials.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
@@ -524,43 +520,6 @@ pub struct Notice {
 pub use crate::skills_config::BundledSkillsConfig;
 pub use crate::skills_config::SkillConfig;
 pub use crate::skills_config::SkillsConfig;
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
-#[schemars(deny_unknown_fields)]
-pub struct PluginConfig {
-    #[serde(default = "default_enabled")]
-    pub enabled: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default, JsonSchema)]
-#[schemars(deny_unknown_fields)]
-pub struct MarketplaceConfig {
-    /// Last time Codex successfully added or refreshed this marketplace.
-    #[serde(default)]
-    pub last_updated: Option<String>,
-    /// Git revision Codex last successfully activated for this marketplace.
-    #[serde(default)]
-    pub last_revision: Option<String>,
-    /// Source kind used to install this marketplace.
-    #[serde(default)]
-    pub source_type: Option<MarketplaceSourceType>,
-    /// Source location used when the marketplace was added.
-    #[serde(default)]
-    pub source: Option<String>,
-    /// Git ref to check out when `source_type` is `git`.
-    #[serde(default, rename = "ref")]
-    pub ref_name: Option<String>,
-    /// Sparse checkout paths used when `source_type` is `git`.
-    #[serde(default)]
-    pub sparse_paths: Option<Vec<String>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum MarketplaceSourceType {
-    Git,
-    Local,
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]

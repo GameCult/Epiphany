@@ -11,13 +11,11 @@ use crate::types::ApprovalsReviewer;
 use crate::types::AuthCredentialsStoreMode;
 use crate::types::FeedbackConfigToml;
 use crate::types::History;
-use crate::types::MarketplaceConfig;
 use crate::types::McpServerConfig;
 use crate::types::MemoriesToml;
 use crate::types::Notice;
 use crate::types::OAuthCredentialsStoreMode;
 use crate::types::OtelConfigToml;
-use crate::types::PluginConfig;
 use crate::types::SandboxWorkspaceWrite;
 use crate::types::ShellEnvironmentPolicyToml;
 use crate::types::SkillsConfig;
@@ -325,14 +323,6 @@ pub struct ConfigToml {
 
     /// User-level skill config entries keyed by SKILL.md path.
     pub skills: Option<SkillsConfig>,
-
-    /// User-level plugin config entries keyed by plugin name.
-    #[serde(default)]
-    pub plugins: HashMap<String, PluginConfig>,
-
-    /// User-level marketplace entries keyed by marketplace name.
-    #[serde(default)]
-    pub marketplaces: HashMap<String, MarketplaceConfig>,
 
     /// Centralized feature flags (new). Prefer this over individual toggles.
     #[serde(default)]

@@ -219,7 +219,7 @@ mod tests {
             ThreadConfigSource::Session(SessionThreadConfig {
                 model_provider: Some("local".to_string()),
                 model_providers: HashMap::from([("local".to_string(), test_provider("local"))]),
-                features: BTreeMap::from([("plugins".to_string(), false)]),
+                features: BTreeMap::from([("multi_agent_v2".to_string(), false)]),
             }),
             ThreadConfigSource::User(UserThreadConfig::default()),
         ]);
@@ -238,7 +238,7 @@ mod tests {
                 ThreadConfigSource::Session(SessionThreadConfig {
                     model_provider: Some("local".to_string()),
                     model_providers: HashMap::from([("local".to_string(), test_provider("local"))]),
-                    features: BTreeMap::from([("plugins".to_string(), false)]),
+                    features: BTreeMap::from([("multi_agent_v2".to_string(), false)]),
                 }),
                 ThreadConfigSource::User(UserThreadConfig::default()),
             ]
@@ -252,7 +252,7 @@ mod tests {
             ThreadConfigSource::Session(SessionThreadConfig {
                 model_provider: Some("local".to_string()),
                 model_providers: HashMap::from([("local".to_string(), test_provider("local"))]),
-                features: BTreeMap::from([("plugins".to_string(), false)]),
+                features: BTreeMap::from([("multi_agent_v2".to_string(), false)]),
             }),
         ]);
         let layers = loader
@@ -283,7 +283,7 @@ mod tests {
                     supports_websockets = true
 
                     [features]
-                    plugins = false
+                    multi_agent_v2 = false
                 }
                 .into()
             )]

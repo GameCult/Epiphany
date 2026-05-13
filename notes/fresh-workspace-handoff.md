@@ -879,6 +879,13 @@ only. Do not resurrect plugin product routing or `app://` compatibility to make
 old tests feel less lonely; the blessed route is `mcp://` at the MCP edge and
 typed CultCache/CultNet documents inside Epiphany.
 
+Plugin and marketplace config is gone as a parsed Codex contract. `ConfigToml`
+no longer accepts `[plugins]` or `[marketplaces]`, `PluginConfig`,
+`MarketplaceConfig`, and marketplace edit helpers were deleted, the generated
+config schema no longer advertises those tables, and app-server README no
+longer lists dead plugin or external-agent import routes. Old plugin config
+files should fail loudly rather than receive fake compatibility incense.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests
