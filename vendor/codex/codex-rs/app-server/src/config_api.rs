@@ -3,7 +3,6 @@ use crate::config_manager_service::ConfigManagerError;
 use crate::error_code::INTERNAL_ERROR_CODE;
 use crate::error_code::INVALID_REQUEST_ERROR_CODE;
 use async_trait::async_trait;
-use codex_analytics::AnalyticsEventsClient;
 use codex_app_server_protocol::ConfigBatchWriteParams;
 use codex_app_server_protocol::ConfigReadParams;
 use codex_app_server_protocol::ConfigReadResponse;
@@ -24,9 +23,6 @@ use codex_core::config::Config;
 use codex_core::config_loader::ConfigRequirementsToml;
 use codex_core::config_loader::ResidencyRequirement as CoreResidencyRequirement;
 use codex_core::config_loader::SandboxModeRequirement as CoreSandboxModeRequirement;
-use codex_core::plugins::PluginId;
-use codex_core_plugins::loader::installed_plugin_telemetry_metadata;
-use codex_core_plugins::toggles::collect_plugin_enabled_candidates;
 use codex_features::canonical_feature_for_key;
 use codex_features::feature_for_key;
 use codex_protocol::config_types::WebSearchMode;
@@ -37,9 +33,7 @@ use std::sync::Arc;
 use tracing::warn;
 
 const SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT: &[&str] = &[
-    "apps",
     "memories",
-    "plugins",
     "tool_search",
     "tool_suggest",
     "tool_call_mcp_elicitation",
@@ -69,19 +63,16 @@ impl UserConfigReloader for ThreadManager {
 pub(crate) struct ConfigApi {
     config_manager: ConfigManager,
     user_config_reloader: Arc<dyn UserConfigReloader>,
-    analytics_events_client: AnalyticsEventsClient,
 }
 
 impl ConfigApi {
     pub(crate) fn new(
         config_manager: ConfigManager,
         user_config_reloader: Arc<dyn UserConfigReloader>,
-        analytics_events_client: AnalyticsEventsClient,
     ) -> Self {
         Self {
             config_manager,
             user_config_reloader,
-            analytics_events_client,
         }
     }
 
@@ -145,14 +136,11 @@ impl ConfigApi {
         &self,
         params: ConfigValueWriteParams,
     ) -> Result<ConfigWriteResponse, JSONRPCErrorError> {
-        let pending_changes =
-            collect_plugin_enabled_candidates([(&params.key_path, &params.value)].into_iter());
         let response = self
             .config_manager
             .write_value(params)
             .await
             .map_err(map_error)?;
-        self.emit_plugin_toggle_events(pending_changes).await;
         Ok(response)
     }
 
@@ -161,18 +149,11 @@ impl ConfigApi {
         params: ConfigBatchWriteParams,
     ) -> Result<ConfigWriteResponse, JSONRPCErrorError> {
         let reload_user_config = params.reload_user_config;
-        let pending_changes = collect_plugin_enabled_candidates(
-            params
-                .edits
-                .iter()
-                .map(|edit| (&edit.key_path, &edit.value)),
-        );
         let response = self
             .config_manager
             .batch_write(params)
             .await
             .map_err(map_error)?;
-        self.emit_plugin_toggle_events(pending_changes).await;
         if reload_user_config {
             self.user_config_reloader.reload_user_config().await;
         }
@@ -235,25 +216,6 @@ impl ConfigApi {
         self.user_config_reloader.reload_user_config().await;
 
         Ok(ExperimentalFeatureEnablementSetResponse { enablement })
-    }
-
-    async fn emit_plugin_toggle_events(
-        &self,
-        pending_changes: std::collections::BTreeMap<String, bool>,
-    ) {
-        for (plugin_id, enabled) in pending_changes {
-            let Ok(plugin_id) = PluginId::parse(&plugin_id) else {
-                continue;
-            };
-            let metadata =
-                installed_plugin_telemetry_metadata(self.config_manager.codex_home(), &plugin_id)
-                    .await;
-            if enabled {
-                self.analytics_events_client.track_plugin_enabled(metadata);
-            } else {
-                self.analytics_events_client.track_plugin_disabled(metadata);
-            }
-        }
     }
 }
 
@@ -416,7 +378,6 @@ fn config_write_error(code: ConfigWriteErrorCode, message: impl Into<String>) ->
 mod tests {
     use super::*;
     use crate::config_manager::apply_runtime_feature_enablement;
-    use codex_analytics::AnalyticsEventsClient;
     use codex_arg0::Arg0DispatchPaths;
     use codex_core::config_loader::CloudRequirementsLoader;
     use codex_core::config_loader::LoaderOverrides;
@@ -426,8 +387,6 @@ mod tests {
     use codex_core::config_loader::NetworkUnixSocketPermissionToml as CoreNetworkUnixSocketPermissionToml;
     use codex_core::config_loader::NetworkUnixSocketPermissionsToml as CoreNetworkUnixSocketPermissionsToml;
     use codex_features::Feature;
-    use codex_login::AuthManager;
-    use codex_login::CodexAuth;
     use codex_protocol::config_types::ApprovalsReviewer as CoreApprovalsReviewer;
     use codex_protocol::protocol::AskForApproval as CoreAskForApproval;
     use pretty_assertions::assert_eq;
@@ -723,13 +682,6 @@ mod tests {
         let user_config_path = codex_home.path().join("config.toml");
         std::fs::write(&user_config_path, "").expect("write config");
         let reloader = Arc::new(RecordingUserConfigReloader::default());
-        let analytics_config = Arc::new(
-            codex_core::config::ConfigBuilder::default()
-                .build()
-                .await
-                .expect("load analytics config"),
-        );
-        let auth_manager = AuthManager::from_auth_for_testing(CodexAuth::from_api_key("test"));
         let config_api = ConfigApi::new(
             ConfigManager::new(
                 codex_home.path().to_path_buf(),
@@ -740,14 +692,6 @@ mod tests {
                 Arc::new(codex_config::NoopThreadConfigLoader),
             ),
             reloader.clone(),
-            AnalyticsEventsClient::new(
-                auth_manager,
-                analytics_config
-                    .chatgpt_base_url
-                    .trim_end_matches('/')
-                    .to_string(),
-                analytics_config.analytics_enabled,
-            ),
         );
 
         let response = config_api

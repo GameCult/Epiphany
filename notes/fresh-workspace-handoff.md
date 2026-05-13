@@ -746,12 +746,19 @@ boundary while Codex survives only as subscription auth/model routing. Do not
 resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
 marketplace, or bridge expansion until this organ is being cut cleanly.
 
-The first Codex product-surface starvation cut is landed too. App-server
+The Codex product-surface starvation cuts are landed too. App-server
 apps/skills/plugin/marketplace list routes are inert, mutation/detail routes
 return explicit disabled errors, the helper modules and stale v2 endpoint tests
 were deleted, and the broken private `processor_tests.rs` implementation-shape
-suite is gone. `codex_message_processor.rs` is still too large, but it is no
-longer carrying the plugin marketplace altar in its chest cavity.
+suite is gone. `externalAgentConfig/*` is now a compatibility husk: detect
+returns no imports, import is disabled, and the Claude/app/skill/plugin import
+machinery plus tests were deleted. Config no longer treats `apps` or `plugins`
+as supported runtime feature enablement, no longer refreshes app lists after
+feature writes, no longer starts plugin warmups at app-server startup, and no
+longer emits plugin-toggle analytics from config writes. App-server no longer
+depends directly on `codex-chatgpt`, `codex-core-plugins`, or `codex-plugin`.
+`codex_message_processor.rs` is still too large, but it is no longer carrying
+the plugin marketplace altar in its chest cavity.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

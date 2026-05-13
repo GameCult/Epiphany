@@ -13,7 +13,6 @@ mod device_key;
 mod dynamic_tools;
 mod experimental_api;
 mod experimental_feature_list;
-mod external_agent_config;
 mod fs;
 mod initialize;
 mod mcp_resource;

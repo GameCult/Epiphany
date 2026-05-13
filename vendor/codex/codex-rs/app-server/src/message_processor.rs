@@ -11,7 +11,6 @@ use crate::config_api::ConfigApi;
 use crate::config_manager::ConfigManager;
 use crate::device_key_api::DeviceKeyApi;
 use crate::error_code::INVALID_REQUEST_ERROR_CODE;
-use crate::external_agent_config_api::ExternalAgentConfigApi;
 use crate::fs_api::FsApi;
 use crate::fs_watch::FsWatchManager;
 use crate::outgoing_message::ConnectionId;
@@ -25,7 +24,6 @@ use async_trait::async_trait;
 use axum::http::HeaderValue;
 use codex_analytics::AnalyticsEventsClient;
 use codex_analytics::AppServerRpcTransport;
-use codex_app_server_protocol::AppListUpdatedNotification;
 use codex_app_server_protocol::AuthMode as LoginAuthMode;
 use codex_app_server_protocol::ChatgptAuthTokensRefreshParams;
 use codex_app_server_protocol::ChatgptAuthTokensRefreshReason;
@@ -43,10 +41,8 @@ use codex_app_server_protocol::DeviceKeySignParams;
 use codex_app_server_protocol::ExperimentalApi;
 use codex_app_server_protocol::ExperimentalFeatureEnablementSetParams;
 use codex_app_server_protocol::ExternalAgentConfigDetectParams;
-use codex_app_server_protocol::ExternalAgentConfigImportCompletedNotification;
+use codex_app_server_protocol::ExternalAgentConfigDetectResponse;
 use codex_app_server_protocol::ExternalAgentConfigImportParams;
-use codex_app_server_protocol::ExternalAgentConfigImportResponse;
-use codex_app_server_protocol::ExternalAgentConfigMigrationItemType;
 use codex_app_server_protocol::FsCopyParams;
 use codex_app_server_protocol::FsCreateDirectoryParams;
 use codex_app_server_protocol::FsGetMetadataParams;
@@ -66,7 +62,6 @@ use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestPayload;
 use codex_app_server_protocol::experimental_required_message;
 use codex_arg0::Arg0DispatchPaths;
-use codex_chatgpt::connectors;
 use codex_core::ThreadManager;
 use codex_core::config::Config;
 use codex_exec_server::EnvironmentManager;
@@ -167,10 +162,8 @@ impl ExternalAuth for ExternalAuthRefreshBridge {
 pub(crate) struct MessageProcessor {
     outgoing: Arc<OutgoingMessageSender>,
     codex_message_processor: CodexMessageProcessor,
-    thread_manager: Arc<ThreadManager>,
     config_api: ConfigApi,
     device_key_api: DeviceKeyApi,
-    external_agent_config_api: ExternalAgentConfigApi,
     fs_api: FsApi,
     auth_manager: Arc<AuthManager>,
     analytics_events_client: AnalyticsEventsClient,
@@ -300,10 +293,6 @@ impl MessageProcessor {
             environment_manager,
             Some(analytics_events_client.clone()),
         ));
-        thread_manager
-            .plugins_manager()
-            .set_analytics_events_client(analytics_events_client.clone());
-
         let codex_message_processor = CodexMessageProcessor::new(CodexMessageProcessorArgs {
             auth_manager: auth_manager.clone(),
             thread_manager: Arc::clone(&thread_manager),
@@ -315,19 +304,8 @@ impl MessageProcessor {
             feedback,
             log_db,
         });
-        // Keep plugin startup warmups aligned at app-server startup.
-        // TODO(xl): Move into PluginManager once this no longer depends on config feature gating.
-        thread_manager
-            .plugins_manager()
-            .maybe_start_plugin_startup_tasks_for_config(&config, auth_manager.clone());
-        let config_api = ConfigApi::new(
-            config_manager,
-            thread_manager.clone(),
-            analytics_events_client.clone(),
-        );
+        let config_api = ConfigApi::new(config_manager, thread_manager.clone());
         let device_key_api = DeviceKeyApi::default();
-        let external_agent_config_api =
-            ExternalAgentConfigApi::new(config.codex_home.to_path_buf());
         let fs_api = FsApi::new(
             thread_manager
                 .environment_manager()
@@ -339,10 +317,8 @@ impl MessageProcessor {
         Self {
             outgoing,
             codex_message_processor,
-            thread_manager: Arc::clone(&thread_manager),
             config_api,
             device_key_api,
-            external_agent_config_api,
             fs_api,
             auth_manager,
             analytics_events_client,
@@ -1047,86 +1023,11 @@ impl MessageProcessor {
         request_id: ConnectionRequestId,
         params: ExperimentalFeatureEnablementSetParams,
     ) {
-        let should_refresh_apps_list = params.enablement.get("apps").copied() == Some(true);
         let result = self
             .config_api
             .set_experimental_feature_enablement(params)
             .await;
-        let is_ok = result.is_ok();
         self.handle_config_mutation_result(request_id, result).await;
-        if should_refresh_apps_list && is_ok {
-            self.refresh_apps_list_after_experimental_feature_enablement_set()
-                .await;
-        }
-    }
-
-    async fn refresh_apps_list_after_experimental_feature_enablement_set(&self) {
-        let config = match self
-            .config_api
-            .load_latest_config(/*fallback_cwd*/ None)
-            .await
-        {
-            Ok(config) => config,
-            Err(error) => {
-                tracing::warn!(
-                    "failed to load config for apps list refresh after experimental feature enablement: {}",
-                    error.message
-                );
-                return;
-            }
-        };
-        let auth = self.auth_manager.auth().await;
-        if !config.features.apps_enabled_for_auth(
-            auth.as_ref()
-                .is_some_and(codex_login::CodexAuth::is_chatgpt_auth),
-        ) {
-            return;
-        }
-
-        let outgoing = Arc::clone(&self.outgoing);
-        let environment_manager = self.thread_manager.environment_manager();
-        tokio::spawn(async move {
-            let (all_connectors_result, accessible_connectors_result) = tokio::join!(
-                connectors::list_all_connectors_with_options(&config, /*force_refetch*/ true),
-                connectors::list_accessible_connectors_from_mcp_tools_with_environment_manager(
-                    &config,
-                    /*force_refetch*/ true,
-                    &environment_manager,
-                ),
-            );
-            let all_connectors = match all_connectors_result {
-                Ok(connectors) => connectors,
-                Err(err) => {
-                    tracing::warn!(
-                        "failed to force-refresh directory apps after experimental feature enablement: {err:#}"
-                    );
-                    return;
-                }
-            };
-            let accessible_connectors = match accessible_connectors_result {
-                Ok(status) => status.connectors,
-                Err(err) => {
-                    tracing::warn!(
-                        "failed to force-refresh accessible apps after experimental feature enablement: {err:#}"
-                    );
-                    return;
-                }
-            };
-
-            let data = connectors::with_app_enabled_state(
-                connectors::merge_connectors_with_accessible(
-                    all_connectors,
-                    accessible_connectors,
-                    /*all_connectors_loaded*/ true,
-                ),
-                &config,
-            );
-            outgoing
-                .send_server_notification(ServerNotification::AppListUpdated(
-                    AppListUpdatedNotification { data },
-                ))
-                .await;
-        });
     }
 
     async fn handle_config_mutation_result<T: serde::Serialize>(
@@ -1268,80 +1169,33 @@ impl MessageProcessor {
     async fn handle_external_agent_config_detect(
         &self,
         request_id: ConnectionRequestId,
-        params: ExternalAgentConfigDetectParams,
+        _params: ExternalAgentConfigDetectParams,
     ) {
-        match self.external_agent_config_api.detect(params).await {
-            Ok(response) => self.outgoing.send_response(request_id, response).await,
-            Err(error) => self.outgoing.send_error(request_id, error).await,
-        }
+        self.outgoing
+            .send_response(
+                request_id,
+                ExternalAgentConfigDetectResponse { items: Vec::new() },
+            )
+            .await;
     }
 
     async fn handle_external_agent_config_import(
         &self,
         request_id: ConnectionRequestId,
-        params: ExternalAgentConfigImportParams,
+        _params: ExternalAgentConfigImportParams,
     ) {
-        let has_plugin_imports = params.migration_items.iter().any(|item| {
-            matches!(
-                item.item_type,
-                ExternalAgentConfigMigrationItemType::Plugins
+        self.outgoing
+            .send_error(
+                request_id,
+                JSONRPCErrorError {
+                    code: INVALID_REQUEST_ERROR_CODE,
+                    message:
+                        "externalAgentConfig/import is disabled in Epiphany's vestigial Codex organ"
+                            .to_string(),
+                    data: None,
+                },
             )
-        });
-        match self.external_agent_config_api.import(params).await {
-            Ok(pending_plugin_imports) => {
-                if has_plugin_imports {
-                    self.handle_config_mutation().await;
-                }
-                self.outgoing
-                    .send_response(request_id, ExternalAgentConfigImportResponse {})
-                    .await;
-
-                if !has_plugin_imports {
-                    return;
-                }
-
-                if pending_plugin_imports.is_empty() {
-                    self.outgoing
-                        .send_server_notification(
-                            ServerNotification::ExternalAgentConfigImportCompleted(
-                                ExternalAgentConfigImportCompletedNotification {},
-                            ),
-                        )
-                        .await;
-                    return;
-                }
-
-                let external_agent_config_api = self.external_agent_config_api.clone();
-                let outgoing = Arc::clone(&self.outgoing);
-                let thread_manager = Arc::clone(&self.thread_manager);
-                tokio::spawn(async move {
-                    for pending_plugin_import in pending_plugin_imports {
-                        match external_agent_config_api
-                            .complete_pending_plugin_import(pending_plugin_import)
-                            .await
-                        {
-                            Ok(()) => {}
-                            Err(error) => {
-                                tracing::warn!(
-                                    error = %error.message,
-                                    "external agent config plugin import failed"
-                                );
-                            }
-                        }
-                    }
-                    thread_manager.plugins_manager().clear_cache();
-                    thread_manager.skills_manager().clear_cache();
-                    outgoing
-                        .send_server_notification(
-                            ServerNotification::ExternalAgentConfigImportCompleted(
-                                ExternalAgentConfigImportCompletedNotification {},
-                            ),
-                        )
-                        .await;
-                });
-            }
-            Err(error) => self.outgoing.send_error(request_id, error).await,
-        }
+            .await;
     }
 
     async fn handle_fs_read_file(&self, request_id: ConnectionRequestId, params: FsReadFileParams) {
