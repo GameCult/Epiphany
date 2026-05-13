@@ -347,6 +347,8 @@ current_status:
     readiness/cache superstition is also gone from connector prefetch:
     `AccessibleConnectorsStatus.codex_apps_ready` and the TUI force-refetch loop
     were removed, and TUI connector activation is hard-off while the core
-    connector list remains an inert compatibility stub. MCP remains JSON-RPC at
-    the edge; user-declared MCP servers are the only runtime MCP authority.
+    connector list remains an inert compatibility stub. The unreferenced
+    `core/src/connectors_tests.rs` app-policy/cache fossil was deleted rather
+    than preserved as a fake guardrail. MCP remains JSON-RPC at the edge;
+    user-declared MCP servers are the only runtime MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

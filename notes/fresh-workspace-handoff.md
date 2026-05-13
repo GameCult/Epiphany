@@ -833,6 +833,12 @@ hard-off. Connector listing remains an inert compatibility stub until the whole
 app connector surface is deleted or replaced by an Epiphany-owned typed MCP
 adapter.
 
+`vendor/codex/codex-rs/core/src/connectors_tests.rs` is deleted. It was an
+unreferenced test fossil for app tool policy, accessible connector caching, and
+Codex Apps connector filtering functions that no longer exist in the live
+module. Do not recreate those tests unless the app connector product is being
+rebuilt on purpose, which is not the current objective.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests
