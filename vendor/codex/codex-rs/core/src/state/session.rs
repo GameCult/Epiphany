@@ -4,7 +4,6 @@ use codex_protocol::models::PermissionProfile;
 use codex_protocol::models::ResponseItem;
 use codex_sandboxing::policy_transforms::merge_permission_profiles;
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use crate::context_manager::ContextManager;
 use crate::session::PreviousTurnSettings;
@@ -30,7 +29,6 @@ pub(crate) struct SessionState {
     previous_turn_settings: Option<PreviousTurnSettings>,
     /// Startup prewarmed session prepared during session initialization.
     pub(crate) startup_prewarm: Option<SessionStartupPrewarmHandle>,
-    pub(crate) active_connector_selection: HashSet<String>,
     pub(crate) pending_session_start_source: Option<codex_hooks::SessionStartSource>,
     epiphany_state: Option<EpiphanyThreadState>,
     granted_permissions: Option<PermissionProfile>,
@@ -49,7 +47,6 @@ impl SessionState {
             dependency_env: HashMap::new(),
             previous_turn_settings: None,
             startup_prewarm: None,
-            active_connector_selection: HashSet::new(),
             pending_session_start_source: None,
             epiphany_state: None,
             granted_permissions: None,
@@ -192,25 +189,6 @@ impl SessionState {
         self.startup_prewarm.take()
     }
 
-    // Adds connector IDs to the active set and returns the merged selection.
-    pub(crate) fn merge_connector_selection<I>(&mut self, connector_ids: I) -> HashSet<String>
-    where
-        I: IntoIterator<Item = String>,
-    {
-        self.active_connector_selection.extend(connector_ids);
-        self.active_connector_selection.clone()
-    }
-
-    // Returns the current connector selection tracked on session state.
-    pub(crate) fn get_connector_selection(&self) -> HashSet<String> {
-        self.active_connector_selection.clone()
-    }
-
-    // Removes all currently tracked connector selections.
-    pub(crate) fn clear_connector_selection(&mut self) {
-        self.active_connector_selection.clear();
-    }
-
     pub(crate) fn set_pending_session_start_source(
         &mut self,
         value: Option<codex_hooks::SessionStartSource>,
@@ -252,7 +230,3 @@ fn merge_rate_limit_fields(
     }
     snapshot
 }
-
-#[cfg(test)]
-#[path = "session_tests.rs"]
-mod tests;

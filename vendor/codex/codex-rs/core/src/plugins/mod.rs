@@ -1,6 +1,5 @@
 use codex_config::types::McpServerConfig;
 
-mod discoverable;
 mod installed_marketplaces;
 mod manager;
 mod marketplace_add;
@@ -22,7 +21,6 @@ pub use codex_plugin::validate_plugin_segment;
 pub type LoadedPlugin = codex_plugin::LoadedPlugin<McpServerConfig>;
 pub type PluginLoadOutcome = codex_plugin::PluginLoadOutcome<McpServerConfig>;
 
-pub(crate) use discoverable::list_tool_suggest_discoverable_plugins;
 pub use installed_marketplaces::INSTALLED_MARKETPLACES_DIR;
 pub use installed_marketplaces::marketplace_install_root;
 pub use manager::ConfiguredMarketplace;

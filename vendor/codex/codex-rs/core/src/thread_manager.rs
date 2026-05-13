@@ -3,7 +3,6 @@ use crate::agent::AgentControl;
 use crate::codex_thread::CodexThread;
 use crate::config::Config;
 use crate::mcp::McpManager;
-use crate::plugins::PluginsManager;
 use crate::rollout::RolloutRecorder;
 use crate::rollout::truncation;
 use crate::session::Codex;
@@ -167,7 +166,6 @@ pub(crate) struct ThreadManagerState {
     models_manager: Arc<ModelsManager>,
     environment_manager: Arc<EnvironmentManager>,
     skills_manager: Arc<SkillsManager>,
-    plugins_manager: Arc<PluginsManager>,
     mcp_manager: Arc<McpManager>,
     skills_watcher: Arc<SkillsWatcher>,
     session_source: SessionSource,
@@ -208,11 +206,7 @@ impl ThreadManager {
         let codex_home = config.codex_home.clone();
         let restriction_product = session_source.restriction_product();
         let (thread_created_tx, _) = broadcast::channel(THREAD_CREATED_CHANNEL_CAPACITY);
-        let plugins_manager = Arc::new(PluginsManager::new_with_restriction_product(
-            codex_home.to_path_buf(),
-            restriction_product,
-        ));
-        let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
+        let mcp_manager = Arc::new(McpManager::new());
         let skills_manager = Arc::new(SkillsManager::new_with_restriction_product(
             codex_home,
             config.bundled_skills_enabled(),
@@ -230,7 +224,6 @@ impl ThreadManager {
                 ),
                 environment_manager,
                 skills_manager,
-                plugins_manager,
                 mcp_manager,
                 skills_watcher,
                 auth_manager,
@@ -282,11 +275,7 @@ impl ThreadManager {
         };
         let (thread_created_tx, _) = broadcast::channel(THREAD_CREATED_CHANNEL_CAPACITY);
         let restriction_product = SessionSource::Exec.restriction_product();
-        let plugins_manager = Arc::new(PluginsManager::new_with_restriction_product(
-            codex_home.clone(),
-            restriction_product,
-        ));
-        let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
+        let mcp_manager = Arc::new(McpManager::new());
         let skills_manager = Arc::new(SkillsManager::new_with_restriction_product(
             skills_codex_home,
             /*bundled_skills_enabled*/ true,
@@ -304,7 +293,6 @@ impl ThreadManager {
                 )),
                 environment_manager,
                 skills_manager,
-                plugins_manager,
                 mcp_manager,
                 skills_watcher,
                 auth_manager,
@@ -327,10 +315,6 @@ impl ThreadManager {
 
     pub fn skills_manager(&self) -> Arc<SkillsManager> {
         self.state.skills_manager.clone()
-    }
-
-    pub fn plugins_manager(&self) -> Arc<PluginsManager> {
-        self.state.plugins_manager.clone()
     }
 
     pub fn mcp_manager(&self) -> Arc<McpManager> {
@@ -888,7 +872,6 @@ impl ThreadManagerState {
             models_manager: Arc::clone(&self.models_manager),
             environment_manager: Arc::clone(&self.environment_manager),
             skills_manager: Arc::clone(&self.skills_manager),
-            plugins_manager: Arc::clone(&self.plugins_manager),
             mcp_manager: Arc::clone(&self.mcp_manager),
             skills_watcher: Arc::clone(&self.skills_watcher),
             conversation_history: initial_history,

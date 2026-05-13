@@ -91,7 +91,6 @@ pub(crate) fn build_specs_with_discoverable_tools(
     use crate::tools::handlers::ShellHandler;
     use crate::tools::handlers::TestSyncHandler;
     use crate::tools::handlers::ToolSearchHandler;
-    use crate::tools::handlers::ToolSuggestHandler;
     use crate::tools::handlers::UnavailableToolHandler;
     use crate::tools::handlers::UnifiedExecHandler;
     use crate::tools::handlers::ViewImageHandler;
@@ -163,7 +162,6 @@ pub(crate) fn build_specs_with_discoverable_tools(
         .cloned()
         .collect::<Vec<_>>();
     let mut tool_search_handler = None;
-    let tool_suggest_handler = Arc::new(ToolSuggestHandler);
     let code_mode_handler = Arc::new(CodeModeExecuteHandler);
     let code_mode_wait_handler = Arc::new(CodeModeWaitHandler);
     let js_repl_handler = Arc::new(JsReplHandler);
@@ -271,9 +269,7 @@ pub(crate) fn build_specs_with_discoverable_tools(
                     builder.register_handler(handler.name, tool_search_handler.clone());
                 }
             }
-            ToolHandlerKind::ToolSuggest => {
-                builder.register_handler(handler.name, tool_suggest_handler.clone());
-            }
+            ToolHandlerKind::ToolSuggest => {}
             ToolHandlerKind::UnifiedExec => {
                 builder.register_handler(handler.name, unified_exec_handler.clone());
             }

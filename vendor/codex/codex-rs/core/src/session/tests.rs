@@ -3165,7 +3165,7 @@ async fn session_new_fails_when_zsh_fork_enabled_without_zsh_path() {
     let (tx_event, _rx_event) = async_channel::unbounded();
     let (agent_status_tx, _agent_status_rx) = watch::channel(AgentStatus::PendingInit);
     let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
-    let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
+    let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
         /*bundled_skills_enabled*/ true,
@@ -3277,7 +3277,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
 
     let state = SessionState::new(session_configuration.clone());
     let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
-    let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
+    let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
         /*bundled_skills_enabled*/ true,
@@ -3483,7 +3483,7 @@ async fn make_session_with_config_and_rx(
     let (tx_event, rx_event) = async_channel::unbounded();
     let (agent_status_tx, _agent_status_rx) = watch::channel(AgentStatus::PendingInit);
     let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
-    let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
+    let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
         /*bundled_skills_enabled*/ true,
@@ -4589,7 +4589,7 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
 
     let state = SessionState::new(session_configuration.clone());
     let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
-    let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
+    let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
         /*bundled_skills_enabled*/ true,

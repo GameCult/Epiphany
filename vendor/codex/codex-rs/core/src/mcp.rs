@@ -1,20 +1,16 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use crate::config::Config;
-use crate::plugins::PluginsManager;
 use codex_config::McpServerConfig;
 use codex_login::CodexAuth;
-use codex_mcp::ToolPluginProvenance;
 use codex_mcp::configured_mcp_servers;
 use codex_mcp::effective_mcp_servers;
-use codex_mcp::tool_plugin_provenance as collect_tool_plugin_provenance;
 
 #[derive(Clone)]
 pub struct McpManager;
 
 impl McpManager {
-    pub fn new(_plugins_manager: Arc<PluginsManager>) -> Self {
+    pub fn new() -> Self {
         Self
     }
 
@@ -30,10 +26,5 @@ impl McpManager {
     ) -> HashMap<String, McpServerConfig> {
         let mcp_config = config.to_mcp_config();
         effective_mcp_servers(&mcp_config, auth)
-    }
-
-    pub async fn tool_plugin_provenance(&self, config: &Config) -> ToolPluginProvenance {
-        let mcp_config = config.to_mcp_config();
-        collect_tool_plugin_provenance(&mcp_config)
     }
 }

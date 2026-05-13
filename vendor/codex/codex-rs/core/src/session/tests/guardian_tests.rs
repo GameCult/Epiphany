@@ -742,7 +742,7 @@ async fn guardian_subagent_does_not_inherit_parent_exec_policy_rules() {
         config.codex_home.clone(),
         /*bundled_skills_enabled*/ true,
     ));
-    let mcp_manager = Arc::new(McpManager::new(Arc::clone(&plugins_manager)));
+    let mcp_manager = Arc::new(McpManager::new());
     let skills_watcher = Arc::new(SkillsWatcher::noop());
 
     let CodexSpawnOk { codex, .. } = Codex::spawn(CodexSpawnArgs {

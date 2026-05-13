@@ -211,11 +211,6 @@ impl Session {
         let auth = self.services.auth_manager.auth().await;
         let config = self.get_config().await;
         let mcp_config = config.to_mcp_config();
-        let tool_plugin_provenance = self
-            .services
-            .mcp_manager
-            .tool_plugin_provenance(config.as_ref())
-            .await;
         let mcp_servers = with_codex_apps_mcp(mcp_servers, auth.as_ref(), &mcp_config);
         let auth_statuses = compute_auth_statuses(mcp_servers.iter(), store_mode).await;
         {
@@ -240,7 +235,7 @@ impl Session {
             ),
             config.codex_home.to_path_buf(),
             codex_apps_tools_cache_key(auth.as_ref()),
-            tool_plugin_provenance,
+            ToolPluginProvenance::default(),
         )
         .await;
         {

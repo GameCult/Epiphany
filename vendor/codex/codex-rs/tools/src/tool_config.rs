@@ -146,9 +146,9 @@ impl ToolsConfig {
             features.enabled(Feature::DefaultModeRequestUserInput);
         let include_search_tool =
             model_info.supports_search_tool && features.enabled(Feature::ToolSearch);
-        let include_tool_suggest = features.enabled(Feature::ToolSuggest)
-            && features.enabled(Feature::Apps)
-            && features.enabled(Feature::Plugins);
+        // Epiphany keeps Codex for subscription auth/model routing, not for
+        // app/plugin marketplace discovery inside model turns.
+        let include_tool_suggest = false;
         let include_original_image_detail = can_request_original_image_detail(model_info);
         // API-key auth bypasses Codex backend entitlement/tool normalization, so
         // callers must confirm ChatGPT auth before exposing the built-in tool.

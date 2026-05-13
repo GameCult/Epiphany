@@ -266,7 +266,6 @@ impl Session {
         initial_history: InitialHistory,
         session_source: SessionSource,
         skills_manager: Arc<SkillsManager>,
-        plugins_manager: Arc<PluginsManager>,
         mcp_manager: Arc<McpManager>,
         skills_watcher: Arc<SkillsWatcher>,
         agent_control: AgentControl,
@@ -733,7 +732,6 @@ impl Session {
             guardian_rejection_circuit_breaker: Mutex::new(Default::default()),
             runtime_handle: tokio::runtime::Handle::current(),
             skills_manager,
-            plugins_manager: Arc::clone(&plugins_manager),
             mcp_manager: Arc::clone(&mcp_manager),
             skills_watcher,
             agent_control,
@@ -832,7 +830,6 @@ impl Session {
         required_mcp_servers.sort();
         let enabled_mcp_server_count = mcp_servers.values().filter(|server| server.enabled).count();
         let required_mcp_server_count = required_mcp_servers.len();
-        let tool_plugin_provenance = mcp_manager.tool_plugin_provenance(config.as_ref()).await;
         {
             let mut cancel_guard = sess.services.mcp_startup_cancellation_token.lock().await;
             cancel_guard.cancel();
@@ -855,7 +852,7 @@ impl Session {
             ),
             config.codex_home.to_path_buf(),
             codex_apps_tools_cache_key(auth),
-            tool_plugin_provenance,
+            ToolPluginProvenance::default(),
         )
         .instrument(info_span!(
             "session_init.mcp_manager_init",

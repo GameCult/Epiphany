@@ -810,6 +810,15 @@ plugin/app capability summaries, inject available-skill/available-plugin/plugin
 instructions, parse plugin/app mentions, record app/plugin invocation telemetry,
 or filter MCP tools through Codex app connectors.
 
+The tool-suggestion marketplace layer is now cold as well. `tool_suggest` is
+never exposed in model-turn tool config, its core handler and discoverable
+plugin scan were deleted, MCP startup/refresh passes empty plugin provenance,
+session/thread state no longer carries `PluginsManager`, and the old
+session-level explicit connector selection cache was removed because it only
+served app/plugin suggestion bookkeeping. The remaining plugin code is now a
+public Codex product library/CLI surface, not a live session organ; judge it as
+the next removable husk, not as keeper spine.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation
