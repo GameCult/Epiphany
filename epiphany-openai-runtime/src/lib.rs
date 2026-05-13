@@ -4,9 +4,12 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
+use anyhow::anyhow;
 use chrono::SecondsFormat;
 use codex_login::AuthCredentialsStoreMode;
 use codex_login::AuthManager;
+use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
+use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
@@ -20,11 +23,13 @@ use epiphany_core::initialize_runtime_spine;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
+use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::status_from_auth_manager;
+use serde_json::Value;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
@@ -51,6 +56,27 @@ pub struct EpiphanyOpenAiRuntimeRunSummary {
     pub verdict: String,
     pub result_id: String,
     pub receipt_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyWorkerRuntimeOptions {
+    pub store_path: PathBuf,
+    pub codex_home: PathBuf,
+    pub job_id: String,
+    pub model: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyWorkerRuntimeRunSummary {
+    pub store: String,
+    pub job_id: String,
+    pub binding_id: String,
+    pub role: String,
+    pub request_id: String,
+    pub openai_result_id: String,
+    pub worker_result_id: String,
+    pub verdict: String,
 }
 
 pub async fn run_openai_model_turn(
@@ -111,6 +137,47 @@ pub async fn run_openai_model_turn(
         }
     };
     record_openai_events(&options.store_path, &options, &request, &events)
+}
+
+pub async fn run_worker_launch(
+    options: EpiphanyWorkerRuntimeOptions,
+) -> Result<EpiphanyWorkerRuntimeRunSummary> {
+    let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
+    let model_request = build_worker_model_request(&launch_request, &options.model)?;
+    let openai_options = EpiphanyOpenAiRuntimeOptions {
+        store_path: options.store_path.clone(),
+        codex_home: options.codex_home,
+        session_id: format!("openai-worker-session-{}", launch_request.binding_id),
+        job_id: format!("openai-worker-{}", launch_request.job_id),
+        objective: format!(
+            "Run Epiphany worker {} for {}",
+            launch_request.job_id, launch_request.binding_id
+        ),
+        coordinator_note: "Native worker runtime route; Codex is auth/model transport only."
+            .to_string(),
+        default_model: Some(options.model),
+    };
+    let openai_summary =
+        run_openai_model_turn(openai_options.clone(), model_request.clone()).await?;
+    let assistant_text =
+        assistant_text_from_openai_events(&openai_options.store_path, &model_request.request_id)?;
+    let worker_result = complete_worker_job_from_assistant_text(
+        &openai_options.store_path,
+        &launch_request,
+        &model_request.request_id,
+        &openai_summary,
+        &assistant_text,
+    )?;
+    Ok(EpiphanyWorkerRuntimeRunSummary {
+        store: openai_options.store_path.display().to_string(),
+        job_id: launch_request.job_id,
+        binding_id: launch_request.binding_id,
+        role: launch_request.role,
+        request_id: model_request.request_id,
+        openai_result_id: openai_summary.result_id,
+        worker_result_id: worker_result.result_id,
+        verdict: worker_result.verdict,
+    })
 }
 
 pub fn record_openai_events(
@@ -207,6 +274,102 @@ pub fn record_openai_events(
         result_id,
         receipt_id: receipt.map(|item| openai_receipt_key(&item.request_id)),
     })
+}
+
+pub fn load_worker_launch_request(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<EpiphanyRuntimeWorkerLaunchRequest> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)?
+        .ok_or_else(|| anyhow!("runtime worker launch request {job_id:?} does not exist"))
+}
+
+pub fn build_worker_model_request(
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    model: &str,
+) -> Result<EpiphanyOpenAiModelRequest> {
+    let launch_document = launch_request.launch_document()?;
+    let request_id = format!(
+        "worker-{}-{}",
+        sanitize_request_id(&launch_request.job_id),
+        chrono::Utc::now().timestamp_millis()
+    );
+    let launch_document_text = serde_json::to_string_pretty(&launch_document)
+        .context("failed to render worker launch document for model input")?;
+    let mut request = EpiphanyOpenAiModelRequest::new(
+        request_id,
+        format!("worker-{}", launch_request.binding_id),
+        model.to_string(),
+        worker_instructions(launch_request, &launch_document),
+    );
+    request.input.push(EpiphanyOpenAiInputItem::UserText {
+        text: format!(
+            "Execute this Epiphany worker launch document.\n\n```json\n{launch_document_text}\n```"
+        ),
+    });
+    request.output_contract_id = Some(launch_request.output_contract_id.clone());
+    Ok(request)
+}
+
+pub fn complete_worker_job_from_assistant_text(
+    store_path: impl AsRef<Path>,
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    openai_request_id: &str,
+    openai_summary: &EpiphanyOpenAiRuntimeRunSummary,
+    assistant_text: &str,
+) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
+    let parsed = parse_assistant_json_object(assistant_text).ok();
+    let openai_failed = openai_summary.verdict != "pass";
+    let verdict = if openai_failed {
+        "failed".to_string()
+    } else {
+        parsed
+            .as_ref()
+            .and_then(|value| {
+                string_field(value, "verdict").or_else(|| string_field(value, "mode"))
+            })
+            .unwrap_or_else(|| "completed".to_string())
+    };
+    let summary = if openai_failed {
+        format!("Worker model request {openai_request_id} failed before producing usable output.")
+    } else {
+        parsed
+            .as_ref()
+            .and_then(|value| string_field(value, "summary"))
+            .unwrap_or_else(|| "Worker completed without a structured summary.".to_string())
+    };
+    let next_safe_move = parsed
+        .as_ref()
+        .and_then(|value| string_field(value, "nextSafeMove"))
+        .unwrap_or_else(|| {
+            "Review the typed worker runtime result before accepting state.".to_string()
+        });
+    let mut evidence_refs = parsed
+        .as_ref()
+        .map(|value| string_array_field(value, "evidenceIds"))
+        .unwrap_or_default();
+    evidence_refs.push(format!("openai-request:{openai_request_id}"));
+    let mut artifact_refs = parsed
+        .as_ref()
+        .map(|value| string_array_field(value, "artifactRefs"))
+        .unwrap_or_default();
+    artifact_refs.push(format!("openai-result:{}", openai_summary.result_id));
+    complete_runtime_job(
+        store_path,
+        RuntimeSpineJobResultOptions {
+            result_id: format!("result-worker-{}", launch_request.job_id),
+            job_id: launch_request.job_id.clone(),
+            completed_at: now(),
+            verdict,
+            summary,
+            next_safe_move,
+            evidence_refs,
+            artifact_refs,
+        },
+    )
 }
 
 pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Result<()> {
@@ -352,6 +515,82 @@ fn openai_event_summary(event: &EpiphanyOpenAiStreamEvent) -> String {
     }
 }
 
+fn worker_instructions(
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    launch_document: &EpiphanyWorkerLaunchDocument,
+) -> String {
+    let output_contract = worker_output_contract_text(launch_document);
+    format!(
+        "{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}",
+        launch_request.instruction, output_contract
+    )
+}
+
+fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
+    match document {
+        EpiphanyWorkerLaunchDocument::Role(_) => {
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => {
+            "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
+        }
+    }
+}
+
+fn parse_assistant_json_object(text: &str) -> Result<Value> {
+    let trimmed = text.trim();
+    let candidate = trimmed
+        .strip_prefix("```json")
+        .and_then(|value| value.strip_suffix("```"))
+        .or_else(|| {
+            trimmed
+                .strip_prefix("```")
+                .and_then(|value| value.strip_suffix("```"))
+        })
+        .unwrap_or(trimmed)
+        .trim();
+    let value: Value = serde_json::from_str(candidate).context("assistant text was not JSON")?;
+    if !value.is_object() {
+        return Err(anyhow!("assistant JSON result must be an object"));
+    }
+    Ok(value)
+}
+
+fn string_field(value: &Value, key: &str) -> Option<String> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+}
+
+fn string_array_field(value: &Value, key: &str) -> Vec<String> {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn sanitize_request_id(value: &str) -> String {
+    value
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
 fn now() -> String {
     chrono::Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
@@ -359,6 +598,9 @@ fn now() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_core::EpiphanyWorkerLaunchDocument;
+    use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+    use epiphany_core::open_runtime_spine_heartbeat_job;
     use epiphany_core::runtime_job_snapshot;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use tempfile::tempdir;
@@ -425,6 +667,86 @@ mod tests {
                 .job
                 .status,
             epiphany_core::EpiphanyRuntimeJobStatus::Completed
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn completes_worker_job_from_model_json_without_codex_worker_runtime() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Run typed worker.".to_string(),
+                coordinator_note: "test".to_string(),
+                job_id: "worker-job-1".to_string(),
+                role: "modeling".to_string(),
+                binding_id: "modeling-checkpoint-worker".to_string(),
+                authority_scope: "epiphany.role.modeling".to_string(),
+                instruction: "Return the required role-result JSON.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "modeling".to_string(),
+                        state_revision: 1,
+                        objective: Some("Map the machine.".to_string()),
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: Vec::new(),
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                created_at: now(),
+            },
+        )?;
+        let launch_request = load_worker_launch_request(&store, "worker-job-1")?;
+        let model_request = build_worker_model_request(&launch_request, "gpt-5.4")?;
+        assert_eq!(
+            model_request.output_contract_id.as_deref(),
+            Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID)
+        );
+        let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
+            store: store.display().to_string(),
+            session_id: "openai-worker-session-modeling-checkpoint-worker".to_string(),
+            job_id: "openai-worker-worker-job-1".to_string(),
+            request_id: model_request.request_id.clone(),
+            event_count: 2,
+            verdict: "pass".to_string(),
+            result_id: "result-openai-worker-worker-job-1".to_string(),
+            receipt_id: Some(model_request.request_id.clone()),
+        };
+        let result = complete_worker_job_from_assistant_text(
+            &store,
+            &launch_request,
+            &model_request.request_id,
+            &openai_summary,
+            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"]}"#,
+        )?;
+
+        assert_eq!(result.job_id, "worker-job-1");
+        assert_eq!(result.verdict, "checkpoint-ready");
+        assert_eq!(result.summary, "Mapped.");
+        assert_eq!(result.next_safe_move, "Review the patch.");
+        assert!(result.evidence_refs.contains(&"ev-1".to_string()));
+        assert!(
+            runtime_job_snapshot(&store, "worker-job-1")?
+                .expect("snapshot")
+                .result
+                .is_some()
         );
         Ok(())
     }

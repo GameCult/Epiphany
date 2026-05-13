@@ -586,9 +586,15 @@ outside-vendor `epiphany-openai-runtime` crate writes typed model-turn
 requests, stream events, terminal receipts, runtime sessions, jobs, job
 results, and runtime events into the native runtime spine. Its `model-turn`
 command calls the Codex-backed typed transport; its `smoke` command proves the
-storage route without network. The next cut is to move live callers from
-Codex app-server JSON-RPC onto this runtime route, then carve down the
-`codex-api` dependency weight.
+storage route without network. Its `run-worker` command now reads a durable
+`EpiphanyRuntimeWorkerLaunchRequest` by runtime job id, builds a typed OpenAI
+model request, calls the native runtime route, and completes the original
+heartbeat/specialist runtime job without Codex worker execution. The remaining
+result wound is deliberate and named: rich role/reorient output is still parsed
+from model-edge JSON into generic job-result fields. The next cut is a
+first-class typed runtime worker result document plus roleResult/reorientResult
+readback through that document, then carving down the `codex-api` dependency
+weight.
 
 The runtime-spine job-opening mechanism for heartbeat/specialist launches has
 also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.

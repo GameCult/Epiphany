@@ -11,6 +11,7 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
+use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
 use epiphany_openai_runtime::assistant_text_from_openai_events;
 use epiphany_openai_runtime::default_codex_home;
@@ -18,6 +19,7 @@ use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
 use epiphany_openai_runtime::record_openai_events;
 use epiphany_openai_runtime::run_openai_model_turn;
+use epiphany_openai_runtime::run_worker_launch;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -45,6 +47,17 @@ async fn main() -> Result<()> {
                 fs::write(&path, text)
                     .with_context(|| format!("failed to write {}", path.display()))?;
             }
+            print_json(&summary)?;
+        }
+        "run-worker" => {
+            let options = parse_run_worker_options(args.collect())?;
+            let summary = run_worker_launch(EpiphanyWorkerRuntimeOptions {
+                store_path: options.store_path,
+                codex_home: options.codex_home,
+                job_id: options.job_id,
+                model: options.model,
+            })
+            .await?;
             print_json(&summary)?;
         }
         "smoke" => {
@@ -145,6 +158,13 @@ struct SmokeCliOptions {
     codex_home: PathBuf,
 }
 
+struct RunWorkerCliOptions {
+    store_path: PathBuf,
+    codex_home: PathBuf,
+    job_id: String,
+    model: String,
+}
+
 fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
@@ -185,6 +205,29 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
     })
 }
 
+fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
+    let mut store_path = PathBuf::from(DEFAULT_STORE);
+    let mut codex_home = default_codex_home()?;
+    let mut job_id = None;
+    let mut model = "gpt-5.4".to_string();
+    let mut iter = args.into_iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
+            "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
+            "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
+            "--model" | "--default-model" => model = next_value(&mut iter, "--model")?,
+            other => return Err(anyhow!("unknown run-worker argument: {other}")),
+        }
+    }
+    Ok(RunWorkerCliOptions {
+        store_path,
+        codex_home,
+        job_id: job_id.context("run-worker requires --job-id")?,
+        model,
+    })
+}
+
 fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
     let mut store_path = PathBuf::from(format!(
         ".epiphany-dogfood/openai-runtime/smoke-{}.msgpack",
@@ -220,5 +263,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-openai-runtime <model-turn|smoke> [--store path] [--codex-home path] [--request path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
+    "usage: epiphany-openai-runtime <model-turn|run-worker|smoke> [--store path] [--codex-home path] [--request path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
 }
