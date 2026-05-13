@@ -564,7 +564,7 @@ the projection store contains one terrain report, one profile, all eight
 standing role projections, a rendered personality distiller packet plus prompt,
 and a rendered role-specific memory distiller packet plus prompt. It also
 proves `epiphany-repo-birth-runner --mode plan` turns missing birth packets into
-startup-only Codex execution artifacts and accept commands without creating
+startup-only typed runtime execution artifacts and accept commands without creating
 heartbeat participants.
 
 ## Next Implementation Step

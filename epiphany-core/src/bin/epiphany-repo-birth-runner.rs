@@ -8,12 +8,14 @@ use std::env;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::process::Child;
 use std::process::Command;
 use std::process::Stdio;
 use std::thread;
 use std::time::{Duration, Instant};
 
 const DEFAULT_CODEX_BIN: &str = "codex";
+const DEFAULT_OPENAI_RUNTIME_BIN: &str = "epiphany-openai-runtime";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 
 fn main() -> Result<()> {
@@ -31,7 +33,10 @@ struct Args {
     init_store: PathBuf,
     agent_store: PathBuf,
     heartbeat_store: PathBuf,
+    runtime_store: PathBuf,
     codex_bin: String,
+    openai_runtime_bin: String,
+    executor: String,
     mode: String,
     model: Option<String>,
     timeout_seconds: u64,
@@ -52,7 +57,10 @@ impl Args {
             init_store: root.join("state").join("repo-initialization.msgpack"),
             agent_store: root.join("state").join("agents.msgpack"),
             heartbeat_store: root.join("state").join("agent-heartbeats.msgpack"),
+            runtime_store: root.join("state").join("runtime-spine.msgpack"),
             codex_bin: DEFAULT_CODEX_BIN.to_string(),
+            openai_runtime_bin: DEFAULT_OPENAI_RUNTIME_BIN.to_string(),
+            executor: "openai-runtime".to_string(),
             mode: "plan".to_string(),
             model: None,
             timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
@@ -68,7 +76,14 @@ impl Args {
                 "--heartbeat-store" => {
                     parsed.heartbeat_store = take_path(&mut args, "--heartbeat-store")?;
                 }
+                "--runtime-store" => {
+                    parsed.runtime_store = take_path(&mut args, "--runtime-store")?
+                }
                 "--codex-bin" => parsed.codex_bin = take_string(&mut args, "--codex-bin")?,
+                "--openai-runtime-bin" => {
+                    parsed.openai_runtime_bin = take_string(&mut args, "--openai-runtime-bin")?;
+                }
+                "--executor" => parsed.executor = take_string(&mut args, "--executor")?,
                 "--mode" => parsed.mode = take_string(&mut args, "--mode")?,
                 "--model" => parsed.model = Some(take_string(&mut args, "--model")?),
                 "--timeout-seconds" => {
@@ -81,6 +96,9 @@ impl Args {
         }
         if !matches!(parsed.mode.as_str(), "plan" | "run") {
             return Err(anyhow!("--mode must be plan or run"));
+        }
+        if !matches!(parsed.executor.as_str(), "openai-runtime" | "codex-exec") {
+            return Err(anyhow!("--executor must be openai-runtime or codex-exec"));
         }
         Ok(parsed)
     }
@@ -116,8 +134,10 @@ fn run(args: Args) -> Result<Value> {
         let prompt_path = execution_dir.join("prompt.md");
         let schema_path = execution_dir.join("output-schema.json");
         let result_path = execution_dir.join("result.json");
-        let stdout_path = execution_dir.join("codex.stdout.log");
-        let stderr_path = execution_dir.join("codex.stderr.log");
+        let request_path = execution_dir.join("openai-request.json");
+        let runtime_summary_path = execution_dir.join("openai-runtime-summary.json");
+        let stdout_path = execution_dir.join("executor.stdout.log");
+        let stderr_path = execution_dir.join("executor.stderr.log");
         let prompt = render_specialist_prompt(kind, &packet_value)?;
         let schema = output_schema_for_kind(kind, &packet_value)?;
         write_text(&prompt_path, &prompt)?;
@@ -131,20 +151,37 @@ fn run(args: Args) -> Result<Value> {
             "promptPath": prompt_path,
             "schemaPath": schema_path,
             "resultPath": result_path,
+            "requestPath": request_path,
+            "runtimeSummaryPath": runtime_summary_path,
             "stdoutPath": stdout_path,
             "stderrPath": stderr_path,
+            "executor": args.executor.clone(),
             "status": "planned",
             "acceptCommand": accept_command(kind, &args, &packet_path, &result_path),
         });
         if args.mode == "run" {
-            let run_result = run_codex_specialist(
-                &args,
-                &prompt,
-                &schema_path,
-                &result_path,
-                &stdout_path,
-                &stderr_path,
-            )?;
+            let run_result = if args.executor == "codex-exec" {
+                run_codex_specialist(
+                    &args,
+                    &prompt,
+                    &schema_path,
+                    &result_path,
+                    &stdout_path,
+                    &stderr_path,
+                )?
+            } else {
+                run_openai_runtime_specialist(
+                    &args,
+                    kind,
+                    &prompt,
+                    &schema_path,
+                    &request_path,
+                    &result_path,
+                    &runtime_summary_path,
+                    &stdout_path,
+                    &stderr_path,
+                )?
+            };
             execution["status"] = run_result["status"].clone();
             execution["exitCode"] = run_result["exitCode"].clone();
             execution["timedOut"] = run_result["timedOut"].clone();
@@ -177,6 +214,8 @@ fn run(args: Args) -> Result<Value> {
         "initStore": args.init_store,
         "agentStore": args.agent_store,
         "heartbeatStore": args.heartbeat_store,
+        "runtimeStore": args.runtime_store,
+        "executor": args.executor,
         "startup": startup,
         "executions": executions,
         "requiresReview": !args.auto_accept,
@@ -248,6 +287,115 @@ fn run_codex_specialist(
             let output = child.wait_with_output()?;
             write_bytes(stdout_path, &output.stdout)?;
             write_bytes(stderr_path, &output.stderr)?;
+            return Ok(json!({
+                "status": "timeout",
+                "exitCode": Value::Null,
+                "timedOut": true,
+            }));
+        }
+        thread::sleep(Duration::from_millis(250));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_openai_runtime_specialist(
+    args: &Args,
+    kind: &str,
+    prompt: &str,
+    schema_path: &Path,
+    request_path: &Path,
+    result_path: &Path,
+    runtime_summary_path: &Path,
+    stdout_path: &Path,
+    stderr_path: &Path,
+) -> Result<Value> {
+    let schema_text = fs::read_to_string(schema_path)
+        .with_context(|| format!("failed to read {}", schema_path.display()))?;
+    let model = args.model.clone().unwrap_or_else(|| "gpt-5.4".to_string());
+    let request_id = format!(
+        "repo-birth-{}-{}",
+        sanitize(kind),
+        Utc::now().timestamp_millis()
+    );
+    let request = json!({
+        "schema_id": "epiphany.openai_model_request.v0",
+        "request_id": request_id,
+        "conversation_id": format!("repo-birth-{}", sanitize(kind)),
+        "model": model,
+        "instructions": format!(
+            "{prompt}\n\nReturn only a single JSON object matching this output schema. No Markdown, no commentary.\n\n```json\n{schema_text}\n```"
+        ),
+        "input": [
+            {
+                "UserText": {
+                    "text": "Execute this startup-only Epiphany birth distiller packet and return the reviewable JSON result."
+                }
+            }
+        ],
+        "reasoning_effort": Value::Null,
+        "reasoning_summary": Value::Null,
+        "service_tier": Value::Null,
+        "output_contract_id": format!("repo-birth-{kind}")
+    });
+    write_json(request_path, &request)?;
+
+    let mut command = Command::new(&args.openai_runtime_bin);
+    command
+        .arg("model-turn")
+        .arg("--store")
+        .arg(&args.runtime_store)
+        .arg("--request")
+        .arg(request_path)
+        .arg("--objective")
+        .arg(format!("Run startup-only repo birth specialist {kind}"))
+        .arg("--default-model")
+        .arg(&model)
+        .arg("--output-last-message")
+        .arg(result_path)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let child = command
+        .spawn()
+        .context("failed to spawn epiphany-openai-runtime model-turn")?;
+    wait_for_child(
+        child,
+        args.timeout_seconds,
+        stdout_path,
+        stderr_path,
+        Some(runtime_summary_path),
+    )
+}
+
+fn wait_for_child(
+    mut child: Child,
+    timeout_seconds: u64,
+    stdout_path: &Path,
+    stderr_path: &Path,
+    stdout_json_copy_path: Option<&Path>,
+) -> Result<Value> {
+    let deadline = Instant::now() + Duration::from_secs(timeout_seconds);
+    loop {
+        if let Some(status) = child.try_wait()? {
+            let output = child.wait_with_output()?;
+            write_bytes(stdout_path, &output.stdout)?;
+            write_bytes(stderr_path, &output.stderr)?;
+            if let Some(path) = stdout_json_copy_path {
+                write_bytes(path, &output.stdout)?;
+            }
+            return Ok(json!({
+                "status": if status.success() { "completed" } else { "failed" },
+                "exitCode": status.code(),
+                "timedOut": false,
+            }));
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let output = child.wait_with_output()?;
+            write_bytes(stdout_path, &output.stdout)?;
+            write_bytes(stderr_path, &output.stderr)?;
+            if let Some(path) = stdout_json_copy_path {
+                write_bytes(path, &output.stdout)?;
+            }
             return Ok(json!({
                 "status": "timeout",
                 "exitCode": Value::Null,

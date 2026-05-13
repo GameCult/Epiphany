@@ -12,6 +12,7 @@ use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
+use epiphany_openai_runtime::assistant_text_from_openai_events;
 use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
@@ -33,8 +34,17 @@ async fn main() -> Result<()> {
                 .with_context(|| format!("failed to read {}", options.request_path.display()))?;
             let request: EpiphanyOpenAiModelRequest = serde_json::from_str(&request_text)
                 .with_context(|| format!("failed to parse {}", options.request_path.display()))?;
+            let output_last_message_path = options.output_last_message_path.clone();
             let runtime_options = options.into_runtime_options(&request);
-            let summary = run_openai_model_turn(runtime_options, request).await?;
+            let summary = run_openai_model_turn(runtime_options.clone(), request.clone()).await?;
+            if let Some(path) = output_last_message_path {
+                let text = assistant_text_from_openai_events(
+                    &runtime_options.store_path,
+                    &request.request_id,
+                )?;
+                fs::write(&path, text)
+                    .with_context(|| format!("failed to write {}", path.display()))?;
+            }
             print_json(&summary)?;
         }
         "smoke" => {
@@ -105,6 +115,7 @@ struct ModelTurnCliOptions {
     job_id: Option<String>,
     objective: Option<String>,
     default_model: Option<String>,
+    output_last_message_path: Option<PathBuf>,
 }
 
 impl ModelTurnCliOptions {
@@ -142,6 +153,7 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
     let mut job_id = None;
     let mut objective = None;
     let mut default_model = None;
+    let mut output_last_message_path = None;
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -152,6 +164,12 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
             "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
             "--objective" => objective = Some(next_value(&mut iter, "--objective")?),
             "--default-model" => default_model = Some(next_value(&mut iter, "--default-model")?),
+            "--output-last-message" => {
+                output_last_message_path = Some(PathBuf::from(next_value(
+                    &mut iter,
+                    "--output-last-message",
+                )?))
+            }
             other => return Err(anyhow!("unknown model-turn argument: {other}")),
         }
     }
@@ -163,6 +181,7 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
         job_id,
         objective,
         default_model,
+        output_last_message_path,
     })
 }
 
@@ -201,5 +220,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-openai-runtime <model-turn|smoke> [--store path] [--codex-home path] [--request path] [--session-id id] [--job-id id] [--objective text] [--default-model model]"
+    "usage: epiphany-openai-runtime <model-turn|smoke> [--store path] [--codex-home path] [--request path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
 }
