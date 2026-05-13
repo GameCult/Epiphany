@@ -5244,7 +5244,6 @@ dependencies = [
  "anyhow",
  "bm25",
  "chrono",
- "codex-file-search",
  "cultcache-rs",
  "cultnet-rs",
  "epiphany-openai-adapter",

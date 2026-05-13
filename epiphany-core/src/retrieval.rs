@@ -3,7 +3,6 @@ use anyhow::Result;
 use bm25::Document;
 use bm25::Language;
 use bm25::SearchEngineBuilder;
-use codex_file_search as file_search;
 use epiphany_state_model::EpiphanyRetrievalShardSummary;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyRetrievalStatus;
@@ -23,7 +22,6 @@ use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fs;
-use std::num::NonZero;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
@@ -37,7 +35,6 @@ pub const EPIPHANY_RETRIEVAL_MAX_LIMIT: usize = 50;
 
 const EXACT_SEARCH_CANDIDATE_MULTIPLIER: usize = 5;
 const EXACT_SEARCH_MAX_CANDIDATES: usize = 250;
-const FILE_SEARCH_MAX_THREADS: usize = 12;
 const QUERY_TIME_INDEX_REVISION: &str = "query-time-bm25-v1";
 const QDRANT_INDEX_REVISION_PREFIX: &str = "qdrant-ollama-v1";
 const SEMANTIC_MANIFEST_SCHEMA_VERSION: u32 = 1;
@@ -490,49 +487,43 @@ fn run_exact_search(
     limit: usize,
     path_prefixes: &[PathBuf],
 ) -> Result<Vec<EpiphanyRetrieveResult>> {
-    let candidate_limit = if path_prefixes.is_empty() {
-        limit
-    } else {
-        limit
-            .saturating_mul(EXACT_SEARCH_CANDIDATE_MULTIPLIER)
-            .min(EXACT_SEARCH_MAX_CANDIDATES)
-    };
-    #[expect(clippy::expect_used)]
-    let candidate_limit =
-        NonZero::new(candidate_limit.max(1)).expect("candidate limit should be non-zero");
+    let query_terms = exact_search_terms(query);
+    if query_terms.is_empty() {
+        return Ok(Vec::new());
+    }
 
-    let search_results = file_search::run(
-        query,
-        vec![workspace_root.to_path_buf()],
-        file_search::FileSearchOptions {
-            limit: candidate_limit,
-            threads: search_threads(),
-            compute_indices: false,
-            ..Default::default()
-        },
-        /*cancel_flag*/ None,
-    )?;
+    let mut walker = WalkBuilder::new(workspace_root);
+    walker.hidden(false).follow_links(true).require_git(true);
 
-    let mut results = search_results
-        .matches
-        .into_iter()
-        .filter_map(|file_match| {
-            let relative_path = file_match
-                .full_path()
+    let mut results = walker
+        .build()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let relative_path = entry
+                .path()
                 .strip_prefix(workspace_root)
                 .ok()?
                 .to_path_buf();
+            if relative_path.as_os_str().is_empty() || should_skip_relative_path(&relative_path) {
+                return None;
+            }
             if !matches_path_prefixes(&relative_path, path_prefixes) {
                 return None;
             }
+            let file_type = entry.file_type()?;
+            let kind = if file_type.is_file() {
+                EpiphanyRetrieveResultKind::ExactFile
+            } else if file_type.is_dir() {
+                EpiphanyRetrieveResultKind::ExactDirectory
+            } else {
+                return None;
+            };
+            let score = score_exact_path_match(&relative_path, &query_terms)?;
 
             Some(EpiphanyRetrieveResult {
-                kind: match file_match.match_type {
-                    file_search::MatchType::File => EpiphanyRetrieveResultKind::ExactFile,
-                    file_search::MatchType::Directory => EpiphanyRetrieveResultKind::ExactDirectory,
-                },
+                kind,
                 path: relative_path,
-                score: file_match.score as f32,
+                score,
                 line_start: None,
                 line_end: None,
                 excerpt: None,
@@ -540,17 +531,64 @@ fn run_exact_search(
         })
         .collect::<Vec<_>>();
 
+    sort_results(&mut results);
     results.truncate(limit);
     Ok(results)
 }
 
-fn search_threads() -> NonZero<usize> {
-    let cores = std::thread::available_parallelism()
-        .map(NonZero::get)
-        .unwrap_or(1);
-    #[expect(clippy::expect_used)]
-    NonZero::new(cores.clamp(1, FILE_SEARCH_MAX_THREADS))
-        .expect("file-search threads should be non-zero")
+fn exact_search_terms(query: &str) -> Vec<String> {
+    query
+        .split(|character: char| !character.is_alphanumeric())
+        .filter(|term| !term.is_empty())
+        .map(str::to_lowercase)
+        .collect()
+}
+
+fn score_exact_path_match(relative_path: &Path, query_terms: &[String]) -> Option<f32> {
+    let normalized_path = normalize_payload_path(relative_path).to_lowercase();
+    if !query_terms
+        .iter()
+        .all(|term| normalized_path.contains(term))
+    {
+        return None;
+    }
+
+    let file_name = relative_path
+        .file_name()
+        .map(|name| name.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let term_score = query_terms.iter().fold(0.0, |score, term| {
+        score
+            + if file_name.contains(term) { 30.0 } else { 0.0 }
+            + if normalized_path.contains(term) {
+                20.0
+            } else {
+                0.0
+            }
+    });
+    let joined_query = query_terms.join(" ");
+    let joined_with_underscores = query_terms.join("_");
+    let joined_with_hyphens = query_terms.join("-");
+    let phrase_score = if file_name == joined_query
+        || file_name == joined_with_underscores
+        || file_name == joined_with_hyphens
+    {
+        200.0
+    } else if file_name.contains(&joined_query)
+        || file_name.contains(&joined_with_underscores)
+        || file_name.contains(&joined_with_hyphens)
+    {
+        100.0
+    } else if normalized_path.contains(&joined_query)
+        || normalized_path.contains(&joined_with_underscores)
+        || normalized_path.contains(&joined_with_hyphens)
+    {
+        50.0
+    } else {
+        0.0
+    };
+    let depth_penalty = relative_path.components().count() as f32;
+    Some(term_score + phrase_score - depth_penalty)
 }
 
 #[derive(Clone, Debug)]
