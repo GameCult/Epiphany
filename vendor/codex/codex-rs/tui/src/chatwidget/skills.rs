@@ -20,7 +20,8 @@ use codex_protocol::protocol::ListSkillsResponseEvent;
 use codex_protocol::protocol::SkillMetadata as ProtocolSkillMetadata;
 use codex_protocol::protocol::SkillsListEntry;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_plugins::mention_syntax::TOOL_MENTION_SIGIL;
+
+const TOOL_MENTION_SIGIL: char = '$';
 
 impl ChatWidget {
     pub(crate) fn open_skills_list(&mut self) {

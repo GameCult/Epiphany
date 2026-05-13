@@ -36,7 +36,6 @@ use crate::bottom_pane::TerminalTitleItem;
 use crate::chatwidget::UserMessage;
 use codex_config::types::ApprovalsReviewer;
 use codex_features::Feature;
-use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::ServiceTier;
@@ -316,14 +315,6 @@ pub(crate) enum AppEvent {
         plugin_id: String,
         enabled: bool,
         result: Result<(), String>,
-    },
-
-    /// Refresh plugin mention bindings from the current config.
-    RefreshPluginMentions,
-
-    /// Result of refreshing plugin mention bindings.
-    PluginMentionsLoaded {
-        plugins: Option<Vec<PluginCapabilitySummary>>,
     },
 
     /// Advance the post-install plugin app-auth flow.

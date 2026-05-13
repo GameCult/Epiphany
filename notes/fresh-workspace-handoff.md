@@ -859,6 +859,15 @@ so `codex-cli` no longer depends on `codex-chatgpt` for ChatGPT task/apply
 product commands. `codex-chatgpt` remains in the workspace only as an orphaned
 product crate until the workspace itself is pruned.
 
+TUI prompt composition no longer carries plugin mention authority. The composer
+does not store `PluginCapabilitySummary`, the AppEvent bus no longer has
+`RefreshPluginMentions` / `PluginMentionsLoaded`, submitted user messages no
+longer turn `plugin://` bindings into structured mentions, legacy
+`[@plugin](plugin://...)` history links are no longer decoded as live tool
+mentions, and `codex-tui` no longer depends on `codex-plugin` or
+`codex-utils-plugins`. The remaining TUI marketplace code is a product UI
+compatibility stump to cut next, not auth/model spine machinery.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

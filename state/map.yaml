@@ -302,7 +302,12 @@ current_status:
     path now uses the inert core connector stub instead of `codex-chatgpt`, so
     ChatGPT app connector listing is not a TUI dependency. CLI `apply` is now a
     disabled compatibility shell, so `codex-cli` no longer depends on
-    `codex-chatgpt` for ChatGPT task/apply product commands. MCP remains
+    `codex-chatgpt` for ChatGPT task/apply product commands. TUI prompt
+    composition no longer owns plugin mention state, emits structured plugin
+    mentions, refreshes plugin mentions through `AppEvent`, decodes legacy
+    `[@plugin](plugin://...)` mention links, or depends on `codex-plugin` /
+    `codex-utils-plugins`; the remaining TUI plugin marketplace code is a
+    product UI compatibility stump, not prompt/runtime authority. MCP remains
     JSON-RPC at the edge; user-declared MCP servers are the only runtime MCP
     authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

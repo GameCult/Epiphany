@@ -122,7 +122,6 @@ use codex_git_utils::local_git_branches;
 use codex_git_utils::recent_commits;
 use codex_otel::RuntimeMetricsSummary;
 use codex_otel::SessionTelemetry;
-use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::ThreadId;
 use codex_protocol::account::PlanType;
 use codex_protocol::approvals::ElicitationRequestEvent;
@@ -5815,8 +5814,6 @@ impl ChatWidget {
             .collect();
         let mut skill_names_lower: HashSet<String> = HashSet::new();
         let mut selected_skill_paths: HashSet<AbsolutePathBuf> = HashSet::new();
-        let mut selected_plugin_ids: HashSet<String> = HashSet::new();
-
         if let Some(skills) = self.bottom_pane.skills() {
             skill_names_lower = skills
                 .iter()
@@ -5852,30 +5849,6 @@ impl ChatWidget {
                     name: skill.name.clone(),
                     path: skill.path_to_skills_md.to_path_buf(),
                 });
-            }
-        }
-
-        if let Some(plugins) = self.plugins_for_mentions() {
-            for binding in &mention_bindings {
-                let Some(plugin_config_name) = binding
-                    .path
-                    .strip_prefix("plugin://")
-                    .filter(|id| !id.is_empty())
-                else {
-                    continue;
-                };
-                if !selected_plugin_ids.insert(plugin_config_name.to_string()) {
-                    continue;
-                }
-                if let Some(plugin) = plugins
-                    .iter()
-                    .find(|plugin| plugin.config_name == plugin_config_name)
-                {
-                    items.push(UserInput::Mention {
-                        name: plugin.display_name.clone(),
-                        path: binding.path.clone(),
-                    });
-                }
             }
         }
 
@@ -10267,14 +10240,6 @@ impl ChatWidget {
         }
     }
 
-    fn plugins_for_mentions(&self) -> Option<&[PluginCapabilitySummary]> {
-        if !self.config.features.enabled(Feature::Plugins) {
-            return None;
-        }
-
-        self.bottom_pane.plugins().map(Vec::as_slice)
-    }
-
     /// Build a placeholder header cell while the session is configuring.
     fn placeholder_session_header_cell(config: &Config) -> Box<dyn HistoryCell> {
         let placeholder_style = Style::default().add_modifier(Modifier::DIM | Modifier::ITALIC);
@@ -10992,19 +10957,6 @@ impl ChatWidget {
     }
 
     pub(crate) fn refresh_plugin_mentions(&mut self) {
-        if !self.config.features.enabled(Feature::Plugins) {
-            self.bottom_pane.set_plugin_mentions(/*plugins*/ None);
-            return;
-        }
-
-        self.app_event_tx.send(AppEvent::RefreshPluginMentions);
-    }
-
-    pub(crate) fn on_plugin_mentions_loaded(
-        &mut self,
-        plugins: Option<Vec<PluginCapabilitySummary>>,
-    ) {
-        self.bottom_pane.set_plugin_mentions(plugins);
     }
 
     pub(crate) fn sync_plugin_mentions_config(&mut self, config: &Config) {

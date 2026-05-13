@@ -982,15 +982,6 @@ impl App {
                     self.fetch_plugins_list(app_server, cwd);
                 }
             }
-            AppEvent::RefreshPluginMentions => {
-                self.refresh_plugin_mentions();
-            }
-            AppEvent::PluginMentionsLoaded { mut plugins } => {
-                if !self.config.features.enabled(Feature::Plugins) {
-                    plugins = None;
-                }
-                self.chat_widget.on_plugin_mentions_loaded(plugins);
-            }
             AppEvent::PersistPersonalitySelection { personality } => {
                 let profile = self.active_profile.as_deref();
                 match ConfigEditsBuilder::new(&self.config.codex_home)

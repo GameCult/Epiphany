@@ -32,7 +32,6 @@ use bottom_pane_view::ViewCompletion;
 use codex_core_skills::model::SkillMetadata;
 use codex_features::Features;
 use codex_file_search::FileMatch;
-use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::request_user_input::RequestUserInputEvent;
 use codex_protocol::user_input::TextElement;
 use crossterm::event::KeyCode;
@@ -275,11 +274,6 @@ impl BottomPane {
         self.request_redraw();
     }
 
-    pub fn set_plugin_mentions(&mut self, plugins: Option<Vec<PluginCapabilitySummary>>) {
-        self.composer.set_plugin_mentions(plugins);
-        self.request_redraw();
-    }
-
     pub fn set_plugins_command_enabled(&mut self, enabled: bool) {
         self.composer.set_plugins_command_enabled(enabled);
         self.request_redraw();
@@ -375,10 +369,6 @@ impl BottomPane {
 
     pub fn skills(&self) -> Option<&Vec<SkillMetadata>> {
         self.composer.skills()
-    }
-
-    pub fn plugins(&self) -> Option<&Vec<PluginCapabilitySummary>> {
-        self.composer.plugins()
     }
 
     #[cfg(test)]

@@ -214,9 +214,6 @@ use codex_app_server_protocol::AppInfo;
 use codex_core_skills::model::SkillInterface;
 use codex_core_skills::model::SkillMetadata;
 use codex_file_search::FileMatch;
-#[cfg(test)]
-use codex_plugin::AppConnectorId;
-use codex_plugin::PluginCapabilitySummary;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -363,7 +360,6 @@ pub(crate) struct ChatComposer {
     next_element_id: u64,
     context_window_used_tokens: Option<i64>,
     skills: Option<Vec<SkillMetadata>>,
-    plugins: Option<Vec<PluginCapabilitySummary>>,
     connectors_snapshot: Option<ConnectorsSnapshot>,
     dismissed_mention_popup_token: Option<String>,
     mention_bindings: HashMap<u64, ComposerMentionBinding>,
@@ -508,7 +504,6 @@ impl ChatComposer {
             next_element_id: 0,
             context_window_used_tokens: None,
             skills: None,
-            plugins: None,
             connectors_snapshot: None,
             dismissed_mention_popup_token: None,
             mention_bindings: HashMap::new(),
@@ -552,11 +547,6 @@ impl ChatComposer {
 
     pub fn set_skill_mentions(&mut self, skills: Option<Vec<SkillMetadata>>) {
         self.skills = skills;
-        self.sync_popups();
-    }
-
-    pub fn set_plugin_mentions(&mut self, plugins: Option<Vec<PluginCapabilitySummary>>) {
-        self.plugins = plugins;
         self.sync_popups();
     }
 
@@ -1986,25 +1976,17 @@ impl ChatComposer {
         self.skills.as_ref()
     }
 
-    pub fn plugins(&self) -> Option<&Vec<PluginCapabilitySummary>> {
-        self.plugins.as_ref()
-    }
-
     fn mentions_enabled(&self) -> bool {
         let skills_ready = self
             .skills
             .as_ref()
             .is_some_and(|skills| !skills.is_empty());
-        let plugins_ready = self
-            .plugins
-            .as_ref()
-            .is_some_and(|plugins| !plugins.is_empty());
         let connectors_ready = self.connectors_enabled
             && self
                 .connectors_snapshot
                 .as_ref()
                 .is_some_and(|snapshot| !snapshot.connectors.is_empty());
-        skills_ready || plugins_ready || connectors_ready
+        skills_ready || connectors_ready
     }
 
     /// Extract a token prefixed with `prefix` under the cursor, if any.
@@ -3583,58 +3565,6 @@ impl ChatComposer {
                     path: Some(skill.path_to_skills_md.to_string_lossy().into_owned()),
                     category_tag: Some("[Skill]".to_string()),
                     sort_rank: 1,
-                });
-            }
-        }
-
-        if let Some(plugins) = self.plugins.as_ref() {
-            for plugin in plugins {
-                let (plugin_name, marketplace_name) = plugin
-                    .config_name
-                    .split_once('@')
-                    .unwrap_or((plugin.config_name.as_str(), ""));
-                let mut capability_labels = Vec::new();
-                if plugin.has_skills {
-                    capability_labels.push("skills".to_string());
-                }
-                if !plugin.mcp_server_names.is_empty() {
-                    let mcp_server_count = plugin.mcp_server_names.len();
-                    capability_labels.push(if mcp_server_count == 1 {
-                        "1 MCP server".to_string()
-                    } else {
-                        format!("{mcp_server_count} MCP servers")
-                    });
-                }
-                if !plugin.app_connector_ids.is_empty() {
-                    let app_count = plugin.app_connector_ids.len();
-                    capability_labels.push(if app_count == 1 {
-                        "1 app".to_string()
-                    } else {
-                        format!("{app_count} apps")
-                    });
-                }
-                let description = plugin.description.clone().or_else(|| {
-                    Some(if capability_labels.is_empty() {
-                        "Plugin".to_string()
-                    } else {
-                        format!("Plugin · {}", capability_labels.join(" · "))
-                    })
-                });
-                let mut search_terms = vec![plugin_name.to_string(), plugin.config_name.clone()];
-                if plugin.display_name != plugin_name {
-                    search_terms.push(plugin.display_name.clone());
-                }
-                if !marketplace_name.is_empty() {
-                    search_terms.push(marketplace_name.to_string());
-                }
-                mentions.push(MentionItem {
-                    display_name: plugin.display_name.clone(),
-                    description,
-                    insert_text: format!("${plugin_name}"),
-                    search_terms,
-                    path: Some(format!("plugin://{}", plugin.config_name)),
-                    category_tag: Some("[Plugin]".to_string()),
-                    sort_rank: 0,
                 });
             }
         }
@@ -5335,39 +5265,6 @@ mod tests {
     }
 
     #[test]
-    fn set_plugin_mentions_refreshes_open_mention_popup() {
-        let (tx, _rx) = unbounded_channel::<AppEvent>();
-        let sender = AppEventSender::new(tx);
-        let mut composer = ChatComposer::new(
-            /*has_input_focus*/ true,
-            sender,
-            /*enhanced_keys_supported*/ false,
-            "Ask Codex to do anything".to_string(),
-            /*disable_paste_burst*/ false,
-        );
-        composer.set_text_content("$".to_string(), Vec::new(), Vec::new());
-        assert!(matches!(composer.active_popup, ActivePopup::None));
-
-        composer.set_plugin_mentions(Some(vec![PluginCapabilitySummary {
-            config_name: "sample@test".to_string(),
-            display_name: "Sample Plugin".to_string(),
-            description: None,
-            has_skills: true,
-            mcp_server_names: vec!["sample".to_string()],
-            app_connector_ids: Vec::new(),
-        }]));
-
-        let ActivePopup::Skill(popup) = &composer.active_popup else {
-            panic!("expected mention popup to open after plugin update");
-        };
-        let mention = popup
-            .selected_mention()
-            .expect("expected plugin mention to be selected");
-        assert_eq!(mention.insert_text, "$sample".to_string());
-        assert_eq!(mention.path, Some("plugin://sample@test".to_string()));
-    }
-
-    #[test]
     fn set_skill_mentions_refreshes_open_mention_popup() {
         let (tx, _rx) = unbounded_channel::<AppEvent>();
         let sender = AppEventSender::new(tx);
@@ -5404,7 +5301,7 @@ mod tests {
     }
 
     #[test]
-    fn mention_items_show_plugin_owned_skill_and_app_duplicates() {
+    fn mention_items_show_skill_and_app_duplicates() {
         let skill_path = test_path_buf("/tmp/repo/google-calendar/SKILL.md").abs();
         let (tx, _rx) = unbounded_channel::<AppEvent>();
         let sender = AppEventSender::new(tx);
@@ -5434,17 +5331,6 @@ mod tests {
             path_to_skills_md: skill_path.clone(),
             scope: codex_protocol::protocol::SkillScope::Repo,
         }]));
-        composer.set_plugin_mentions(Some(vec![PluginCapabilitySummary {
-            config_name: "google-calendar@debug".to_string(),
-            display_name: "Google Calendar".to_string(),
-            description: Some(
-                "Connect Google Calendar for scheduling, availability, and event management."
-                    .to_string(),
-            ),
-            has_skills: true,
-            mcp_server_names: vec!["google-calendar".to_string()],
-            app_connector_ids: vec![AppConnectorId("google_calendar".to_string())],
-        }]));
         composer.set_connector_mentions(Some(ConnectorsSnapshot {
             connectors: vec![AppInfo {
                 id: "google_calendar".to_string(),
@@ -5464,39 +5350,12 @@ mod tests {
         }));
 
         let mentions = composer.mention_items();
-        assert_eq!(mentions.len(), 3);
+        assert_eq!(mentions.len(), 2);
         assert_eq!(mentions[0].category_tag, Some("[Skill]".to_string()));
         assert_eq!(mentions[0].path, Some(skill_path.display().to_string()));
         assert_eq!(mentions[0].display_name, "Google Calendar".to_string());
-        assert_eq!(mentions[1].category_tag, Some("[Plugin]".to_string()));
-        assert_eq!(
-            mentions[1].path,
-            Some("plugin://google-calendar@debug".to_string())
-        );
-        assert_eq!(mentions[2].category_tag, Some("[App]".to_string()));
-        assert_eq!(mentions[2].path, Some("app://google_calendar".to_string()));
-    }
-
-    #[test]
-    fn plugin_mention_popup_snapshot() {
-        snapshot_composer_state(
-            "plugin_mention_popup",
-            /*enhanced_keys_supported*/ false,
-            |composer| {
-                composer.set_text_content("$sa".to_string(), Vec::new(), Vec::new());
-                composer.set_plugin_mentions(Some(vec![PluginCapabilitySummary {
-                    config_name: "sample@test".to_string(),
-                    display_name: "Sample Plugin".to_string(),
-                    description: Some(
-                        "Plugin that includes the Figma MCP server and Skills for common workflows"
-                            .to_string(),
-                    ),
-                    has_skills: true,
-                    mcp_server_names: vec!["sample".to_string()],
-                    app_connector_ids: vec![AppConnectorId("calendar".to_string())],
-                }]));
-            },
-        );
+        assert_eq!(mentions[1].category_tag, Some("[App]".to_string()));
+        assert_eq!(mentions[1].path, Some("app://google_calendar".to_string()));
     }
 
     #[test]
@@ -5525,17 +5384,6 @@ mod tests {
                     path_to_skills_md: test_path_buf("/tmp/repo/google-calendar/SKILL.md").abs(),
                     scope: codex_protocol::protocol::SkillScope::Repo,
                 }]));
-                composer.set_plugin_mentions(Some(vec![PluginCapabilitySummary {
-                config_name: "google-calendar@debug".to_string(),
-                display_name: "Google Calendar".to_string(),
-                description: Some(
-                    "Connect Google Calendar for scheduling, availability, and event management."
-                        .to_string(),
-                ),
-                has_skills: false,
-                mcp_server_names: vec!["google-calendar".to_string()],
-                app_connector_ids: Vec::new(),
-            }]));
                 composer.set_connector_mentions(Some(ConnectorsSnapshot {
                     connectors: vec![AppInfo {
                         id: "google_calendar".to_string(),

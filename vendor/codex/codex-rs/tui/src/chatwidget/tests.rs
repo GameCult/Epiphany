@@ -19,7 +19,6 @@ pub(super) use crate::legacy_core::config::Config;
 pub(super) use crate::legacy_core::config::ConfigBuilder;
 pub(super) use crate::legacy_core::config::Constrained;
 pub(super) use crate::legacy_core::config::ConstraintError;
-pub(super) use crate::legacy_core::plugins::OPENAI_CURATED_MARKETPLACE_NAME;
 pub(super) use crate::model_catalog::ModelCatalog;
 pub(super) use crate::test_backend::VT100Backend;
 pub(super) use crate::test_support::PathBufExt;
@@ -225,6 +224,8 @@ pub(super) use tempfile::tempdir;
 pub(super) use tokio::sync::mpsc::error::TryRecvError;
 pub(super) use tokio::sync::mpsc::unbounded_channel;
 pub(super) use toml::Value as TomlValue;
+
+pub(super) const OPENAI_CURATED_MARKETPLACE_NAME: &str = "openai-curated";
 
 pub(super) fn chatwidget_snapshot_dir() -> PathBuf {
     let snapshot_file = codex_utils_cargo_bin::find_resource!(

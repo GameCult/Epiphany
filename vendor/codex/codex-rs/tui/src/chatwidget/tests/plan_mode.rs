@@ -1047,7 +1047,7 @@ async fn submit_user_message_queues_while_compaction_turn_is_running() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn submit_user_message_emits_structured_plugin_mentions_from_bindings() {
+async fn submit_user_message_ignores_plugin_mentions_from_bindings() {
     let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     let conversation_id = ThreadId::new();
     let rollout_file = NamedTempFile::new().unwrap();
@@ -1073,17 +1073,6 @@ async fn submit_user_message_emits_structured_plugin_mentions_from_bindings() {
         id: "initial".into(),
         msg: EventMsg::SessionConfigured(configured),
     });
-    chat.set_feature_enabled(Feature::Plugins, /*enabled*/ true);
-    chat.bottom_pane
-        .set_plugin_mentions(Some(vec![codex_plugin::PluginCapabilitySummary {
-            config_name: "sample@test".to_string(),
-            display_name: "Sample Plugin".to_string(),
-            description: None,
-            has_skills: true,
-            mcp_server_names: Vec::new(),
-            app_connector_ids: Vec::new(),
-        }]));
-
     chat.submit_user_message(UserMessage {
         text: "$sample".to_string(),
         local_images: Vec::new(),
@@ -1100,16 +1089,10 @@ async fn submit_user_message_emits_structured_plugin_mentions_from_bindings() {
     };
     assert_eq!(
         items,
-        vec![
-            UserInput::Text {
-                text: "$sample".to_string(),
-                text_elements: Vec::new(),
-            },
-            UserInput::Mention {
-                name: "Sample Plugin".to_string(),
-                path: "plugin://sample@test".to_string(),
-            },
-        ]
+        vec![UserInput::Text {
+            text: "$sample".to_string(),
+            text_elements: Vec::new(),
+        }]
     );
 }
 

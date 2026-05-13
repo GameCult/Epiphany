@@ -198,11 +198,6 @@ impl App {
         });
     }
 
-    pub(super) fn refresh_plugin_mentions(&mut self) {
-        let app_event_tx = self.app_event_tx.clone();
-        app_event_tx.send(AppEvent::PluginMentionsLoaded { plugins: None });
-    }
-
     pub(super) fn submit_feedback(
         &mut self,
         app_server: &AppServerSession,
