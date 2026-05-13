@@ -1,28 +1,47 @@
-use super::*;
+use std::path::Path;
 
-pub(super) fn role_finding_runtime_result_id(
+use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
+use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
+use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
+use codex_app_server_protocol::ThreadEpiphanyRoleId;
+use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
+use codex_protocol::protocol::EpiphanyRuntimeLink;
+use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_core::EpiphanyRuntimeJobSnapshot;
+use epiphany_core::EpiphanyRuntimeJobStatus;
+use epiphany_core::interpret_reorient_runtime_job_result;
+use epiphany_core::interpret_role_runtime_job_result;
+use epiphany_core::runtime_job_snapshot;
+
+use crate::results::map_core_role_result_role_id;
+use crate::results::map_protocol_reorient_finding;
+use crate::results::map_protocol_role_finding;
+use crate::results::render_epiphany_reorient_result_note;
+use crate::results::render_epiphany_role_result_note;
+
+pub fn role_finding_runtime_result_id(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> Option<String> {
     finding.runtime_result_id.clone()
 }
 
-pub(super) fn role_finding_runtime_job_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
+pub fn role_finding_runtime_job_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
     finding.runtime_job_id.clone()
 }
 
-pub(super) fn reorient_finding_runtime_result_id(
+pub fn reorient_finding_runtime_result_id(
     finding: &ThreadEpiphanyReorientFinding,
 ) -> Option<String> {
     finding.runtime_result_id.clone()
 }
 
-pub(super) fn reorient_finding_runtime_job_id(
+pub fn reorient_finding_runtime_job_id(
     finding: &ThreadEpiphanyReorientFinding,
 ) -> Option<String> {
     finding.runtime_job_id.clone()
 }
 
-pub(super) fn load_epiphany_role_result_from_runtime_spine_job(
+pub fn load_epiphany_role_result_from_runtime_spine_job(
     job_id: &str,
     runtime_store_path: Option<&Path>,
     role_id: ThreadEpiphanyRoleId,
@@ -73,7 +92,7 @@ pub(super) fn load_epiphany_role_result_from_runtime_spine_job(
     (status, finding, note)
 }
 
-pub(super) fn load_epiphany_reorient_result_from_runtime_spine_job(
+pub fn load_epiphany_reorient_result_from_runtime_spine_job(
     job_id: &str,
     runtime_store_path: Option<&Path>,
 ) -> (
@@ -161,7 +180,7 @@ fn map_runtime_reorient_result_status(
     }
 }
 
-pub(super) async fn load_epiphany_role_result_snapshot(
+pub async fn load_epiphany_role_result_snapshot(
     state: &EpiphanyThreadState,
     runtime_store_path: Option<&Path>,
     role_id: ThreadEpiphanyRoleId,
@@ -197,7 +216,7 @@ pub(super) async fn load_epiphany_role_result_snapshot(
     )
 }
 
-pub(super) async fn load_epiphany_reorient_result_snapshot(
+pub async fn load_epiphany_reorient_result_snapshot(
     state: Option<&EpiphanyThreadState>,
     runtime_store_path: Option<&Path>,
     binding_id: &str,
@@ -238,7 +257,7 @@ pub(super) async fn load_epiphany_reorient_result_snapshot(
     )
 }
 
-pub(super) fn latest_epiphany_runtime_link_for_binding<'a>(
+pub fn latest_epiphany_runtime_link_for_binding<'a>(
     state: &'a EpiphanyThreadState,
     binding_id: &str,
 ) -> Option<&'a EpiphanyRuntimeLink> {

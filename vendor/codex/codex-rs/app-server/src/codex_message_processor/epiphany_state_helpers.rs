@@ -1,4 +1,16 @@
-use super::*;
+use std::path::Path;
+
+use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
+use codex_app_server_protocol::ThreadEpiphanyRoleId;
+use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
+use codex_core::CodexThread;
+use codex_core::latest_epiphany_state_from_rollout_items;
+use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_core::EpiphanyRoleStatePatchDocument;
+
+use super::epiphany_mutation_routes::imagination_role_accept_patch_errors;
+use super::epiphany_mutation_routes::modeling_role_accept_patch_errors;
+use super::read_rollout_items_from_rollout;
 
 pub(super) async fn live_thread_epiphany_state(
     thread: &CodexThread,

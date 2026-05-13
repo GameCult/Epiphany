@@ -476,6 +476,14 @@ code from `vendor/codex`, but `codex_message_processor.rs` is still about
 10,445 lines and still owns route dispatch, mutation orchestration,
 runtime-result loading, state hydration, and child modules with parent
 visibility.
+The nineteenth cut moved runtime-spine role/reorient result adaptation out of
+`vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_runtime_results.rs`
+into `epiphany-codex-bridge/src/runtime_results.rs`, then removed
+`use super::*` from `epiphany_state_helpers.rs` so state hydration/patch helpers
+declare their dependencies instead of drinking the whole processor namespace.
+The processor is about 10,430 lines. Remaining Epiphany child modules with
+parent wildcard visibility are `epiphany_read_routes.rs`,
+`epiphany_mutation_routes.rs`, and `epiphany_automation.rs`.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
