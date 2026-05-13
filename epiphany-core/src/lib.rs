@@ -8,6 +8,7 @@ mod retrieval;
 mod rollout;
 mod runtime_spine;
 mod state_ledger;
+mod state_update;
 mod surfaces;
 
 pub use agent_memory::AgentCanonicalTraitSeed;
@@ -136,6 +137,7 @@ pub use state_ledger::append_state_evidence;
 pub use state_ledger::close_state_branch;
 pub use state_ledger::load_state_ledger;
 pub use state_ledger::state_ledger_status;
+pub use state_update::EpiphanyStateUpdate;
 pub use surfaces::EpiphanyAcceptanceBundle;
 pub use surfaces::EpiphanyContext;
 pub use surfaces::EpiphanyContextMissing;

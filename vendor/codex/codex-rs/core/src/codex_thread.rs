@@ -26,23 +26,24 @@ use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
+#[cfg(test)]
 use codex_protocol::protocol::EpiphanyChurnState;
+#[cfg(test)]
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
-use codex_protocol::protocol::EpiphanyGraphCheckpoint;
+#[cfg(test)]
 use codex_protocol::protocol::EpiphanyGraphFrontier;
+#[cfg(test)]
 use codex_protocol::protocol::EpiphanyGraphs;
-use codex_protocol::protocol::EpiphanyInvariant;
+#[cfg(test)]
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind;
-use codex_protocol::protocol::EpiphanyModeState;
+#[cfg(test)]
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRuntimeLink;
-use codex_protocol::protocol::EpiphanyScratchPad;
 use codex_protocol::protocol::EpiphanyStateItem;
-use codex_protocol::protocol::EpiphanySubgoal;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::Event;
 use codex_protocol::protocol::Op;
@@ -56,6 +57,7 @@ use codex_protocol::protocol::TokenUsageInfo;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
@@ -111,28 +113,6 @@ pub struct CodexThread {
     _watch_registration: WatchRegistration,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct EpiphanyStateUpdate {
-    pub expected_revision: Option<u64>,
-    pub objective: Option<String>,
-    pub active_subgoal_id: Option<String>,
-    pub subgoals: Option<Vec<EpiphanySubgoal>>,
-    pub invariants: Option<Vec<EpiphanyInvariant>>,
-    pub graphs: Option<EpiphanyGraphs>,
-    pub graph_frontier: Option<EpiphanyGraphFrontier>,
-    pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
-    pub scratch: Option<EpiphanyScratchPad>,
-    pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
-    pub job_bindings: Option<Vec<EpiphanyJobBinding>>,
-    pub acceptance_receipts: Vec<EpiphanyAcceptanceReceipt>,
-    pub runtime_links: Vec<EpiphanyRuntimeLink>,
-    pub observations: Vec<EpiphanyObservation>,
-    pub evidence: Vec<EpiphanyEvidenceRecord>,
-    pub churn: Option<EpiphanyChurnState>,
-    pub mode: Option<EpiphanyModeState>,
-    pub planning: Option<EpiphanyPlanningState>,
-}
-
 #[derive(Debug, Clone)]
 pub struct EpiphanyJobLaunchRequest {
     pub expected_revision: Option<u64>,
@@ -170,28 +150,6 @@ pub struct EpiphanyJobInterruptResult {
     pub binding_id: String,
     pub cancel_requested: bool,
     pub interrupted_thread_ids: Vec<String>,
-}
-
-impl EpiphanyStateUpdate {
-    fn is_empty(&self) -> bool {
-        self.objective.is_none()
-            && self.active_subgoal_id.is_none()
-            && self.subgoals.is_none()
-            && self.invariants.is_none()
-            && self.graphs.is_none()
-            && self.graph_frontier.is_none()
-            && self.graph_checkpoint.is_none()
-            && self.scratch.is_none()
-            && self.investigation_checkpoint.is_none()
-            && self.job_bindings.is_none()
-            && self.acceptance_receipts.is_empty()
-            && self.runtime_links.is_empty()
-            && self.observations.is_empty()
-            && self.evidence.is_empty()
-            && self.churn.is_none()
-            && self.mode.is_none()
-            && self.planning.is_none()
-    }
 }
 
 /// Conduit for the bidirectional stream of messages that compose a thread
@@ -1884,7 +1842,7 @@ mod epiphany_update_tests {
     }
 
     #[test]
-    fn build_epiphany_job_launch_binding_leaves_lifecycle_to_runtime_links() {
+    fn plan_epiphany_job_launch_leaves_lifecycle_to_runtime_links() {
         let request = EpiphanyJobLaunchRequest {
             expected_revision: Some(7),
             binding_id: "modeling-checkpoint-worker".to_string(),
@@ -1920,20 +1878,36 @@ mod epiphany_update_tests {
             max_runtime_seconds: Some(60),
         };
 
-        let binding = build_epiphany_job_launch_binding(&request);
-        let runtime_link = build_epiphany_runtime_link(&request, "turn-1");
+        let launch_plan = plan_runtime_spine_heartbeat_launch(
+            &EpiphanyThreadState::default(),
+            RuntimeSpineHeartbeatLaunchPlanOptions {
+                binding_id: request.binding_id,
+                kind: request.kind,
+                scope: request.scope,
+                owner_role: request.owner_role,
+                authority_scope: request.authority_scope,
+                linked_subgoal_ids: request.linked_subgoal_ids,
+                linked_graph_node_ids: request.linked_graph_node_ids,
+                instruction: request.instruction,
+                launch_document: request.launch_document,
+                output_contract_id: request.output_contract_id,
+                max_runtime_seconds: request.max_runtime_seconds,
+                runtime_job_id: "turn-1".to_string(),
+            },
+        )
+        .expect("launch planning should build binding and runtime link");
 
         assert_eq!(
-            binding.authority_scope.as_deref(),
+            launch_plan.binding.authority_scope.as_deref(),
             Some("epiphany.role.modeling")
         );
         assert_eq!(
-            runtime_link.id,
+            launch_plan.runtime_link.id,
             "runtime-link-modeling-checkpoint-worker-turn-1"
         );
-        assert_eq!(runtime_link.runtime_job_id, "turn-1");
-        assert_eq!(runtime_link.runtime_result_id, None);
-        assert_eq!(runtime_link.role_id, "epiphany-modeler");
+        assert_eq!(launch_plan.runtime_link.runtime_job_id, "turn-1");
+        assert_eq!(launch_plan.runtime_link.runtime_result_id, None);
+        assert_eq!(launch_plan.runtime_link.role_id, "epiphany-modeler");
     }
 }
 

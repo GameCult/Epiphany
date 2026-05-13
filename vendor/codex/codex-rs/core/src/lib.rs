@@ -26,7 +26,7 @@ pub use codex_thread::CodexThread;
 pub use codex_thread::CodexThreadTurnContextOverrides;
 pub use codex_thread::EpiphanyJobInterruptRequest;
 pub use codex_thread::EpiphanyJobLaunchRequest;
-pub use codex_thread::EpiphanyStateUpdate;
+pub use epiphany_core::EpiphanyStateUpdate;
 pub use codex_thread::ThreadConfigSnapshot;
 pub use epiphany_distillation::EpiphanyDistillInput;
 pub use epiphany_distillation::EpiphanyDistillProposal;

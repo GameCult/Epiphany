@@ -603,6 +603,14 @@ runtime-link conflicts, and projects the durable job binding plus runtime link.
 Vendored `CodexThread` now performs only revision checking, persistence
 validation, and rollout/session writeback around that native plan.
 
+The Epiphany state-update document shape has now left vendored Codex too.
+`epiphany-core::EpiphanyStateUpdate` owns the update contract used by update,
+promote, role/reorient accept, and launch compatibility paths; `codex-core`
+re-exports it only so older callers keep compiling. The remaining impurity is
+the important one: `CodexThread` still owns validation, application, revisioned
+writeback, and route-facing orchestration around that native update document.
+Move those mechanics next.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
