@@ -891,7 +891,8 @@ helpers, README claims, add/remove params/responses, or generated client schema
 entries. Protocol schema regeneration also removed stale plugin request/response
 schema files that had survived after the live plugin routes were cut. The
 orphaned app-server-protocol `Plugin*` / marketplace plugin structs and their
-serialization tests are now deleted from source too.
+serialization tests are now deleted from source too. The unreferenced curated
+plugin startup-sync metric constants were removed from `codex-otel`.
 
 The orphaned `codex-chatgpt` crate is deleted from the vendored workspace. Do
 not confuse that with ChatGPT auth itself: originator strings and login/model

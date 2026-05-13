@@ -28,8 +28,6 @@ pub const TURN_MEMORY_METRIC: &str = "codex.turn.memory";
 pub const TURN_TOOL_CALL_METRIC: &str = "codex.turn.tool.call";
 pub const TURN_TOKEN_USAGE_METRIC: &str = "codex.turn.token_usage";
 pub const PROFILE_USAGE_METRIC: &str = "codex.profile.usage";
-pub const CURATED_PLUGINS_STARTUP_SYNC_METRIC: &str = "codex.plugins.startup_sync";
-pub const CURATED_PLUGINS_STARTUP_SYNC_FINAL_METRIC: &str = "codex.plugins.startup_sync.final";
 pub const HOOK_RUN_METRIC: &str = "codex.hooks.run";
 pub const HOOK_RUN_DURATION_METRIC: &str = "codex.hooks.run.duration_ms";
 /// Total runtime of a startup prewarm attempt until it completes, tagged by final status.
