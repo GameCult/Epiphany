@@ -889,6 +889,12 @@ auth surfaces that preserve the user's Codex subscription compatibility remain
 part of the keeper spine until the native OpenAI adapter can replace more of
 that transport.
 
+The orphaned `codex-core-plugins` crate is deleted too. Nothing imported
+`codex_core_plugins`; it was only a workspace member/dependency entry plus its
+own marketplace/store/loader code. Remaining plugin-shaped imports are narrower
+telemetry and skill-namespace compatibility residues, not the old marketplace
+runtime.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

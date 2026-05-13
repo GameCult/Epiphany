@@ -316,6 +316,9 @@ current_status:
     legacy protocol structs remain for orphaned plugin crates. The orphaned
     `codex-chatgpt` product crate was deleted from the vendored workspace; only
     ChatGPT auth originator strings remain where they serve the subscription
-    compatibility spine. MCP remains JSON-RPC at the edge; user-declared MCP
-    servers are the only runtime MCP authority.
+    compatibility spine. The orphaned `codex-core-plugins` crate was also
+    deleted from the workspace; remaining plugin references are narrower
+    telemetry/skill-namespace residues, not a plugin marketplace runtime. MCP
+    remains JSON-RPC at the edge; user-declared MCP servers are the only runtime
+    MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.
