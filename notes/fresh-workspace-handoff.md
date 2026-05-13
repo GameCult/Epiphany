@@ -883,6 +883,12 @@ and no longer have test-client helper senders. The old `Plugin*` data structs
 remain only as inert protocol-shape residue for orphaned plugin crates such as
 `core-plugins`; they are not live routes.
 
+The orphaned `codex-chatgpt` crate is deleted from the vendored workspace. Do
+not confuse that with ChatGPT auth itself: originator strings and login/model
+auth surfaces that preserve the user's Codex subscription compatibility remain
+part of the keeper spine until the native OpenAI adapter can replace more of
+that transport.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

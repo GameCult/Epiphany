@@ -313,7 +313,9 @@ current_status:
     route surface is no longer live either: `plugin/list`, `plugin/read`,
     `plugin/install`, and `plugin/uninstall` were removed from the shared
     `ClientRequest` protocol and from `codex_message_processor.rs`; only inert
-    legacy protocol structs remain for orphaned plugin crates. MCP remains
-    JSON-RPC at the edge; user-declared MCP servers are the only runtime MCP
-    authority.
+    legacy protocol structs remain for orphaned plugin crates. The orphaned
+    `codex-chatgpt` product crate was deleted from the vendored workspace; only
+    ChatGPT auth originator strings remain where they serve the subscription
+    compatibility spine. MCP remains JSON-RPC at the edge; user-declared MCP
+    servers are the only runtime MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.
