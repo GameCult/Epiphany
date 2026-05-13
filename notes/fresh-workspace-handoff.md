@@ -854,8 +854,10 @@ product metadata graft.
 
 The TUI connector prefetch path no longer imports `codex-chatgpt`; it calls the
 inert core connector compatibility stub. ChatGPT app connector discovery is not
-a TUI dependency anymore. `codex-chatgpt` still survives for CLI apply/get-task
-surfaces and should be judged separately against the OpenAI auth/model spine.
+a TUI dependency anymore. CLI `apply` is now disabled compatibility shell too,
+so `codex-cli` no longer depends on `codex-chatgpt` for ChatGPT task/apply
+product commands. `codex-chatgpt` remains in the workspace only as an orphaned
+product crate until the workspace itself is pruned.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
