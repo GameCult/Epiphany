@@ -14,15 +14,11 @@ pub(super) fn image_generation_tool_auth_allowed(auth_manager: Option<&AuthManag
 #[derive(Clone, Debug)]
 pub(crate) struct TurnSkillsContext {
     pub(crate) outcome: Arc<SkillLoadOutcome>,
-    pub(crate) implicit_invocation_seen_skills: Arc<Mutex<HashSet<String>>>,
 }
 
 impl TurnSkillsContext {
     pub(crate) fn new(outcome: Arc<SkillLoadOutcome>) -> Self {
-        Self {
-            outcome,
-            implicit_invocation_seen_skills: Arc::new(Mutex::new(HashSet::new())),
-        }
+        Self { outcome }
     }
 }
 

@@ -2732,24 +2732,12 @@ impl Session {
         self.send_token_count_event(turn_context).await;
     }
 
-    pub(crate) async fn mcp_dependency_prompted(&self) -> HashSet<String> {
-        let state = self.state.lock().await;
-        state.mcp_dependency_prompted()
-    }
-
-    pub(crate) async fn record_mcp_dependency_prompted<I>(&self, names: I)
-    where
-        I: IntoIterator<Item = String>,
-    {
-        let mut state = self.state.lock().await;
-        state.record_mcp_dependency_prompted(names);
-    }
-
     pub async fn dependency_env(&self) -> HashMap<String, String> {
         let state = self.state.lock().await;
         state.dependency_env()
     }
 
+    #[cfg(test)]
     pub async fn set_dependency_env(&self, values: HashMap<String, String>) {
         let mut state = self.state.lock().await;
         state.set_dependency_env(values);

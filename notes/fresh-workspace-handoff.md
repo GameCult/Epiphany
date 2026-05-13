@@ -799,6 +799,12 @@ The Codex skill watcher is also a no-op marker now. Thread startup no longer
 registers skill roots with a file watcher, clears skill caches from watcher
 events, or starts a session listener that emits `SkillsUpdateAvailable`.
 
+The model-turn skill pipeline is cold as well. Turns no longer collect skill
+mentions, request skill env vars, install MCP dependencies for skills, inject
+skill instruction fragments, or emit implicit skill invocation analytics from
+shell/unified-exec commands. The old skill-MCP dependency installer module is
+deleted.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

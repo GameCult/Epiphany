@@ -288,16 +288,6 @@ impl Session {
             .await;
     }
 
-    pub(crate) async fn refresh_mcp_servers_now(
-        &self,
-        turn_context: &TurnContext,
-        mcp_servers: HashMap<String, McpServerConfig>,
-        store_mode: OAuthCredentialsStoreMode,
-    ) {
-        self.refresh_mcp_servers_inner(turn_context, mcp_servers, store_mode)
-            .await;
-    }
-
     #[cfg(test)]
     pub(crate) async fn mcp_startup_cancellation_token(&self) -> CancellationToken {
         self.services
