@@ -176,7 +176,6 @@ async fn experimental_feature_enablement_set_only_updates_named_features() -> Re
         &mut mcp,
         BTreeMap::from([
             ("memories".to_string(), true),
-            ("tool_suggest".to_string(), true),
             ("tool_call_mcp_elicitation".to_string(), false),
         ]),
     )
@@ -187,7 +186,6 @@ async fn experimental_feature_enablement_set_only_updates_named_features() -> Re
         ExperimentalFeatureEnablementSetResponse {
             enablement: BTreeMap::from([
                 ("memories".to_string(), true),
-                ("tool_suggest".to_string(), true),
                 ("tool_call_mcp_elicitation".to_string(), false),
             ]),
         }
@@ -207,13 +205,6 @@ async fn experimental_feature_enablement_set_only_updates_named_features() -> Re
             .additional
             .get("features")
             .and_then(|features| features.get("memories")),
-        Some(&json!(true))
-    );
-    assert_eq!(
-        config
-            .additional
-            .get("features")
-            .and_then(|features| features.get("tool_suggest")),
         Some(&json!(true))
     );
     assert_eq!(
@@ -288,7 +279,7 @@ async fn experimental_feature_enablement_set_rejects_non_allowlisted_feature() -
     assert!(
         error
             .message
-            .contains("memories, tool_search, tool_suggest, tool_call_mcp_elicitation"),
+            .contains("memories, tool_search, tool_call_mcp_elicitation"),
         "{}",
         error.message
     );

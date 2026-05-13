@@ -150,8 +150,6 @@ pub enum Feature {
     ToolSearchAlwaysDeferMcpTools,
     /// Expose placeholder tools for unavailable historical tool calls.
     UnavailableDummyTools,
-    /// Enable discoverable tool suggestions for apps.
-    ToolSuggest,
     /// Enable plugins.
     Plugins,
     /// Allow the in-app browser pane in desktop apps.
@@ -832,12 +830,6 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "unavailable_dummy_tools",
         stage: Stage::UnderDevelopment,
         default_enabled: false,
-    },
-    FeatureSpec {
-        id: Feature::ToolSuggest,
-        key: "tool_suggest",
-        stage: Stage::Stable,
-        default_enabled: true,
     },
     FeatureSpec {
         id: Feature::Plugins,

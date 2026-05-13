@@ -907,7 +907,6 @@ pub(crate) async fn built_tools(
             deferred_mcp_tools,
             unavailable_called_tools,
             parallel_mcp_server_names,
-            discoverable_tools: None,
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
         },
     )))

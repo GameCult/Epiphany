@@ -14,15 +14,15 @@ use crate::context::TurnAborted;
 use crate::exec::ExecCapturePolicy;
 use crate::function_tool::FunctionCallError;
 use crate::shell::default_user_shell;
-use crate::skills::build_available_skills;
 use crate::skills::SkillRenderSideEffects;
+use crate::skills::build_available_skills;
 use crate::skills::render::SkillMetadataBudget;
 use crate::tools::format_exec_output_str;
 
-use codex_features::Feature;
-use codex_features::Features;
 use codex_core_skills::SkillMetadata;
 use codex_core_skills::SkillsLoadInput;
+use codex_features::Feature;
+use codex_features::Features;
 use codex_login::CodexAuth;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_models_manager::bundled_models_response;
@@ -751,7 +751,6 @@ fn test_tool_runtime(session: Arc<Session>, turn_context: Arc<TurnContext>) -> T
             deferred_mcp_tools: None,
             unavailable_called_tools: Vec::new(),
             parallel_mcp_server_names: HashSet::new(),
-            discoverable_tools: None,
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
         },
     ));
@@ -6906,7 +6905,6 @@ async fn fatal_tool_error_stops_turn_and_reports_error() {
             mcp_tools: Some(tools),
             unavailable_called_tools: Vec::new(),
             parallel_mcp_server_names: HashSet::new(),
-            discoverable_tools: None,
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
         },
     );

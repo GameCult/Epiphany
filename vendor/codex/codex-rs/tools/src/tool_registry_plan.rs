@@ -6,7 +6,6 @@ use crate::ShellToolOptions;
 use crate::SpawnAgentToolOptions;
 use crate::TOOL_SEARCH_DEFAULT_LIMIT;
 use crate::TOOL_SEARCH_TOOL_NAME;
-use crate::TOOL_SUGGEST_TOOL_NAME;
 use crate::ToolHandlerKind;
 use crate::ToolName;
 use crate::ToolRegistryPlan;
@@ -20,7 +19,6 @@ use crate::WebSearchToolOptions;
 use crate::coalesce_loadable_tool_specs;
 use crate::collect_code_mode_exec_prompt_tool_definitions;
 use crate::collect_tool_search_source_infos;
-use crate::collect_tool_suggest_entries;
 use crate::create_apply_patch_freeform_tool;
 use crate::create_apply_patch_json_tool;
 use crate::create_close_agent_tool_v1;
@@ -48,7 +46,6 @@ use crate::create_spawn_agent_tool_v1;
 use crate::create_spawn_agent_tool_v2;
 use crate::create_test_sync_tool;
 use crate::create_tool_search_tool;
-use crate::create_tool_suggest_tool;
 use crate::create_update_plan_tool;
 use crate::create_view_image_tool;
 use crate::create_wait_agent_tool_v1;
@@ -89,13 +86,8 @@ pub fn build_tool_registry_plan(
             })
             .collect::<BTreeMap<_, _>>();
         let nested_config = config.for_code_mode_nested_tools();
-        let nested_plan = build_tool_registry_plan(
-            &nested_config,
-            ToolRegistryPlanParams {
-                discoverable_tools: None,
-                ..params
-            },
-        );
+        let nested_plan =
+            build_tool_registry_plan(&nested_config, ToolRegistryPlanParams { ..params });
         let mut enabled_tools = collect_code_mode_exec_prompt_tool_definitions(
             nested_plan
                 .specs
@@ -293,18 +285,6 @@ pub fn build_tool_registry_plan(
                 plan.register_handler(tool.name.clone(), ToolHandlerKind::Mcp);
             }
         }
-    }
-
-    if config.tool_suggest
-        && let Some(discoverable_tools) =
-            params.discoverable_tools.filter(|tools| !tools.is_empty())
-    {
-        plan.push_spec(
-            create_tool_suggest_tool(&collect_tool_suggest_entries(discoverable_tools)),
-            /*supports_parallel_tool_calls*/ true,
-            /*code_mode_enabled*/ false,
-        );
-        plan.register_handler(TOOL_SUGGEST_TOOL_NAME, ToolHandlerKind::ToolSuggest);
     }
 
     if config.has_environment

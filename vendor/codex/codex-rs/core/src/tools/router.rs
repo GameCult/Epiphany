@@ -8,7 +8,7 @@ use crate::tools::context::ToolPayload;
 use crate::tools::registry::AnyToolResult;
 use crate::tools::registry::ToolArgumentDiffConsumer;
 use crate::tools::registry::ToolRegistry;
-use crate::tools::spec::build_specs_with_discoverable_tools;
+use crate::tools::spec::build_specs;
 use codex_mcp::ToolInfo;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
 use codex_protocol::models::LocalShellAction;
@@ -16,7 +16,6 @@ use codex_protocol::models::ResponseItem;
 use codex_protocol::models::SearchToolCallParams;
 use codex_protocol::models::ShellToolCallParams;
 use codex_tools::ConfiguredToolSpec;
-use codex_tools::DiscoverableTool;
 use codex_tools::ResponsesApiNamespaceTool;
 use codex_tools::ToolName;
 use codex_tools::ToolSpec;
@@ -48,7 +47,6 @@ pub(crate) struct ToolRouterParams<'a> {
     pub(crate) deferred_mcp_tools: Option<HashMap<String, ToolInfo>>,
     pub(crate) unavailable_called_tools: Vec<ToolName>,
     pub(crate) parallel_mcp_server_names: HashSet<String>,
-    pub(crate) discoverable_tools: Option<Vec<DiscoverableTool>>,
     pub(crate) dynamic_tools: &'a [DynamicToolSpec],
 }
 
@@ -59,15 +57,13 @@ impl ToolRouter {
             deferred_mcp_tools,
             unavailable_called_tools,
             parallel_mcp_server_names,
-            discoverable_tools,
             dynamic_tools,
         } = params;
-        let builder = build_specs_with_discoverable_tools(
+        let builder = build_specs(
             config,
             mcp_tools,
             deferred_mcp_tools,
             unavailable_called_tools,
-            discoverable_tools,
             dynamic_tools,
         );
         let (specs, registry) = builder.build();

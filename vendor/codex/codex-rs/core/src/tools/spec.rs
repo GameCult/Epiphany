@@ -7,7 +7,6 @@ use crate::tools::registry::ToolRegistryBuilder;
 use codex_mcp::ToolInfo;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
 use codex_tools::AdditionalProperties;
-use codex_tools::DiscoverableTool;
 use codex_tools::JsonSchema;
 use codex_tools::ResponsesApiTool;
 use codex_tools::ToolHandlerKind;
@@ -67,12 +66,11 @@ fn map_mcp_tools_for_plan(mcp_tools: &HashMap<String, ToolInfo>) -> McpToolPlanI
     }
 }
 
-pub(crate) fn build_specs_with_discoverable_tools(
+pub(crate) fn build_specs(
     config: &ToolsConfig,
     mcp_tools: Option<HashMap<String, ToolInfo>>,
     deferred_mcp_tools: Option<HashMap<String, ToolInfo>>,
     unavailable_called_tools: Vec<ToolName>,
-    discoverable_tools: Option<Vec<DiscoverableTool>>,
     dynamic_tools: &[DynamicToolSpec],
 ) -> ToolRegistryBuilder {
     use crate::tools::handlers::ApplyPatchHandler;
@@ -133,7 +131,6 @@ pub(crate) fn build_specs_with_discoverable_tools(
             tool_namespaces: mcp_tool_plan_inputs
                 .as_ref()
                 .map(|inputs| &inputs.tool_namespaces),
-            discoverable_tools: discoverable_tools.as_deref(),
             dynamic_tools,
             default_agent_type_description: &default_agent_type_description,
             wait_agent_timeouts: WaitAgentTimeoutOptions {
@@ -269,7 +266,6 @@ pub(crate) fn build_specs_with_discoverable_tools(
                     builder.register_handler(handler.name, tool_search_handler.clone());
                 }
             }
-            ToolHandlerKind::ToolSuggest => {}
             ToolHandlerKind::UnifiedExec => {
                 builder.register_handler(handler.name, unified_exec_handler.clone());
             }

@@ -810,14 +810,13 @@ plugin/app capability summaries, inject available-skill/available-plugin/plugin
 instructions, parse plugin/app mentions, record app/plugin invocation telemetry,
 or filter MCP tools through Codex app connectors.
 
-The tool-suggestion marketplace layer is now cold as well. `tool_suggest` is
-never exposed in model-turn tool config, its core handler and discoverable
-plugin scan were deleted, MCP startup/refresh passes empty plugin provenance,
-session/thread state no longer carries `PluginsManager`, and the old
-session-level explicit connector selection cache was removed because it only
-served app/plugin suggestion bookkeeping. The remaining plugin code is now a
-public Codex product library/CLI surface, not a live session organ; judge it as
-the next removable husk, not as keeper spine.
+The tool-suggestion marketplace layer is now deleted, not merely cold.
+`tool_suggest` no longer exists as a feature/config/schema key, shared tool
+spec, handler kind, discoverable-tool side channel, connector filter, TUI
+suggestion elicitation flow, prompt template, or implementation-shape test
+surface. If a future subsystem wants missing-tool installation, it needs an
+Epiphany-owned typed MCP/CultNet adapter contract; do not resurrect this Codex
+marketplace product path.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,

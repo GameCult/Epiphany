@@ -1,5 +1,4 @@
 use crate::ConfiguredToolSpec;
-use crate::DiscoverableTool;
 use crate::ToolName;
 use crate::ToolSpec;
 use crate::ToolsConfig;
@@ -35,7 +34,6 @@ pub enum ToolHandlerKind {
     SpawnAgentV2,
     TestSync,
     ToolSearch,
-    ToolSuggest,
     UnifiedExec,
     ViewImage,
     WaitAgentV1,
@@ -59,7 +57,6 @@ pub struct ToolRegistryPlanParams<'a> {
     pub mcp_tools: Option<&'a [ToolRegistryPlanMcpTool<'a>]>,
     pub deferred_mcp_tools: Option<&'a [ToolRegistryPlanDeferredTool<'a>]>,
     pub tool_namespaces: Option<&'a HashMap<String, ToolNamespace>>,
-    pub discoverable_tools: Option<&'a [DiscoverableTool]>,
     pub dynamic_tools: &'a [DynamicToolSpec],
     pub default_agent_type_description: &'a str,
     pub wait_agent_timeouts: WaitAgentTimeoutOptions,

@@ -36,12 +36,6 @@
         "$ref": "#/definitions/AgentRoleToml"
       },
       "properties": {
-        "job_max_runtime_seconds": {
-          "description": "Default maximum runtime in seconds for agent job workers.",
-          "format": "uint64",
-          "minimum": 1.0,
-          "type": "integer"
-        },
         "max_depth": {
           "description": "Maximum nesting depth allowed for spawned agent threads. Root sessions start at depth 0.",
           "format": "int32",
@@ -390,9 +384,6 @@
             "enable_experimental_windows_sandbox": {
               "type": "boolean"
             },
-            "enable_fanout": {
-              "type": "boolean"
-            },
             "enable_request_compression": {
               "type": "boolean"
             },
@@ -523,9 +514,6 @@
               "type": "boolean"
             },
             "tool_search_always_defer_mcp_tools": {
-              "type": "boolean"
-            },
-            "tool_suggest": {
               "type": "boolean"
             },
             "tui_app_server": {
@@ -1953,42 +1941,6 @@
       },
       "type": "object"
     },
-    "ToolSuggestConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "discoverables": {
-          "default": [],
-          "items": {
-            "$ref": "#/definitions/ToolSuggestDiscoverable"
-          },
-          "type": "array"
-        }
-      },
-      "type": "object"
-    },
-    "ToolSuggestDiscoverable": {
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "type": {
-          "$ref": "#/definitions/ToolSuggestDiscoverableType"
-        }
-      },
-      "required": [
-        "id",
-        "type"
-      ],
-      "type": "object"
-    },
-    "ToolSuggestDiscoverableType": {
-      "enum": [
-        "connector",
-        "plugin"
-      ],
-      "type": "string"
-    },
     "ToolsToml": {
       "additionalProperties": false,
       "properties": {
@@ -2221,7 +2173,7 @@
           "$ref": "#/definitions/AgentsToml"
         }
       ],
-      "description": "Agent-related settings (thread limits, etc.)."
+      "description": "Additional discoverable tools that can be suggested for installation. Agent-related settings (thread limits, etc.)."
     },
     "allow_login_shell": {
       "description": "Whether the model may request a login shell for shell-based tools. Default to `true`\n\nIf `true`, the model may request a login shell (`login = true`), and omitting `login` defaults to using a login shell. If `false`, the model can never use a login shell: `login = true` requests are rejected, and omitting `login` defaults to a non-login shell.",
@@ -2408,9 +2360,6 @@
         "enable_experimental_windows_sandbox": {
           "type": "boolean"
         },
-        "enable_fanout": {
-          "type": "boolean"
-        },
         "enable_request_compression": {
           "type": "boolean"
         },
@@ -2541,9 +2490,6 @@
           "type": "boolean"
         },
         "tool_search_always_defer_mcp_tools": {
-          "type": "boolean"
-        },
-        "tool_suggest": {
           "type": "boolean"
         },
         "tui_app_server": {
@@ -2956,14 +2902,6 @@
       "format": "uint",
       "minimum": 0.0,
       "type": "integer"
-    },
-    "tool_suggest": {
-      "allOf": [
-        {
-          "$ref": "#/definitions/ToolSuggestConfig"
-        }
-      ],
-      "description": "Additional discoverable tools that can be suggested for installation."
     },
     "tools": {
       "allOf": [

@@ -32,12 +32,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::warn;
 
-const SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT: &[&str] = &[
-    "memories",
-    "tool_search",
-    "tool_suggest",
-    "tool_call_mcp_elicitation",
-];
+const SUPPORTED_EXPERIMENTAL_FEATURE_ENABLEMENT: &[&str] =
+    &["memories", "tool_search", "tool_call_mcp_elicitation"];
 
 #[async_trait]
 pub(crate) trait UserConfigReloader: Send + Sync {

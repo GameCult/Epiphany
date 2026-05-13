@@ -130,12 +130,6 @@ fn request_permissions_tool_is_under_development() {
 }
 
 #[test]
-fn tool_suggest_is_stable_and_enabled_by_default() {
-    assert_eq!(Feature::ToolSuggest.stage(), Stage::Stable);
-    assert_eq!(Feature::ToolSuggest.default_enabled(), true);
-}
-
-#[test]
 fn tool_search_is_stable_and_enabled_by_default() {
     assert_eq!(Feature::ToolSearch.stage(), Stage::Stable);
     assert_eq!(Feature::ToolSearch.default_enabled(), true);

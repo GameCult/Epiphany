@@ -4,7 +4,6 @@ use crate::shell::ShellType;
 use crate::test_support::construct_model_info_offline;
 use crate::tools::ToolRouter;
 use crate::tools::router::ToolRouterParams;
-use codex_app_server_protocol::AppInfo;
 use codex_features::Feature;
 use codex_features::Features;
 use codex_models_manager::bundled_models_response;
@@ -17,13 +16,11 @@ use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
 use codex_tools::AdditionalProperties;
 use codex_tools::ConfiguredToolSpec;
-use codex_tools::DiscoverableTool;
 use codex_tools::JsonSchema;
 use codex_tools::ResponsesApiNamespaceTool;
 use codex_tools::ResponsesApiTool;
 use codex_tools::ShellCommandBackendConfig;
 use codex_tools::TOOL_SEARCH_TOOL_NAME;
-use codex_tools::TOOL_SUGGEST_TOOL_NAME;
 use codex_tools::ToolName;
 use codex_tools::ToolSpec;
 use codex_tools::ToolsConfig;
@@ -85,25 +82,6 @@ fn mcp_tool_info_with_display_name(display_name: &str, tool: rmcp::model::Tool) 
         plugin_display_names: Vec::new(),
         connector_description: None,
     }
-}
-
-fn discoverable_connector(id: &str, name: &str, description: &str) -> DiscoverableTool {
-    let slug = name.replace(' ', "-").to_lowercase();
-    DiscoverableTool::Connector(Box::new(AppInfo {
-        id: id.to_string(),
-        name: name.to_string(),
-        description: Some(description.to_string()),
-        logo_url: None,
-        logo_url_dark: None,
-        distribution_channel: None,
-        branding: None,
-        app_metadata: None,
-        labels: None,
-        install_url: Some(format!("https://chatgpt.com/apps/{slug}/{id}")),
-        is_accessible: false,
-        is_enabled: true,
-        plugin_display_names: Vec::new(),
-    }))
 }
 
 async fn search_capable_model_info() -> ModelInfo {
@@ -284,12 +262,11 @@ fn build_specs_with_unavailable_tools(
     unavailable_called_tools: Vec<ToolName>,
     dynamic_tools: &[DynamicToolSpec],
 ) -> ToolRegistryBuilder {
-    build_specs_with_discoverable_tools(
+    build_specs(
         config,
         mcp_tools,
         deferred_mcp_tools,
         unavailable_called_tools,
-        /*discoverable_tools*/ None,
         dynamic_tools,
     )
 }
@@ -375,7 +352,6 @@ async fn assert_model_tools(
             deferred_mcp_tools: None,
             unavailable_called_tools: Vec::new(),
             parallel_mcp_server_names: std::collections::HashSet::new(),
-            discoverable_tools: None,
             dynamic_tools: &[],
         },
     );
@@ -778,53 +754,6 @@ async fn spawn_agent_description_uses_configured_usage_hint_text() {
         "#,
         &description,
     );
-}
-
-#[tokio::test]
-async fn tool_suggest_requires_apps_and_plugins_features() {
-    let model_info = search_capable_model_info().await;
-    let discoverable_tools = Some(vec![discoverable_connector(
-        "connector_2128aebfecb84f64a069897515042a44",
-        "Google Calendar",
-        "Plan events and schedules.",
-    )]);
-    let available_models = Vec::new();
-
-    for disabled_feature in [Feature::Apps, Feature::Plugins] {
-        let mut features = Features::with_defaults();
-        features.enable(Feature::ToolSearch);
-        features.enable(Feature::ToolSuggest);
-        features.enable(Feature::Apps);
-        features.enable(Feature::Plugins);
-        features.disable(disabled_feature);
-
-        let tools_config = ToolsConfig::new(&ToolsConfigParams {
-            model_info: &model_info,
-            available_models: &available_models,
-            features: &features,
-            image_generation_tool_auth_allowed: true,
-            web_search_mode: Some(WebSearchMode::Cached),
-            session_source: SessionSource::Cli,
-            sandbox_policy: &SandboxPolicy::DangerFullAccess,
-            windows_sandbox_level: WindowsSandboxLevel::Disabled,
-        });
-        let (tools, _) = build_specs_with_discoverable_tools(
-            &tools_config,
-            /*mcp_tools*/ None,
-            /*deferred_mcp_tools*/ None,
-            Vec::new(),
-            discoverable_tools.clone(),
-            &[],
-        )
-        .build();
-
-        assert!(
-            !tools
-                .iter()
-                .any(|tool| tool.name() == TOOL_SUGGEST_TOOL_NAME),
-            "tool_suggest should be absent when {disabled_feature:?} is disabled"
-        );
-    }
 }
 
 #[tokio::test]
