@@ -38,7 +38,6 @@ use crate::realtime_conversation::RealtimeConversationManager;
 use crate::rollout::find_thread_name_by_id;
 use crate::session_prefix::format_subagent_notification_message;
 use crate::skills::SkillRenderSideEffects;
-use crate::skills_load_input_from_config;
 use crate::turn_metadata::TurnMetadataState;
 use async_channel::Receiver;
 use async_channel::Sender;
@@ -465,21 +464,6 @@ impl Codex {
         let (tx_event, rx_event) = async_channel::unbounded();
 
         let environment = environment_manager.default_environment();
-        let fs = environment
-            .as_ref()
-            .map(|environment| environment.get_filesystem());
-        let plugin_outcome = plugins_manager.plugins_for_config(&config).await;
-        let effective_skill_roots = plugin_outcome.effective_skill_roots();
-        let skills_input = skills_load_input_from_config(&config, effective_skill_roots);
-        let loaded_skills = skills_manager.skills_for_config(&skills_input, fs).await;
-
-        for err in &loaded_skills.errors {
-            error!(
-                "failed to load skill {}: {}",
-                err.path.display(),
-                err.message
-            );
-        }
 
         if let SessionSource::SubAgent(SubAgentSource::ThreadSpawn { depth, .. }) = session_source
             && depth >= config.agent_max_depth

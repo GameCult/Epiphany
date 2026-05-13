@@ -784,6 +784,11 @@ The model-turn app activation predicate is also hard-off:
 feature flags. The subscription auth organ may authenticate and route models;
 it does not awaken Codex Apps during turns.
 
+Skills are cold at session and turn activation. Codex session startup no longer
+loads skill roots only to log errors, and per-turn context now receives an empty
+`SkillLoadOutcome`, so skill injection/dependency prompts do not awaken during
+normal turns.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation
