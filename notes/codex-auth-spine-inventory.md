@@ -134,5 +134,12 @@ the next cut is to make an Epiphany-native runtime call this transport boundary
 directly instead of reaching model turns through `thread/epiphany/*` JSON-RPC or
 the Codex host brain.
 
+The CultNet paperwork is now public too. `schemas/cultnet/` contains typed
+schemas for OpenAI adapter status, model request, stream event, and terminal
+receipt; `epiphany-runtime-spine` advertises those document types and mutation
+contracts in its hello/schema catalog. This is the contract bridge the native
+runtime should consume next. Do not add another JSON-RPC model endpoint and call
+it progress.
+
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

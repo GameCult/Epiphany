@@ -57,6 +57,50 @@
       "path": "epiphany.runtime.event.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-adapter-status.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.openai_adapter_status.v0",
+      "documentType": "epiphany.openai_adapter_status.v0",
+      "title": "Epiphany OpenAI Adapter Status",
+      "path": "epiphany.openai-adapter-status.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-request.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.openai_model_request.v0",
+      "documentType": "epiphany.openai_model_request.v0",
+      "title": "Epiphany OpenAI Model Request",
+      "path": "epiphany.openai-model-request.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-stream-event.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.openai_model_stream_event.v0",
+      "documentType": "epiphany.openai_model_stream_event.v0",
+      "title": "Epiphany OpenAI Model Stream Event",
+      "path": "epiphany.openai-model-stream-event.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-receipt.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.openai_model_receipt.v0",
+      "documentType": "epiphany.openai_model_receipt.v0",
+      "title": "Epiphany OpenAI Model Receipt",
+      "path": "epiphany.openai-model-receipt.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent.memory.schema.json",
       "kind": "document_payload",
       "wireContracts": [

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-request.schema.json",
+  "title": "Epiphany OpenAI Model Request",
+  "type": "object",
+  "required": ["schema_id", "request_id", "conversation_id", "model", "instructions", "input"],
+  "properties": {
+    "schema_id": { "const": "epiphany.openai_model_request.v0" },
+    "request_id": { "type": "string" },
+    "conversation_id": { "type": "string" },
+    "model": { "type": "string" },
+    "instructions": { "type": "string" },
+    "input": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/input_item" }
+    },
+    "reasoning_effort": { "type": ["string", "null"] },
+    "reasoning_summary": { "type": ["string", "null"] },
+    "service_tier": { "type": ["string", "null"] },
+    "output_contract_id": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "input_item": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["UserText"],
+          "properties": {
+            "UserText": {
+              "type": "object",
+              "required": ["text"],
+              "properties": { "text": { "type": "string" } },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["AssistantText"],
+          "properties": {
+            "AssistantText": {
+              "type": "object",
+              "required": ["text"],
+              "properties": { "text": { "type": "string" } },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["ToolResult"],
+          "properties": {
+            "ToolResult": {
+              "type": "object",
+              "required": ["call_id", "output"],
+              "properties": {
+                "call_id": { "type": "string" },
+                "output": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

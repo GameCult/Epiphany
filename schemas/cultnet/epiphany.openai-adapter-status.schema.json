@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-adapter-status.schema.json",
+  "title": "Epiphany OpenAI Adapter Status",
+  "type": "object",
+  "required": ["schema_id", "adapter_id", "auth_mode", "supports_websockets", "codex_transport_attached"],
+  "properties": {
+    "schema_id": { "const": "epiphany.openai_adapter_status.v0" },
+    "adapter_id": { "type": "string" },
+    "auth_mode": { "enum": ["ChatGptSubscription", "ApiKey", "ExternalBearer", "Unknown"] },
+    "account_id": { "type": ["string", "null"] },
+    "plan_type": { "type": ["string", "null"] },
+    "default_model": { "type": ["string", "null"] },
+    "supports_websockets": { "type": "boolean" },
+    "codex_transport_attached": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

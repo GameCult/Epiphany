@@ -32,6 +32,10 @@ pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const RUNTIME_EVENT_TYPE: &str = "epiphany.runtime.event";
+pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0";
+pub const OPENAI_MODEL_REQUEST_TYPE: &str = "epiphany.openai_model_request.v0";
+pub const OPENAI_MODEL_STREAM_EVENT_TYPE: &str = "epiphany.openai_model_stream_event.v0";
+pub const OPENAI_MODEL_RECEIPT_TYPE: &str = "epiphany.openai_model_receipt.v0";
 pub const SURFACE_SCENE_TYPE: &str = "epiphany.surface.scene";
 pub const SURFACE_FRESHNESS_TYPE: &str = "epiphany.surface.freshness";
 pub const SURFACE_CONTEXT_TYPE: &str = "epiphany.surface.context";
@@ -53,6 +57,10 @@ pub const SURFACE_RIDER_BRIDGE_TYPE: &str = "epiphany.surface.rider_bridge";
 pub const SURFACE_UNITY_BRIDGE_TYPE: &str = "epiphany.surface.unity_bridge";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
+pub const OPENAI_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.openai_adapter_status.v0";
+pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v0";
+pub const OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.openai_model_stream_event.v0";
+pub const OPENAI_MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.openai_model_receipt.v0";
 pub const SCENE_SURFACE_SCHEMA_VERSION: &str = "epiphany.scene_surface.v0";
 pub const FRESHNESS_SURFACE_SCHEMA_VERSION: &str = "epiphany.freshness_surface.v0";
 pub const CONTEXT_SURFACE_SCHEMA_VERSION: &str = "epiphany.context_surface.v0";
@@ -943,6 +951,50 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Runtime events are append-only projections for inspection."],
         ),
         mutation_contract(
+            OPENAI_ADAPTER_STATUS_TYPE,
+            OPENAI_ADAPTER_STATUS_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "OpenAI adapter status is a typed document; it is not a Codex app-server status blob.",
+            ],
+        ),
+        mutation_contract(
+            OPENAI_MODEL_REQUEST_TYPE,
+            OPENAI_MODEL_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![OPENAI_MODEL_REQUEST_TYPE],
+            vec![OPENAI_MODEL_STREAM_EVENT_TYPE, OPENAI_MODEL_RECEIPT_TYPE],
+            vec![
+                "Model turns enter through typed Epiphany request documents and return typed stream events/receipts.",
+                "The Codex spine may authenticate and transport; it must not own Epiphany state or scheduling.",
+            ],
+        ),
+        mutation_contract(
+            OPENAI_MODEL_STREAM_EVENT_TYPE,
+            OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["OpenAI stream events are receipts from a typed model request."],
+        ),
+        mutation_contract(
+            OPENAI_MODEL_RECEIPT_TYPE,
+            OPENAI_MODEL_RECEIPT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Terminal model receipts carry response id, usage, and transport evidence."],
+        ),
+        mutation_contract(
             AGENT_MEMORY_TYPE,
             AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION,
             vec![
@@ -1401,12 +1453,17 @@ mod tests {
                     .iter()
                     .find(|contract| contract.document_type == SURFACE_FACE_TYPE)
                     .expect("face surface should advertise an interactive contract");
-                assert_eq!(face_contract.authority, CultNetMutationAuthority::Coordinator);
+                assert_eq!(
+                    face_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
                 assert!(
                     face_contract
                         .receipt_document_types
                         .as_ref()
-                        .is_some_and(|items| items.iter().any(|item| item == "epiphany.face_bubble.v0"))
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == "epiphany.face_bubble.v0"))
                 );
                 let unity_contract = contracts
                     .iter()
@@ -1416,7 +1473,9 @@ mod tests {
                     unity_contract
                         .intent_document_types
                         .as_ref()
-                        .is_some_and(|items| items.iter().any(|item| item == "epiphany.unity_probe_intent.v0"))
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == "epiphany.unity_probe_intent.v0"))
                 );
                 let birth_contract = contracts
                     .iter()
@@ -1426,7 +1485,25 @@ mod tests {
                     birth_contract
                         .receipt_document_types
                         .as_ref()
-                        .is_some_and(|items| items.iter().any(|item| item == "epiphany.repo_birth_runner.v0"))
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == "epiphany.repo_birth_runner.v0"))
+                );
+                let openai_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == OPENAI_MODEL_REQUEST_TYPE)
+                    .expect("OpenAI adapter should advertise typed model request contract");
+                assert_eq!(
+                    openai_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    openai_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == OPENAI_MODEL_RECEIPT_TYPE))
                 );
             }
             other => panic!("expected hello, got {other:?}"),
@@ -1457,6 +1534,14 @@ mod tests {
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some("epiphany.swarm_control_receipt.v0")
                 && schema.schema_version.as_deref() == Some("epiphany.swarm_control_receipt.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(OPENAI_MODEL_REQUEST_TYPE)
+                && schema.schema_version.as_deref() == Some(OPENAI_MODEL_REQUEST_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(OPENAI_MODEL_RECEIPT_TYPE)
+                && schema.schema_version.as_deref() == Some(OPENAI_MODEL_RECEIPT_SCHEMA_VERSION)
         }));
         Ok(())
     }

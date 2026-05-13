@@ -29,6 +29,7 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
+use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
 use futures::StreamExt;
 
 pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
@@ -47,6 +48,7 @@ pub async fn status_from_auth_manager(
         .map(|plan| format!("{plan:?}"));
 
     EpiphanyOpenAiAdapterStatus {
+        schema_id: OPENAI_ADAPTER_STATUS_SCHEMA_ID.to_string(),
         adapter_id: CODEX_SPINE_ADAPTER_ID.to_string(),
         auth_mode,
         account_id,
@@ -63,6 +65,7 @@ pub fn status_from_codex_auth(
     supports_websockets: bool,
 ) -> EpiphanyOpenAiAdapterStatus {
     EpiphanyOpenAiAdapterStatus {
+        schema_id: OPENAI_ADAPTER_STATUS_SCHEMA_ID.to_string(),
         adapter_id: CODEX_SPINE_ADAPTER_ID.to_string(),
         auth_mode: auth_mode_from_codex_auth(auth),
         account_id: auth.and_then(CodexAuth::get_account_id),

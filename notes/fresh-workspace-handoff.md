@@ -561,7 +561,11 @@ same spine now owns the first HTTP Responses transport wrapper: typed
 `ResponsesApiRequest`, auth/provider resolves through `codex-login` and
 `codex-model-provider`, the stream opens through `codex-api`, and deltas /
 completion map back into typed `EpiphanyOpenAiStreamEvent` and
-`EpiphanyOpenAiModelReceipt` documents.
+`EpiphanyOpenAiModelReceipt` documents. The CultNet schema catalog now advertises
+OpenAI adapter status, model request, stream event, and receipt document types
+plus the coordinator-owned model request contract. The native runtime should
+consume that contract next; do not make a new JSON-RPC model endpoint and
+pretend the whale got lighter.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

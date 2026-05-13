@@ -4,6 +4,7 @@ use serde::Serialize;
 pub const OPENAI_ADAPTER_REQUEST_SCHEMA_ID: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_ADAPTER_EVENT_SCHEMA_ID: &str = "epiphany.openai_model_stream_event.v0";
 pub const OPENAI_ADAPTER_RECEIPT_SCHEMA_ID: &str = "epiphany.openai_model_receipt.v0";
+pub const OPENAI_ADAPTER_STATUS_SCHEMA_ID: &str = "epiphany.openai_adapter_status.v0";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EpiphanyOpenAiAuthMode {
@@ -15,6 +16,7 @@ pub enum EpiphanyOpenAiAuthMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EpiphanyOpenAiAdapterStatus {
+    pub schema_id: String,
     pub adapter_id: String,
     pub auth_mode: EpiphanyOpenAiAuthMode,
     pub account_id: Option<String>,

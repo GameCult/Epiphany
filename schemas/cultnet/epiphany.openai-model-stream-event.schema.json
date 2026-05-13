@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-model-stream-event.schema.json",
+  "title": "Epiphany OpenAI Model Stream Event",
+  "type": "object",
+  "required": ["schema_id", "request_id", "sequence", "payload"],
+  "properties": {
+    "schema_id": { "const": "epiphany.openai_model_stream_event.v0" },
+    "request_id": { "type": "string" },
+    "sequence": { "type": "integer", "minimum": 0 },
+    "payload": {
+      "oneOf": [
+        { "$ref": "#/$defs/text_delta" },
+        { "$ref": "#/$defs/reasoning_delta" },
+        { "$ref": "#/$defs/tool_call" },
+        { "$ref": "#/$defs/completed" },
+        { "$ref": "#/$defs/failed" }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "text_delta": {
+      "type": "object",
+      "required": ["TextDelta"],
+      "properties": {
+        "TextDelta": {
+          "type": "object",
+          "required": ["text"],
+          "properties": { "text": { "type": "string" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "reasoning_delta": {
+      "type": "object",
+      "required": ["ReasoningDelta"],
+      "properties": {
+        "ReasoningDelta": {
+          "type": "object",
+          "required": ["text"],
+          "properties": { "text": { "type": "string" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "tool_call": {
+      "type": "object",
+      "required": ["ToolCall"],
+      "properties": {
+        "ToolCall": {
+          "type": "object",
+          "required": ["call_id", "name", "arguments"],
+          "properties": {
+            "call_id": { "type": "string" },
+            "name": { "type": "string" },
+            "arguments": { "type": "string" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "completed": {
+      "type": "object",
+      "required": ["Completed"],
+      "properties": {
+        "Completed": {
+          "type": "object",
+          "required": ["receipt"],
+          "properties": { "receipt": { "$ref": "epiphany.openai-model-receipt.schema.json" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "failed": {
+      "type": "object",
+      "required": ["Failed"],
+      "properties": {
+        "Failed": {
+          "type": "object",
+          "required": ["message"],
+          "properties": { "message": { "type": "string" } },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
