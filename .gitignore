@@ -6,6 +6,8 @@ epiphany-openai-adapter/target/
 epiphany-openai-adapter/Cargo.lock
 epiphany-openai-codex-spine/target/
 epiphany-openai-codex-spine/Cargo.lock
+epiphany-openai-runtime/target/
+epiphany-openai-runtime/Cargo.lock
 apps/epiphany-gui/node_modules/
 apps/epiphany-gui/dist/
 apps/epiphany-gui/src-tauri/gen/

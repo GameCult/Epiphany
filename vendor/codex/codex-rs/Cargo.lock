@@ -5245,6 +5245,7 @@ dependencies = [
  "codex-protocol",
  "cultcache-rs",
  "cultnet-rs",
+ "epiphany-openai-adapter",
  "ignore",
  "postgres",
  "reqwest",
@@ -5259,6 +5260,7 @@ dependencies = [
 name = "epiphany-openai-adapter"
 version = "0.1.0"
 dependencies = [
+ "cultcache-rs",
  "serde",
 ]
 

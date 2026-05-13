@@ -20,6 +20,10 @@ use cultnet_rs::CultNetWireContract;
 use cultnet_rs::builtin_schema_registry;
 use cultnet_rs::encode_cultnet_message_to_vec;
 use cultnet_rs::encode_frame;
+use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
+use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
+use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
+use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -330,6 +334,10 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
+    cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
+    cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
+    cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
+    cache.register_entry_type::<EpiphanyOpenAiModelReceipt>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(
         store_path.to_path_buf(),
     ));

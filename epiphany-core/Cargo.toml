@@ -17,6 +17,7 @@ codex-file-search = { path = "../vendor/codex/codex-rs/file-search" }
 codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 cultnet-rs = { path = "../vendor/cultnet-rs" }
+epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 ignore = "0.4.23"
 postgres = "0.19"
 reqwest = { version = "0.12", features = ["blocking", "json"] }

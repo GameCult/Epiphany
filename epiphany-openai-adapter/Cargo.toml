@@ -10,4 +10,5 @@ name = "epiphany_openai_adapter"
 path = "src/lib.rs"
 
 [dependencies]
+cultcache-rs = { path = "../vendor/cultcache-rs" }
 serde = { version = "1", features = ["derive"] }

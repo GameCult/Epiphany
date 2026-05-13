@@ -577,6 +577,17 @@ native runtime/CultNet model calls through this spine and then shrinking the
 surviving Codex dependency surface to auth, provider/model routing, and the
 smallest OpenAI Responses call needed for subscription compatibility.
 
+That native route has now started. `epiphany-openai-adapter` documents are
+CultCache `DatabaseEntry` types, `epiphany-core::runtime_spine_cache` registers
+OpenAI adapter status/request/stream-event/receipt records, and the
+outside-vendor `epiphany-openai-runtime` crate writes typed model-turn
+requests, stream events, terminal receipts, runtime sessions, jobs, job
+results, and runtime events into the native runtime spine. Its `model-turn`
+command calls the Codex-backed typed transport; its `smoke` command proves the
+storage route without network. The next cut is to move live callers from
+Codex app-server JSON-RPC onto this runtime route, then carve down the
+`codex-api` dependency weight.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

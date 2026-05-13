@@ -149,6 +149,16 @@ is not the final CultNet daemon. It is a buildable extracted edge that proves
 the spine can be called from Epiphany-owned code and gives the next cut a place
 to route through while the old `thread/epiphany/*` model path is starved.
 
+The native runtime route now exists too. `epiphany-openai-adapter` documents
+derive CultCache `DatabaseEntry`, `epiphany-core::runtime_spine_cache`
+registers OpenAI adapter status/request/stream-event/receipt documents, and the
+outside-vendor `epiphany-openai-runtime` crate records typed OpenAI model-turn
+requests, stream events, terminal receipts, runtime sessions, jobs, and job
+results into the native runtime spine. Its `model-turn` command opens the
+Codex-backed transport through the typed spine; its `smoke` command proves the
+CultCache route without touching the network. This is the first native caller
+for the advertised OpenAI CultNet contract.
+
 The bad news is useful: the current spine still drags in `codex-api` and its
 large transport dependency stack. That is tolerable as a sealed compatibility
 reliquary, but not as the final shape. The next purification should shrink the
