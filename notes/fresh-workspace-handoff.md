@@ -886,6 +886,12 @@ config schema no longer advertises those tables, and app-server README no
 longer lists dead plugin or external-agent import routes. Old plugin config
 files should fail loudly rather than receive fake compatibility incense.
 
+The bundled Codex skill payload crate is gone. `codex-skills` and the embedded
+imagegen/openai-docs/plugin-creator/skill-creator/skill-installer sample assets
+were deleted from the workspace, and `SkillsManager::new` no longer installs
+anything into `CODEX_HOME/skills/.system`. The legacy cache path remains only
+so stale bundled samples can be removed when bundled skills are disabled.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

@@ -28,7 +28,6 @@ members = [
     "device-key",
     "shell-command",
     "shell-escalation",
-    "skills",
     "core",
     "core-skills",
     "hooks",
@@ -166,7 +165,6 @@ codex-sandboxing = { path = "sandboxing" }
 codex-secrets = { path = "secrets" }
 codex-shell-command = { path = "shell-command" }
 codex-shell-escalation = { path = "shell-escalation" }
-codex-skills = { path = "skills" }
 codex-state = { path = "state" }
 codex-stdio-to-uds = { path = "stdio-to-uds" }
 codex-terminal-detection = { path = "terminal-detection" }

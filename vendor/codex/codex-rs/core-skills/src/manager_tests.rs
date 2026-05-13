@@ -272,12 +272,6 @@ async fn skills_for_cwd_reuses_cached_entry_even_when_entry_has_extra_roots() {
             .iter()
             .any(|skill| skill.name == "extra-skill")
     );
-    assert!(
-        outcome_with_extra
-            .skills
-            .iter()
-            .any(|skill| skill.scope == SkillScope::System)
-    );
 
     // The cwd-only API returns the current cached entry for this cwd, even when that entry
     // was produced with extra roots.
