@@ -1129,49 +1129,6 @@ async fn falls_back_to_directory_name_when_skill_name_is_missing() {
 }
 
 #[tokio::test]
-async fn namespaces_plugin_skills_using_plugin_name() {
-    let root = tempfile::tempdir().expect("tempdir");
-    let plugin_root = root.path().join("plugins/sample");
-    let skill_path = write_raw_skill_at(
-        &plugin_root.join("skills"),
-        "sample-search",
-        "description: search sample data",
-    );
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
-    fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
-        r#"{"name":"sample"}"#,
-    )
-    .unwrap();
-
-    let outcome = load_skills_from_roots([SkillRoot {
-        path: plugin_root.join("skills").abs(),
-        scope: SkillScope::User,
-        file_system: Arc::clone(&LOCAL_FS),
-    }])
-    .await;
-
-    assert!(
-        outcome.errors.is_empty(),
-        "unexpected errors: {:?}",
-        outcome.errors
-    );
-    assert_eq!(
-        outcome.skills,
-        vec![SkillMetadata {
-            name: "sample:sample-search".to_string(),
-            description: "search sample data".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: normalized(&skill_path),
-            scope: SkillScope::User,
-        }]
-    );
-}
-
-#[tokio::test]
 async fn loads_short_description_from_metadata() {
     let codex_home = tempfile::tempdir().expect("tempdir");
     let skill_dir = codex_home.path().join("skills/demo");

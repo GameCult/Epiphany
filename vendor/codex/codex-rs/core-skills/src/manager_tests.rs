@@ -26,28 +26,14 @@ fn write_user_skill(codex_home: &TempDir, dir: &str, name: &str, description: &s
     fs::write(skill_dir.join("SKILL.md"), content).unwrap();
 }
 
-fn write_plugin_skill(
-    codex_home: &TempDir,
-    marketplace: &str,
-    plugin_name: &str,
+fn write_extra_root_skill(
+    root: &TempDir,
     dir: &str,
     name: &str,
     description: &str,
 ) -> PathBuf {
-    let plugin_root = codex_home
-        .path()
-        .join("plugins/cache")
-        .join(marketplace)
-        .join(plugin_name)
-        .join("local");
-    let skill_dir = plugin_root.join("skills").join(dir);
-    fs::create_dir_all(plugin_root.join(".codex-plugin")).unwrap();
+    let skill_dir = root.path().join("skills").join(dir);
     fs::create_dir_all(&skill_dir).unwrap();
-    fs::write(
-        plugin_root.join(".codex-plugin/plugin.json"),
-        format!(r#"{{"name":"{plugin_name}"}}"#),
-    )
-    .unwrap();
     let content = format!("---\nname: {name}\ndescription: {description}\n---\n\n# Body\n");
     let skill_path = skill_dir.join("SKILL.md");
     fs::write(&skill_path, content).unwrap();
@@ -202,25 +188,24 @@ async fn skills_for_config_reuses_cache_for_same_effective_config() {
 }
 
 #[tokio::test]
-async fn skills_for_config_disables_plugin_skills_by_name() {
+async fn skills_for_config_disables_extra_root_skills_by_name() {
     let codex_home = tempfile::tempdir().expect("tempdir");
     let cwd = tempfile::tempdir().expect("tempdir");
-    let skill_path = write_plugin_skill(
-        &codex_home,
-        "test",
-        "sample",
+    let extra_root = tempfile::tempdir().expect("tempdir");
+    let skill_path = write_extra_root_skill(
+        &extra_root,
         "sample-search",
         "sample-search",
         "search sample data",
     );
     let config_layer_stack = config_stack(
         &codex_home,
-        &name_toggle_config("sample:sample-search", /*enabled*/ false),
+        &name_toggle_config("sample-search", /*enabled*/ false),
     );
-    let plugin_skill_root = skill_path
+    let extra_skill_root = skill_path
         .parent()
         .and_then(std::path::Path::parent)
-        .expect("plugin skill should live under a skills root")
+        .expect("skill should live under a skills root")
         .abs();
     let skills_manager = SkillsManager::new(
         codex_home.path().abs(),
@@ -231,14 +216,14 @@ async fn skills_for_config_disables_plugin_skills_by_name() {
         &skills_manager,
         &cwd,
         &config_layer_stack,
-        &[plugin_skill_root],
+        &[extra_skill_root],
     )
     .await;
     let skill = outcome
         .skills
         .iter()
-        .find(|skill| skill.name == "sample:sample-search")
-        .expect("plugin skill should load");
+        .find(|skill| skill.name == "sample-search")
+        .expect("extra root skill should load");
     let skill_path = dunce::canonicalize(skill_path)
         .expect("skill path should canonicalize")
         .abs();

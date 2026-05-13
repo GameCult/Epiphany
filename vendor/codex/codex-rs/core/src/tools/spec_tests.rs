@@ -7,7 +7,6 @@ use crate::tools::router::ToolRouterParams;
 use codex_app_server_protocol::AppInfo;
 use codex_features::Feature;
 use codex_features::Features;
-use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_models_manager::bundled_models_response;
 use codex_models_manager::model_info::with_config_overrides;
 use codex_protocol::config_types::WebSearchMode;
@@ -886,7 +885,7 @@ async fn search_tool_description_falls_back_to_connector_name_without_descriptio
         Some(HashMap::from([(
             "mcp__codex_apps__calendar_create_event".to_string(),
             ToolInfo {
-                server_name: CODEX_APPS_MCP_SERVER_NAME.to_string(),
+                server_name: "codex_apps".to_string(),
                 callable_name: "_create_event".to_string(),
                 callable_namespace: "mcp__codex_apps__calendar".to_string(),
                 server_instructions: None,
@@ -938,7 +937,7 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
             (
                 "mcp__codex_apps__calendar_create_event".to_string(),
                 ToolInfo {
-                    server_name: CODEX_APPS_MCP_SERVER_NAME.to_string(),
+                    server_name: "codex_apps".to_string(),
                     callable_name: "_create_event".to_string(),
                     callable_namespace: "mcp__codex_apps__calendar".to_string(),
                     server_instructions: None,
@@ -956,7 +955,7 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
             (
                 "mcp__codex_apps__calendar_list_events".to_string(),
                 ToolInfo {
-                    server_name: CODEX_APPS_MCP_SERVER_NAME.to_string(),
+                    server_name: "codex_apps".to_string(),
                     callable_name: "_list_events".to_string(),
                     callable_namespace: "mcp__codex_apps__calendar".to_string(),
                     server_instructions: None,

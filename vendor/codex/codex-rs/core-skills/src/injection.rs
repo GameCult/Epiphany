@@ -13,7 +13,8 @@ use codex_exec_server::LOCAL_FS;
 use codex_otel::SessionTelemetry;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_plugins::mention_syntax::TOOL_MENTION_SIGIL;
+
+const TOOL_MENTION_SIGIL: char = '$';
 
 #[derive(Debug, Default)]
 pub struct SkillInjections {

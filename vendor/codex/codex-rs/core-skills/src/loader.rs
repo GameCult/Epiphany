@@ -19,7 +19,6 @@ use codex_protocol::protocol::Product;
 use codex_protocol::protocol::SkillScope;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_absolute_path::AbsolutePathBufGuard;
-use codex_utils_plugins::plugin_namespace_for_skill_path;
 use dirs::home_dir;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -586,7 +585,7 @@ async fn parse_skill_file(
         .map(sanitize_single_line)
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| default_skill_name(path));
-    let name = namespaced_skill_name(fs, path, &base_name).await;
+    let name = base_name.to_string();
     let description = parsed
         .description
         .as_deref()
@@ -638,17 +637,6 @@ fn default_skill_name(path: &AbsolutePathBuf) -> String {
         })
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "skill".to_string())
-}
-
-async fn namespaced_skill_name(
-    fs: &dyn ExecutorFileSystem,
-    path: &AbsolutePathBuf,
-    base_name: &str,
-) -> String {
-    plugin_namespace_for_skill_path(fs, path)
-        .await
-        .map(|namespace| format!("{namespace}:{base_name}"))
-        .unwrap_or_else(|| base_name.to_string())
 }
 
 async fn load_skill_metadata(

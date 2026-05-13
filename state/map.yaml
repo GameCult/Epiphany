@@ -319,9 +319,10 @@ current_status:
     compatibility spine. The orphaned `codex-core-plugins` crate was also
     deleted from the workspace. Analytics no longer knows plugin lifecycle/use
     events, keeps plugin dedupe state, or depends on `codex-plugin`; the
-    unreferenced `codex-plugin` crate was deleted from the workspace. Remaining
-    `.codex-plugin` references are stale tests or the narrower
-    `codex-utils-plugins` skill-namespace utility, not a plugin marketplace
-    runtime. MCP remains JSON-RPC at the edge; user-declared MCP servers are the
-    only runtime MCP authority.
+    unreferenced `codex-plugin` crate was deleted from the workspace. The final
+    `codex-utils-plugins` husk was deleted too: `$` / `@` mention sigils now
+    live in their actual owners, plugin manifest skill namespacing is gone, and
+    stale plugin/marketplace tests were removed instead of preserving
+    implementation fossils. MCP remains JSON-RPC at the edge; user-declared MCP
+    servers are the only runtime MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

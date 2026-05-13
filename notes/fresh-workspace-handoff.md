@@ -904,6 +904,16 @@ crate is deleted from the vendored workspace. Verified with
 hits are stale tests and the narrower `codex-utils-plugins` skill-namespace
 utility, not live marketplace machinery.
 
+The final `codex-utils-plugins` husk is deleted too. `$` and `@` mention sigils
+now live in `codex-core-skills` / `codex-core`, plugin manifest ancestry no
+longer namespaces skills, and stale plugin/marketplace tests were removed rather
+than preserving a dead product contract. Verified with
+`cargo test -p codex-core-skills --tests --no-run` and
+`cargo test -p codex-cli --tests --no-run`. A full `cargo test -p codex-core
+--tests --no-run` still fails on older stale lib-test scaffolds for deleted
+plugin/skill/app surfaces; do not restore those surfaces just to appease the
+tests.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

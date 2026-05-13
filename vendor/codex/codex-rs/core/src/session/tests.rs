@@ -14,12 +14,15 @@ use crate::context::TurnAborted;
 use crate::exec::ExecCapturePolicy;
 use crate::function_tool::FunctionCallError;
 use crate::shell::default_user_shell;
+use crate::skills::build_available_skills;
 use crate::skills::SkillRenderSideEffects;
 use crate::skills::render::SkillMetadataBudget;
 use crate::tools::format_exec_output_str;
 
 use codex_features::Feature;
 use codex_features::Features;
+use codex_core_skills::SkillMetadata;
+use codex_core_skills::SkillsLoadInput;
 use codex_login::CodexAuth;
 use codex_model_provider_info::ModelProviderInfo;
 use codex_models_manager::bundled_models_response;
@@ -158,11 +161,24 @@ use pretty_assertions::assert_eq;
 use regex_lite::Regex;
 use serde::Deserialize;
 use serde_json::json;
+use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 
 mod guardian_tests;
+
+fn skills_load_input_from_config(
+    config: &Config,
+    effective_skill_roots: Vec<codex_utils_absolute_path::AbsolutePathBuf>,
+) -> SkillsLoadInput {
+    SkillsLoadInput::new(
+        config.cwd.clone(),
+        effective_skill_roots,
+        config.config_layer_stack.clone(),
+        config.bundled_skills_enabled(),
+    )
+}
 
 fn sample_epiphany_state_for_persistence() -> EpiphanyThreadState {
     EpiphanyThreadState {
@@ -2966,7 +2982,7 @@ async fn new_default_turn_uses_config_aware_skills_for_role_overrides() {
         .services
         .skills_manager
         .skills_for_cwd(
-            &crate::skills_load_input_from_config(&parent_config, Vec::new()),
+            &skills_load_input_from_config(&parent_config, Vec::new()),
             /*force_reload*/ true,
             Some(Arc::clone(&skill_fs)),
         )
@@ -3164,7 +3180,6 @@ async fn session_new_fails_when_zsh_fork_enabled_without_zsh_path() {
 
     let (tx_event, _rx_event) = async_channel::unbounded();
     let (agent_status_tx, _agent_status_rx) = watch::channel(AgentStatus::PendingInit);
-    let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
     let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
@@ -3181,7 +3196,6 @@ async fn session_new_fails_when_zsh_fork_enabled_without_zsh_path() {
         InitialHistory::New,
         SessionSource::Exec,
         skills_manager,
-        plugins_manager,
         mcp_manager,
         Arc::new(SkillsWatcher::noop()),
         AgentControl::default(),
@@ -3276,7 +3290,6 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
     );
 
     let state = SessionState::new(session_configuration.clone());
-    let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
     let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
@@ -3323,7 +3336,6 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         guardian_rejection_circuit_breaker: Mutex::new(Default::default()),
         runtime_handle: tokio::runtime::Handle::current(),
         skills_manager,
-        plugins_manager,
         mcp_manager,
         skills_watcher,
         agent_control,
@@ -3354,13 +3366,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         config.js_repl_node_module_dirs.clone(),
     ));
 
-    let plugin_outcome = services
-        .plugins_manager
-        .plugins_for_config(&per_turn_config)
-        .await;
-    let effective_skill_roots = plugin_outcome.effective_skill_roots();
-    let skills_input =
-        crate::skills_load_input_from_config(&per_turn_config, effective_skill_roots);
+    let skills_input = skills_load_input_from_config(&per_turn_config, Vec::new());
     let skill_fs = environment.get_filesystem();
     let skills_outcome = Arc::new(
         services
@@ -3482,7 +3488,6 @@ async fn make_session_with_config_and_rx(
 
     let (tx_event, rx_event) = async_channel::unbounded();
     let (agent_status_tx, _agent_status_rx) = watch::channel(AgentStatus::PendingInit);
-    let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
     let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
@@ -3500,7 +3505,6 @@ async fn make_session_with_config_and_rx(
         InitialHistory::New,
         SessionSource::Exec,
         skills_manager,
-        plugins_manager,
         mcp_manager,
         Arc::new(SkillsWatcher::noop()),
         AgentControl::default(),
@@ -4588,7 +4592,6 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
     );
 
     let state = SessionState::new(session_configuration.clone());
-    let plugins_manager = Arc::new(PluginsManager::new(config.codex_home.to_path_buf()));
     let mcp_manager = Arc::new(McpManager::new());
     let skills_manager = Arc::new(SkillsManager::new(
         config.codex_home.clone(),
@@ -4635,7 +4638,6 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
         guardian_rejection_circuit_breaker: Mutex::new(Default::default()),
         runtime_handle: tokio::runtime::Handle::current(),
         skills_manager,
-        plugins_manager,
         mcp_manager,
         skills_watcher,
         agent_control,
@@ -4666,13 +4668,7 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
         config.js_repl_node_module_dirs.clone(),
     ));
 
-    let plugin_outcome = services
-        .plugins_manager
-        .plugins_for_config(&per_turn_config)
-        .await;
-    let effective_skill_roots = plugin_outcome.effective_skill_roots();
-    let skills_input =
-        crate::skills_load_input_from_config(&per_turn_config, effective_skill_roots);
+    let skills_input = skills_load_input_from_config(&per_turn_config, Vec::new());
     let skill_fs = environment.get_filesystem();
     let skills_outcome = Arc::new(
         services
