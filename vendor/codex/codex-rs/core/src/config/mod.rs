@@ -817,9 +817,7 @@ impl Config {
             approval_policy: self.permissions.approval_policy.clone(),
             codex_linux_sandbox_exe: self.codex_linux_sandbox_exe.clone(),
             use_legacy_landlock: self.features.use_legacy_landlock(),
-            apps_enabled: false,
             configured_mcp_servers: self.mcp_servers.get().clone(),
-            plugin_capability_summaries: Vec::new(),
         }
     }
 

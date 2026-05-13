@@ -56,7 +56,6 @@ use codex_login::default_client::originator;
 use codex_mcp::McpConnectionManager;
 use codex_mcp::McpRuntimeEnvironment;
 use codex_mcp::ToolInfo;
-use codex_mcp::ToolPluginProvenance;
 #[cfg(test)]
 use codex_models_manager::collaboration_mode_presets::CollaborationModesConfig;
 use codex_models_manager::manager::ModelsManager;

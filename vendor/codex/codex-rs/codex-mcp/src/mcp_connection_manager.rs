@@ -6,7 +6,6 @@
 //! in a single aggregated map using the model-visible fully-qualified tool name
 //! as the key.
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
@@ -19,11 +18,9 @@ use std::time::Instant;
 
 use crate::McpAuthStatusEntry;
 use crate::mcp::McpConfig;
-use crate::mcp::ToolPluginProvenance;
 use crate::mcp::configured_mcp_servers;
 use crate::mcp::effective_mcp_servers;
 use crate::mcp::mcp_permission_prompt_is_auto_approved;
-use crate::mcp::tool_plugin_provenance;
 pub(crate) use crate::mcp_tool_names::qualify_tools;
 use anyhow::Context;
 use anyhow::Result;
@@ -319,7 +316,6 @@ impl ManagedClient {
 #[derive(Clone)]
 struct AsyncManagedClient {
     client: Shared<BoxFuture<'static, Result<ManagedClient, StartupOutcomeError>>>,
-    tool_plugin_provenance: Arc<ToolPluginProvenance>,
 }
 
 impl AsyncManagedClient {
@@ -333,7 +329,6 @@ impl AsyncManagedClient {
         cancel_token: CancellationToken,
         tx_event: Sender<Event>,
         elicitation_requests: ElicitationRequestManager,
-        tool_plugin_provenance: Arc<ToolPluginProvenance>,
         runtime_environment: McpRuntimeEnvironment,
     ) -> Self {
         let tool_filter = ToolFilter::from_config(&config);
@@ -379,10 +374,7 @@ impl AsyncManagedClient {
         };
         let client = fut.boxed().shared();
 
-        Self {
-            client,
-            tool_plugin_provenance,
-        }
+        Self { client }
     }
 
     async fn client(&self) -> Result<ManagedClient, StartupOutcomeError> {
@@ -390,58 +382,10 @@ impl AsyncManagedClient {
     }
 
     async fn listed_tools(&self) -> Option<Vec<ToolInfo>> {
-        let annotate_tools = |tools: Vec<ToolInfo>| {
-            let mut tools = tools;
-            for tool in &mut tools {
-                let plugin_names = match tool.connector_id.as_deref() {
-                    Some(connector_id) => self
-                        .tool_plugin_provenance
-                        .plugin_display_names_for_connector_id(connector_id),
-                    None => self
-                        .tool_plugin_provenance
-                        .plugin_display_names_for_mcp_server_name(tool.server_name.as_str()),
-                };
-                tool.plugin_display_names = plugin_names.to_vec();
-
-                if plugin_names.is_empty() {
-                    continue;
-                }
-
-                let plugin_source_note = if plugin_names.len() == 1 {
-                    format!("This tool is part of plugin `{}`.", plugin_names[0])
-                } else {
-                    format!(
-                        "This tool is part of plugins {}.",
-                        plugin_names
-                            .iter()
-                            .map(|plugin_name| format!("`{plugin_name}`"))
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )
-                };
-                let description = tool
-                    .tool
-                    .description
-                    .as_deref()
-                    .map(str::trim)
-                    .unwrap_or("");
-                let annotated_description = if description.is_empty() {
-                    plugin_source_note
-                } else if matches!(description.chars().last(), Some('.' | '!' | '?')) {
-                    format!("{description} {plugin_source_note}")
-                } else {
-                    format!("{description}. {plugin_source_note}")
-                };
-                tool.tool.description = Some(Cow::Owned(annotated_description));
-            }
-            tools
-        };
-
-        let tools = match self.client().await {
+        match self.client().await {
             Ok(client) => Some(client.listed_tools()),
             Err(_) => None,
-        };
-        tools.map(annotate_tools)
+        }
     }
 }
 
@@ -510,10 +454,6 @@ impl McpConnectionManager {
         effective_mcp_servers(config, auth)
     }
 
-    pub fn tool_plugin_provenance(&self, config: &McpConfig) -> ToolPluginProvenance {
-        tool_plugin_provenance(config)
-    }
-
     pub fn new_uninitialized(
         approval_policy: &Constrained<AskForApproval>,
         sandbox_policy: &Constrained<SandboxPolicy>,
@@ -558,7 +498,6 @@ impl McpConnectionManager {
         tx_event: Sender<Event>,
         initial_sandbox_policy: SandboxPolicy,
         runtime_environment: McpRuntimeEnvironment,
-        tool_plugin_provenance: ToolPluginProvenance,
     ) -> (Self, CancellationToken) {
         let cancel_token = CancellationToken::new();
         let mut clients = HashMap::new();
@@ -566,7 +505,6 @@ impl McpConnectionManager {
         let mut join_set = JoinSet::new();
         let elicitation_requests =
             ElicitationRequestManager::new(approval_policy.value(), initial_sandbox_policy);
-        let tool_plugin_provenance = Arc::new(tool_plugin_provenance);
         let startup_submit_id = submit_id.clone();
         let mcp_servers = mcp_servers.clone();
         for (server_name, cfg) in mcp_servers.into_iter().filter(|(_, cfg)| cfg.enabled) {
@@ -590,7 +528,6 @@ impl McpConnectionManager {
                 cancel_token.clone(),
                 tx_event.clone(),
                 elicitation_requests.clone(),
-                Arc::clone(&tool_plugin_provenance),
                 runtime_environment.clone(),
             );
             clients.insert(server_name.clone(), async_managed_client.clone());

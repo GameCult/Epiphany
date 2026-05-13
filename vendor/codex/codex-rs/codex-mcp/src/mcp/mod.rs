@@ -21,7 +21,6 @@ use codex_config::Constrained;
 use codex_config::McpServerConfig;
 use codex_config::types::OAuthCredentialsStoreMode;
 use codex_login::CodexAuth;
-use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::mcp::Resource;
 use codex_protocol::mcp::ResourceTemplate;
 use codex_protocol::mcp::Tool;
@@ -120,73 +119,8 @@ pub struct McpConfig {
     pub codex_linux_sandbox_exe: Option<PathBuf>,
     /// Whether to use legacy Landlock behavior in the MCP sandbox state.
     pub use_legacy_landlock: bool,
-    /// Whether the app MCP integration is enabled by config.
-    ///
-    /// ChatGPT auth is checked separately at runtime before the built-in apps
-    /// MCP server is added.
-    pub apps_enabled: bool,
     /// User-configured and plugin-provided MCP servers keyed by server name.
     pub configured_mcp_servers: HashMap<String, McpServerConfig>,
-    /// Plugin metadata used to attribute MCP tools/connectors to plugin display names.
-    pub plugin_capability_summaries: Vec<PluginCapabilitySummary>,
-}
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ToolPluginProvenance {
-    plugin_display_names_by_connector_id: HashMap<String, Vec<String>>,
-    plugin_display_names_by_mcp_server_name: HashMap<String, Vec<String>>,
-}
-
-impl ToolPluginProvenance {
-    pub fn plugin_display_names_for_connector_id(&self, connector_id: &str) -> &[String] {
-        self.plugin_display_names_by_connector_id
-            .get(connector_id)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-    }
-
-    pub fn plugin_display_names_for_mcp_server_name(&self, server_name: &str) -> &[String] {
-        self.plugin_display_names_by_mcp_server_name
-            .get(server_name)
-            .map(Vec::as_slice)
-            .unwrap_or(&[])
-    }
-
-    fn from_capability_summaries(capability_summaries: &[PluginCapabilitySummary]) -> Self {
-        let mut tool_plugin_provenance = Self::default();
-        for plugin in capability_summaries {
-            for connector_id in &plugin.app_connector_ids {
-                tool_plugin_provenance
-                    .plugin_display_names_by_connector_id
-                    .entry(connector_id.0.clone())
-                    .or_default()
-                    .push(plugin.display_name.clone());
-            }
-
-            for server_name in &plugin.mcp_server_names {
-                tool_plugin_provenance
-                    .plugin_display_names_by_mcp_server_name
-                    .entry(server_name.clone())
-                    .or_default()
-                    .push(plugin.display_name.clone());
-            }
-        }
-
-        for plugin_names in tool_plugin_provenance
-            .plugin_display_names_by_connector_id
-            .values_mut()
-            .chain(
-                tool_plugin_provenance
-                    .plugin_display_names_by_mcp_server_name
-                    .values_mut(),
-            )
-        {
-            plugin_names.sort_unstable();
-            plugin_names.dedup();
-        }
-
-        tool_plugin_provenance
-    }
 }
 
 pub fn configured_mcp_servers(config: &McpConfig) -> HashMap<String, McpServerConfig> {
@@ -198,10 +132,6 @@ pub fn effective_mcp_servers(
     _auth: Option<&CodexAuth>,
 ) -> HashMap<String, McpServerConfig> {
     configured_mcp_servers(config)
-}
-
-pub fn tool_plugin_provenance(config: &McpConfig) -> ToolPluginProvenance {
-    ToolPluginProvenance::from_capability_summaries(&config.plugin_capability_summaries)
 }
 
 pub async fn read_mcp_resource(
@@ -226,7 +156,6 @@ pub async fn read_mcp_resource(
         tx_event,
         SandboxPolicy::new_read_only_policy(),
         runtime_environment,
-        tool_plugin_provenance(config),
     )
     .await;
 
@@ -267,7 +196,6 @@ pub async fn collect_mcp_snapshot_with_detail(
     detail: McpSnapshotDetail,
 ) -> McpListToolsResponseEvent {
     let mcp_servers = effective_mcp_servers(config, auth);
-    let tool_plugin_provenance = tool_plugin_provenance(config);
     if mcp_servers.is_empty() {
         return McpListToolsResponseEvent {
             tools: HashMap::new(),
@@ -292,7 +220,6 @@ pub async fn collect_mcp_snapshot_with_detail(
         tx_event,
         SandboxPolicy::new_read_only_policy(),
         runtime_environment,
-        tool_plugin_provenance,
     )
     .await;
 
@@ -340,7 +267,6 @@ pub async fn collect_mcp_server_status_snapshot_with_detail(
     detail: McpSnapshotDetail,
 ) -> McpServerStatusSnapshot {
     let mcp_servers = effective_mcp_servers(config, auth);
-    let tool_plugin_provenance = tool_plugin_provenance(config);
     if mcp_servers.is_empty() {
         return McpServerStatusSnapshot {
             tools_by_server: HashMap::new(),
@@ -365,7 +291,6 @@ pub async fn collect_mcp_server_status_snapshot_with_detail(
         tx_event,
         SandboxPolicy::new_read_only_policy(),
         runtime_environment,
-        tool_plugin_provenance,
     )
     .await;
 

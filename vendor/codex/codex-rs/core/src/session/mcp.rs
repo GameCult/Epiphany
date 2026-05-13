@@ -229,7 +229,6 @@ impl Session {
                     .unwrap_or_else(|| self.services.environment_manager.local_environment()),
                 turn_context.cwd.to_path_buf(),
             ),
-            ToolPluginProvenance::default(),
         )
         .await;
         {

@@ -844,6 +844,14 @@ exports `with_codex_apps_mcp`, keeps a ChatGPT-auth-keyed app tool cache, or
 normalizes app callable names/namespaces/titles. MCP remains JSON-RPC at the
 edge; only user-declared MCP servers are runtime MCP authority.
 
+The plugin provenance reflex has been removed from MCP as well. `McpConfig`
+does not carry plugin capability summaries, `McpConnectionManager::new` no
+longer accepts `ToolPluginProvenance`, `codex-mcp` no longer depends on
+`codex-plugin` or `codex-utils-plugins`, and MCP tool descriptions are not
+decorated with Codex plugin product names. If Epiphany later wants MCP
+attribution, it needs an Epiphany-owned typed adapter surface, not this old
+product metadata graft.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

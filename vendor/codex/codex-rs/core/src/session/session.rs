@@ -850,7 +850,6 @@ impl Session {
                     .unwrap_or_else(|| sess.services.environment_manager.local_environment()),
                 session_configuration.cwd.to_path_buf(),
             ),
-            ToolPluginProvenance::default(),
         )
         .instrument(info_span!(
             "session_init.mcp_manager_init",

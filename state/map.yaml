@@ -294,6 +294,10 @@ current_status:
     `with_codex_apps_mcp`, keeps a ChatGPT-auth-keyed Codex Apps tool cache,
     exposes `hard_refresh_codex_apps_tools_cache`, filters non-app MCP tools,
     normalizes app callable names/namespaces/titles, or masks app file params at
-    app-specific return boundaries. MCP remains JSON-RPC at the edge; user
-    declared MCP servers are the only runtime MCP authority.
+    app-specific return boundaries. The live MCP manager/config shape also no
+    longer carries plugin provenance: `ToolPluginProvenance`,
+    `plugin_capability_summaries`, and the `codex-plugin` / `codex-utils-plugins`
+    dependencies were removed from `codex-mcp`, and MCP tool descriptions are no
+    longer decorated from plugin product metadata. MCP remains JSON-RPC at the
+    edge; user-declared MCP servers are the only runtime MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

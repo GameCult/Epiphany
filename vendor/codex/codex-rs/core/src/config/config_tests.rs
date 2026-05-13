@@ -2603,17 +2603,13 @@ async fn to_mcp_config_quarantines_codex_product_surfaces() -> std::io::Result<(
     .await?;
 
     let mcp_config = config.to_mcp_config();
-    assert!(!mcp_config.apps_enabled);
     assert!(!mcp_config.skill_mcp_dependency_install_enabled);
-    assert!(mcp_config.plugin_capability_summaries.is_empty());
 
     let _ = config.features.disable(Feature::Apps);
-    let mcp_config = config.to_mcp_config();
-    assert!(!mcp_config.apps_enabled);
+    assert_eq!(config.to_mcp_config().configured_mcp_servers.len(), 0);
 
     let _ = config.features.enable(Feature::Apps);
-    let mcp_config = config.to_mcp_config();
-    assert!(!mcp_config.apps_enabled);
+    assert_eq!(config.to_mcp_config().configured_mcp_servers.len(), 0);
 
     Ok(())
 }
