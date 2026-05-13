@@ -1,4 +1,57 @@
-use super::*;
+use std::path::PathBuf;
+
+use chrono::SecondsFormat;
+use chrono::Utc;
+use codex_app_server_protocol::*;
+use codex_core::CodexThread;
+use codex_core::EpiphanyJobInterruptRequest;
+use codex_core::EpiphanyJobLaunchRequest;
+use codex_core::EpiphanyPromotionInput;
+use codex_core::EpiphanyStateUpdate;
+use codex_core::evaluate_promotion;
+use codex_protocol::ThreadId;
+use codex_protocol::error::CodexErr;
+use codex_protocol::error::Result as CodexResult;
+use codex_protocol::protocol::EpiphanyCodeRef;
+use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
+use codex_protocol::protocol::EpiphanyInvestigationDisposition;
+use codex_protocol::protocol::EpiphanyScratchPad;
+use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_codex_bridge::jobs::epiphany_blocked_state_job;
+use epiphany_codex_bridge::jobs::map_core_epiphany_job_kind;
+use epiphany_codex_bridge::jobs::map_epiphany_jobs;
+use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
+use epiphany_codex_bridge::launch::build_epiphany_role_launch_request;
+use epiphany_codex_bridge::launch::epiphany_role_binding_id;
+use epiphany_codex_bridge::launch::epiphany_role_label;
+use epiphany_codex_bridge::launch::map_core_worker_launch_document;
+use epiphany_codex_bridge::pressure::map_epiphany_pressure;
+use epiphany_codex_bridge::reorient::map_epiphany_freshness;
+use epiphany_codex_bridge::reorient::map_epiphany_reorient;
+use epiphany_codex_bridge::results::map_core_role_result_role_id;
+use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_index_summary;
+use epiphany_codex_bridge::runtime_results::latest_epiphany_runtime_link_for_binding;
+use epiphany_codex_bridge::runtime_results::load_epiphany_reorient_result_from_runtime_spine_job;
+use epiphany_codex_bridge::runtime_results::load_epiphany_role_result_from_runtime_spine_job;
+use epiphany_codex_bridge::runtime_results::reorient_finding_runtime_job_id;
+use epiphany_codex_bridge::runtime_results::reorient_finding_runtime_result_id;
+use epiphany_codex_bridge::runtime_results::role_finding_runtime_job_id;
+use epiphany_codex_bridge::runtime_results::role_finding_runtime_result_id;
+use epiphany_core::EpiphanyReorientAcceptanceFinding;
+use epiphany_core::EpiphanyRoleAcceptanceFinding;
+use epiphany_core::build_reorient_acceptance_bundle;
+use epiphany_core::build_role_acceptance_bundle;
+use epiphany_core::imagination_role_state_patch_policy_errors;
+use epiphany_core::modeling_role_state_patch_policy_errors;
+use uuid::Uuid;
+
+use super::CodexMessageProcessor;
+use super::ConnectionRequestId;
+use super::ThreadReadViewError;
+use super::epiphany_freshness_watcher_snapshot;
+use super::epiphany_state_helpers::client_visible_live_thread_epiphany_state;
+use super::epiphany_state_helpers::core_state_patch_from_protocol;
 
 impl CodexMessageProcessor {
     pub(super) async fn thread_epiphany_role_launch(
@@ -1310,7 +1363,7 @@ async fn load_completed_epiphany_role_finding(
 
 fn parse_role_finding_state_patch(
     finding: &ThreadEpiphanyRoleFinding,
-) -> Result<ThreadEpiphanyUpdatePatch, String> {
+) -> std::result::Result<ThreadEpiphanyUpdatePatch, String> {
     finding
         .state_patch
         .clone()

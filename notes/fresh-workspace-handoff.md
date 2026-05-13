@@ -491,6 +491,13 @@ made its read/proposal dependencies explicit. The processor is about 10,388
 lines. The remaining Epiphany wildcard route module is
 `epiphany_mutation_routes.rs`; it owns the dangerous launch/accept/update/
 promote/interrupt path and should be the next incision.
+The twenty-second cut removed `use super::*` from `epiphany_mutation_routes.rs`
+and made the launch/accept/update/promote/interrupt dependencies explicit. No
+Epiphany child module under `codex_message_processor/` uses parent wildcard
+visibility now; only generic Codex plugin/test modules still do. The processor
+is about 10,339 lines. This is not final purity: mutation orchestration still
+lives in the Codex processor and should move behind a small typed service
+boundary next.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
