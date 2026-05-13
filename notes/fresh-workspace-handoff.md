@@ -774,6 +774,11 @@ MCP dependency install, or advertises plugin capability summaries. MCP remains
 a JSON-RPC protocol edge; Codex apps/skills/plugins no longer get smuggled
 through that edge as if they were the protocol.
 
+The config-mutation plugin/skill cache reflex is gone too. App-server still
+notifies remote control after successful config writes, but it no longer pokes
+`plugins_manager` or `skills_manager` as a dead compensator for disabled
+product surfaces.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

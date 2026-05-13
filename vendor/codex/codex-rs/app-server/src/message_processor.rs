@@ -1045,7 +1045,6 @@ impl MessageProcessor {
     }
 
     async fn handle_config_mutation(&self) {
-        self.codex_message_processor.handle_config_mutation();
         let Some(remote_control_handle) = &self.remote_control_handle else {
             return;
         };
