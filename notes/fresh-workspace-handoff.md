@@ -828,6 +828,13 @@ no longer merges plugin-provided apps; TUI plugin mentions no longer scan core
 plugins. Remaining `codex-plugin` references live in other Codex product crates
 or prompt/snapshot fixtures, not in the core runtime spine.
 
+Codex Apps are now compatibility dust inside core. Core connector listing
+returns empty, app prompt instructions and app-rendering code were deleted,
+`TurnContext::apps_enabled()` is gone, refresh no longer auto-adds
+`codex_apps` as an MCP server, and the connector/app policy surface is only a
+tiny default stub so legacy callers compile. User-declared MCP servers remain
+the only MCP authority; Codex Apps are not part of the OpenAI auth/model spine.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

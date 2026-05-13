@@ -100,10 +100,6 @@ impl TurnContext {
         self.model_info.auto_compact_token_limit()
     }
 
-    pub(crate) fn apps_enabled(&self) -> bool {
-        false
-    }
-
     pub(crate) async fn with_model(&self, model: String, models_manager: &ModelsManager) -> Self {
         let mut config = (*self.config).clone();
         config.model = Some(model.clone());

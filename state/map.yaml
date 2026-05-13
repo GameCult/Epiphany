@@ -293,5 +293,9 @@ current_status:
     modules/tests are gone, CLI marketplace commands are disabled compatibility
     shells, MCP CLI setup no longer creates plugin managers, ChatGPT connector
     listing no longer merges plugin-provided apps, and TUI plugin mentions no
-    longer scan core plugins.
+    longer scan core plugins. Codex Apps are now a tiny compatibility stub in
+    core: connector listing returns empty, app prompt instructions/rendering are
+    deleted, `TurnContext::apps_enabled()` is gone, refresh no longer auto-adds
+    `codex_apps` as an MCP server, and only user-declared MCP servers remain as
+    runtime MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.
