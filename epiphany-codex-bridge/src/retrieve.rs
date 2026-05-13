@@ -1,8 +1,10 @@
+use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
+use codex_core::CodexThread;
 use codex_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
 use codex_core::EpiphanyRetrieveResult as CoreEpiphanyRetrieveResult;
 use codex_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
@@ -21,6 +23,17 @@ pub fn map_epiphany_retrieve_response(
             .map(map_epiphany_retrieve_result)
             .collect(),
     })
+}
+
+pub async fn index_thread_epiphany_retrieval(
+    thread: &CodexThread,
+    force_full_rebuild: bool,
+) -> anyhow::Result<ThreadEpiphanyIndexResponse> {
+    let index_summary = thread
+        .epiphany_index(force_full_rebuild)
+        .await
+        .and_then(map_epiphany_retrieve_index_summary)?;
+    Ok(ThreadEpiphanyIndexResponse { index_summary })
 }
 
 pub fn map_epiphany_retrieve_index_summary(

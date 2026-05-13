@@ -644,6 +644,15 @@ The vendored route still performs app-server-native work: thread-id parsing,
 thread/read-view loading, watcher registration/snapshotting, JSON-RPC response
 shaping, and notification emission.
 
+The next small route cut landed without pretending it was the final purge.
+`epiphany-codex-bridge::retrieve::index_thread_epiphany_retrieval` now owns the
+index operation/protocol projection, and `epiphany_mutation_routes.rs` collapsed
+its repeated parse/load-thread and state-updated notification boilerplate into
+transport-only helpers. The mutation route module is about 691 lines. This is
+adapter consolidation, not a new architectural throne: app-server still owns
+JSON-RPC response shape and watcher/thread-view details while the bridge owns
+route-independent Epiphany work.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

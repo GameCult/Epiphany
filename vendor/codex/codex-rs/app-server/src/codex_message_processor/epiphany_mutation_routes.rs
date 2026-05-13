@@ -1,21 +1,24 @@
 use codex_app_server_protocol::*;
+use codex_core::CodexThread;
 use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
+use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::launch::map_core_worker_launch_document;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
+use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_role_accept;
-use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_update;
 use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
-use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_index_summary;
+use epiphany_codex_bridge::retrieve::index_thread_epiphany_retrieval;
+use std::sync::Arc;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -23,6 +26,58 @@ use super::ThreadReadViewError;
 use super::epiphany_freshness_watcher_snapshot;
 
 impl CodexMessageProcessor {
+    async fn load_epiphany_thread(
+        &self,
+        request_id: &ConnectionRequestId,
+        thread_id: &str,
+    ) -> Option<(ThreadId, Arc<CodexThread>)> {
+        let thread_uuid = match ThreadId::from_string(thread_id) {
+            Ok(id) => id,
+            Err(err) => {
+                self.send_invalid_request_error(
+                    request_id.clone(),
+                    format!("invalid thread id: {err}"),
+                )
+                .await;
+                return None;
+            }
+        };
+
+        let thread = match self.thread_manager.get_thread(thread_uuid).await {
+            Ok(thread) => thread,
+            Err(_) => {
+                self.send_invalid_request_error(
+                    request_id.clone(),
+                    format!("thread not loaded: {thread_uuid}"),
+                )
+                .await;
+                return None;
+            }
+        };
+
+        Some((thread_uuid, thread))
+    }
+
+    async fn send_epiphany_state_updated(
+        &self,
+        thread_uuid: ThreadId,
+        source: ThreadEpiphanyStateUpdatedSource,
+        changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+        epiphany_state: EpiphanyThreadState,
+    ) {
+        self.outgoing
+            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    source,
+                    epiphany_state.revision,
+                    changed_fields,
+                    epiphany_state,
+                ),
+            ))
+            .await;
+    }
+
     pub(super) async fn thread_epiphany_role_launch(
         &self,
         request_id: ConnectionRequestId,
@@ -35,26 +90,11 @@ impl CodexMessageProcessor {
             max_runtime_seconds,
         } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let (thread_uuid, loaded_thread) =
+            match self.load_epiphany_thread(&request_id, &thread_id).await {
+                Some(thread) => thread,
+                None => return,
+            };
         let applied = match launch_thread_epiphany_role(
             loaded_thread.as_ref(),
             &thread_id,
@@ -94,17 +134,13 @@ impl CodexMessageProcessor {
                 },
             )
             .await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::JobLaunch,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 
     pub(super) async fn thread_epiphany_role_accept(
@@ -128,26 +164,11 @@ impl CodexMessageProcessor {
         };
         let binding_id = binding_id.unwrap_or_else(|| default_binding_id.into());
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let (thread_uuid, loaded_thread) =
+            match self.load_epiphany_thread(&request_id, &thread_id).await {
+                Some(thread) => thread,
+                None => return,
+            };
         let applied = match apply_thread_epiphany_role_accept(
             loaded_thread.as_ref(),
             role_id,
@@ -190,17 +211,13 @@ impl CodexMessageProcessor {
                 },
             )
             .await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::RoleAccept,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::RoleAccept,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 
     pub(super) async fn thread_epiphany_reorient_launch(
@@ -214,26 +231,11 @@ impl CodexMessageProcessor {
             max_runtime_seconds,
         } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let (thread_uuid, loaded_thread) =
+            match self.load_epiphany_thread(&request_id, &thread_id).await {
+                Some(thread) => thread,
+                None => return,
+            };
         let thread = match self.read_thread_view(thread_uuid, false).await {
             Ok(thread) => thread,
             Err(ThreadReadViewError::InvalidRequest(message)) => {
@@ -303,17 +305,13 @@ impl CodexMessageProcessor {
                 },
             )
             .await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::JobLaunch,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 
     pub(super) async fn thread_epiphany_reorient_accept(
@@ -330,26 +328,11 @@ impl CodexMessageProcessor {
         } = params;
         let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into());
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let loaded_thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let (thread_uuid, loaded_thread) =
+            match self.load_epiphany_thread(&request_id, &thread_id).await {
+                Some(thread) => thread,
+                None => return,
+            };
         let applied = match apply_thread_epiphany_reorient_accept(
             loaded_thread.as_ref(),
             expected_revision,
@@ -391,17 +374,13 @@ impl CodexMessageProcessor {
                 },
             )
             .await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::ReorientAccept,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::ReorientAccept,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 
     pub(super) async fn thread_epiphany_index(
@@ -414,32 +393,13 @@ impl CodexMessageProcessor {
             force_full_rebuild,
         } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
+        let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
+            Some(thread) => thread,
+            None => return,
         };
 
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let response = match thread
-            .epiphany_index(force_full_rebuild)
+        let response = match index_thread_epiphany_retrieval(thread.as_ref(), force_full_rebuild)
             .await
-            .and_then(map_epiphany_retrieve_index_summary)
-            .map(|index_summary| ThreadEpiphanyIndexResponse { index_summary })
         {
             Ok(response) => response,
             Err(err) => {
@@ -467,25 +427,9 @@ impl CodexMessageProcessor {
             verifier_evidence,
         } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
+        let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
+            Some(thread) => thread,
+            None => return,
         };
 
         let applied = match apply_thread_epiphany_promote(
@@ -540,17 +484,13 @@ impl CodexMessageProcessor {
         };
 
         self.outgoing.send_response(request_id, response).await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::Promote,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::Promote,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 
     pub(super) async fn thread_epiphany_update(
@@ -564,44 +504,27 @@ impl CodexMessageProcessor {
             patch,
         } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
+        let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
+            Some(thread) => thread,
+            None => return,
+        };
+
+        let applied =
+            match apply_thread_epiphany_update(thread.as_ref(), expected_revision, patch).await {
+                Ok(applied) => applied,
+                Err(CodexErr::InvalidRequest(message)) => {
+                    self.send_invalid_request_error(request_id, message).await;
+                    return;
+                }
+                Err(err) => {
+                    self.send_internal_error(
+                        request_id,
+                        format!("failed to update Epiphany state for {thread_uuid}: {err}"),
+                    )
                     .await;
-                return;
-            }
-        };
-
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let applied = match apply_thread_epiphany_update(thread.as_ref(), expected_revision, patch)
-            .await
-        {
-            Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to update Epiphany state for {thread_uuid}: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+                    return;
+                }
+            };
         let changed_fields = applied.changed_fields;
         let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyUpdateResponse {
@@ -611,17 +534,13 @@ impl CodexMessageProcessor {
         };
 
         self.outgoing.send_response(request_id, response).await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::Update,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::Update,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 
     pub(super) async fn thread_epiphany_job_launch(
@@ -645,25 +564,9 @@ impl CodexMessageProcessor {
             max_runtime_seconds,
         } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
+        let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
+            Some(thread) => thread,
+            None => return,
         };
 
         let launch_document = map_core_worker_launch_document(launch_document);
@@ -716,17 +619,13 @@ impl CodexMessageProcessor {
                 },
             )
             .await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::JobLaunch,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 
     pub(super) async fn thread_epiphany_job_interrupt(
@@ -741,25 +640,9 @@ impl CodexMessageProcessor {
             reason,
         } = params;
 
-        let thread_uuid = match ThreadId::from_string(&thread_id) {
-            Ok(id) => id,
-            Err(err) => {
-                self.send_invalid_request_error(request_id, format!("invalid thread id: {err}"))
-                    .await;
-                return;
-            }
-        };
-
-        let thread = match self.thread_manager.get_thread(thread_uuid).await {
-            Ok(thread) => thread,
-            Err(_) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread not loaded: {thread_uuid}"),
-                )
-                .await;
-                return;
-            }
+        let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
+            Some(thread) => thread,
+            None => return,
         };
 
         let applied = match interrupt_thread_epiphany_job(
@@ -800,16 +683,12 @@ impl CodexMessageProcessor {
                 },
             )
             .await;
-        self.outgoing
-            .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
-                    thread_uuid.to_string(),
-                    ThreadEpiphanyStateUpdatedSource::JobInterrupt,
-                    epiphany_state.revision,
-                    changed_fields,
-                    epiphany_state,
-                ),
-            ))
-            .await;
+        self.send_epiphany_state_updated(
+            thread_uuid,
+            ThreadEpiphanyStateUpdatedSource::JobInterrupt,
+            changed_fields,
+            epiphany_state,
+        )
+        .await;
     }
 }
