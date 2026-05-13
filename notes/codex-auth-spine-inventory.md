@@ -171,13 +171,14 @@ contract and active runtime-link conflicts, then returns the durable job binding
 and runtime link. Vendored `CodexThread` is still a persistence adapter for the
 compatibility route, not the owner of that state mechanics.
 
-The Epiphany state-update contract shape has also left vendored Codex.
-`epiphany-core::EpiphanyStateUpdate` now owns the update document used by the
-compatibility `thread/epiphany/update`, promotion, accept, and launch paths.
-`codex-core` re-exports it only as a compatibility alias. Validation and
-mutation application are still in `CodexThread`; those are the next state-write
-mechanics to extract before the Codex thread can honestly call itself a
-persistence adapter.
+The Epiphany state-update contract and mutation law have also left vendored
+Codex. `epiphany-core::EpiphanyStateUpdate` now owns the update document used
+by the compatibility `thread/epiphany/update`, promotion, accept, and launch
+paths. `epiphany-core::epiphany_state_update_validation_errors` and
+`epiphany-core::apply_epiphany_state_update` own typed validation and mutation
+application. `codex-core` re-exports the contract only as a compatibility
+alias, and `CodexThread` now calls native state-update functions around its
+remaining revision check, persistence validation, and rollout/session writeback.
 
 The bad news is useful: the current spine still drags in `codex-api` and its
 large transport dependency stack. That is tolerable as a sealed compatibility
