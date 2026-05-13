@@ -772,7 +772,6 @@ fn make_connector(id: &str, name: &str) -> AppInfo {
         install_url: None,
         is_accessible: true,
         is_enabled: true,
-        plugin_display_names: Vec::new(),
     }
 }
 

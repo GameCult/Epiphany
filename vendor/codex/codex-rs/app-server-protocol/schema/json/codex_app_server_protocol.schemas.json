@@ -5342,13 +5342,6 @@
           },
           "name": {
             "type": "string"
-          },
-          "pluginDisplayNames": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
           }
         },
         "required": [

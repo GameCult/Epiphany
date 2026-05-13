@@ -410,7 +410,6 @@ mod tests {
             },
             connector_id: None,
             connector_name: None,
-            plugin_display_names: Vec::new(),
             connector_description: None,
         }
     }

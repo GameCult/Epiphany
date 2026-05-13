@@ -1,5 +1,6 @@
 use super::*;
 use codex_config::Constrained;
+use codex_config::McpServerTransportConfig;
 use codex_protocol::protocol::AskForApproval;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;

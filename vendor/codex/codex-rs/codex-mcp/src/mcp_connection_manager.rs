@@ -116,8 +116,6 @@ pub struct ToolInfo {
     pub tool: Tool,
     pub connector_id: Option<String>,
     pub connector_name: Option<String>,
-    #[serde(default)]
-    pub plugin_display_names: Vec<String>,
     pub connector_description: Option<String>,
 }
 
@@ -1234,7 +1232,6 @@ async fn list_tools_for_client_uncached(
                 tool: tool.tool,
                 connector_id: tool.connector_id,
                 connector_name,
-                plugin_display_names: Vec::new(),
                 connector_description,
             }
         })

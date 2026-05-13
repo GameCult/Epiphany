@@ -108,15 +108,6 @@ fn build_mcp_search_text(info: &ToolInfo) -> String {
     }
 
     parts.extend(
-        info.plugin_display_names
-            .iter()
-            .map(String::as_str)
-            .map(str::trim)
-            .filter(|name| !name.is_empty())
-            .map(str::to_string),
-    );
-
-    parts.extend(
         info.tool
             .input_schema
             .get("properties")

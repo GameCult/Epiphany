@@ -60,7 +60,6 @@ fn mcp_tool_info(tool: rmcp::model::Tool) -> ToolInfo {
         tool,
         connector_id: None,
         connector_name: None,
-        plugin_display_names: Vec::new(),
         connector_description: None,
     }
 }
@@ -79,7 +78,6 @@ fn mcp_tool_info_with_display_name(display_name: &str, tool: rmcp::model::Tool) 
         tool,
         connector_id: None,
         connector_name: None,
-        plugin_display_names: Vec::new(),
         connector_description: None,
     }
 }
@@ -213,7 +211,7 @@ async fn multi_agent_v2_tools_config() -> ToolsConfig {
 }
 
 fn multi_agent_v2_spawn_agent_description(tools_config: &ToolsConfig) -> String {
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         tools_config,
         /*mcp_tools*/ None,
         /*deferred_mcp_tools*/ None,
@@ -240,7 +238,7 @@ async fn model_info_from_models_json(slug: &str) -> ModelInfo {
 }
 
 /// Builds the tool registry builder while collecting tool specs for later serialization.
-fn build_specs(
+fn build_registry_specs(
     config: &ToolsConfig,
     mcp_tools: Option<HashMap<String, ToolInfo>>,
     deferred_mcp_tools: Option<HashMap<String, ToolInfo>>,
@@ -262,7 +260,7 @@ fn build_specs_with_unavailable_tools(
     unavailable_called_tools: Vec<ToolName>,
     dynamic_tools: &[DynamicToolSpec],
 ) -> ToolRegistryBuilder {
-    build_specs(
+    super::build_specs(
         config,
         mcp_tools,
         deferred_mcp_tools,
@@ -313,7 +311,7 @@ async fn get_memory_requires_feature_flag() {
         sandbox_policy: &SandboxPolicy::DangerFullAccess,
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         /*mcp_tools*/ None,
         /*deferred_mcp_tools*/ None,
@@ -627,7 +625,7 @@ async fn test_build_specs_default_shell_present() {
         sandbox_policy: &SandboxPolicy::DangerFullAccess,
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         Some(HashMap::new()),
         /*deferred_mcp_tools*/ None,
@@ -774,7 +772,7 @@ async fn search_tool_description_handles_no_enabled_mcp_tools() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         /*mcp_tools*/ None,
         Some(HashMap::new()),
@@ -808,7 +806,7 @@ async fn search_tool_description_falls_back_to_connector_name_without_descriptio
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         /*mcp_tools*/ None,
         Some(HashMap::from([(
@@ -825,7 +823,6 @@ async fn search_tool_description_falls_back_to_connector_name_without_descriptio
                 ),
                 connector_id: Some("calendar".to_string()),
                 connector_name: Some("Calendar".to_string()),
-                plugin_display_names: Vec::new(),
                 connector_description: None,
             },
         )])),
@@ -859,7 +856,7 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (_, registry) = build_specs(
+    let (_, registry) = build_registry_specs(
         &tools_config,
         /*mcp_tools*/ None,
         Some(HashMap::from([
@@ -878,7 +875,6 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
                     connector_id: Some("calendar".to_string()),
                     connector_name: Some("Calendar".to_string()),
                     connector_description: None,
-                    plugin_display_names: Vec::new(),
                 },
             ),
             (
@@ -896,7 +892,6 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
                     connector_id: Some("calendar".to_string()),
                     connector_name: Some("Calendar".to_string()),
                     connector_description: None,
-                    plugin_display_names: Vec::new(),
                 },
             ),
             (
@@ -910,7 +905,6 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
                     connector_id: None,
                     connector_name: None,
                     connector_description: None,
-                    plugin_display_names: Vec::new(),
                 },
             ),
         ])),
@@ -944,7 +938,7 @@ async fn direct_mcp_tools_register_namespaced_handlers() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (_, registry) = build_specs(
+    let (_, registry) = build_registry_specs(
         &tools_config,
         Some(HashMap::from([(
             "mcp__test_server__echo".to_string(),
@@ -1030,7 +1024,7 @@ async fn test_mcp_tool_property_missing_type_defaults_to_string() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         Some(HashMap::from([(
             "dash/search".to_string(),
@@ -1093,7 +1087,7 @@ async fn test_mcp_tool_preserves_integer_schema() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         Some(HashMap::from([(
             "dash/paginate".to_string(),
@@ -1155,7 +1149,7 @@ async fn test_mcp_tool_array_without_items_gets_default_string_items() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         Some(HashMap::from([(
             "dash/tags".to_string(),
@@ -1219,7 +1213,7 @@ async fn test_mcp_tool_anyof_defaults_to_string() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         Some(HashMap::from([(
             "dash/value".to_string(),
@@ -1287,7 +1281,7 @@ async fn test_get_openai_tools_mcp_tools_with_additional_properties_schema() {
         sandbox_policy: &SandboxPolicy::DangerFullAccess,
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
-    let (tools, _) = build_specs(
+    let (tools, _) = build_registry_specs(
         &tools_config,
         Some(HashMap::from([(
             "test_server/do_something_cool".to_string(),

@@ -818,6 +818,14 @@ surface. If a future subsystem wants missing-tool installation, it needs an
 Epiphany-owned typed MCP/CultNet adapter contract; do not resurrect this Codex
 marketplace product path.
 
+Plugin provenance has also been cut from connector/app metadata. `AppInfo` and
+`ToolInfo` no longer carry `plugin_display_names`, connector merge no longer
+unions plugin labels or creates plugin-placeholder app records, tool search no
+longer indexes plugin display names, app-server schemas were regenerated, and
+stale MCP tests for the deleted Codex Apps cache/startup snapshot/provenance
+path were removed. If attribution returns, it belongs in an Epiphany-owned typed
+adapter receipt, not as universal connector state.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests
