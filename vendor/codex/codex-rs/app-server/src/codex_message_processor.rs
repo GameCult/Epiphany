@@ -5,7 +5,6 @@ mod epiphany_state_helpers;
 
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count;
-use self::epiphany_mutation_routes::epiphany_job_launch_changed_fields;
 use self::epiphany_mutation_routes::epiphany_promote_changed_fields;
 use self::epiphany_mutation_routes::epiphany_update_patch_changed_fields;
 use self::epiphany_mutation_routes::reorient_finding_code_refs;

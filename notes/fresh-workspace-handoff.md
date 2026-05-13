@@ -481,9 +481,11 @@ The nineteenth cut moved runtime-spine role/reorient result adaptation out of
 into `epiphany-codex-bridge/src/runtime_results.rs`, then removed
 `use super::*` from `epiphany_state_helpers.rs` so state hydration/patch helpers
 declare their dependencies instead of drinking the whole processor namespace.
-The processor is about 10,430 lines. Remaining Epiphany child modules with
-parent wildcard visibility are `epiphany_read_routes.rs`,
-`epiphany_mutation_routes.rs`, and `epiphany_automation.rs`.
+The processor is about 10,430 lines after that cut.
+The twentieth cut removed `use super::*` from `epiphany_automation.rs` and made
+the coordinator/pre-compaction automation dependencies explicit. The processor
+is about 10,429 lines. Remaining Epiphany child modules with parent wildcard
+visibility are `epiphany_read_routes.rs` and `epiphany_mutation_routes.rs`.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
