@@ -31,7 +31,6 @@ pub(crate) struct CommandPopup {
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct CommandPopupFlags {
     pub(crate) collaboration_modes_enabled: bool,
-    pub(crate) connectors_enabled: bool,
     pub(crate) fast_command_enabled: bool,
     pub(crate) personality_command_enabled: bool,
     pub(crate) realtime_conversation_enabled: bool,
@@ -44,7 +43,6 @@ impl From<CommandPopupFlags> for slash_commands::BuiltinCommandFlags {
     fn from(value: CommandPopupFlags) -> Self {
         Self {
             collaboration_modes_enabled: value.collaboration_modes_enabled,
-            connectors_enabled: value.connectors_enabled,
             fast_command_enabled: value.fast_command_enabled,
             personality_command_enabled: value.personality_command_enabled,
             realtime_conversation_enabled: value.realtime_conversation_enabled,
@@ -62,7 +60,6 @@ impl CommandPopup {
             slash_commands::builtins_for_input(flags.into())
                 .into_iter()
                 .filter(|(name, _)| !name.starts_with("debug"))
-                .filter(|(_, cmd)| *cmd != SlashCommand::Apps)
                 .collect();
         Self {
             command_filter: String::new(),
@@ -352,7 +349,6 @@ mod tests {
     fn collab_command_visible_when_collaboration_modes_enabled() {
         let mut popup = CommandPopup::new(CommandPopupFlags {
             collaboration_modes_enabled: true,
-            connectors_enabled: false,
             fast_command_enabled: false,
             personality_command_enabled: true,
             realtime_conversation_enabled: false,
@@ -372,7 +368,6 @@ mod tests {
     fn plan_command_visible_when_collaboration_modes_enabled() {
         let mut popup = CommandPopup::new(CommandPopupFlags {
             collaboration_modes_enabled: true,
-            connectors_enabled: false,
             fast_command_enabled: false,
             personality_command_enabled: true,
             realtime_conversation_enabled: false,
@@ -392,7 +387,6 @@ mod tests {
     fn personality_command_hidden_when_disabled() {
         let mut popup = CommandPopup::new(CommandPopupFlags {
             collaboration_modes_enabled: true,
-            connectors_enabled: false,
             fast_command_enabled: false,
             personality_command_enabled: false,
             realtime_conversation_enabled: false,
@@ -419,7 +413,6 @@ mod tests {
     fn personality_command_visible_when_enabled() {
         let mut popup = CommandPopup::new(CommandPopupFlags {
             collaboration_modes_enabled: true,
-            connectors_enabled: false,
             fast_command_enabled: false,
             personality_command_enabled: true,
             realtime_conversation_enabled: false,
@@ -439,7 +432,6 @@ mod tests {
     fn settings_command_hidden_when_audio_device_selection_is_disabled() {
         let mut popup = CommandPopup::new(CommandPopupFlags {
             collaboration_modes_enabled: false,
-            connectors_enabled: false,
             fast_command_enabled: false,
             personality_command_enabled: true,
             realtime_conversation_enabled: true,

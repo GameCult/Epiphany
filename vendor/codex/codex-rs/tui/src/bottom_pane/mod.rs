@@ -16,7 +16,6 @@
 use std::path::PathBuf;
 
 use crate::app::app_server_requests::ResolvedAppServerRequest;
-use crate::app_event::ConnectorsSnapshot;
 use crate::app_event_sender::AppEventSender;
 use crate::bottom_pane::pending_input_preview::PendingInputPreview;
 use crate::bottom_pane::pending_thread_approvals::PendingThreadApprovals;
@@ -42,7 +41,6 @@ use ratatui::layout::Rect;
 use ratatui::text::Line;
 use std::time::Duration;
 
-mod app_link_view;
 mod approval_overlay;
 mod mcp_server_elicitation;
 mod multi_select_picker;
@@ -50,8 +48,6 @@ mod request_user_input;
 mod status_line_setup;
 mod status_surface_preview;
 mod title_setup;
-pub(crate) use app_link_view::AppLinkView;
-pub(crate) use app_link_view::AppLinkViewParams;
 pub(crate) use approval_overlay::ApprovalOverlay;
 pub(crate) use approval_overlay::ApprovalRequest;
 pub(crate) use approval_overlay::format_requested_permissions_rule;
@@ -70,7 +66,7 @@ pub(crate) struct LocalImageAttachment {
 pub(crate) struct MentionBinding {
     /// Mention token text without the leading `$`.
     pub(crate) mention: String,
-    /// Canonical mention target (for example `app://...` or absolute SKILL.md path).
+    /// Canonical mention target (for example `mcp://...` or absolute SKILL.md path).
     pub(crate) path: String,
 }
 mod chat_composer;
@@ -87,7 +83,6 @@ mod skill_popup;
 mod skills_toggle_view;
 pub(crate) mod slash_commands;
 pub(crate) use footer::CollaborationModeIndicator;
-pub(crate) use list_selection_view::ColumnWidthMode;
 pub(crate) use list_selection_view::SelectionViewParams;
 pub(crate) use list_selection_view::SideContentWidth;
 pub(crate) use list_selection_view::popup_content_width;
@@ -264,11 +259,6 @@ impl BottomPane {
         self.request_redraw();
     }
 
-    pub fn set_connectors_snapshot(&mut self, snapshot: Option<ConnectorsSnapshot>) {
-        self.composer.set_connector_mentions(snapshot);
-        self.request_redraw();
-    }
-
     pub fn take_mention_bindings(&mut self) -> Vec<MentionBinding> {
         self.composer.take_mention_bindings()
     }
@@ -296,10 +286,6 @@ impl BottomPane {
     pub fn set_collaboration_modes_enabled(&mut self, enabled: bool) {
         self.composer.set_collaboration_modes_enabled(enabled);
         self.request_redraw();
-    }
-
-    pub fn set_connectors_enabled(&mut self, enabled: bool) {
-        self.composer.set_connectors_enabled(enabled);
     }
 
     #[cfg(target_os = "windows")]
@@ -822,33 +808,6 @@ impl BottomPane {
     pub(crate) fn show_selection_view(&mut self, params: list_selection_view::SelectionViewParams) {
         let view = list_selection_view::ListSelectionView::new(params, self.app_event_tx.clone());
         self.push_view(Box::new(view));
-    }
-
-    /// Replace the active selection view when it matches `view_id`.
-    pub(crate) fn replace_selection_view_if_active(
-        &mut self,
-        view_id: &'static str,
-        params: list_selection_view::SelectionViewParams,
-    ) -> bool {
-        let is_match = self
-            .view_stack
-            .last()
-            .is_some_and(|view| view.view_id() == Some(view_id));
-        if !is_match {
-            return false;
-        }
-
-        self.view_stack.pop();
-        let view = list_selection_view::ListSelectionView::new(params, self.app_event_tx.clone());
-        self.push_view(Box::new(view));
-        true
-    }
-
-    pub(crate) fn selected_index_for_active_view(&self, view_id: &'static str) -> Option<usize> {
-        self.view_stack
-            .last()
-            .filter(|view| view.view_id() == Some(view_id))
-            .and_then(|view| view.selected_index())
     }
 
     /// Update the pending-input preview shown above the composer.

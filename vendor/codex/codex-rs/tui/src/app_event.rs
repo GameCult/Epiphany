@@ -12,7 +12,6 @@ use std::path::PathBuf;
 
 use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
-use codex_app_server_protocol::AppInfo;
 use codex_app_server_protocol::McpServerStatus;
 use codex_app_server_protocol::McpServerStatusDetail;
 use codex_app_server_protocol::SkillsListResponse;
@@ -69,12 +68,6 @@ impl RealtimeAudioDeviceKind {
 pub(crate) enum WindowsSandboxEnableMode {
     Elevated,
     Legacy,
-}
-
-#[derive(Debug, Clone)]
-#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
-pub(crate) struct ConnectorsSnapshot {
-    pub(crate) connectors: Vec<AppInfo>,
 }
 
 /// Distinguishes why a rate-limit refresh was requested so the completion
@@ -197,35 +190,8 @@ pub(crate) enum AppEvent {
         result: Result<AddCreditsNudgeEmailStatus, String>,
     },
 
-    /// Result of prefetching connectors.
-    ConnectorsLoaded {
-        result: Result<ConnectorsSnapshot, String>,
-        is_final: bool,
-    },
-
     /// Result of computing a `/diff` command.
     DiffResult(String),
-
-    /// Open the app link view in the bottom pane.
-    OpenAppLink {
-        app_id: String,
-        title: String,
-        description: Option<String>,
-        instructions: String,
-        url: String,
-        is_installed: bool,
-        is_enabled: bool,
-    },
-
-    /// Open the provided URL in the user's browser.
-    OpenUrlInBrowser {
-        url: String,
-    },
-
-    /// Refresh app connector state and mention bindings.
-    RefreshConnectors {
-        force_refetch: bool,
-    },
 
     /// Fetch MCP inventory via app-server RPCs and render it into history.
     FetchMcpInventory {
@@ -473,12 +439,6 @@ pub(crate) enum AppEvent {
     /// Enable or disable a skill by path.
     SetSkillEnabled {
         path: AbsolutePathBuf,
-        enabled: bool,
-    },
-
-    /// Enable or disable an app by connector ID.
-    SetAppEnabled {
-        id: String,
         enabled: bool,
     },
 

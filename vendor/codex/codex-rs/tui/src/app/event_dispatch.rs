@@ -274,32 +274,6 @@ impl App {
                 ));
                 tui.frame_requester().schedule_frame();
             }
-            AppEvent::OpenAppLink {
-                app_id,
-                title,
-                description,
-                instructions,
-                url,
-                is_installed,
-                is_enabled,
-            } => {
-                self.chat_widget
-                    .open_app_link_view(crate::bottom_pane::AppLinkViewParams {
-                        app_id,
-                        title,
-                        description,
-                        instructions,
-                        url,
-                        is_installed,
-                        is_enabled,
-                    });
-            }
-            AppEvent::OpenUrlInBrowser { url } => {
-                self.open_url_in_browser(url);
-            }
-            AppEvent::RefreshConnectors { force_refetch } => {
-                self.chat_widget.refresh_connectors(force_refetch);
-            }
             AppEvent::FetchMcpInventory { detail } => {
                 self.fetch_mcp_inventory(app_server, detail);
             }
@@ -356,9 +330,6 @@ impl App {
                     }
                 }
             },
-            AppEvent::ConnectorsLoaded { result, is_final } => {
-                self.chat_widget.on_connectors_loaded(result, is_final);
-            }
             AppEvent::UpdateReasoningEffort(effort) => {
                 self.on_update_reasoning_effort(effort);
             }
@@ -1211,55 +1182,6 @@ impl App {
                         let path_display = path.display();
                         self.chat_widget.add_error_message(format!(
                             "Failed to update skill config for {path_display}: {err}"
-                        ));
-                    }
-                }
-            }
-            AppEvent::SetAppEnabled { id, enabled } => {
-                let edits = if enabled {
-                    vec![
-                        ConfigEdit::ClearPath {
-                            segments: vec!["apps".to_string(), id.clone(), "enabled".to_string()],
-                        },
-                        ConfigEdit::ClearPath {
-                            segments: vec![
-                                "apps".to_string(),
-                                id.clone(),
-                                "disabled_reason".to_string(),
-                            ],
-                        },
-                    ]
-                } else {
-                    vec![
-                        ConfigEdit::SetPath {
-                            segments: vec!["apps".to_string(), id.clone(), "enabled".to_string()],
-                            value: false.into(),
-                        },
-                        ConfigEdit::SetPath {
-                            segments: vec![
-                                "apps".to_string(),
-                                id.clone(),
-                                "disabled_reason".to_string(),
-                            ],
-                            value: "user".into(),
-                        },
-                    ]
-                };
-                match ConfigEditsBuilder::new(&self.config.codex_home)
-                    .with_edits(edits)
-                    .apply()
-                    .await
-                {
-                    Ok(()) => {
-                        self.chat_widget.update_connector_enabled(&id, enabled);
-                        if let Err(err) = self.refresh_in_memory_config_from_disk().await {
-                            tracing::warn!(error = %err, "failed to refresh config after app toggle");
-                        }
-                        self.chat_widget.submit_op(AppCommand::reload_user_config());
-                    }
-                    Err(err) => {
-                        self.chat_widget.add_error_message(format!(
-                            "Failed to update app config for {id}: {err}"
                         ));
                     }
                 }

@@ -361,9 +361,6 @@ impl ChatWidget {
             SlashCommand::Mcp => {
                 self.add_mcp_output(McpServerStatusDetail::ToolsAndAuthOnly);
             }
-            SlashCommand::Apps => {
-                self.add_connectors_output();
-            }
             SlashCommand::Rollout => {
                 if let Some(path) = self.rollout_path() {
                     self.add_info_message(
@@ -698,7 +695,6 @@ impl ChatWidget {
 
         slash_commands::BuiltinCommandFlags {
             collaboration_modes_enabled: self.collaboration_modes_enabled(),
-            connectors_enabled: self.connectors_enabled(),
             fast_command_enabled: self.fast_mode_enabled(),
             personality_command_enabled: self.config.features.enabled(Feature::Personality),
             realtime_conversation_enabled: self.realtime_conversation_enabled(),
@@ -721,7 +717,6 @@ impl ChatWidget {
             | SlashCommand::MemoryDrop
             | SlashCommand::MemoryUpdate
             | SlashCommand::Mcp
-            | SlashCommand::Apps
             | SlashCommand::Rollout
             | SlashCommand::Copy
             | SlashCommand::Diff

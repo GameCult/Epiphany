@@ -1004,7 +1004,7 @@ fn rendered_user_message_event_from_inputs_matches_flattened_user_message_shape(
         },
         UserInput::Mention {
             name: "repo".to_string(),
-            path: "app://repo".to_string(),
+            path: "mcp://repo".to_string(),
         },
         UserInput::Text {
             text: "world".to_string(),

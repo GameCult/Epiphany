@@ -839,6 +839,15 @@ Codex Apps connector filtering functions that no longer exist in the live
 module. Do not recreate those tests unless the app connector product is being
 rebuilt on purpose, which is not the current objective.
 
+The TUI app connector surface is deleted, not hard-off. `/apps` is gone as a
+slash command, the app-link view file is deleted, connector AppEvent variants
+and dispatch arms are gone, `ChatWidget` no longer owns connector cache, popup,
+or prefetch state, the composer no longer generates app mentions, `app://` is
+no longer a blessed mention-codec tool path, and stale app-popup tests were
+deleted. The browser-opening shim and one-use selection-refresh plumbing died
+with the popup. Verification: `cargo check -p codex-tui` passed; `cargo test -p
+codex-tui --lib --no-run` timed out after 3 minutes without a diagnostic.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests
@@ -892,10 +901,7 @@ compatibility stump to cut next, not auth/model spine machinery.
 That stump is now cut from TUI. `/plugins` is no longer a slash command, the
 `chatwidget/plugins.rs` marketplace popup module is deleted, plugin AppEvent
 variants and background RPC helpers are gone, plugin enablement write queuing
-is gone, and the plugin marketplace popup tests/helpers were deleted. TUI still
-has ordinary app connector fields whose protocol shape mentions historical
-`plugin_display_names`; those are connector metadata compatibility, not plugin
-runtime authority.
+is gone, and the plugin marketplace popup tests/helpers were deleted.
 
 The app-server plugin JSON-RPC verbs are gone too. `plugin/list`,
 `plugin/read`, `plugin/install`, and `plugin/uninstall` are no longer

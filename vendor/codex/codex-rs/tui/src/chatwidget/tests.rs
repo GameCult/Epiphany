@@ -213,7 +213,6 @@ pub(super) use tokio::sync::mpsc::error::TryRecvError;
 pub(super) use tokio::sync::mpsc::unbounded_channel;
 pub(super) use toml::Value as TomlValue;
 
-
 pub(super) fn chatwidget_snapshot_dir() -> PathBuf {
     let snapshot_file = codex_utils_cargo_bin::find_resource!(
         "src/chatwidget/snapshots/codex_tui__chatwidget__tests__chatwidget_tall.snap"

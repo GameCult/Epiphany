@@ -6,17 +6,6 @@
 use super::*;
 
 impl App {
-    pub(super) fn open_url_in_browser(&mut self, url: String) {
-        if let Err(err) = webbrowser::open(&url) {
-            self.chat_widget
-                .add_error_message(format!("Failed to open browser for {url}: {err}"));
-            return;
-        }
-
-        self.chat_widget
-            .add_info_message(format!("Opened {url} in your browser."), /*hint*/ None);
-    }
-
     pub(super) fn clear_ui_header_lines_with_version(
         &self,
         width: u16,

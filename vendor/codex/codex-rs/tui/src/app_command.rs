@@ -238,10 +238,6 @@ impl AppCommand {
         Self(Op::RequestPermissionsResponse { id, response })
     }
 
-    pub(crate) fn reload_user_config() -> Self {
-        Self(Op::ReloadUserConfig)
-    }
-
     pub(crate) fn list_skills(cwds: Vec<PathBuf>, force_reload: bool) -> Self {
         Self(Op::ListSkills { cwds, force_reload })
     }
