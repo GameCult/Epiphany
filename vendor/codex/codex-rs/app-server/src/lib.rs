@@ -76,6 +76,7 @@ mod config_manager_service;
 mod device_key_api;
 mod dynamic_tools;
 mod epiphany_context;
+mod epiphany_coordinator;
 mod epiphany_invalidation;
 mod epiphany_jobs;
 mod epiphany_launch;

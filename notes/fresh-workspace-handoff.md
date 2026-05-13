@@ -428,14 +428,17 @@ projection into `vendor/codex/codex-rs/app-server/src/epiphany_retrieve.rs`,
 taking the processor to about 19,307 lines. The ninth cut moved pressure and
 pre-compaction checkpoint projection into
 `vendor/codex/codex-rs/app-server/src/epiphany_pressure.rs`, taking the
-processor to about 19,232 lines.
+processor to about 19,232 lines. The tenth cut moved CRRC/coordinator/role-board
+projection plus acceptance/evidence signal helpers into
+`vendor/codex/codex-rs/app-server/src/epiphany_coordinator.rs`, taking the
+processor to about 18,362 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
-Continue with the actual whale-carcass cut: extract Epiphany roles/coordinator
-projection mappers as one owned block, then route handlers and remaining policy-shaped code out of
+Continue with the actual whale-carcass cut: extract Epiphany route handlers,
+accept/launch mutations, and remaining policy-shaped code out of
 `codex_message_processor.rs` into Epiphany-owned app-server modules, moving
 logic further into `epiphany-core` whenever it owns real policy. Success is a
 visibly smaller `codex_message_processor.rs`, not merely nicer payload names. Do
