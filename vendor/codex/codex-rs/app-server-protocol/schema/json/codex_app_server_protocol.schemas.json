@@ -648,102 +648,6 @@
             },
             "method": {
               "enum": [
-                "marketplace/add"
-              ],
-              "title": "Marketplace/addRequestMethod",
-              "type": "string"
-            },
-            "params": {
-              "$ref": "#/definitions/v2/MarketplaceAddParams"
-            }
-          },
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "title": "Marketplace/addRequest",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/v2/RequestId"
-            },
-            "method": {
-              "enum": [
-                "marketplace/remove"
-              ],
-              "title": "Marketplace/removeRequestMethod",
-              "type": "string"
-            },
-            "params": {
-              "$ref": "#/definitions/v2/MarketplaceRemoveParams"
-            }
-          },
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "title": "Marketplace/removeRequest",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/v2/RequestId"
-            },
-            "method": {
-              "enum": [
-                "plugin/list"
-              ],
-              "title": "Plugin/listRequestMethod",
-              "type": "string"
-            },
-            "params": {
-              "$ref": "#/definitions/v2/PluginListParams"
-            }
-          },
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "title": "Plugin/listRequest",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/v2/RequestId"
-            },
-            "method": {
-              "enum": [
-                "plugin/read"
-              ],
-              "title": "Plugin/readRequestMethod",
-              "type": "string"
-            },
-            "params": {
-              "$ref": "#/definitions/v2/PluginReadParams"
-            }
-          },
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "title": "Plugin/readRequest",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/v2/RequestId"
-            },
-            "method": {
-              "enum": [
                 "app/list"
               ],
               "title": "App/listRequestMethod",
@@ -1071,54 +975,6 @@
             "params"
           ],
           "title": "Skills/config/writeRequest",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/v2/RequestId"
-            },
-            "method": {
-              "enum": [
-                "plugin/install"
-              ],
-              "title": "Plugin/installRequestMethod",
-              "type": "string"
-            },
-            "params": {
-              "$ref": "#/definitions/v2/PluginInstallParams"
-            }
-          },
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "title": "Plugin/installRequest",
-          "type": "object"
-        },
-        {
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/v2/RequestId"
-            },
-            "method": {
-              "enum": [
-                "plugin/uninstall"
-              ],
-              "title": "Plugin/uninstallRequestMethod",
-              "type": "string"
-            },
-            "params": {
-              "$ref": "#/definitions/v2/PluginUninstallParams"
-            }
-          },
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "title": "Plugin/uninstallRequest",
           "type": "object"
         },
         {
@@ -5710,38 +5566,6 @@
         ],
         "type": "object"
       },
-      "AppSummary": {
-        "description": "EXPERIMENTAL - app metadata summary for plugin responses.",
-        "properties": {
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "type": "string"
-          },
-          "installUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "needsAuth": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "needsAuth"
-        ],
-        "type": "object"
-      },
       "AppToolApproval": {
         "enum": [
           "auto",
@@ -8492,12 +8316,19 @@
         ],
         "type": "string"
       },
+      "EpiphanyModeKind": {
+        "enum": [
+          "plan",
+          "default"
+        ],
+        "type": "string"
+      },
       "EpiphanyModeState": {
         "properties": {
           "kind": {
             "anyOf": [
               {
-                "$ref": "#/definitions/v2/ModeKind"
+                "$ref": "#/definitions/v2/EpiphanyModeKind"
               },
               {
                 "type": "null"
@@ -11547,117 +11378,6 @@
         "title": "LogoutAccountResponse",
         "type": "object"
       },
-      "MarketplaceAddParams": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "refName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source": {
-            "type": "string"
-          },
-          "sparsePaths": {
-            "items": {
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "source"
-        ],
-        "title": "MarketplaceAddParams",
-        "type": "object"
-      },
-      "MarketplaceAddResponse": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "alreadyAdded": {
-            "type": "boolean"
-          },
-          "installedRoot": {
-            "$ref": "#/definitions/v2/AbsolutePathBuf"
-          },
-          "marketplaceName": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "alreadyAdded",
-          "installedRoot",
-          "marketplaceName"
-        ],
-        "title": "MarketplaceAddResponse",
-        "type": "object"
-      },
-      "MarketplaceInterface": {
-        "properties": {
-          "displayName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "type": "object"
-      },
-      "MarketplaceLoadErrorInfo": {
-        "properties": {
-          "marketplacePath": {
-            "$ref": "#/definitions/v2/AbsolutePathBuf"
-          },
-          "message": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "marketplacePath",
-          "message"
-        ],
-        "type": "object"
-      },
-      "MarketplaceRemoveParams": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "marketplaceName": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "marketplaceName"
-        ],
-        "title": "MarketplaceRemoveParams",
-        "type": "object"
-      },
-      "MarketplaceRemoveResponse": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "installedRoot": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "marketplaceName": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "marketplaceName"
-        ],
-        "title": "MarketplaceRemoveResponse",
-        "type": "object"
-      },
       "McpAuthStatus": {
         "enum": [
           "unsupported",
@@ -12604,522 +12324,6 @@
           "unknown"
         ],
         "type": "string"
-      },
-      "PluginAuthPolicy": {
-        "enum": [
-          "ON_INSTALL",
-          "ON_USE"
-        ],
-        "type": "string"
-      },
-      "PluginDetail": {
-        "properties": {
-          "apps": {
-            "items": {
-              "$ref": "#/definitions/v2/AppSummary"
-            },
-            "type": "array"
-          },
-          "description": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "marketplaceName": {
-            "type": "string"
-          },
-          "marketplacePath": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "mcpServers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "skills": {
-            "items": {
-              "$ref": "#/definitions/v2/SkillSummary"
-            },
-            "type": "array"
-          },
-          "summary": {
-            "$ref": "#/definitions/v2/PluginSummary"
-          }
-        },
-        "required": [
-          "apps",
-          "marketplaceName",
-          "mcpServers",
-          "skills",
-          "summary"
-        ],
-        "type": "object"
-      },
-      "PluginInstallParams": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "marketplacePath": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "pluginName": {
-            "type": "string"
-          },
-          "remoteMarketplaceName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "pluginName"
-        ],
-        "title": "PluginInstallParams",
-        "type": "object"
-      },
-      "PluginInstallPolicy": {
-        "enum": [
-          "NOT_AVAILABLE",
-          "AVAILABLE",
-          "INSTALLED_BY_DEFAULT"
-        ],
-        "type": "string"
-      },
-      "PluginInstallResponse": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "appsNeedingAuth": {
-            "items": {
-              "$ref": "#/definitions/v2/AppSummary"
-            },
-            "type": "array"
-          },
-          "authPolicy": {
-            "$ref": "#/definitions/v2/PluginAuthPolicy"
-          }
-        },
-        "required": [
-          "appsNeedingAuth",
-          "authPolicy"
-        ],
-        "title": "PluginInstallResponse",
-        "type": "object"
-      },
-      "PluginInterface": {
-        "properties": {
-          "brandColor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "capabilities": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "category": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "composerIcon": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Local composer icon path, resolved from the installed plugin package."
-          },
-          "composerIconUrl": {
-            "description": "Remote composer icon URL from the plugin catalog.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "defaultPrompt": {
-            "description": "Starter prompts for the plugin. Capped at 3 entries with a maximum of 128 characters per entry.",
-            "items": {
-              "type": "string"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "developerName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "displayName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "logo": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Local logo path, resolved from the installed plugin package."
-          },
-          "logoUrl": {
-            "description": "Remote logo URL from the plugin catalog.",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "longDescription": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "privacyPolicyUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "screenshotUrls": {
-            "description": "Remote screenshot URLs from the plugin catalog.",
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "screenshots": {
-            "description": "Local screenshot paths, resolved from the installed plugin package.",
-            "items": {
-              "$ref": "#/definitions/v2/AbsolutePathBuf"
-            },
-            "type": "array"
-          },
-          "shortDescription": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "termsOfServiceUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "websiteUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "capabilities",
-          "screenshotUrls",
-          "screenshots"
-        ],
-        "type": "object"
-      },
-      "PluginListParams": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "cwds": {
-            "description": "Optional working directories used to discover repo marketplaces. When omitted, only home-scoped marketplaces and the official curated marketplace are considered.",
-            "items": {
-              "$ref": "#/definitions/v2/AbsolutePathBuf"
-            },
-            "type": [
-              "array",
-              "null"
-            ]
-          }
-        },
-        "title": "PluginListParams",
-        "type": "object"
-      },
-      "PluginListResponse": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "featuredPluginIds": {
-            "default": [],
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "marketplaceLoadErrors": {
-            "default": [],
-            "items": {
-              "$ref": "#/definitions/v2/MarketplaceLoadErrorInfo"
-            },
-            "type": "array"
-          },
-          "marketplaces": {
-            "items": {
-              "$ref": "#/definitions/v2/PluginMarketplaceEntry"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "marketplaces"
-        ],
-        "title": "PluginListResponse",
-        "type": "object"
-      },
-      "PluginMarketplaceEntry": {
-        "properties": {
-          "interface": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/MarketplaceInterface"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "path": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Local marketplace file path when the marketplace is backed by a local file. Remote-only catalog marketplaces do not have a local path."
-          },
-          "plugins": {
-            "items": {
-              "$ref": "#/definitions/v2/PluginSummary"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "name",
-          "plugins"
-        ],
-        "type": "object"
-      },
-      "PluginReadParams": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "marketplacePath": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "pluginName": {
-            "type": "string"
-          },
-          "remoteMarketplaceName": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "pluginName"
-        ],
-        "title": "PluginReadParams",
-        "type": "object"
-      },
-      "PluginReadResponse": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "plugin": {
-            "$ref": "#/definitions/v2/PluginDetail"
-          }
-        },
-        "required": [
-          "plugin"
-        ],
-        "title": "PluginReadResponse",
-        "type": "object"
-      },
-      "PluginSource": {
-        "oneOf": [
-          {
-            "properties": {
-              "path": {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              "type": {
-                "enum": [
-                  "local"
-                ],
-                "title": "LocalPluginSourceType",
-                "type": "string"
-              }
-            },
-            "required": [
-              "path",
-              "type"
-            ],
-            "title": "LocalPluginSource",
-            "type": "object"
-          },
-          {
-            "properties": {
-              "path": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "refName": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "sha": {
-                "type": [
-                  "string",
-                  "null"
-                ]
-              },
-              "type": {
-                "enum": [
-                  "git"
-                ],
-                "title": "GitPluginSourceType",
-                "type": "string"
-              },
-              "url": {
-                "type": "string"
-              }
-            },
-            "required": [
-              "type",
-              "url"
-            ],
-            "title": "GitPluginSource",
-            "type": "object"
-          },
-          {
-            "description": "The plugin is available in the remote catalog. Download metadata is kept server-side and is not exposed through the app-server API.",
-            "properties": {
-              "type": {
-                "enum": [
-                  "remote"
-                ],
-                "title": "RemotePluginSourceType",
-                "type": "string"
-              }
-            },
-            "required": [
-              "type"
-            ],
-            "title": "RemotePluginSource",
-            "type": "object"
-          }
-        ]
-      },
-      "PluginSummary": {
-        "properties": {
-          "authPolicy": {
-            "$ref": "#/definitions/v2/PluginAuthPolicy"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "id": {
-            "type": "string"
-          },
-          "installPolicy": {
-            "$ref": "#/definitions/v2/PluginInstallPolicy"
-          },
-          "installed": {
-            "type": "boolean"
-          },
-          "interface": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/PluginInterface"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "source": {
-            "$ref": "#/definitions/v2/PluginSource"
-          }
-        },
-        "required": [
-          "authPolicy",
-          "enabled",
-          "id",
-          "installPolicy",
-          "installed",
-          "name",
-          "source"
-        ],
-        "type": "object"
-      },
-      "PluginUninstallParams": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "properties": {
-          "pluginId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "pluginId"
-        ],
-        "title": "PluginUninstallParams",
-        "type": "object"
-      },
-      "PluginUninstallResponse": {
-        "$schema": "http://json-schema.org/draft-07/schema#",
-        "title": "PluginUninstallResponse",
-        "type": "object"
       },
       "PluginsMigration": {
         "properties": {
@@ -15004,51 +14208,6 @@
           "admin"
         ],
         "type": "string"
-      },
-      "SkillSummary": {
-        "properties": {
-          "description": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "interface": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/SkillInterface"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "name": {
-            "type": "string"
-          },
-          "path": {
-            "anyOf": [
-              {
-                "$ref": "#/definitions/v2/AbsolutePathBuf"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "shortDescription": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "description",
-          "enabled",
-          "name"
-        ],
-        "type": "object"
       },
       "SkillToolDependency": {
         "properties": {
@@ -18040,6 +17199,306 @@
           "threadId"
         ],
         "type": "object"
+      },
+      "ThreadEpiphanyWorkerLaunchDocument": {
+        "oneOf": [
+          {
+            "properties": {
+              "activeGraphNodeIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "activeSubgoalId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "activeSubgoals": {
+                "items": {
+                  "$ref": "#/definitions/v2/EpiphanySubgoal"
+                },
+                "type": "array"
+              },
+              "churn": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyChurnState"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "documentKind": {
+                "enum": [
+                  "role"
+                ],
+                "type": "string"
+              },
+              "graphCheckpoint": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyGraphCheckpoint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "graphFrontier": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyGraphFrontier"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "graphs": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyGraphs"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "invariants": {
+                "items": {
+                  "$ref": "#/definitions/v2/EpiphanyInvariant"
+                },
+                "type": "array"
+              },
+              "investigationCheckpoint": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyInvestigationCheckpoint"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "objective": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "planning": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyPlanningState"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "recentEvidence": {
+                "items": {
+                  "$ref": "#/definitions/v2/EpiphanyEvidenceRecord"
+                },
+                "type": "array"
+              },
+              "recentObservations": {
+                "items": {
+                  "$ref": "#/definitions/v2/EpiphanyObservation"
+                },
+                "type": "array"
+              },
+              "roleId": {
+                "type": "string"
+              },
+              "scratch": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyScratchPad"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "stateRevision": {
+                "format": "uint64",
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              "threadId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "documentKind",
+              "roleId",
+              "stateRevision",
+              "threadId"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "activeFrontierNodeIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "checkpointChangedPaths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "checkpointCodeRefs": {
+                "items": {
+                  "$ref": "#/definitions/v2/EpiphanyCodeRef"
+                },
+                "type": "array"
+              },
+              "checkpointDirtyPaths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "checkpointDisposition": {
+                "type": "string"
+              },
+              "checkpointEvidenceIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "checkpointFocus": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "checkpointId": {
+                "type": "string"
+              },
+              "checkpointKind": {
+                "type": "string"
+              },
+              "checkpointNextAction": {
+                "type": "string"
+              },
+              "checkpointOpenQuestions": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "checkpointSummary": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "decisionNote": {
+                "type": "string"
+              },
+              "decisionReasons": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "documentKind": {
+                "enum": [
+                  "reorient"
+                ],
+                "type": "string"
+              },
+              "graphStatus": {
+                "type": "string"
+              },
+              "graphs": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyGraphs"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "linkedGraphNodeIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "linkedSubgoalIds": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "mode": {
+                "type": "string"
+              },
+              "pressureLevel": {
+                "type": "string"
+              },
+              "recentEvidence": {
+                "items": {
+                  "$ref": "#/definitions/v2/EpiphanyEvidenceRecord"
+                },
+                "type": "array"
+              },
+              "recentObservations": {
+                "items": {
+                  "$ref": "#/definitions/v2/EpiphanyObservation"
+                },
+                "type": "array"
+              },
+              "retrievalStatus": {
+                "type": "string"
+              },
+              "scratch": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/v2/EpiphanyScratchPad"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "threadId": {
+                "type": "string"
+              },
+              "watcherStatus": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "checkpointDisposition",
+              "checkpointId",
+              "checkpointKind",
+              "checkpointNextAction",
+              "decisionNote",
+              "documentKind",
+              "graphStatus",
+              "mode",
+              "pressureLevel",
+              "retrievalStatus",
+              "threadId",
+              "watcherStatus"
+            ],
+            "type": "object"
+          }
+        ]
       },
       "ThreadForkParams": {
         "$schema": "http://json-schema.org/draft-07/schema#",

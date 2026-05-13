@@ -89,8 +89,6 @@ use codex_app_server_protocol::LoginAccountParams;
 use codex_app_server_protocol::LoginAccountResponse;
 use codex_app_server_protocol::LoginApiKeyParams;
 use codex_app_server_protocol::LogoutAccountResponse;
-use codex_app_server_protocol::MarketplaceAddParams;
-use codex_app_server_protocol::MarketplaceRemoveParams;
 use codex_app_server_protocol::McpResourceReadParams;
 use codex_app_server_protocol::McpResourceReadResponse;
 use codex_app_server_protocol::McpServerOauthLoginCompletedNotification;
@@ -1000,14 +998,6 @@ impl CodexMessageProcessor {
             }
             ClientRequest::SkillsList { request_id, params } => {
                 self.skills_list(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::MarketplaceAdd { request_id, params } => {
-                self.marketplace_add(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::MarketplaceRemove { request_id, params } => {
-                self.marketplace_remove(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::AppsList { request_id, params } => {
@@ -6354,24 +6344,6 @@ impl CodexMessageProcessor {
     async fn skills_list(&self, request_id: ConnectionRequestId, _params: SkillsListParams) {
         self.outgoing
             .send_response(request_id, SkillsListResponse { data: Vec::new() })
-            .await;
-    }
-
-    async fn marketplace_remove(
-        &self,
-        request_id: ConnectionRequestId,
-        _params: MarketplaceRemoveParams,
-    ) {
-        self.send_codex_product_surface_disabled(request_id, "marketplace/remove")
-            .await;
-    }
-
-    async fn marketplace_add(
-        &self,
-        request_id: ConnectionRequestId,
-        _params: MarketplaceAddParams,
-    ) {
-        self.send_codex_product_surface_disabled(request_id, "marketplace/add")
             .await;
     }
 

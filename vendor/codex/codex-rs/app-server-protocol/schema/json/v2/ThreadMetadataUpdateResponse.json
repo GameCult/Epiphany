@@ -1011,12 +1011,19 @@
       ],
       "type": "string"
     },
+    "EpiphanyModeKind": {
+      "enum": [
+        "plan",
+        "default"
+      ],
+      "type": "string"
+    },
     "EpiphanyModeState": {
       "properties": {
         "kind": {
           "anyOf": [
             {
-              "$ref": "#/definitions/ModeKind"
+              "$ref": "#/definitions/EpiphanyModeKind"
             },
             {
               "type": "null"
@@ -2035,14 +2042,6 @@
           "type": "string"
         }
       ]
-    },
-    "ModeKind": {
-      "description": "Initial collaboration mode to use when the TUI starts.",
-      "enum": [
-        "plan",
-        "default"
-      ],
-      "type": "string"
     },
     "NonSteerableTurnKind": {
       "enum": [

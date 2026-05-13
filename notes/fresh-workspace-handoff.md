@@ -884,6 +884,13 @@ and no longer have test-client helper senders. The old `Plugin*` data structs
 remain only as inert protocol-shape residue for orphaned plugin crates such as
 `core-plugins`; they are not live routes.
 
+The app-server marketplace JSON-RPC verbs are gone as well. `marketplace/add`
+and `marketplace/remove` no longer exist as shared `ClientRequest` variants,
+`codex_message_processor.rs` dispatch arms, disabled handlers, test-client
+helpers, README claims, add/remove params/responses, or generated client schema
+entries. Protocol schema regeneration also removed stale plugin request/response
+schema files that had survived after the live plugin routes were cut.
+
 The orphaned `codex-chatgpt` crate is deleted from the vendored workspace. Do
 not confuse that with ChatGPT auth itself: originator strings and login/model
 auth surfaces that preserve the user's Codex subscription compatibility remain

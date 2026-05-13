@@ -325,6 +325,10 @@ current_status:
     stale plugin/marketplace tests were removed instead of preserving
     implementation fossils. The disabled CLI plugin marketplace parser was
     deleted as well: `codex plugin marketplace ...` no longer parses just to
-    reject itself. MCP remains JSON-RPC at the edge; user-declared MCP servers
-    are the only runtime MCP authority.
+    reject itself. App-server `marketplace/add` and `marketplace/remove` are
+    gone too: no shared `ClientRequest` variants, `codex_message_processor.rs`
+    dispatch arms, disabled handlers, test-client helpers, README claims,
+    add/remove params/responses, or generated client schemas remain. MCP remains
+    JSON-RPC at the edge; user-declared MCP servers are the only runtime MCP
+    authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

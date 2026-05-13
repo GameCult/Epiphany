@@ -5785,41 +5785,6 @@ pub struct SkillsListResponse {
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]
-pub struct MarketplaceAddParams {
-    pub source: String,
-    #[ts(optional = nullable)]
-    pub ref_name: Option<String>,
-    #[ts(optional = nullable)]
-    pub sparse_paths: Option<Vec<String>>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct MarketplaceAddResponse {
-    pub marketplace_name: String,
-    pub installed_root: AbsolutePathBuf,
-    pub already_added: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct MarketplaceRemoveParams {
-    pub marketplace_name: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct MarketplaceRemoveResponse {
-    pub marketplace_name: String,
-    pub installed_root: Option<AbsolutePathBuf>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
 pub struct PluginListParams {
     /// Optional working directories used to discover repo marketplaces. When omitted,
     /// only home-scoped marketplaces and the official curated marketplace are considered.
@@ -11424,37 +11389,6 @@ mod tests {
     }
 
     #[test]
-    fn marketplace_add_params_serialization_uses_optional_ref_name_and_sparse_paths() {
-        assert_eq!(
-            serde_json::to_value(MarketplaceAddParams {
-                source: "owner/repo".to_string(),
-                ref_name: None,
-                sparse_paths: None,
-            })
-            .unwrap(),
-            json!({
-                "source": "owner/repo",
-                "refName": null,
-                "sparsePaths": null,
-            }),
-        );
-
-        assert_eq!(
-            serde_json::to_value(MarketplaceAddParams {
-                source: "owner/repo".to_string(),
-                ref_name: Some("main".to_string()),
-                sparse_paths: Some(vec!["plugins/foo".to_string()]),
-            })
-            .unwrap(),
-            json!({
-                "source": "owner/repo",
-                "refName": "main",
-                "sparsePaths": ["plugins/foo"],
-            }),
-        );
-    }
-
-    #[test]
     fn plugin_marketplace_entry_serializes_remote_only_path_as_null() {
         assert_eq!(
             serde_json::to_value(PluginMarketplaceEntry {
@@ -11663,40 +11597,6 @@ mod tests {
             PluginUninstallParams {
                 plugin_id: "gmail@openai-curated".to_string(),
             },
-        );
-    }
-
-    #[test]
-    fn marketplace_remove_response_serializes_nullable_installed_root() {
-        let installed_root = if cfg!(windows) {
-            r"C:\marketplaces\debug"
-        } else {
-            "/tmp/marketplaces/debug"
-        };
-        let installed_root = AbsolutePathBuf::try_from(PathBuf::from(installed_root)).unwrap();
-        let installed_root_json = installed_root.as_path().display().to_string();
-        assert_eq!(
-            serde_json::to_value(MarketplaceRemoveResponse {
-                marketplace_name: "debug".to_string(),
-                installed_root: Some(installed_root),
-            })
-            .unwrap(),
-            json!({
-                "marketplaceName": "debug",
-                "installedRoot": installed_root_json,
-            }),
-        );
-
-        assert_eq!(
-            serde_json::to_value(MarketplaceRemoveResponse {
-                marketplace_name: "debug".to_string(),
-                installed_root: None,
-            })
-            .unwrap(),
-            json!({
-                "marketplaceName": "debug",
-                "installedRoot": null,
-            }),
         );
     }
 

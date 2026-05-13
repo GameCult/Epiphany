@@ -622,12 +622,19 @@
       ],
       "type": "string"
     },
+    "EpiphanyModeKind": {
+      "enum": [
+        "plan",
+        "default"
+      ],
+      "type": "string"
+    },
     "EpiphanyModeState": {
       "properties": {
         "kind": {
           "anyOf": [
             {
-              "$ref": "#/definitions/ModeKind"
+              "$ref": "#/definitions/EpiphanyModeKind"
             },
             {
               "type": "null"
@@ -1489,14 +1496,6 @@
         "revision"
       ],
       "type": "object"
-    },
-    "ModeKind": {
-      "description": "Initial collaboration mode to use when the TUI starts.",
-      "enum": [
-        "plan",
-        "default"
-      ],
-      "type": "string"
     },
     "ThreadEpiphanyStateUpdatedField": {
       "enum": [
