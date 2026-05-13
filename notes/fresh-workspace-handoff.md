@@ -523,15 +523,18 @@ accept delegates scratch/checkpoint/evidence bundle construction the same way.
 `epiphany_mutation_routes.rs` is about 1,143 lines. The route still performs
 Codex thread lookup, revisioned state writes, and JSON-RPC responses, but no
 longer owns the acceptance document contract.
+The twenty-sixth cut moved protocol `ThreadEpiphanyUpdatePatch` to core
+`EpiphanyStateUpdate` projection into `epiphany-codex-bridge/src/mutation.rs`.
+Role accept, promote, and update routes no longer hand-copy every patch field
+into a core update struct. `epiphany_mutation_routes.rs` is about 1,087 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
 Continue with the actual whale-carcass cut: carve remaining route-level mutation
-orchestration into explicit typed bridge/service calls, starting with generic
-update/promote patch-to-state-update construction and launch response/
-notification shaping. Success is a
+orchestration into explicit typed bridge/service calls, starting with launch
+response/notification shaping and interrupt result projection. Success is a
 visibly smaller processor and less mutation authority in Codex, not merely
 nicer payload names or another adapter reliquary. Do not resume Rider, Unity,
 Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge expansion

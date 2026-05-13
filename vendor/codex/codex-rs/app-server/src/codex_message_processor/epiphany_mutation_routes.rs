@@ -23,6 +23,7 @@ use epiphany_codex_bridge::mutation::build_role_acceptance_update;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_promote_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_update_patch_changed_fields;
+use epiphany_codex_bridge::mutation::state_update_from_thread_patch;
 use epiphany_codex_bridge::mutation::thread_epiphany_patch_has_state_replacements;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
@@ -266,26 +267,7 @@ impl CodexMessageProcessor {
         let applied_patch = patch.clone();
 
         let epiphany_state = match loaded_thread
-            .epiphany_update_state(EpiphanyStateUpdate {
-                expected_revision,
-                objective: patch.objective,
-                active_subgoal_id: patch.active_subgoal_id,
-                subgoals: patch.subgoals,
-                invariants: patch.invariants,
-                graphs: patch.graphs,
-                graph_frontier: patch.graph_frontier,
-                graph_checkpoint: patch.graph_checkpoint,
-                scratch: patch.scratch,
-                investigation_checkpoint: patch.investigation_checkpoint,
-                job_bindings: patch.job_bindings,
-                acceptance_receipts: patch.acceptance_receipts,
-                runtime_links: patch.runtime_links,
-                observations: patch.observations,
-                evidence: patch.evidence,
-                churn: patch.churn,
-                mode: patch.mode,
-                planning: patch.planning,
-            })
+            .epiphany_update_state(state_update_from_thread_patch(expected_revision, patch))
             .await
         {
             Ok(state) => {
@@ -782,28 +764,9 @@ impl CodexMessageProcessor {
         }
 
         let changed_fields = epiphany_promote_changed_fields(&patch);
-        let mut evidence = patch.evidence;
-        evidence.push(verifier_evidence);
-        let update = EpiphanyStateUpdate {
-            expected_revision,
-            objective: patch.objective,
-            active_subgoal_id: patch.active_subgoal_id,
-            subgoals: patch.subgoals,
-            invariants: patch.invariants,
-            graphs: patch.graphs,
-            graph_frontier: patch.graph_frontier,
-            graph_checkpoint: patch.graph_checkpoint,
-            scratch: patch.scratch,
-            investigation_checkpoint: patch.investigation_checkpoint,
-            job_bindings: patch.job_bindings,
-            acceptance_receipts: patch.acceptance_receipts,
-            runtime_links: patch.runtime_links,
-            observations: patch.observations,
-            evidence,
-            churn: patch.churn,
-            mode: patch.mode,
-            planning: patch.planning,
-        };
+        let mut patch = patch;
+        patch.evidence.push(verifier_evidence);
+        let update = state_update_from_thread_patch(expected_revision, patch);
         let epiphany_state = match thread.epiphany_update_state(update).await {
             Ok(epiphany_state) => epiphany_state,
             Err(CodexErr::InvalidRequest(message)) => {
@@ -876,26 +839,7 @@ impl CodexMessageProcessor {
         };
 
         let changed_fields = epiphany_update_patch_changed_fields(&patch);
-        let update = EpiphanyStateUpdate {
-            expected_revision,
-            objective: patch.objective,
-            active_subgoal_id: patch.active_subgoal_id,
-            subgoals: patch.subgoals,
-            invariants: patch.invariants,
-            graphs: patch.graphs,
-            graph_frontier: patch.graph_frontier,
-            graph_checkpoint: patch.graph_checkpoint,
-            scratch: patch.scratch,
-            investigation_checkpoint: patch.investigation_checkpoint,
-            job_bindings: patch.job_bindings,
-            acceptance_receipts: patch.acceptance_receipts,
-            runtime_links: patch.runtime_links,
-            observations: patch.observations,
-            evidence: patch.evidence,
-            churn: patch.churn,
-            mode: patch.mode,
-            planning: patch.planning,
-        };
+        let update = state_update_from_thread_patch(expected_revision, patch);
         let epiphany_state = match thread.epiphany_update_state(update).await {
             Ok(epiphany_state) => epiphany_state,
             Err(CodexErr::InvalidRequest(message)) => {
