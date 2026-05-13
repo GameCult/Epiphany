@@ -857,6 +857,12 @@ TypeScript schemas, and no longer appear in app-server/MCP docs. The app-list
 from the workspace; do not recreate connector listing unless it returns as an
 Epiphany-owned typed MCP adapter receipt.
 
+Codex app telemetry is also gone. `codex-analytics` no longer tracks
+`codex_app_mentioned` or `codex_app_used`, keeps app-use dedupe state, exposes
+app telemetry client APIs, or tests those event shapes. Do not reintroduce app
+analytics unless an Epiphany-owned typed adapter has a real runtime event to
+report.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

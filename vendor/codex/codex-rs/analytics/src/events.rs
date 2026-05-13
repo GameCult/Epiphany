@@ -1,6 +1,5 @@
 use std::time::Instant;
 
-use crate::facts::AppInvocation;
 use crate::facts::CodexCompactionEvent;
 use crate::facts::CompactionImplementation;
 use crate::facts::CompactionPhase;
@@ -19,7 +18,6 @@ use crate::facts::TurnSteerResult;
 use crate::facts::TurnSubmissionType;
 use crate::now_unix_seconds;
 use codex_app_server_protocol::CodexErrorInfo;
-use codex_login::default_client::originator;
 use codex_protocol::approvals::NetworkApprovalProtocol;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::models::SandboxPermissions;
@@ -53,8 +51,6 @@ pub(crate) enum TrackEventRequest {
     SkillInvocation(SkillInvocationEventRequest),
     ThreadInitialized(ThreadInitializedEvent),
     GuardianReview(Box<GuardianReviewEventRequest>),
-    AppMentioned(CodexAppMentionedEventRequest),
-    AppUsed(CodexAppUsedEventRequest),
     HookRun(CodexHookRunEventRequest),
     Compaction(Box<CodexCompactionEventRequest>),
     TurnEvent(Box<CodexTurnEventRequest>),
@@ -378,29 +374,6 @@ pub(crate) struct GuardianReviewEventPayload {
 }
 
 #[derive(Serialize)]
-pub(crate) struct CodexAppMetadata {
-    pub(crate) connector_id: Option<String>,
-    pub(crate) thread_id: Option<String>,
-    pub(crate) turn_id: Option<String>,
-    pub(crate) app_name: Option<String>,
-    pub(crate) product_client_id: Option<String>,
-    pub(crate) invoke_type: Option<InvocationType>,
-    pub(crate) model_slug: Option<String>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct CodexAppMentionedEventRequest {
-    pub(crate) event_type: &'static str,
-    pub(crate) event_params: CodexAppMetadata,
-}
-
-#[derive(Serialize)]
-pub(crate) struct CodexAppUsedEventRequest {
-    pub(crate) event_type: &'static str,
-    pub(crate) event_params: CodexAppMetadata,
-}
-
-#[derive(Serialize)]
 pub(crate) struct CodexHookRunMetadata {
     pub(crate) thread_id: Option<String>,
     pub(crate) turn_id: Option<String>,
@@ -521,21 +494,6 @@ pub(crate) struct CodexTurnSteerEventParams {
 pub(crate) struct CodexTurnSteerEventRequest {
     pub(crate) event_type: &'static str,
     pub(crate) event_params: CodexTurnSteerEventParams,
-}
-
-pub(crate) fn codex_app_metadata(
-    tracking: &TrackEventsContext,
-    app: AppInvocation,
-) -> CodexAppMetadata {
-    CodexAppMetadata {
-        connector_id: app.connector_id,
-        thread_id: Some(tracking.thread_id.clone()),
-        turn_id: Some(tracking.turn_id.clone()),
-        app_name: app.app_name,
-        product_client_id: Some(originator().value),
-        invoke_type: app.invocation_type,
-        model_slug: Some(tracking.model_slug.clone()),
-    }
 }
 
 pub(crate) fn codex_compaction_event_params(

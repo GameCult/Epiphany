@@ -6,9 +6,6 @@ use crate::events::TrackEventsRequest;
 use crate::events::current_runtime_metadata;
 use crate::facts::AnalyticsFact;
 use crate::facts::AnalyticsJsonRpcError;
-use crate::facts::AppInvocation;
-use crate::facts::AppMentionedInput;
-use crate::facts::AppUsedInput;
 use crate::facts::CustomAnalyticsFact;
 use crate::facts::HookRunFact;
 use crate::facts::HookRunInput;
@@ -27,20 +24,15 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_login::AuthManager;
 use codex_login::default_client::create_client;
-use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::time::Duration;
 use tokio::sync::mpsc;
 
 const ANALYTICS_EVENTS_QUEUE_SIZE: usize = 256;
 const ANALYTICS_EVENTS_TIMEOUT: Duration = Duration::from_secs(10);
-const ANALYTICS_EVENT_DEDUPE_MAX_KEYS: usize = 4096;
-
 #[derive(Clone)]
 pub(crate) struct AnalyticsEventsQueue {
     pub(crate) sender: mpsc::Sender<AnalyticsFact>,
-    pub(crate) app_used_emitted_keys: Arc<Mutex<HashSet<(String, String)>>>,
 }
 
 #[derive(Clone)]
@@ -60,10 +52,7 @@ impl AnalyticsEventsQueue {
                 send_track_events(&auth_manager, &base_url, events).await;
             }
         });
-        Self {
-            sender,
-            app_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
-        }
+        Self { sender }
     }
 
     fn try_send(&self, input: AnalyticsFact) {
@@ -71,24 +60,6 @@ impl AnalyticsEventsQueue {
             //TODO: add a metric for this
             tracing::warn!("dropping analytics events: queue is full");
         }
-    }
-
-    pub(crate) fn should_enqueue_app_used(
-        &self,
-        tracking: &TrackEventsContext,
-        app: &AppInvocation,
-    ) -> bool {
-        let Some(connector_id) = app.connector_id.as_ref() else {
-            return true;
-        };
-        let mut emitted = self
-            .app_used_emitted_keys
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if emitted.len() >= ANALYTICS_EVENT_DEDUPE_MAX_KEYS {
-            emitted.clear();
-        }
-        emitted.insert((tracking.turn_id.clone(), connector_id.clone()))
     }
 }
 
@@ -152,30 +123,12 @@ impl AnalyticsEventsClient {
         )));
     }
 
-    pub fn track_app_mentioned(&self, tracking: TrackEventsContext, mentions: Vec<AppInvocation>) {
-        if mentions.is_empty() {
-            return;
-        }
-        self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::AppMentioned(
-            AppMentionedInput { tracking, mentions },
-        )));
-    }
-
     pub fn track_request(&self, connection_id: u64, request_id: RequestId, request: ClientRequest) {
         self.record_fact(AnalyticsFact::Request {
             connection_id,
             request_id,
             request: Box::new(request),
         });
-    }
-
-    pub fn track_app_used(&self, tracking: TrackEventsContext, app: AppInvocation) {
-        if !self.queue.should_enqueue_app_used(&tracking, &app) {
-            return;
-        }
-        self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::AppUsed(
-            AppUsedInput { tracking, app },
-        )));
     }
 
     pub fn track_hook_run(&self, tracking: TrackEventsContext, hook: HookRunFact) {

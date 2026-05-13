@@ -1,8 +1,5 @@
-use crate::client::AnalyticsEventsQueue;
 use crate::events::AppServerRpcTransport;
-use crate::events::CodexAppMentionedEventRequest;
 use crate::events::CodexAppServerClientMetadata;
-use crate::events::CodexAppUsedEventRequest;
 use crate::events::CodexCompactionEventRequest;
 use crate::events::CodexHookRunEventRequest;
 use crate::events::CodexRuntimeMetadata;
@@ -16,14 +13,10 @@ use crate::events::GuardianReviewedAction;
 use crate::events::ThreadInitializedEvent;
 use crate::events::ThreadInitializedEventParams;
 use crate::events::TrackEventRequest;
-use crate::events::codex_app_metadata;
 use crate::events::codex_hook_run_metadata;
 use crate::events::subagent_thread_started_event_request;
 use crate::facts::AnalyticsFact;
 use crate::facts::AnalyticsJsonRpcError;
-use crate::facts::AppInvocation;
-use crate::facts::AppMentionedInput;
-use crate::facts::AppUsedInput;
 use crate::facts::CodexCompactionEvent;
 use crate::facts::CompactionImplementation;
 use crate::facts::CompactionPhase;
@@ -94,11 +87,7 @@ use codex_utils_absolute_path::test_support::PathBufExt;
 use codex_utils_absolute_path::test_support::test_path_buf;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::collections::HashSet;
 use std::path::PathBuf;
-use std::sync::Arc;
-use std::sync::Mutex;
-use tokio::sync::mpsc;
 
 fn sample_thread(thread_id: &str, ephemeral: bool) -> Thread {
     sample_thread_with_source(thread_id, ephemeral, AppServerSessionSource::Exec)
@@ -608,82 +597,6 @@ fn normalize_path_for_skill_id_repo_root_not_in_skill_path_uses_absolute_path() 
 }
 
 #[test]
-fn app_mentioned_event_serializes_expected_shape() {
-    let tracking = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-1".to_string(),
-        turn_id: "turn-1".to_string(),
-    };
-    let event = TrackEventRequest::AppMentioned(CodexAppMentionedEventRequest {
-        event_type: "codex_app_mentioned",
-        event_params: codex_app_metadata(
-            &tracking,
-            AppInvocation {
-                connector_id: Some("calendar".to_string()),
-                app_name: Some("Calendar".to_string()),
-                invocation_type: Some(InvocationType::Explicit),
-            },
-        ),
-    });
-
-    let payload = serde_json::to_value(&event).expect("serialize app mentioned event");
-
-    assert_eq!(
-        payload,
-        json!({
-            "event_type": "codex_app_mentioned",
-            "event_params": {
-                "connector_id": "calendar",
-                "thread_id": "thread-1",
-                "turn_id": "turn-1",
-                "app_name": "Calendar",
-                "product_client_id": originator().value,
-                "invoke_type": "explicit",
-                "model_slug": "gpt-5"
-            }
-        })
-    );
-}
-
-#[test]
-fn app_used_event_serializes_expected_shape() {
-    let tracking = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-2".to_string(),
-        turn_id: "turn-2".to_string(),
-    };
-    let event = TrackEventRequest::AppUsed(CodexAppUsedEventRequest {
-        event_type: "codex_app_used",
-        event_params: codex_app_metadata(
-            &tracking,
-            AppInvocation {
-                connector_id: Some("drive".to_string()),
-                app_name: Some("Google Drive".to_string()),
-                invocation_type: Some(InvocationType::Implicit),
-            },
-        ),
-    });
-
-    let payload = serde_json::to_value(&event).expect("serialize app used event");
-
-    assert_eq!(
-        payload,
-        json!({
-            "event_type": "codex_app_used",
-            "event_params": {
-                "connector_id": "drive",
-                "thread_id": "thread-2",
-                "turn_id": "turn-2",
-                "app_name": "Google Drive",
-                "product_client_id": originator().value,
-                "invoke_type": "implicit",
-                "model_slug": "gpt-5"
-            }
-        })
-    );
-}
-
-#[test]
 fn compaction_event_serializes_expected_shape() {
     let event = TrackEventRequest::Compaction(Box::new(CodexCompactionEventRequest {
         event_type: "codex_compaction_event",
@@ -752,35 +665,6 @@ fn compaction_event_serializes_expected_shape() {
             }
         })
     );
-}
-
-#[test]
-fn app_used_dedupe_is_keyed_by_turn_and_connector() {
-    let (sender, _receiver) = mpsc::channel(1);
-    let queue = AnalyticsEventsQueue {
-        sender,
-        app_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
-    };
-    let app = AppInvocation {
-        connector_id: Some("calendar".to_string()),
-        app_name: Some("Calendar".to_string()),
-        invocation_type: Some(InvocationType::Implicit),
-    };
-
-    let turn_1 = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-1".to_string(),
-        turn_id: "turn-1".to_string(),
-    };
-    let turn_2 = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-1".to_string(),
-        turn_id: "turn-2".to_string(),
-    };
-
-    assert_eq!(queue.should_enqueue_app_used(&turn_1, &app), true);
-    assert_eq!(queue.should_enqueue_app_used(&turn_1, &app), false);
-    assert_eq!(queue.should_enqueue_app_used(&turn_2, &app), true);
 }
 
 #[test]
@@ -1549,48 +1433,6 @@ async fn reducer_ingests_hook_run_fact() {
     assert_eq!(payload[0]["event_params"]["hook_name"], "PostToolUse");
     assert_eq!(payload[0]["event_params"]["hook_source"], "unknown");
     assert_eq!(payload[0]["event_params"]["status"], "failed");
-}
-
-#[tokio::test]
-async fn reducer_ingests_app_facts() {
-    let mut reducer = AnalyticsReducer::default();
-    let mut events = Vec::new();
-    let tracking = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-1".to_string(),
-        turn_id: "turn-1".to_string(),
-    };
-
-    reducer
-        .ingest(
-            AnalyticsFact::Custom(CustomAnalyticsFact::AppMentioned(AppMentionedInput {
-                tracking: tracking.clone(),
-                mentions: vec![AppInvocation {
-                    connector_id: Some("calendar".to_string()),
-                    app_name: Some("Calendar".to_string()),
-                    invocation_type: Some(InvocationType::Explicit),
-                }],
-            })),
-            &mut events,
-        )
-        .await;
-    reducer
-        .ingest(
-            AnalyticsFact::Custom(CustomAnalyticsFact::AppUsed(AppUsedInput {
-                tracking: tracking.clone(),
-                app: AppInvocation {
-                    connector_id: Some("drive".to_string()),
-                    app_name: Some("Drive".to_string()),
-                    invocation_type: Some(InvocationType::Implicit),
-                },
-            })),
-            &mut events,
-        )
-        .await;
-    let payload = serde_json::to_value(&events).expect("serialize events");
-    assert_eq!(payload.as_array().expect("events array").len(), 2);
-    assert_eq!(payload[0]["event_type"], "codex_app_mentioned");
-    assert_eq!(payload[1]["event_type"], "codex_app_used");
 }
 
 #[test]

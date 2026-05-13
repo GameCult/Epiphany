@@ -1,7 +1,5 @@
 use crate::events::AppServerRpcTransport;
-use crate::events::CodexAppMentionedEventRequest;
 use crate::events::CodexAppServerClientMetadata;
-use crate::events::CodexAppUsedEventRequest;
 use crate::events::CodexCompactionEventRequest;
 use crate::events::CodexHookRunEventRequest;
 use crate::events::CodexRuntimeMetadata;
@@ -17,7 +15,6 @@ use crate::events::SkillInvocationEventRequest;
 use crate::events::ThreadInitializedEvent;
 use crate::events::ThreadInitializedEventParams;
 use crate::events::TrackEventRequest;
-use crate::events::codex_app_metadata;
 use crate::events::codex_compaction_event_params;
 use crate::events::codex_hook_run_metadata;
 use crate::events::subagent_parent_thread_id;
@@ -25,8 +22,6 @@ use crate::events::subagent_source_name;
 use crate::events::subagent_thread_started_event_request;
 use crate::facts::AnalyticsFact;
 use crate::facts::AnalyticsJsonRpcError;
-use crate::facts::AppMentionedInput;
-use crate::facts::AppUsedInput;
 use crate::facts::CodexCompactionEvent;
 use crate::facts::CustomAnalyticsFact;
 use crate::facts::HookRunInput;
@@ -205,12 +200,6 @@ impl AnalyticsReducer {
                 }
                 CustomAnalyticsFact::SkillInvoked(input) => {
                     self.ingest_skill_invoked(input, out).await;
-                }
-                CustomAnalyticsFact::AppMentioned(input) => {
-                    self.ingest_app_mentioned(input, out);
-                }
-                CustomAnalyticsFact::AppUsed(input) => {
-                    self.ingest_app_used(input, out);
                 }
                 CustomAnalyticsFact::HookRun(input) => {
                     self.ingest_hook_run(input, out);
@@ -412,26 +401,6 @@ impl AnalyticsReducer {
                 },
             ));
         }
-    }
-
-    fn ingest_app_mentioned(&mut self, input: AppMentionedInput, out: &mut Vec<TrackEventRequest>) {
-        let AppMentionedInput { tracking, mentions } = input;
-        out.extend(mentions.into_iter().map(|mention| {
-            let event_params = codex_app_metadata(&tracking, mention);
-            TrackEventRequest::AppMentioned(CodexAppMentionedEventRequest {
-                event_type: "codex_app_mentioned",
-                event_params,
-            })
-        }));
-    }
-
-    fn ingest_app_used(&mut self, input: AppUsedInput, out: &mut Vec<TrackEventRequest>) {
-        let AppUsedInput { tracking, app } = input;
-        let event_params = codex_app_metadata(&tracking, app);
-        out.push(TrackEventRequest::AppUsed(CodexAppUsedEventRequest {
-            event_type: "codex_app_used",
-            event_params,
-        }));
     }
 
     fn ingest_hook_run(&mut self, input: HookRunInput, out: &mut Vec<TrackEventRequest>) {

@@ -179,12 +179,6 @@ pub enum InvocationType {
     Implicit,
 }
 
-pub struct AppInvocation {
-    pub connector_id: Option<String>,
-    pub app_name: Option<String>,
-    pub invocation_type: Option<InvocationType>,
-}
-
 #[derive(Clone)]
 pub struct SubAgentThreadStartedInput {
     pub thread_id: String,
@@ -298,24 +292,12 @@ pub(crate) enum CustomAnalyticsFact {
     TurnResolvedConfig(Box<TurnResolvedConfigFact>),
     TurnTokenUsage(Box<TurnTokenUsageFact>),
     SkillInvoked(SkillInvokedInput),
-    AppMentioned(AppMentionedInput),
-    AppUsed(AppUsedInput),
     HookRun(HookRunInput),
 }
 
 pub(crate) struct SkillInvokedInput {
     pub tracking: TrackEventsContext,
     pub invocations: Vec<SkillInvocation>,
-}
-
-pub(crate) struct AppMentionedInput {
-    pub tracking: TrackEventsContext,
-    pub mentions: Vec<AppInvocation>,
-}
-
-pub(crate) struct AppUsedInput {
-    pub tracking: TrackEventsContext,
-    pub app: AppInvocation,
 }
 
 pub(crate) struct HookRunInput {
