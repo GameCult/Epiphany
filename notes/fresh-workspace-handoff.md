@@ -795,6 +795,10 @@ effective plugin skill roots, filesystem skill metadata, disabled-path state,
 or skill error conversion helpers. The route may exist for old clients; it is
 not an authority.
 
+The Codex skill watcher is also a no-op marker now. Thread startup no longer
+registers skill roots with a file watcher, clears skill caches from watcher
+events, or starts a session listener that emits `SkillsUpdateAvailable`.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

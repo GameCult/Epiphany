@@ -3,7 +3,6 @@ use std::collections::HashSet;
 use std::env;
 use std::sync::Arc;
 
-use crate::config::Config;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use codex_analytics::InvocationType;
@@ -42,18 +41,6 @@ pub use codex_core_skills::remote;
 pub use codex_core_skills::render;
 pub use codex_core_skills::render::SkillRenderSideEffects;
 pub use codex_core_skills::system;
-
-pub(crate) fn skills_load_input_from_config(
-    config: &Config,
-    effective_skill_roots: Vec<AbsolutePathBuf>,
-) -> SkillsLoadInput {
-    SkillsLoadInput::new(
-        config.cwd.clone(),
-        effective_skill_roots,
-        config.config_layer_stack.clone(),
-        config.bundled_skills_enabled(),
-    )
-}
 
 pub(crate) async fn resolve_skill_dependencies_for_turn(
     sess: &Arc<Session>,

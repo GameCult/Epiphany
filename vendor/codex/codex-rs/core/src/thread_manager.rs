@@ -2,7 +2,6 @@ use crate::SkillsManager;
 use crate::agent::AgentControl;
 use crate::codex_thread::CodexThread;
 use crate::config::Config;
-use crate::file_watcher::FileWatcher;
 use crate::mcp::McpManager;
 use crate::plugins::PluginsManager;
 use crate::rollout::RolloutRecorder;
@@ -13,7 +12,6 @@ use crate::session::CodexSpawnOk;
 use crate::session::INITIAL_SUBMIT_ID;
 use crate::shell_snapshot::ShellSnapshot;
 use crate::skills_watcher::SkillsWatcher;
-use crate::skills_watcher::SkillsWatcherEvent;
 use crate::tasks::interrupted_turn_history_marker;
 use codex_analytics::AnalyticsEventsClient;
 use codex_app_server_protocol::ThreadHistoryBuilder;
@@ -55,8 +53,6 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
-use tokio::runtime::Handle;
-use tokio::runtime::RuntimeFlavor;
 use tokio::sync::RwLock;
 use tokio::sync::broadcast;
 use tracing::warn;
@@ -90,45 +86,8 @@ impl Drop for TempCodexHomeGuard {
     }
 }
 
-fn build_skills_watcher(skills_manager: Arc<SkillsManager>) -> Arc<SkillsWatcher> {
-    if should_use_test_thread_manager_behavior()
-        && let Ok(handle) = Handle::try_current()
-        && handle.runtime_flavor() == RuntimeFlavor::CurrentThread
-    {
-        // The real watcher spins background tasks that can starve the
-        // current-thread test runtime and cause event waits to time out.
-        warn!("using noop skills watcher under current-thread test runtime");
-        return Arc::new(SkillsWatcher::noop());
-    }
-
-    let file_watcher = match FileWatcher::new() {
-        Ok(file_watcher) => Arc::new(file_watcher),
-        Err(err) => {
-            warn!("failed to initialize file watcher: {err}");
-            Arc::new(FileWatcher::noop())
-        }
-    };
-    let skills_watcher = Arc::new(SkillsWatcher::new(&file_watcher));
-
-    let mut rx = skills_watcher.subscribe();
-    let skills_manager = Arc::clone(&skills_manager);
-    if let Ok(handle) = Handle::try_current() {
-        handle.spawn(async move {
-            loop {
-                match rx.recv().await {
-                    Ok(SkillsWatcherEvent::SkillsChanged { .. }) => {
-                        skills_manager.clear_cache();
-                    }
-                    Err(broadcast::error::RecvError::Closed) => break,
-                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                }
-            }
-        });
-    } else {
-        warn!("skills watcher listener skipped: no Tokio runtime available");
-    }
-
-    skills_watcher
+fn build_skills_watcher(_skills_manager: Arc<SkillsManager>) -> Arc<SkillsWatcher> {
+    Arc::new(SkillsWatcher::noop())
 }
 
 /// Represents a newly created Codex thread (formerly called a conversation), including the first event
@@ -920,20 +879,7 @@ impl ThreadManagerState {
         parent_trace: Option<W3cTraceContext>,
         user_shell_override: Option<crate::shell::Shell>,
     ) -> CodexResult<NewThread> {
-        let environment = self.environment_manager.default_environment();
-        let watch_registration = match environment.as_ref() {
-            Some(environment) if !environment.is_remote() => {
-                self.skills_watcher
-                    .register_config(
-                        &config,
-                        self.skills_manager.as_ref(),
-                        self.plugins_manager.as_ref(),
-                        Some(environment.get_filesystem()),
-                    )
-                    .await
-            }
-            Some(_) | None => crate::file_watcher::WatchRegistration::default(),
-        };
+        let watch_registration = crate::file_watcher::WatchRegistration::default();
         let CodexSpawnOk {
             codex, thread_id, ..
         } = Codex::spawn(CodexSpawnArgs {

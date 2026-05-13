@@ -824,8 +824,6 @@ impl Session {
             sess.send_event_raw(event).await;
         }
 
-        // Start the watcher after SessionConfigured so it cannot emit earlier events.
-        sess.start_skills_watcher_listener();
         let mut required_mcp_servers: Vec<String> = mcp_servers
             .iter()
             .filter(|(_, server)| server.enabled && server.required)
