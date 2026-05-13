@@ -58,8 +58,8 @@ use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
-use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::apply_epiphany_state_update;
 use epiphany_core::epiphany_state_update_validation_errors;
 use epiphany_core::open_runtime_spine_heartbeat_job;
@@ -744,6 +744,9 @@ fn open_epiphany_runtime_spine_job(
             role: request.owner_role.clone(),
             binding_id: request.binding_id.clone(),
             authority_scope: request.authority_scope.clone(),
+            instruction: request.instruction.clone(),
+            launch_document: request.launch_document.clone(),
+            output_contract_id: request.output_contract_id.clone(),
             created_at: now,
         },
     )

@@ -5251,6 +5251,7 @@ dependencies = [
  "ignore",
  "postgres",
  "reqwest",
+ "rmp-serde",
  "serde",
  "serde_json",
  "sha1",

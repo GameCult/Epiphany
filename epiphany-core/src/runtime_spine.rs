@@ -1,11 +1,12 @@
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
+use crate::EpiphanyWorkerLaunchDocument;
 use crate::agent_memory::AGENT_MEMORY_TYPE;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
 use codex_protocol::protocol::EpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyRuntimeLink;
@@ -28,7 +29,6 @@ use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
-use crate::EpiphanyWorkerLaunchDocument;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -39,6 +39,7 @@ use std::path::PathBuf;
 pub const RUNTIME_IDENTITY_TYPE: &str = "epiphany.runtime.identity";
 pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
+pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const RUNTIME_EVENT_TYPE: &str = "epiphany.runtime.event";
 pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0";
@@ -66,6 +67,8 @@ pub const SURFACE_RIDER_BRIDGE_TYPE: &str = "epiphany.surface.rider_bridge";
 pub const SURFACE_UNITY_BRIDGE_TYPE: &str = "epiphany.surface.unity_bridge";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
+pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
+    "epiphany.runtime.worker_launch_request.v0";
 pub const OPENAI_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.openai_adapter_status.v0";
 pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.openai_model_stream_event.v0";
@@ -87,8 +90,7 @@ pub const FACE_SURFACE_SCHEMA_VERSION: &str = "epiphany.face_surface.v0";
 pub const VOID_MEMORY_SURFACE_SCHEMA_VERSION: &str = "epiphany.void_memory_surface.v0";
 pub const REPO_INITIALIZATION_SURFACE_SCHEMA_VERSION: &str =
     "epiphany.repo_initialization_surface.v0";
-pub const REPO_BIRTH_RUNNER_SURFACE_SCHEMA_VERSION: &str =
-    "epiphany.repo_birth_runner_surface.v0";
+pub const REPO_BIRTH_RUNNER_SURFACE_SCHEMA_VERSION: &str = "epiphany.repo_birth_runner_surface.v0";
 pub const RIDER_BRIDGE_SURFACE_SCHEMA_VERSION: &str = "epiphany.rider_bridge_surface.v0";
 pub const UNITY_BRIDGE_SURFACE_SCHEMA_VERSION: &str = "epiphany.unity_bridge_surface.v0";
 pub const AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION: &str = "epiphany.agent_memory.v0";
@@ -181,6 +183,51 @@ pub struct EpiphanyRuntimeJob {
     pub artifact_refs: Vec<String>,
     #[cultcache(key = 9, default)]
     pub metadata: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.worker_launch_request",
+    schema = "EpiphanyRuntimeWorkerLaunchRequest"
+)]
+pub struct EpiphanyRuntimeWorkerLaunchRequest {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub job_id: String,
+    #[cultcache(key = 2)]
+    pub binding_id: String,
+    #[cultcache(key = 3)]
+    pub role: String,
+    #[cultcache(key = 4)]
+    pub authority_scope: String,
+    #[cultcache(key = 5)]
+    pub instruction: String,
+    #[cultcache(key = 6)]
+    pub output_contract_id: String,
+    #[cultcache(key = 7)]
+    pub document_kind: String,
+    #[cultcache(key = 8)]
+    pub launch_document_msgpack: Vec<u8>,
+    #[cultcache(key = 9, default)]
+    pub metadata: BTreeMap<String, String>,
+}
+
+impl EpiphanyRuntimeWorkerLaunchRequest {
+    pub fn launch_document(&self) -> Result<EpiphanyWorkerLaunchDocument> {
+        let document: EpiphanyWorkerLaunchDocument =
+            rmp_serde::from_slice(&self.launch_document_msgpack)
+                .context("failed to decode worker launch document MessagePack")?;
+        let actual_kind = worker_launch_document_kind(&document);
+        if actual_kind != self.document_kind {
+            return Err(anyhow!(
+                "worker launch document kind mismatch: indexed {:?}, payload {:?}",
+                self.document_kind,
+                actual_kind
+            ));
+        }
+        Ok(document)
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -325,7 +372,7 @@ pub struct RuntimeSpineJobResultOptions {
     pub artifact_refs: Vec<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RuntimeSpineHeartbeatJobOptions {
     pub runtime_id: String,
     pub display_name: String,
@@ -336,6 +383,9 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub role: String,
     pub binding_id: String,
     pub authority_scope: String,
+    pub instruction: String,
+    pub launch_document: EpiphanyWorkerLaunchDocument,
+    pub output_contract_id: String,
     pub created_at: String,
 }
 
@@ -373,6 +423,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeIdentity>()?;
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
+    cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
@@ -554,7 +605,10 @@ pub fn plan_runtime_spine_heartbeat_launch(
             blocking_reason: None,
         },
         runtime_link: EpiphanyRuntimeLink {
-            id: format!("runtime-link-{}-{}", options.binding_id, options.runtime_job_id),
+            id: format!(
+                "runtime-link-{}-{}",
+                options.binding_id, options.runtime_job_id
+            ),
             binding_id: options.binding_id,
             surface: "jobLaunch".to_string(),
             role_id: options.owner_role,
@@ -579,8 +633,26 @@ pub fn open_runtime_spine_heartbeat_job(
     validate_non_empty(&options.role, "role")?;
     validate_non_empty(&options.binding_id, "binding id")?;
     validate_non_empty(&options.authority_scope, "authority scope")?;
+    validate_non_empty(&options.instruction, "instruction")?;
+    validate_non_empty(
+        options.launch_document.thread_id(),
+        "worker launch document thread id",
+    )?;
+    validate_non_empty(&options.output_contract_id, "output contract id")?;
+    if options.output_contract_id != options.launch_document.output_contract_id() {
+        return Err(anyhow!(
+            "worker launch output_contract_id must match the typed launch document"
+        ));
+    }
     validate_non_empty(&options.created_at, "created at")?;
     let store_path = store_path.as_ref();
+    let job_id = options.job_id.clone();
+    let binding_id = options.binding_id.clone();
+    let role = options.role.clone();
+    let authority_scope = options.authority_scope.clone();
+    let instruction = options.instruction.clone();
+    let output_contract_id = options.output_contract_id.clone();
+    let launch_document = options.launch_document.clone();
     initialize_runtime_spine(
         store_path,
         RuntimeSpineInitOptions {
@@ -598,7 +670,7 @@ pub fn open_runtime_spine_heartbeat_job(
             coordinator_note: options.coordinator_note,
         },
     )?;
-    create_runtime_job(
+    let job = create_runtime_job(
         store_path,
         RuntimeSpineJobOptions {
             job_id: options.job_id,
@@ -611,7 +683,32 @@ pub fn open_runtime_spine_heartbeat_job(
             ),
             artifact_refs: Vec::new(),
         },
-    )
+    )?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    if cache
+        .get::<EpiphanyRuntimeWorkerLaunchRequest>(&job_id)?
+        .is_some()
+    {
+        return Err(anyhow!(
+            "runtime worker launch request {:?} already exists",
+            job_id
+        ));
+    }
+    let request = EpiphanyRuntimeWorkerLaunchRequest {
+        schema_version: RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION.to_string(),
+        job_id: job_id.clone(),
+        binding_id,
+        role,
+        authority_scope,
+        instruction,
+        output_contract_id,
+        document_kind: worker_launch_document_kind(&launch_document).to_string(),
+        launch_document_msgpack: encode_worker_launch_document(&launch_document)?,
+        metadata: BTreeMap::new(),
+    };
+    cache.put(&job_id, &request)?;
+    Ok(job)
 }
 
 pub fn runtime_job_snapshot(
@@ -1057,6 +1154,21 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            RUNTIME_WORKER_LAUNCH_REQUEST_TYPE,
+            RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![RUNTIME_WORKER_LAUNCH_REQUEST_TYPE],
+            vec![RUNTIME_JOB_TYPE],
+            vec![
+                "Worker launch requests are typed task-intent documents; runtime jobs are lifecycle receipts, not the source of work intent.",
+            ],
+        ),
+        mutation_contract(
             RUNTIME_JOB_RESULT_TYPE,
             RUNTIME_SPINE_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -1385,6 +1497,17 @@ fn validate_non_empty(value: &str, field: &str) -> Result<()> {
     Ok(())
 }
 
+fn worker_launch_document_kind(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
+    match document {
+        EpiphanyWorkerLaunchDocument::Role(_) => "role",
+        EpiphanyWorkerLaunchDocument::Reorient(_) => "reorient",
+    }
+}
+
+fn encode_worker_launch_document(document: &EpiphanyWorkerLaunchDocument) -> Result<Vec<u8>> {
+    rmp_serde::to_vec_named(document).context("failed to encode worker launch document MessagePack")
+}
+
 fn validate_heartbeat_launch_options(
     state: &EpiphanyThreadState,
     options: &RuntimeSpineHeartbeatLaunchPlanOptions,
@@ -1602,6 +1725,29 @@ mod tests {
                 role: "modeling".to_string(),
                 binding_id: "modeling-checkpoint-worker".to_string(),
                 authority_scope: "modeling".to_string(),
+                instruction: "Inspect the checkpoint and return typed role findings.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    crate::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "modeling".to_string(),
+                        state_revision: 7,
+                        objective: Some("Run heartbeat worker.".to_string()),
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: vec!["node-model".to_string()],
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;
@@ -1614,6 +1760,21 @@ mod tests {
         assert_eq!(status.jobs, 1);
         assert_eq!(status.open_jobs, 1);
         assert_eq!(status.events, 1);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let launch_request = cache
+            .get::<EpiphanyRuntimeWorkerLaunchRequest>("heartbeat-job-1")?
+            .expect("typed worker launch request should be durable");
+        assert_eq!(launch_request.job_id, "heartbeat-job-1");
+        assert_eq!(launch_request.binding_id, "modeling-checkpoint-worker");
+        assert_eq!(launch_request.role, "modeling");
+        assert_eq!(
+            launch_request.output_contract_id,
+            crate::ROLE_WORKER_OUTPUT_CONTRACT_ID
+        );
+        assert_eq!(launch_request.document_kind, "role");
+        assert!(!launch_request.launch_document_msgpack.is_empty());
+        assert_eq!(launch_request.launch_document()?.thread_id(), "thread-1");
         Ok(())
     }
 

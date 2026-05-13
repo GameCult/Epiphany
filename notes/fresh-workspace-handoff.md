@@ -598,6 +598,14 @@ initialize-session-open-job sequence. That is a small cut, but a real ownership
 move: native runtime lifecycle belongs to the runtime spine, not the Codex
 thread wrapper.
 
+That job-opening path now preserves the work order instead of shaving it into a
+generic job id. `epiphany-core::EpiphanyRuntimeWorkerLaunchRequest` is a
+CultCache document keyed by runtime job id, with indexed binding/role/authority,
+instruction, output contract, document kind, and a MessagePack-encoded typed
+worker launch document. `EpiphanyRuntimeJob` owns lifecycle; the launch request
+owns task intent. The MessagePack field is a compatibility wound around
+ordinary Serde nested documents, not permission to reintroduce JSON cargo.
+
 The job-launch plan has now followed it. `epiphany-core` owns
 `plan_runtime_spine_heartbeat_launch`, which validates heartbeat launch
 requests, reserved binding ids, output contract/document consistency, active
