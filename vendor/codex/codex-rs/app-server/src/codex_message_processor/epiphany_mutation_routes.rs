@@ -18,29 +18,19 @@ use epiphany_codex_bridge::launch::build_epiphany_role_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::launch::epiphany_role_label;
 use epiphany_codex_bridge::launch::map_core_worker_launch_document;
+use epiphany_codex_bridge::mutation::build_reorient_acceptance_update;
+use epiphany_codex_bridge::mutation::build_role_acceptance_update;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_promote_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_update_patch_changed_fields;
-use epiphany_codex_bridge::mutation::imagination_role_accept_patch_errors;
-use epiphany_codex_bridge::mutation::modeling_role_accept_patch_errors;
-use epiphany_codex_bridge::mutation::parse_role_finding_state_patch;
 use epiphany_codex_bridge::mutation::thread_epiphany_patch_has_state_replacements;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::reorient::map_epiphany_reorient;
-use epiphany_codex_bridge::results::map_core_role_result_role_id;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_index_summary;
 use epiphany_codex_bridge::runtime_results::load_completed_epiphany_reorient_finding;
 use epiphany_codex_bridge::runtime_results::load_completed_epiphany_role_finding;
-use epiphany_codex_bridge::runtime_results::reorient_finding_runtime_job_id;
-use epiphany_codex_bridge::runtime_results::reorient_finding_runtime_result_id;
-use epiphany_codex_bridge::runtime_results::role_finding_runtime_job_id;
-use epiphany_codex_bridge::runtime_results::role_finding_runtime_result_id;
 use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
-use epiphany_core::EpiphanyReorientAcceptanceFinding;
-use epiphany_core::EpiphanyRoleAcceptanceFinding;
-use epiphany_core::build_reorient_acceptance_bundle;
-use epiphany_core::build_role_acceptance_bundle;
 use uuid::Uuid;
 
 use super::CodexMessageProcessor;
@@ -251,98 +241,28 @@ impl CodexMessageProcessor {
             }
         };
 
-        let mut patch = match role_id {
-            ThreadEpiphanyRoleId::Imagination => {
-                let patch = match parse_role_finding_state_patch(&finding) {
-                    Ok(patch) => patch,
-                    Err(message) => {
-                        self.send_invalid_request_error(request_id, message).await;
-                        return;
-                    }
-                };
-                let patch_errors = imagination_role_accept_patch_errors(&patch);
-                if !patch_errors.is_empty() {
-                    self.send_invalid_request_error(
-                        request_id,
-                        format!(
-                            "imagination role state patch is not acceptable: {}",
-                            patch_errors.join("; ")
-                        ),
-                    )
-                    .await;
-                    return;
-                }
-                patch
-            }
-            ThreadEpiphanyRoleId::Modeling => {
-                let patch = match parse_role_finding_state_patch(&finding) {
-                    Ok(patch) => patch,
-                    Err(message) => {
-                        self.send_invalid_request_error(request_id, message).await;
-                        return;
-                    }
-                };
-                let patch_errors = modeling_role_accept_patch_errors(&patch);
-                if !patch_errors.is_empty() {
-                    self.send_invalid_request_error(
-                        request_id,
-                        format!(
-                            "modeling role state patch is not acceptable: {}",
-                            patch_errors.join("; ")
-                        ),
-                    )
-                    .await;
-                    return;
-                }
-                patch
-            }
-            ThreadEpiphanyRoleId::Verification => ThreadEpiphanyUpdatePatch::default(),
-            ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("role {:?} cannot be accepted through roleAccept", role_id),
-                )
-                .await;
-                return;
-            }
-        };
-
         let accepted_prefix = epiphany_role_label(role_id);
         let accepted_evidence_id = format!("ev-{accepted_prefix}-{}", Uuid::new_v4());
         let accepted_observation_id = format!("obs-{accepted_prefix}-{}", Uuid::new_v4());
-        let projected_fields = epiphany_update_patch_changed_fields(&patch)
-            .into_iter()
-            .map(|field| format!("{field:?}"))
-            .collect();
-        let acceptance_bundle = match build_role_acceptance_bundle(
+        let acceptance_update = match build_role_acceptance_update(
+            role_id,
             &binding_id,
-            EpiphanyRoleAcceptanceFinding {
-                role_id: map_core_role_result_role_id(role_id),
-                verdict: finding.verdict.clone(),
-                summary: finding.summary.clone(),
-                next_safe_move: finding.next_safe_move.clone(),
-                files_inspected: finding.files_inspected.clone(),
-                runtime_result_id: role_finding_runtime_result_id(&finding),
-                runtime_job_id: role_finding_runtime_job_id(&finding),
-                projected_fields,
-            },
+            &finding,
             accepted_evidence_id,
             accepted_observation_id,
             Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
         ) {
-            Ok(bundle) => bundle,
+            Ok(update) => update,
             Err(message) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
         };
-        let accepted_receipt_id = acceptance_bundle.accepted_receipt_id.clone();
-        let accepted_observation_id = acceptance_bundle.accepted_observation_id.clone();
-        let accepted_evidence_id = acceptance_bundle.accepted_evidence_id.clone();
-        patch.evidence.push(acceptance_bundle.evidence);
-        patch.observations.push(acceptance_bundle.observation);
-        patch.acceptance_receipts.push(acceptance_bundle.receipt);
-        let changed_fields = epiphany_update_patch_changed_fields(&patch);
+        let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
+        let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
+        let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
+        let changed_fields = acceptance_update.changed_fields.clone();
+        let patch = acceptance_update.patch;
         let applied_patch = patch.clone();
 
         let epiphany_state = match loaded_thread
@@ -669,57 +589,35 @@ impl CodexMessageProcessor {
 
         let accepted_evidence_id = format!("ev-reorient-{}", Uuid::new_v4());
         let accepted_observation_id = format!("obs-reorient-{}", Uuid::new_v4());
-        let acceptance_bundle = match build_reorient_acceptance_bundle(
+        let acceptance_update = match build_reorient_acceptance_update(
             &binding_id,
-            EpiphanyReorientAcceptanceFinding {
-                mode: finding.mode.clone(),
-                summary: finding.summary.clone(),
-                next_safe_move: finding.next_safe_move.clone(),
-                checkpoint_still_valid: finding.checkpoint_still_valid,
-                files_inspected: finding.files_inspected.clone(),
-                runtime_result_id: reorient_finding_runtime_result_id(&finding),
-                runtime_job_id: reorient_finding_runtime_job_id(&finding),
-            },
+            &finding,
             accepted_evidence_id,
             accepted_observation_id,
             Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
             update_scratch,
-            update_investigation_checkpoint
-                .then(|| state.investigation_checkpoint.clone())
-                .flatten(),
+            update_investigation_checkpoint,
+            state.investigation_checkpoint.clone(),
         ) {
-            Ok(bundle) => bundle,
+            Ok(update) => update,
             Err(message) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
         };
-        let accepted_receipt_id = acceptance_bundle.accepted_receipt_id.clone();
-        let accepted_observation_id = acceptance_bundle.accepted_observation_id.clone();
-        let accepted_evidence_id = acceptance_bundle.accepted_evidence_id.clone();
-        let scratch = acceptance_bundle.scratch;
-        let investigation_checkpoint = acceptance_bundle.investigation_checkpoint;
-
-        let mut changed_fields = vec![
-            ThreadEpiphanyStateUpdatedField::AcceptanceReceipts,
-            ThreadEpiphanyStateUpdatedField::Observations,
-            ThreadEpiphanyStateUpdatedField::Evidence,
-        ];
-        if scratch.is_some() {
-            changed_fields.push(ThreadEpiphanyStateUpdatedField::Scratch);
-        }
-        if investigation_checkpoint.is_some() {
-            changed_fields.push(ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint);
-        }
+        let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
+        let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
+        let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
+        let changed_fields = acceptance_update.changed_fields.clone();
 
         let epiphany_state = match loaded_thread
             .epiphany_update_state(EpiphanyStateUpdate {
                 expected_revision,
-                scratch,
-                investigation_checkpoint,
-                acceptance_receipts: vec![acceptance_bundle.receipt],
-                observations: vec![acceptance_bundle.observation],
-                evidence: vec![acceptance_bundle.evidence],
+                scratch: acceptance_update.scratch,
+                investigation_checkpoint: acceptance_update.investigation_checkpoint,
+                acceptance_receipts: vec![acceptance_update.receipt],
+                observations: vec![acceptance_update.observation],
+                evidence: vec![acceptance_update.evidence],
                 ..Default::default()
             })
             .await
