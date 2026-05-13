@@ -852,6 +852,11 @@ decorated with Codex plugin product names. If Epiphany later wants MCP
 attribution, it needs an Epiphany-owned typed adapter surface, not this old
 product metadata graft.
 
+The TUI connector prefetch path no longer imports `codex-chatgpt`; it calls the
+inert core connector compatibility stub. ChatGPT app connector discovery is not
+a TUI dependency anymore. `codex-chatgpt` still survives for CLI apply/get-task
+surfaces and should be judged separately against the OpenAI auth/model spine.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

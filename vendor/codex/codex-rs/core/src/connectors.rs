@@ -23,6 +23,21 @@ pub async fn list_cached_accessible_connectors_from_mcp_tools(
     Some(Vec::new())
 }
 
+pub async fn list_all_connectors_with_options(
+    _config: &Config,
+    _force_refetch: bool,
+) -> anyhow::Result<Vec<AppInfo>> {
+    Ok(Vec::new())
+}
+
+pub fn merge_connectors_with_accessible(
+    _all_connectors: Vec<AppInfo>,
+    accessible_connectors: Vec<AppInfo>,
+    _all_connectors_loaded: bool,
+) -> Vec<AppInfo> {
+    accessible_connectors
+}
+
 pub async fn list_accessible_connectors_from_mcp_tools_with_options(
     _config: &Config,
     _force_refetch: bool,
