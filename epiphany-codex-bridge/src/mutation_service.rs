@@ -1,24 +1,32 @@
 use chrono::SecondsFormat;
 use chrono::Utc;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
+use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_core::CodexThread;
+use codex_core::EpiphanyJobInterruptRequest;
+use codex_core::EpiphanyJobLaunchRequest;
 use codex_core::EpiphanyPromotionInput;
 use codex_core::evaluate_promotion;
 use codex_protocol::error::CodexErr;
+use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyThreadState;
 
+use crate::jobs::map_interrupted_epiphany_job;
+use crate::jobs::map_launched_epiphany_job;
+use crate::launch::build_epiphany_role_launch_request;
+use crate::launch::epiphany_role_label;
 use crate::mutation::build_reorient_acceptance_update;
 use crate::mutation::build_role_acceptance_update;
+use crate::mutation::epiphany_job_launch_changed_fields;
 use crate::mutation::epiphany_promote_changed_fields;
 use crate::mutation::epiphany_update_patch_changed_fields;
 use crate::mutation::state_update_from_thread_patch;
 use crate::mutation::thread_epiphany_patch_has_state_replacements;
-use crate::launch::epiphany_role_label;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
 use crate::state::client_visible_live_thread_epiphany_state;
@@ -58,6 +66,24 @@ pub struct EpiphanyReorientAcceptApplied {
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
     pub finding: ThreadEpiphanyReorientFinding,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyJobLaunchApplied {
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+    pub job: ThreadEpiphanyJob,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyJobInterruptApplied {
+    pub cancel_requested: bool,
+    pub interrupted_thread_ids: Vec<String>,
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+    pub job: ThreadEpiphanyJob,
 }
 
 pub async fn apply_thread_epiphany_update(
@@ -220,6 +246,90 @@ pub async fn apply_thread_epiphany_reorient_accept(
         accepted_observation_id,
         accepted_evidence_id,
         finding,
+    })
+}
+
+pub async fn launch_thread_epiphany_role(
+    thread: &CodexThread,
+    thread_id: &str,
+    role_id: ThreadEpiphanyRoleId,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+) -> Result<EpiphanyJobLaunchApplied, CodexErr> {
+    let state = thread.epiphany_state().await.ok_or_else(|| {
+        CodexErr::InvalidRequest(
+            "cannot launch an Epiphany role specialist without authoritative Epiphany state"
+                .to_string(),
+        )
+    })?;
+    let launch_request = build_epiphany_role_launch_request(
+        thread_id,
+        role_id,
+        expected_revision,
+        max_runtime_seconds,
+        &state,
+    )
+    .map_err(CodexErr::InvalidRequest)?;
+    launch_thread_epiphany_job(
+        thread,
+        launch_request,
+        CoreEpiphanyJobKind::Specialist,
+        "missing launched role projection",
+    )
+    .await
+}
+
+pub async fn launch_thread_epiphany_job(
+    thread: &CodexThread,
+    launch_request: EpiphanyJobLaunchRequest,
+    kind: CoreEpiphanyJobKind,
+    missing_projection_reason: &str,
+) -> Result<EpiphanyJobLaunchApplied, CodexErr> {
+    let changed_fields = epiphany_job_launch_changed_fields();
+    let launched = thread.epiphany_launch_job(launch_request).await?;
+    let epiphany_state =
+        client_visible_live_thread_epiphany_state(thread, launched.epiphany_state).await;
+    let job = map_launched_epiphany_job(
+        &epiphany_state,
+        launched.binding_id.as_str(),
+        launched.launcher_job_id.as_str(),
+        launched.backend_job_id.as_str(),
+        kind,
+        missing_projection_reason,
+    );
+    Ok(EpiphanyJobLaunchApplied {
+        revision: epiphany_state.revision,
+        changed_fields,
+        epiphany_state,
+        job,
+    })
+}
+
+pub async fn interrupt_thread_epiphany_job(
+    thread: &CodexThread,
+    expected_revision: Option<u64>,
+    binding_id: &str,
+    reason: Option<String>,
+) -> Result<EpiphanyJobInterruptApplied, CodexErr> {
+    let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+    let interrupted = thread
+        .epiphany_interrupt_job(EpiphanyJobInterruptRequest {
+            expected_revision,
+            binding_id: binding_id.to_string(),
+            reason,
+        })
+        .await?;
+    let epiphany_state =
+        client_visible_live_thread_epiphany_state(thread, interrupted.epiphany_state).await;
+    let job = map_interrupted_epiphany_job(&epiphany_state, binding_id);
+
+    Ok(EpiphanyJobInterruptApplied {
+        cancel_requested: interrupted.cancel_requested,
+        interrupted_thread_ids: interrupted.interrupted_thread_ids,
+        revision: epiphany_state.revision,
+        changed_fields,
+        epiphany_state,
+        job,
     })
 }
 

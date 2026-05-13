@@ -630,8 +630,15 @@ Role/reorient accept have followed into the same bridge service.
 checks, typed runtime-spine finding load, acceptance id/timestamp generation,
 acceptance update construction, state application, and client-visible state
 projection. The vendored mutation route still parses JSON-RPC params, loads the
-thread, shapes responses, and emits notifications. Launch/interrupt route
-orchestration remains to cut.
+thread, shapes responses, and emits notifications.
+
+Role launch, generic job launch, and job interrupt now route through the bridge
+service too. `launch_thread_epiphany_role`, `launch_thread_epiphany_job`, and
+`interrupt_thread_epiphany_job` own launch/interrupt application,
+changed-field derivation, live-state projection, and job projection. The
+remaining thick mutation-route knot is reorient launch: it still composes
+freshness, pressure, watcher state, reorientation decision, launch request, and
+response shaping inside the vendored route.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

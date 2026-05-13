@@ -1,16 +1,11 @@
 use codex_app_server_protocol::*;
-use codex_core::EpiphanyJobInterruptRequest;
 use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
-use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_codex_bridge::jobs::epiphany_blocked_state_job;
 use epiphany_codex_bridge::jobs::map_epiphany_jobs;
-use epiphany_codex_bridge::jobs::map_interrupted_epiphany_job;
-use epiphany_codex_bridge::jobs::map_launched_epiphany_job;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
-use epiphany_codex_bridge::launch::build_epiphany_role_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::launch::map_core_worker_launch_document;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
@@ -20,6 +15,9 @@ use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_acce
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_role_accept;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_update;
+use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
+use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
+use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::reorient::map_epiphany_reorient;
@@ -64,35 +62,16 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let state = match loaded_thread.epiphany_state().await {
-            Some(state) => state,
-            None => {
-                self.send_invalid_request_error(
-                    request_id,
-                    "cannot launch an Epiphany role specialist without authoritative Epiphany state"
-                        .to_string(),
-                )
-                .await;
-                return;
-            }
-        };
-
-        let launch_request = match build_epiphany_role_launch_request(
+        let applied = match launch_thread_epiphany_role(
+            loaded_thread.as_ref(),
             &thread_id,
             role_id,
             expected_revision,
             max_runtime_seconds,
-            &state,
-        ) {
-            Ok(request) => request,
-            Err(message) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-        };
-        let changed_fields = epiphany_job_launch_changed_fields();
-        let launched = match loaded_thread.epiphany_launch_job(launch_request).await {
-            Ok(launched) => launched,
+        )
+        .await
+        {
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -106,20 +85,8 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-
-        let epiphany_state = client_visible_live_thread_epiphany_state(
-            loaded_thread.as_ref(),
-            launched.epiphany_state,
-        )
-        .await;
-        let job = map_launched_epiphany_job(
-            &epiphany_state,
-            launched.binding_id.as_str(),
-            launched.launcher_job_id.as_str(),
-            launched.backend_job_id.as_str(),
-            CoreEpiphanyJobKind::Specialist,
-            "missing launched role projection",
-        );
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
 
         self.outgoing
             .send_response(
@@ -127,10 +94,10 @@ impl CodexMessageProcessor {
                 ThreadEpiphanyRoleLaunchResponse {
                     thread_id: thread_uuid.to_string(),
                     role_id,
-                    revision: epiphany_state.revision,
+                    revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job,
+                    job: applied.job,
                 },
             )
             .await;
@@ -757,9 +724,9 @@ impl CodexMessageProcessor {
         };
 
         let launch_document = map_core_worker_launch_document(launch_document);
-        let changed_fields = epiphany_job_launch_changed_fields();
-        let launched = match thread
-            .epiphany_launch_job(EpiphanyJobLaunchRequest {
+        let applied = match launch_thread_epiphany_job(
+            thread.as_ref(),
+            EpiphanyJobLaunchRequest {
                 expected_revision,
                 binding_id: binding_id.clone(),
                 kind,
@@ -772,10 +739,13 @@ impl CodexMessageProcessor {
                 launch_document,
                 output_contract_id,
                 max_runtime_seconds,
-            })
-            .await
+            },
+            kind,
+            "missing launched job projection",
+        )
+        .await
         {
-            Ok(launched) => launched,
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -789,26 +759,17 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let epiphany_state =
-            client_visible_live_thread_epiphany_state(thread.as_ref(), launched.epiphany_state)
-                .await;
-        let job = map_launched_epiphany_job(
-            &epiphany_state,
-            launched.binding_id.as_str(),
-            launched.launcher_job_id.as_str(),
-            launched.backend_job_id.as_str(),
-            kind,
-            "missing launched job projection",
-        );
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
 
         self.outgoing
             .send_response(
                 request_id,
                 ThreadEpiphanyJobLaunchResponse {
-                    revision: epiphany_state.revision,
+                    revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job,
+                    job: applied.job,
                 },
             )
             .await;
@@ -858,16 +819,15 @@ impl CodexMessageProcessor {
             }
         };
 
-        let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
-        let interrupted = match thread
-            .epiphany_interrupt_job(EpiphanyJobInterruptRequest {
-                expected_revision,
-                binding_id: binding_id.clone(),
-                reason,
-            })
-            .await
+        let applied = match interrupt_thread_epiphany_job(
+            thread.as_ref(),
+            expected_revision,
+            &binding_id,
+            reason,
+        )
+        .await
         {
-            Ok(interrupted) => interrupted,
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -881,21 +841,19 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let epiphany_state =
-            client_visible_live_thread_epiphany_state(thread.as_ref(), interrupted.epiphany_state)
-                .await;
-        let job = map_interrupted_epiphany_job(&epiphany_state, &binding_id);
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
 
         self.outgoing
             .send_response(
                 request_id,
                 ThreadEpiphanyJobInterruptResponse {
-                    cancel_requested: interrupted.cancel_requested,
-                    interrupted_thread_ids: interrupted.interrupted_thread_ids.clone(),
-                    revision: epiphany_state.revision,
+                    cancel_requested: applied.cancel_requested,
+                    interrupted_thread_ids: applied.interrupted_thread_ids.clone(),
+                    revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job,
+                    job: applied.job,
                 },
             )
             .await;
