@@ -2325,18 +2325,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-connectors"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "codex-app-server-protocol",
- "pretty_assertions",
- "serde",
- "tokio",
- "urlencoding",
-]
-
-[[package]]
 name = "codex-core"
 version = "0.0.0"
 dependencies = [
@@ -2357,7 +2345,6 @@ dependencies = [
  "codex-async-utils",
  "codex-code-mode",
  "codex-config",
- "codex-connectors",
  "codex-core-skills",
  "codex-exec-server",
  "codex-execpolicy",
@@ -3390,7 +3377,6 @@ dependencies = [
  "codex-cli",
  "codex-cloud-requirements",
  "codex-config",
- "codex-connectors",
  "codex-core-skills",
  "codex-exec-server",
  "codex-features",

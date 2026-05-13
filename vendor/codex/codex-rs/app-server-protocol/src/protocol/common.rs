@@ -439,10 +439,6 @@ client_request_definitions! {
         params: v2::SkillsListParams,
         response: v2::SkillsListResponse,
     },
-    AppsList => "app/list" {
-        params: v2::AppsListParams,
-        response: v2::AppsListResponse,
-    },
     DeviceKeyCreate => "device/key/create" {
         params: v2::DeviceKeyCreateParams,
         response: v2::DeviceKeyCreateResponse,
@@ -1109,7 +1105,6 @@ server_notification_definitions! {
     McpServerStatusUpdated => "mcpServer/startupStatus/updated" (v2::McpServerStatusUpdatedNotification),
     AccountUpdated => "account/updated" (v2::AccountUpdatedNotification),
     AccountRateLimitsUpdated => "account/rateLimits/updated" (v2::AccountRateLimitsUpdatedNotification),
-    AppListUpdated => "app/list/updated" (v2::AppListUpdatedNotification),
     FsChanged => "fs/changed" (v2::FsChangedNotification),
     ReasoningSummaryTextDelta => "item/reasoning/summaryTextDelta" (v2::ReasoningSummaryTextDeltaNotification),
     ReasoningSummaryPartAdded => "item/reasoning/summaryPartAdded" (v2::ReasoningSummaryPartAddedNotification),
@@ -3432,27 +3427,6 @@ mod tests {
                 "method": "collaborationMode/list",
                 "id": 7,
                 "params": {}
-            }),
-            serde_json::to_value(&request)?,
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn serialize_list_apps() -> Result<()> {
-        let request = ClientRequest::AppsList {
-            request_id: RequestId::Integer(8),
-            params: v2::AppsListParams::default(),
-        };
-        assert_eq!(
-            json!({
-                "method": "app/list",
-                "id": 8,
-                "params": {
-                    "cursor": null,
-                    "limit": null,
-                    "threadId": null
-                }
             }),
             serde_json::to_value(&request)?,
         );

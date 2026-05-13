@@ -39,8 +39,6 @@ use codex_app_server_protocol::AccountLoginCompletedNotification;
 use codex_app_server_protocol::AccountUpdatedNotification;
 use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
-use codex_app_server_protocol::AppsListParams;
-use codex_app_server_protocol::AppsListResponse;
 use codex_app_server_protocol::AskForApproval;
 use codex_app_server_protocol::AuthMode;
 use codex_app_server_protocol::AuthMode as CoreAuthMode;
@@ -998,10 +996,6 @@ impl CodexMessageProcessor {
             }
             ClientRequest::SkillsList { request_id, params } => {
                 self.skills_list(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::AppsList { request_id, params } => {
-                self.apps_list(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::SkillsConfigWrite { request_id, params } => {
@@ -6323,18 +6317,6 @@ impl CodexMessageProcessor {
             }
         }
         self.finalize_thread_teardown(thread_id).await;
-    }
-
-    async fn apps_list(&self, request_id: ConnectionRequestId, _params: AppsListParams) {
-        self.outgoing
-            .send_response(
-                request_id,
-                AppsListResponse {
-                    data: Vec::new(),
-                    next_cursor: None,
-                },
-            )
-            .await;
     }
 
     async fn skills_list(&self, request_id: ConnectionRequestId, _params: SkillsListParams) {

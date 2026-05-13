@@ -17,7 +17,7 @@ At a glance:
   - `turn/start`, `turn/steer`, `turn/interrupt`
   - `account/read`, `account/login/start`, `account/login/cancel`, `account/logout`, `account/rateLimits/read`
   - `config/read`, `config/value/write`, `config/batchWrite`
-  - `model/list`, `app/list`, `collaborationMode/list`
+  - `model/list`, `collaborationMode/list`
 - Remaining v1 compatibility RPCs
   - `getConversationSummary`
   - `getAuthStatus`

@@ -6551,7 +6551,6 @@ impl ChatWidget {
             | ServerNotification::FileChangePatchUpdated(_)
             | ServerNotification::McpToolCallProgress(_)
             | ServerNotification::McpServerOauthLoginCompleted(_)
-            | ServerNotification::AppListUpdated(_)
             | ServerNotification::FsChanged(_)
             | ServerNotification::FuzzyFileSearchSessionUpdated(_)
             | ServerNotification::FuzzyFileSearchSessionCompleted(_)

@@ -848,6 +848,15 @@ deleted. The browser-opening shim and one-use selection-refresh plumbing died
 with the popup. Verification: `cargo check -p codex-tui` passed; `cargo test -p
 codex-tui --lib --no-run` timed out after 3 minutes without a diagnostic.
 
+The app-list protocol surface is deleted too. `app/list` and
+`app/list/updated` are no longer shared app-server protocol methods, no longer
+dispatch through `codex_message_processor.rs`, no longer have generated JSON or
+TypeScript schemas, and no longer appear in app-server/MCP docs. The app-list
+`AppInfo` / metadata structs were deleted with the route. The orphaned
+`codex-connectors` crate and `core::connectors` compatibility shim are removed
+from the workspace; do not recreate connector listing unless it returns as an
+Epiphany-owned typed MCP adapter receipt.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

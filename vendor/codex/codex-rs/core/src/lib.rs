@@ -46,7 +46,6 @@ mod command_canonicalization;
 mod commit_attribution;
 pub mod config;
 pub mod config_loader;
-pub mod connectors;
 pub mod context;
 mod context_manager;
 pub mod exec;

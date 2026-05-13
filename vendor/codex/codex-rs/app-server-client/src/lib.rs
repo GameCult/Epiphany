@@ -85,10 +85,6 @@ pub mod legacy_core {
         }
     }
 
-    pub mod connectors {
-        pub use codex_core::connectors::*;
-    }
-
     pub mod otel_init {
         pub use codex_core::otel_init::*;
     }

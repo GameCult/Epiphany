@@ -62,7 +62,6 @@ use crate::tools::handlers::UnifiedExecHandler;
 use crate::tools::registry::ToolHandler;
 use crate::tools::router::ToolCallSource;
 use crate::turn_diff_tracker::TurnDiffTracker;
-use codex_app_server_protocol::AppInfo;
 use codex_config::config_toml::ConfigToml;
 use codex_config::config_toml::ProjectConfig;
 use codex_execpolicy::Decision;
@@ -756,23 +755,6 @@ fn test_tool_runtime(session: Arc<Session>, turn_context: Arc<TurnContext>) -> T
     ));
     let tracker = Arc::new(tokio::sync::Mutex::new(TurnDiffTracker::new()));
     ToolCallRuntime::new(router, session, turn_context, tracker)
-}
-
-fn make_connector(id: &str, name: &str) -> AppInfo {
-    AppInfo {
-        id: id.to_string(),
-        name: name.to_string(),
-        description: None,
-        logo_url: None,
-        logo_url_dark: None,
-        distribution_channel: None,
-        branding: None,
-        app_metadata: None,
-        labels: None,
-        install_url: None,
-        is_accessible: true,
-        is_enabled: true,
-    }
 }
 
 #[test]

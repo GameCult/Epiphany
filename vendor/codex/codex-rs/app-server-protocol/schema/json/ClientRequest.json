@@ -21,39 +21,6 @@
       ],
       "type": "string"
     },
-    "AppsListParams": {
-      "description": "EXPERIMENTAL - list available apps/connectors.",
-      "properties": {
-        "cursor": {
-          "description": "Opaque pagination cursor returned by a previous call.",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "forceRefetch": {
-          "description": "When true, bypass app caches and fetch the latest data from sources.",
-          "type": "boolean"
-        },
-        "limit": {
-          "description": "Optional page size; defaults to a reasonable server-side value.",
-          "format": "uint32",
-          "minimum": 0.0,
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "threadId": {
-          "description": "Optional thread id used to evaluate app feature gating from that thread's config.",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      },
-      "type": "object"
-    },
     "AskForApproval": {
       "oneOf": [
         {
@@ -6397,30 +6364,6 @@
         "params"
       ],
       "title": "Skills/listRequest",
-      "type": "object"
-    },
-    {
-      "properties": {
-        "id": {
-          "$ref": "#/definitions/RequestId"
-        },
-        "method": {
-          "enum": [
-            "app/list"
-          ],
-          "title": "App/listRequestMethod",
-          "type": "string"
-        },
-        "params": {
-          "$ref": "#/definitions/AppsListParams"
-        }
-      },
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "title": "App/listRequest",
       "type": "object"
     },
     {
