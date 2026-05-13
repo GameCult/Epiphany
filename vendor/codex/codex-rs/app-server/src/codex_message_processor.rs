@@ -41,8 +41,6 @@ use codex_app_server_protocol::AccountLoginCompletedNotification;
 use codex_app_server_protocol::AccountUpdatedNotification;
 use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
-use codex_app_server_protocol::AppInfo;
-use codex_app_server_protocol::AppSummary;
 use codex_app_server_protocol::AppsListParams;
 use codex_app_server_protocol::AppsListResponse;
 use codex_app_server_protocol::AskForApproval;
@@ -94,10 +92,7 @@ use codex_app_server_protocol::LoginAccountResponse;
 use codex_app_server_protocol::LoginApiKeyParams;
 use codex_app_server_protocol::LogoutAccountResponse;
 use codex_app_server_protocol::MarketplaceAddParams;
-use codex_app_server_protocol::MarketplaceAddResponse;
-use codex_app_server_protocol::MarketplaceInterface;
 use codex_app_server_protocol::MarketplaceRemoveParams;
-use codex_app_server_protocol::MarketplaceRemoveResponse;
 use codex_app_server_protocol::McpResourceReadParams;
 use codex_app_server_protocol::McpResourceReadResponse;
 use codex_app_server_protocol::McpServerOauthLoginCompletedNotification;
@@ -114,19 +109,11 @@ use codex_app_server_protocol::MockExperimentalMethodResponse;
 use codex_app_server_protocol::ModelListParams;
 use codex_app_server_protocol::ModelListResponse;
 use codex_app_server_protocol::PermissionProfile as ApiPermissionProfile;
-use codex_app_server_protocol::PluginDetail;
 use codex_app_server_protocol::PluginInstallParams;
-use codex_app_server_protocol::PluginInstallResponse;
-use codex_app_server_protocol::PluginInterface;
 use codex_app_server_protocol::PluginListParams;
 use codex_app_server_protocol::PluginListResponse;
-use codex_app_server_protocol::PluginMarketplaceEntry;
 use codex_app_server_protocol::PluginReadParams;
-use codex_app_server_protocol::PluginReadResponse;
-use codex_app_server_protocol::PluginSource;
-use codex_app_server_protocol::PluginSummary;
 use codex_app_server_protocol::PluginUninstallParams;
-use codex_app_server_protocol::PluginUninstallResponse;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ReviewDelivery as ApiReviewDelivery;
 use codex_app_server_protocol::ReviewStartParams;
@@ -137,9 +124,7 @@ use codex_app_server_protocol::SendAddCreditsNudgeEmailParams;
 use codex_app_server_protocol::SendAddCreditsNudgeEmailResponse;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestResolvedNotification;
-use codex_app_server_protocol::SkillSummary;
 use codex_app_server_protocol::SkillsConfigWriteParams;
-use codex_app_server_protocol::SkillsConfigWriteResponse;
 use codex_app_server_protocol::SkillsListParams;
 use codex_app_server_protocol::SkillsListResponse;
 use codex_app_server_protocol::SortDirection;
@@ -156,8 +141,6 @@ use codex_app_server_protocol::ThreadCompactStartParams;
 use codex_app_server_protocol::ThreadCompactStartResponse;
 use codex_app_server_protocol::ThreadDecrementElicitationParams;
 use codex_app_server_protocol::ThreadDecrementElicitationResponse;
-#[cfg(test)]
-use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadForkParams;
 use codex_app_server_protocol::ThreadForkResponse;
 use codex_app_server_protocol::ThreadIncrementElicitationParams;
@@ -228,7 +211,6 @@ use codex_app_server_protocol::build_turns_from_rollout_items;
 use codex_arg0::Arg0DispatchPaths;
 use codex_backend_client::AddCreditsNudgeCreditType as BackendAddCreditsNudgeCreditType;
 use codex_backend_client::Client as BackendClient;
-use codex_chatgpt::connectors;
 use codex_config::types::McpServerTransportConfig;
 use codex_core::CodexThread;
 use codex_core::CodexThreadTurnContextOverrides;
@@ -243,8 +225,6 @@ use codex_core::clear_memory_roots_contents;
 use codex_core::config::Config;
 use codex_core::config::ConfigOverrides;
 use codex_core::config::NetworkProxyAuditMetadata;
-use codex_core::config::edit::ConfigEdit;
-use codex_core::config::edit::ConfigEditsBuilder;
 use codex_core::config_loader::CloudRequirementsLoadError;
 use codex_core::config_loader::CloudRequirementsLoadErrorCode;
 use codex_core::config_loader::project_trust_key;
@@ -257,33 +237,12 @@ use codex_core::find_thread_name_by_id;
 use codex_core::find_thread_names_by_ids;
 use codex_core::find_thread_path_by_id_str;
 use codex_core::path_utils;
-use codex_core::plugins::MarketplaceAddError;
-use codex_core::plugins::MarketplaceRemoveError;
-use codex_core::plugins::MarketplaceRemoveRequest as CoreMarketplaceRemoveRequest;
-use codex_core::plugins::OPENAI_CURATED_MARKETPLACE_NAME;
-use codex_core::plugins::PluginInstallError as CorePluginInstallError;
-use codex_core::plugins::PluginInstallRequest;
-use codex_core::plugins::PluginReadRequest;
-use codex_core::plugins::PluginUninstallError as CorePluginUninstallError;
-use codex_core::plugins::add_marketplace as add_marketplace_to_codex_home;
-use codex_core::plugins::remove_marketplace;
 use codex_core::read_head_for_summary;
 use codex_core::read_session_meta_line;
 use codex_core::sandboxing::SandboxPermissions;
 use codex_core::windows_sandbox::WindowsSandboxLevelExt;
 use codex_core::windows_sandbox::WindowsSandboxSetupMode as CoreWindowsSandboxSetupMode;
 use codex_core::windows_sandbox::WindowsSandboxSetupRequest;
-use codex_core_plugins::loader::load_plugin_apps;
-use codex_core_plugins::loader::load_plugin_mcp_servers;
-use codex_core_plugins::manifest::PluginManifestInterface;
-use codex_core_plugins::marketplace::MarketplaceError;
-use codex_core_plugins::marketplace::MarketplacePluginSource;
-use codex_core_plugins::remote::RemoteMarketplace;
-use codex_core_plugins::remote::RemotePluginCatalogError;
-use codex_core_plugins::remote::RemotePluginDetail as RemoteCatalogPluginDetail;
-use codex_core_plugins::remote::RemotePluginServiceConfig;
-use codex_core_plugins::remote::RemotePluginSummary as RemoteCatalogPluginSummary;
-use codex_exec_server::EnvironmentManager;
 use codex_exec_server::LOCAL_FS;
 use codex_features::FEATURES;
 use codex_features::Feature;
@@ -404,13 +363,6 @@ fn epiphany_freshness_watcher_snapshot(
     }
 }
 
-#[cfg(test)]
-use codex_app_server_protocol::ServerRequest;
-
-mod apps_list_helpers;
-mod plugin_app_helpers;
-mod plugin_mcp_oauth;
-mod plugins;
 mod token_usage_replay;
 
 use crate::filters::compute_source_filters;
@@ -441,7 +393,6 @@ struct ThreadListFilters {
 // Duration before a browser ChatGPT login attempt is abandoned.
 const LOGIN_CHATGPT_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const LOGIN_ISSUER_OVERRIDE_ENV_VAR: &str = "CODEX_APP_SERVER_LOGIN_ISSUER";
-const APP_LIST_LOAD_TIMEOUT: Duration = Duration::from_secs(90);
 const THREAD_UNLOADING_DELAY: Duration = Duration::from_secs(30 * 60);
 
 enum ActiveLogin {
@@ -477,11 +428,6 @@ impl ActiveLogin {
 #[derive(Clone, Copy, Debug)]
 enum CancelLoginError {
     NotFound,
-}
-
-enum AppListLoadResult {
-    Accessible(Result<Vec<AppInfo>, String>),
-    Directory(Result<Vec<AppInfo>, String>),
 }
 
 enum ThreadShutdownResult {
@@ -6264,30 +6210,16 @@ impl CodexMessageProcessor {
         self.outgoing.send_error(request_id, error).await;
     }
 
-    async fn send_marketplace_error(
+    async fn send_codex_product_surface_disabled(
         &self,
         request_id: ConnectionRequestId,
-        err: MarketplaceError,
-        action: &str,
+        method: &str,
     ) {
-        match err {
-            MarketplaceError::MarketplaceNotFound { .. } => {
-                self.send_invalid_request_error(request_id, err.to_string())
-                    .await;
-            }
-            MarketplaceError::Io { .. } => {
-                self.send_internal_error(request_id, format!("failed to {action}: {err}"))
-                    .await;
-            }
-            MarketplaceError::InvalidMarketplaceFile { .. }
-            | MarketplaceError::PluginNotFound { .. }
-            | MarketplaceError::PluginNotAvailable { .. }
-            | MarketplaceError::PluginsDisabled
-            | MarketplaceError::InvalidPlugin(_) => {
-                self.send_invalid_request_error(request_id, err.to_string())
-                    .await;
-            }
-        }
+        self.send_invalid_request_error(
+            request_id,
+            format!("{method} is disabled in Epiphany's vestigial Codex organ"),
+        )
+        .await;
     }
 
     async fn wait_for_thread_shutdown(thread: &Arc<CodexThread>) -> ThreadShutdownResult {
@@ -6441,490 +6373,81 @@ impl CodexMessageProcessor {
         self.finalize_thread_teardown(thread_id).await;
     }
 
-    async fn apps_list(&self, request_id: ConnectionRequestId, params: AppsListParams) {
-        let mut config = match self.load_latest_config(/*fallback_cwd*/ None).await {
-            Ok(config) => config,
-            Err(error) => {
-                self.outgoing.send_error(request_id, error).await;
-                return;
-            }
-        };
-
-        if let Some(thread_id) = params.thread_id.as_deref() {
-            let (_, thread) = match self.load_thread(thread_id).await {
-                Ok(result) => result,
-                Err(error) => {
-                    self.outgoing.send_error(request_id, error).await;
-                    return;
-                }
-            };
-
-            let _ = config
-                .features
-                .set_enabled(Feature::Apps, thread.enabled(Feature::Apps));
-        }
-
-        let auth = self.auth_manager.auth().await;
-        if !config
-            .features
-            .apps_enabled_for_auth(auth.as_ref().is_some_and(CodexAuth::is_chatgpt_auth))
-        {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    AppsListResponse {
-                        data: Vec::new(),
-                        next_cursor: None,
-                    },
-                )
-                .await;
-            return;
-        }
-
-        let request = request_id.clone();
-        let outgoing = Arc::clone(&self.outgoing);
-        let environment_manager = self.thread_manager.environment_manager();
-        tokio::spawn(async move {
-            Self::apps_list_task(outgoing, request, params, config, environment_manager).await;
-        });
-    }
-
-    async fn apps_list_task(
-        outgoing: Arc<OutgoingMessageSender>,
-        request_id: ConnectionRequestId,
-        params: AppsListParams,
-        config: Config,
-        environment_manager: Arc<EnvironmentManager>,
-    ) {
-        let AppsListParams {
-            cursor,
-            limit,
-            thread_id: _,
-            force_refetch,
-        } = params;
-        let start = match cursor {
-            Some(cursor) => match cursor.parse::<usize>() {
-                Ok(idx) => idx,
-                Err(_) => {
-                    let error = JSONRPCErrorError {
-                        code: INVALID_REQUEST_ERROR_CODE,
-                        message: format!("invalid cursor: {cursor}"),
-                        data: None,
-                    };
-                    outgoing.send_error(request_id, error).await;
-                    return;
-                }
-            },
-            None => 0,
-        };
-
-        let (mut accessible_connectors, mut all_connectors) = tokio::join!(
-            connectors::list_cached_accessible_connectors_from_mcp_tools(&config),
-            connectors::list_cached_all_connectors(&config)
-        );
-        let cached_all_connectors = all_connectors.clone();
-
-        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-
-        let accessible_config = config.clone();
-        let accessible_tx = tx.clone();
-        tokio::spawn(async move {
-            let result =
-                connectors::list_accessible_connectors_from_mcp_tools_with_environment_manager(
-                    &accessible_config,
-                    force_refetch,
-                    &environment_manager,
-                )
-                .await
-                .map(|status| status.connectors)
-                .map_err(|err| format!("failed to load accessible apps: {err}"));
-            let _ = accessible_tx.send(AppListLoadResult::Accessible(result));
-        });
-
-        let all_config = config.clone();
-        tokio::spawn(async move {
-            let result = connectors::list_all_connectors_with_options(&all_config, force_refetch)
-                .await
-                .map_err(|err| format!("failed to list apps: {err}"));
-            let _ = tx.send(AppListLoadResult::Directory(result));
-        });
-
-        let app_list_deadline = tokio::time::Instant::now() + APP_LIST_LOAD_TIMEOUT;
-        let mut accessible_loaded = false;
-        let mut all_loaded = false;
-        let mut last_notified_apps = None;
-
-        if accessible_connectors.is_some() || all_connectors.is_some() {
-            let merged = connectors::with_app_enabled_state(
-                apps_list_helpers::merge_loaded_apps(
-                    all_connectors.as_deref(),
-                    accessible_connectors.as_deref(),
-                ),
-                &config,
-            );
-            if apps_list_helpers::should_send_app_list_updated_notification(
-                merged.as_slice(),
-                accessible_loaded,
-                all_loaded,
-            ) {
-                apps_list_helpers::send_app_list_updated_notification(&outgoing, merged.clone())
-                    .await;
-                last_notified_apps = Some(merged);
-            }
-        }
-
-        loop {
-            let result = match tokio::time::timeout_at(app_list_deadline, rx.recv()).await {
-                Ok(Some(result)) => result,
-                Ok(None) => {
-                    let error = JSONRPCErrorError {
-                        code: INTERNAL_ERROR_CODE,
-                        message: "failed to load app lists".to_string(),
-                        data: None,
-                    };
-                    outgoing.send_error(request_id, error).await;
-                    return;
-                }
-                Err(_) => {
-                    let timeout_seconds = APP_LIST_LOAD_TIMEOUT.as_secs();
-                    let error = JSONRPCErrorError {
-                        code: INTERNAL_ERROR_CODE,
-                        message: format!(
-                            "timed out waiting for app lists after {timeout_seconds} seconds"
-                        ),
-                        data: None,
-                    };
-                    outgoing.send_error(request_id, error).await;
-                    return;
-                }
-            };
-
-            match result {
-                AppListLoadResult::Accessible(Ok(connectors)) => {
-                    accessible_connectors = Some(connectors);
-                    accessible_loaded = true;
-                }
-                AppListLoadResult::Accessible(Err(err)) => {
-                    let error = JSONRPCErrorError {
-                        code: INTERNAL_ERROR_CODE,
-                        message: err,
-                        data: None,
-                    };
-                    outgoing.send_error(request_id, error).await;
-                    return;
-                }
-                AppListLoadResult::Directory(Ok(connectors)) => {
-                    all_connectors = Some(connectors);
-                    all_loaded = true;
-                }
-                AppListLoadResult::Directory(Err(err)) => {
-                    let error = JSONRPCErrorError {
-                        code: INTERNAL_ERROR_CODE,
-                        message: err,
-                        data: None,
-                    };
-                    outgoing.send_error(request_id, error).await;
-                    return;
-                }
-            }
-
-            let showing_interim_force_refetch = force_refetch && !(accessible_loaded && all_loaded);
-            let all_connectors_for_update =
-                if showing_interim_force_refetch && cached_all_connectors.is_some() {
-                    cached_all_connectors.as_deref()
-                } else {
-                    all_connectors.as_deref()
-                };
-            let accessible_connectors_for_update =
-                if showing_interim_force_refetch && !accessible_loaded {
-                    None
-                } else {
-                    accessible_connectors.as_deref()
-                };
-            let merged = connectors::with_app_enabled_state(
-                apps_list_helpers::merge_loaded_apps(
-                    all_connectors_for_update,
-                    accessible_connectors_for_update,
-                ),
-                &config,
-            );
-            if apps_list_helpers::should_send_app_list_updated_notification(
-                merged.as_slice(),
-                accessible_loaded,
-                all_loaded,
-            ) && last_notified_apps.as_ref() != Some(&merged)
-            {
-                apps_list_helpers::send_app_list_updated_notification(&outgoing, merged.clone())
-                    .await;
-                last_notified_apps = Some(merged.clone());
-            }
-
-            if accessible_loaded && all_loaded {
-                match apps_list_helpers::paginate_apps(merged.as_slice(), start, limit) {
-                    Ok(response) => {
-                        outgoing.send_response(request_id, response).await;
-                        return;
-                    }
-                    Err(error) => {
-                        outgoing.send_error(request_id, error).await;
-                        return;
-                    }
-                }
-            }
-        }
-    }
-
-    async fn skills_list(&self, request_id: ConnectionRequestId, params: SkillsListParams) {
-        let SkillsListParams {
-            cwds,
-            force_reload,
-            per_cwd_extra_user_roots,
-        } = params;
-        let cwds = if cwds.is_empty() {
-            vec![self.config.cwd.to_path_buf()]
-        } else {
-            cwds
-        };
-        let cwd_set: HashSet<PathBuf> = cwds.iter().cloned().collect();
-
-        let mut extra_roots_by_cwd: HashMap<PathBuf, Vec<AbsolutePathBuf>> = HashMap::new();
-        for entry in per_cwd_extra_user_roots.unwrap_or_default() {
-            if !cwd_set.contains(&entry.cwd) {
-                warn!(
-                    cwd = %entry.cwd.display(),
-                    "ignoring per-cwd extra roots for cwd not present in skills/list cwds"
-                );
-                continue;
-            }
-
-            let mut valid_extra_roots = Vec::new();
-            for root in entry.extra_user_roots {
-                let Ok(root) = AbsolutePathBuf::from_absolute_path_checked(root.as_path()) else {
-                    self.send_invalid_request_error(
-                        request_id,
-                        format!(
-                            "skills/list perCwdExtraUserRoots extraUserRoots paths must be absolute: {}",
-                            root.display()
-                        ),
-                    )
-                    .await;
-                    return;
-                };
-                valid_extra_roots.push(root);
-            }
-            extra_roots_by_cwd
-                .entry(entry.cwd)
-                .or_default()
-                .extend(valid_extra_roots);
-        }
-
-        let config = match self.load_latest_config(/*fallback_cwd*/ None).await {
-            Ok(config) => config,
-            Err(error) => {
-                self.outgoing.send_error(request_id, error).await;
-                return;
-            }
-        };
-        let skills_manager = self.thread_manager.skills_manager();
-        let plugins_manager = self.thread_manager.plugins_manager();
-        let fs = self
-            .thread_manager
-            .environment_manager()
-            .default_environment()
-            .map(|environment| environment.get_filesystem());
-        let mut data = Vec::new();
-        for cwd in cwds {
-            let extra_roots = extra_roots_by_cwd
-                .get(&cwd)
-                .map_or(&[][..], std::vec::Vec::as_slice);
-            let cwd_abs = match AbsolutePathBuf::relative_to_current_dir(cwd.as_path()) {
-                Ok(path) => path,
-                Err(err) => {
-                    let error_path = cwd.clone();
-                    data.push(codex_app_server_protocol::SkillsListEntry {
-                        cwd,
-                        skills: Vec::new(),
-                        errors: vec![codex_app_server_protocol::SkillErrorInfo {
-                            path: error_path,
-                            message: err.to_string(),
-                        }],
-                    });
-                    continue;
-                }
-            };
-            let config_layer_stack = match self
-                .config_manager
-                .load_config_layers_for_cwd(cwd_abs.clone())
-                .await
-            {
-                Ok(config_layer_stack) => config_layer_stack,
-                Err(err) => {
-                    let error_path = cwd.clone();
-                    data.push(codex_app_server_protocol::SkillsListEntry {
-                        cwd,
-                        skills: Vec::new(),
-                        errors: vec![codex_app_server_protocol::SkillErrorInfo {
-                            path: error_path,
-                            message: err.to_string(),
-                        }],
-                    });
-                    continue;
-                }
-            };
-            let effective_skill_roots = plugins_manager
-                .effective_skill_roots_for_layer_stack(
-                    &config_layer_stack,
-                    config.features.enabled(Feature::Plugins),
-                )
-                .await;
-            let skills_input = codex_core::skills::SkillsLoadInput::new(
-                cwd_abs.clone(),
-                effective_skill_roots,
-                config_layer_stack,
-                config.bundled_skills_enabled(),
-            );
-            let outcome = skills_manager
-                .skills_for_cwd_with_extra_user_roots(
-                    &skills_input,
-                    force_reload,
-                    extra_roots,
-                    fs.clone(),
-                )
-                .await;
-            let errors = errors_to_info(&outcome.errors);
-            let skills = skills_to_info(&outcome.skills, &outcome.disabled_paths);
-            data.push(codex_app_server_protocol::SkillsListEntry {
-                cwd,
-                skills,
-                errors,
-            });
-        }
+    async fn apps_list(&self, request_id: ConnectionRequestId, _params: AppsListParams) {
         self.outgoing
-            .send_response(request_id, SkillsListResponse { data })
+            .send_response(
+                request_id,
+                AppsListResponse {
+                    data: Vec::new(),
+                    next_cursor: None,
+                },
+            )
             .await;
     }
+
+    async fn skills_list(&self, request_id: ConnectionRequestId, _params: SkillsListParams) {
+        self.outgoing
+            .send_response(request_id, SkillsListResponse { data: Vec::new() })
+            .await;
+    }
+
     async fn marketplace_remove(
         &self,
         request_id: ConnectionRequestId,
-        params: MarketplaceRemoveParams,
+        _params: MarketplaceRemoveParams,
     ) {
-        let result = remove_marketplace(
-            self.config.codex_home.to_path_buf(),
-            CoreMarketplaceRemoveRequest {
-                marketplace_name: params.marketplace_name,
-            },
-        )
-        .await;
-
-        match result {
-            Ok(outcome) => {
-                self.outgoing
-                    .send_response(
-                        request_id,
-                        MarketplaceRemoveResponse {
-                            marketplace_name: outcome.marketplace_name,
-                            installed_root: outcome.removed_installed_root,
-                        },
-                    )
-                    .await;
-            }
-            Err(MarketplaceRemoveError::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-            }
-            Err(MarketplaceRemoveError::Internal(message)) => {
-                self.send_internal_error(request_id, message).await;
-            }
-        }
+        self.send_codex_product_surface_disabled(request_id, "marketplace/remove")
+            .await;
     }
-    async fn marketplace_add(&self, request_id: ConnectionRequestId, params: MarketplaceAddParams) {
-        let result = add_marketplace_to_codex_home(
-            self.config.codex_home.to_path_buf(),
-            codex_core::plugins::MarketplaceAddRequest {
-                source: params.source,
-                ref_name: params.ref_name,
-                sparse_paths: params.sparse_paths.unwrap_or_default(),
-            },
-        )
-        .await;
 
-        match result {
-            Ok(outcome) => {
-                self.outgoing
-                    .send_response(
-                        request_id,
-                        MarketplaceAddResponse {
-                            marketplace_name: outcome.marketplace_name,
-                            installed_root: outcome.installed_root,
-                            already_added: outcome.already_added,
-                        },
-                    )
-                    .await;
-            }
-            Err(MarketplaceAddError::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-            }
-            Err(MarketplaceAddError::Internal(message)) => {
-                self.send_internal_error(request_id, message).await;
-            }
-        }
+    async fn marketplace_add(
+        &self,
+        request_id: ConnectionRequestId,
+        _params: MarketplaceAddParams,
+    ) {
+        self.send_codex_product_surface_disabled(request_id, "marketplace/add")
+            .await;
+    }
+
+    async fn plugin_list(&self, request_id: ConnectionRequestId, _params: PluginListParams) {
+        self.outgoing
+            .send_response(
+                request_id,
+                PluginListResponse {
+                    marketplaces: Vec::new(),
+                    marketplace_load_errors: Vec::new(),
+                    featured_plugin_ids: Vec::new(),
+                },
+            )
+            .await;
+    }
+
+    async fn plugin_read(&self, request_id: ConnectionRequestId, _params: PluginReadParams) {
+        self.send_codex_product_surface_disabled(request_id, "plugin/read")
+            .await;
+    }
+
+    async fn plugin_install(&self, request_id: ConnectionRequestId, _params: PluginInstallParams) {
+        self.send_codex_product_surface_disabled(request_id, "plugin/install")
+            .await;
+    }
+
+    async fn plugin_uninstall(
+        &self,
+        request_id: ConnectionRequestId,
+        _params: PluginUninstallParams,
+    ) {
+        self.send_codex_product_surface_disabled(request_id, "plugin/uninstall")
+            .await;
     }
 
     async fn skills_config_write(
         &self,
         request_id: ConnectionRequestId,
-        params: SkillsConfigWriteParams,
+        _params: SkillsConfigWriteParams,
     ) {
-        let SkillsConfigWriteParams {
-            path,
-            name,
-            enabled,
-        } = params;
-        let edit = match (path, name) {
-            (Some(path), None) => ConfigEdit::SetSkillConfig {
-                path: path.into_path_buf(),
-                enabled,
-            },
-            (None, Some(name)) if !name.trim().is_empty() => {
-                ConfigEdit::SetSkillConfigByName { name, enabled }
-            }
-            _ => {
-                let error = JSONRPCErrorError {
-                    code: INVALID_PARAMS_ERROR_CODE,
-                    message: "skills/config/write requires exactly one of path or name".to_string(),
-                    data: None,
-                };
-                self.outgoing.send_error(request_id, error).await;
-                return;
-            }
-        };
-        let edits = vec![edit];
-        let result = ConfigEditsBuilder::new(&self.config.codex_home)
-            .with_edits(edits)
-            .apply()
+        self.send_codex_product_surface_disabled(request_id, "skills/config/write")
             .await;
-
-        match result {
-            Ok(()) => {
-                self.thread_manager.plugins_manager().clear_cache();
-                self.thread_manager.skills_manager().clear_cache();
-                self.outgoing
-                    .send_response(
-                        request_id,
-                        SkillsConfigWriteResponse {
-                            effective_enabled: enabled,
-                        },
-                    )
-                    .await;
-            }
-            Err(err) => {
-                let error = JSONRPCErrorError {
-                    code: INTERNAL_ERROR_CODE,
-                    message: format!("failed to update skill settings: {err}"),
-                    data: None,
-                };
-                self.outgoing.send_error(request_id, error).await;
-            }
-        }
     }
 
     async fn turn_start(
@@ -9067,129 +8590,6 @@ fn has_model_resume_override(
             .is_some_and(|overrides| overrides.contains_key("model_reasoning_effort"))
 }
 
-fn skills_to_info(
-    skills: &[codex_core::skills::SkillMetadata],
-    disabled_paths: &std::collections::HashSet<AbsolutePathBuf>,
-) -> Vec<codex_app_server_protocol::SkillMetadata> {
-    skills
-        .iter()
-        .map(|skill| {
-            let enabled = !disabled_paths.contains(&skill.path_to_skills_md);
-            codex_app_server_protocol::SkillMetadata {
-                name: skill.name.clone(),
-                description: skill.description.clone(),
-                short_description: skill.short_description.clone(),
-                interface: skill.interface.clone().map(|interface| {
-                    codex_app_server_protocol::SkillInterface {
-                        display_name: interface.display_name,
-                        short_description: interface.short_description,
-                        icon_small: interface.icon_small,
-                        icon_large: interface.icon_large,
-                        brand_color: interface.brand_color,
-                        default_prompt: interface.default_prompt,
-                    }
-                }),
-                dependencies: skill.dependencies.clone().map(|dependencies| {
-                    codex_app_server_protocol::SkillDependencies {
-                        tools: dependencies
-                            .tools
-                            .into_iter()
-                            .map(|tool| codex_app_server_protocol::SkillToolDependency {
-                                r#type: tool.r#type,
-                                value: tool.value,
-                                description: tool.description,
-                                transport: tool.transport,
-                                command: tool.command,
-                                url: tool.url,
-                            })
-                            .collect(),
-                    }
-                }),
-                path: skill.path_to_skills_md.clone(),
-                scope: skill.scope.into(),
-                enabled,
-            }
-        })
-        .collect()
-}
-
-fn plugin_skills_to_info(
-    skills: &[codex_core::skills::SkillMetadata],
-    disabled_skill_paths: &std::collections::HashSet<AbsolutePathBuf>,
-) -> Vec<SkillSummary> {
-    skills
-        .iter()
-        .map(|skill| SkillSummary {
-            name: skill.name.clone(),
-            description: skill.description.clone(),
-            short_description: skill.short_description.clone(),
-            interface: skill.interface.clone().map(|interface| {
-                codex_app_server_protocol::SkillInterface {
-                    display_name: interface.display_name,
-                    short_description: interface.short_description,
-                    icon_small: interface.icon_small,
-                    icon_large: interface.icon_large,
-                    brand_color: interface.brand_color,
-                    default_prompt: interface.default_prompt,
-                }
-            }),
-            path: Some(skill.path_to_skills_md.clone()),
-            enabled: !disabled_skill_paths.contains(&skill.path_to_skills_md),
-        })
-        .collect()
-}
-
-fn local_plugin_interface_to_info(interface: PluginManifestInterface) -> PluginInterface {
-    PluginInterface {
-        display_name: interface.display_name,
-        short_description: interface.short_description,
-        long_description: interface.long_description,
-        developer_name: interface.developer_name,
-        category: interface.category,
-        capabilities: interface.capabilities,
-        website_url: interface.website_url,
-        privacy_policy_url: interface.privacy_policy_url,
-        terms_of_service_url: interface.terms_of_service_url,
-        default_prompt: interface.default_prompt,
-        brand_color: interface.brand_color,
-        composer_icon: interface.composer_icon,
-        composer_icon_url: None,
-        logo: interface.logo,
-        logo_url: None,
-        screenshots: interface.screenshots,
-        screenshot_urls: Vec::new(),
-    }
-}
-
-fn marketplace_plugin_source_to_info(source: MarketplacePluginSource) -> PluginSource {
-    match source {
-        MarketplacePluginSource::Local { path } => PluginSource::Local { path },
-        MarketplacePluginSource::Git {
-            url,
-            path,
-            ref_name,
-            sha,
-        } => PluginSource::Git {
-            url,
-            path,
-            ref_name,
-            sha,
-        },
-    }
-}
-
-fn errors_to_info(
-    errors: &[codex_core::skills::SkillError],
-) -> Vec<codex_app_server_protocol::SkillErrorInfo> {
-    errors
-        .iter()
-        .map(|err| codex_app_server_protocol::SkillErrorInfo {
-            path: err.path.to_path_buf(),
-            message: err.message.clone(),
-        })
-        .collect()
-}
-
 fn cloud_requirements_load_error(err: &std::io::Error) -> Option<&CloudRequirementsLoadError> {
     let mut current: Option<&(dyn std::error::Error + 'static)> = err
         .get_ref()
@@ -10235,6 +9635,3 @@ fn normalize_thread_turns_status(
         }
     }
 }
-
-#[cfg(test)]
-mod processor_tests;

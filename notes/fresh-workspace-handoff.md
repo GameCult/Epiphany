@@ -746,6 +746,13 @@ boundary while Codex survives only as subscription auth/model routing. Do not
 resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
 marketplace, or bridge expansion until this organ is being cut cleanly.
 
+The first Codex product-surface starvation cut is landed too. App-server
+apps/skills/plugin/marketplace list routes are inert, mutation/detail routes
+return explicit disabled errors, the helper modules and stale v2 endpoint tests
+were deleted, and the broken private `processor_tests.rs` implementation-shape
+suite is gone. `codex_message_processor.rs` is still too large, but it is no
+longer carrying the plugin marketplace altar in its chest cavity.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

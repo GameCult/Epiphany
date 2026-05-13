@@ -219,13 +219,6 @@ impl ConfigManager {
         Ok(config)
     }
 
-    pub(crate) async fn load_config_layers_for_cwd(
-        &self,
-        cwd: AbsolutePathBuf,
-    ) -> std::io::Result<ConfigLayerStack> {
-        self.load_config_layers(Some(cwd)).await
-    }
-
     pub(crate) async fn load_config_layers(
         &self,
         cwd: Option<AbsolutePathBuf>,

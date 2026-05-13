@@ -379,16 +379,6 @@ impl ThreadStateManager {
         true
     }
 
-    #[cfg(test)]
-    pub(crate) async fn has_subscribers(&self, thread_id: ThreadId) -> bool {
-        self.state
-            .lock()
-            .await
-            .threads
-            .get(&thread_id)
-            .is_some_and(|thread_entry| !thread_entry.connection_ids.is_empty())
-    }
-
     pub(crate) async fn try_ensure_connection_subscribed(
         &self,
         thread_id: ThreadId,
