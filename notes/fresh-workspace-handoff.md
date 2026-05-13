@@ -610,6 +610,9 @@ The Codex-core re-export husks for `epiphany_distillation`, `epiphany_promotion`
 `codex-core` now re-exports those native types/functions directly from
 `epiphany-core`, and `CodexThread` calls `epiphany_core::retrieve_workspace` /
 `index_workspace` / `retrieval_state_for_workspace` directly.
+The `epiphany_rollout` husk is gone too; `codex-core::lib` keeps only the
+one host-boundary function that passes Codex's turn-boundary predicate into
+`epiphany-core`.
 
 The runtime-spine job-opening mechanism for heartbeat/specialist launches has
 also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.
