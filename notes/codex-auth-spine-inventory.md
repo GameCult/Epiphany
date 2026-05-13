@@ -104,14 +104,21 @@ state ownership.
 
 ## Next Cut
 
-Define the first `epiphany-openai-adapter` crate boundary as a wrapper, not a
-rewrite:
+The first `epiphany-openai-adapter` crate boundary now exists as a native typed
+surface:
 
 - input: typed model-turn request plus adapter config
 - output: typed stream events and terminal usage/error receipt
-- internal dependency: Codex auth/model transport only
+- current dependency: no Codex app-server and no Codex transport yet
+- planned internal dependency: Codex auth/model transport only
 - forbidden dependency: Codex app-server or Epiphany JSON-RPC routes
 
-The first implementation can be a thin wrapper around existing Codex transport.
+The first attempt to wire `codex-core` directly as a standalone path dependency
+escaped the vendored workspace lock and hit transitive ICU/temporal dependency
+skew. Do not paper over that with random version pins. The next implementation
+slice should add a Codex-transport feature or workspace-verified wrapper that
+builds under the same dependency regime as vendored Codex, while preserving the
+typed request/event/receipt surface as the Epiphany-owned contract.
+
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

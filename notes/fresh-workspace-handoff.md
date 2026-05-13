@@ -545,18 +545,26 @@ The auth-spine inventory now exists at
 the next real extraction target: create an outside-vendor
 `epiphany-openai-adapter` wrapper around auth/model transport with no
 dependency on Codex app-server or Epiphany JSON-RPC routes.
+The first `epiphany-openai-adapter` crate now exists outside `vendor/codex` and
+compiles as a native typed boundary: auth status, model request, stream event,
+and terminal receipt documents. It intentionally has no Codex app-server
+dependency and no generic JSON payload. A direct standalone `codex-core` path
+dependency attempt hit transitive dependency skew outside the vendored Codex
+workspace lock; do not "fix" that with random version pins. The next slice is a
+workspace-verified Codex transport feature/wrapper behind the typed adapter
+surface.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
 Continue with the actual whale-carcass cut: create the first
-`epiphany-openai-adapter` boundary outside `vendor/codex`, wrapping only the
-keeper auth/model transport spine identified in
-`notes/codex-auth-spine-inventory.md`. Success is Epiphany calling a model
-adapter rather than living inside the Codex host brain. Do not resume Rider,
-Unity, Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge
-expansion until this organ is being cut cleanly.
+`epiphany-openai-adapter` Codex transport integration behind the native typed
+request/event/receipt surface, using the keeper auth/model transport spine
+identified in `notes/codex-auth-spine-inventory.md`. Success is Epiphany
+calling a model adapter rather than living inside the Codex host brain. Do not
+resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
+marketplace, or bridge expansion until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

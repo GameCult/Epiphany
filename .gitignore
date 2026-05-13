@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 epiphany-core/target/
 epiphany-core/Cargo.lock
+epiphany-openai-adapter/target/
+epiphany-openai-adapter/Cargo.lock
 apps/epiphany-gui/node_modules/
 apps/epiphany-gui/dist/
 apps/epiphany-gui/src-tauri/gen/
