@@ -10,6 +10,7 @@ use codex_api::ResponseEvent;
 use codex_api::ResponsesApiRequest;
 use codex_api::ResponsesClient;
 use codex_api::ResponsesOptions;
+use codex_login::AuthCredentialsStoreMode;
 use codex_login::AuthManager;
 use codex_login::AuthMode;
 use codex_login::CodexAuth;
@@ -33,6 +34,25 @@ use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
 use futures::StreamExt;
 
 pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
+
+pub fn default_codex_home() -> Result<std::path::PathBuf> {
+    if let Ok(path) = std::env::var("CODEX_HOME") {
+        return Ok(std::path::PathBuf::from(path));
+    }
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .context("CODEX_HOME is unset and no home directory environment variable exists")?;
+    Ok(std::path::PathBuf::from(home).join(".codex"))
+}
+
+pub fn auth_manager(codex_home: std::path::PathBuf) -> Arc<AuthManager> {
+    AuthManager::shared(
+        codex_home,
+        /*enable_codex_api_key_env*/ true,
+        AuthCredentialsStoreMode::File,
+        /*chatgpt_base_url*/ None,
+    )
+}
 
 pub async fn status_from_auth_manager(
     auth_manager: &AuthManager,

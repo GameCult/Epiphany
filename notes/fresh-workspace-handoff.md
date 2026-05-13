@@ -579,6 +579,12 @@ native runtime/CultNet model calls through this spine and then shrinking the
 surviving Codex dependency surface to auth, provider/model routing, and the
 smallest OpenAI Responses call needed for subscription compatibility.
 
+The native runtime no longer imports `codex-login` directly. The Codex spine now
+exports the `default_codex_home` and `auth_manager` helpers, so
+`epiphany-openai-runtime` reaches Codex credentials only through
+`epiphany-openai-codex-spine`. Keep that boundary: if native runtime code needs
+credential details, the spine owns the adapter surface.
+
 That native route has now started. `epiphany-openai-adapter` documents are
 CultCache `DatabaseEntry` types, `epiphany-core::runtime_spine_cache` registers
 OpenAI adapter status/request/stream-event/receipt records, and the

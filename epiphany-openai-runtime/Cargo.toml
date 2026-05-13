@@ -12,7 +12,6 @@ path = "src/lib.rs"
 [dependencies]
 anyhow = "1"
 chrono = "0.4.44"
-codex-login = { path = "../vendor/codex/codex-rs/login" }
 epiphany-core = { path = "../epiphany-core" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 epiphany-openai-codex-spine = { path = "../epiphany-openai-codex-spine" }

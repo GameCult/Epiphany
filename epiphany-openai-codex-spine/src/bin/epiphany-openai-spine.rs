@@ -1,17 +1,16 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
-use codex_login::AuthCredentialsStoreMode;
-use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
+use epiphany_openai_codex_spine::auth_manager;
+use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::responses_request_from_epiphany;
 use epiphany_openai_codex_spine::status_from_auth_manager;
 use epiphany_openai_codex_spine::status_from_codex_auth;
@@ -127,25 +126,6 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnOptions> {
 fn next_value(iter: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
     iter.next()
         .ok_or_else(|| anyhow!("{name} requires a value"))
-}
-
-fn default_codex_home() -> Result<PathBuf> {
-    if let Ok(path) = env::var("CODEX_HOME") {
-        return Ok(PathBuf::from(path));
-    }
-    let home = env::var("USERPROFILE")
-        .or_else(|_| env::var("HOME"))
-        .context("CODEX_HOME is unset and no home directory environment variable exists")?;
-    Ok(PathBuf::from(home).join(".codex"))
-}
-
-fn auth_manager(codex_home: PathBuf) -> Arc<AuthManager> {
-    AuthManager::shared(
-        codex_home,
-        /*enable_codex_api_key_env*/ true,
-        AuthCredentialsStoreMode::File,
-        /*chatgpt_base_url*/ None,
-    )
 }
 
 fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {

@@ -1,13 +1,10 @@
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
-use codex_login::AuthCredentialsStoreMode;
-use codex_login::AuthManager;
 use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
 use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
@@ -32,6 +29,8 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
+use epiphany_openai_codex_spine::auth_manager;
+pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
 use serde_json::Value;
 
@@ -458,16 +457,6 @@ pub fn assistant_text_from_openai_events(
     Ok(text)
 }
 
-pub fn default_codex_home() -> Result<PathBuf> {
-    if let Ok(path) = std::env::var("CODEX_HOME") {
-        return Ok(PathBuf::from(path));
-    }
-    let home = std::env::var("USERPROFILE")
-        .or_else(|_| std::env::var("HOME"))
-        .context("CODEX_HOME is unset and no home directory environment variable exists")?;
-    Ok(PathBuf::from(home).join(".codex"))
-}
-
 pub fn default_options(
     store_path: PathBuf,
     codex_home: PathBuf,
@@ -483,15 +472,6 @@ pub fn default_options(
             .to_string(),
         default_model: Some(request.model.clone()),
     }
-}
-
-pub fn auth_manager(codex_home: PathBuf) -> Arc<AuthManager> {
-    AuthManager::shared(
-        codex_home,
-        /*enable_codex_api_key_env*/ true,
-        AuthCredentialsStoreMode::File,
-        /*chatgpt_base_url*/ None,
-    )
 }
 
 pub fn openai_event_key(request_id: &str, sequence: u64) -> String {
