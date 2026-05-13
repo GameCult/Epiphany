@@ -498,18 +498,29 @@ visibility now; only generic Codex plugin/test modules still do. The processor
 is about 10,339 lines. This is not final purity: mutation orchestration still
 lives in the Codex processor and should move behind a small typed service
 boundary next.
+The twenty-third cut moved route-independent mutation document mechanics into
+`epiphany-codex-bridge/src/mutation.rs`: state-patch parsing, protocol-to-core
+patch projection, role patch policy reviewability, finding summaries,
+reorient acceptance scratch/checkpoint synthesis, and changed-field derivation.
+It also moved completed role/reorient runtime-result loading into
+`epiphany-codex-bridge/src/runtime_results.rs` and live-state projection into
+`epiphany-codex-bridge/src/state.rs`. `epiphany_mutation_routes.rs` is now
+about 1,271 lines and `epiphany_state_helpers.rs` is down to a 19-line
+rollout-state loader. This is a real authority cut, but not a sufficient
+carcass cut: route-level launch/accept/update/promote/interrupt orchestration
+still lives in vendored Codex.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
-Continue with the actual whale-carcass cut: replace child-module parent
-visibility with explicit typed bridge/service calls, then move route-independent
-state/runtime helpers out of `codex_message_processor.rs`. Success is a visibly
-smaller processor and less mutation authority in Codex, not merely nicer payload
-names or another adapter reliquary. Do not resume Rider, Unity, Aquarium, Face,
-dogfood, planning, app, skill, marketplace, or bridge expansion until this organ
-is being cut cleanly.
+Continue with the actual whale-carcass cut: carve route-level mutation
+orchestration into explicit typed bridge/service calls, starting with launch
+response/notification construction and acceptance update bundles. Success is a
+visibly smaller processor and less mutation authority in Codex, not merely
+nicer payload names or another adapter reliquary. Do not resume Rider, Unity,
+Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge expansion
+until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

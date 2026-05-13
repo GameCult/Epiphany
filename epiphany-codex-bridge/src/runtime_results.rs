@@ -5,6 +5,9 @@ use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
+use codex_core::CodexThread;
+use codex_protocol::error::CodexErr;
+use codex_protocol::error::Result as CodexResult;
 use codex_protocol::protocol::EpiphanyRuntimeLink;
 use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
@@ -216,6 +219,50 @@ pub async fn load_epiphany_role_result_snapshot(
     )
 }
 
+pub async fn load_completed_epiphany_role_finding(
+    thread: &CodexThread,
+    state: &EpiphanyThreadState,
+    role_id: ThreadEpiphanyRoleId,
+    binding_id: &str,
+) -> CodexResult<ThreadEpiphanyRoleFinding> {
+    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
+        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine_job(
+            link.runtime_job_id.as_str(),
+            Some(runtime_store_path.as_path()),
+            role_id,
+        );
+        if status != ThreadEpiphanyRoleResultStatus::Completed {
+            return Err(CodexErr::InvalidRequest(format!(
+                "cannot accept role result while worker status is {:?}",
+                status
+            )));
+        }
+        return finding.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "cannot accept completed role worker because no typed runtime-spine result was recorded"
+                    .to_string(),
+            )
+        });
+    }
+
+    if !state
+        .job_bindings
+        .iter()
+        .any(|binding| binding.id == binding_id)
+    {
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany role binding {:?} was not found",
+            binding_id
+        )));
+    }
+
+    Err(CodexErr::InvalidRequest(
+        "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
+            .to_string(),
+    ))
+}
+
 pub async fn load_epiphany_reorient_result_snapshot(
     state: Option<&EpiphanyThreadState>,
     runtime_store_path: Option<&Path>,
@@ -255,6 +302,48 @@ pub async fn load_epiphany_reorient_result_snapshot(
         None,
         "Reorientation binding has no runtime-spine job id; launch a runtime-linked reorient worker for typed results.".to_string(),
     )
+}
+
+pub async fn load_completed_epiphany_reorient_finding(
+    thread: &CodexThread,
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+) -> CodexResult<ThreadEpiphanyReorientFinding> {
+    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
+        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine_job(
+            link.runtime_job_id.as_str(),
+            Some(runtime_store_path.as_path()),
+        );
+        if status != ThreadEpiphanyReorientResultStatus::Completed {
+            return Err(CodexErr::InvalidRequest(format!(
+                "cannot accept reorientation result while worker status is {:?}",
+                status
+            )));
+        }
+        return finding.ok_or_else(|| {
+            CodexErr::InvalidRequest(
+                "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
+                    .to_string(),
+            )
+        });
+    }
+
+    if !state
+        .job_bindings
+        .iter()
+        .any(|binding| binding.id == binding_id)
+    {
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany reorientation binding {:?} was not found",
+            binding_id
+        )));
+    }
+
+    Err(CodexErr::InvalidRequest(
+        "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
+            .to_string(),
+    ))
 }
 
 pub fn latest_epiphany_runtime_link_for_binding<'a>(

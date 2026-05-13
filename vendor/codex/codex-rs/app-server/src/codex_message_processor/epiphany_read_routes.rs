@@ -27,6 +27,7 @@ use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::launch::render_epiphany_coordinator_note;
+use epiphany_codex_bridge::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::reorient::map_epiphany_reorient;
@@ -42,7 +43,6 @@ use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
 use super::epiphany_freshness_watcher_snapshot;
-use super::epiphany_state_helpers::epiphany_modeling_finding_has_reviewable_state_patch;
 use super::latest_token_usage_info_from_rollout_path;
 
 impl CodexMessageProcessor {
