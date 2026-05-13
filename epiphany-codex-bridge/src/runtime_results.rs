@@ -14,7 +14,11 @@ use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::interpret_reorient_runtime_job_result;
 use epiphany_core::interpret_role_runtime_job_result;
+use epiphany_core::interpret_runtime_reorient_worker_result;
+use epiphany_core::interpret_runtime_role_worker_result;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_reorient_worker_result;
+use epiphany_core::runtime_role_worker_result;
 
 use crate::results::map_core_role_result_role_id;
 use crate::results::map_protocol_reorient_finding;
@@ -22,9 +26,7 @@ use crate::results::map_protocol_role_finding;
 use crate::results::render_epiphany_reorient_result_note;
 use crate::results::render_epiphany_role_result_note;
 
-pub fn role_finding_runtime_result_id(
-    finding: &ThreadEpiphanyRoleFinding,
-) -> Option<String> {
+pub fn role_finding_runtime_result_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
     finding.runtime_result_id.clone()
 }
 
@@ -38,9 +40,7 @@ pub fn reorient_finding_runtime_result_id(
     finding.runtime_result_id.clone()
 }
 
-pub fn reorient_finding_runtime_job_id(
-    finding: &ThreadEpiphanyReorientFinding,
-) -> Option<String> {
+pub fn reorient_finding_runtime_job_id(finding: &ThreadEpiphanyReorientFinding) -> Option<String> {
     finding.runtime_job_id.clone()
 }
 
@@ -85,12 +85,37 @@ pub fn load_epiphany_role_result_from_runtime_spine_job(
         }
     };
     let status = map_runtime_role_result_status(&snapshot);
-    let finding = snapshot.result.as_ref().map(|result| {
-        map_protocol_role_finding(
-            role_id,
-            interpret_role_runtime_job_result(map_core_role_result_role_id(role_id), result),
-        )
-    });
+    let finding = if status == ThreadEpiphanyRoleResultStatus::Completed {
+        match runtime_role_worker_result(runtime_store_path, job_id) {
+            Ok(Some(result)) => Some(map_protocol_role_finding(
+                role_id,
+                interpret_runtime_role_worker_result(
+                    map_core_role_result_role_id(role_id),
+                    &result,
+                ),
+            )),
+            Ok(None) => snapshot.result.as_ref().map(|result| {
+                map_protocol_role_finding(
+                    role_id,
+                    interpret_role_runtime_job_result(
+                        map_core_role_result_role_id(role_id),
+                        result,
+                    ),
+                )
+            }),
+            Err(_) => snapshot.result.as_ref().map(|result| {
+                map_protocol_role_finding(
+                    role_id,
+                    interpret_role_runtime_job_result(
+                        map_core_role_result_role_id(role_id),
+                        result,
+                    ),
+                )
+            }),
+        }
+    } else {
+        None
+    };
     let note = render_epiphany_role_result_note(role_id, status, finding.as_ref(), None);
     (status, finding, note)
 }
@@ -135,10 +160,21 @@ pub fn load_epiphany_reorient_result_from_runtime_spine_job(
         }
     };
     let status = map_runtime_reorient_result_status(&snapshot);
-    let finding = snapshot
-        .result
-        .as_ref()
-        .map(|result| map_protocol_reorient_finding(interpret_reorient_runtime_job_result(result)));
+    let finding = if status == ThreadEpiphanyReorientResultStatus::Completed {
+        match runtime_reorient_worker_result(runtime_store_path, job_id) {
+            Ok(Some(result)) => Some(map_protocol_reorient_finding(
+                interpret_runtime_reorient_worker_result(&result),
+            )),
+            Ok(None) => snapshot.result.as_ref().map(|result| {
+                map_protocol_reorient_finding(interpret_reorient_runtime_job_result(result))
+            }),
+            Err(_) => snapshot.result.as_ref().map(|result| {
+                map_protocol_reorient_finding(interpret_reorient_runtime_job_result(result))
+            }),
+        }
+    } else {
+        None
+    };
     let note = render_epiphany_reorient_result_note(status, finding.as_ref(), None);
     (status, finding, note)
 }

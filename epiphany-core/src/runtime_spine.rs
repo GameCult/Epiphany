@@ -40,6 +40,8 @@ pub const RUNTIME_IDENTITY_TYPE: &str = "epiphany.runtime.identity";
 pub const RUNTIME_SESSION_TYPE: &str = "epiphany.runtime.session";
 pub const RUNTIME_JOB_TYPE: &str = "epiphany.runtime.job";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_TYPE: &str = "epiphany.runtime.worker_launch_request";
+pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_result";
+pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const RUNTIME_EVENT_TYPE: &str = "epiphany.runtime.event";
 pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0";
@@ -69,6 +71,10 @@ pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
     "epiphany.runtime.worker_launch_request.v0";
+pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
+    "epiphany.runtime.role_worker_result.v0";
+pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
+    "epiphany.runtime.reorient_worker_result.v0";
 pub const OPENAI_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.openai_adapter_status.v0";
 pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.openai_model_stream_event.v0";
@@ -228,6 +234,105 @@ impl EpiphanyRuntimeWorkerLaunchRequest {
         }
         Ok(document)
     }
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.role_worker_result",
+    schema = "EpiphanyRuntimeRoleWorkerResult"
+)]
+pub struct EpiphanyRuntimeRoleWorkerResult {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub result_id: String,
+    #[cultcache(key = 2)]
+    pub job_id: String,
+    #[cultcache(key = 3)]
+    pub role_id: String,
+    #[cultcache(key = 4)]
+    pub verdict: String,
+    #[cultcache(key = 5)]
+    pub summary: String,
+    #[cultcache(key = 6)]
+    pub next_safe_move: String,
+    #[cultcache(key = 7, default)]
+    pub checkpoint_summary: Option<String>,
+    #[cultcache(key = 8, default)]
+    pub scratch_summary: Option<String>,
+    #[cultcache(key = 9, default)]
+    pub files_inspected: Vec<String>,
+    #[cultcache(key = 10, default)]
+    pub frontier_node_ids: Vec<String>,
+    #[cultcache(key = 11, default)]
+    pub evidence_ids: Vec<String>,
+    #[cultcache(key = 12, default)]
+    pub artifact_refs: Vec<String>,
+    #[cultcache(key = 13, default)]
+    pub open_questions: Vec<String>,
+    #[cultcache(key = 14, default)]
+    pub evidence_gaps: Vec<String>,
+    #[cultcache(key = 15, default)]
+    pub risks: Vec<String>,
+    #[cultcache(key = 16, default)]
+    pub state_patch_msgpack: Option<Vec<u8>>,
+    #[cultcache(key = 17, default)]
+    pub self_patch_msgpack: Option<Vec<u8>>,
+    #[cultcache(key = 18, default)]
+    pub item_error: Option<String>,
+    #[cultcache(key = 19, default)]
+    pub metadata: BTreeMap<String, String>,
+}
+
+impl EpiphanyRuntimeRoleWorkerResult {
+    pub fn state_patch(&self) -> Result<Option<crate::EpiphanyRoleStatePatchDocument>> {
+        decode_optional_msgpack(
+            self.state_patch_msgpack.as_deref(),
+            "role worker statePatch",
+        )
+    }
+
+    pub fn self_patch(&self) -> Result<Option<crate::AgentSelfPatch>> {
+        decode_optional_msgpack(self.self_patch_msgpack.as_deref(), "role worker selfPatch")
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.runtime.reorient_worker_result",
+    schema = "EpiphanyRuntimeReorientWorkerResult"
+)]
+pub struct EpiphanyRuntimeReorientWorkerResult {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub result_id: String,
+    #[cultcache(key = 2)]
+    pub job_id: String,
+    #[cultcache(key = 3)]
+    pub mode: String,
+    #[cultcache(key = 4)]
+    pub summary: String,
+    #[cultcache(key = 5)]
+    pub next_safe_move: String,
+    #[cultcache(key = 6, default)]
+    pub checkpoint_still_valid: Option<bool>,
+    #[cultcache(key = 7, default)]
+    pub files_inspected: Vec<String>,
+    #[cultcache(key = 8, default)]
+    pub frontier_node_ids: Vec<String>,
+    #[cultcache(key = 9, default)]
+    pub evidence_ids: Vec<String>,
+    #[cultcache(key = 10, default)]
+    pub artifact_refs: Vec<String>,
+    #[cultcache(key = 11, default)]
+    pub open_questions: Vec<String>,
+    #[cultcache(key = 12, default)]
+    pub continuity_risks: Vec<String>,
+    #[cultcache(key = 13, default)]
+    pub item_error: Option<String>,
+    #[cultcache(key = 14, default)]
+    pub metadata: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -424,6 +529,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeSession>()?;
     cache.register_entry_type::<EpiphanyRuntimeJob>()?;
     cache.register_entry_type::<EpiphanyRuntimeWorkerLaunchRequest>()?;
+    cache.register_entry_type::<EpiphanyRuntimeRoleWorkerResult>()?;
+    cache.register_entry_type::<EpiphanyRuntimeReorientWorkerResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
@@ -735,6 +842,52 @@ pub fn runtime_job_snapshot(
                 .then_with(|| left.result_id.cmp(&right.result_id))
         });
     Ok(Some(EpiphanyRuntimeJobSnapshot { job, result }))
+}
+
+pub fn put_runtime_role_worker_result(
+    store_path: impl AsRef<Path>,
+    result: &EpiphanyRuntimeRoleWorkerResult,
+) -> Result<()> {
+    validate_non_empty(&result.job_id, "role worker result job id")?;
+    validate_non_empty(&result.result_id, "role worker result id")?;
+    validate_non_empty(&result.role_id, "role worker result role id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.put(&result.job_id, result)?;
+    Ok(())
+}
+
+pub fn runtime_role_worker_result(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<EpiphanyRuntimeRoleWorkerResult>> {
+    validate_non_empty(job_id, "role worker result job id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<EpiphanyRuntimeRoleWorkerResult>(job_id)
+}
+
+pub fn put_runtime_reorient_worker_result(
+    store_path: impl AsRef<Path>,
+    result: &EpiphanyRuntimeReorientWorkerResult,
+) -> Result<()> {
+    validate_non_empty(&result.job_id, "reorient worker result job id")?;
+    validate_non_empty(&result.result_id, "reorient worker result id")?;
+    validate_non_empty(&result.mode, "reorient worker result mode")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.put(&result.job_id, result)?;
+    Ok(())
+}
+
+pub fn runtime_reorient_worker_result(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<EpiphanyRuntimeReorientWorkerResult>> {
+    validate_non_empty(job_id, "reorient worker result job id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)
 }
 
 pub fn complete_runtime_job(
@@ -1169,6 +1322,28 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            RUNTIME_ROLE_WORKER_RESULT_TYPE,
+            RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Role worker results preserve the typed finding payload; generic runtime job results are lifecycle receipts.",
+            ],
+        ),
+        mutation_contract(
+            RUNTIME_REORIENT_WORKER_RESULT_TYPE,
+            RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Reorient worker results preserve continuity findings separately from generic runtime lifecycle receipts.",
+            ],
+        ),
+        mutation_contract(
             RUNTIME_JOB_RESULT_TYPE,
             RUNTIME_SPINE_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -1506,6 +1681,17 @@ fn worker_launch_document_kind(document: &EpiphanyWorkerLaunchDocument) -> &'sta
 
 fn encode_worker_launch_document(document: &EpiphanyWorkerLaunchDocument) -> Result<Vec<u8>> {
     rmp_serde::to_vec_named(document).context("failed to encode worker launch document MessagePack")
+}
+
+fn decode_optional_msgpack<T>(payload: Option<&[u8]>, label: &str) -> Result<Option<T>>
+where
+    T: for<'de> Deserialize<'de>,
+{
+    payload
+        .map(|payload| {
+            rmp_serde::from_slice(payload).with_context(|| format!("failed to decode {label}"))
+        })
+        .transpose()
 }
 
 fn validate_heartbeat_launch_options(

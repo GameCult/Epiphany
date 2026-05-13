@@ -107,6 +107,8 @@ pub use role_result::interpret_reorient_finding;
 pub use role_result::interpret_reorient_runtime_job_result;
 pub use role_result::interpret_role_finding;
 pub use role_result::interpret_role_runtime_job_result;
+pub use role_result::interpret_runtime_reorient_worker_result;
+pub use role_result::interpret_runtime_role_worker_result;
 pub use role_result::modeling_role_state_patch_policy_errors;
 pub use role_result::review_role_self_patch;
 pub use role_result::role_self_memory_target;

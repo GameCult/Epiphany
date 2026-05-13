@@ -222,6 +222,71 @@ pub fn interpret_role_runtime_job_result(
     }
 }
 
+pub fn interpret_runtime_role_worker_result(
+    role_id: EpiphanyRoleResultRoleId,
+    result: &crate::EpiphanyRuntimeRoleWorkerResult,
+) -> EpiphanyRoleFindingInterpretation {
+    let state_patch_result = result.state_patch();
+    let self_patch_result = result.self_patch();
+    let state_patch = state_patch_result
+        .as_ref()
+        .ok()
+        .and_then(|patch| patch.clone());
+    let self_patch = self_patch_result
+        .as_ref()
+        .ok()
+        .and_then(|patch| patch.clone());
+    let item_error = merge_item_error(
+        result.item_error.clone(),
+        state_patch_result.as_ref().err().map(ToString::to_string),
+    );
+    let item_error = merge_item_error(
+        item_error,
+        self_patch_result.as_ref().err().map(ToString::to_string),
+    );
+    EpiphanyRoleFindingInterpretation {
+        verdict: Some(result.verdict.clone()),
+        summary: Some(result.summary.clone()),
+        next_safe_move: empty_string_as_none(&result.next_safe_move),
+        checkpoint_summary: result.checkpoint_summary.clone(),
+        scratch_summary: result.scratch_summary.clone(),
+        files_inspected: result.files_inspected.clone(),
+        frontier_node_ids: result.frontier_node_ids.clone(),
+        evidence_ids: result.evidence_ids.clone(),
+        artifact_refs: result.artifact_refs.clone(),
+        runtime_result_id: Some(result.result_id.clone()),
+        runtime_job_id: Some(result.job_id.clone()),
+        open_questions: result.open_questions.clone(),
+        evidence_gaps: result.evidence_gaps.clone(),
+        risks: result.risks.clone(),
+        state_patch: state_patch.clone(),
+        self_patch,
+        self_persistence: None,
+        job_error: None,
+        item_error: match role_id {
+            EpiphanyRoleResultRoleId::Modeling => merge_item_error(
+                item_error,
+                modeling_role_state_patch_error(
+                    &serde_json::Value::Null,
+                    state_patch.as_ref(),
+                    None,
+                ),
+            ),
+            EpiphanyRoleResultRoleId::Imagination => merge_item_error(
+                item_error,
+                imagination_role_state_patch_error(
+                    &serde_json::Value::Null,
+                    state_patch.as_ref(),
+                    None,
+                ),
+            ),
+            EpiphanyRoleResultRoleId::Implementation
+            | EpiphanyRoleResultRoleId::Verification
+            | EpiphanyRoleResultRoleId::Reorientation => item_error,
+        },
+    }
+}
+
 pub fn interpret_reorient_runtime_job_result(
     result: &EpiphanyRuntimeJobResult,
 ) -> EpiphanyReorientFindingInterpretation {
@@ -238,6 +303,25 @@ pub fn interpret_reorient_runtime_job_result(
         runtime_job_id: Some(result.job_id.clone()),
         job_error: None,
         item_error: None,
+    }
+}
+
+pub fn interpret_runtime_reorient_worker_result(
+    result: &crate::EpiphanyRuntimeReorientWorkerResult,
+) -> EpiphanyReorientFindingInterpretation {
+    EpiphanyReorientFindingInterpretation {
+        mode: Some(result.mode.clone()),
+        summary: Some(result.summary.clone()),
+        next_safe_move: Some(result.next_safe_move.clone()),
+        checkpoint_still_valid: result.checkpoint_still_valid,
+        files_inspected: result.files_inspected.clone(),
+        frontier_node_ids: result.frontier_node_ids.clone(),
+        evidence_ids: result.evidence_ids.clone(),
+        artifact_refs: result.artifact_refs.clone(),
+        runtime_result_id: Some(result.result_id.clone()),
+        runtime_job_id: Some(result.job_id.clone()),
+        job_error: None,
+        item_error: result.item_error.clone(),
     }
 }
 

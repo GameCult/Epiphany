@@ -8,6 +8,8 @@ use anyhow::anyhow;
 use chrono::SecondsFormat;
 use codex_login::AuthCredentialsStoreMode;
 use codex_login::AuthManager;
+use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
+use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineEventOptions;
@@ -20,6 +22,8 @@ use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
 use epiphany_core::ensure_runtime_session;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::put_runtime_reorient_worker_result;
+use epiphany_core::put_runtime_role_worker_result;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
@@ -357,10 +361,34 @@ pub fn complete_worker_job_from_assistant_text(
         .map(|value| string_array_field(value, "artifactRefs"))
         .unwrap_or_default();
     artifact_refs.push(format!("openai-result:{}", openai_summary.result_id));
+    let result_id = format!("result-worker-{}", launch_request.job_id);
+    if let Some(parsed) = parsed.as_ref() {
+        match launch_request.launch_document()? {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                let typed_result = role_worker_result_from_value(
+                    launch_request,
+                    &document.role_id,
+                    &result_id,
+                    parsed,
+                    artifact_refs.clone(),
+                );
+                put_runtime_role_worker_result(store_path.as_ref(), &typed_result)?;
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => {
+                let typed_result = reorient_worker_result_from_value(
+                    launch_request,
+                    &result_id,
+                    parsed,
+                    artifact_refs.clone(),
+                );
+                put_runtime_reorient_worker_result(store_path.as_ref(), &typed_result)?;
+            }
+        }
+    }
     complete_runtime_job(
         store_path,
         RuntimeSpineJobResultOptions {
-            result_id: format!("result-worker-{}", launch_request.job_id),
+            result_id,
             job_id: launch_request.job_id.clone(),
             completed_at: now(),
             verdict,
@@ -534,6 +562,99 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
         }
+    }
+}
+
+fn role_worker_result_from_value(
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    role_id: &str,
+    result_id: &str,
+    value: &Value,
+    artifact_refs: Vec<String>,
+) -> EpiphanyRuntimeRoleWorkerResult {
+    let (state_patch_msgpack, state_patch_error) = encode_optional_value_field::<
+        epiphany_core::EpiphanyRoleStatePatchDocument,
+    >(value, "statePatch");
+    let (self_patch_msgpack, self_patch_error) =
+        encode_optional_value_field::<epiphany_core::AgentSelfPatch>(value, "selfPatch");
+    EpiphanyRuntimeRoleWorkerResult {
+        schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+        result_id: result_id.to_string(),
+        job_id: launch_request.job_id.clone(),
+        role_id: string_field(value, "roleId").unwrap_or_else(|| role_id.to_string()),
+        verdict: string_field(value, "verdict").unwrap_or_else(|| "completed".to_string()),
+        summary: string_field(value, "summary")
+            .unwrap_or_else(|| "Worker completed without a structured summary.".to_string()),
+        next_safe_move: string_field(value, "nextSafeMove").unwrap_or_else(|| {
+            "Review the typed worker runtime result before accepting state.".to_string()
+        }),
+        checkpoint_summary: string_field(value, "checkpointSummary"),
+        scratch_summary: string_field(value, "scratchSummary"),
+        files_inspected: string_array_field(value, "filesInspected"),
+        frontier_node_ids: string_array_field(value, "frontierNodeIds"),
+        evidence_ids: string_array_field(value, "evidenceIds"),
+        artifact_refs,
+        open_questions: string_array_field(value, "openQuestions"),
+        evidence_gaps: string_array_field(value, "evidenceGaps"),
+        risks: string_array_field(value, "risks"),
+        state_patch_msgpack,
+        self_patch_msgpack,
+        item_error: merge_optional_errors(state_patch_error, self_patch_error),
+        metadata: std::collections::BTreeMap::new(),
+    }
+}
+
+fn reorient_worker_result_from_value(
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    result_id: &str,
+    value: &Value,
+    artifact_refs: Vec<String>,
+) -> EpiphanyRuntimeReorientWorkerResult {
+    EpiphanyRuntimeReorientWorkerResult {
+        schema_version: epiphany_core::RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION.to_string(),
+        result_id: result_id.to_string(),
+        job_id: launch_request.job_id.clone(),
+        mode: string_field(value, "mode").unwrap_or_else(|| "regather".to_string()),
+        summary: string_field(value, "summary").unwrap_or_else(|| {
+            "Reorient worker completed without a structured summary.".to_string()
+        }),
+        next_safe_move: string_field(value, "nextSafeMove").unwrap_or_else(|| {
+            "Review the typed reorient runtime result before accepting state.".to_string()
+        }),
+        checkpoint_still_valid: value.get("checkpointStillValid").and_then(Value::as_bool),
+        files_inspected: string_array_field(value, "filesInspected"),
+        frontier_node_ids: string_array_field(value, "frontierNodeIds"),
+        evidence_ids: string_array_field(value, "evidenceIds"),
+        artifact_refs,
+        open_questions: string_array_field(value, "openQuestions"),
+        continuity_risks: string_array_field(value, "continuityRisks"),
+        item_error: None,
+        metadata: std::collections::BTreeMap::new(),
+    }
+}
+
+fn encode_optional_value_field<T>(value: &Value, key: &str) -> (Option<Vec<u8>>, Option<String>)
+where
+    T: serde::Serialize + serde::de::DeserializeOwned,
+{
+    let Some(field) = value.get(key).cloned() else {
+        return (None, None);
+    };
+    match serde_json::from_value::<T>(field) {
+        Ok(document) => match rmp_serde::to_vec_named(&document) {
+            Ok(payload) => (Some(payload), None),
+            Err(err) => (None, Some(format!("failed to encode {key}: {err}"))),
+        },
+        Err(err) => (None, Some(format!("failed to parse {key}: {err}"))),
+    }
+}
+
+fn merge_optional_errors(left: Option<String>, right: Option<String>) -> Option<String> {
+    match (left, right) {
+        (Some(left), Some(right)) => Some(format!("{left}; {right}")),
+        (Some(left), None) => Some(left),
+        (None, Some(right)) => Some(right),
+        (None, None) => None,
     }
 }
 
@@ -742,6 +863,11 @@ mod tests {
         assert_eq!(result.summary, "Mapped.");
         assert_eq!(result.next_safe_move, "Review the patch.");
         assert!(result.evidence_refs.contains(&"ev-1".to_string()));
+        let typed_result = epiphany_core::runtime_role_worker_result(&store, "worker-job-1")?
+            .expect("typed role worker result");
+        assert_eq!(typed_result.verdict, "checkpoint-ready");
+        assert_eq!(typed_result.files_inspected, vec!["src/lib.rs".to_string()]);
+        assert_eq!(typed_result.artifact_refs, result.artifact_refs);
         assert!(
             runtime_job_snapshot(&store, "worker-job-1")?
                 .expect("snapshot")
