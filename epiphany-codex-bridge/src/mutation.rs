@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_core::EpiphanyStateUpdate;
@@ -96,6 +98,22 @@ pub fn state_update_from_thread_patch(
         churn: patch.churn,
         mode: patch.mode,
         planning: patch.planning,
+    }
+}
+
+pub fn epiphany_state_updated_notification(
+    thread_id: String,
+    source: ThreadEpiphanyStateUpdatedSource,
+    revision: u64,
+    changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    epiphany_state: codex_protocol::protocol::EpiphanyThreadState,
+) -> ThreadEpiphanyStateUpdatedNotification {
+    ThreadEpiphanyStateUpdatedNotification {
+        thread_id,
+        source,
+        revision,
+        changed_fields,
+        epiphany_state,
     }
 }
 

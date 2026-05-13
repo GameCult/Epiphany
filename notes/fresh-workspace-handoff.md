@@ -535,6 +535,10 @@ The twenty-eighth cut made reorient acceptance return its core
 `EpiphanyStateUpdate` from the bridge, so the route no longer assembles the
 scratch/checkpoint/receipt/evidence update fields after receiving the bridge
 bundle. `epiphany_mutation_routes.rs` is about 1,070 lines.
+The twenty-ninth cut moved repeated Epiphany state-updated notification shaping
+into `epiphany-codex-bridge/src/mutation.rs`. This did not materially shrink
+the route file, but it removed another duplicated protocol-shape authority from
+the mutation handlers. `epiphany_mutation_routes.rs` is about 1,071 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
@@ -542,7 +546,8 @@ intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
 Continue with the actual whale-carcass cut: carve remaining route-level mutation
 orchestration into explicit typed bridge/service calls, starting with launch
-response/notification shaping and interrupt result projection. Success is a
+response shaping and then reassessing whether the next clean cut is worth
+making or whether the remaining code is honest Codex edge glue. Success is a
 visibly smaller processor and less mutation authority in Codex, not merely
 nicer payload names or another adapter reliquary. Do not resume Rider, Unity,
 Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge expansion

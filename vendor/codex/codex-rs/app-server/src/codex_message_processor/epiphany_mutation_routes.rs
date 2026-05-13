@@ -22,6 +22,7 @@ use epiphany_codex_bridge::mutation::build_reorient_acceptance_update;
 use epiphany_codex_bridge::mutation::build_role_acceptance_update;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_promote_changed_fields;
+use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation::epiphany_update_patch_changed_fields;
 use epiphany_codex_bridge::mutation::state_update_from_thread_patch;
 use epiphany_codex_bridge::mutation::thread_epiphany_patch_has_state_replacements;
@@ -144,13 +145,13 @@ impl CodexMessageProcessor {
             .await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
@@ -306,13 +307,13 @@ impl CodexMessageProcessor {
             .await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::RoleAccept,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::RoleAccept,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
@@ -469,13 +470,13 @@ impl CodexMessageProcessor {
             .await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
@@ -631,13 +632,13 @@ impl CodexMessageProcessor {
             .await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::ReorientAccept,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::ReorientAccept,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
@@ -788,13 +789,13 @@ impl CodexMessageProcessor {
         self.outgoing.send_response(request_id, response).await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::Promote,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::Promote,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
@@ -859,13 +860,13 @@ impl CodexMessageProcessor {
         self.outgoing.send_response(request_id, response).await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::Update,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::Update,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
@@ -970,13 +971,13 @@ impl CodexMessageProcessor {
             .await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
@@ -1057,13 +1058,13 @@ impl CodexMessageProcessor {
             .await;
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                ThreadEpiphanyStateUpdatedNotification {
-                    thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyStateUpdatedSource::JobInterrupt,
-                    revision: epiphany_state.revision,
+                epiphany_state_updated_notification(
+                    thread_uuid.to_string(),
+                    ThreadEpiphanyStateUpdatedSource::JobInterrupt,
+                    epiphany_state.revision,
                     changed_fields,
                     epiphany_state,
-                },
+                ),
             ))
             .await;
     }
