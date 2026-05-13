@@ -446,13 +446,16 @@ mutation support helpers for completed-result loading, accept patch rendering,
 patch validation, and changed-field derivation into
 `vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_mutation_routes.rs`,
 taking the processor to about 15,819 lines.
+The fourteenth cut moved runtime-spine result snapshot/adaptation helpers into
+`vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_runtime_results.rs`,
+taking the processor to about 15,587 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
 Continue with the actual whale-carcass cut: move coordinator automation,
-result snapshot plumbing, and remaining runtime authority out of
+pre-compaction intervention orchestration, and remaining runtime authority out of
 `codex_message_processor.rs` into Epiphany-owned app-server modules, moving
 logic further into `epiphany-core` whenever it owns real policy. Success is a
 visibly smaller `codex_message_processor.rs`, not merely nicer payload names. Do
