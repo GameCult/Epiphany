@@ -1,8 +1,5 @@
 use crate::agent::AgentStatus;
 use crate::config::ConstraintResult;
-use crate::epiphany_retrieval;
-use crate::epiphany_retrieval::EpiphanyRetrieveQuery;
-use crate::epiphany_retrieval::EpiphanyRetrieveResponse;
 use crate::file_watcher::WatchRegistration;
 use crate::session::Codex;
 use crate::session::SessionSettingsUpdate;
@@ -56,6 +53,8 @@ use codex_protocol::protocol::TokenUsageInfo;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_core::EpiphanyRetrieveQuery;
+use epiphany_core::EpiphanyRetrieveResponse;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
@@ -596,11 +595,11 @@ impl CodexThread {
         let fallback_workspace_root = workspace_root.clone();
         let fallback_codex_home = codex_home.clone();
         tokio::task::spawn_blocking(move || {
-            epiphany_retrieval::retrieval_state_for_workspace(&workspace_root, codex_home.as_path())
+            epiphany_core::retrieval_state_for_workspace(&workspace_root, codex_home.as_path())
         })
         .await
         .unwrap_or_else(|_| {
-            epiphany_retrieval::retrieval_state_for_workspace(
+            epiphany_core::retrieval_state_for_workspace(
                 &fallback_workspace_root,
                 fallback_codex_home.as_path(),
             )
@@ -624,7 +623,7 @@ impl CodexThread {
         let workspace_root = config.cwd.to_path_buf();
         let codex_home = self.codex.session.codex_home().await;
         tokio::task::spawn_blocking(move || {
-            epiphany_retrieval::index_workspace(
+            epiphany_core::index_workspace(
                 &workspace_root,
                 codex_home.as_path(),
                 force_full_rebuild,
@@ -642,7 +641,7 @@ impl CodexThread {
         let workspace_root = config.cwd.to_path_buf();
         let codex_home = self.codex.session.codex_home().await;
         tokio::task::spawn_blocking(move || {
-            epiphany_retrieval::retrieve_workspace(&workspace_root, codex_home.as_path(), query)
+            epiphany_core::retrieve_workspace(&workspace_root, codex_home.as_path(), query)
         })
         .await
         .map_err(|err| anyhow::anyhow!("epiphany retrieval worker failed: {err}"))?

@@ -605,6 +605,12 @@ shadow `open_native_job` / `maybe_complete_native_job` compensator is deleted:
 there is one runtime job for the worker, owned by runtime-spine, and the worker
 runner completes that job.
 
+The Codex-core re-export husks for `epiphany_distillation`, `epiphany_promotion`,
+`epiphany_proposal`, and `epiphany_retrieval` have also been deleted.
+`codex-core` now re-exports those native types/functions directly from
+`epiphany-core`, and `CodexThread` calls `epiphany_core::retrieve_workspace` /
+`index_workspace` / `retrieval_state_for_workspace` directly.
+
 The runtime-spine job-opening mechanism for heartbeat/specialist launches has
 also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.
 Vendored `codex_core::CodexThread::epiphany_launch_job` still validates,
