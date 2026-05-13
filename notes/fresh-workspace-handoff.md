@@ -34,6 +34,7 @@ remembers doctrine; the branch remembers the blade.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - The active foundation directive is now `notes/codex-starvation-and-cultnet-liberation-plan.md`. The previous Codex app-server control-plane rebuild made Epiphany less rotten inside Codex, but that is not the destination. Epiphany must become a native CultCache/CultNet runtime. Codex is a compatibility reliquary for OpenAI subscription auth and model transport, not the host brain.
+- `notes/codex-auth-spine-inventory.md` is the source-grounded keeper list for that reliquary: retain `codex-login` credential storage/refresh, `codex-model-provider` auth resolution, the model-transport subset of `codex-core::client`, and the narrow model-catalog subset of `models-manager`; do not treat Codex app-server, apps, skills, marketplace, plugin UX, MCP OAuth handlers, or collaboration-mode surfaces as auth-spine machinery.
 - Edge JSON is allowed for schema description, hostile ingress before immediate typed parsing, sealed forensic artifacts, or named quarantine experiments. When both subsystems are ours, runtime data must remain typed CultCache documents and move over CultNet typed contracts. Generic `serde_json::Value` in worker launch/result/selfPatch/runtime flow is contamination until classified and replaced.
 - The May 2026 foundation migration in `notes/epiphany-ideal-architecture-rebuild-plan.md` is complete enough to defend. Read `notes/epiphany-architectural-teardown.md` before touching Epiphany control-plane code, but do not treat it as an open-ended excuse to keep shaving the altar. The rebuild moved scene projection, freshness derivation, pressure policy, targeted context shards, bounded graph traversal, job/progress view derivation, planning view derivation, reorientation resume/regather verdict policy, pure CRRC recommendation policy, fixed-lane coordinator decision policy, role-board projection policy, role/reorient result interpretation, role self-persistence review policy, and role/reorient acceptance bundle policy into `epiphany-core`; typed acceptance receipts replaced summary-string identity for live accept paths, runtime links are dual-written on launch, and result read-back now prefers runtime links.
 - Read `notes/epiphany-ideal-architecture-rebuild-plan.md` immediately after the teardown. It defines the smallest coherent replacement architecture: durable `EpiphanyState`, runtime-spine-owned `RuntimeState`, separate role memory/heartbeat state, `epiphany-core` as policy owner, app-server as adapter, Aquarium as reflector, typed acceptance receipts, and derived view lenses instead of a protocol verb zoo.
@@ -539,19 +540,23 @@ The twenty-ninth cut moved repeated Epiphany state-updated notification shaping
 into `epiphany-codex-bridge/src/mutation.rs`. This did not materially shrink
 the route file, but it removed another duplicated protocol-shape authority from
 the mutation handlers. `epiphany_mutation_routes.rs` is about 1,071 lines.
+The auth-spine inventory now exists at
+`notes/codex-auth-spine-inventory.md`. It maps the keeper Codex organ and sets
+the next real extraction target: create an outside-vendor
+`epiphany-openai-adapter` wrapper around auth/model transport with no
+dependency on Codex app-server or Epiphany JSON-RPC routes.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
-Continue with the actual whale-carcass cut: carve remaining route-level mutation
-orchestration into explicit typed bridge/service calls, starting with launch
-response shaping and then reassessing whether the next clean cut is worth
-making or whether the remaining code is honest Codex edge glue. Success is a
-visibly smaller processor and less mutation authority in Codex, not merely
-nicer payload names or another adapter reliquary. Do not resume Rider, Unity,
-Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge expansion
-until this organ is being cut cleanly.
+Continue with the actual whale-carcass cut: create the first
+`epiphany-openai-adapter` boundary outside `vendor/codex`, wrapping only the
+keeper auth/model transport spine identified in
+`notes/codex-auth-spine-inventory.md`. Success is Epiphany calling a model
+adapter rather than living inside the Codex host brain. Do not resume Rider,
+Unity, Aquarium, Face, dogfood, planning, app, skill, marketplace, or bridge
+expansion until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
