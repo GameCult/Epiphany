@@ -1,8 +1,14 @@
-use codex_protocol::protocol::TokenUsageInfo;
-
 const EPIPHANY_PRESSURE_ELEVATED_PER_MILLE: u32 = 650;
 const EPIPHANY_PRESSURE_PREPARE_COMPACTION_PER_MILLE: u32 = 800;
 const EPIPHANY_PRESSURE_CRITICAL_PER_MILLE: u32 = 950;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EpiphanyTokenUsageSnapshot {
+    pub total_tokens: i64,
+    pub last_turn_tokens: i64,
+    pub model_context_window: Option<i64>,
+    pub model_auto_compact_token_limit: Option<i64>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EpiphanyPressure {
@@ -40,7 +46,7 @@ pub enum EpiphanyPressureBasis {
     ModelContextWindow,
 }
 
-pub fn derive_pressure_view(info: Option<&TokenUsageInfo>) -> EpiphanyPressure {
+pub fn derive_pressure_view(info: Option<&EpiphanyTokenUsageSnapshot>) -> EpiphanyPressure {
     let Some(info) = info else {
         return EpiphanyPressure {
             status: EpiphanyPressureStatus::Unknown,
@@ -56,8 +62,8 @@ pub fn derive_pressure_view(info: Option<&TokenUsageInfo>) -> EpiphanyPressure {
         };
     };
 
-    let used_tokens = info.last_token_usage.total_tokens.max(0);
-    if used_tokens == 0 && info.total_token_usage.total_tokens > 0 {
+    let used_tokens = info.last_turn_tokens.max(0);
+    if used_tokens == 0 && info.total_tokens > 0 {
         return EpiphanyPressure {
             status: EpiphanyPressureStatus::Unknown,
             level: EpiphanyPressureLevel::Unknown,
@@ -141,29 +147,16 @@ pub fn derive_pressure_view(info: Option<&TokenUsageInfo>) -> EpiphanyPressure {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_protocol::protocol::TokenUsage;
 
     fn token_usage_info(
         total_tokens: i64,
         last_tokens: i64,
         model_context_window: Option<i64>,
         model_auto_compact_token_limit: Option<i64>,
-    ) -> TokenUsageInfo {
-        TokenUsageInfo {
-            total_token_usage: TokenUsage {
-                input_tokens: 0,
-                cached_input_tokens: 0,
-                output_tokens: 0,
-                reasoning_output_tokens: 0,
-                total_tokens,
-            },
-            last_token_usage: TokenUsage {
-                input_tokens: 0,
-                cached_input_tokens: 0,
-                output_tokens: 0,
-                reasoning_output_tokens: 0,
-                total_tokens: last_tokens,
-            },
+    ) -> EpiphanyTokenUsageSnapshot {
+        EpiphanyTokenUsageSnapshot {
+            total_tokens,
+            last_turn_tokens: last_tokens,
             model_context_window,
             model_auto_compact_token_limit,
         }

@@ -30,7 +30,6 @@ impl ContextualUserFragment for EpiphanyStateInstructions {
 mod tests {
     use super::EpiphanyStateInstructions;
     use crate::context::ContextualUserFragment;
-    use codex_protocol::config_types::ModeKind;
     use codex_protocol::protocol::EpiphanyChurnState;
     use codex_protocol::protocol::EpiphanyCodeRef;
     use codex_protocol::protocol::EpiphanyGraph;
@@ -39,6 +38,7 @@ mod tests {
     use codex_protocol::protocol::EpiphanyGraphFrontier;
     use codex_protocol::protocol::EpiphanyGraphNode;
     use codex_protocol::protocol::EpiphanyGraphs;
+    use codex_protocol::protocol::EpiphanyModeKind;
     use codex_protocol::protocol::EpiphanyModeState;
     use codex_protocol::protocol::EpiphanyThreadState;
     use std::path::PathBuf;
@@ -127,7 +127,7 @@ mod tests {
             }),
             mode: Some(EpiphanyModeState {
                 name: "epiphany".to_string(),
-                kind: Some(ModeKind::Default),
+                kind: Some(EpiphanyModeKind::Default),
             }),
             ..Default::default()
         };

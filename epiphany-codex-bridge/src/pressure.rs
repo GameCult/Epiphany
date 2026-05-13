@@ -7,6 +7,7 @@ use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis as CoreEpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use epiphany_core::EpiphanyPressureStatus as CoreEpiphanyPressureStatus;
+use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::derive_pressure_view;
 
 use crate::launch::epiphany_agent_prompt_with_memory;
@@ -14,7 +15,13 @@ use crate::launch::epiphany_specialist_prompt_config;
 use crate::launch::pressure_level_label;
 
 pub fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
-    map_core_epiphany_pressure(derive_pressure_view(info))
+    let snapshot = info.map(|info| EpiphanyTokenUsageSnapshot {
+        total_tokens: info.total_token_usage.total_tokens,
+        last_turn_tokens: info.last_token_usage.total_tokens,
+        model_context_window: info.model_context_window,
+        model_auto_compact_token_limit: info.model_auto_compact_token_limit,
+    });
+    map_core_epiphany_pressure(derive_pressure_view(snapshot.as_ref()))
 }
 
 fn map_core_epiphany_pressure(pressure: EpiphanyPressure) -> ThreadEpiphanyPressure {

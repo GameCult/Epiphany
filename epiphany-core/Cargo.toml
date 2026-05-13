@@ -14,7 +14,6 @@ anyhow = "1"
 bm25 = "2.3.2"
 chrono = "0.4.44"
 codex-file-search = { path = "../vendor/codex/codex-rs/file-search" }
-codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
 cultnet-rs = { path = "../vendor/cultnet-rs" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }

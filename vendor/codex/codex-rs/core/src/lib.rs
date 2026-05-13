@@ -22,6 +22,7 @@ pub use codex_thread::CodexThreadTurnContextOverrides;
 pub use codex_thread::EpiphanyJobInterruptRequest;
 pub use codex_thread::EpiphanyJobLaunchRequest;
 pub use codex_thread::ThreadConfigSnapshot;
+mod epiphany_rollout;
 pub use epiphany_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
 pub use epiphany_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
 pub use epiphany_core::EpiphanyDistillInput;
@@ -38,16 +39,8 @@ pub use epiphany_core::EpiphanyStateUpdate;
 pub use epiphany_core::distill_observation;
 pub use epiphany_core::evaluate_promotion;
 pub use epiphany_core::propose_map_update;
+pub use epiphany_rollout::latest_epiphany_state_from_codex_rollout_items as latest_epiphany_state_from_rollout_items;
 mod agent;
-
-pub fn latest_epiphany_state_from_rollout_items(
-    rollout_items: &[codex_protocol::protocol::RolloutItem],
-) -> Option<codex_protocol::protocol::EpiphanyThreadState> {
-    epiphany_core::latest_epiphany_state_from_rollout_items(
-        rollout_items,
-        context_manager::is_user_turn_boundary,
-    )
-}
 
 mod codex_delegate;
 mod command_canonicalization;

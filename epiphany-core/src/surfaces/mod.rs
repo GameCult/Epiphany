@@ -71,6 +71,7 @@ pub use pressure::EpiphanyPressure;
 pub use pressure::EpiphanyPressureBasis;
 pub use pressure::EpiphanyPressureLevel;
 pub use pressure::EpiphanyPressureStatus;
+pub use pressure::EpiphanyTokenUsageSnapshot;
 pub use pressure::derive_pressure_view;
 pub use reorient::EpiphanyReorientAction;
 pub use reorient::EpiphanyReorientCheckpointStatus;

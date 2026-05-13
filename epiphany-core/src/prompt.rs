@@ -798,7 +798,6 @@ fn push_omitted_count(lines: &mut Vec<String>, total: usize, shown: usize, label
 #[cfg(test)]
 mod tests {
     use super::render_epiphany_state;
-    use codex_protocol::config_types::ModeKind;
     use epiphany_state_model::EpiphanyChurnState;
     use epiphany_state_model::EpiphanyCodeRef;
     use epiphany_state_model::EpiphanyGraph;
@@ -809,6 +808,7 @@ mod tests {
     use epiphany_state_model::EpiphanyGraphs;
     use epiphany_state_model::EpiphanyInvestigationCheckpoint;
     use epiphany_state_model::EpiphanyInvestigationDisposition;
+    use epiphany_state_model::EpiphanyModeKind;
     use epiphany_state_model::EpiphanyModeState;
     use epiphany_state_model::EpiphanyThreadState;
     use std::path::PathBuf;
@@ -918,7 +918,7 @@ mod tests {
             }),
             mode: Some(EpiphanyModeState {
                 name: "epiphany".to_string(),
-                kind: Some(ModeKind::Default),
+                kind: Some(EpiphanyModeKind::Default),
             }),
             ..Default::default()
         };

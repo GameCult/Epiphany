@@ -95,6 +95,7 @@ use codex_protocol::protocol::EpiphanyGraphLink;
 use codex_protocol::protocol::EpiphanyGraphNode;
 use codex_protocol::protocol::EpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant;
+use codex_protocol::protocol::EpiphanyModeKind;
 use codex_protocol::protocol::EpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation;
 use codex_protocol::protocol::EpiphanyScratchPad;
@@ -417,7 +418,7 @@ fn sample_epiphany_state_for_prompt() -> EpiphanyThreadState {
         retrieval: None,
         mode: Some(EpiphanyModeState {
             name: "epiphany".to_string(),
-            kind: Some(ModeKind::Default),
+            kind: Some(EpiphanyModeKind::Default),
         }),
         planning: Default::default(),
         last_updated_turn_id: Some("phase2-turn".to_string()),
