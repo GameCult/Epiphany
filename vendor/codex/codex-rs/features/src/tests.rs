@@ -257,7 +257,7 @@ fn multi_agent_is_stable_and_enabled_by_default() {
 #[test]
 fn from_sources_applies_base_profile_and_overrides() {
     let mut base_entries = BTreeMap::new();
-    base_entries.insert("plugins".to_string(), true);
+    base_entries.insert("multi_agent_v2".to_string(), true);
     let base_features = FeaturesToml {
         entries: base_entries,
         ..Default::default()
@@ -286,7 +286,7 @@ fn from_sources_applies_base_profile_and_overrides() {
         },
     );
 
-    assert_eq!(features.enabled(Feature::Plugins), true);
+    assert_eq!(features.enabled(Feature::MultiAgentV2), true);
     assert_eq!(features.enabled(Feature::CodeModeOnly), true);
     assert_eq!(features.enabled(Feature::CodeMode), true);
     assert_eq!(features.enabled(Feature::ApplyPatchFreeform), true);

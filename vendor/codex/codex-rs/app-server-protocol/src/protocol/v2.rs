@@ -10633,8 +10633,8 @@ mod tests {
                     path: PathBuf::from("/repo/.codex/skills/skill-creator/SKILL.md"),
                 },
                 CoreUserInput::Mention {
-                    name: "Demo App".to_string(),
-                    path: "app://demo-app".to_string(),
+                    name: "Docs MCP".to_string(),
+                    path: "mcp://docs".to_string(),
                 },
             ],
         });
@@ -10659,8 +10659,8 @@ mod tests {
                         path: PathBuf::from("/repo/.codex/skills/skill-creator/SKILL.md"),
                     },
                     UserInput::Mention {
-                        name: "Demo App".to_string(),
-                        path: "app://demo-app".to_string(),
+                        name: "Docs MCP".to_string(),
+                        path: "mcp://docs".to_string(),
                     },
                 ],
             }

@@ -644,8 +644,8 @@ async fn turn_start_accepts_text_at_limit_with_mention_item() -> Result<()> {
                     text_elements: Vec::new(),
                 },
                 V2UserInput::Mention {
-                    name: "Demo App".to_string(),
-                    path: "app://demo-app".to_string(),
+                    name: "Docs MCP".to_string(),
+                    path: "mcp://docs".to_string(),
                 },
             ],
             ..Default::default()
@@ -2282,7 +2282,6 @@ async fn turn_start_streams_apply_patch_change_updates_v2() -> Result<()> {
         &BTreeMap::from([
             (Feature::ApplyPatchFreeform, true),
             (Feature::ApplyPatchStreamingEvents, true),
-            (Feature::Plugins, false),
             (Feature::RemoteModels, false),
             (Feature::ShellSnapshot, false),
         ]),

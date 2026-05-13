@@ -871,6 +871,14 @@ no longer advertise app config structs, `Feature::Apps` and the legacy
 exists. MCP tool approval remains live, but it is now named `McpToolApproval`
 and lives under MCP server config.
 
+The plugin feature and mention residue is gone too. `Feature::Plugins`,
+`Feature::RemotePlugin`, `plugin://` structured mentions, plugin instruction
+tags, stale plugin popup snapshots, and app/plugin path classification in
+`codex-core-skills` were deleted. Live structured mentions are MCP/skill-shaped
+only. Do not resurrect plugin product routing or `app://` compatibility to make
+old tests feel less lonely; the blessed route is `mcp://` at the MCP edge and
+typed CultCache/CultNet documents inside Epiphany.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

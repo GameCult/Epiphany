@@ -121,7 +121,7 @@ fn extract_tool_mentions_stops_at_non_name_chars() {
 }
 
 #[test]
-fn extract_tool_mentions_keeps_plugin_skill_namespaces() {
+fn extract_tool_mentions_keeps_tool_style_namespaces() {
     assert_mentions(
         "use $slack:search and $alpha",
         &["alpha", "slack:search"],

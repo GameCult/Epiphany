@@ -872,7 +872,6 @@ pub(crate) fn build_guardian_review_session_config(
     for feature in [
         Feature::Collab,
         Feature::CodexHooks,
-        Feature::Plugins,
         Feature::WebSearchRequest,
         Feature::WebSearchCached,
     ] {

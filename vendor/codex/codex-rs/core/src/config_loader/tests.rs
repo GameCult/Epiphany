@@ -378,11 +378,14 @@ async fn includes_thread_config_layers_in_stack() -> anyhow::Result<()> {
         LOCAL_FS.as_ref(),
         tmp.path(),
         Some(cwd),
-        &[("features.plugins".to_string(), TomlValue::Boolean(true))],
+        &[(
+            "features.multi_agent_v2".to_string(),
+            TomlValue::Boolean(true),
+        )],
         LoaderOverrides::without_managed_config_for_tests(),
         CloudRequirementsLoader::default(),
         &StaticThreadConfigLoader::new(vec![ThreadConfigSource::Session(SessionThreadConfig {
-            features: BTreeMap::from([("plugins".to_string(), false)]),
+            features: BTreeMap::from([("multi_agent_v2".to_string(), false)]),
             ..Default::default()
         })]),
         /*host_name*/ None,
@@ -412,7 +415,7 @@ async fn includes_thread_config_layers_in_stack() -> anyhow::Result<()> {
             .effective_config()
             .get("features")
             .and_then(TomlValue::as_table)
-            .and_then(|features| features.get("plugins")),
+            .and_then(|features| features.get("multi_agent_v2")),
         Some(&TomlValue::Boolean(false))
     );
 

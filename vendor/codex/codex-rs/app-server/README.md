@@ -604,40 +604,20 @@ Invoke a skill explicitly by including `$<skill-name>` in the text input and add
 } } }
 ```
 
-### Example: Start a turn (invoke an app)
+### Example: Start a turn (invoke an MCP server)
 
-Invoke an app by including `$<app-slug>` in the text input and adding a `mention` input item with the app id in `app://<connector-id>` form.
+Invoke an MCP server by including a linked mention in the text input and adding a `mention` input item with the server name in `mcp://<server-name>` form.
 
 ```json
 { "method": "turn/start", "id": 34, "params": {
     "threadId": "thr_123",
     "input": [
-        { "type": "text", "text": "$demo-app Summarize the latest updates." },
-        { "type": "mention", "name": "Demo App", "path": "app://demo-app" }
+        { "type": "text", "text": "Use [$docs](mcp://docs) to summarize the latest updates." },
+        { "type": "mention", "name": "Docs MCP", "path": "mcp://docs" }
     ]
 } }
 { "id": 34, "result": { "turn": {
     "id": "turn_458",
-    "status": "inProgress",
-    "items": [],
-    "error": null
-} } }
-```
-
-### Example: Start a turn (invoke a plugin)
-
-Invoke a plugin by including a UI mention token such as `@sample` in the text input and adding a `mention` input item with the exact `plugin://<plugin-name>@<marketplace-name>` path returned by `plugin/list`.
-
-```json
-{ "method": "turn/start", "id": 35, "params": {
-    "threadId": "thr_123",
-    "input": [
-        { "type": "text", "text": "@sample Summarize the latest updates." },
-        { "type": "mention", "name": "Sample Plugin", "path": "plugin://sample@test" }
-    ]
-} }
-{ "id": 35, "result": { "turn": {
-    "id": "turn_459",
     "status": "inProgress",
     "items": [],
     "error": null

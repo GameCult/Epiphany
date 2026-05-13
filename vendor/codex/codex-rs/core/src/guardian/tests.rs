@@ -2024,7 +2024,7 @@ async fn guardian_review_session_config_uses_live_network_proxy_state() {
 }
 
 #[tokio::test]
-async fn guardian_review_session_config_disables_mcp_and_plugins() {
+async fn guardian_review_session_config_disables_mcp() {
     let mut parent_config = test_config().await;
     let server: McpServerConfig =
         toml::from_str("command = \"docs-server\"").expect("deserialize MCP server");
@@ -2032,10 +2032,6 @@ async fn guardian_review_session_config_disables_mcp_and_plugins() {
         .mcp_servers
         .set(HashMap::from([("docs".to_string(), server)]))
         .expect("parent MCP servers are configurable");
-    parent_config
-        .features
-        .enable(Feature::Plugins)
-        .expect("plugins feature is configurable");
 
     let guardian_config = build_guardian_review_session_config_for_test(
         &parent_config,
@@ -2046,7 +2042,6 @@ async fn guardian_review_session_config_disables_mcp_and_plugins() {
     .expect("guardian config");
 
     assert!(guardian_config.mcp_servers.get().is_empty());
-    assert!(!guardian_config.features.enabled(Feature::Plugins));
 }
 
 #[tokio::test]

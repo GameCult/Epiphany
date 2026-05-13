@@ -200,7 +200,6 @@ fn is_common_env_var(name: &str) -> bool {
 
 fn is_tool_path(path: &str) -> bool {
     path.starts_with("mcp://")
-        || path.starts_with("plugin://")
         || path.starts_with("skill://")
         || path
             .rsplit(['/', '\\'])
@@ -216,7 +215,7 @@ mod tests {
     #[test]
     fn decode_history_mentions_restores_visible_tokens() {
         let decoded = decode_history_mentions(
-            "Use [$repo](mcp://repo), [$sample](plugin://sample@test), and [$figma](/tmp/figma/SKILL.md).",
+            "Use [$repo](mcp://repo), [$sample](skill://sample), and [$figma](/tmp/figma/SKILL.md).",
         );
         assert_eq!(decoded.text, "Use $repo, $sample, and $figma.");
         assert_eq!(
@@ -228,7 +227,7 @@ mod tests {
                 },
                 LinkedMention {
                     mention: "sample".to_string(),
-                    path: "plugin://sample@test".to_string(),
+                    path: "skill://sample".to_string(),
                 },
                 LinkedMention {
                     mention: "figma".to_string(),
@@ -258,7 +257,7 @@ mod tests {
                 },
                 LinkedMention {
                     mention: "sample".to_string(),
-                    path: "plugin://sample@test".to_string(),
+                    path: "skill://sample".to_string(),
                 },
                 LinkedMention {
                     mention: "figma".to_string(),
@@ -268,7 +267,7 @@ mod tests {
         );
         assert_eq!(
             encoded,
-            "[$figma](mcp://figma) then [$sample](plugin://sample@test) then [$figma](/tmp/figma/SKILL.md) then $other"
+            "[$figma](mcp://figma) then [$sample](skill://sample) then [$figma](/tmp/figma/SKILL.md) then $other"
         );
     }
 }

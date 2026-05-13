@@ -327,9 +327,6 @@
             "personality": {
               "type": "boolean"
             },
-            "plugins": {
-              "type": "boolean"
-            },
             "prevent_idle_sleep": {
               "type": "boolean"
             },
@@ -340,9 +337,6 @@
               "type": "boolean"
             },
             "remote_models": {
-              "type": "boolean"
-            },
-            "remote_plugin": {
               "type": "boolean"
             },
             "request_permissions": {
@@ -2293,9 +2287,6 @@
         "personality": {
           "type": "boolean"
         },
-        "plugins": {
-          "type": "boolean"
-        },
         "prevent_idle_sleep": {
           "type": "boolean"
         },
@@ -2306,9 +2297,6 @@
           "type": "boolean"
         },
         "remote_models": {
-          "type": "boolean"
-        },
-        "remote_plugin": {
           "type": "boolean"
         },
         "request_permissions": {

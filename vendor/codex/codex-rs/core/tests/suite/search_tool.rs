@@ -403,7 +403,7 @@ async fn search_tool_hides_apps_tools_without_search() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn explicit_app_mentions_expose_apps_tools_without_search() -> Result<()> {
+async fn explicit_mcp_mentions_expose_mcp_tools_without_search() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
@@ -422,7 +422,7 @@ async fn explicit_app_mentions_expose_apps_tools_without_search() -> Result<()> 
     let test = builder.build(&server).await?;
 
     test.submit_turn_with_policies(
-        "Use [$calendar](app://calendar) and then call tools.",
+        "Use [$calendar](mcp://calendar) and then call tools.",
         AskForApproval::Never,
         SandboxPolicy::DangerFullAccess,
     )
@@ -437,11 +437,11 @@ async fn explicit_app_mentions_expose_apps_tools_without_search() -> Result<()> 
             SEARCH_CALENDAR_CREATE_TOOL
         )
         .is_some(),
-        "expected explicit app mention to expose create tool, got tools: {tools:?}"
+        "expected explicit MCP mention to expose create tool, got tools: {tools:?}"
     );
     assert!(
         namespace_child_tool(&body, SEARCH_CALENDAR_NAMESPACE, SEARCH_CALENDAR_LIST_TOOL).is_some(),
-        "expected explicit app mention to expose list tool, got tools: {tools:?}"
+        "expected explicit MCP mention to expose list tool, got tools: {tools:?}"
     );
 
     Ok(())
