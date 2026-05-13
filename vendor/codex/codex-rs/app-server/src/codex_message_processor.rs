@@ -3,6 +3,9 @@ use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
 use crate::command_exec::CommandExecManager;
 use crate::command_exec::StartCommandExecParams;
 use crate::config_manager::ConfigManager;
+use crate::epiphany_context::map_epiphany_context;
+use crate::epiphany_context::map_epiphany_graph_query;
+use crate::epiphany_context::map_epiphany_planning;
 use crate::epiphany_invalidation::EpiphanyInvalidationManager;
 use crate::epiphany_invalidation::EpiphanyInvalidationSnapshot;
 use crate::epiphany_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
@@ -180,7 +183,6 @@ use codex_app_server_protocol::ThreadCompactStartResponse;
 use codex_app_server_protocol::ThreadDecrementElicitationParams;
 use codex_app_server_protocol::ThreadDecrementElicitationResponse;
 use codex_app_server_protocol::ThreadEpiphanyContext;
-use codex_app_server_protocol::ThreadEpiphanyContextMissing;
 use codex_app_server_protocol::ThreadEpiphanyContextParams;
 use codex_app_server_protocol::ThreadEpiphanyContextResponse;
 use codex_app_server_protocol::ThreadEpiphanyContextSource;
@@ -194,14 +196,11 @@ use codex_app_server_protocol::ThreadEpiphanyDistillResponse;
 use codex_app_server_protocol::ThreadEpiphanyFreshnessParams;
 use codex_app_server_protocol::ThreadEpiphanyFreshnessResponse;
 use codex_app_server_protocol::ThreadEpiphanyFreshnessSource;
-use codex_app_server_protocol::ThreadEpiphanyGraphContext;
 use codex_app_server_protocol::ThreadEpiphanyGraphFreshness;
 use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyGraphQuery;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryDirection;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryKind;
-use codex_app_server_protocol::ThreadEpiphanyGraphQueryMatched;
-use codex_app_server_protocol::ThreadEpiphanyGraphQueryMissing;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryParams;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryResponse;
 use codex_app_server_protocol::ThreadEpiphanyIndexParams;
@@ -215,7 +214,6 @@ use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyJobLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
-use codex_app_server_protocol::ThreadEpiphanyPlanningSummary;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
@@ -468,7 +466,6 @@ use codex_protocol::protocol::EpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
-use codex_protocol::protocol::EpiphanyPlanningState;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyRuntimeLink;
@@ -516,11 +513,6 @@ use codex_thread_store::ThreadStoreError;
 use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataParams;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
-use epiphany_core::EpiphanyContext as CoreEpiphanyContext;
-use epiphany_core::EpiphanyContextMissing as CoreEpiphanyContextMissing;
-use epiphany_core::EpiphanyContextParams as CoreEpiphanyContextParams;
-use epiphany_core::EpiphanyContextStateStatus as CoreEpiphanyContextStateStatus;
-use epiphany_core::EpiphanyContextView;
 use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use epiphany_core::EpiphanyCoordinatorAutomationAction as CoreEpiphanyCoordinatorAutomationAction;
 use epiphany_core::EpiphanyCoordinatorCrrcRecommendation;
@@ -539,19 +531,9 @@ use epiphany_core::EpiphanyCrrcReorientAction as CoreEpiphanyCrrcReorientAction;
 use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcSceneAction as CoreEpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
-use epiphany_core::EpiphanyGraphContext as CoreEpiphanyGraphContext;
-use epiphany_core::EpiphanyGraphQuery as CoreEpiphanyGraphQuery;
-use epiphany_core::EpiphanyGraphQueryDirection as CoreEpiphanyGraphQueryDirection;
-use epiphany_core::EpiphanyGraphQueryKind as CoreEpiphanyGraphQueryKind;
-use epiphany_core::EpiphanyGraphQueryMatched as CoreEpiphanyGraphQueryMatched;
-use epiphany_core::EpiphanyGraphQueryMissing as CoreEpiphanyGraphQueryMissing;
-use epiphany_core::EpiphanyGraphQueryView;
 use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
 use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyJobsInput;
-use epiphany_core::EpiphanyPlanningStateStatus as CoreEpiphanyPlanningStateStatus;
-use epiphany_core::EpiphanyPlanningSummary as CoreEpiphanyPlanningSummary;
-use epiphany_core::EpiphanyPlanningView;
 use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis as CoreEpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
@@ -572,10 +554,7 @@ use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
-use epiphany_core::derive_context;
-use epiphany_core::derive_graph_query;
 use epiphany_core::derive_jobs;
-use epiphany_core::derive_planning_view;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
@@ -13912,231 +13891,6 @@ fn render_epiphany_pre_compaction_checkpoint_intervention(
         .trim()
         .replace("{pressure_level}", pressure_level_label(pressure.level))
         .replace("{usage}", &usage)
-}
-
-fn map_epiphany_context(
-    state: Option<&EpiphanyThreadState>,
-    params: &ThreadEpiphanyContextParams,
-) -> (
-    ThreadEpiphanyContextStateStatus,
-    Option<u64>,
-    ThreadEpiphanyContext,
-    ThreadEpiphanyContextMissing,
-) {
-    map_core_epiphany_context_view(derive_context(
-        state,
-        &CoreEpiphanyContextParams {
-            graph_node_ids: params.graph_node_ids.clone(),
-            graph_edge_ids: params.graph_edge_ids.clone(),
-            observation_ids: params.observation_ids.clone(),
-            evidence_ids: params.evidence_ids.clone(),
-            include_active_frontier: params.include_active_frontier,
-            include_linked_evidence: params.include_linked_evidence,
-        },
-    ))
-}
-
-fn map_core_epiphany_context_view(
-    view: EpiphanyContextView,
-) -> (
-    ThreadEpiphanyContextStateStatus,
-    Option<u64>,
-    ThreadEpiphanyContext,
-    ThreadEpiphanyContextMissing,
-) {
-    (
-        map_core_epiphany_context_state_status(view.state_status),
-        view.state_revision,
-        map_core_epiphany_context(view.context),
-        map_core_epiphany_context_missing(view.missing),
-    )
-}
-
-fn map_core_epiphany_context_state_status(
-    status: CoreEpiphanyContextStateStatus,
-) -> ThreadEpiphanyContextStateStatus {
-    match status {
-        CoreEpiphanyContextStateStatus::Missing => ThreadEpiphanyContextStateStatus::Missing,
-        CoreEpiphanyContextStateStatus::Ready => ThreadEpiphanyContextStateStatus::Ready,
-    }
-}
-
-fn map_core_epiphany_context(context: CoreEpiphanyContext) -> ThreadEpiphanyContext {
-    ThreadEpiphanyContext {
-        graph: map_core_epiphany_graph_context(context.graph),
-        frontier: context.frontier,
-        checkpoint: context.checkpoint,
-        investigation_checkpoint: context.investigation_checkpoint,
-        observations: context.observations,
-        evidence: context.evidence,
-    }
-}
-
-fn map_core_epiphany_graph_context(graph: CoreEpiphanyGraphContext) -> ThreadEpiphanyGraphContext {
-    ThreadEpiphanyGraphContext {
-        architecture_nodes: graph.architecture_nodes,
-        architecture_edges: graph.architecture_edges,
-        dataflow_nodes: graph.dataflow_nodes,
-        dataflow_edges: graph.dataflow_edges,
-        links: graph.links,
-    }
-}
-
-fn map_core_epiphany_context_missing(
-    missing: CoreEpiphanyContextMissing,
-) -> ThreadEpiphanyContextMissing {
-    ThreadEpiphanyContextMissing {
-        graph_node_ids: missing.graph_node_ids,
-        graph_edge_ids: missing.graph_edge_ids,
-        observation_ids: missing.observation_ids,
-        evidence_ids: missing.evidence_ids,
-    }
-}
-
-fn map_epiphany_planning(
-    state: Option<&EpiphanyThreadState>,
-) -> (
-    ThreadEpiphanyContextStateStatus,
-    Option<u64>,
-    EpiphanyPlanningState,
-    ThreadEpiphanyPlanningSummary,
-) {
-    let view = derive_planning_view(state);
-    map_core_epiphany_planning_view(view)
-}
-
-fn map_core_epiphany_planning_view(
-    view: EpiphanyPlanningView,
-) -> (
-    ThreadEpiphanyContextStateStatus,
-    Option<u64>,
-    EpiphanyPlanningState,
-    ThreadEpiphanyPlanningSummary,
-) {
-    (
-        match view.state_status {
-            CoreEpiphanyPlanningStateStatus::Missing => ThreadEpiphanyContextStateStatus::Missing,
-            CoreEpiphanyPlanningStateStatus::Ready => ThreadEpiphanyContextStateStatus::Ready,
-        },
-        view.state_revision,
-        view.planning,
-        map_core_epiphany_planning_summary(view.summary),
-    )
-}
-
-fn map_core_epiphany_planning_summary(
-    summary: CoreEpiphanyPlanningSummary,
-) -> ThreadEpiphanyPlanningSummary {
-    ThreadEpiphanyPlanningSummary {
-        capture_count: summary.capture_count,
-        pending_capture_count: summary.pending_capture_count,
-        github_issue_capture_count: summary.github_issue_capture_count,
-        backlog_item_count: summary.backlog_item_count,
-        ready_backlog_item_count: summary.ready_backlog_item_count,
-        roadmap_stream_count: summary.roadmap_stream_count,
-        objective_draft_count: summary.objective_draft_count,
-        draft_objective_count: summary.draft_objective_count,
-        active_objective: summary.active_objective,
-        note: summary.note,
-    }
-}
-
-fn map_epiphany_graph_query(
-    state: Option<&EpiphanyThreadState>,
-    query: &ThreadEpiphanyGraphQuery,
-) -> (
-    ThreadEpiphanyContextStateStatus,
-    Option<u64>,
-    ThreadEpiphanyGraphContext,
-    Option<codex_protocol::protocol::EpiphanyGraphFrontier>,
-    Option<codex_protocol::protocol::EpiphanyGraphCheckpoint>,
-    ThreadEpiphanyGraphQueryMatched,
-    ThreadEpiphanyGraphQueryMissing,
-) {
-    map_core_epiphany_graph_query_view(derive_graph_query(
-        state,
-        &map_core_epiphany_graph_query(query),
-    ))
-}
-
-fn map_core_epiphany_graph_query(query: &ThreadEpiphanyGraphQuery) -> CoreEpiphanyGraphQuery {
-    CoreEpiphanyGraphQuery {
-        kind: map_core_epiphany_graph_query_kind(query.kind),
-        node_ids: query.node_ids.clone(),
-        edge_ids: query.edge_ids.clone(),
-        paths: query.paths.clone(),
-        symbols: query.symbols.clone(),
-        edge_kinds: query.edge_kinds.clone(),
-        direction: query.direction.map(map_core_epiphany_graph_query_direction),
-        depth: query.depth,
-        include_links: query.include_links,
-    }
-}
-
-fn map_core_epiphany_graph_query_kind(
-    kind: ThreadEpiphanyGraphQueryKind,
-) -> CoreEpiphanyGraphQueryKind {
-    match kind {
-        ThreadEpiphanyGraphQueryKind::Node => CoreEpiphanyGraphQueryKind::Node,
-        ThreadEpiphanyGraphQueryKind::Path => CoreEpiphanyGraphQueryKind::Path,
-        ThreadEpiphanyGraphQueryKind::FrontierNeighborhood => {
-            CoreEpiphanyGraphQueryKind::FrontierNeighborhood
-        }
-        ThreadEpiphanyGraphQueryKind::Neighbors => CoreEpiphanyGraphQueryKind::Neighbors,
-    }
-}
-
-fn map_core_epiphany_graph_query_direction(
-    direction: ThreadEpiphanyGraphQueryDirection,
-) -> CoreEpiphanyGraphQueryDirection {
-    match direction {
-        ThreadEpiphanyGraphQueryDirection::Incoming => CoreEpiphanyGraphQueryDirection::Incoming,
-        ThreadEpiphanyGraphQueryDirection::Outgoing => CoreEpiphanyGraphQueryDirection::Outgoing,
-        ThreadEpiphanyGraphQueryDirection::Both => CoreEpiphanyGraphQueryDirection::Both,
-    }
-}
-
-fn map_core_epiphany_graph_query_view(
-    view: EpiphanyGraphQueryView,
-) -> (
-    ThreadEpiphanyContextStateStatus,
-    Option<u64>,
-    ThreadEpiphanyGraphContext,
-    Option<codex_protocol::protocol::EpiphanyGraphFrontier>,
-    Option<codex_protocol::protocol::EpiphanyGraphCheckpoint>,
-    ThreadEpiphanyGraphQueryMatched,
-    ThreadEpiphanyGraphQueryMissing,
-) {
-    (
-        map_core_epiphany_context_state_status(view.state_status),
-        view.state_revision,
-        map_core_epiphany_graph_context(view.graph),
-        view.frontier,
-        view.checkpoint,
-        map_core_epiphany_graph_query_matched(view.matched),
-        map_core_epiphany_graph_query_missing(view.missing),
-    )
-}
-
-fn map_core_epiphany_graph_query_matched(
-    matched: CoreEpiphanyGraphQueryMatched,
-) -> ThreadEpiphanyGraphQueryMatched {
-    ThreadEpiphanyGraphQueryMatched {
-        node_ids: matched.node_ids,
-        edge_ids: matched.edge_ids,
-        paths: matched.paths,
-        symbols: matched.symbols,
-        edge_kinds: matched.edge_kinds,
-    }
-}
-
-fn map_core_epiphany_graph_query_missing(
-    missing: CoreEpiphanyGraphQueryMissing,
-) -> ThreadEpiphanyGraphQueryMissing {
-    ThreadEpiphanyGraphQueryMissing {
-        node_ids: missing.node_ids,
-        edge_ids: missing.edge_ids,
-    }
 }
 
 pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
