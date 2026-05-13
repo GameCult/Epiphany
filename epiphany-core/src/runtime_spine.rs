@@ -320,6 +320,20 @@ pub struct RuntimeSpineJobResultOptions {
     pub artifact_refs: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RuntimeSpineHeartbeatJobOptions {
+    pub runtime_id: String,
+    pub display_name: String,
+    pub session_id: String,
+    pub objective: String,
+    pub coordinator_note: String,
+    pub job_id: String,
+    pub role: String,
+    pub binding_id: String,
+    pub authority_scope: String,
+    pub created_at: String,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct EpiphanyRuntimeJobSnapshot {
     pub job: EpiphanyRuntimeJob,
@@ -494,6 +508,53 @@ pub fn create_runtime_job(
     };
     cache.put(&event.event_id, &event)?;
     Ok(job)
+}
+
+pub fn open_runtime_spine_heartbeat_job(
+    store_path: impl AsRef<Path>,
+    options: RuntimeSpineHeartbeatJobOptions,
+) -> Result<EpiphanyRuntimeJob> {
+    validate_non_empty(&options.runtime_id, "runtime id")?;
+    validate_non_empty(&options.display_name, "display name")?;
+    validate_non_empty(&options.session_id, "session id")?;
+    validate_non_empty(&options.objective, "objective")?;
+    validate_non_empty(&options.job_id, "job id")?;
+    validate_non_empty(&options.role, "role")?;
+    validate_non_empty(&options.binding_id, "binding id")?;
+    validate_non_empty(&options.authority_scope, "authority scope")?;
+    validate_non_empty(&options.created_at, "created at")?;
+    let store_path = store_path.as_ref();
+    initialize_runtime_spine(
+        store_path,
+        RuntimeSpineInitOptions {
+            runtime_id: options.runtime_id,
+            display_name: options.display_name,
+            created_at: options.created_at.clone(),
+        },
+    )?;
+    ensure_runtime_session(
+        store_path,
+        RuntimeSpineSessionOptions {
+            session_id: options.session_id.clone(),
+            objective: options.objective,
+            created_at: options.created_at.clone(),
+            coordinator_note: options.coordinator_note,
+        },
+    )?;
+    create_runtime_job(
+        store_path,
+        RuntimeSpineJobOptions {
+            job_id: options.job_id,
+            session_id: options.session_id,
+            role: options.role,
+            created_at: options.created_at,
+            summary: format!(
+                "Heartbeat activation queued for binding {} with authority {}.",
+                options.binding_id, options.authority_scope
+            ),
+            artifact_refs: Vec::new(),
+        },
+    )
 }
 
 pub fn runtime_job_snapshot(
@@ -1400,6 +1461,38 @@ mod tests {
                 .map(|result| result.result_id.as_str()),
             Some("result-1")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_spine_opens_heartbeat_job_from_single_typed_call() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+
+        let job = open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Run heartbeat worker.".to_string(),
+                coordinator_note: "Test launch.".to_string(),
+                job_id: "heartbeat-job-1".to_string(),
+                role: "modeling".to_string(),
+                binding_id: "modeling-checkpoint-worker".to_string(),
+                authority_scope: "modeling".to_string(),
+                created_at: "2026-05-06T00:02:00Z".to_string(),
+            },
+        )?;
+
+        assert_eq!(job.job_id, "heartbeat-job-1");
+        assert_eq!(job.session_id, "epiphany-main");
+        assert_eq!(job.role, "modeling");
+        let status = runtime_spine_status(&store)?;
+        assert_eq!(status.sessions, 1);
+        assert_eq!(status.jobs, 1);
+        assert_eq!(status.open_jobs, 1);
+        assert_eq!(status.events, 1);
         Ok(())
     }
 

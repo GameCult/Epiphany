@@ -57,12 +57,8 @@ use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
-use epiphany_core::RuntimeSpineInitOptions;
-use epiphany_core::RuntimeSpineJobOptions;
-use epiphany_core::RuntimeSpineSessionOptions;
-use epiphany_core::create_runtime_job;
-use epiphany_core::ensure_runtime_session;
-use epiphany_core::initialize_runtime_spine;
+use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+use epiphany_core::open_runtime_spine_heartbeat_job;
 use rmcp::model::ReadResourceRequestParams;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -878,56 +874,28 @@ fn open_epiphany_runtime_spine_job(
     backend_job_id: &str,
 ) -> CodexResult<()> {
     let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
-    initialize_runtime_spine(
+    open_runtime_spine_heartbeat_job(
         store_path,
-        RuntimeSpineInitOptions {
+        RuntimeSpineHeartbeatJobOptions {
             runtime_id: "epiphany-local".to_string(),
             display_name: "Epiphany Local".to_string(),
-            created_at: now.clone(),
-        },
-    )
-    .map_err(|err| {
-        CodexErr::Fatal(format!(
-            "failed to initialize Epiphany runtime spine {}: {err}",
-            store_path.display()
-        ))
-    })?;
-    ensure_runtime_session(
-        store_path,
-        RuntimeSpineSessionOptions {
             session_id: "epiphany-main".to_string(),
             objective: state
                 .objective
                 .clone()
                 .filter(|objective| !objective.trim().is_empty())
                 .unwrap_or_else(|| "Epiphany heartbeat activation".to_string()),
-            created_at: now.clone(),
             coordinator_note: "App-server launch opened this typed runtime session.".to_string(),
-        },
-    )
-    .map_err(|err| {
-        CodexErr::Fatal(format!(
-            "failed to ensure Epiphany runtime session in {}: {err}",
-            store_path.display()
-        ))
-    })?;
-    create_runtime_job(
-        store_path,
-        RuntimeSpineJobOptions {
             job_id: backend_job_id.to_string(),
-            session_id: "epiphany-main".to_string(),
             role: request.owner_role.clone(),
+            binding_id: request.binding_id.clone(),
+            authority_scope: request.authority_scope.clone(),
             created_at: now,
-            summary: format!(
-                "Heartbeat activation queued for binding {} with authority {}.",
-                request.binding_id, request.authority_scope
-            ),
-            artifact_refs: Vec::new(),
         },
     )
     .map_err(|err| {
         CodexErr::Fatal(format!(
-            "failed to open Epiphany runtime job {:?} in {}: {err}",
+            "failed to open Epiphany runtime spine job {:?} in {}: {err}",
             backend_job_id,
             store_path.display()
         ))

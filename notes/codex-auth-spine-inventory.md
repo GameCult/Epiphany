@@ -159,6 +159,12 @@ Codex-backed transport through the typed spine; its `smoke` command proves the
 CultCache route without touching the network. This is the first native caller
 for the advertised OpenAI CultNet contract.
 
+The heartbeat/specialist runtime job opener has been moved to
+`epiphany-core::open_runtime_spine_heartbeat_job`. Vendored Codex may still
+call it while the app-server compatibility route survives, but the
+initialize-runtime, ensure-session, and create-job sequence is now native
+runtime-spine machinery rather than Codex thread machinery.
+
 The bad news is useful: the current spine still drags in `codex-api` and its
 large transport dependency stack. That is tolerable as a sealed compatibility
 reliquary, but not as the final shape. The next purification should shrink the

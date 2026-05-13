@@ -588,6 +588,14 @@ storage route without network. The next cut is to move live callers from
 Codex app-server JSON-RPC onto this runtime route, then carve down the
 `codex-api` dependency weight.
 
+The runtime-spine job-opening mechanism for heartbeat/specialist launches has
+also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.
+Vendored `codex_core::CodexThread::epiphany_launch_job` still validates,
+persists, and updates Codex thread state, but it no longer owns the
+initialize-session-open-job sequence. That is a small cut, but a real ownership
+move: native runtime lifecycle belongs to the runtime spine, not the Codex
+thread wrapper.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
