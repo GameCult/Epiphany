@@ -432,7 +432,6 @@ mod tests {
                 ]),
             }),
             mcp_servers: None,
-            apps: None,
             rules: None,
             enforce_residency: Some(CoreResidencyRequirement::Us),
             network: Some(CoreNetworkRequirementsToml {
@@ -538,7 +537,6 @@ mod tests {
             guardian_policy_config: None,
             feature_requirements: None,
             mcp_servers: None,
-            apps: None,
             rules: None,
             enforce_residency: None,
             network: Some(CoreNetworkRequirementsToml {
@@ -597,7 +595,6 @@ mod tests {
             guardian_policy_config: None,
             feature_requirements: None,
             mcp_servers: None,
-            apps: None,
             rules: None,
             enforce_residency: None,
             network: None,
@@ -617,7 +614,7 @@ mod tests {
         let codex_home = TempDir::new().expect("create temp dir");
         std::fs::write(
             codex_home.path().join("config.toml"),
-            "[features]\napps = false\n",
+            "[features]\nmulti_agent_v2 = false\n",
         )
         .expect("write config");
 
@@ -625,7 +622,7 @@ mod tests {
             .codex_home(codex_home.path().to_path_buf())
             .fallback_cwd(Some(codex_home.path().to_path_buf()))
             .cli_overrides(vec![(
-                "features.apps".to_string(),
+                "features.multi_agent_v2".to_string(),
                 TomlValue::Boolean(true),
             )])
             .build()
@@ -634,10 +631,10 @@ mod tests {
 
         apply_runtime_feature_enablement(
             &mut config,
-            &BTreeMap::from([("apps".to_string(), false)]),
+            &BTreeMap::from([("multi_agent_v2".to_string(), false)]),
         );
 
-        assert!(config.features.enabled(Feature::Apps));
+        assert!(config.features.enabled(Feature::MultiAgentV2));
     }
 
     #[tokio::test]
@@ -647,14 +644,14 @@ mod tests {
         let mut config = codex_core::config::ConfigBuilder::default()
             .codex_home(codex_home.path().to_path_buf())
             .cli_overrides(vec![(
-                "features.apps".to_string(),
+                "features.multi_agent_v2".to_string(),
                 TomlValue::Boolean(true),
             )])
             .cloud_requirements(CloudRequirementsLoader::new(async {
                 Ok(Some(ConfigRequirementsToml {
                     feature_requirements: Some(
                         codex_core::config_loader::FeatureRequirementsToml {
-                            entries: BTreeMap::from([("apps".to_string(), false)]),
+                            entries: BTreeMap::from([("multi_agent_v2".to_string(), false)]),
                         },
                     ),
                     ..Default::default()
@@ -666,10 +663,10 @@ mod tests {
 
         apply_runtime_feature_enablement(
             &mut config,
-            &BTreeMap::from([("apps".to_string(), true)]),
+            &BTreeMap::from([("multi_agent_v2".to_string(), true)]),
         );
 
-        assert!(!config.features.enabled(Feature::Apps));
+        assert!(!config.features.enabled(Feature::MultiAgentV2));
     }
 
     #[tokio::test]

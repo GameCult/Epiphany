@@ -863,6 +863,14 @@ app telemetry client APIs, or tests those event shapes. Do not reintroduce app
 analytics unless an Epiphany-owned typed adapter has a real runtime event to
 report.
 
+The app config throne has been removed. `ConfigToml` no longer accepts
+`[apps.*]`, managed/cloud requirements no longer parse app enablement,
+`config/read` no longer exposes app config, generated JSON/TypeScript schemas
+no longer advertise app config structs, `Feature::Apps` and the legacy
+`connectors` feature alias are gone, and `include_apps_instructions` no longer
+exists. MCP tool approval remains live, but it is now named `McpToolApproval`
+and lives under MCP server config.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

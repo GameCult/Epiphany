@@ -1191,7 +1191,6 @@ fn test_build_specs_mcp_tools_sorted_by_name() {
 fn search_tool_description_lists_each_mcp_source_once() {
     let model_info = search_capable_model_info();
     let mut features = Features::with_defaults();
-    features.enable(Feature::Apps);
     features.enable(Feature::ToolSearch);
     let available_models = Vec::new();
     let tools_config = ToolsConfig::new(&ToolsConfigParams {

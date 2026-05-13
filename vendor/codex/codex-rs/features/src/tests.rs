@@ -255,16 +255,6 @@ fn multi_agent_is_stable_and_enabled_by_default() {
 }
 
 #[test]
-fn apps_require_feature_flag_and_chatgpt_auth() {
-    let mut features = Features::with_defaults();
-    assert!(!features.apps_enabled_for_auth(/*has_chatgpt_auth*/ false));
-
-    features.enable(Feature::Apps);
-    assert!(!features.apps_enabled_for_auth(/*has_chatgpt_auth*/ false));
-    assert!(features.apps_enabled_for_auth(/*has_chatgpt_auth*/ true));
-}
-
-#[test]
 fn from_sources_applies_base_profile_and_overrides() {
     let mut base_entries = BTreeMap::new();
     base_entries.insert("plugins".to_string(), true);

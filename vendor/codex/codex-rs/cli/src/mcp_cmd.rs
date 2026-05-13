@@ -5,9 +5,9 @@ use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
 use clap::ArgGroup;
-use codex_config::types::AppToolApproval;
 use codex_config::types::McpServerConfig;
 use codex_config::types::McpServerTransportConfig;
+use codex_config::types::McpToolApproval;
 use codex_core::McpManager;
 use codex_core::config::Config;
 use codex_core::config::edit::ConfigEditsBuilder;
@@ -873,9 +873,9 @@ async fn run_get(config_overrides: &CliConfigOverrides, get_args: GetArgs) -> Re
     }
     if let Some(approval_mode) = server.default_tools_approval_mode {
         let approval_mode = match approval_mode {
-            AppToolApproval::Auto => "auto",
-            AppToolApproval::Prompt => "prompt",
-            AppToolApproval::Approve => "approve",
+            McpToolApproval::Auto => "auto",
+            McpToolApproval::Prompt => "prompt",
+            McpToolApproval::Approve => "approve",
         };
         println!("  default_tools_approval_mode: {approval_mode}");
     }

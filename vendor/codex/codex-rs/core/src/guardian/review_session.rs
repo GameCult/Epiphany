@@ -848,7 +848,6 @@ pub(crate) fn build_guardian_review_session_config(
     guardian_config.permissions.approval_policy = Constrained::allow_only(AskForApproval::Never);
     guardian_config.permissions.sandbox_policy =
         Constrained::allow_only(SandboxPolicy::new_read_only_policy());
-    guardian_config.include_apps_instructions = false;
     guardian_config
         .mcp_servers
         .set(HashMap::new())
@@ -873,7 +872,6 @@ pub(crate) fn build_guardian_review_session_config(
     for feature in [
         Feature::Collab,
         Feature::CodexHooks,
-        Feature::Apps,
         Feature::Plugins,
         Feature::WebSearchRequest,
         Feature::WebSearchCached,

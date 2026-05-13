@@ -112,10 +112,6 @@ fn configure_search_capable_model(config: &mut Config) {
 }
 
 fn configure_search_capable_apps(config: &mut Config, apps_base_url: &str) {
-    config
-        .features
-        .enable(Feature::Apps)
-        .expect("test config should allow feature update");
     config.chatgpt_base_url = apps_base_url.to_string();
     configure_search_capable_model(config);
 }

@@ -299,9 +299,6 @@ pub struct Config {
     /// Whether to inject the `<permissions instructions>` developer block.
     pub include_permissions_instructions: bool,
 
-    /// Whether to inject the `<apps_instructions>` developer block.
-    pub include_apps_instructions: bool,
-
     /// Whether to inject the `<skills_instructions>` developer block.
     pub include_skill_instructions: bool,
 
@@ -2006,10 +2003,6 @@ impl Config {
             .include_permissions_instructions
             .or(cfg.include_permissions_instructions)
             .unwrap_or(true);
-        let include_apps_instructions = config_profile
-            .include_apps_instructions
-            .or(cfg.include_apps_instructions)
-            .unwrap_or(true);
         let include_skill_instructions = cfg
             .skills
             .as_ref()
@@ -2235,7 +2228,6 @@ impl Config {
             compact_prompt,
             commit_attribution,
             include_permissions_instructions,
-            include_apps_instructions,
             include_skill_instructions,
             include_environment_context,
             // The config.toml omits "_mode" because it's a config file. However, "_mode"

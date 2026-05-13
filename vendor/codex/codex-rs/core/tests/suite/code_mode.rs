@@ -399,10 +399,6 @@ if (!tool) {
         .with_config(move |config| {
             config
                 .features
-                .enable(Feature::Apps)
-                .expect("test config should allow feature update");
-            config
-                .features
                 .enable(Feature::ToolSearch)
                 .expect("test config should allow feature update");
             config

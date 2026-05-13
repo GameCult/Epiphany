@@ -505,34 +505,6 @@ async fn skills_are_not_appended_to_agents_md() {
     assert_eq!(res, "base doc");
 }
 
-#[tokio::test]
-async fn apps_feature_does_not_emit_user_instructions_by_itself() {
-    let tmp = tempfile::tempdir().expect("tempdir");
-    let mut cfg = make_config(&tmp, /*limit*/ 4096, /*instructions*/ None).await;
-    cfg.features
-        .enable(Feature::Apps)
-        .expect("test config should allow apps");
-
-    let res = get_user_instructions(&cfg).await;
-    assert_eq!(res, None);
-}
-
-#[tokio::test]
-async fn apps_feature_does_not_append_to_agents_md_user_instructions() {
-    let tmp = tempfile::tempdir().expect("tempdir");
-    fs::write(tmp.path().join("AGENTS.md"), "base doc").unwrap();
-
-    let mut cfg = make_config(&tmp, /*limit*/ 4096, /*instructions*/ None).await;
-    cfg.features
-        .enable(Feature::Apps)
-        .expect("test config should allow apps");
-
-    let res = get_user_instructions(&cfg)
-        .await
-        .expect("instructions expected");
-    assert_eq!(res, "base doc");
-}
-
 fn create_skill(codex_home: PathBuf, name: &str, description: &str) {
     let skill_dir = codex_home.join(format!("skills/{name}"));
     fs::create_dir_all(&skill_dir).unwrap();

@@ -142,9 +142,7 @@ pub enum Feature {
     Collab,
     /// Enable task-path-based multi-agent routing.
     MultiAgentV2,
-    /// Enable apps.
-    Apps,
-    /// Enable the tool_search tool for apps.
+    /// Enable the tool_search tool.
     ToolSearch,
     /// Always defer MCP tools behind tool_search instead of exposing small sets directly.
     ToolSearchAlwaysDeferMcpTools,
@@ -294,10 +292,6 @@ impl Features {
 
     pub fn enabled(&self, f: Feature) -> bool {
         self.enabled.contains(&f)
-    }
-
-    pub fn apps_enabled_for_auth(&self, has_chatgpt_auth: bool) -> bool {
-        self.enabled(Feature::Apps) && has_chatgpt_auth
     }
 
     pub fn use_legacy_landlock(&self) -> bool {
@@ -806,12 +800,6 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "multi_agent_v2",
         stage: Stage::UnderDevelopment,
         default_enabled: false,
-    },
-    FeatureSpec {
-        id: Feature::Apps,
-        key: "apps",
-        stage: Stage::Stable,
-        default_enabled: true,
     },
     FeatureSpec {
         id: Feature::ToolSearch,

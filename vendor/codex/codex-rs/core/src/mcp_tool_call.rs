@@ -29,7 +29,7 @@ use crate::mcp_tool_approval_templates::RenderedMcpToolApprovalParam;
 use crate::mcp_tool_approval_templates::render_mcp_tool_approval_template;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
-use codex_config::types::AppToolApproval;
+use codex_config::types::McpToolApproval;
 use codex_features::Feature;
 use codex_mcp::SandboxState;
 use codex_mcp::declared_openai_file_input_param_names;
@@ -568,7 +568,7 @@ fn custom_mcp_tool_approval_mode(
     turn_context: &TurnContext,
     server: &str,
     tool_name: &str,
-) -> AppToolApproval {
+) -> McpToolApproval {
     turn_context
         .config
         .config_layer_stack
@@ -700,7 +700,7 @@ async fn maybe_request_mcp_tool_approval(
     call_id: &str,
     invocation: &McpInvocation,
     metadata: Option<&McpToolApprovalMetadata>,
-    approval_mode: AppToolApproval,
+    approval_mode: McpToolApproval,
 ) -> Option<McpToolApprovalDecision> {
     if mcp_permission_prompt_is_auto_approved(
         turn_context.approval_policy.value(),
@@ -711,12 +711,12 @@ async fn maybe_request_mcp_tool_approval(
 
     let annotations = metadata.and_then(|metadata| metadata.annotations.as_ref());
     let approval_required = requires_mcp_tool_approval(annotations);
-    if !approval_required && approval_mode != AppToolApproval::Prompt {
+    if !approval_required && approval_mode != McpToolApproval::Prompt {
         return None;
     }
 
     let mut monitor_reason = None;
-    let auto_approved_by_policy = approval_mode == AppToolApproval::Approve;
+    let auto_approved_by_policy = approval_mode == McpToolApproval::Approve;
 
     if auto_approved_by_policy {
         match maybe_monitor_auto_approved_mcp_tool_call(
@@ -871,7 +871,7 @@ async fn maybe_monitor_auto_approved_mcp_tool_call(
     turn_context: &TurnContext,
     invocation: &McpInvocation,
     metadata: Option<&McpToolApprovalMetadata>,
-    approval_mode: AppToolApproval,
+    approval_mode: McpToolApproval,
 ) -> ArcMonitorOutcome {
     let action = prepare_arc_request_action(invocation, metadata);
     monitor_action(
@@ -900,9 +900,9 @@ fn prepare_arc_request_action(
 fn session_mcp_tool_approval_key(
     invocation: &McpInvocation,
     metadata: Option<&McpToolApprovalMetadata>,
-    approval_mode: AppToolApproval,
+    approval_mode: McpToolApproval,
 ) -> Option<McpToolApprovalKey> {
-    if approval_mode != AppToolApproval::Auto {
+    if approval_mode != McpToolApproval::Auto {
         return None;
     }
 
@@ -918,7 +918,7 @@ fn session_mcp_tool_approval_key(
 fn persistent_mcp_tool_approval_key(
     invocation: &McpInvocation,
     metadata: Option<&McpToolApprovalMetadata>,
-    approval_mode: AppToolApproval,
+    approval_mode: McpToolApproval,
 ) -> Option<McpToolApprovalKey> {
     session_mcp_tool_approval_key(invocation, metadata, approval_mode)
 }
@@ -969,12 +969,12 @@ async fn mcp_tool_approval_decision_from_guardian(
 }
 
 fn mcp_tool_approval_callsite_mode(
-    approval_mode: AppToolApproval,
+    approval_mode: McpToolApproval,
     _turn_context: &TurnContext,
 ) -> &'static str {
     match approval_mode {
-        AppToolApproval::Approve => MCP_TOOL_CALL_ARC_MONITOR_CALLSITE_ALWAYS_ALLOW,
-        AppToolApproval::Auto | AppToolApproval::Prompt => {
+        McpToolApproval::Approve => MCP_TOOL_CALL_ARC_MONITOR_CALLSITE_ALWAYS_ALLOW,
+        McpToolApproval::Auto | McpToolApproval::Prompt => {
             MCP_TOOL_CALL_ARC_MONITOR_CALLSITE_DEFAULT
         }
     }
@@ -1340,9 +1340,9 @@ fn parse_mcp_tool_approval_response(
 
 fn normalize_approval_decision_for_mode(
     decision: McpToolApprovalDecision,
-    approval_mode: AppToolApproval,
+    approval_mode: McpToolApproval,
 ) -> McpToolApprovalDecision {
-    if approval_mode == AppToolApproval::Prompt
+    if approval_mode == McpToolApproval::Prompt
         && matches!(
             decision,
             McpToolApprovalDecision::AcceptForSession | McpToolApprovalDecision::AcceptAndRemember

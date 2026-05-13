@@ -27,7 +27,6 @@ use codex_config::permissions_toml::NetworkToml;
 use codex_config::permissions_toml::PermissionProfileToml;
 use codex_config::permissions_toml::PermissionsToml;
 use codex_config::profile_toml::ConfigProfile;
-use codex_config::types::AppToolApproval;
 use codex_config::types::ApprovalsReviewer;
 use codex_config::types::BundledSkillsConfig;
 use codex_config::types::FeedbackConfigToml;
@@ -35,6 +34,7 @@ use codex_config::types::HistoryPersistence;
 use codex_config::types::McpServerEnvVar;
 use codex_config::types::McpServerToolConfig;
 use codex_config::types::McpServerTransportConfig;
+use codex_config::types::McpToolApproval;
 use codex_config::types::MemoriesConfig;
 use codex_config::types::MemoriesToml;
 use codex_config::types::ModelAvailabilityNuxConfig;
@@ -2537,13 +2537,13 @@ approval_mode = "approve"
 
     assert_eq!(
         server.default_tools_approval_mode,
-        Some(AppToolApproval::Prompt)
+        Some(McpToolApproval::Prompt)
     );
 
     assert_eq!(
         server.tools.get("search"),
         Some(&McpServerToolConfig {
-            approval_mode: Some(AppToolApproval::Approve),
+            approval_mode: Some(McpToolApproval::Approve),
         })
     );
 }
@@ -2586,7 +2586,7 @@ approval_mode = "approve"
     assert_eq!(
         tool,
         &McpServerToolConfig {
-            approval_mode: Some(AppToolApproval::Approve),
+            approval_mode: Some(McpToolApproval::Approve),
         }
     );
 }
@@ -2594,7 +2594,7 @@ approval_mode = "approve"
 #[tokio::test]
 async fn to_mcp_config_quarantines_codex_product_surfaces() -> std::io::Result<()> {
     let codex_home = TempDir::new()?;
-    let mut config = Config::load_from_base_config_with_overrides(
+    let config = Config::load_from_base_config_with_overrides(
         ConfigToml::default(),
         ConfigOverrides::default(),
         codex_home.abs(),
@@ -2603,11 +2603,7 @@ async fn to_mcp_config_quarantines_codex_product_surfaces() -> std::io::Result<(
 
     let mcp_config = config.to_mcp_config();
     assert!(!mcp_config.skill_mcp_dependency_install_enabled);
-
-    let _ = config.features.disable(Feature::Apps);
     assert_eq!(config.to_mcp_config().configured_mcp_servers.len(), 0);
-
-    let _ = config.features.enable(Feature::Apps);
     assert_eq!(config.to_mcp_config().configured_mcp_servers.len(), 0);
 
     Ok(())
@@ -5229,7 +5225,6 @@ async fn test_precedence_fixture_with_o3_profile() -> std::io::Result<()> {
             developer_instructions: None,
             guardian_policy_config: None,
             include_permissions_instructions: true,
-            include_apps_instructions: true,
             include_skill_instructions: true,
             include_environment_context: true,
             compact_prompt: None,
@@ -5379,7 +5374,6 @@ async fn test_precedence_fixture_with_gpt3_profile() -> std::io::Result<()> {
         developer_instructions: None,
         guardian_policy_config: None,
         include_permissions_instructions: true,
-        include_apps_instructions: true,
         include_skill_instructions: true,
         include_environment_context: true,
         compact_prompt: None,
@@ -5527,7 +5521,6 @@ async fn test_precedence_fixture_with_zdr_profile() -> std::io::Result<()> {
         developer_instructions: None,
         guardian_policy_config: None,
         include_permissions_instructions: true,
-        include_apps_instructions: true,
         include_skill_instructions: true,
         include_environment_context: true,
         compact_prompt: None,
@@ -5660,7 +5653,6 @@ async fn test_precedence_fixture_with_gpt5_profile() -> std::io::Result<()> {
         developer_instructions: None,
         guardian_policy_config: None,
         include_permissions_instructions: true,
-        include_apps_instructions: true,
         include_skill_instructions: true,
         include_environment_context: true,
         compact_prompt: None,
@@ -5715,7 +5707,6 @@ async fn test_requirements_web_search_mode_allowlist_does_not_warn_when_unset() 
         ]),
         feature_requirements: None,
         mcp_servers: None,
-        apps: None,
         rules: None,
         enforce_residency: None,
         network: None,
@@ -6390,7 +6381,6 @@ async fn explicit_sandbox_mode_falls_back_when_disallowed_by_requirements() -> s
         allowed_web_search_modes: None,
         feature_requirements: None,
         mcp_servers: None,
-        apps: None,
         rules: None,
         enforce_residency: None,
         network: None,
@@ -6636,7 +6626,6 @@ async fn prompt_instruction_blocks_can_be_disabled_from_config_and_profiles() ->
     std::fs::write(
         codex_home.path().join(CONFIG_TOML_FILE),
         r#"include_permissions_instructions = false
-include_apps_instructions = false
 include_environment_context = false
 profile = "chatty"
 
@@ -6656,7 +6645,6 @@ include_environment_context = true
         .await?;
 
     assert!(config.include_permissions_instructions);
-    assert!(!config.include_apps_instructions);
     assert!(!config.include_skill_instructions);
     assert!(config.include_environment_context);
     Ok(())

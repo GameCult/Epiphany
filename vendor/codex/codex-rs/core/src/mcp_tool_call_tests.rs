@@ -137,14 +137,14 @@ fn prompt_mode_does_not_allow_persistent_remember() {
     assert_eq!(
         normalize_approval_decision_for_mode(
             McpToolApprovalDecision::AcceptForSession,
-            AppToolApproval::Prompt,
+            McpToolApproval::Prompt,
         ),
         McpToolApprovalDecision::Accept
     );
     assert_eq!(
         normalize_approval_decision_for_mode(
             McpToolApprovalDecision::AcceptAndRemember,
-            AppToolApproval::Prompt,
+            McpToolApproval::Prompt,
         ),
         McpToolApprovalDecision::Accept
     );
@@ -449,14 +449,14 @@ fn custom_servers_support_session_and_persistent_approval() {
     };
 
     assert_eq!(
-        session_mcp_tool_approval_key(&invocation, /*metadata*/ None, AppToolApproval::Auto),
+        session_mcp_tool_approval_key(&invocation, /*metadata*/ None, McpToolApproval::Auto),
         Some(expected.clone())
     );
     assert_eq!(
         persistent_mcp_tool_approval_key(
             &invocation,
             /*metadata*/ None,
-            AppToolApproval::Auto
+            McpToolApproval::Auto
         ),
         Some(expected)
     );
@@ -483,11 +483,11 @@ fn connector_metadata_can_scope_persistent_approval() {
     };
 
     assert_eq!(
-        session_mcp_tool_approval_key(&invocation, Some(&metadata), AppToolApproval::Auto),
+        session_mcp_tool_approval_key(&invocation, Some(&metadata), McpToolApproval::Auto),
         Some(expected.clone())
     );
     assert_eq!(
-        persistent_mcp_tool_approval_key(&invocation, Some(&metadata), AppToolApproval::Auto),
+        persistent_mcp_tool_approval_key(&invocation, Some(&metadata), McpToolApproval::Auto),
         Some(expected)
     );
 }
@@ -924,15 +924,15 @@ async fn approval_callsite_mode_distinguishes_default_and_always_allow() {
     let (_session, turn_context) = make_session_and_context().await;
 
     assert_eq!(
-        mcp_tool_approval_callsite_mode(AppToolApproval::Auto, &turn_context),
+        mcp_tool_approval_callsite_mode(McpToolApproval::Auto, &turn_context),
         "mcp_tool_call__default"
     );
     assert_eq!(
-        mcp_tool_approval_callsite_mode(AppToolApproval::Prompt, &turn_context),
+        mcp_tool_approval_callsite_mode(McpToolApproval::Prompt, &turn_context),
         "mcp_tool_call__default"
     );
     assert_eq!(
-        mcp_tool_approval_callsite_mode(AppToolApproval::Approve, &turn_context),
+        mcp_tool_approval_callsite_mode(McpToolApproval::Approve, &turn_context),
         "mcp_tool_call__always_allow"
     );
 }
@@ -1045,7 +1045,7 @@ async fn persist_custom_mcp_tool_approval_writes_tool_override() {
     assert_eq!(
         tool,
         &McpServerToolConfig {
-            approval_mode: Some(AppToolApproval::Approve),
+            approval_mode: Some(McpToolApproval::Approve),
         }
     );
     assert!(contents.contains("[mcp_servers.docs.tools.search]"));
@@ -1076,15 +1076,15 @@ approval_mode = "prompt"
 
     assert_eq!(
         custom_mcp_tool_approval_mode(&turn_context, "docs", "read"),
-        AppToolApproval::Approve
+        McpToolApproval::Approve
     );
     assert_eq!(
         custom_mcp_tool_approval_mode(&turn_context, "docs", "search"),
-        AppToolApproval::Prompt
+        McpToolApproval::Prompt
     );
     assert_eq!(
         custom_mcp_tool_approval_mode(&turn_context, "unknown", "search"),
-        AppToolApproval::Auto
+        McpToolApproval::Auto
     );
 }
 
@@ -1124,7 +1124,7 @@ async fn maybe_persist_mcp_tool_approval_reloads_session_config_for_custom_serve
     assert_eq!(
         tool,
         &McpServerToolConfig {
-            approval_mode: Some(AppToolApproval::Approve),
+            approval_mode: Some(McpToolApproval::Approve),
         }
     );
     assert_eq!(mcp_tool_approval_is_remembered(&session, &key).await, true);
@@ -1179,7 +1179,7 @@ async fn maybe_persist_mcp_tool_approval_writes_project_config_for_project_serve
     assert_eq!(
         tool,
         &McpServerToolConfig {
-            approval_mode: Some(AppToolApproval::Approve),
+            approval_mode: Some(McpToolApproval::Approve),
         }
     );
     assert!(contents.contains("[mcp_servers.docs.tools.search]"));
@@ -1217,7 +1217,7 @@ async fn approve_mode_skips_when_annotations_do_not_require_approval() {
         "call-1",
         &invocation,
         Some(&metadata),
-        AppToolApproval::Approve,
+        McpToolApproval::Approve,
     )
     .await;
 
@@ -1288,7 +1288,7 @@ async fn guardian_mode_skips_auto_when_annotations_do_not_require_approval() {
         "call-guardian",
         &invocation,
         Some(&metadata),
-        AppToolApproval::Auto,
+        McpToolApproval::Auto,
     )
     .await;
 
@@ -1362,7 +1362,7 @@ async fn guardian_mode_mcp_denial_returns_rationale_message() {
         "call-guardian-deny",
         &invocation,
         Some(&metadata),
-        AppToolApproval::Auto,
+        McpToolApproval::Auto,
     )
     .await;
 
@@ -1417,7 +1417,7 @@ async fn prompt_mode_waits_for_approval_when_annotations_do_not_require_approval
                 "call-prompt",
                 &invocation,
                 Some(&metadata),
-                AppToolApproval::Prompt,
+                McpToolApproval::Prompt,
             )
             .await
         })
@@ -1490,7 +1490,7 @@ async fn approve_mode_blocks_when_arc_returns_interrupt_for_model() {
         "call-2",
         &invocation,
         Some(&metadata),
-        AppToolApproval::Approve,
+        McpToolApproval::Approve,
     )
     .await;
 
@@ -1560,7 +1560,7 @@ async fn custom_approve_mode_blocks_when_arc_returns_interrupt_for_model() {
         "call-2-custom",
         &invocation,
         Some(&metadata),
-        AppToolApproval::Approve,
+        McpToolApproval::Approve,
     )
     .await;
 
@@ -1630,7 +1630,7 @@ async fn approve_mode_blocks_when_arc_returns_interrupt_without_annotations() {
         "call-3",
         &invocation,
         Some(&metadata),
-        AppToolApproval::Approve,
+        McpToolApproval::Approve,
     )
     .await;
 
@@ -1703,9 +1703,9 @@ async fn full_access_mode_skips_arc_monitor_for_all_approval_modes() {
     };
 
     for approval_mode in [
-        AppToolApproval::Auto,
-        AppToolApproval::Prompt,
-        AppToolApproval::Approve,
+        McpToolApproval::Auto,
+        McpToolApproval::Prompt,
+        McpToolApproval::Approve,
     ] {
         let decision = maybe_request_mcp_tool_approval(
             &session,
@@ -1813,7 +1813,7 @@ async fn approve_mode_routes_arc_ask_user_to_guardian_when_guardian_reviewer_is_
         "call-3",
         &invocation,
         Some(&metadata),
-        AppToolApproval::Approve,
+        McpToolApproval::Approve,
     )
     .await;
 

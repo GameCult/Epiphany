@@ -11,11 +11,11 @@ use toml_edit::Item as TomlItem;
 use toml_edit::Table as TomlTable;
 use toml_edit::value;
 
-use crate::AppToolApproval;
 use crate::CONFIG_TOML_FILE;
 use crate::McpServerConfig;
 use crate::McpServerEnvVar;
 use crate::McpServerTransportConfig;
+use crate::McpToolApproval;
 
 pub async fn load_global_mcp_servers(
     codex_home: &Path,
@@ -192,9 +192,9 @@ fn serialize_mcp_server(config: &McpServerConfig) -> TomlItem {
     }
     if let Some(approval_mode) = config.default_tools_approval_mode {
         entry["default_tools_approval_mode"] = value(match approval_mode {
-            AppToolApproval::Auto => "auto",
-            AppToolApproval::Prompt => "prompt",
-            AppToolApproval::Approve => "approve",
+            McpToolApproval::Auto => "auto",
+            McpToolApproval::Prompt => "prompt",
+            McpToolApproval::Approve => "approve",
         });
     }
     if let Some(enabled_tools) = &config.enabled_tools
@@ -227,9 +227,9 @@ fn serialize_mcp_server(config: &McpServerConfig) -> TomlItem {
             tool_entry.set_implicit(false);
             if let Some(approval_mode) = tool_config.approval_mode {
                 tool_entry["approval_mode"] = value(match approval_mode {
-                    AppToolApproval::Auto => "auto",
-                    AppToolApproval::Prompt => "prompt",
-                    AppToolApproval::Approve => "approve",
+                    McpToolApproval::Auto => "auto",
+                    McpToolApproval::Prompt => "prompt",
+                    McpToolApproval::Approve => "approve",
                 });
             }
             tools.insert(name, TomlItem::Table(tool_entry));

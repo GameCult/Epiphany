@@ -758,7 +758,6 @@ async fn spawn_agent_description_uses_configured_usage_hint_text() {
 async fn search_tool_description_handles_no_enabled_mcp_tools() {
     let model_info = search_capable_model_info().await;
     let mut features = Features::with_defaults();
-    features.enable(Feature::Apps);
     features.enable(Feature::ToolSearch);
     let available_models = Vec::new();
     let tools_config = ToolsConfig::new(&ToolsConfigParams {
@@ -792,7 +791,6 @@ async fn search_tool_description_handles_no_enabled_mcp_tools() {
 async fn search_tool_description_falls_back_to_connector_name_without_description() {
     let model_info = search_capable_model_info().await;
     let mut features = Features::with_defaults();
-    features.enable(Feature::Apps);
     features.enable(Feature::ToolSearch);
     let available_models = Vec::new();
     let tools_config = ToolsConfig::new(&ToolsConfigParams {
@@ -842,7 +840,6 @@ async fn search_tool_description_falls_back_to_connector_name_without_descriptio
 async fn search_tool_registers_namespaced_mcp_tool_aliases() {
     let model_info = search_capable_model_info().await;
     let mut features = Features::with_defaults();
-    features.enable(Feature::Apps);
     features.enable(Feature::ToolSearch);
     let available_models = Vec::new();
     let tools_config = ToolsConfig::new(&ToolsConfigParams {

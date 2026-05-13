@@ -8,7 +8,6 @@ use crate::permissions_toml::PermissionsToml;
 use crate::profile_toml::ConfigProfile;
 use crate::types::AnalyticsConfigToml;
 use crate::types::ApprovalsReviewer;
-use crate::types::AppsConfigToml;
 use crate::types::AuthCredentialsStoreMode;
 use crate::types::FeedbackConfigToml;
 use crate::types::History;
@@ -133,9 +132,6 @@ pub struct ConfigToml {
 
     /// Whether to inject the `<permissions instructions>` developer block.
     pub include_permissions_instructions: Option<bool>,
-
-    /// Whether to inject the `<apps_instructions>` developer block.
-    pub include_apps_instructions: Option<bool>,
 
     /// Whether to inject the `<environment_context>` user block.
     pub include_environment_context: Option<bool>,
@@ -373,10 +369,6 @@ pub struct ConfigToml {
     /// When `false`, disables feedback collection across Codex product surfaces.
     /// Defaults to `true`.
     pub feedback: Option<FeedbackConfigToml>,
-
-    /// Settings for app-specific controls.
-    #[serde(default)]
-    pub apps: Option<AppsConfigToml>,
 
     /// OTEL configuration.
     pub otel: Option<OtelConfigToml>,

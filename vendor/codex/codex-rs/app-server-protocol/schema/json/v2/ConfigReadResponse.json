@@ -17,85 +17,6 @@
       },
       "type": "object"
     },
-    "AppConfig": {
-      "properties": {
-        "default_tools_approval_mode": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AppToolApproval"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "default_tools_enabled": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "destructive_enabled": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "enabled": {
-          "default": true,
-          "type": "boolean"
-        },
-        "open_world_enabled": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        },
-        "tools": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AppToolsConfig"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        }
-      },
-      "type": "object"
-    },
-    "AppToolApproval": {
-      "enum": [
-        "auto",
-        "prompt",
-        "approve"
-      ],
-      "type": "string"
-    },
-    "AppToolConfig": {
-      "properties": {
-        "approval_mode": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AppToolApproval"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "enabled": {
-          "type": [
-            "boolean",
-            "null"
-          ]
-        }
-      },
-      "type": "object"
-    },
-    "AppToolsConfig": {
-      "type": "object"
-    },
     "ApprovalsReviewer": {
       "description": "Configures who approval requests are routed to for review. Examples include sandbox escapes, blocked network access, MCP approval prompts, and ARC escalations. Defaults to `user`. `auto_review` uses a carefully prompted subagent to gather relevant context and apply a risk-based decision framework before approving or denying the request. The legacy value `guardian_subagent` is accepted for compatibility.",
       "enum": [
@@ -104,39 +25,6 @@
         "guardian_subagent"
       ],
       "type": "string"
-    },
-    "AppsConfig": {
-      "properties": {
-        "_default": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AppsDefaultConfig"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "type": "object"
-    },
-    "AppsDefaultConfig": {
-      "properties": {
-        "destructive_enabled": {
-          "default": true,
-          "type": "boolean"
-        },
-        "enabled": {
-          "default": true,
-          "type": "boolean"
-        },
-        "open_world_enabled": {
-          "default": true,
-          "type": "boolean"
-        }
-      },
-      "type": "object"
     },
     "AskForApproval": {
       "oneOf": [

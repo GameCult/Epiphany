@@ -11,11 +11,7 @@ export type { AdditionalNetworkPermissions } from "./AdditionalNetworkPermission
 export type { AdditionalPermissionProfile } from "./AdditionalPermissionProfile";
 export type { AgentMessageDeltaNotification } from "./AgentMessageDeltaNotification";
 export type { AnalyticsConfig } from "./AnalyticsConfig";
-export type { AppToolApproval } from "./AppToolApproval";
-export type { AppToolsConfig } from "./AppToolsConfig";
 export type { ApprovalsReviewer } from "./ApprovalsReviewer";
-export type { AppsConfig } from "./AppsConfig";
-export type { AppsDefaultConfig } from "./AppsDefaultConfig";
 export type { AskForApproval } from "./AskForApproval";
 export type { AutoReviewDecisionSource } from "./AutoReviewDecisionSource";
 export type { ByteRange } from "./ByteRange";

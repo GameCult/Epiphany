@@ -15,7 +15,7 @@ use crate::RequirementSource;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AppToolApproval {
+pub enum McpToolApproval {
     #[default]
     Auto,
     Prompt,
@@ -53,7 +53,7 @@ impl fmt::Display for McpServerDisabledReason {
 pub struct McpServerToolConfig {
     /// Approval mode for this tool.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub approval_mode: Option<AppToolApproval>,
+    pub approval_mode: Option<McpToolApproval>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
@@ -153,7 +153,7 @@ pub struct McpServerConfig {
 
     /// Approval mode for tools in this server unless a tool override exists.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub default_tools_approval_mode: Option<AppToolApproval>,
+    pub default_tools_approval_mode: Option<McpToolApproval>,
 
     /// Explicit allow-list of tools exposed from this server. When set, only these tools will be registered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -220,7 +220,7 @@ pub struct RawMcpServerConfig {
     #[serde(default)]
     pub supports_parallel_tool_calls: Option<bool>,
     #[serde(default)]
-    pub default_tools_approval_mode: Option<AppToolApproval>,
+    pub default_tools_approval_mode: Option<McpToolApproval>,
     #[serde(default)]
     pub enabled_tools: Option<Vec<String>>,
     #[serde(default)]

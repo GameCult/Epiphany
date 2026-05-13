@@ -326,12 +326,12 @@ fn deserialize_server_config_with_default_tool_approval_mode() {
 
     assert_eq!(
         cfg.default_tools_approval_mode,
-        Some(AppToolApproval::Approve)
+        Some(McpToolApproval::Approve)
     );
     assert_eq!(
         cfg.tools.get("search"),
         Some(&McpServerToolConfig {
-            approval_mode: Some(AppToolApproval::Prompt),
+            approval_mode: Some(McpToolApproval::Prompt),
         })
     );
 

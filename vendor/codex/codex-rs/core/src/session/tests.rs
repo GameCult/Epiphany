@@ -158,7 +158,6 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use codex_protocol::mcp::CallToolResult as McpCallToolResult;
 use pretty_assertions::assert_eq;
 use regex_lite::Regex;
-use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -514,18 +513,6 @@ fn histogram_sum(resource_metrics: &ResourceMetrics, name: &str) -> u64 {
             _ => panic!("unexpected histogram aggregation"),
         },
         _ => panic!("unexpected metric data type"),
-    }
-}
-
-fn skill_message(text: &str) -> ResponseItem {
-    ResponseItem::Message {
-        id: None,
-        role: "user".to_string(),
-        content: vec![ContentItem::InputText {
-            text: text.to_string(),
-        }],
-        end_turn: None,
-        phase: None,
     }
 }
 
@@ -1341,39 +1328,6 @@ async fn get_base_instructions_no_user_content() {
         let base_instructions = session.get_base_instructions().await;
         assert_eq!(base_instructions.text, model_info.base_instructions);
     }
-}
-
-#[tokio::test]
-async fn reload_user_config_layer_updates_effective_apps_config() {
-    let (session, _turn_context) = make_session_and_context().await;
-    let codex_home = session.codex_home().await;
-    std::fs::create_dir_all(&codex_home).expect("create codex home");
-    let config_toml_path = codex_home.join(CONFIG_TOML_FILE);
-    std::fs::write(
-        &config_toml_path,
-        "[apps.calendar]\nenabled = false\ndestructive_enabled = false\n",
-    )
-    .expect("write user config");
-
-    session.reload_user_config_layer().await;
-
-    let config = session.get_config().await;
-    let apps_toml = config
-        .config_layer_stack
-        .effective_config()
-        .as_table()
-        .and_then(|table| table.get("apps"))
-        .cloned()
-        .expect("apps table");
-    let apps = codex_config::types::AppsConfigToml::deserialize(apps_toml)
-        .expect("deserialize apps config");
-    let app = apps
-        .apps
-        .get("calendar")
-        .expect("calendar app config exists");
-
-    assert!(!app.enabled);
-    assert_eq!(app.destructive_enabled, Some(false));
 }
 
 #[tokio::test]

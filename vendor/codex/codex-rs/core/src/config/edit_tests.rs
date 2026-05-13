@@ -1,7 +1,7 @@
 use super::*;
-use codex_config::types::AppToolApproval;
 use codex_config::types::McpServerToolConfig;
 use codex_config::types::McpServerTransportConfig;
+use codex_config::types::McpToolApproval;
 use codex_protocol::openai_models::ReasoningEffort;
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
@@ -801,7 +801,7 @@ fn blocking_replace_mcp_servers_serializes_tool_approval_overrides() {
             disabled_reason: None,
             startup_timeout_sec: None,
             tool_timeout_sec: None,
-            default_tools_approval_mode: Some(AppToolApproval::Prompt),
+            default_tools_approval_mode: Some(McpToolApproval::Prompt),
             enabled_tools: None,
             disabled_tools: None,
             scopes: None,
@@ -809,7 +809,7 @@ fn blocking_replace_mcp_servers_serializes_tool_approval_overrides() {
             tools: HashMap::from([(
                 "search".to_string(),
                 McpServerToolConfig {
-                    approval_mode: Some(AppToolApproval::Approve),
+                    approval_mode: Some(McpToolApproval::Approve),
                 },
             )]),
         },
