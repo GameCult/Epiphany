@@ -8,19 +8,20 @@ use codex_core::distill_observation;
 use codex_protocol::ThreadId;
 use epiphany_codex_bridge::context::map_epiphany_context;
 use epiphany_codex_bridge::context::map_epiphany_graph_query;
-use epiphany_codex_bridge::jobs::map_epiphany_jobs;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
-use epiphany_codex_bridge::runtime_results::load_epiphany_reorient_result_snapshot;
-use epiphany_codex_bridge::runtime_results::load_epiphany_role_result_snapshot;
+use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
+use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view::default_epiphany_view_lenses;
 use epiphany_codex_bridge::view::epiphany_view_needs_jobs;
 use epiphany_codex_bridge::view::epiphany_view_needs_pressure;
 use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
+use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
+use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
 
 use super::CodexMessageProcessor;
@@ -185,26 +186,6 @@ impl CodexMessageProcessor {
         } else {
             ThreadEpiphanyRolesSource::Stored
         };
-        let Some(state) = thread.epiphany_state.as_ref() else {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    ThreadEpiphanyRoleResultResponse {
-                        thread_id: thread_uuid.to_string(),
-                        role_id,
-                        source,
-                        state_status: ThreadEpiphanyReorientStateStatus::Missing,
-                        state_revision: None,
-                        binding_id,
-                        status: ThreadEpiphanyRoleResultStatus::MissingState,
-                        job: None,
-                        finding: None,
-                        note: "No authoritative Epiphany state exists for this thread.".to_string(),
-                    },
-                )
-                .await;
-            return;
-        };
 
         if let Err(message) = epiphany_role_binding_id(role_id) {
             self.send_invalid_request_error(request_id, message).await;
@@ -216,34 +197,17 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let job = map_epiphany_jobs(Some(state), None)
-            .into_iter()
-            .find(|job| job.id == binding_id);
-        let (status, finding, note) = load_epiphany_role_result_snapshot(
-            state,
-            runtime_store_path.as_deref(),
+        let response = map_epiphany_role_result_response(EpiphanyRoleResultResponseInput {
+            thread_id: thread_uuid.to_string(),
             role_id,
-            &binding_id,
-        )
+            source,
+            binding_id,
+            state: thread.epiphany_state.as_ref(),
+            runtime_store_path: runtime_store_path.as_deref(),
+        })
         .await;
 
-        self.outgoing
-            .send_response(
-                request_id,
-                ThreadEpiphanyRoleResultResponse {
-                    thread_id: thread_uuid.to_string(),
-                    role_id,
-                    source,
-                    state_status: ThreadEpiphanyReorientStateStatus::Ready,
-                    state_revision: Some(state.revision),
-                    binding_id,
-                    status,
-                    job,
-                    finding,
-                    note,
-                },
-            )
-            .await;
+        self.outgoing.send_response(request_id, response).await;
     }
 
     pub(super) async fn thread_epiphany_freshness(
@@ -446,59 +410,21 @@ impl CodexMessageProcessor {
         } else {
             ThreadEpiphanyReorientSource::Stored
         };
-        let Some(state) = thread.epiphany_state.as_ref() else {
-            self.outgoing
-                .send_response(
-                    request_id,
-                    ThreadEpiphanyReorientResultResponse {
-                        thread_id: thread_uuid.to_string(),
-                        source,
-                        state_status: ThreadEpiphanyReorientStateStatus::Missing,
-                        state_revision: None,
-                        binding_id,
-                        status: ThreadEpiphanyReorientResultStatus::MissingState,
-                        job: None,
-                        finding: None,
-                        note: "No authoritative Epiphany state exists for this thread.".to_string(),
-                    },
-                )
-                .await;
-            return;
-        };
-
-        let state_revision = Some(state.revision);
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
             Some(loaded_thread.epiphany_runtime_spine_store_path().await)
         } else {
             None
         };
-        let job = map_epiphany_jobs(Some(state), None)
-            .into_iter()
-            .find(|job| job.id == binding_id);
-
-        let (status, finding, note) = load_epiphany_reorient_result_snapshot(
-            Some(state),
-            runtime_store_path.as_deref(),
-            binding_id.as_str(),
-        )
+        let response = map_epiphany_reorient_result_response(EpiphanyReorientResultResponseInput {
+            thread_id: thread_uuid.to_string(),
+            source,
+            binding_id,
+            state: thread.epiphany_state.as_ref(),
+            runtime_store_path: runtime_store_path.as_deref(),
+        })
         .await;
 
-        self.outgoing
-            .send_response(
-                request_id,
-                ThreadEpiphanyReorientResultResponse {
-                    thread_id: thread_uuid.to_string(),
-                    source,
-                    state_status: ThreadEpiphanyReorientStateStatus::Ready,
-                    state_revision,
-                    binding_id,
-                    status,
-                    job,
-                    finding,
-                    note,
-                },
-            )
-            .await;
+        self.outgoing.send_response(request_id, response).await;
     }
 
     pub(super) async fn thread_epiphany_retrieve(

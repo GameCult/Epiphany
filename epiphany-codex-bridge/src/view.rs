@@ -21,6 +21,7 @@ use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::map_epiphany_freshness;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
+use crate::runtime_results::load_epiphany_role_result_snapshot;
 use crate::scene::map_core_epiphany_scene_action;
 use crate::scene::map_epiphany_scene;
 
@@ -310,5 +311,111 @@ pub async fn map_epiphany_view_response(
             .flatten(),
         coordinator: coordinator_response,
         lenses,
+    }
+}
+
+pub struct EpiphanyRoleResultResponseInput<'a> {
+    pub thread_id: String,
+    pub role_id: ThreadEpiphanyRoleId,
+    pub source: ThreadEpiphanyRolesSource,
+    pub binding_id: String,
+    pub state: Option<&'a EpiphanyThreadState>,
+    pub runtime_store_path: Option<&'a Path>,
+}
+
+pub async fn map_epiphany_role_result_response(
+    input: EpiphanyRoleResultResponseInput<'_>,
+) -> ThreadEpiphanyRoleResultResponse {
+    let EpiphanyRoleResultResponseInput {
+        thread_id,
+        role_id,
+        source,
+        binding_id,
+        state,
+        runtime_store_path,
+    } = input;
+    let Some(state) = state else {
+        return ThreadEpiphanyRoleResultResponse {
+            thread_id,
+            role_id,
+            source,
+            state_status: ThreadEpiphanyReorientStateStatus::Missing,
+            state_revision: None,
+            binding_id,
+            status: ThreadEpiphanyRoleResultStatus::MissingState,
+            job: None,
+            finding: None,
+            note: "No authoritative Epiphany state exists for this thread.".to_string(),
+        };
+    };
+
+    let job = map_epiphany_jobs(Some(state), None)
+        .into_iter()
+        .find(|job| job.id == binding_id);
+    let (status, finding, note) =
+        load_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id).await;
+
+    ThreadEpiphanyRoleResultResponse {
+        thread_id,
+        role_id,
+        source,
+        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+        state_revision: Some(state.revision),
+        binding_id,
+        status,
+        job,
+        finding,
+        note,
+    }
+}
+
+pub struct EpiphanyReorientResultResponseInput<'a> {
+    pub thread_id: String,
+    pub source: ThreadEpiphanyReorientSource,
+    pub binding_id: String,
+    pub state: Option<&'a EpiphanyThreadState>,
+    pub runtime_store_path: Option<&'a Path>,
+}
+
+pub async fn map_epiphany_reorient_result_response(
+    input: EpiphanyReorientResultResponseInput<'_>,
+) -> ThreadEpiphanyReorientResultResponse {
+    let EpiphanyReorientResultResponseInput {
+        thread_id,
+        source,
+        binding_id,
+        state,
+        runtime_store_path,
+    } = input;
+    let Some(state) = state else {
+        return ThreadEpiphanyReorientResultResponse {
+            thread_id,
+            source,
+            state_status: ThreadEpiphanyReorientStateStatus::Missing,
+            state_revision: None,
+            binding_id,
+            status: ThreadEpiphanyReorientResultStatus::MissingState,
+            job: None,
+            finding: None,
+            note: "No authoritative Epiphany state exists for this thread.".to_string(),
+        };
+    };
+
+    let job = map_epiphany_jobs(Some(state), None)
+        .into_iter()
+        .find(|job| job.id == binding_id);
+    let (status, finding, note) =
+        load_epiphany_reorient_result_snapshot(Some(state), runtime_store_path, &binding_id).await;
+
+    ThreadEpiphanyReorientResultResponse {
+        thread_id,
+        source,
+        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+        state_revision: Some(state.revision),
+        binding_id,
+        status,
+        job,
+        finding,
+        note,
     }
 }

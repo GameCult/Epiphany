@@ -703,8 +703,14 @@ parses the thread id, loads live/stored thread state, registers watcher input,
 fetches token usage, and obtains the runtime-spine store path. The actual lens
 selection, freshness/pressure/reorient/CRRC/roles/coordinator composition,
 scene/planning/job projection, and `ThreadEpiphanyViewResponse` construction
-now live in `epiphany-codex-bridge::view`. `epiphany_read_routes.rs` is about
-722 lines after this cut. The remaining read-route bodies are mostly individual
+now live in `epiphany-codex-bridge::view`. The same bridge view module now owns
+role/reorient result response construction too: it loads the mapped
+runtime-spine status/finding, projects the matching job, and builds
+`ThreadEpiphanyRoleResultResponse` /
+`ThreadEpiphanyReorientResultResponse`. App-server keeps only role binding
+validation, live/stored source selection, runtime-store path lookup, and
+response emission for those compatibility verbs. `epiphany_read_routes.rs` is
+about 648 lines after these cuts. The remaining read-route bodies are mostly individual
 legacy read verbs (`roleResult`, `freshness`, `context`, `graphQuery`,
 `reorientResult`, `retrieve`, `distill`, `propose`) plus host loading and
 response/error shaping.
