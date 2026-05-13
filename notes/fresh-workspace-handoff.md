@@ -597,6 +597,14 @@ The next cut is wiring coordinator/heartbeat automation to invoke `run-worker`
 for launched runtime job ids, then carving down the `codex-api` dependency
 weight.
 
+That coordinator cut is now landed for the MVP runner. `epiphany-mvp-coordinator`
+accepts `--openai-runtime-bin`, resolves the local `epiphany-openai-runtime`
+binary when present, and after `roleLaunch` / `reorientLaunch` invokes
+`run-worker` against the launched runtime job id. The old coordinator-local
+shadow `open_native_job` / `maybe_complete_native_job` compensator is deleted:
+there is one runtime job for the worker, owned by runtime-spine, and the worker
+runner completes that job.
+
 The runtime-spine job-opening mechanism for heartbeat/specialist launches has
 also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.
 Vendored `codex_core::CodexThread::epiphany_launch_job` still validates,
