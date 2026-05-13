@@ -454,6 +454,10 @@ intervention orchestration into
 `vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_automation.rs`,
 taking the processor to about 15,346 lines while preserving the old
 `codex_message_processor` re-export path for event handling.
+The sixteenth cut moved the old in-file processor test tail into
+`vendor/codex/codex-rs/app-server/src/codex_message_processor/processor_tests.rs`,
+taking the processor to about 10,502 lines. Treat this as test-ownership relief,
+not runtime purification by itself.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
