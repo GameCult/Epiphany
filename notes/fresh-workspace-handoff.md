@@ -449,13 +449,19 @@ taking the processor to about 15,819 lines.
 The fourteenth cut moved runtime-spine result snapshot/adaptation helpers into
 `vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_runtime_results.rs`,
 taking the processor to about 15,587 lines.
+The fifteenth cut moved turn-boundary coordinator automation and pre-compaction
+intervention orchestration into
+`vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_automation.rs`,
+taking the processor to about 15,346 lines while preserving the old
+`codex_message_processor` re-export path for event handling.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
-Continue with the actual whale-carcass cut: move coordinator automation,
-pre-compaction intervention orchestration, and remaining runtime authority out of
+Continue with the actual whale-carcass cut: replace child-module parent
+visibility with explicit typed service boundaries and move remaining Epiphany
+prompt/state/runtime helpers out of
 `codex_message_processor.rs` into Epiphany-owned app-server modules, moving
 logic further into `epiphany-core` whenever it owns real policy. Success is a
 visibly smaller `codex_message_processor.rs`, not merely nicer payload names. Do
