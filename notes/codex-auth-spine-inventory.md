@@ -141,5 +141,20 @@ contracts in its hello/schema catalog. This is the contract bridge the native
 runtime should consume next. Do not add another JSON-RPC model endpoint and call
 it progress.
 
+The first native operator/debug edge now exists as the
+`epiphany-openai-spine` binary in `epiphany-openai-codex-spine`. It can report
+typed adapter status and consume a serialized `EpiphanyOpenAiModelRequest`
+document for a model turn without going through Codex app-server JSON-RPC. This
+is not the final CultNet daemon. It is a buildable extracted edge that proves
+the spine can be called from Epiphany-owned code and gives the next cut a place
+to route through while the old `thread/epiphany/*` model path is starved.
+
+The bad news is useful: the current spine still drags in `codex-api` and its
+large transport dependency stack. That is tolerable as a sealed compatibility
+reliquary, but not as the final shape. The next purification should shrink the
+surviving Codex dependency surface to credential loading/refresh, provider
+auth, model selection, and the smallest OpenAI Responses HTTP call that keeps
+Codex subscription compatibility.
+
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

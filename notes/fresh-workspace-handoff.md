@@ -567,6 +567,16 @@ plus the coordinator-owned model request contract. The native runtime should
 consume that contract next; do not make a new JSON-RPC model endpoint and
 pretend the whale got lighter.
 
+The `epiphany-openai-spine` binary is now the first native edge for that
+wrapper. It can print typed adapter status and consume a serialized
+`EpiphanyOpenAiModelRequest` document for a model turn outside Codex
+app-server. Treat its JSON as CLI/file-edge serialization of typed documents,
+not internal data cargo. The current wrapper still pulls `codex-api` and a
+large dependency stack, so the next real cut is not celebration; it is routing
+native runtime/CultNet model calls through this spine and then shrinking the
+surviving Codex dependency surface to auth, provider/model routing, and the
+smallest OpenAI Responses call needed for subscription compatibility.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

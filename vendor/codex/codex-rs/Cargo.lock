@@ -5275,6 +5275,9 @@ dependencies = [
  "codex-protocol",
  "epiphany-openai-adapter",
  "futures",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
