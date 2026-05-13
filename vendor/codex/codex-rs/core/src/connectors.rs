@@ -1,26 +1,9 @@
 pub use codex_app_server_protocol::AppBranding;
 pub use codex_app_server_protocol::AppInfo;
 pub use codex_app_server_protocol::AppMetadata;
-use codex_config::types::AppToolApproval;
 use codex_mcp::ToolInfo;
-use rmcp::model::ToolAnnotations;
 
 use crate::config::Config;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AppToolPolicy {
-    pub enabled: bool,
-    pub approval: AppToolApproval,
-}
-
-impl Default for AppToolPolicy {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            approval: AppToolApproval::Auto,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct AccessibleConnectorsStatus {
@@ -76,18 +59,4 @@ pub fn accessible_connectors_from_mcp_tools(
 
 pub fn with_app_enabled_state(connectors: Vec<AppInfo>, _config: &Config) -> Vec<AppInfo> {
     connectors
-}
-
-pub(crate) fn app_tool_policy(
-    _config: &Config,
-    _connector_id: Option<&str>,
-    _tool_name: &str,
-    _tool_title: Option<&str>,
-    _annotations: Option<&ToolAnnotations>,
-) -> AppToolPolicy {
-    AppToolPolicy::default()
-}
-
-pub(crate) fn codex_app_tool_is_enabled(_config: &Config, _tool_info: &ToolInfo) -> bool {
-    true
 }

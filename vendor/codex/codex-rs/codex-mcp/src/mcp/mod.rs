@@ -14,14 +14,11 @@ pub use skill_dependencies::canonical_mcp_server_key;
 pub use skill_dependencies::collect_missing_mcp_dependencies;
 
 use std::collections::HashMap;
-use std::env;
 use std::path::PathBuf;
-use std::time::Duration;
 
 use async_channel::unbounded;
 use codex_config::Constrained;
 use codex_config::McpServerConfig;
-use codex_config::McpServerTransportConfig;
 use codex_config::types::OAuthCredentialsStoreMode;
 use codex_login::CodexAuth;
 use codex_plugin::PluginCapabilitySummary;
@@ -38,14 +35,10 @@ use serde_json::Value;
 
 use crate::mcp_connection_manager::McpConnectionManager;
 use crate::mcp_connection_manager::McpRuntimeEnvironment;
-use crate::mcp_connection_manager::codex_apps_tools_cache_key;
 pub type McpManager = McpConnectionManager;
 
 const MCP_TOOL_NAME_PREFIX: &str = "mcp";
 const MCP_TOOL_NAME_DELIMITER: &str = "__";
-pub const CODEX_APPS_MCP_SERVER_NAME: &str = "codex_apps";
-const CODEX_CONNECTORS_TOKEN_ENV_VAR: &str = "CODEX_CONNECTORS_TOKEN";
-
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum McpSnapshotDetail {
     #[default]
@@ -105,7 +98,7 @@ pub fn mcp_permission_prompt_is_auto_approved(
 /// approval/sandbox policy, locate OAuth state, and merge plugin-provided MCP
 /// servers. Request-scoped or auth-scoped state should not be stored here;
 /// thread those values explicitly into runtime entry points such as
-/// [`with_codex_apps_mcp`] and [`collect_mcp_snapshot`] so config objects do
+/// [`effective_mcp_servers`] and [`collect_mcp_snapshot`] so config objects do
 /// not go stale when auth changes.
 #[derive(Debug, Clone)]
 pub struct McpConfig {
@@ -196,124 +189,15 @@ impl ToolPluginProvenance {
     }
 }
 
-fn codex_apps_mcp_bearer_token_env_var() -> Option<String> {
-    match env::var(CODEX_CONNECTORS_TOKEN_ENV_VAR) {
-        Ok(value) if !value.trim().is_empty() => Some(CODEX_CONNECTORS_TOKEN_ENV_VAR.to_string()),
-        Ok(_) => None,
-        Err(env::VarError::NotPresent) => None,
-        Err(env::VarError::NotUnicode(_)) => Some(CODEX_CONNECTORS_TOKEN_ENV_VAR.to_string()),
-    }
-}
-
-fn codex_apps_mcp_bearer_token(auth: Option<&CodexAuth>) -> Option<String> {
-    let token = auth.and_then(|auth| auth.get_token().ok())?;
-    let token = token.trim();
-    if token.is_empty() {
-        None
-    } else {
-        Some(token.to_string())
-    }
-}
-
-fn codex_apps_mcp_http_headers(auth: Option<&CodexAuth>) -> Option<HashMap<String, String>> {
-    let mut headers = HashMap::new();
-    if let Some(token) = codex_apps_mcp_bearer_token(auth) {
-        headers.insert("Authorization".to_string(), format!("Bearer {token}"));
-    }
-    if let Some(account_id) = auth.and_then(CodexAuth::get_account_id) {
-        headers.insert("ChatGPT-Account-ID".to_string(), account_id);
-    }
-    if headers.is_empty() {
-        None
-    } else {
-        Some(headers)
-    }
-}
-
-fn normalize_codex_apps_base_url(base_url: &str) -> String {
-    let mut base_url = base_url.trim_end_matches('/').to_string();
-    if (base_url.starts_with("https://chatgpt.com")
-        || base_url.starts_with("https://chat.openai.com"))
-        && !base_url.contains("/backend-api")
-    {
-        base_url = format!("{base_url}/backend-api");
-    }
-    base_url
-}
-
-fn codex_apps_mcp_url_for_base_url(base_url: &str) -> String {
-    let base_url = normalize_codex_apps_base_url(base_url);
-    if base_url.contains("/backend-api") {
-        format!("{base_url}/wham/apps")
-    } else if base_url.contains("/api/codex") {
-        format!("{base_url}/apps")
-    } else {
-        format!("{base_url}/api/codex/apps")
-    }
-}
-
-pub(crate) fn codex_apps_mcp_url(config: &McpConfig) -> String {
-    codex_apps_mcp_url_for_base_url(&config.chatgpt_base_url)
-}
-
-fn codex_apps_mcp_server_config(config: &McpConfig, auth: Option<&CodexAuth>) -> McpServerConfig {
-    let bearer_token_env_var = codex_apps_mcp_bearer_token_env_var();
-    let http_headers = if bearer_token_env_var.is_some() {
-        None
-    } else {
-        codex_apps_mcp_http_headers(auth)
-    };
-    let url = codex_apps_mcp_url(config);
-
-    McpServerConfig {
-        transport: McpServerTransportConfig::StreamableHttp {
-            url,
-            bearer_token_env_var,
-            http_headers,
-            env_http_headers: None,
-        },
-        experimental_environment: None,
-        enabled: true,
-        required: false,
-        supports_parallel_tool_calls: false,
-        disabled_reason: None,
-        startup_timeout_sec: Some(Duration::from_secs(30)),
-        tool_timeout_sec: None,
-        default_tools_approval_mode: None,
-        enabled_tools: None,
-        disabled_tools: None,
-        scopes: None,
-        oauth_resource: None,
-        tools: HashMap::new(),
-    }
-}
-
-pub fn with_codex_apps_mcp(
-    mut servers: HashMap<String, McpServerConfig>,
-    auth: Option<&CodexAuth>,
-    config: &McpConfig,
-) -> HashMap<String, McpServerConfig> {
-    if config.apps_enabled && auth.is_some_and(CodexAuth::is_chatgpt_auth) {
-        servers.insert(
-            CODEX_APPS_MCP_SERVER_NAME.to_string(),
-            codex_apps_mcp_server_config(config, auth),
-        );
-    } else {
-        servers.remove(CODEX_APPS_MCP_SERVER_NAME);
-    }
-    servers
-}
-
 pub fn configured_mcp_servers(config: &McpConfig) -> HashMap<String, McpServerConfig> {
     config.configured_mcp_servers.clone()
 }
 
 pub fn effective_mcp_servers(
     config: &McpConfig,
-    auth: Option<&CodexAuth>,
+    _auth: Option<&CodexAuth>,
 ) -> HashMap<String, McpServerConfig> {
-    let servers = configured_mcp_servers(config);
-    with_codex_apps_mcp(servers, auth, config)
+    configured_mcp_servers(config)
 }
 
 pub fn tool_plugin_provenance(config: &McpConfig) -> ToolPluginProvenance {
@@ -342,8 +226,6 @@ pub async fn read_mcp_resource(
         tx_event,
         SandboxPolicy::new_read_only_policy(),
         runtime_environment,
-        config.codex_home.clone(),
-        codex_apps_tools_cache_key(auth),
         tool_plugin_provenance(config),
     )
     .await;
@@ -410,8 +292,6 @@ pub async fn collect_mcp_snapshot_with_detail(
         tx_event,
         SandboxPolicy::new_read_only_policy(),
         runtime_environment,
-        config.codex_home.clone(),
-        codex_apps_tools_cache_key(auth),
         tool_plugin_provenance,
     )
     .await;
@@ -485,8 +365,6 @@ pub async fn collect_mcp_server_status_snapshot_with_detail(
         tx_event,
         SandboxPolicy::new_read_only_policy(),
         runtime_environment,
-        config.codex_home.clone(),
-        codex_apps_tools_cache_key(auth),
         tool_plugin_provenance,
     )
     .await;

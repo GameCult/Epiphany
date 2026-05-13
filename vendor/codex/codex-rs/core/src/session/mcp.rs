@@ -208,8 +208,6 @@ impl Session {
         mcp_servers: HashMap<String, McpServerConfig>,
         store_mode: OAuthCredentialsStoreMode,
     ) {
-        let auth = self.services.auth_manager.auth().await;
-        let config = self.get_config().await;
         let auth_statuses = compute_auth_statuses(mcp_servers.iter(), store_mode).await;
         {
             let mut guard = self.services.mcp_startup_cancellation_token.lock().await;
@@ -231,8 +229,6 @@ impl Session {
                     .unwrap_or_else(|| self.services.environment_manager.local_environment()),
                 turn_context.cwd.to_path_buf(),
             ),
-            config.codex_home.to_path_buf(),
-            codex_apps_tools_cache_key(auth.as_ref()),
             ToolPluginProvenance::default(),
         )
         .await;

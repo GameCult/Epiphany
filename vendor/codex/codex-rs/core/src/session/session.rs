@@ -850,8 +850,6 @@ impl Session {
                     .unwrap_or_else(|| sess.services.environment_manager.local_environment()),
                 session_configuration.cwd.to_path_buf(),
             ),
-            config.codex_home.to_path_buf(),
-            codex_apps_tools_cache_key(auth),
             ToolPluginProvenance::default(),
         )
         .instrument(info_span!(

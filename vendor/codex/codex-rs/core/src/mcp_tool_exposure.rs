@@ -1,14 +1,10 @@
 use std::collections::HashMap;
-use std::collections::HashSet;
 
 use codex_features::Feature;
-use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_mcp::ToolInfo as McpToolInfo;
-use codex_mcp::filter_non_codex_apps_mcp_tools_only;
 use codex_tools::ToolsConfig;
 
 use crate::config::Config;
-use crate::connectors;
 
 pub(crate) const DIRECT_MCP_TOOL_EXPOSURE_THRESHOLD: usize = 100;
 
@@ -19,20 +15,10 @@ pub(crate) struct McpToolExposure {
 
 pub(crate) fn build_mcp_tool_exposure(
     all_mcp_tools: &HashMap<String, McpToolInfo>,
-    connectors: Option<&[connectors::AppInfo]>,
-    explicitly_enabled_connectors: &[connectors::AppInfo],
     config: &Config,
     tools_config: &ToolsConfig,
 ) -> McpToolExposure {
-    let mut deferred_tools = filter_non_codex_apps_mcp_tools_only(all_mcp_tools);
-    if let Some(connectors) = connectors {
-        deferred_tools.extend(filter_codex_apps_mcp_tools(
-            all_mcp_tools,
-            connectors,
-            config,
-        ));
-    }
-
+    let deferred_tools = all_mcp_tools.clone();
     let should_defer = tools_config.search_tool
         && (config
             .features
@@ -46,41 +32,10 @@ pub(crate) fn build_mcp_tool_exposure(
         };
     }
 
-    let direct_tools =
-        filter_codex_apps_mcp_tools(all_mcp_tools, explicitly_enabled_connectors, config);
-    for direct_tool_name in direct_tools.keys() {
-        deferred_tools.remove(direct_tool_name);
-    }
-
     McpToolExposure {
-        direct_tools,
+        direct_tools: HashMap::new(),
         deferred_tools: (!deferred_tools.is_empty()).then_some(deferred_tools),
     }
-}
-
-fn filter_codex_apps_mcp_tools(
-    mcp_tools: &HashMap<String, McpToolInfo>,
-    connectors: &[connectors::AppInfo],
-    config: &Config,
-) -> HashMap<String, McpToolInfo> {
-    let allowed: HashSet<&str> = connectors
-        .iter()
-        .map(|connector| connector.id.as_str())
-        .collect();
-
-    mcp_tools
-        .iter()
-        .filter(|(_, tool)| {
-            if tool.server_name != CODEX_APPS_MCP_SERVER_NAME {
-                return false;
-            }
-            let Some(connector_id) = tool.connector_id.as_deref() else {
-                return false;
-            };
-            allowed.contains(connector_id) && connectors::codex_app_tool_is_enabled(config, tool)
-        })
-        .map(|(name, tool)| (name.clone(), tool.clone()))
-        .collect()
 }
 
 #[cfg(test)]

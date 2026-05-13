@@ -868,8 +868,6 @@ pub(crate) async fn built_tools(
     drop(mcp_connection_manager);
     let mcp_tool_exposure = build_mcp_tool_exposure(
         &all_mcp_tools,
-        None,
-        &[],
         &turn_context.config,
         &turn_context.tools_config,
     );

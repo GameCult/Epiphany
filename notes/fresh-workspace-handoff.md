@@ -835,6 +835,15 @@ returns empty, app prompt instructions and app-rendering code were deleted,
 tiny default stub so legacy callers compile. User-declared MCP servers remain
 the only MCP authority; Codex Apps are not part of the OpenAI auth/model spine.
 
+The Codex Apps MCP privilege layer has been cut below core too. MCP tool
+exposure no longer separates Codex Apps from ordinary MCP tools, core MCP tool
+calls no longer consult app policy, forward `_codex_apps` metadata, emit app
+invocation telemetry, render bundled app approval templates, or persist
+approvals under `[apps.*]`, and `codex-mcp` no longer injects `codex_apps`,
+exports `with_codex_apps_mcp`, keeps a ChatGPT-auth-keyed app tool cache, or
+normalizes app callable names/namespaces/titles. MCP remains JSON-RPC at the
+edge; only user-declared MCP servers are runtime MCP authority.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

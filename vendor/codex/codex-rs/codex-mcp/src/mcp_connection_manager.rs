@@ -14,13 +14,10 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex as StdMutex;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 use std::time::Duration;
 use std::time::Instant;
 
 use crate::McpAuthStatusEntry;
-use crate::mcp::CODEX_APPS_MCP_SERVER_NAME;
 use crate::mcp::McpConfig;
 use crate::mcp::ToolPluginProvenance;
 use crate::mcp::configured_mcp_servers;
@@ -81,8 +78,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Map;
 use serde_json::Value as JsonValue;
-use sha1::Digest;
-use sha1::Sha1;
 use tokio::sync::Mutex;
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
@@ -94,8 +89,6 @@ use url::Url;
 use codex_config::McpServerConfig;
 use codex_config::McpServerTransportConfig;
 use codex_login::CodexAuth;
-use codex_utils_plugins::mcp_connector::is_connector_id_allowed;
-use codex_utils_plugins::mcp_connector::sanitize_name;
 
 /// Delimiter used to separate MCP tool-name parts.
 const MCP_TOOL_NAME_DELIMITER: &str = "__";
@@ -106,37 +99,8 @@ pub const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_secs(30);
 /// Default timeout for individual tool calls.
 const DEFAULT_TOOL_TIMEOUT: Duration = Duration::from_secs(120);
 
-const CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION: u8 = 2;
-const CODEX_APPS_TOOLS_CACHE_DIR: &str = "cache/codex_apps_tools";
 const MCP_TOOLS_LIST_DURATION_METRIC: &str = "codex.mcp.tools.list.duration_ms";
 const MCP_TOOLS_FETCH_UNCACHED_DURATION_METRIC: &str = "codex.mcp.tools.fetch_uncached.duration_ms";
-const MCP_TOOLS_CACHE_WRITE_DURATION_METRIC: &str = "codex.mcp.tools.cache_write.duration_ms";
-
-fn sha1_hex(s: &str) -> String {
-    let mut hasher = Sha1::new();
-    hasher.update(s.as_bytes());
-    let sha1 = hasher.finalize();
-    format!("{sha1:x}")
-}
-
-pub fn codex_apps_tools_cache_key(auth: Option<&CodexAuth>) -> CodexAppsToolsCacheKey {
-    let token_data = auth.and_then(|auth| auth.get_token_data().ok());
-    let account_id = token_data
-        .as_ref()
-        .and_then(|token_data| token_data.account_id.clone());
-    let chatgpt_user_id = token_data
-        .as_ref()
-        .and_then(|token_data| token_data.id_token.chatgpt_user_id.clone());
-    let is_workspace_account = token_data
-        .as_ref()
-        .is_some_and(|token_data| token_data.id_token.is_workspace_account());
-
-    CodexAppsToolsCacheKey {
-        account_id,
-        chatgpt_user_id,
-        is_workspace_account,
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolInfo {
@@ -183,105 +147,6 @@ pub fn declared_openai_file_input_param_names(
         .filter(|value| !value.is_empty())
         .map(str::to_string)
         .collect()
-}
-
-/// Returns the model-visible view of a tool while preserving the raw metadata
-/// used by execution. Keep cache entries raw and call this at manager return
-/// boundaries.
-fn tool_with_model_visible_input_schema(tool: &Tool) -> Tool {
-    let file_params = declared_openai_file_input_param_names(tool.meta.as_deref());
-    if file_params.is_empty() {
-        return tool.clone();
-    }
-
-    let mut tool = tool.clone();
-    let mut input_schema = JsonValue::Object(tool.input_schema.as_ref().clone());
-    mask_input_schema_for_file_path_params(&mut input_schema, &file_params);
-    if let JsonValue::Object(input_schema) = input_schema {
-        tool.input_schema = Arc::new(input_schema);
-    }
-    tool
-}
-
-fn mask_input_schema_for_file_path_params(input_schema: &mut JsonValue, file_params: &[String]) {
-    let Some(properties) = input_schema
-        .as_object_mut()
-        .and_then(|schema| schema.get_mut("properties"))
-        .and_then(JsonValue::as_object_mut)
-    else {
-        return;
-    };
-
-    for field_name in file_params {
-        let Some(property_schema) = properties.get_mut(field_name) else {
-            continue;
-        };
-        mask_input_property_schema(property_schema);
-    }
-}
-
-fn mask_input_property_schema(schema: &mut JsonValue) {
-    let Some(object) = schema.as_object_mut() else {
-        return;
-    };
-
-    let mut description = object
-        .get("description")
-        .and_then(JsonValue::as_str)
-        .map(str::to_string)
-        .unwrap_or_default();
-    let guidance = "This parameter expects an absolute local file path. If you want to upload a file, provide the absolute path to that file here.";
-    if description.is_empty() {
-        description = guidance.to_string();
-    } else if !description.contains(guidance) {
-        description = format!("{description} {guidance}");
-    }
-
-    let is_array = object.get("type").and_then(JsonValue::as_str) == Some("array")
-        || object.get("items").is_some();
-    object.clear();
-    object.insert("description".to_string(), JsonValue::String(description));
-    if is_array {
-        object.insert("type".to_string(), JsonValue::String("array".to_string()));
-        object.insert("items".to_string(), serde_json::json!({ "type": "string" }));
-    } else {
-        object.insert("type".to_string(), JsonValue::String("string".to_string()));
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CodexAppsToolsCacheKey {
-    account_id: Option<String>,
-    chatgpt_user_id: Option<String>,
-    is_workspace_account: bool,
-}
-
-#[derive(Clone)]
-struct CodexAppsToolsCacheContext {
-    codex_home: PathBuf,
-    user_key: CodexAppsToolsCacheKey,
-}
-
-impl CodexAppsToolsCacheContext {
-    fn cache_path(&self) -> PathBuf {
-        let user_key_json = serde_json::to_string(&self.user_key).unwrap_or_default();
-        let user_key_hash = sha1_hex(&user_key_json);
-        self.codex_home
-            .join(CODEX_APPS_TOOLS_CACHE_DIR)
-            .join(format!("{user_key_hash}.json"))
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct CodexAppsToolsDiskCache {
-    schema_version: u8,
-    tools: Vec<ToolInfo>,
-}
-
-enum CachedCodexAppsToolsLoad {
-    Hit(Vec<ToolInfo>),
-    Missing,
-    Invalid,
 }
 
 type ResponderMap = HashMap<(String, RequestId), oneshot::Sender<ElicitationResponse>>;
@@ -442,34 +307,11 @@ struct ManagedClient {
     tools: Vec<ToolInfo>,
     tool_filter: ToolFilter,
     tool_timeout: Option<Duration>,
-    server_instructions: Option<String>,
     server_supports_sandbox_state_meta_capability: bool,
-    codex_apps_tools_cache_context: Option<CodexAppsToolsCacheContext>,
 }
 
 impl ManagedClient {
     fn listed_tools(&self) -> Vec<ToolInfo> {
-        let total_start = Instant::now();
-        if let Some(cache_context) = self.codex_apps_tools_cache_context.as_ref()
-            && let CachedCodexAppsToolsLoad::Hit(tools) =
-                load_cached_codex_apps_tools(cache_context)
-        {
-            emit_duration(
-                MCP_TOOLS_LIST_DURATION_METRIC,
-                total_start.elapsed(),
-                &[("cache", "hit")],
-            );
-            return filter_tools(tools, &self.tool_filter);
-        }
-
-        if self.codex_apps_tools_cache_context.is_some() {
-            emit_duration(
-                MCP_TOOLS_LIST_DURATION_METRIC,
-                total_start.elapsed(),
-                &[("cache", "miss")],
-            );
-        }
-
         self.tools.clone()
     }
 }
@@ -477,8 +319,6 @@ impl ManagedClient {
 #[derive(Clone)]
 struct AsyncManagedClient {
     client: Shared<BoxFuture<'static, Result<ManagedClient, StartupOutcomeError>>>,
-    startup_snapshot: Option<Vec<ToolInfo>>,
-    startup_complete: Arc<AtomicBool>,
     tool_plugin_provenance: Arc<ToolPluginProvenance>,
 }
 
@@ -493,19 +333,11 @@ impl AsyncManagedClient {
         cancel_token: CancellationToken,
         tx_event: Sender<Event>,
         elicitation_requests: ElicitationRequestManager,
-        codex_apps_tools_cache_context: Option<CodexAppsToolsCacheContext>,
         tool_plugin_provenance: Arc<ToolPluginProvenance>,
         runtime_environment: McpRuntimeEnvironment,
     ) -> Self {
         let tool_filter = ToolFilter::from_config(&config);
-        let startup_snapshot = load_startup_cached_codex_apps_tools_snapshot(
-            &server_name,
-            codex_apps_tools_cache_context.as_ref(),
-        )
-        .map(|tools| filter_tools(tools, &tool_filter));
         let startup_tool_filter = tool_filter;
-        let startup_complete = Arc::new(AtomicBool::new(false));
-        let startup_complete_for_fut = Arc::clone(&startup_complete);
         let fut = async move {
             let outcome = async {
                 if let Err(error) = validate_mcp_server_name(&server_name) {
@@ -532,7 +364,6 @@ impl AsyncManagedClient {
                         tool_filter: startup_tool_filter,
                         tx_event,
                         elicitation_requests,
-                        codex_apps_tools_cache_context,
                     },
                 )
                 .or_cancel(&cancel_token)
@@ -544,21 +375,12 @@ impl AsyncManagedClient {
             }
             .await;
 
-            startup_complete_for_fut.store(true, Ordering::Release);
             outcome
         };
         let client = fut.boxed().shared();
-        if startup_snapshot.is_some() {
-            let startup_task = client.clone();
-            tokio::spawn(async move {
-                let _ = startup_task.await;
-            });
-        }
 
         Self {
             client,
-            startup_snapshot,
-            startup_complete,
             tool_plugin_provenance,
         }
     }
@@ -567,21 +389,10 @@ impl AsyncManagedClient {
         self.client.clone().await
     }
 
-    fn startup_snapshot_while_initializing(&self) -> Option<Vec<ToolInfo>> {
-        if !self.startup_complete.load(Ordering::Acquire) {
-            return self.startup_snapshot.clone();
-        }
-        None
-    }
-
     async fn listed_tools(&self) -> Option<Vec<ToolInfo>> {
         let annotate_tools = |tools: Vec<ToolInfo>| {
             let mut tools = tools;
             for tool in &mut tools {
-                if tool.server_name == CODEX_APPS_MCP_SERVER_NAME {
-                    tool.tool = tool_with_model_visible_input_schema(&tool.tool);
-                }
-
                 let plugin_names = match tool.connector_id.as_deref() {
                     Some(connector_id) => self
                         .tool_plugin_provenance
@@ -626,14 +437,9 @@ impl AsyncManagedClient {
             tools
         };
 
-        // Keep cache payloads raw; plugin provenance is resolved per-session at read time.
-        let tools = if let Some(startup_tools) = self.startup_snapshot_while_initializing() {
-            Some(startup_tools)
-        } else {
-            match self.client().await {
-                Ok(client) => Some(client.listed_tools()),
-                Err(_) => self.startup_snapshot.clone(),
-            }
+        let tools = match self.client().await {
+            Ok(client) => Some(client.listed_tools()),
+            Err(_) => None,
         };
         tools.map(annotate_tools)
     }
@@ -752,8 +558,6 @@ impl McpConnectionManager {
         tx_event: Sender<Event>,
         initial_sandbox_policy: SandboxPolicy,
         runtime_environment: McpRuntimeEnvironment,
-        codex_home: PathBuf,
-        codex_apps_tools_cache_key: CodexAppsToolsCacheKey,
         tool_plugin_provenance: ToolPluginProvenance,
     ) -> (Self, CancellationToken) {
         let cancel_token = CancellationToken::new();
@@ -779,14 +583,6 @@ impl McpConnectionManager {
                 },
             )
             .await;
-            let codex_apps_tools_cache_context = if server_name == CODEX_APPS_MCP_SERVER_NAME {
-                Some(CodexAppsToolsCacheContext {
-                    codex_home: codex_home.clone(),
-                    user_key: codex_apps_tools_cache_key.clone(),
-                })
-            } else {
-                None
-            };
             let async_managed_client = AsyncManagedClient::new(
                 server_name.clone(),
                 cfg,
@@ -794,7 +590,6 @@ impl McpConnectionManager {
                 cancel_token.clone(),
                 tx_event.clone(),
                 elicitation_requests.clone(),
-                codex_apps_tools_cache_context,
                 Arc::clone(&tool_plugin_provenance),
                 runtime_environment.clone(),
             );
@@ -931,57 +726,6 @@ impl McpConnectionManager {
             tools.extend(server_tools);
         }
         qualify_tools(tools)
-    }
-
-    /// Force-refresh codex apps tools by bypassing the in-process cache.
-    ///
-    /// On success, the refreshed tools replace the cache contents and the
-    /// latest filtered tool map is returned directly to the caller. On
-    /// failure, the existing cache remains unchanged.
-    pub async fn hard_refresh_codex_apps_tools_cache(&self) -> Result<HashMap<String, ToolInfo>> {
-        let managed_client = self
-            .clients
-            .get(CODEX_APPS_MCP_SERVER_NAME)
-            .ok_or_else(|| anyhow!("unknown MCP server '{CODEX_APPS_MCP_SERVER_NAME}'"))?
-            .client()
-            .await
-            .context("failed to get client")?;
-
-        let list_start = Instant::now();
-        let fetch_start = Instant::now();
-        let tools = list_tools_for_client_uncached(
-            CODEX_APPS_MCP_SERVER_NAME,
-            &managed_client.client,
-            managed_client.tool_timeout,
-            managed_client.server_instructions.as_deref(),
-        )
-        .await
-        .with_context(|| {
-            format!("failed to refresh tools for MCP server '{CODEX_APPS_MCP_SERVER_NAME}'")
-        })?;
-        emit_duration(
-            MCP_TOOLS_FETCH_UNCACHED_DURATION_METRIC,
-            fetch_start.elapsed(),
-            &[],
-        );
-
-        write_cached_codex_apps_tools_if_needed(
-            CODEX_APPS_MCP_SERVER_NAME,
-            managed_client.codex_apps_tools_cache_context.as_ref(),
-            &tools,
-        );
-        emit_duration(
-            MCP_TOOLS_LIST_DURATION_METRIC,
-            list_start.elapsed(),
-            &[("cache", "miss")],
-        );
-        let tools = filter_tools(tools, &managed_client.tool_filter)
-            .into_iter()
-            .map(|mut tool| {
-                tool.tool = tool_with_model_visible_input_schema(&tool.tool);
-                tool
-            });
-        Ok(qualify_tools(tools))
     }
 
     /// Returns a single map that contains all resources. Each key is the
@@ -1280,96 +1024,6 @@ fn filter_tools(tools: Vec<ToolInfo>, filter: &ToolFilter) -> Vec<ToolInfo> {
         .collect()
 }
 
-pub fn filter_non_codex_apps_mcp_tools_only(
-    mcp_tools: &HashMap<String, ToolInfo>,
-) -> HashMap<String, ToolInfo> {
-    mcp_tools
-        .iter()
-        .filter(|(_, tool)| tool.server_name != CODEX_APPS_MCP_SERVER_NAME)
-        .map(|(name, tool)| (name.clone(), tool.clone()))
-        .collect()
-}
-
-fn normalize_codex_apps_tool_title(
-    server_name: &str,
-    connector_name: Option<&str>,
-    value: &str,
-) -> String {
-    if server_name != CODEX_APPS_MCP_SERVER_NAME {
-        return value.to_string();
-    }
-
-    let Some(connector_name) = connector_name
-        .map(str::trim)
-        .filter(|name| !name.is_empty())
-    else {
-        return value.to_string();
-    };
-
-    let prefix = format!("{connector_name}_");
-    if let Some(stripped) = value.strip_prefix(&prefix)
-        && !stripped.is_empty()
-    {
-        return stripped.to_string();
-    }
-
-    value.to_string()
-}
-
-fn normalize_codex_apps_callable_name(
-    server_name: &str,
-    tool_name: &str,
-    connector_id: Option<&str>,
-    connector_name: Option<&str>,
-) -> String {
-    if server_name != CODEX_APPS_MCP_SERVER_NAME {
-        return tool_name.to_string();
-    }
-
-    let tool_name = sanitize_name(tool_name);
-
-    if let Some(connector_name) = connector_name
-        .map(str::trim)
-        .map(sanitize_name)
-        .filter(|name| !name.is_empty())
-        && let Some(stripped) = tool_name.strip_prefix(&connector_name)
-        && !stripped.is_empty()
-    {
-        return stripped.to_string();
-    }
-
-    if let Some(connector_id) = connector_id
-        .map(str::trim)
-        .map(sanitize_name)
-        .filter(|name| !name.is_empty())
-        && let Some(stripped) = tool_name.strip_prefix(&connector_id)
-        && !stripped.is_empty()
-    {
-        return stripped.to_string();
-    }
-
-    tool_name
-}
-
-fn normalize_codex_apps_callable_namespace(
-    server_name: &str,
-    connector_name: Option<&str>,
-) -> String {
-    if server_name == CODEX_APPS_MCP_SERVER_NAME
-        && let Some(connector_name) = connector_name
-    {
-        format!(
-            "mcp{}{}{}{}",
-            MCP_TOOL_NAME_DELIMITER,
-            server_name,
-            MCP_TOOL_NAME_DELIMITER,
-            sanitize_name(connector_name)
-        )
-    } else {
-        format!("mcp{MCP_TOOL_NAME_DELIMITER}{server_name}{MCP_TOOL_NAME_DELIMITER}")
-    }
-}
-
 fn resolve_bearer_token(
     server_name: &str,
     bearer_token_env_var: Option<&str>,
@@ -1437,7 +1091,6 @@ async fn start_server_task(
         tool_filter,
         tx_event,
         elicitation_requests,
-        codex_apps_tools_cache_context,
     } = params;
     let elicitation = elicitation_capability_for_server(&server_name);
     let params = InitializeRequestParams {
@@ -1489,18 +1142,7 @@ async fn start_server_task(
         fetch_start.elapsed(),
         &[],
     );
-    write_cached_codex_apps_tools_if_needed(
-        &server_name,
-        codex_apps_tools_cache_context.as_ref(),
-        &tools,
-    );
-    if server_name == CODEX_APPS_MCP_SERVER_NAME {
-        emit_duration(
-            MCP_TOOLS_LIST_DURATION_METRIC,
-            list_start.elapsed(),
-            &[("cache", "miss")],
-        );
-    }
+    emit_duration(MCP_TOOLS_LIST_DURATION_METRIC, list_start.elapsed(), &[]);
     let tools = filter_tools(tools, &tool_filter);
 
     let managed = ManagedClient {
@@ -1508,9 +1150,7 @@ async fn start_server_task(
         tools,
         tool_timeout: Some(tool_timeout),
         tool_filter,
-        server_instructions: initialize_result.instructions,
         server_supports_sandbox_state_meta_capability,
-        codex_apps_tools_cache_context,
     };
 
     Ok(managed)
@@ -1522,7 +1162,6 @@ struct StartServerTaskParams {
     tool_filter: ToolFilter,
     tx_event: Sender<Event>,
     elicitation_requests: ElicitationRequestManager,
-    codex_apps_tools_cache_context: Option<CodexAppsToolsCacheContext>,
 }
 
 async fn make_rmcp_client(
@@ -1616,101 +1255,6 @@ async fn make_rmcp_client(
     }
 }
 
-fn write_cached_codex_apps_tools_if_needed(
-    server_name: &str,
-    cache_context: Option<&CodexAppsToolsCacheContext>,
-    tools: &[ToolInfo],
-) {
-    if server_name != CODEX_APPS_MCP_SERVER_NAME {
-        return;
-    }
-
-    if let Some(cache_context) = cache_context {
-        let cache_write_start = Instant::now();
-        write_cached_codex_apps_tools(cache_context, tools);
-        emit_duration(
-            MCP_TOOLS_CACHE_WRITE_DURATION_METRIC,
-            cache_write_start.elapsed(),
-            &[],
-        );
-    }
-}
-
-fn load_startup_cached_codex_apps_tools_snapshot(
-    server_name: &str,
-    cache_context: Option<&CodexAppsToolsCacheContext>,
-) -> Option<Vec<ToolInfo>> {
-    if server_name != CODEX_APPS_MCP_SERVER_NAME {
-        return None;
-    }
-
-    let cache_context = cache_context?;
-
-    match load_cached_codex_apps_tools(cache_context) {
-        CachedCodexAppsToolsLoad::Hit(tools) => Some(tools),
-        CachedCodexAppsToolsLoad::Missing | CachedCodexAppsToolsLoad::Invalid => None,
-    }
-}
-
-#[cfg(test)]
-fn read_cached_codex_apps_tools(
-    cache_context: &CodexAppsToolsCacheContext,
-) -> Option<Vec<ToolInfo>> {
-    match load_cached_codex_apps_tools(cache_context) {
-        CachedCodexAppsToolsLoad::Hit(tools) => Some(tools),
-        CachedCodexAppsToolsLoad::Missing | CachedCodexAppsToolsLoad::Invalid => None,
-    }
-}
-
-fn load_cached_codex_apps_tools(
-    cache_context: &CodexAppsToolsCacheContext,
-) -> CachedCodexAppsToolsLoad {
-    let cache_path = cache_context.cache_path();
-    let bytes = match std::fs::read(cache_path) {
-        Ok(bytes) => bytes,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            return CachedCodexAppsToolsLoad::Missing;
-        }
-        Err(_) => return CachedCodexAppsToolsLoad::Invalid,
-    };
-    let cache: CodexAppsToolsDiskCache = match serde_json::from_slice(&bytes) {
-        Ok(cache) => cache,
-        Err(_) => return CachedCodexAppsToolsLoad::Invalid,
-    };
-    if cache.schema_version != CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION {
-        return CachedCodexAppsToolsLoad::Invalid;
-    }
-    CachedCodexAppsToolsLoad::Hit(filter_disallowed_codex_apps_tools(cache.tools))
-}
-
-fn write_cached_codex_apps_tools(cache_context: &CodexAppsToolsCacheContext, tools: &[ToolInfo]) {
-    let cache_path = cache_context.cache_path();
-    if let Some(parent) = cache_path.parent()
-        && std::fs::create_dir_all(parent).is_err()
-    {
-        return;
-    }
-    let tools = filter_disallowed_codex_apps_tools(tools.to_vec());
-    let Ok(bytes) = serde_json::to_vec_pretty(&CodexAppsToolsDiskCache {
-        schema_version: CODEX_APPS_TOOLS_CACHE_SCHEMA_VERSION,
-        tools,
-    }) else {
-        return;
-    };
-    let _ = std::fs::write(cache_path, bytes);
-}
-
-fn filter_disallowed_codex_apps_tools(tools: Vec<ToolInfo>) -> Vec<ToolInfo> {
-    tools
-        .into_iter()
-        .filter(|tool| {
-            tool.connector_id
-                .as_deref()
-                .is_none_or(is_connector_id_allowed)
-        })
-        .collect()
-}
-
 fn emit_duration(metric: &str, duration: Duration, tags: &[(&str, &str)]) {
     if let Some(metrics) = codex_otel::global() {
         let _ = metrics.record_duration(metric, duration, tags);
@@ -1740,32 +1284,17 @@ async fn list_tools_for_client_uncached(
         .tools
         .into_iter()
         .map(|tool| {
-            let callable_name = normalize_codex_apps_callable_name(
-                server_name,
-                &tool.tool.name,
-                tool.connector_id.as_deref(),
-                tool.connector_name.as_deref(),
-            );
-            let callable_namespace = normalize_codex_apps_callable_namespace(
-                server_name,
-                tool.connector_name.as_deref(),
-            );
+            let callable_name = tool.tool.name.to_string();
+            let callable_namespace =
+                format!("mcp{MCP_TOOL_NAME_DELIMITER}{server_name}{MCP_TOOL_NAME_DELIMITER}");
             let connector_name = tool.connector_name;
             let connector_description = tool.connector_description;
-            let mut tool_def = tool.tool;
-            if let Some(title) = tool_def.title.as_deref() {
-                let normalized_title =
-                    normalize_codex_apps_tool_title(server_name, connector_name.as_deref(), title);
-                if tool_def.title.as_deref() != Some(normalized_title.as_str()) {
-                    tool_def.title = Some(normalized_title);
-                }
-            }
             ToolInfo {
                 server_name: server_name.to_owned(),
                 callable_name,
                 callable_namespace,
                 server_instructions: server_instructions.map(str::to_string),
-                tool: tool_def,
+                tool: tool.tool,
                 connector_id: tool.connector_id,
                 connector_name,
                 plugin_display_names: Vec::new(),
@@ -1773,9 +1302,6 @@ async fn list_tools_for_client_uncached(
             }
         })
         .collect();
-    if server_name == CODEX_APPS_MCP_SERVER_NAME {
-        return Ok(filter_disallowed_codex_apps_tools(tools));
-    }
     Ok(tools)
 }
 
