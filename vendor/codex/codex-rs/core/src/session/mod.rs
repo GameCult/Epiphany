@@ -1332,8 +1332,6 @@ impl Session {
             .config_layer_stack
             .with_user_config(&config_toml_path, user_config);
         state.session_configuration.original_config_do_not_use = Arc::new(config);
-        self.services.skills_manager.clear_cache();
-        self.services.plugins_manager.clear_cache();
     }
 
     async fn build_settings_update_items(
