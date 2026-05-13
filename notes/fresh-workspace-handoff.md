@@ -789,6 +789,12 @@ loads skill roots only to log errors, and per-turn context now receives an empty
 `SkillLoadOutcome`, so skill injection/dependency prompts do not awaken during
 normal turns.
 
+Internal skill listing is cold too. `Op::ListSkills` now returns empty
+compatibility entries per requested cwd without loading Codex config layers,
+effective plugin skill roots, filesystem skill metadata, disabled-path state,
+or skill error conversion helpers. The route may exist for old clients; it is
+not an authority.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation
