@@ -18,8 +18,6 @@ pub use codex_core::connectors::list_accessible_connectors_from_mcp_tools_with_o
 pub use codex_core::connectors::list_accessible_connectors_from_mcp_tools_with_options_and_status;
 pub use codex_core::connectors::list_cached_accessible_connectors_from_mcp_tools;
 pub use codex_core::connectors::with_app_enabled_state;
-use codex_core::plugins::AppConnectorId;
-use codex_core::plugins::PluginsManager;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_login::default_client::originator;
@@ -75,13 +73,7 @@ pub async fn list_cached_all_connectors(config: &Config) -> Option<Vec<AppInfo>>
     let token_data = get_chatgpt_token_data()?;
     let cache_key = all_connectors_cache_key(config, &token_data);
     let connectors = codex_connectors::cached_all_connectors(&cache_key)?;
-    let connectors = merge_plugin_connectors(
-        connectors,
-        plugin_apps_for_config(config)
-            .await
-            .into_iter()
-            .map(|connector_id| connector_id.0),
-    );
+    let connectors = merge_plugin_connectors(connectors, plugin_apps_for_config(config).await);
     Some(filter_disallowed_connectors(
         connectors,
         originator().value.as_str(),
@@ -115,13 +107,7 @@ pub async fn list_all_connectors_with_options(
         },
     )
     .await?;
-    let connectors = merge_plugin_connectors(
-        connectors,
-        plugin_apps_for_config(config)
-            .await
-            .into_iter()
-            .map(|connector_id| connector_id.0),
-    );
+    let connectors = merge_plugin_connectors(connectors, plugin_apps_for_config(config).await);
     Ok(filter_disallowed_connectors(
         connectors,
         originator().value.as_str(),
@@ -137,28 +123,20 @@ fn all_connectors_cache_key(config: &Config, token_data: &TokenData) -> AllConne
     )
 }
 
-async fn plugin_apps_for_config(config: &Config) -> Vec<codex_core::plugins::AppConnectorId> {
-    PluginsManager::new(config.codex_home.to_path_buf())
-        .plugins_for_config(config)
-        .await
-        .effective_apps()
+async fn plugin_apps_for_config(_config: &Config) -> Vec<String> {
+    Vec::new()
 }
 
 pub fn connectors_for_plugin_apps(
     connectors: Vec<AppInfo>,
-    plugin_apps: &[AppConnectorId],
+    plugin_apps: &[String],
 ) -> Vec<AppInfo> {
     let plugin_app_ids = plugin_apps
         .iter()
-        .map(|connector_id| connector_id.0.as_str())
+        .map(String::as_str)
         .collect::<HashSet<_>>();
 
-    let connectors = merge_plugin_connectors(
-        connectors,
-        plugin_apps
-            .iter()
-            .map(|connector_id| connector_id.0.clone()),
-    );
+    let connectors = merge_plugin_connectors(connectors, plugin_apps.iter().cloned());
     filter_disallowed_connectors(connectors, originator().value.as_str())
         .into_iter()
         .filter(|connector| plugin_app_ids.contains(connector.id.as_str()))
@@ -190,7 +168,6 @@ pub fn merge_connectors_with_accessible(
 mod tests {
     use super::*;
     use codex_connectors::metadata::connector_install_url;
-    use codex_core::plugins::AppConnectorId;
     use pretty_assertions::assert_eq;
 
     fn app(id: &str) -> AppInfo {
@@ -259,10 +236,7 @@ mod tests {
     fn connectors_for_plugin_apps_returns_only_requested_plugin_apps() {
         let connectors = connectors_for_plugin_apps(
             vec![app("alpha"), app("beta")],
-            &[
-                AppConnectorId("alpha".to_string()),
-                AppConnectorId("gmail".to_string()),
-            ],
+            &["alpha".to_string(), "gmail".to_string()],
         );
         assert_eq!(
             connectors,
@@ -274,9 +248,7 @@ mod tests {
     fn connectors_for_plugin_apps_filters_disallowed_plugin_apps() {
         let connectors = connectors_for_plugin_apps(
             Vec::new(),
-            &[AppConnectorId(
-                "asdk_app_6938a94a61d881918ef32cb999ff937c".to_string(),
-            )],
+            &["asdk_app_6938a94a61d881918ef32cb999ff937c".to_string()],
         );
         assert_eq!(connectors, Vec::<AppInfo>::new());
     }

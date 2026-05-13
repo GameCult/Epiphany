@@ -88,7 +88,6 @@ pub use message_history::history_metadata as message_history_metadata;
 pub use message_history::lookup as lookup_message_history_entry;
 pub use utils::path_utils;
 pub mod personality_migration;
-pub mod plugins;
 #[doc(hidden)]
 pub(crate) mod prompt_debug;
 #[doc(hidden)]
@@ -100,7 +99,6 @@ mod session_startup_prewarm;
 mod shell_detect;
 pub mod skills;
 pub(crate) use skills::SkillLoadOutcome;
-pub(crate) use skills::SkillMetadata;
 pub(crate) use skills::SkillsManager;
 pub(crate) use skills::manager;
 mod skills_watcher;

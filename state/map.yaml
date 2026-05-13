@@ -287,6 +287,11 @@ current_status:
     discoverable-plugin scan were deleted, MCP startup/refresh uses empty plugin
     provenance, session/thread state no longer carries `PluginsManager`, and
     the explicit connector-selection cache was removed because it only served
-    app/plugin suggestion bookkeeping. The remaining plugin module is now a
-    public Codex product/CLI husk to judge next, not live session machinery.
+    app/plugin suggestion bookkeeping. The core plugin husk was then deleted:
+    `codex-core` no longer exports `plugins` or depends on `codex-core-plugins`
+    / `codex-plugin`, the core plugin manager and marketplace add/remove/sync
+    modules/tests are gone, CLI marketplace commands are disabled compatibility
+    shells, MCP CLI setup no longer creates plugin managers, ChatGPT connector
+    listing no longer merges plugin-provided apps, and TUI plugin mentions no
+    longer scan core plugins.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

@@ -353,6 +353,9 @@ fn server_notification_thread_target(
         ServerNotification::ThreadEpiphanyStateUpdated(notification) => {
             Some(notification.thread_id.as_str())
         }
+        ServerNotification::ThreadEpiphanyJobsUpdated(notification) => {
+            Some(notification.thread_id.as_str())
+        }
         ServerNotification::TurnStarted(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::HookStarted(notification) => Some(notification.thread_id.as_str()),
         ServerNotification::TurnCompleted(notification) => Some(notification.thread_id.as_str()),

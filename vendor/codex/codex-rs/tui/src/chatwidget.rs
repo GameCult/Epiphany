@@ -6689,6 +6689,7 @@ impl ChatWidget {
             | ServerNotification::FuzzyFileSearchSessionCompleted(_)
             | ServerNotification::ThreadRealtimeTranscriptDelta(_)
             | ServerNotification::ThreadRealtimeTranscriptDone(_)
+            | ServerNotification::ThreadEpiphanyJobsUpdated(_)
             | ServerNotification::ThreadEpiphanyStateUpdated(_)
             | ServerNotification::WindowsWorldWritableWarning(_)
             | ServerNotification::WindowsSandboxSetupCompleted(_)

@@ -819,6 +819,15 @@ served app/plugin suggestion bookkeeping. The remaining plugin code is now a
 public Codex product library/CLI surface, not a live session organ; judge it as
 the next removable husk, not as keeper spine.
 
+That husk has now been cut from `codex-core`. The root core crate no longer
+exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
+and the core plugin manager / marketplace add-remove-sync modules and tests
+were deleted. CLI marketplace commands are disabled compatibility shells; MCP
+CLI construction no longer creates plugin managers; ChatGPT connector listing
+no longer merges plugin-provided apps; TUI plugin mentions no longer scan core
+plugins. Remaining `codex-plugin` references live in other Codex product crates
+or prompt/snapshot fixtures, not in the core runtime spine.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

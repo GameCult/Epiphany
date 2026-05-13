@@ -199,23 +199,8 @@ impl App {
     }
 
     pub(super) fn refresh_plugin_mentions(&mut self) {
-        let config = self.config.clone();
         let app_event_tx = self.app_event_tx.clone();
-        if !config.features.enabled(Feature::Plugins) {
-            app_event_tx.send(AppEvent::PluginMentionsLoaded { plugins: None });
-            return;
-        }
-
-        tokio::spawn(async move {
-            let plugins = PluginsManager::new(config.codex_home.to_path_buf())
-                .plugins_for_config(&config)
-                .await
-                .capability_summaries()
-                .to_vec();
-            app_event_tx.send(AppEvent::PluginMentionsLoaded {
-                plugins: Some(plugins),
-            });
-        });
+        app_event_tx.send(AppEvent::PluginMentionsLoaded { plugins: None });
     }
 
     pub(super) fn submit_feedback(
