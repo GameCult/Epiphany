@@ -822,11 +822,12 @@ the next removable husk, not as keeper spine.
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests
-were deleted. CLI marketplace commands are disabled compatibility shells; MCP
-CLI construction no longer creates plugin managers; ChatGPT connector listing
-no longer merges plugin-provided apps; TUI plugin mentions no longer scan core
-plugins. Remaining `codex-plugin` references live in other Codex product crates
-or prompt/snapshot fixtures, not in the core runtime spine.
+were deleted. The CLI plugin marketplace compatibility shell is now deleted too:
+`codex plugin marketplace ...` no longer parses only to reject itself. MCP CLI
+construction no longer creates plugin managers; ChatGPT connector listing no
+longer merges plugin-provided apps; TUI plugin mentions no longer scan core
+plugins. Remaining plugin-shaped references are fossils to classify and cut, not
+keeper runtime spine.
 
 Codex Apps are now compatibility dust inside core. Core connector listing
 returns empty, app prompt instructions and app-rendering code were deleted,

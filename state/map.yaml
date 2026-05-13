@@ -323,6 +323,8 @@ current_status:
     `codex-utils-plugins` husk was deleted too: `$` / `@` mention sigils now
     live in their actual owners, plugin manifest skill namespacing is gone, and
     stale plugin/marketplace tests were removed instead of preserving
-    implementation fossils. MCP remains JSON-RPC at the edge; user-declared MCP
-    servers are the only runtime MCP authority.
+    implementation fossils. The disabled CLI plugin marketplace parser was
+    deleted as well: `codex plugin marketplace ...` no longer parses just to
+    reject itself. MCP remains JSON-RPC at the edge; user-declared MCP servers
+    are the only runtime MCP authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.
