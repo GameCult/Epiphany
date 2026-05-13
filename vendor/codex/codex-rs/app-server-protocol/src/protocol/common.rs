@@ -447,14 +447,6 @@ client_request_definitions! {
         params: v2::MarketplaceRemoveParams,
         response: v2::MarketplaceRemoveResponse,
     },
-    PluginList => "plugin/list" {
-        params: v2::PluginListParams,
-        response: v2::PluginListResponse,
-    },
-    PluginRead => "plugin/read" {
-        params: v2::PluginReadParams,
-        response: v2::PluginReadResponse,
-    },
     AppsList => "app/list" {
         params: v2::AppsListParams,
         response: v2::AppsListResponse,
@@ -510,14 +502,6 @@ client_request_definitions! {
     SkillsConfigWrite => "skills/config/write" {
         params: v2::SkillsConfigWriteParams,
         response: v2::SkillsConfigWriteResponse,
-    },
-    PluginInstall => "plugin/install" {
-        params: v2::PluginInstallParams,
-        response: v2::PluginInstallResponse,
-    },
-    PluginUninstall => "plugin/uninstall" {
-        params: v2::PluginUninstallParams,
-        response: v2::PluginUninstallResponse,
     },
     TurnStart => "turn/start" {
         params: v2::TurnStartParams,

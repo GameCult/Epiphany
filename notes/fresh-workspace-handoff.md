@@ -876,6 +876,13 @@ has ordinary app connector fields whose protocol shape mentions historical
 `plugin_display_names`; those are connector metadata compatibility, not plugin
 runtime authority.
 
+The app-server plugin JSON-RPC verbs are gone too. `plugin/list`,
+`plugin/read`, `plugin/install`, and `plugin/uninstall` are no longer
+`ClientRequest` variants, no longer dispatch through `codex_message_processor.rs`,
+and no longer have test-client helper senders. The old `Plugin*` data structs
+remain only as inert protocol-shape residue for orphaned plugin crates such as
+`core-plugins`; they are not live routes.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

@@ -53,10 +53,6 @@ use codex_app_server_protocol::McpResourceReadParams;
 use codex_app_server_protocol::McpServerToolCallParams;
 use codex_app_server_protocol::MockExperimentalMethodParams;
 use codex_app_server_protocol::ModelListParams;
-use codex_app_server_protocol::PluginInstallParams;
-use codex_app_server_protocol::PluginListParams;
-use codex_app_server_protocol::PluginReadParams;
-use codex_app_server_protocol::PluginUninstallParams;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ReviewStartParams;
 use codex_app_server_protocol::SendAddCreditsNudgeEmailParams;
@@ -563,42 +559,6 @@ impl McpProcess {
     ) -> anyhow::Result<i64> {
         let params = Some(serde_json::to_value(params)?);
         self.send_request("marketplace/remove", params).await
-    }
-
-    /// Send a `plugin/install` JSON-RPC request.
-    pub async fn send_plugin_install_request(
-        &mut self,
-        params: PluginInstallParams,
-    ) -> anyhow::Result<i64> {
-        let params = Some(serde_json::to_value(params)?);
-        self.send_request("plugin/install", params).await
-    }
-
-    /// Send a `plugin/uninstall` JSON-RPC request.
-    pub async fn send_plugin_uninstall_request(
-        &mut self,
-        params: PluginUninstallParams,
-    ) -> anyhow::Result<i64> {
-        let params = Some(serde_json::to_value(params)?);
-        self.send_request("plugin/uninstall", params).await
-    }
-
-    /// Send a `plugin/list` JSON-RPC request.
-    pub async fn send_plugin_list_request(
-        &mut self,
-        params: PluginListParams,
-    ) -> anyhow::Result<i64> {
-        let params = Some(serde_json::to_value(params)?);
-        self.send_request("plugin/list", params).await
-    }
-
-    /// Send a `plugin/read` JSON-RPC request.
-    pub async fn send_plugin_read_request(
-        &mut self,
-        params: PluginReadParams,
-    ) -> anyhow::Result<i64> {
-        let params = Some(serde_json::to_value(params)?);
-        self.send_request("plugin/read", params).await
     }
 
     /// Send an `mcpServerStatus/list` JSON-RPC request.

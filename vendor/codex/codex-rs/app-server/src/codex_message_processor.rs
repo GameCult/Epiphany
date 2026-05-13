@@ -107,11 +107,6 @@ use codex_app_server_protocol::MockExperimentalMethodResponse;
 use codex_app_server_protocol::ModelListParams;
 use codex_app_server_protocol::ModelListResponse;
 use codex_app_server_protocol::PermissionProfile as ApiPermissionProfile;
-use codex_app_server_protocol::PluginInstallParams;
-use codex_app_server_protocol::PluginListParams;
-use codex_app_server_protocol::PluginListResponse;
-use codex_app_server_protocol::PluginReadParams;
-use codex_app_server_protocol::PluginUninstallParams;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ReviewDelivery as ApiReviewDelivery;
 use codex_app_server_protocol::ReviewStartParams;
@@ -1015,28 +1010,12 @@ impl CodexMessageProcessor {
                 self.marketplace_remove(to_connection_request_id(request_id), params)
                     .await;
             }
-            ClientRequest::PluginList { request_id, params } => {
-                self.plugin_list(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::PluginRead { request_id, params } => {
-                self.plugin_read(to_connection_request_id(request_id), params)
-                    .await;
-            }
             ClientRequest::AppsList { request_id, params } => {
                 self.apps_list(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::SkillsConfigWrite { request_id, params } => {
                 self.skills_config_write(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::PluginInstall { request_id, params } => {
-                self.plugin_install(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::PluginUninstall { request_id, params } => {
-                self.plugin_uninstall(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::TurnStart { request_id, params } => {
@@ -6393,38 +6372,6 @@ impl CodexMessageProcessor {
         _params: MarketplaceAddParams,
     ) {
         self.send_codex_product_surface_disabled(request_id, "marketplace/add")
-            .await;
-    }
-
-    async fn plugin_list(&self, request_id: ConnectionRequestId, _params: PluginListParams) {
-        self.outgoing
-            .send_response(
-                request_id,
-                PluginListResponse {
-                    marketplaces: Vec::new(),
-                    marketplace_load_errors: Vec::new(),
-                    featured_plugin_ids: Vec::new(),
-                },
-            )
-            .await;
-    }
-
-    async fn plugin_read(&self, request_id: ConnectionRequestId, _params: PluginReadParams) {
-        self.send_codex_product_surface_disabled(request_id, "plugin/read")
-            .await;
-    }
-
-    async fn plugin_install(&self, request_id: ConnectionRequestId, _params: PluginInstallParams) {
-        self.send_codex_product_surface_disabled(request_id, "plugin/install")
-            .await;
-    }
-
-    async fn plugin_uninstall(
-        &self,
-        request_id: ConnectionRequestId,
-        _params: PluginUninstallParams,
-    ) {
-        self.send_codex_product_surface_disabled(request_id, "plugin/uninstall")
             .await;
     }
 

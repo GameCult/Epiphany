@@ -309,6 +309,11 @@ current_status:
     `codex-utils-plugins`. The TUI `/plugins` command and marketplace organ are
     now deleted too: no slash command, plugin popup module, plugin AppEvent
     variants, plugin background RPC helpers, plugin enablement queue, or
-    marketplace popup tests remain in `codex-tui`. MCP remains JSON-RPC at the
-    edge; user-declared MCP servers are the only runtime MCP authority.
+    marketplace popup tests remain in `codex-tui`. The app-server plugin JSON-RPC
+    route surface is no longer live either: `plugin/list`, `plugin/read`,
+    `plugin/install`, and `plugin/uninstall` were removed from the shared
+    `ClientRequest` protocol and from `codex_message_processor.rs`; only inert
+    legacy protocol structs remain for orphaned plugin crates. MCP remains
+    JSON-RPC at the edge; user-declared MCP servers are the only runtime MCP
+    authority.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.
