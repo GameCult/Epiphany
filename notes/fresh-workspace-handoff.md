@@ -698,6 +698,17 @@ longer owns that coordinator policy. The root `codex_message_processor.rs`
 imports for the evacuated Epiphany protocol/policy registry were cut as proof
 that those names no longer belong to the host file.
 
+The full `thread/epiphany/view` projection has now followed. App-server still
+parses the thread id, loads live/stored thread state, registers watcher input,
+fetches token usage, and obtains the runtime-spine store path. The actual lens
+selection, freshness/pressure/reorient/CRRC/roles/coordinator composition,
+scene/planning/job projection, and `ThreadEpiphanyViewResponse` construction
+now live in `epiphany-codex-bridge::view`. `epiphany_read_routes.rs` is about
+722 lines after this cut. The remaining read-route bodies are mostly individual
+legacy read verbs (`roleResult`, `freshness`, `context`, `graphQuery`,
+`reorientResult`, `retrieve`, `distill`, `propose`) plus host loading and
+response/error shaping.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
