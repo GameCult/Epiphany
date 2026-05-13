@@ -9,25 +9,15 @@ use codex_protocol::ThreadId;
 use epiphany_codex_bridge::context::map_epiphany_context;
 use epiphany_codex_bridge::context::map_epiphany_graph_query;
 use epiphany_codex_bridge::context::map_epiphany_planning;
+use epiphany_codex_bridge::coordinator::derive_epiphany_coordinator_status;
 use epiphany_codex_bridge::coordinator::epiphany_reorient_finding_already_accepted;
-use epiphany_codex_bridge::coordinator::epiphany_role_finding_already_accepted;
-use epiphany_codex_bridge::coordinator::epiphany_role_finding_cites_implementation_evidence;
-use epiphany_codex_bridge::coordinator::epiphany_verification_finding_allows_implementation;
-use epiphany_codex_bridge::coordinator::epiphany_verification_finding_covers_current_modeling;
-use epiphany_codex_bridge::coordinator::epiphany_verification_finding_needs_evidence;
-use epiphany_codex_bridge::coordinator::implementation_evidence_after_role_finding;
-use epiphany_codex_bridge::coordinator::map_epiphany_coordinator;
+use epiphany_codex_bridge::coordinator::map_epiphany_coordinator_view;
 use epiphany_codex_bridge::coordinator::map_epiphany_crrc_recommendation;
 use epiphany_codex_bridge::coordinator::map_epiphany_roles;
 use epiphany_codex_bridge::coordinator::render_epiphany_roles_note;
-use epiphany_codex_bridge::coordinator::role_finding_accepted_after;
 use epiphany_codex_bridge::jobs::map_epiphany_jobs;
-use epiphany_codex_bridge::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
-use epiphany_codex_bridge::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::launch::render_epiphany_coordinator_note;
-use epiphany_codex_bridge::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::reorient::map_epiphany_reorient;
@@ -256,149 +246,26 @@ impl CodexMessageProcessor {
             if let (Some(pressure), Some(recommendation), Some(roles)) =
                 (pressure.as_ref(), recommendation.as_ref(), roles.clone())
             {
-                let (modeling_result_status, modeling_finding, _) =
-                    if let Some(state) = thread.epiphany_state.as_ref() {
-                        load_epiphany_role_result_snapshot(
-                            state,
-                            runtime_store_path.as_deref(),
-                            ThreadEpiphanyRoleId::Modeling,
-                            EPIPHANY_MODELING_ROLE_BINDING_ID,
-                        )
-                        .await
-                    } else {
-                        (
-                            ThreadEpiphanyRoleResultStatus::MissingState,
-                            None,
-                            "No authoritative Epiphany state exists for this thread.".to_string(),
-                        )
-                    };
-                let modeling_result_accepted = modeling_finding.as_ref().is_some_and(|finding| {
-                    thread
-                        .epiphany_state
-                        .as_ref()
-                        .is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
-                });
-                let modeling_result_reviewable = modeling_finding
-                    .as_ref()
-                    .is_some_and(epiphany_modeling_finding_has_reviewable_state_patch);
-                let (verification_result_status, verification_finding, _) =
-                    if let Some(state) = thread.epiphany_state.as_ref() {
-                        load_epiphany_role_result_snapshot(
-                            state,
-                            runtime_store_path.as_deref(),
-                            ThreadEpiphanyRoleId::Verification,
-                            EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
-                        )
-                        .await
-                    } else {
-                        (
-                            ThreadEpiphanyRoleResultStatus::MissingState,
-                            None,
-                            "No authoritative Epiphany state exists for this thread.".to_string(),
-                        )
-                    };
-                let verification_result_accepted =
-                    verification_finding.as_ref().is_some_and(|finding| {
-                        thread.epiphany_state.as_ref().is_some_and(|state| {
-                            epiphany_role_finding_already_accepted(state, finding)
-                        })
-                    });
-                let verification_result_covers_current_modeling =
-                    thread.epiphany_state.as_ref().is_none_or(|state| {
-                        epiphany_verification_finding_covers_current_modeling(
-                            state,
-                            modeling_result_accepted,
-                            modeling_finding.as_ref(),
-                            verification_finding.as_ref(),
-                        )
-                    });
-                let modeling_result_accepted_after_verification =
-                    thread.epiphany_state.as_ref().is_some_and(|state| {
-                        role_finding_accepted_after(
-                            state,
-                            modeling_finding.as_ref(),
-                            verification_finding.as_ref(),
-                        )
-                    });
-                let implementation_evidence_after_verification =
-                    thread.epiphany_state.as_ref().is_some_and(|state| {
-                        implementation_evidence_after_role_finding(
-                            state,
-                            verification_finding.as_ref(),
-                        )
-                    });
-                let verification_result_cites_implementation_evidence =
-                    thread.epiphany_state.as_ref().is_some_and(|state| {
-                        epiphany_role_finding_cites_implementation_evidence(
-                            state,
-                            verification_finding.as_ref(),
-                        )
-                    });
-                let verification_result_allows_implementation = verification_result_accepted
-                    && verification_finding
-                        .as_ref()
-                        .is_some_and(epiphany_verification_finding_allows_implementation);
-                let verification_result_needs_evidence = verification_result_accepted
-                    && verification_finding
-                        .as_ref()
-                        .is_some_and(epiphany_verification_finding_needs_evidence);
-                let source_signals = ThreadEpiphanyCoordinatorSignals {
-                    pressure_level: pressure.level,
-                    should_prepare_compaction: pressure.should_prepare_compaction,
-                    reorient_action: reorient_decision
-                        .as_ref()
-                        .map(|decision| decision.action)
-                        .unwrap_or(ThreadEpiphanyReorientAction::Resume),
-                    crrc_action: recommendation.action,
-                    modeling_result_status,
-                    verification_result_status,
-                    reorient_result_status,
-                };
-                let coordinator = map_epiphany_coordinator(
+                let status = derive_epiphany_coordinator_status(
+                    thread.epiphany_state.as_ref(),
+                    runtime_store_path.as_deref(),
                     reorient_state_status,
-                    checkpoint_present,
                     pressure,
                     recommendation,
-                    &roles,
-                    &source_signals,
-                    modeling_result_accepted,
-                    modeling_result_reviewable,
-                    modeling_result_accepted_after_verification,
-                    implementation_evidence_after_verification,
-                    verification_result_cites_implementation_evidence,
-                    verification_result_covers_current_modeling,
-                    verification_result_accepted,
-                    verification_result_allows_implementation,
-                    verification_result_needs_evidence,
-                    reorient_finding_accepted,
-                );
-                let note = render_epiphany_coordinator_note(
-                    recommendation.action,
-                    pressure.level,
-                    modeling_result_status,
-                    verification_result_status,
-                    reorient_result_status,
-                    coordinator.action,
-                );
-                Some(ThreadEpiphanyViewCoordinator {
-                    thread_id: thread_id.clone(),
-                    source: if loaded {
-                        ThreadEpiphanyRolesSource::Live
-                    } else {
-                        ThreadEpiphanyRolesSource::Stored
-                    },
-                    state_status: reorient_state_status,
-                    state_revision,
-                    action: coordinator.action,
-                    target_role: coordinator.target_role,
-                    recommended_scene_action: coordinator.recommended_scene_action,
-                    requires_review: coordinator.requires_review,
-                    can_auto_run: coordinator.can_auto_run,
-                    reason: coordinator.reason,
-                    source_signals,
                     roles,
-                    note,
-                })
+                    reorient_decision.as_ref(),
+                    reorient_result_status,
+                    reorient_finding.as_ref(),
+                    checkpoint_present,
+                )
+                .await;
+                Some(map_epiphany_coordinator_view(
+                    thread_id.clone(),
+                    loaded,
+                    reorient_state_status,
+                    state_revision,
+                    status,
+                ))
             } else {
                 None
             }

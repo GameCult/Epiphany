@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use codex_app_server_protocol::ServerNotification;
-use codex_app_server_protocol::ThreadEpiphanyCoordinatorSignals;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
-use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_core::CodexThread;
@@ -13,32 +11,21 @@ use codex_protocol::protocol::Op;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use codex_protocol::user_input::UserInput as CoreInputItem;
 use epiphany_codex_bridge::coordinator::EpiphanyCoordinatorAutomationAction;
+use epiphany_codex_bridge::coordinator::derive_epiphany_coordinator_status;
 use epiphany_codex_bridge::coordinator::epiphany_reorient_finding_already_accepted;
-use epiphany_codex_bridge::coordinator::epiphany_role_finding_already_accepted;
-use epiphany_codex_bridge::coordinator::epiphany_role_finding_cites_implementation_evidence;
-use epiphany_codex_bridge::coordinator::epiphany_verification_finding_allows_implementation;
-use epiphany_codex_bridge::coordinator::epiphany_verification_finding_covers_current_modeling;
-use epiphany_codex_bridge::coordinator::epiphany_verification_finding_needs_evidence;
-use epiphany_codex_bridge::coordinator::implementation_evidence_after_role_finding;
-use epiphany_codex_bridge::coordinator::map_epiphany_coordinator;
 use epiphany_codex_bridge::coordinator::map_epiphany_crrc_recommendation;
 use epiphany_codex_bridge::coordinator::map_epiphany_roles;
-use epiphany_codex_bridge::coordinator::role_finding_accepted_after;
 use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation_action;
 use epiphany_codex_bridge::jobs::map_epiphany_jobs;
-use epiphany_codex_bridge::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
-use epiphany_codex_bridge::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
-use epiphany_codex_bridge::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::reorient::map_epiphany_freshness;
 use epiphany_codex_bridge::reorient::map_epiphany_reorient;
 use epiphany_codex_bridge::runtime_results::load_epiphany_reorient_result_snapshot;
-use epiphany_codex_bridge::runtime_results::load_epiphany_role_result_snapshot;
 use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -116,82 +103,24 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         reorient_result_status,
         reorient_job.as_ref(),
     );
-    let (modeling_result_status, modeling_finding, _) = load_epiphany_role_result_snapshot(
-        &state,
+    let coordinator = derive_epiphany_coordinator_status(
+        Some(&state),
         Some(runtime_store_path.as_path()),
-        ThreadEpiphanyRoleId::Modeling,
-        EPIPHANY_MODELING_ROLE_BINDING_ID,
-    )
-    .await;
-    let modeling_result_accepted = modeling_finding
-        .as_ref()
-        .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
-    let modeling_result_reviewable = modeling_finding
-        .as_ref()
-        .is_some_and(epiphany_modeling_finding_has_reviewable_state_patch);
-    let (verification_result_status, verification_finding, _) = load_epiphany_role_result_snapshot(
-        &state,
-        Some(runtime_store_path.as_path()),
-        ThreadEpiphanyRoleId::Verification,
-        EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
-    )
-    .await;
-    let verification_result_accepted = verification_finding
-        .as_ref()
-        .is_some_and(|finding| epiphany_role_finding_already_accepted(&state, finding));
-    let verification_result_covers_current_modeling =
-        epiphany_verification_finding_covers_current_modeling(
-            &state,
-            modeling_result_accepted,
-            modeling_finding.as_ref(),
-            verification_finding.as_ref(),
-        );
-    let modeling_result_accepted_after_verification = role_finding_accepted_after(
-        &state,
-        modeling_finding.as_ref(),
-        verification_finding.as_ref(),
-    );
-    let implementation_evidence_after_verification =
-        implementation_evidence_after_role_finding(&state, verification_finding.as_ref());
-    let verification_result_cites_implementation_evidence =
-        epiphany_role_finding_cites_implementation_evidence(&state, verification_finding.as_ref());
-    let verification_result_allows_implementation = verification_result_accepted
-        && verification_finding
-            .as_ref()
-            .is_some_and(epiphany_verification_finding_allows_implementation);
-    let verification_result_needs_evidence = verification_result_accepted
-        && verification_finding
-            .as_ref()
-            .is_some_and(epiphany_verification_finding_needs_evidence);
-    let source_signals = ThreadEpiphanyCoordinatorSignals {
-        pressure_level: pressure.level,
-        should_prepare_compaction: pressure.should_prepare_compaction,
-        reorient_action: reorient_decision.action,
-        crrc_action: crrc_recommendation.action,
-        modeling_result_status,
-        verification_result_status,
-        reorient_result_status,
-    };
-    let coordinator = map_epiphany_coordinator(
         state_status,
-        state.investigation_checkpoint.as_ref().is_some(),
         &pressure,
         &crrc_recommendation,
-        &roles,
-        &source_signals,
-        modeling_result_accepted,
-        modeling_result_reviewable,
-        modeling_result_accepted_after_verification,
-        implementation_evidence_after_verification,
-        verification_result_cites_implementation_evidence,
-        verification_result_covers_current_modeling,
-        verification_result_accepted,
-        verification_result_allows_implementation,
-        verification_result_needs_evidence,
-        reorient_finding_accepted,
-    );
+        roles,
+        Some(&reorient_decision),
+        reorient_result_status,
+        reorient_finding.as_ref(),
+        state.investigation_checkpoint.as_ref().is_some(),
+    )
+    .await;
 
-    match select_epiphany_coordinator_automation_action(&coordinator, force_checkpoint_compaction) {
+    match select_epiphany_coordinator_automation_action(
+        &coordinator.decision,
+        force_checkpoint_compaction,
+    ) {
         EpiphanyCoordinatorAutomationAction::None => {}
         EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient => {
             if let Err(err) = thread.submit(Op::Compact).await {

@@ -687,6 +687,17 @@ adapter consolidation, not a new architectural throne: app-server still owns
 JSON-RPC response shape and watcher/thread-view details while the bridge owns
 route-independent Epiphany work.
 
+The coordinator projection cut has also landed. The duplicated modeling /
+verification / reorient acceptance and source-signal derivation that lived in
+both `epiphany_read_routes.rs` and `epiphany_automation.rs` now lives in
+`epiphany-codex-bridge::coordinator::derive_epiphany_coordinator_status`, with
+`map_epiphany_coordinator_view` shaping the protocol view. App-server still
+loads live thread state, watcher snapshots, token pressure, and runtime-store
+paths, then emits JSON-RPC responses or safe-boundary notifications; it no
+longer owns that coordinator policy. The root `codex_message_processor.rs`
+imports for the evacuated Epiphany protocol/policy registry were cut as proof
+that those names no longer belong to the host file.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

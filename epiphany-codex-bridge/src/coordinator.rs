@@ -16,7 +16,9 @@ use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleLane;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
+use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanySceneAction;
+use codex_app_server_protocol::ThreadEpiphanyViewCoordinator;
 use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
 use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
@@ -56,8 +58,12 @@ use crate::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
 use crate::launch::EPIPHANY_REORIENT_OWNER_ROLE;
 use crate::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use crate::launch::epiphany_role_label;
+use crate::launch::render_epiphany_coordinator_note;
+use crate::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
+use crate::runtime_results::load_epiphany_role_result_snapshot;
 
 use std::collections::HashSet;
+use std::path::Path;
 
 pub fn map_epiphany_crrc_recommendation(
     loaded: bool,
@@ -172,6 +178,176 @@ pub struct EpiphanyCoordinatorDecision {
     pub requires_review: bool,
     pub can_auto_run: bool,
     pub reason: String,
+}
+
+pub struct EpiphanyCoordinatorStatus {
+    pub decision: EpiphanyCoordinatorDecision,
+    pub source_signals: ThreadEpiphanyCoordinatorSignals,
+    pub roles: Vec<ThreadEpiphanyRoleLane>,
+    pub note: String,
+    pub modeling_result_accepted: bool,
+    pub verification_result_accepted: bool,
+    pub reorient_finding_accepted: bool,
+}
+
+pub async fn derive_epiphany_coordinator_status(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store_path: Option<&Path>,
+    state_status: ThreadEpiphanyReorientStateStatus,
+    pressure: &ThreadEpiphanyPressure,
+    recommendation: &ThreadEpiphanyCrrcRecommendation,
+    roles: Vec<ThreadEpiphanyRoleLane>,
+    reorient_decision: Option<&ThreadEpiphanyReorientDecision>,
+    reorient_result_status: ThreadEpiphanyReorientResultStatus,
+    reorient_finding: Option<&ThreadEpiphanyReorientFinding>,
+    checkpoint_present: bool,
+) -> EpiphanyCoordinatorStatus {
+    let (modeling_result_status, modeling_finding, _) = if let Some(state) = state {
+        load_epiphany_role_result_snapshot(
+            state,
+            runtime_store_path,
+            ThreadEpiphanyRoleId::Modeling,
+            EPIPHANY_MODELING_ROLE_BINDING_ID,
+        )
+        .await
+    } else {
+        (
+            ThreadEpiphanyRoleResultStatus::MissingState,
+            None,
+            "No authoritative Epiphany state exists for this thread.".to_string(),
+        )
+    };
+    let modeling_result_accepted = modeling_finding.as_ref().is_some_and(|finding| {
+        state.is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
+    });
+    let modeling_result_reviewable = modeling_finding
+        .as_ref()
+        .is_some_and(epiphany_modeling_finding_has_reviewable_state_patch);
+    let (verification_result_status, verification_finding, _) = if let Some(state) = state {
+        load_epiphany_role_result_snapshot(
+            state,
+            runtime_store_path,
+            ThreadEpiphanyRoleId::Verification,
+            EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
+        )
+        .await
+    } else {
+        (
+            ThreadEpiphanyRoleResultStatus::MissingState,
+            None,
+            "No authoritative Epiphany state exists for this thread.".to_string(),
+        )
+    };
+    let verification_result_accepted = verification_finding.as_ref().is_some_and(|finding| {
+        state.is_some_and(|state| epiphany_role_finding_already_accepted(state, finding))
+    });
+    let verification_result_covers_current_modeling = state.is_none_or(|state| {
+        epiphany_verification_finding_covers_current_modeling(
+            state,
+            modeling_result_accepted,
+            modeling_finding.as_ref(),
+            verification_finding.as_ref(),
+        )
+    });
+    let modeling_result_accepted_after_verification = state.is_some_and(|state| {
+        role_finding_accepted_after(
+            state,
+            modeling_finding.as_ref(),
+            verification_finding.as_ref(),
+        )
+    });
+    let implementation_evidence_after_verification = state.is_some_and(|state| {
+        implementation_evidence_after_role_finding(state, verification_finding.as_ref())
+    });
+    let verification_result_cites_implementation_evidence = state.is_some_and(|state| {
+        epiphany_role_finding_cites_implementation_evidence(state, verification_finding.as_ref())
+    });
+    let verification_result_allows_implementation = verification_result_accepted
+        && verification_finding
+            .as_ref()
+            .is_some_and(epiphany_verification_finding_allows_implementation);
+    let verification_result_needs_evidence = verification_result_accepted
+        && verification_finding
+            .as_ref()
+            .is_some_and(epiphany_verification_finding_needs_evidence);
+    let reorient_finding_accepted = reorient_finding.is_some_and(|finding| {
+        state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
+    });
+    let source_signals = ThreadEpiphanyCoordinatorSignals {
+        pressure_level: pressure.level,
+        should_prepare_compaction: pressure.should_prepare_compaction,
+        reorient_action: reorient_decision
+            .map(|decision| decision.action)
+            .unwrap_or(ThreadEpiphanyReorientAction::Resume),
+        crrc_action: recommendation.action,
+        modeling_result_status,
+        verification_result_status,
+        reorient_result_status,
+    };
+    let decision = map_epiphany_coordinator(
+        state_status,
+        checkpoint_present,
+        pressure,
+        recommendation,
+        &roles,
+        &source_signals,
+        modeling_result_accepted,
+        modeling_result_reviewable,
+        modeling_result_accepted_after_verification,
+        implementation_evidence_after_verification,
+        verification_result_cites_implementation_evidence,
+        verification_result_covers_current_modeling,
+        verification_result_accepted,
+        verification_result_allows_implementation,
+        verification_result_needs_evidence,
+        reorient_finding_accepted,
+    );
+    let note = render_epiphany_coordinator_note(
+        recommendation.action,
+        pressure.level,
+        modeling_result_status,
+        verification_result_status,
+        reorient_result_status,
+        decision.action,
+    );
+
+    EpiphanyCoordinatorStatus {
+        decision,
+        source_signals,
+        roles,
+        note,
+        modeling_result_accepted,
+        verification_result_accepted,
+        reorient_finding_accepted,
+    }
+}
+
+pub fn map_epiphany_coordinator_view(
+    thread_id: String,
+    loaded: bool,
+    state_status: ThreadEpiphanyReorientStateStatus,
+    state_revision: Option<u64>,
+    status: EpiphanyCoordinatorStatus,
+) -> ThreadEpiphanyViewCoordinator {
+    ThreadEpiphanyViewCoordinator {
+        thread_id,
+        source: if loaded {
+            ThreadEpiphanyRolesSource::Live
+        } else {
+            ThreadEpiphanyRolesSource::Stored
+        },
+        state_status,
+        state_revision,
+        action: status.decision.action,
+        target_role: status.decision.target_role,
+        recommended_scene_action: status.decision.recommended_scene_action,
+        requires_review: status.decision.requires_review,
+        can_auto_run: status.decision.can_auto_run,
+        reason: status.decision.reason,
+        source_signals: status.source_signals,
+        roles: status.roles,
+        note: status.note,
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -715,9 +891,7 @@ pub fn epiphany_verification_finding_allows_implementation(
             .is_some_and(|verdict| verdict.eq_ignore_ascii_case("pass"))
 }
 
-pub fn epiphany_verification_finding_needs_evidence(
-    finding: &ThreadEpiphanyRoleFinding,
-) -> bool {
+pub fn epiphany_verification_finding_needs_evidence(finding: &ThreadEpiphanyRoleFinding) -> bool {
     finding.role_id == ThreadEpiphanyRoleId::Verification
         && finding
             .verdict
