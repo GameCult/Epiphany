@@ -596,6 +596,13 @@ initialize-session-open-job sequence. That is a small cut, but a real ownership
 move: native runtime lifecycle belongs to the runtime spine, not the Codex
 thread wrapper.
 
+The job-launch plan has now followed it. `epiphany-core` owns
+`plan_runtime_spine_heartbeat_launch`, which validates heartbeat launch
+requests, reserved binding ids, output contract/document consistency, active
+runtime-link conflicts, and projects the durable job binding plus runtime link.
+Vendored `CodexThread` now performs only revision checking, persistence
+validation, and rollout/session writeback around that native plan.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

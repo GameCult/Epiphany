@@ -165,6 +165,12 @@ call it while the app-server compatibility route survives, but the
 initialize-runtime, ensure-session, and create-job sequence is now native
 runtime-spine machinery rather than Codex thread machinery.
 
+The heartbeat launch plan is native as well:
+`epiphany-core::plan_runtime_spine_heartbeat_launch` validates the launch
+contract and active runtime-link conflicts, then returns the durable job binding
+and runtime link. Vendored `CodexThread` is still a persistence adapter for the
+compatibility route, not the owner of that state mechanics.
+
 The bad news is useful: the current spine still drags in `codex-api` and its
 large transport dependency stack. That is tolerable as a sealed compatibility
 reliquary, but not as the final shape. The next purification should shrink the

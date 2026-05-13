@@ -57,8 +57,10 @@ use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::open_runtime_spine_heartbeat_job;
+use epiphany_core::plan_runtime_spine_heartbeat_launch;
 use rmcp::model::ReadResourceRequestParams;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -491,8 +493,6 @@ impl CodexThread {
         &self,
         request: EpiphanyJobLaunchRequest,
     ) -> CodexResult<EpiphanyJobLaunchResult> {
-        validate_epiphany_job_launch_request(&request)?;
-
         let current_state = self
             .codex
             .session
@@ -507,10 +507,27 @@ impl CodexThread {
                 current_state.revision
             )));
         }
-        validate_epiphany_job_launch_target(&current_state, &request)?;
 
         let launcher_job_id = format!("epiphany-heartbeat-launch-{}", Uuid::new_v4());
         let backend_job_id = Uuid::new_v4().to_string();
+        let launch_plan = plan_runtime_spine_heartbeat_launch(
+            &current_state,
+            RuntimeSpineHeartbeatLaunchPlanOptions {
+                binding_id: request.binding_id.clone(),
+                kind: request.kind,
+                scope: request.scope.clone(),
+                owner_role: request.owner_role.clone(),
+                authority_scope: request.authority_scope.clone(),
+                linked_subgoal_ids: request.linked_subgoal_ids.clone(),
+                linked_graph_node_ids: request.linked_graph_node_ids.clone(),
+                instruction: request.instruction.clone(),
+                launch_document: request.launch_document.clone(),
+                output_contract_id: request.output_contract_id.clone(),
+                max_runtime_seconds: request.max_runtime_seconds,
+                runtime_job_id: backend_job_id.clone(),
+            },
+        )
+        .map_err(|err| CodexErr::InvalidRequest(err.to_string()))?;
         let runtime_store = self.epiphany_runtime_spine_store_path().await;
         open_epiphany_runtime_spine_job(
             runtime_store.as_path(),
@@ -518,19 +535,16 @@ impl CodexThread {
             &request,
             backend_job_id.as_str(),
         )?;
-        let replacement_binding = build_epiphany_job_launch_binding(&request);
-        let replacement_runtime_link =
-            build_epiphany_runtime_link(&request, backend_job_id.as_str());
         let next_job_bindings = replace_or_append_epiphany_job_binding(
             current_state.job_bindings.clone(),
-            replacement_binding,
+            launch_plan.binding,
         );
 
         let validation_errors = epiphany_state_update_validation_errors(
             &current_state,
             &EpiphanyStateUpdate {
                 job_bindings: Some(next_job_bindings.clone()),
-                runtime_links: vec![replacement_runtime_link.clone()],
+                runtime_links: vec![launch_plan.runtime_link.clone()],
                 ..Default::default()
             },
         );
@@ -545,7 +559,7 @@ impl CodexThread {
             .epiphany_update_state(EpiphanyStateUpdate {
                 expected_revision: request.expected_revision,
                 job_bindings: Some(next_job_bindings),
-                runtime_links: vec![replacement_runtime_link],
+                runtime_links: vec![launch_plan.runtime_link],
                 ..Default::default()
             })
             .await?;
@@ -746,124 +760,6 @@ impl CodexThread {
         }
 
         Ok(*guard)
-    }
-}
-
-fn validate_epiphany_job_launch_request(request: &EpiphanyJobLaunchRequest) -> CodexResult<()> {
-    if request.binding_id.trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch binding_id must be non-empty".to_string(),
-        ));
-    }
-    if matches!(
-        request.binding_id.as_str(),
-        "retrieval-index" | "graph-remap" | "verification"
-    ) {
-        return Err(CodexErr::InvalidRequest(format!(
-            "epiphany job launch binding_id {:?} is reserved for a derived built-in slot",
-            request.binding_id
-        )));
-    }
-    if request.kind != EpiphanyJobKind::Specialist {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch currently supports only specialist heartbeat turns".to_string(),
-        ));
-    }
-    if request.scope.trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch scope must be non-empty".to_string(),
-        ));
-    }
-    if request.owner_role.trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch owner_role must be non-empty".to_string(),
-        ));
-    }
-    if request.authority_scope.trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch authority_scope must be non-empty".to_string(),
-        ));
-    }
-    if request.instruction.trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch instruction must be non-empty".to_string(),
-        ));
-    }
-    if request.launch_document.thread_id().trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch document must include a thread id".to_string(),
-        ));
-    }
-    if request.output_contract_id.trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch output_contract_id must be non-empty".to_string(),
-        ));
-    }
-    if request.output_contract_id != request.launch_document.output_contract_id() {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch output_contract_id must match the typed launch document"
-                .to_string(),
-        ));
-    }
-    if let Some(max_runtime_seconds) = request.max_runtime_seconds
-        && max_runtime_seconds == 0
-    {
-        return Err(CodexErr::InvalidRequest(
-            "epiphany job launch max_runtime_seconds must be >= 1".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_epiphany_job_launch_target(
-    state: &EpiphanyThreadState,
-    request: &EpiphanyJobLaunchRequest,
-) -> CodexResult<()> {
-    let existing_binding = state
-        .job_bindings
-        .iter()
-        .find(|binding| binding.id == request.binding_id);
-    let existing_runtime_link = state.runtime_links.iter().find(|link| {
-        link.binding_id == request.binding_id && !link.runtime_job_id.trim().is_empty()
-    });
-    if existing_runtime_link.is_some()
-        && existing_binding.is_none_or(|binding| binding.blocking_reason.is_none())
-    {
-        return Err(CodexErr::InvalidRequest(format!(
-            "epiphany job binding {:?} is already bound to an active heartbeat turn; interrupt it before launching a replacement",
-            request.binding_id
-        )));
-    }
-    Ok(())
-}
-
-fn build_epiphany_job_launch_binding(request: &EpiphanyJobLaunchRequest) -> EpiphanyJobBinding {
-    EpiphanyJobBinding {
-        id: request.binding_id.clone(),
-        kind: request.kind,
-        scope: request.scope.clone(),
-        owner_role: request.owner_role.clone(),
-        authority_scope: Some(request.authority_scope.clone()),
-        linked_subgoal_ids: request.linked_subgoal_ids.clone(),
-        linked_graph_node_ids: request.linked_graph_node_ids.clone(),
-        blocking_reason: None,
-    }
-}
-
-fn build_epiphany_runtime_link(
-    request: &EpiphanyJobLaunchRequest,
-    runtime_job_id: &str,
-) -> EpiphanyRuntimeLink {
-    EpiphanyRuntimeLink {
-        id: format!("runtime-link-{}-{runtime_job_id}", request.binding_id),
-        binding_id: request.binding_id.clone(),
-        surface: "jobLaunch".to_string(),
-        role_id: request.owner_role.clone(),
-        authority_scope: request.authority_scope.clone(),
-        runtime_job_id: runtime_job_id.to_string(),
-        runtime_result_id: None,
-        linked_subgoal_ids: request.linked_subgoal_ids.clone(),
-        linked_graph_node_ids: request.linked_graph_node_ids.clone(),
     }
 }
 
