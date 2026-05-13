@@ -895,6 +895,15 @@ own marketplace/store/loader code. Remaining plugin-shaped imports are narrower
 telemetry and skill-namespace compatibility residues, not the old marketplace
 runtime.
 
+Plugin telemetry has now been cut from `codex-analytics`. Analytics no longer
+tracks plugin used/installed/uninstalled/enabled/disabled events, keeps plugin
+dedupe state, or depends on `codex-plugin`; the unreferenced `codex-plugin`
+crate is deleted from the vendored workspace. Verified with
+`cargo check -p codex-analytics` and
+`cargo test -p codex-analytics --tests --no-run`. Remaining `.codex-plugin`
+hits are stale tests and the narrower `codex-utils-plugins` skill-namespace
+utility, not live marketplace machinery.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

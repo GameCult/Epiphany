@@ -7,7 +7,6 @@ use codex_app_server_protocol::InitializeParams;
 use codex_app_server_protocol::JSONRPCErrorError;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
-use codex_plugin::PluginTelemetryMetadata;
 use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::Personality;
@@ -302,8 +301,6 @@ pub(crate) enum CustomAnalyticsFact {
     AppMentioned(AppMentionedInput),
     AppUsed(AppUsedInput),
     HookRun(HookRunInput),
-    PluginUsed(PluginUsedInput),
-    PluginStateChanged(PluginStateChangedInput),
 }
 
 pub(crate) struct SkillInvokedInput {
@@ -330,22 +327,4 @@ pub struct HookRunFact {
     pub event_name: HookEventName,
     pub hook_source: HookSource,
     pub status: HookRunStatus,
-}
-
-pub(crate) struct PluginUsedInput {
-    pub tracking: TrackEventsContext,
-    pub plugin: PluginTelemetryMetadata,
-}
-
-pub(crate) struct PluginStateChangedInput {
-    pub plugin: PluginTelemetryMetadata,
-    pub state: PluginState,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum PluginState {
-    Installed,
-    Uninstalled,
-    Enabled,
-    Disabled,
 }

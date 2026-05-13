@@ -12,8 +12,6 @@ use crate::facts::AppUsedInput;
 use crate::facts::CustomAnalyticsFact;
 use crate::facts::HookRunFact;
 use crate::facts::HookRunInput;
-use crate::facts::PluginState;
-use crate::facts::PluginStateChangedInput;
 use crate::facts::SkillInvocation;
 use crate::facts::SkillInvokedInput;
 use crate::facts::SubAgentThreadStartedInput;
@@ -29,7 +27,6 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_login::AuthManager;
 use codex_login::default_client::create_client;
-use codex_plugin::PluginTelemetryMetadata;
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -44,7 +41,6 @@ const ANALYTICS_EVENT_DEDUPE_MAX_KEYS: usize = 4096;
 pub(crate) struct AnalyticsEventsQueue {
     pub(crate) sender: mpsc::Sender<AnalyticsFact>,
     pub(crate) app_used_emitted_keys: Arc<Mutex<HashSet<(String, String)>>>,
-    pub(crate) plugin_used_emitted_keys: Arc<Mutex<HashSet<(String, String)>>>,
 }
 
 #[derive(Clone)]
@@ -67,7 +63,6 @@ impl AnalyticsEventsQueue {
         Self {
             sender,
             app_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
-            plugin_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 
@@ -94,21 +89,6 @@ impl AnalyticsEventsQueue {
             emitted.clear();
         }
         emitted.insert((tracking.turn_id.clone(), connector_id.clone()))
-    }
-
-    pub(crate) fn should_enqueue_plugin_used(
-        &self,
-        tracking: &TrackEventsContext,
-        plugin: &PluginTelemetryMetadata,
-    ) -> bool {
-        let mut emitted = self
-            .plugin_used_emitted_keys
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if emitted.len() >= ANALYTICS_EVENT_DEDUPE_MAX_KEYS {
-            emitted.clear();
-        }
-        emitted.insert((tracking.turn_id.clone(), plugin.plugin_id.as_key()))
     }
 }
 
@@ -204,15 +184,6 @@ impl AnalyticsEventsClient {
         )));
     }
 
-    pub fn track_plugin_used(&self, tracking: TrackEventsContext, plugin: PluginTelemetryMetadata) {
-        if !self.queue.should_enqueue_plugin_used(&tracking, &plugin) {
-            return;
-        }
-        self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::PluginUsed(
-            crate::facts::PluginUsedInput { tracking, plugin },
-        )));
-    }
-
     pub fn track_compaction(&self, event: crate::facts::CodexCompactionEvent) {
         self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::Compaction(
             Box::new(event),
@@ -229,42 +200,6 @@ impl AnalyticsEventsClient {
         self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::TurnTokenUsage(
             Box::new(fact),
         )));
-    }
-
-    pub fn track_plugin_installed(&self, plugin: PluginTelemetryMetadata) {
-        self.record_fact(AnalyticsFact::Custom(
-            CustomAnalyticsFact::PluginStateChanged(PluginStateChangedInput {
-                plugin,
-                state: PluginState::Installed,
-            }),
-        ));
-    }
-
-    pub fn track_plugin_uninstalled(&self, plugin: PluginTelemetryMetadata) {
-        self.record_fact(AnalyticsFact::Custom(
-            CustomAnalyticsFact::PluginStateChanged(PluginStateChangedInput {
-                plugin,
-                state: PluginState::Uninstalled,
-            }),
-        ));
-    }
-
-    pub fn track_plugin_enabled(&self, plugin: PluginTelemetryMetadata) {
-        self.record_fact(AnalyticsFact::Custom(
-            CustomAnalyticsFact::PluginStateChanged(PluginStateChangedInput {
-                plugin,
-                state: PluginState::Enabled,
-            }),
-        ));
-    }
-
-    pub fn track_plugin_disabled(&self, plugin: PluginTelemetryMetadata) {
-        self.record_fact(AnalyticsFact::Custom(
-            CustomAnalyticsFact::PluginStateChanged(PluginStateChangedInput {
-                plugin,
-                state: PluginState::Disabled,
-            }),
-        ));
     }
 
     pub(crate) fn record_fact(&self, input: AnalyticsFact) {

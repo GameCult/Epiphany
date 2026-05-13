@@ -4,8 +4,6 @@ use crate::events::CodexAppServerClientMetadata;
 use crate::events::CodexAppUsedEventRequest;
 use crate::events::CodexCompactionEventRequest;
 use crate::events::CodexHookRunEventRequest;
-use crate::events::CodexPluginEventRequest;
-use crate::events::CodexPluginUsedEventRequest;
 use crate::events::CodexRuntimeMetadata;
 use crate::events::CodexTurnEventParams;
 use crate::events::CodexTurnEventRequest;
@@ -22,9 +20,6 @@ use crate::events::TrackEventRequest;
 use crate::events::codex_app_metadata;
 use crate::events::codex_compaction_event_params;
 use crate::events::codex_hook_run_metadata;
-use crate::events::codex_plugin_metadata;
-use crate::events::codex_plugin_used_metadata;
-use crate::events::plugin_state_event_type;
 use crate::events::subagent_parent_thread_id;
 use crate::events::subagent_source_name;
 use crate::events::subagent_thread_started_event_request;
@@ -35,9 +30,6 @@ use crate::facts::AppUsedInput;
 use crate::facts::CodexCompactionEvent;
 use crate::facts::CustomAnalyticsFact;
 use crate::facts::HookRunInput;
-use crate::facts::PluginState;
-use crate::facts::PluginStateChangedInput;
-use crate::facts::PluginUsedInput;
 use crate::facts::SkillInvokedInput;
 use crate::facts::SubAgentThreadStartedInput;
 use crate::facts::ThreadInitializationMode;
@@ -222,12 +214,6 @@ impl AnalyticsReducer {
                 }
                 CustomAnalyticsFact::HookRun(input) => {
                     self.ingest_hook_run(input, out);
-                }
-                CustomAnalyticsFact::PluginUsed(input) => {
-                    self.ingest_plugin_used(input, out);
-                }
-                CustomAnalyticsFact::PluginStateChanged(input) => {
-                    self.ingest_plugin_state_changed(input, out);
                 }
             },
         }
@@ -454,32 +440,6 @@ impl AnalyticsReducer {
             event_type: "codex_hook_run",
             event_params: codex_hook_run_metadata(&tracking, hook),
         }));
-    }
-
-    fn ingest_plugin_used(&mut self, input: PluginUsedInput, out: &mut Vec<TrackEventRequest>) {
-        let PluginUsedInput { tracking, plugin } = input;
-        out.push(TrackEventRequest::PluginUsed(CodexPluginUsedEventRequest {
-            event_type: "codex_plugin_used",
-            event_params: codex_plugin_used_metadata(&tracking, plugin),
-        }));
-    }
-
-    fn ingest_plugin_state_changed(
-        &mut self,
-        input: PluginStateChangedInput,
-        out: &mut Vec<TrackEventRequest>,
-    ) {
-        let PluginStateChangedInput { plugin, state } = input;
-        let event = CodexPluginEventRequest {
-            event_type: plugin_state_event_type(state),
-            event_params: codex_plugin_metadata(plugin),
-        };
-        out.push(match state {
-            PluginState::Installed => TrackEventRequest::PluginInstalled(event),
-            PluginState::Uninstalled => TrackEventRequest::PluginUninstalled(event),
-            PluginState::Enabled => TrackEventRequest::PluginEnabled(event),
-            PluginState::Disabled => TrackEventRequest::PluginDisabled(event),
-        });
     }
 
     fn ingest_response(

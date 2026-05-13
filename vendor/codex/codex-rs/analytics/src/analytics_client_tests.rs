@@ -5,8 +5,6 @@ use crate::events::CodexAppServerClientMetadata;
 use crate::events::CodexAppUsedEventRequest;
 use crate::events::CodexCompactionEventRequest;
 use crate::events::CodexHookRunEventRequest;
-use crate::events::CodexPluginEventRequest;
-use crate::events::CodexPluginUsedEventRequest;
 use crate::events::CodexRuntimeMetadata;
 use crate::events::CodexTurnEventRequest;
 use crate::events::GuardianApprovalRequestSource;
@@ -20,8 +18,6 @@ use crate::events::ThreadInitializedEventParams;
 use crate::events::TrackEventRequest;
 use crate::events::codex_app_metadata;
 use crate::events::codex_hook_run_metadata;
-use crate::events::codex_plugin_metadata;
-use crate::events::codex_plugin_used_metadata;
 use crate::events::subagent_thread_started_event_request;
 use crate::facts::AnalyticsFact;
 use crate::facts::AnalyticsJsonRpcError;
@@ -40,9 +36,6 @@ use crate::facts::HookRunFact;
 use crate::facts::HookRunInput;
 use crate::facts::InputError;
 use crate::facts::InvocationType;
-use crate::facts::PluginState;
-use crate::facts::PluginStateChangedInput;
-use crate::facts::PluginUsedInput;
 use crate::facts::SkillInvocation;
 use crate::facts::SkillInvokedInput;
 use crate::facts::SubAgentThreadStartedInput;
@@ -85,10 +78,6 @@ use codex_app_server_protocol::TurnSteerResponse;
 use codex_app_server_protocol::UserInput;
 use codex_login::default_client::DEFAULT_ORIGINATOR;
 use codex_login::default_client::originator;
-use codex_plugin::AppConnectorId;
-use codex_plugin::PluginCapabilitySummary;
-use codex_plugin::PluginId;
-use codex_plugin::PluginTelemetryMetadata;
 use codex_protocol::approvals::NetworkApprovalProtocol;
 use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::config_types::ModeKind;
@@ -771,7 +760,6 @@ fn app_used_dedupe_is_keyed_by_turn_and_connector() {
     let queue = AnalyticsEventsQueue {
         sender,
         app_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
-        plugin_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
     };
     let app = AppInvocation {
         connector_id: Some("calendar".to_string()),
@@ -1379,66 +1367,6 @@ async fn subagent_thread_started_publishes_without_initialize() {
 }
 
 #[test]
-fn plugin_used_event_serializes_expected_shape() {
-    let tracking = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-3".to_string(),
-        turn_id: "turn-3".to_string(),
-    };
-    let event = TrackEventRequest::PluginUsed(CodexPluginUsedEventRequest {
-        event_type: "codex_plugin_used",
-        event_params: codex_plugin_used_metadata(&tracking, sample_plugin_metadata()),
-    });
-
-    let payload = serde_json::to_value(&event).expect("serialize plugin used event");
-
-    assert_eq!(
-        payload,
-        json!({
-            "event_type": "codex_plugin_used",
-            "event_params": {
-                "plugin_id": "sample@test",
-                "plugin_name": "sample",
-                "marketplace_name": "test",
-                "has_skills": true,
-                "mcp_server_count": 2,
-                "connector_ids": ["calendar", "drive"],
-                "product_client_id": originator().value,
-                "thread_id": "thread-3",
-                "turn_id": "turn-3",
-                "model_slug": "gpt-5"
-            }
-        })
-    );
-}
-
-#[test]
-fn plugin_management_event_serializes_expected_shape() {
-    let event = TrackEventRequest::PluginInstalled(CodexPluginEventRequest {
-        event_type: "codex_plugin_installed",
-        event_params: codex_plugin_metadata(sample_plugin_metadata()),
-    });
-
-    let payload = serde_json::to_value(&event).expect("serialize plugin installed event");
-
-    assert_eq!(
-        payload,
-        json!({
-            "event_type": "codex_plugin_installed",
-            "event_params": {
-                "plugin_id": "sample@test",
-                "plugin_name": "sample",
-                "marketplace_name": "test",
-                "has_skills": true,
-                "mcp_server_count": 2,
-                "connector_ids": ["calendar", "drive"],
-                "product_client_id": originator().value
-            }
-        })
-    );
-}
-
-#[test]
 fn hook_run_event_serializes_expected_shape() {
     let tracking = TrackEventsContext {
         model_slug: "gpt-5".to_string(),
@@ -1541,32 +1469,6 @@ fn hook_run_metadata_maps_stopped_status() {
     assert_eq!(stopped["status"], "stopped");
 }
 
-#[test]
-fn plugin_used_dedupe_is_keyed_by_turn_and_plugin() {
-    let (sender, _receiver) = mpsc::channel(1);
-    let queue = AnalyticsEventsQueue {
-        sender,
-        app_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
-        plugin_used_emitted_keys: Arc::new(Mutex::new(HashSet::new())),
-    };
-    let plugin = sample_plugin_metadata();
-
-    let turn_1 = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-1".to_string(),
-        turn_id: "turn-1".to_string(),
-    };
-    let turn_2 = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-1".to_string(),
-        turn_id: "turn-2".to_string(),
-    };
-
-    assert_eq!(queue.should_enqueue_plugin_used(&turn_1, &plugin), true);
-    assert_eq!(queue.should_enqueue_plugin_used(&turn_1, &plugin), false);
-    assert_eq!(queue.should_enqueue_plugin_used(&turn_2, &plugin), true);
-}
-
 #[tokio::test]
 async fn reducer_ingests_skill_invoked_fact() {
     let mut reducer = AnalyticsReducer::default();
@@ -1650,7 +1552,7 @@ async fn reducer_ingests_hook_run_fact() {
 }
 
 #[tokio::test]
-async fn reducer_ingests_app_and_plugin_facts() {
+async fn reducer_ingests_app_facts() {
     let mut reducer = AnalyticsReducer::default();
     let mut events = Vec::new();
     let tracking = TrackEventsContext {
@@ -1685,56 +1587,10 @@ async fn reducer_ingests_app_and_plugin_facts() {
             &mut events,
         )
         .await;
-    reducer
-        .ingest(
-            AnalyticsFact::Custom(CustomAnalyticsFact::PluginUsed(PluginUsedInput {
-                tracking,
-                plugin: sample_plugin_metadata(),
-            })),
-            &mut events,
-        )
-        .await;
-
     let payload = serde_json::to_value(&events).expect("serialize events");
-    assert_eq!(payload.as_array().expect("events array").len(), 3);
+    assert_eq!(payload.as_array().expect("events array").len(), 2);
     assert_eq!(payload[0]["event_type"], "codex_app_mentioned");
     assert_eq!(payload[1]["event_type"], "codex_app_used");
-    assert_eq!(payload[2]["event_type"], "codex_plugin_used");
-}
-
-#[tokio::test]
-async fn reducer_ingests_plugin_state_changed_fact() {
-    let mut reducer = AnalyticsReducer::default();
-    let mut events = Vec::new();
-
-    reducer
-        .ingest(
-            AnalyticsFact::Custom(CustomAnalyticsFact::PluginStateChanged(
-                PluginStateChangedInput {
-                    plugin: sample_plugin_metadata(),
-                    state: PluginState::Disabled,
-                },
-            )),
-            &mut events,
-        )
-        .await;
-
-    let payload = serde_json::to_value(&events).expect("serialize events");
-    assert_eq!(
-        payload,
-        json!([{
-            "event_type": "codex_plugin_disabled",
-            "event_params": {
-                "plugin_id": "sample@test",
-                "plugin_name": "sample",
-                "marketplace_name": "test",
-                "has_skills": true,
-                "mcp_server_count": 2,
-                "connector_ids": ["calendar", "drive"],
-                "product_client_id": originator().value
-            }
-        }])
-    );
 }
 
 #[test]
@@ -2404,21 +2260,4 @@ async fn turn_completed_without_started_notification_emits_null_started_at() {
         json!(null)
     );
     assert_eq!(payload["event_params"]["total_tokens"], json!(null));
-}
-
-fn sample_plugin_metadata() -> PluginTelemetryMetadata {
-    PluginTelemetryMetadata {
-        plugin_id: PluginId::parse("sample@test").expect("valid plugin id"),
-        capability_summary: Some(PluginCapabilitySummary {
-            config_name: "sample@test".to_string(),
-            display_name: "sample".to_string(),
-            description: None,
-            has_skills: true,
-            mcp_server_names: vec!["mcp-1".to_string(), "mcp-2".to_string()],
-            app_connector_ids: vec![
-                AppConnectorId("calendar".to_string()),
-                AppConnectorId("drive".to_string()),
-            ],
-        }),
-    }
 }

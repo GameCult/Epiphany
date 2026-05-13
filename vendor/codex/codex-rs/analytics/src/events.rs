@@ -10,7 +10,6 @@ use crate::facts::CompactionStrategy;
 use crate::facts::CompactionTrigger;
 use crate::facts::HookRunFact;
 use crate::facts::InvocationType;
-use crate::facts::PluginState;
 use crate::facts::SubAgentThreadStartedInput;
 use crate::facts::ThreadInitializationMode;
 use crate::facts::TrackEventsContext;
@@ -21,7 +20,6 @@ use crate::facts::TurnSubmissionType;
 use crate::now_unix_seconds;
 use codex_app_server_protocol::CodexErrorInfo;
 use codex_login::default_client::originator;
-use codex_plugin::PluginTelemetryMetadata;
 use codex_protocol::approvals::NetworkApprovalProtocol;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::models::SandboxPermissions;
@@ -61,11 +59,6 @@ pub(crate) enum TrackEventRequest {
     Compaction(Box<CodexCompactionEventRequest>),
     TurnEvent(Box<CodexTurnEventRequest>),
     TurnSteer(CodexTurnSteerEventRequest),
-    PluginUsed(CodexPluginUsedEventRequest),
-    PluginInstalled(CodexPluginEventRequest),
-    PluginUninstalled(CodexPluginEventRequest),
-    PluginEnabled(CodexPluginEventRequest),
-    PluginDisabled(CodexPluginEventRequest),
 }
 
 #[derive(Serialize)]
@@ -530,47 +523,6 @@ pub(crate) struct CodexTurnSteerEventRequest {
     pub(crate) event_params: CodexTurnSteerEventParams,
 }
 
-#[derive(Serialize)]
-pub(crate) struct CodexPluginMetadata {
-    pub(crate) plugin_id: Option<String>,
-    pub(crate) plugin_name: Option<String>,
-    pub(crate) marketplace_name: Option<String>,
-    pub(crate) has_skills: Option<bool>,
-    pub(crate) mcp_server_count: Option<usize>,
-    pub(crate) connector_ids: Option<Vec<String>>,
-    pub(crate) product_client_id: Option<String>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct CodexPluginUsedMetadata {
-    #[serde(flatten)]
-    pub(crate) plugin: CodexPluginMetadata,
-    pub(crate) thread_id: Option<String>,
-    pub(crate) turn_id: Option<String>,
-    pub(crate) model_slug: Option<String>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct CodexPluginEventRequest {
-    pub(crate) event_type: &'static str,
-    pub(crate) event_params: CodexPluginMetadata,
-}
-
-#[derive(Serialize)]
-pub(crate) struct CodexPluginUsedEventRequest {
-    pub(crate) event_type: &'static str,
-    pub(crate) event_params: CodexPluginUsedMetadata,
-}
-
-pub(crate) fn plugin_state_event_type(state: PluginState) -> &'static str {
-    match state {
-        PluginState::Installed => "codex_plugin_installed",
-        PluginState::Uninstalled => "codex_plugin_uninstalled",
-        PluginState::Enabled => "codex_plugin_enabled",
-        PluginState::Disabled => "codex_plugin_disabled",
-    }
-}
-
 pub(crate) fn codex_app_metadata(
     tracking: &TrackEventsContext,
     app: AppInvocation,
@@ -583,29 +535,6 @@ pub(crate) fn codex_app_metadata(
         product_client_id: Some(originator().value),
         invoke_type: app.invocation_type,
         model_slug: Some(tracking.model_slug.clone()),
-    }
-}
-
-pub(crate) fn codex_plugin_metadata(plugin: PluginTelemetryMetadata) -> CodexPluginMetadata {
-    let capability_summary = plugin.capability_summary;
-    CodexPluginMetadata {
-        plugin_id: Some(plugin.plugin_id.as_key()),
-        plugin_name: Some(plugin.plugin_id.plugin_name),
-        marketplace_name: Some(plugin.plugin_id.marketplace_name),
-        has_skills: capability_summary
-            .as_ref()
-            .map(|summary| summary.has_skills),
-        mcp_server_count: capability_summary
-            .as_ref()
-            .map(|summary| summary.mcp_server_names.len()),
-        connector_ids: capability_summary.map(|summary| {
-            summary
-                .app_connector_ids
-                .into_iter()
-                .map(|connector_id| connector_id.0)
-                .collect()
-        }),
-        product_client_id: Some(originator().value),
     }
 }
 
@@ -637,18 +566,6 @@ pub(crate) fn codex_compaction_event_params(
         started_at: input.started_at,
         completed_at: input.completed_at,
         duration_ms: input.duration_ms,
-    }
-}
-
-pub(crate) fn codex_plugin_used_metadata(
-    tracking: &TrackEventsContext,
-    plugin: PluginTelemetryMetadata,
-) -> CodexPluginUsedMetadata {
-    CodexPluginUsedMetadata {
-        plugin: codex_plugin_metadata(plugin),
-        thread_id: Some(tracking.thread_id.clone()),
-        turn_id: Some(tracking.turn_id.clone()),
-        model_slug: Some(tracking.model_slug.clone()),
     }
 }
 
