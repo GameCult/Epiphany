@@ -527,6 +527,10 @@ The twenty-sixth cut moved protocol `ThreadEpiphanyUpdatePatch` to core
 `EpiphanyStateUpdate` projection into `epiphany-codex-bridge/src/mutation.rs`.
 Role accept, promote, and update routes no longer hand-copy every patch field
 into a core update struct. `epiphany_mutation_routes.rs` is about 1,087 lines.
+The twenty-seventh cut moved interrupted-job fallback projection into
+`epiphany-codex-bridge/src/jobs.rs`; job interrupt no longer hand-builds its
+blocked fallback projection in the route. `epiphany_mutation_routes.rs` is
+about 1,078 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

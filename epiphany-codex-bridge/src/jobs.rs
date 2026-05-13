@@ -83,6 +83,23 @@ pub fn map_launched_epiphany_job(
         })
 }
 
+pub fn map_interrupted_epiphany_job(
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+) -> ThreadEpiphanyJob {
+    map_epiphany_jobs(Some(state), None)
+        .into_iter()
+        .find(|job| job.id == binding_id)
+        .unwrap_or_else(|| {
+            epiphany_blocked_state_job(
+                binding_id,
+                ThreadEpiphanyJobKind::Specialist,
+                "role-scoped specialist work",
+                "Interrupted job binding was not reflected in Epiphany state.",
+            )
+        })
+}
+
 fn map_core_epiphany_job_status(status: CoreEpiphanyJobStatus) -> ThreadEpiphanyJobStatus {
     match status {
         CoreEpiphanyJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,

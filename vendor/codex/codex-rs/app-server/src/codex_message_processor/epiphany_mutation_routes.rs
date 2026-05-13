@@ -11,6 +11,7 @@ use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_codex_bridge::jobs::epiphany_blocked_state_job;
 use epiphany_codex_bridge::jobs::map_epiphany_jobs;
+use epiphany_codex_bridge::jobs::map_interrupted_epiphany_job;
 use epiphany_codex_bridge::jobs::map_launched_epiphany_job;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
@@ -1047,17 +1048,7 @@ impl CodexMessageProcessor {
         let epiphany_state =
             client_visible_live_thread_epiphany_state(thread.as_ref(), interrupted.epiphany_state)
                 .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None)
-            .into_iter()
-            .find(|job| job.id == binding_id)
-            .unwrap_or_else(|| {
-                epiphany_blocked_state_job(
-                    &binding_id,
-                    ThreadEpiphanyJobKind::Specialist,
-                    "role-scoped specialist work",
-                    "Interrupted job binding was not reflected in Epiphany state.",
-                )
-            });
+        let job = map_interrupted_epiphany_job(&epiphany_state, &binding_id);
 
         self.outgoing
             .send_response(
