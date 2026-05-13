@@ -8,6 +8,9 @@ use crate::epiphany_context::map_epiphany_graph_query;
 use crate::epiphany_context::map_epiphany_planning;
 use crate::epiphany_invalidation::EpiphanyInvalidationManager;
 use crate::epiphany_invalidation::EpiphanyInvalidationSnapshot;
+use crate::epiphany_jobs::epiphany_blocked_state_job;
+use crate::epiphany_jobs::map_core_epiphany_job_kind;
+use crate::epiphany_jobs::map_epiphany_jobs;
 use crate::epiphany_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
 use crate::epiphany_launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 use crate::epiphany_launch::EPIPHANY_MODELING_OWNER_ROLE;
@@ -465,7 +468,6 @@ use codex_protocol::protocol::EpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyRetrievalStatus;
 use codex_protocol::protocol::EpiphanyRuntimeLink;
@@ -531,9 +533,6 @@ use epiphany_core::EpiphanyCrrcReorientAction as CoreEpiphanyCrrcReorientAction;
 use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcSceneAction as CoreEpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
-use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
-use epiphany_core::EpiphanyJobView;
-use epiphany_core::EpiphanyJobsInput;
 use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis as CoreEpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
@@ -554,7 +553,6 @@ use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
-use epiphany_core::derive_jobs;
 use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
@@ -14141,89 +14139,6 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
                 "failed to steer Epiphany pre-compaction checkpoint intervention for {thread_id}"
             );
         }
-    }
-}
-
-fn map_epiphany_jobs(
-    state: Option<&EpiphanyThreadState>,
-    retrieval_override: Option<&EpiphanyRetrievalState>,
-) -> Vec<ThreadEpiphanyJob> {
-    derive_jobs(EpiphanyJobsInput {
-        state,
-        retrieval_override,
-    })
-    .into_iter()
-    .map(map_core_epiphany_job_view)
-    .collect()
-}
-
-fn map_core_epiphany_job_view(job: EpiphanyJobView) -> ThreadEpiphanyJob {
-    ThreadEpiphanyJob {
-        id: job.id,
-        kind: map_core_epiphany_job_kind(job.kind),
-        scope: job.scope,
-        owner_role: job.owner_role,
-        launcher_job_id: None,
-        authority_scope: job.authority_scope,
-        backend_job_id: job.runtime_job_id,
-        status: map_core_epiphany_job_status(job.status),
-        items_processed: job.items_processed,
-        items_total: job.items_total,
-        progress_note: job.progress_note,
-        last_checkpoint_at_unix_seconds: job.last_checkpoint_at_unix_seconds,
-        blocking_reason: job.blocking_reason,
-        active_thread_ids: job.active_thread_ids,
-        linked_subgoal_ids: job.linked_subgoal_ids,
-        linked_graph_node_ids: job.linked_graph_node_ids,
-    }
-}
-
-fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJobKind {
-    match kind {
-        CoreEpiphanyJobKind::Indexing => ThreadEpiphanyJobKind::Indexing,
-        CoreEpiphanyJobKind::Remap => ThreadEpiphanyJobKind::Remap,
-        CoreEpiphanyJobKind::Verification => ThreadEpiphanyJobKind::Verification,
-        CoreEpiphanyJobKind::Specialist => ThreadEpiphanyJobKind::Specialist,
-    }
-}
-
-fn map_core_epiphany_job_status(status: CoreEpiphanyJobStatus) -> ThreadEpiphanyJobStatus {
-    match status {
-        CoreEpiphanyJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,
-        CoreEpiphanyJobStatus::Needed => ThreadEpiphanyJobStatus::Needed,
-        CoreEpiphanyJobStatus::Pending => ThreadEpiphanyJobStatus::Pending,
-        CoreEpiphanyJobStatus::Running => ThreadEpiphanyJobStatus::Running,
-        CoreEpiphanyJobStatus::Completed => ThreadEpiphanyJobStatus::Completed,
-        CoreEpiphanyJobStatus::Failed => ThreadEpiphanyJobStatus::Failed,
-        CoreEpiphanyJobStatus::Cancelled => ThreadEpiphanyJobStatus::Cancelled,
-        CoreEpiphanyJobStatus::Blocked => ThreadEpiphanyJobStatus::Blocked,
-        CoreEpiphanyJobStatus::Unavailable => ThreadEpiphanyJobStatus::Unavailable,
-    }
-}
-
-fn epiphany_blocked_state_job(
-    id: &str,
-    kind: ThreadEpiphanyJobKind,
-    scope: &str,
-    blocking_reason: &str,
-) -> ThreadEpiphanyJob {
-    ThreadEpiphanyJob {
-        id: id.to_string(),
-        kind,
-        scope: scope.to_string(),
-        owner_role: "epiphany-harness".to_string(),
-        launcher_job_id: None,
-        authority_scope: None,
-        backend_job_id: None,
-        status: ThreadEpiphanyJobStatus::Blocked,
-        items_processed: None,
-        items_total: None,
-        progress_note: None,
-        last_checkpoint_at_unix_seconds: None,
-        blocking_reason: Some(blocking_reason.to_string()),
-        active_thread_ids: Vec::new(),
-        linked_subgoal_ids: Vec::new(),
-        linked_graph_node_ids: Vec::new(),
     }
 }
 

@@ -419,21 +419,23 @@ mapping into `vendor/codex/codex-rs/app-server/src/epiphany_reorient.rs`,
 taking the processor to about 19,708 lines. The sixth cut moved
 context/planning/graph-query projection into
 `vendor/codex/codex-rs/app-server/src/epiphany_context.rs`, taking the processor
-to about 19,462 lines. This is progress, not absolution: handlers,
-jobs/roles/coordinator mappers, route orchestration, accept policy plumbing, and
+to about 19,462 lines. The seventh cut moved jobs projection into
+`vendor/codex/codex-rs/app-server/src/epiphany_jobs.rs`, taking the processor to
+about 19,377 lines. This is progress, not absolution: handlers,
+roles/coordinator mappers, route orchestration, accept policy plumbing, and
 tests still keep too much Epiphany inside Codex.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
-Continue with the actual whale-carcass cut: extract Epiphany jobs/roles/
-coordinator projection mappers, route handlers, and remaining policy-shaped
-code out of `codex_message_processor.rs` into Epiphany-owned app-server modules,
-moving logic further into `epiphany-core` whenever it owns real policy. Success
-is a visibly smaller `codex_message_processor.rs`, not merely nicer payload
-names. Do not resume Rider, Unity, Aquarium, Face, dogfood, planning, app,
-skill, marketplace, or bridge expansion until this organ is being cut cleanly.
+Continue with the actual whale-carcass cut: extract Epiphany roles/coordinator
+projection mappers, route handlers, and remaining policy-shaped code out of
+`codex_message_processor.rs` into Epiphany-owned app-server modules, moving
+logic further into `epiphany-core` whenever it owns real policy. Success is a
+visibly smaller `codex_message_processor.rs`, not merely nicer payload names. Do
+not resume Rider, Unity, Aquarium, Face, dogfood, planning, app, skill,
+marketplace, or bridge expansion until this organ is being cut cleanly.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
