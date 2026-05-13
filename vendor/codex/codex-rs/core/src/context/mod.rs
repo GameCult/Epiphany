@@ -2,8 +2,6 @@
 
 mod approved_command_prefix_saved;
 mod apps_instructions;
-mod available_plugins_instructions;
-mod available_skills_instructions;
 mod collaboration_mode_instructions;
 mod contextual_user_message;
 mod environment_context;
@@ -16,7 +14,6 @@ mod model_switch_instructions;
 mod network_rule_saved;
 mod permissions_instructions;
 mod personality_spec_instructions;
-mod plugin_instructions;
 mod realtime_end_instructions;
 mod realtime_start_instructions;
 mod realtime_start_with_instructions;
@@ -29,8 +26,6 @@ mod user_shell_command;
 
 pub(crate) use approved_command_prefix_saved::ApprovedCommandPrefixSaved;
 pub(crate) use apps_instructions::AppsInstructions;
-pub(crate) use available_plugins_instructions::AvailablePluginsInstructions;
-pub(crate) use available_skills_instructions::AvailableSkillsInstructions;
 pub(crate) use collaboration_mode_instructions::CollaborationModeInstructions;
 pub(crate) use contextual_user_message::is_contextual_user_fragment;
 pub(crate) use contextual_user_message::is_memory_excluded_contextual_user_fragment;
@@ -47,7 +42,6 @@ pub(crate) use model_switch_instructions::ModelSwitchInstructions;
 pub(crate) use network_rule_saved::NetworkRuleSaved;
 pub use permissions_instructions::PermissionsInstructions;
 pub(crate) use personality_spec_instructions::PersonalitySpecInstructions;
-pub(crate) use plugin_instructions::PluginInstructions;
 pub(crate) use realtime_end_instructions::RealtimeEndInstructions;
 pub(crate) use realtime_start_instructions::RealtimeStartInstructions;
 pub(crate) use realtime_start_with_instructions::RealtimeStartWithInstructions;

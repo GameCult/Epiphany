@@ -805,6 +805,11 @@ skill instruction fragments, or emit implicit skill invocation analytics from
 shell/unified-exec commands. The old skill-MCP dependency installer module is
 deleted.
 
+The prompt/router product layer is cold too. Model turns no longer load
+plugin/app capability summaries, inject available-skill/available-plugin/plugin
+instructions, parse plugin/app mentions, record app/plugin invocation telemetry,
+or filter MCP tools through Codex app connectors.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

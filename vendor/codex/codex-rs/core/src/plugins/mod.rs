@@ -1,13 +1,10 @@
 use codex_config::types::McpServerConfig;
 
 mod discoverable;
-mod injection;
 mod installed_marketplaces;
 mod manager;
 mod marketplace_add;
 mod marketplace_remove;
-mod mentions;
-mod render;
 mod startup_sync;
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -26,7 +23,6 @@ pub type LoadedPlugin = codex_plugin::LoadedPlugin<McpServerConfig>;
 pub type PluginLoadOutcome = codex_plugin::PluginLoadOutcome<McpServerConfig>;
 
 pub(crate) use discoverable::list_tool_suggest_discoverable_plugins;
-pub(crate) use injection::build_plugin_injections;
 pub use installed_marketplaces::INSTALLED_MARKETPLACES_DIR;
 pub use installed_marketplaces::marketplace_install_root;
 pub use manager::ConfiguredMarketplace;
@@ -54,13 +50,6 @@ pub use marketplace_remove::MarketplaceRemoveError;
 pub use marketplace_remove::MarketplaceRemoveOutcome;
 pub use marketplace_remove::MarketplaceRemoveRequest;
 pub use marketplace_remove::remove_marketplace;
-pub(crate) use render::render_explicit_plugin_instructions;
 pub(crate) use startup_sync::curated_plugins_repo_path;
 pub(crate) use startup_sync::read_curated_plugins_sha;
 pub(crate) use startup_sync::sync_openai_plugins_repo;
-
-pub(crate) use mentions::build_connector_slug_counts;
-pub(crate) use mentions::build_skill_name_counts;
-pub(crate) use mentions::collect_explicit_app_ids;
-pub(crate) use mentions::collect_explicit_plugin_mentions;
-pub(crate) use mentions::collect_tool_mentions_from_messages;

@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::sync::Arc;
 
 use codex_exec_server::EnvironmentManager;
@@ -83,8 +82,6 @@ pub(crate) async fn build_prompt_input_from_session(
         sess,
         turn_context.as_ref(),
         &prompt_input,
-        &HashSet::new(),
-        Some(turn_context.turn_skills.outcome.as_ref()),
         &CancellationToken::new(),
     )
     .await?;

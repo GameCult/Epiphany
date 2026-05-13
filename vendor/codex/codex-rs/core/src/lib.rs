@@ -93,13 +93,6 @@ pub mod plugins;
 pub(crate) mod prompt_debug;
 #[doc(hidden)]
 pub use prompt_debug::build_prompt_input;
-pub(crate) mod mentions {
-    pub(crate) use crate::plugins::build_connector_slug_counts;
-    pub(crate) use crate::plugins::build_skill_name_counts;
-    pub(crate) use crate::plugins::collect_explicit_app_ids;
-    pub(crate) use crate::plugins::collect_explicit_plugin_mentions;
-    pub(crate) use crate::plugins::collect_tool_mentions_from_messages;
-}
 mod sandbox_tags;
 pub mod sandboxing;
 mod session_prefix;
@@ -109,10 +102,6 @@ pub mod skills;
 pub(crate) use skills::SkillLoadOutcome;
 pub(crate) use skills::SkillMetadata;
 pub(crate) use skills::SkillsManager;
-pub(crate) use skills::build_available_skills;
-pub(crate) use skills::build_skill_name_counts;
-pub(crate) use skills::default_skill_metadata_budget;
-pub(crate) use skills::injection;
 pub(crate) use skills::manager;
 mod skills_watcher;
 mod stream_events_utils;
