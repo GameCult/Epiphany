@@ -77,7 +77,6 @@ use codex_app_server_protocol::ReasoningTextDeltaNotification;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestPayload;
-use codex_app_server_protocol::SkillsChangedNotification;
 use codex_app_server_protocol::TerminalInteractionNotification;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadNameUpdatedNotification;
@@ -254,15 +253,6 @@ pub(crate) async fn apply_bespoke_event_handling(
                     force_checkpoint_compaction,
                 )
                 .await;
-            }
-        }
-        EventMsg::SkillsUpdateAvailable => {
-            if let ApiVersion::V2 = api_version {
-                outgoing
-                    .send_server_notification(ServerNotification::SkillsChanged(
-                        SkillsChangedNotification {},
-                    ))
-                    .await;
             }
         }
         EventMsg::McpStartupUpdate(update) => {

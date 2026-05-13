@@ -1,7 +1,49 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ThreadEpiphanyStateUpdatedNotification",
+  "type": "object",
+  "required": [
+    "changedFields",
+    "epiphanyState",
+    "revision",
+    "source",
+    "threadId"
+  ],
+  "properties": {
+    "changedFields": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ThreadEpiphanyStateUpdatedField"
+      }
+    },
+    "epiphanyState": {
+      "$ref": "#/definitions/EpiphanyThreadState"
+    },
+    "revision": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "source": {
+      "$ref": "#/definitions/ThreadEpiphanyStateUpdatedSource"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
   "definitions": {
     "EpiphanyAcceptanceReceipt": {
+      "type": "object",
+      "required": [
+        "accepted_at",
+        "binding_id",
+        "id",
+        "job_id",
+        "result_id",
+        "role_id",
+        "status",
+        "surface"
+      ],
       "properties": {
         "accepted_at": {
           "type": "string"
@@ -45,41 +87,42 @@
         "surface": {
           "type": "string"
         }
-      },
-      "required": [
-        "accepted_at",
-        "binding_id",
-        "id",
-        "job_id",
-        "result_id",
-        "role_id",
-        "status",
-        "surface"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyBacklogItem": {
+      "type": "object",
+      "required": [
+        "confidence",
+        "horizon",
+        "id",
+        "kind",
+        "priority",
+        "product_area",
+        "status",
+        "summary",
+        "title"
+      ],
       "properties": {
         "acceptance_sketch": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "blockers": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "confidence": {
           "type": "string"
         },
         "dependencies": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "duplicate_of": {
           "type": [
@@ -88,10 +131,10 @@
           ]
         },
         "evidence_refs": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "horizon": {
           "type": "string"
@@ -103,10 +146,10 @@
           "type": "string"
         },
         "lane_hints": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "priority": {
           "$ref": "#/definitions/EpiphanyPlanningPriority"
@@ -115,10 +158,10 @@
           "type": "string"
         },
         "source_refs": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyPlanningSourceRef"
-          },
-          "type": "array"
+          }
         },
         "status": {
           "type": "string"
@@ -135,21 +178,14 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "confidence",
-        "horizon",
-        "id",
-        "kind",
-        "priority",
-        "product_area",
-        "status",
-        "summary",
-        "title"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyChurnState": {
+      "type": "object",
+      "required": [
+        "diff_pressure",
+        "understanding_status"
+      ],
       "properties": {
         "diff_pressure": {
           "type": "string"
@@ -164,12 +200,12 @@
           "type": "string"
         },
         "unexplained_writes": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "warning": {
           "type": [
@@ -177,22 +213,21 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "diff_pressure",
-        "understanding_status"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyCodeRef": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
       "properties": {
         "end_line": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "note": {
           "type": [
@@ -204,12 +239,12 @@
           "type": "string"
         },
         "start_line": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "symbol": {
           "type": [
@@ -217,19 +252,22 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "path"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyEvidenceRecord": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "summary"
+      ],
       "properties": {
         "code_refs": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyCodeRef"
-          },
-          "type": "array"
+          }
         },
         "id": {
           "type": "string"
@@ -243,59 +281,57 @@
         "summary": {
           "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "kind",
-        "status",
-        "summary"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyGraph": {
+      "type": "object",
       "properties": {
         "edges": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyGraphEdge"
-          },
-          "type": "array"
+          }
         },
         "nodes": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyGraphNode"
-          },
-          "type": "array"
+          }
         }
-      },
-      "type": "object"
+      }
     },
     "EpiphanyGraphCheckpoint": {
+      "type": "object",
+      "required": [
+        "checkpoint_id",
+        "graph_revision"
+      ],
       "properties": {
         "checkpoint_id": {
           "type": "string"
         },
         "frontier_node_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "graph_revision": {
+          "type": "integer",
           "format": "uint64",
-          "minimum": 0.0,
-          "type": "integer"
+          "minimum": 0.0
         },
         "open_gap_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "open_question_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "summary": {
           "type": [
@@ -303,20 +339,21 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "checkpoint_id",
-        "graph_revision"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyGraphEdge": {
+      "type": "object",
+      "required": [
+        "kind",
+        "source_id",
+        "target_id"
+      ],
       "properties": {
         "code_refs": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyCodeRef"
-          },
-          "type": "array"
+          }
         },
         "id": {
           "type": [
@@ -345,59 +382,58 @@
         "target_id": {
           "type": "string"
         }
-      },
-      "required": [
-        "kind",
-        "source_id",
-        "target_id"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyGraphFrontier": {
+      "type": "object",
       "properties": {
         "active_edge_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "active_node_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "dirty_paths": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "open_gap_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "open_question_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
-      },
-      "type": "object"
+      }
     },
     "EpiphanyGraphLink": {
+      "type": "object",
+      "required": [
+        "architecture_node_id",
+        "dataflow_node_id"
+      ],
       "properties": {
         "architecture_node_id": {
           "type": "string"
         },
         "code_refs": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyCodeRef"
-          },
-          "type": "array"
+          }
         },
         "dataflow_node_id": {
           "type": "string"
@@ -408,20 +444,21 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "architecture_node_id",
-        "dataflow_node_id"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyGraphNode": {
+      "type": "object",
+      "required": [
+        "id",
+        "purpose",
+        "title"
+      ],
       "properties": {
         "code_refs": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyCodeRef"
-          },
-          "type": "array"
+          }
         },
         "id": {
           "type": "string"
@@ -450,15 +487,10 @@
         "title": {
           "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "purpose",
-        "title"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyGraphs": {
+      "type": "object",
       "properties": {
         "architecture": {
           "$ref": "#/definitions/EpiphanyGraph"
@@ -467,15 +499,20 @@
           "$ref": "#/definitions/EpiphanyGraph"
         },
         "links": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyGraphLink"
-          },
-          "type": "array"
+          }
         }
-      },
-      "type": "object"
+      }
     },
     "EpiphanyInvariant": {
+      "type": "object",
+      "required": [
+        "description",
+        "id",
+        "status"
+      ],
       "properties": {
         "description": {
           "type": "string"
@@ -492,15 +529,16 @@
         "status": {
           "type": "string"
         }
-      },
-      "required": [
-        "description",
-        "id",
-        "status"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyInvestigationCheckpoint": {
+      "type": "object",
+      "required": [
+        "checkpoint_id",
+        "disposition",
+        "focus",
+        "kind"
+      ],
       "properties": {
         "captured_at_turn_id": {
           "type": [
@@ -512,19 +550,19 @@
           "type": "string"
         },
         "code_refs": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyCodeRef"
-          },
-          "type": "array"
+          }
         },
         "disposition": {
           "$ref": "#/definitions/EpiphanyInvestigationDisposition"
         },
         "evidence_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "focus": {
           "type": "string"
@@ -539,10 +577,10 @@
           ]
         },
         "open_questions": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "summary": {
           "type": [
@@ -550,23 +588,23 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "checkpoint_id",
-        "disposition",
-        "focus",
-        "kind"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyInvestigationDisposition": {
+      "type": "string",
       "enum": [
         "resume_ready",
         "regather_required"
-      ],
-      "type": "string"
+      ]
     },
     "EpiphanyJobBinding": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "owner_role",
+        "scope"
+      ],
       "properties": {
         "authority_scope": {
           "type": [
@@ -587,16 +625,16 @@
           "$ref": "#/definitions/EpiphanyJobKind"
         },
         "linked_graph_node_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "linked_subgoal_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "owner_role": {
           "type": "string"
@@ -604,32 +642,29 @@
         "scope": {
           "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "kind",
-        "owner_role",
-        "scope"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyJobKind": {
+      "type": "string",
       "enum": [
         "indexing",
         "remap",
         "verification",
         "specialist"
-      ],
-      "type": "string"
+      ]
     },
     "EpiphanyModeKind": {
+      "type": "string",
       "enum": [
         "plan",
         "default"
-      ],
-      "type": "string"
+      ]
     },
     "EpiphanyModeState": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
       "properties": {
         "kind": {
           "anyOf": [
@@ -644,31 +679,36 @@
         "name": {
           "type": "string"
         }
-      },
-      "required": [
-        "name"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyObjectiveDraft": {
+      "type": "object",
+      "required": [
+        "id",
+        "lane_plan",
+        "scope",
+        "status",
+        "summary",
+        "title"
+      ],
       "properties": {
         "acceptance_criteria": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "dependencies": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "evidence_required": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "id": {
           "type": "string"
@@ -677,25 +717,25 @@
           "$ref": "#/definitions/EpiphanyObjectiveDraftLanePlan"
         },
         "review_gates": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "risks": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "scope": {
           "$ref": "#/definitions/EpiphanyObjectiveDraftScope"
         },
         "source_item_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "status": {
           "type": "string"
@@ -706,18 +746,10 @@
         "title": {
           "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "lane_plan",
-        "scope",
-        "status",
-        "summary",
-        "title"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyObjectiveDraftLanePlan": {
+      "type": "object",
       "properties": {
         "body": {
           "type": [
@@ -755,39 +787,45 @@
             "null"
           ]
         }
-      },
-      "type": "object"
+      }
     },
     "EpiphanyObjectiveDraftScope": {
+      "type": "object",
       "properties": {
         "excludes": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "includes": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
-      },
-      "type": "object"
+      }
     },
     "EpiphanyObservation": {
+      "type": "object",
+      "required": [
+        "id",
+        "source_kind",
+        "status",
+        "summary"
+      ],
       "properties": {
         "code_refs": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyCodeRef"
-          },
-          "type": "array"
+          }
         },
         "evidence_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "id": {
           "type": "string"
@@ -801,16 +839,17 @@
         "summary": {
           "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "source_kind",
-        "status",
-        "summary"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyPlanningCapture": {
+      "type": "object",
+      "required": [
+        "confidence",
+        "id",
+        "source",
+        "status",
+        "title"
+      ],
       "properties": {
         "body": {
           "type": [
@@ -843,10 +882,10 @@
           "type": "string"
         },
         "tags": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "title": {
           "type": "string"
@@ -857,23 +896,20 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "confidence",
-        "id",
-        "source",
-        "status",
-        "title"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyPlanningPriority": {
+      "type": "object",
+      "required": [
+        "rationale",
+        "value"
+      ],
       "properties": {
         "blocks": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "confidence": {
           "type": [
@@ -903,10 +939,10 @@
           ]
         },
         "unblocks": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "urgency": {
           "type": [
@@ -917,20 +953,19 @@
         "value": {
           "type": "string"
         }
-      },
-      "required": [
-        "rationale",
-        "value"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyPlanningSourceRef": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
       "properties": {
         "assignees": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "author": {
           "type": [
@@ -951,11 +986,11 @@
           ]
         },
         "database_id": {
-          "format": "int64",
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "int64"
         },
         "external_id": {
           "type": [
@@ -976,21 +1011,21 @@
           ]
         },
         "issue_number": {
-          "format": "uint64",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint64",
+          "minimum": 0.0
         },
         "kind": {
           "type": "string"
         },
         "labels": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "milestone": {
           "type": [
@@ -1040,37 +1075,34 @@
             "null"
           ]
         }
-      },
-      "required": [
-        "kind"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyPlanningState": {
+      "type": "object",
       "properties": {
         "backlog_items": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyBacklogItem"
-          },
-          "type": "array"
+          }
         },
         "captures": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyPlanningCapture"
-          },
-          "type": "array"
+          }
         },
         "objective_drafts": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyObjectiveDraft"
-          },
-          "type": "array"
+          }
         },
         "roadmap_streams": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyRoadmapStream"
-          },
-          "type": "array"
+          }
         },
         "workspace_root": {
           "type": [
@@ -1078,29 +1110,33 @@
             "null"
           ]
         }
-      },
-      "type": "object"
+      }
     },
     "EpiphanyRetrievalShardSummary": {
+      "type": "object",
+      "required": [
+        "path_prefix",
+        "shard_id"
+      ],
       "properties": {
         "exact_available": {
           "type": "boolean"
         },
         "indexed_chunk_count": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "indexed_file_count": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "path_prefix": {
           "type": "string"
@@ -1112,27 +1148,26 @@
           "type": "string"
         },
         "status": {
+          "default": "unavailable",
           "allOf": [
             {
               "$ref": "#/definitions/EpiphanyRetrievalStatus"
             }
-          ],
-          "default": "unavailable"
+          ]
         }
-      },
-      "required": [
-        "path_prefix",
-        "shard_id"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyRetrievalState": {
+      "type": "object",
+      "required": [
+        "workspace_root"
+      ],
       "properties": {
         "dirty_paths": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "index_revision": {
           "type": [
@@ -1141,79 +1176,82 @@
           ]
         },
         "indexed_chunk_count": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "indexed_file_count": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "last_indexed_at_unix_seconds": {
-          "format": "int64",
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "int64"
         },
         "semantic_available": {
           "type": "boolean"
         },
         "shards": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyRetrievalShardSummary"
-          },
-          "type": "array"
+          }
         },
         "status": {
+          "default": "unavailable",
           "allOf": [
             {
               "$ref": "#/definitions/EpiphanyRetrievalStatus"
             }
-          ],
-          "default": "unavailable"
+          ]
         },
         "workspace_root": {
           "type": "string"
         }
-      },
-      "required": [
-        "workspace_root"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyRetrievalStatus": {
+      "type": "string",
       "enum": [
         "unavailable",
         "ready",
         "stale",
         "indexing"
-      ],
-      "type": "string"
+      ]
     },
     "EpiphanyRoadmapStream": {
+      "type": "object",
+      "required": [
+        "id",
+        "purpose",
+        "status",
+        "title"
+      ],
       "properties": {
         "blocked_by": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "id": {
           "type": "string"
         },
         "item_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "near_term_focus": {
           "type": [
@@ -1236,16 +1274,18 @@
         "title": {
           "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "purpose",
-        "status",
-        "title"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyRuntimeLink": {
+      "type": "object",
+      "required": [
+        "authority_scope",
+        "binding_id",
+        "id",
+        "role_id",
+        "runtime_job_id",
+        "surface"
+      ],
       "properties": {
         "authority_scope": {
           "type": "string"
@@ -1257,16 +1297,16 @@
           "type": "string"
         },
         "linked_graph_node_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "linked_subgoal_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "role_id": {
           "type": "string"
@@ -1283,18 +1323,10 @@
         "surface": {
           "type": "string"
         }
-      },
-      "required": [
-        "authority_scope",
-        "binding_id",
-        "id",
-        "role_id",
-        "runtime_job_id",
-        "surface"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyScratchPad": {
+      "type": "object",
       "properties": {
         "hypothesis": {
           "type": [
@@ -1309,10 +1341,10 @@
           ]
         },
         "notes": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "summary": {
           "type": [
@@ -1320,10 +1352,15 @@
             "null"
           ]
         }
-      },
-      "type": "object"
+      }
     },
     "EpiphanySubgoal": {
+      "type": "object",
+      "required": [
+        "id",
+        "status",
+        "title"
+      ],
       "properties": {
         "id": {
           "type": "string"
@@ -1340,21 +1377,19 @@
         "title": {
           "type": "string"
         }
-      },
-      "required": [
-        "id",
-        "status",
-        "title"
-      ],
-      "type": "object"
+      }
     },
     "EpiphanyThreadState": {
+      "type": "object",
+      "required": [
+        "revision"
+      ],
       "properties": {
         "acceptance_receipts": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyAcceptanceReceipt"
-          },
-          "type": "array"
+          }
         },
         "active_subgoal_id": {
           "type": [
@@ -1396,10 +1431,10 @@
           "$ref": "#/definitions/EpiphanyGraphs"
         },
         "invariants": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyInvariant"
-          },
-          "type": "array"
+          }
         },
         "investigation_checkpoint": {
           "anyOf": [
@@ -1412,10 +1447,10 @@
           ]
         },
         "job_bindings": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyJobBinding"
-          },
-          "type": "array"
+          }
         },
         "last_updated_turn_id": {
           "type": [
@@ -1440,19 +1475,19 @@
           ]
         },
         "observations": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyObservation"
-          },
-          "type": "array"
+          }
         },
         "planning": {
           "$ref": "#/definitions/EpiphanyPlanningState"
         },
         "recent_evidence": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyEvidenceRecord"
-          },
-          "type": "array"
+          }
         },
         "retrieval": {
           "anyOf": [
@@ -1465,15 +1500,15 @@
           ]
         },
         "revision": {
+          "type": "integer",
           "format": "uint64",
-          "minimum": 0.0,
-          "type": "integer"
+          "minimum": 0.0
         },
         "runtime_links": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanyRuntimeLink"
-          },
-          "type": "array"
+          }
         },
         "scratch": {
           "anyOf": [
@@ -1486,18 +1521,15 @@
           ]
         },
         "subgoals": {
+          "type": "array",
           "items": {
             "$ref": "#/definitions/EpiphanySubgoal"
-          },
-          "type": "array"
+          }
         }
-      },
-      "required": [
-        "revision"
-      ],
-      "type": "object"
+      }
     },
     "ThreadEpiphanyStateUpdatedField": {
+      "type": "string",
       "enum": [
         "objective",
         "activeSubgoalId",
@@ -1516,10 +1548,10 @@
         "churn",
         "mode",
         "planning"
-      ],
-      "type": "string"
+      ]
     },
     "ThreadEpiphanyStateUpdatedSource": {
+      "type": "string",
       "enum": [
         "update",
         "promote",
@@ -1527,39 +1559,7 @@
         "jobInterrupt",
         "reorientAccept",
         "roleAccept"
-      ],
-      "type": "string"
+      ]
     }
-  },
-  "properties": {
-    "changedFields": {
-      "items": {
-        "$ref": "#/definitions/ThreadEpiphanyStateUpdatedField"
-      },
-      "type": "array"
-    },
-    "epiphanyState": {
-      "$ref": "#/definitions/EpiphanyThreadState"
-    },
-    "revision": {
-      "format": "uint64",
-      "minimum": 0.0,
-      "type": "integer"
-    },
-    "source": {
-      "$ref": "#/definitions/ThreadEpiphanyStateUpdatedSource"
-    },
-    "threadId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "changedFields",
-    "epiphanyState",
-    "revision",
-    "source",
-    "threadId"
-  ],
-  "title": "ThreadEpiphanyStateUpdatedNotification",
-  "type": "object"
+  }
 }

@@ -45,7 +45,6 @@ use codex_protocol::protocol::SessionMeta;
 use codex_protocol::protocol::SessionMetaLine;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::user_input::UserInput;
-use core_test_support::PathBufExt;
 use core_test_support::load_default_config_for_test;
 use core_test_support::responses::ResponsesRequest;
 use core_test_support::responses::ev_completed;
@@ -62,7 +61,6 @@ use core_test_support::skip_if_no_network;
 use core_test_support::test_codex::TestCodex;
 use core_test_support::test_codex::test_codex;
 use core_test_support::wait_for_event;
-use dunce::canonicalize as normalize_path;
 use futures::StreamExt;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -1249,74 +1247,6 @@ async fn omits_environment_context_when_configured_off() {
         "did not expect environment context when include_environment_context = false, got {:?}",
         request.body_json()["input"]
     );
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn skills_append_to_developer_message() {
-    skip_if_no_network!();
-    let server = MockServer::start().await;
-
-    let resp_mock = mount_sse_once(
-        &server,
-        sse(vec![ev_response_created("resp1"), ev_completed("resp1")]),
-    )
-    .await;
-
-    let codex_home = Arc::new(TempDir::new().unwrap());
-    let skill_dir = codex_home.path().join("skills/demo");
-    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
-    std::fs::write(
-        skill_dir.join("SKILL.md"),
-        "---\nname: demo\ndescription: build charts\n---\n\n# body\n",
-    )
-    .expect("write skill");
-
-    let codex_home_path = codex_home.path().to_path_buf();
-    let mut builder = test_codex()
-        .with_home(codex_home.clone())
-        .with_auth(CodexAuth::from_api_key("Test API Key"))
-        .with_config(move |config| {
-            config.cwd = codex_home_path.abs();
-        });
-    let codex = builder
-        .build(&server)
-        .await
-        .expect("create new conversation")
-        .codex;
-
-    codex
-        .submit(Op::UserInput {
-            environments: None,
-            items: vec![UserInput::Text {
-                text: "hello".into(),
-                text_elements: Vec::new(),
-            }],
-            final_output_json_schema: None,
-            responsesapi_client_metadata: None,
-        })
-        .await
-        .unwrap();
-
-    wait_for_event(&codex, |ev| matches!(ev, EventMsg::TurnComplete(_))).await;
-
-    let request = resp_mock.single_request();
-    let developer_messages = request.message_input_texts("developer");
-    let developer_text = developer_messages.join("\n\n");
-    assert!(
-        developer_text.contains("## Skills"),
-        "expected skills section present: {developer_messages:?}"
-    );
-    assert!(
-        developer_text.contains("demo: build charts"),
-        "expected skill summary: {developer_messages:?}"
-    );
-    let expected_path = normalize_path(skill_dir.join("SKILL.md")).unwrap();
-    let expected_path_str = expected_path.to_string_lossy().replace('\\', "/");
-    assert!(
-        developer_text.contains(&expected_path_str),
-        "expected path {expected_path_str} in developer message: {developer_messages:?}"
-    );
-    let _codex_home_guard = codex_home;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

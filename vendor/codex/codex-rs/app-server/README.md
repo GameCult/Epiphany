@@ -200,11 +200,9 @@ Experimental Epiphany retrieval:
 - `experimentalFeature/enablement/set` — patch the in-memory process-wide runtime feature enablement for supported feature keys. For each feature, precedence is: cloud requirements > --enable <feature_name> > config.toml > experimentalFeature/enablement/set (new) > code default.
 - `collaborationMode/list` — list available collaboration mode presets (experimental, no pagination). This response omits built-in developer instructions; clients should either pass `settings.developer_instructions: null` when setting a mode to use Codex's built-in instructions, or provide their own instructions explicitly.
 - `skills/list` — list skills for one or more `cwd` values (optional `forceReload`).
-- `skills/changed` — notification emitted when watched local skill files change.
 - `device/key/create` — create or load a controller-local device signing key for an account/client binding. This local-key API is available only over local transports such as stdio and in-process; remote transports reject it. Hardware-backed providers are the target protection class; an OS-protected non-extractable fallback is allowed only with `protectionPolicy: "allow_os_protected_nonextractable"` and returns the reported `protectionClass`.
 - `device/key/public` — return a device key's SPKI DER public key as base64 plus its `algorithm` and `protectionClass`.
 - `device/key/sign` — sign one of the accepted structured payload variants with a controller-local device key. The only accepted payload today is `remoteControlClientConnection`, which binds a server-issued `/client` websocket challenge to the enrolled controller device without signing the bearer token itself; this is intentionally not an arbitrary-byte signing API.
-- `skills/config/write` — write user-level skill config by name or absolute path.
 - `mcpServer/oauth/login` — start an OAuth login for a configured MCP server; returns an `authorization_url` and later emits `mcpServer/oauthLogin/completed` once the browser flow finishes.
 - `tool/requestUserInput` — prompt the user with 1–3 short questions for a tool call and return their answers (experimental).
 - `config/mcpServer/reload` — reload MCP server config from disk and queue a refresh for loaded threads (applied on each thread's next active turn); returns `{}`. Use this after editing `config.toml` without restarting the server.
@@ -1273,8 +1271,7 @@ $skill-creator Add a new skill for triaging flaky CI and include step-by-step us
 Use `skills/list` to fetch the available skills (optionally scoped by `cwds`, with `forceReload`).
 You can also add `perCwdExtraUserRoots` to scan additional absolute paths as `user` scope for specific `cwd` entries.
 Entries whose `cwd` is not present in `cwds` are ignored.
-`skills/list` might reuse a cached skills result per `cwd`; setting `forceReload` to `true` refreshes the result from disk.
-The server also emits `skills/changed` notifications when watched local skill files change. Treat this as an invalidation signal and re-run `skills/list` with your current params when needed.
+`skills/list` returns the current compatibility skill projection for each requested `cwd`.
 
 ```json
 { "method": "skills/list", "id": 25, "params": {
@@ -1308,41 +1305,6 @@ The server also emits `skills/changed` notifications when watched local skill fi
         "errors": []
     }]
 } }
-```
-
-```json
-{
-  "method": "skills/changed",
-  "params": {}
-}
-```
-
-To enable or disable a skill by absolute path:
-
-```json
-{
-  "method": "skills/config/write",
-  "id": 26,
-  "params": {
-    "path": "/Users/alice/.codex/skills/skill-creator/SKILL.md",
-    "name": null,
-    "enabled": false
-  }
-}
-```
-
-To enable or disable a skill by name:
-
-```json
-{
-  "method": "skills/config/write",
-  "id": 27,
-  "params": {
-    "path": null,
-    "name": "github:yeet",
-    "enabled": false
-  }
-}
 ```
 
 ## Auth endpoints

@@ -3390,9 +3390,10 @@ async fn active_non_primary_shutdown_target_returns_none_for_non_shutdown_event(
     app.primary_thread_id = Some(ThreadId::new());
 
     assert_eq!(
-        app.active_non_primary_shutdown_target(&ServerNotification::SkillsChanged(
-            codex_app_server_protocol::SkillsChangedNotification {},
-        )),
+        app.active_non_primary_shutdown_target(&ServerNotification::Warning(WarningNotification {
+            thread_id: None,
+            message: "test warning".to_string(),
+        },)),
         None
     );
     Ok(())

@@ -1,13 +1,49 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ThreadEpiphanyJobsUpdatedNotification",
+  "type": "object",
+  "required": [
+    "source",
+    "threadId"
+  ],
+  "properties": {
+    "jobs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ThreadEpiphanyJob"
+      }
+    },
+    "source": {
+      "$ref": "#/definitions/ThreadEpiphanyJobsUpdatedSource"
+    },
+    "stateRevision": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
   "definitions": {
     "ThreadEpiphanyJob": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "ownerRole",
+        "scope",
+        "status"
+      ],
       "properties": {
         "activeThreadIds": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "authorityScope": {
           "type": [
@@ -31,30 +67,30 @@
           "type": "string"
         },
         "itemsProcessed": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "itemsTotal": {
-          "format": "uint32",
-          "minimum": 0.0,
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "uint32",
+          "minimum": 0.0
         },
         "kind": {
           "$ref": "#/definitions/ThreadEpiphanyJobKind"
         },
         "lastCheckpointAtUnixSeconds": {
-          "format": "int64",
           "type": [
             "integer",
             "null"
-          ]
+          ],
+          "format": "int64"
         },
         "launcherJobId": {
           "type": [
@@ -63,16 +99,16 @@
           ]
         },
         "linkedGraphNodeIds": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "linkedSubgoalIds": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "ownerRole": {
           "type": "string"
@@ -89,26 +125,19 @@
         "status": {
           "$ref": "#/definitions/ThreadEpiphanyJobStatus"
         }
-      },
-      "required": [
-        "id",
-        "kind",
-        "ownerRole",
-        "scope",
-        "status"
-      ],
-      "type": "object"
+      }
     },
     "ThreadEpiphanyJobKind": {
+      "type": "string",
       "enum": [
         "indexing",
         "remap",
         "verification",
         "specialist"
-      ],
-      "type": "string"
+      ]
     },
     "ThreadEpiphanyJobStatus": {
+      "type": "string",
       "enum": [
         "idle",
         "needed",
@@ -119,42 +148,13 @@
         "cancelled",
         "blocked",
         "unavailable"
-      ],
-      "type": "string"
-    },
-    "ThreadEpiphanyJobsUpdatedSource": {
-      "enum": [
-        "runtimeProgress"
-      ],
-      "type": "string"
-    }
-  },
-  "properties": {
-    "jobs": {
-      "items": {
-        "$ref": "#/definitions/ThreadEpiphanyJob"
-      },
-      "type": "array"
-    },
-    "source": {
-      "$ref": "#/definitions/ThreadEpiphanyJobsUpdatedSource"
-    },
-    "stateRevision": {
-      "format": "uint64",
-      "minimum": 0.0,
-      "type": [
-        "integer",
-        "null"
       ]
     },
-    "threadId": {
-      "type": "string"
+    "ThreadEpiphanyJobsUpdatedSource": {
+      "type": "string",
+      "enum": [
+        "runtimeProgress"
+      ]
     }
-  },
-  "required": [
-    "source",
-    "threadId"
-  ],
-  "title": "ThreadEpiphanyJobsUpdatedNotification",
-  "type": "object"
+  }
 }

@@ -1,16 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "definitions": {
-    "DeviceKeyProtectionPolicy": {
-      "description": "Protection policy for creating or loading a controller-local device key.",
-      "enum": [
-        "hardware_only",
-        "allow_os_protected_nonextractable"
-      ],
-      "type": "string"
-    }
-  },
+  "title": "DeviceKeyCreateParams",
   "description": "Create a controller-local device key with a random key id.",
+  "type": "object",
+  "required": [
+    "accountUserId",
+    "clientId"
+  ],
   "properties": {
     "accountUserId": {
       "type": "string"
@@ -19,6 +15,7 @@
       "type": "string"
     },
     "protectionPolicy": {
+      "description": "Defaults to `hardware_only` when omitted.",
       "anyOf": [
         {
           "$ref": "#/definitions/DeviceKeyProtectionPolicy"
@@ -26,14 +23,17 @@
         {
           "type": "null"
         }
-      ],
-      "description": "Defaults to `hardware_only` when omitted."
+      ]
     }
   },
-  "required": [
-    "accountUserId",
-    "clientId"
-  ],
-  "title": "DeviceKeyCreateParams",
-  "type": "object"
+  "definitions": {
+    "DeviceKeyProtectionPolicy": {
+      "description": "Protection policy for creating or loading a controller-local device key.",
+      "type": "string",
+      "enum": [
+        "hardware_only",
+        "allow_os_protected_nonextractable"
+      ]
+    }
+  }
 }

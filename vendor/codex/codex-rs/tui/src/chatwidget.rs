@@ -6436,9 +6436,6 @@ impl ChatWidget {
                     );
                 }
             }
-            ServerNotification::SkillsChanged(_) => {
-                self.refresh_skills_for_current_cwd(/*force_reload*/ true);
-            }
             ServerNotification::ModelRerouted(_) => {}
             ServerNotification::Warning(notification) => self.on_warning(notification.message),
             ServerNotification::GuardianWarning(notification) => {
@@ -7018,9 +7015,6 @@ impl ChatWidget {
             EventMsg::GetHistoryEntryResponse(ev) => self.handle_history_entry_response(ev),
             EventMsg::McpListToolsResponse(ev) => self.on_list_mcp_tools(ev),
             EventMsg::ListSkillsResponse(ev) => self.on_list_skills(ev),
-            EventMsg::SkillsUpdateAvailable => {
-                self.refresh_skills_for_current_cwd(/*force_reload*/ true);
-            }
             EventMsg::ShutdownComplete => self.on_shutdown_complete(),
             EventMsg::TurnDiff(TurnDiffEvent { unified_diff }) => self.on_turn_diff(unified_diff),
             EventMsg::DeprecationNotice(ev) => self.on_deprecation_notice(ev),

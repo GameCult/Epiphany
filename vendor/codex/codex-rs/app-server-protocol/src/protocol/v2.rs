@@ -5585,26 +5585,6 @@ pub struct SkillsListEntry {
     pub errors: Vec<SkillErrorInfo>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct SkillsConfigWriteParams {
-    /// Path-based selector.
-    #[ts(optional = nullable)]
-    pub path: Option<AbsolutePathBuf>,
-    /// Name-based selector.
-    #[ts(optional = nullable)]
-    pub name: Option<String>,
-    pub enabled: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-pub struct SkillsConfigWriteResponse {
-    pub effective_enabled: bool,
-}
-
 impl From<CoreSkillMetadata> for SkillMetadata {
     fn from(value: CoreSkillMetadata) -> Self {
         Self {
@@ -7316,15 +7296,6 @@ pub struct ThreadUnarchivedNotification {
 pub struct ThreadClosedNotification {
     pub thread_id: String,
 }
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export_to = "v2/")]
-/// Notification emitted when watched local skill files change.
-///
-/// Treat this as an invalidation signal and re-run `skills/list` with the
-/// client's current parameters when refreshed skill metadata is needed.
-pub struct SkillsChangedNotification {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]

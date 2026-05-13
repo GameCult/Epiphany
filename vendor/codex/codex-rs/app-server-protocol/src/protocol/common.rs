@@ -487,10 +487,6 @@ client_request_definitions! {
         params: v2::FsUnwatchParams,
         response: v2::FsUnwatchResponse,
     },
-    SkillsConfigWrite => "skills/config/write" {
-        params: v2::SkillsConfigWriteParams,
-        response: v2::SkillsConfigWriteResponse,
-    },
     TurnStart => "turn/start" {
         params: v2::TurnStartParams,
         inspect_params: true,
@@ -1075,7 +1071,6 @@ server_notification_definitions! {
     ThreadArchived => "thread/archived" (v2::ThreadArchivedNotification),
     ThreadUnarchived => "thread/unarchived" (v2::ThreadUnarchivedNotification),
     ThreadClosed => "thread/closed" (v2::ThreadClosedNotification),
-    SkillsChanged => "skills/changed" (v2::SkillsChangedNotification),
     ThreadNameUpdated => "thread/name/updated" (v2::ThreadNameUpdatedNotification),
     ThreadTokenUsageUpdated => "thread/tokenUsage/updated" (v2::ThreadTokenUsageUpdatedNotification),
     TurnStarted => "turn/started" (v2::TurnStartedNotification),

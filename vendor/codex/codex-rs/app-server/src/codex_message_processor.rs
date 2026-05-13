@@ -113,7 +113,6 @@ use codex_app_server_protocol::SendAddCreditsNudgeEmailParams;
 use codex_app_server_protocol::SendAddCreditsNudgeEmailResponse;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestResolvedNotification;
-use codex_app_server_protocol::SkillsConfigWriteParams;
 use codex_app_server_protocol::SkillsListParams;
 use codex_app_server_protocol::SkillsListResponse;
 use codex_app_server_protocol::SortDirection;
@@ -996,10 +995,6 @@ impl CodexMessageProcessor {
             }
             ClientRequest::SkillsList { request_id, params } => {
                 self.skills_list(to_connection_request_id(request_id), params)
-                    .await;
-            }
-            ClientRequest::SkillsConfigWrite { request_id, params } => {
-                self.skills_config_write(to_connection_request_id(request_id), params)
                     .await;
             }
             ClientRequest::TurnStart { request_id, params } => {
@@ -6156,18 +6151,6 @@ impl CodexMessageProcessor {
         self.outgoing.send_error(request_id, error).await;
     }
 
-    async fn send_codex_product_surface_disabled(
-        &self,
-        request_id: ConnectionRequestId,
-        method: &str,
-    ) {
-        self.send_invalid_request_error(
-            request_id,
-            format!("{method} is disabled in Epiphany's vestigial Codex organ"),
-        )
-        .await;
-    }
-
     async fn wait_for_thread_shutdown(thread: &Arc<CodexThread>) -> ThreadShutdownResult {
         match tokio::time::timeout(Duration::from_secs(10), thread.shutdown_and_wait()).await {
             Ok(Ok(())) => ThreadShutdownResult::Complete,
@@ -6322,15 +6305,6 @@ impl CodexMessageProcessor {
     async fn skills_list(&self, request_id: ConnectionRequestId, _params: SkillsListParams) {
         self.outgoing
             .send_response(request_id, SkillsListResponse { data: Vec::new() })
-            .await;
-    }
-
-    async fn skills_config_write(
-        &self,
-        request_id: ConnectionRequestId,
-        _params: SkillsConfigWriteParams,
-    ) {
-        self.send_codex_product_surface_disabled(request_id, "skills/config/write")
             .await;
     }
 
