@@ -720,7 +720,11 @@ Freshness/context/graph-query response construction is also bridge-owned now.
 `ThreadEpiphanyContextResponse`, and `ThreadEpiphanyGraphQueryResponse` from
 typed state plus host-supplied watcher/retrieval inputs. App-server still owns
 loading and watcher registration because those are host lifecycle seams.
-`epiphany_read_routes.rs` is about 620 lines after this cut.
+`epiphany_read_routes.rs` is about 620 lines after this cut. The distill and
+propose patch-response builders have followed into the same bridge view module;
+app-server still checks that the target thread is loaded and maps errors onto
+JSON-RPC responses, but it no longer shapes those patches itself.
+`epiphany_read_routes.rs` is about 579 lines after this cut.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

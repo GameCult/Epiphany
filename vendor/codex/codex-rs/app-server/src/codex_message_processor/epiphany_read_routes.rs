@@ -1,10 +1,7 @@
 use codex_app_server_protocol::*;
 use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
 use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
-use codex_core::EpiphanyDistillInput;
-use codex_core::EpiphanyMapProposalInput;
 use codex_core::EpiphanyRetrieveQuery;
-use codex_core::distill_observation;
 use codex_protocol::ThreadId;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
@@ -19,8 +16,10 @@ use epiphany_codex_bridge::view::epiphany_view_needs_pressure;
 use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::view::map_epiphany_context_response;
+use epiphany_codex_bridge::view::map_epiphany_distill_response;
 use epiphany_codex_bridge::view::map_epiphany_freshness_response;
 use epiphany_codex_bridge::view::map_epiphany_graph_query_response;
+use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
@@ -480,15 +479,7 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyDistillParams,
     ) {
-        let ThreadEpiphanyDistillParams {
-            thread_id,
-            source_kind,
-            status,
-            text,
-            subject,
-            evidence_kind,
-            code_refs,
-        } = params;
+        let thread_id = params.thread_id.clone();
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
             Ok(id) => id,
@@ -516,15 +507,8 @@ impl CodexMessageProcessor {
             .await
             .map(|state| state.revision)
             .unwrap_or(0);
-        let proposal = match distill_observation(EpiphanyDistillInput {
-            source_kind,
-            status,
-            text,
-            subject,
-            evidence_kind,
-            code_refs,
-        }) {
-            Ok(proposal) => proposal,
+        let response = match map_epiphany_distill_response(expected_revision, params) {
+            Ok(response) => response,
             Err(err) => {
                 self.send_invalid_request_error(
                     request_id,
@@ -533,14 +517,6 @@ impl CodexMessageProcessor {
                 .await;
                 return;
             }
-        };
-        let response = ThreadEpiphanyDistillResponse {
-            expected_revision,
-            patch: ThreadEpiphanyUpdatePatch {
-                observations: vec![proposal.observation],
-                evidence: vec![proposal.evidence],
-                ..Default::default()
-            },
         };
 
         self.outgoing.send_response(request_id, response).await;
@@ -551,10 +527,8 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyProposeParams,
     ) {
-        let ThreadEpiphanyProposeParams {
-            thread_id,
-            observation_ids,
-        } = params;
+        let ThreadEpiphanyProposeParams { thread_id, .. } = &params;
+        let thread_id = thread_id.clone();
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
             Ok(id) => id,
@@ -588,12 +562,8 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let expected_revision = state.revision;
-        let proposal = match codex_core::propose_map_update(EpiphanyMapProposalInput {
-            state,
-            observation_ids,
-        }) {
-            Ok(proposal) => proposal,
+        let response = match map_epiphany_propose_response(state, params.observation_ids) {
+            Ok(response) => response,
             Err(err) => {
                 self.send_invalid_request_error(
                     request_id,
@@ -602,17 +572,6 @@ impl CodexMessageProcessor {
                 .await;
                 return;
             }
-        };
-        let response = ThreadEpiphanyProposeResponse {
-            expected_revision,
-            patch: ThreadEpiphanyUpdatePatch {
-                observations: vec![proposal.observation],
-                evidence: vec![proposal.evidence],
-                graphs: Some(proposal.graphs),
-                graph_frontier: Some(proposal.graph_frontier),
-                churn: Some(proposal.churn),
-                ..Default::default()
-            },
         };
 
         self.outgoing.send_response(request_id, response).await;

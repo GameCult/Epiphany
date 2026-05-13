@@ -1,6 +1,10 @@
 use std::path::Path;
 
 use codex_app_server_protocol::*;
+use codex_core::EpiphanyDistillInput;
+use codex_core::EpiphanyMapProposalInput;
+use codex_core::distill_observation;
+use codex_core::propose_map_update;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
@@ -496,4 +500,61 @@ pub async fn map_epiphany_reorient_result_response(
         finding,
         note,
     }
+}
+
+pub fn map_epiphany_distill_response(
+    expected_revision: u64,
+    params: ThreadEpiphanyDistillParams,
+) -> std::result::Result<ThreadEpiphanyDistillResponse, String> {
+    let ThreadEpiphanyDistillParams {
+        source_kind,
+        status,
+        text,
+        subject,
+        evidence_kind,
+        code_refs,
+        ..
+    } = params;
+    let proposal = distill_observation(EpiphanyDistillInput {
+        source_kind,
+        status,
+        text,
+        subject,
+        evidence_kind,
+        code_refs,
+    })
+    .map_err(|err| err.to_string())?;
+
+    Ok(ThreadEpiphanyDistillResponse {
+        expected_revision,
+        patch: ThreadEpiphanyUpdatePatch {
+            observations: vec![proposal.observation],
+            evidence: vec![proposal.evidence],
+            ..Default::default()
+        },
+    })
+}
+
+pub fn map_epiphany_propose_response(
+    state: EpiphanyThreadState,
+    observation_ids: Vec<String>,
+) -> std::result::Result<ThreadEpiphanyProposeResponse, String> {
+    let expected_revision = state.revision;
+    let proposal = propose_map_update(EpiphanyMapProposalInput {
+        state,
+        observation_ids,
+    })
+    .map_err(|err| err.to_string())?;
+
+    Ok(ThreadEpiphanyProposeResponse {
+        expected_revision,
+        patch: ThreadEpiphanyUpdatePatch {
+            observations: vec![proposal.observation],
+            evidence: vec![proposal.evidence],
+            graphs: Some(proposal.graphs),
+            graph_frontier: Some(proposal.graph_frontier),
+            churn: Some(proposal.churn),
+            ..Default::default()
+        },
+    })
 }
