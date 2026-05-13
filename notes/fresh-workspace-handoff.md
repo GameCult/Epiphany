@@ -636,9 +636,13 @@ Role launch, generic job launch, and job interrupt now route through the bridge
 service too. `launch_thread_epiphany_role`, `launch_thread_epiphany_job`, and
 `interrupt_thread_epiphany_job` own launch/interrupt application,
 changed-field derivation, live-state projection, and job projection. The
-remaining thick mutation-route knot is reorient launch: it still composes
-freshness, pressure, watcher state, reorientation decision, launch request, and
-response shaping inside the vendored route.
+remaining thick mutation-route knot was reorient launch, and its policy core
+has now moved too: `launch_thread_epiphany_reorient` owns freshness/pressure
+mapping, reorientation decision, checkpoint validation, launch request
+construction, launch application, live-state projection, and job projection.
+The vendored route still performs app-server-native work: thread-id parsing,
+thread/read-view loading, watcher registration/snapshotting, JSON-RPC response
+shaping, and notification emission.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany

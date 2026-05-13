@@ -1,7 +1,11 @@
 use chrono::SecondsFormat;
 use chrono::Utc;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
+use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
+use codex_app_server_protocol::ThreadEpiphanyReorientSource;
+use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyJob;
+use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
@@ -14,10 +18,16 @@ use codex_core::evaluate_promotion;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
+use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
+use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 
+use crate::jobs::epiphany_blocked_state_job;
+use crate::jobs::map_epiphany_jobs;
 use crate::jobs::map_interrupted_epiphany_job;
 use crate::jobs::map_launched_epiphany_job;
+use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::build_epiphany_role_launch_request;
 use crate::launch::epiphany_role_label;
 use crate::mutation::build_reorient_acceptance_update;
@@ -30,6 +40,10 @@ use crate::mutation::thread_epiphany_patch_has_state_replacements;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
 use crate::state::client_visible_live_thread_epiphany_state;
+use crate::pressure::map_epiphany_pressure;
+use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
+use crate::reorient::map_epiphany_freshness;
+use crate::reorient::map_epiphany_reorient;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -80,6 +94,18 @@ pub struct EpiphanyJobLaunchApplied {
 pub struct EpiphanyJobInterruptApplied {
     pub cancel_requested: bool,
     pub interrupted_thread_ids: Vec<String>,
+    pub revision: u64,
+    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+    pub job: ThreadEpiphanyJob,
+}
+
+#[derive(Debug, Clone)]
+pub struct EpiphanyReorientLaunchApplied {
+    pub source: ThreadEpiphanyReorientSource,
+    pub state_status: ThreadEpiphanyReorientStateStatus,
+    pub state_revision: Option<u64>,
+    pub decision: ThreadEpiphanyReorientDecision,
     pub revision: u64,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
@@ -326,6 +352,71 @@ pub async fn interrupt_thread_epiphany_job(
     Ok(EpiphanyJobInterruptApplied {
         cancel_requested: interrupted.cancel_requested,
         interrupted_thread_ids: interrupted.interrupted_thread_ids,
+        revision: epiphany_state.revision,
+        changed_fields,
+        epiphany_state,
+        job,
+    })
+}
+
+pub async fn launch_thread_epiphany_reorient(
+    thread: &CodexThread,
+    thread_id: &str,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+    state: Option<&EpiphanyThreadState>,
+    retrieval_override: Option<&EpiphanyRetrievalState>,
+    watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'_>>,
+    token_usage_info: Option<&CoreTokenUsageInfo>,
+) -> Result<EpiphanyReorientLaunchApplied, CodexErr> {
+    let (state_revision, retrieval, graph, watcher) =
+        map_epiphany_freshness(state, retrieval_override, watcher_snapshot);
+    let pressure = map_epiphany_pressure(token_usage_info);
+    let (state_status, decision) =
+        map_epiphany_reorient(state, &pressure, &retrieval, &graph, &watcher);
+
+    let state = state.ok_or_else(|| {
+        CodexErr::InvalidRequest(format!(
+            "cannot launch a reorientation worker without authoritative Epiphany state: {}",
+            decision.note
+        ))
+    })?;
+    let checkpoint = state.investigation_checkpoint.as_ref().ok_or_else(|| {
+        CodexErr::InvalidRequest(format!(
+            "cannot launch a reorientation worker without a durable investigation checkpoint: {}",
+            decision.note
+        ))
+    })?;
+
+    let launch_request = build_epiphany_reorient_launch_request(
+        thread_id,
+        expected_revision,
+        max_runtime_seconds,
+        state,
+        checkpoint,
+        &decision,
+    );
+    let changed_fields = epiphany_job_launch_changed_fields();
+    let launched = thread.epiphany_launch_job(launch_request).await?;
+    let epiphany_state =
+        client_visible_live_thread_epiphany_state(thread, launched.epiphany_state).await;
+    let job = map_epiphany_jobs(Some(&epiphany_state), None)
+        .into_iter()
+        .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
+        .unwrap_or_else(|| {
+            epiphany_blocked_state_job(
+                EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+                ThreadEpiphanyJobKind::Specialist,
+                "reorient-guided checkpoint regather",
+                "Launched reorientation worker was not reflected in Epiphany state.",
+            )
+        });
+
+    Ok(EpiphanyReorientLaunchApplied {
+        source: ThreadEpiphanyReorientSource::Live,
+        state_status,
+        state_revision,
+        decision,
         revision: epiphany_state.revision,
         changed_fields,
         epiphany_state,

@@ -2,13 +2,9 @@ use codex_app_server_protocol::*;
 use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
-use epiphany_codex_bridge::jobs::epiphany_blocked_state_job;
-use epiphany_codex_bridge::jobs::map_epiphany_jobs;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
-use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::launch::map_core_worker_launch_document;
-use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
@@ -17,12 +13,9 @@ use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_update;
 use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
+use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
-use epiphany_codex_bridge::pressure::map_epiphany_pressure;
-use epiphany_codex_bridge::reorient::map_epiphany_freshness;
-use epiphany_codex_bridge::reorient::map_epiphany_reorient;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_index_summary;
-use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -263,54 +256,19 @@ impl CodexMessageProcessor {
             .snapshot(&thread_id)
             .await;
         let token_usage_info = loaded_thread.token_usage_info().await;
-        let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
-            thread.epiphany_state.as_ref(),
-            Some(&retrieval_override),
-            Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
-        );
-        let pressure = map_epiphany_pressure(token_usage_info.as_ref());
-        let (state_status, decision) = map_epiphany_reorient(
-            thread.epiphany_state.as_ref(),
-            &pressure,
-            &retrieval,
-            &graph,
-            &watcher,
-        );
-
-        let Some(state) = thread.epiphany_state.as_ref() else {
-            self.send_invalid_request_error(
-                request_id,
-                format!(
-                    "cannot launch a reorientation worker without authoritative Epiphany state: {}",
-                    decision.note
-                ),
-            )
-            .await;
-            return;
-        };
-        let Some(checkpoint) = state.investigation_checkpoint.as_ref() else {
-            self.send_invalid_request_error(
-                request_id,
-                format!(
-                    "cannot launch a reorientation worker without a durable investigation checkpoint: {}",
-                    decision.note
-                ),
-            )
-            .await;
-            return;
-        };
-
-        let launch_request = build_epiphany_reorient_launch_request(
+        let applied = match launch_thread_epiphany_reorient(
+            loaded_thread.as_ref(),
             &thread_id,
             expected_revision,
             max_runtime_seconds,
-            state,
-            checkpoint,
-            &decision,
-        );
-        let changed_fields = epiphany_job_launch_changed_fields();
-        let launched = match loaded_thread.epiphany_launch_job(launch_request).await {
-            Ok(launched) => launched,
+            thread.epiphany_state.as_ref(),
+            Some(&retrieval_override),
+            Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
+            token_usage_info.as_ref(),
+        )
+        .await
+        {
+            Ok(applied) => applied,
             Err(CodexErr::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
@@ -326,37 +284,22 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-
-        let epiphany_state = client_visible_live_thread_epiphany_state(
-            loaded_thread.as_ref(),
-            launched.epiphany_state,
-        )
-        .await;
-        let job = map_epiphany_jobs(Some(&epiphany_state), None)
-            .into_iter()
-            .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
-            .unwrap_or_else(|| {
-                epiphany_blocked_state_job(
-                    EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
-                    ThreadEpiphanyJobKind::Specialist,
-                    "reorient-guided checkpoint regather",
-                    "Launched reorientation worker was not reflected in Epiphany state.",
-                )
-            });
+        let changed_fields = applied.changed_fields;
+        let epiphany_state = applied.epiphany_state;
 
         self.outgoing
             .send_response(
                 request_id,
                 ThreadEpiphanyReorientLaunchResponse {
                     thread_id: thread_uuid.to_string(),
-                    source: ThreadEpiphanyReorientSource::Live,
-                    state_status,
-                    state_revision,
-                    decision,
-                    revision: epiphany_state.revision,
+                    source: applied.source,
+                    state_status: applied.state_status,
+                    state_revision: applied.state_revision,
+                    decision: applied.decision,
+                    revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job,
+                    job: applied.job,
                 },
             )
             .await;
