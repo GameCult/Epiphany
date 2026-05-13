@@ -889,7 +889,9 @@ and `marketplace/remove` no longer exist as shared `ClientRequest` variants,
 `codex_message_processor.rs` dispatch arms, disabled handlers, test-client
 helpers, README claims, add/remove params/responses, or generated client schema
 entries. Protocol schema regeneration also removed stale plugin request/response
-schema files that had survived after the live plugin routes were cut.
+schema files that had survived after the live plugin routes were cut. The
+orphaned app-server-protocol `Plugin*` / marketplace plugin structs and their
+serialization tests are now deleted from source too.
 
 The orphaned `codex-chatgpt` crate is deleted from the vendored workspace. Do
 not confuse that with ChatGPT auth itself: originator strings and login/model
