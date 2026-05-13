@@ -79,6 +79,7 @@ mod epiphany_context;
 mod epiphany_invalidation;
 mod epiphany_jobs;
 mod epiphany_launch;
+mod epiphany_pressure;
 mod epiphany_reorient;
 mod epiphany_results;
 mod epiphany_retrieve;

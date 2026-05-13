@@ -22,15 +22,16 @@ use crate::epiphany_launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use crate::epiphany_launch::build_epiphany_reorient_launch_instruction;
 use crate::epiphany_launch::build_epiphany_reorient_launch_request;
 use crate::epiphany_launch::build_epiphany_role_launch_request;
-use crate::epiphany_launch::epiphany_agent_prompt_with_memory;
 use crate::epiphany_launch::epiphany_reorient_launch_output_schema;
 use crate::epiphany_launch::epiphany_role_binding_id;
 use crate::epiphany_launch::epiphany_role_label;
 use crate::epiphany_launch::epiphany_role_launch_output_schema;
 use crate::epiphany_launch::epiphany_specialist_prompt_config;
 use crate::epiphany_launch::map_core_worker_launch_document;
-use crate::epiphany_launch::pressure_level_label;
 use crate::epiphany_launch::render_epiphany_coordinator_note;
+use crate::epiphany_pressure::map_epiphany_pressure;
+use crate::epiphany_pressure::render_epiphany_pre_compaction_checkpoint_intervention;
+use crate::epiphany_pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
 use crate::epiphany_reorient::map_epiphany_freshness;
 use crate::epiphany_reorient::map_epiphany_reorient;
 use crate::epiphany_results::map_core_role_result_role_id;
@@ -220,9 +221,7 @@ use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyJobLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
-use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
-use codex_app_server_protocol::ThreadEpiphanyPressureStatus;
 use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyProposeParams;
@@ -529,10 +528,6 @@ use epiphany_core::EpiphanyCrrcReorientAction as CoreEpiphanyCrrcReorientAction;
 use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcSceneAction as CoreEpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
-use epiphany_core::EpiphanyPressure;
-use epiphany_core::EpiphanyPressureBasis as CoreEpiphanyPressureBasis;
-use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
-use epiphany_core::EpiphanyPressureStatus as CoreEpiphanyPressureStatus;
 use epiphany_core::EpiphanyReorientAcceptanceFinding;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
 use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
@@ -549,7 +544,6 @@ use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::coordinator_automation_action;
-use epiphany_core::derive_pressure_view;
 use epiphany_core::derive_role_board;
 use epiphany_core::derive_scene;
 use epiphany_core::imagination_role_state_patch_policy_errors;
@@ -13816,75 +13810,6 @@ fn reorient_finding_investigation_checkpoint(
         }
     }
     checkpoint
-}
-
-fn map_epiphany_pressure(info: Option<&CoreTokenUsageInfo>) -> ThreadEpiphanyPressure {
-    map_core_epiphany_pressure(derive_pressure_view(info))
-}
-
-fn map_core_epiphany_pressure(pressure: EpiphanyPressure) -> ThreadEpiphanyPressure {
-    ThreadEpiphanyPressure {
-        status: match pressure.status {
-            CoreEpiphanyPressureStatus::Unknown => ThreadEpiphanyPressureStatus::Unknown,
-            CoreEpiphanyPressureStatus::Ready => ThreadEpiphanyPressureStatus::Ready,
-        },
-        level: match pressure.level {
-            CoreEpiphanyPressureLevel::Unknown => ThreadEpiphanyPressureLevel::Unknown,
-            CoreEpiphanyPressureLevel::Low => ThreadEpiphanyPressureLevel::Low,
-            CoreEpiphanyPressureLevel::Elevated => ThreadEpiphanyPressureLevel::Elevated,
-            CoreEpiphanyPressureLevel::High => ThreadEpiphanyPressureLevel::High,
-            CoreEpiphanyPressureLevel::Critical => ThreadEpiphanyPressureLevel::Critical,
-        },
-        basis: match pressure.basis {
-            CoreEpiphanyPressureBasis::Unknown => ThreadEpiphanyPressureBasis::Unknown,
-            CoreEpiphanyPressureBasis::AutoCompactLimit => {
-                ThreadEpiphanyPressureBasis::AutoCompactLimit
-            }
-            CoreEpiphanyPressureBasis::ModelContextWindow => {
-                ThreadEpiphanyPressureBasis::ModelContextWindow
-            }
-        },
-        used_tokens: pressure.used_tokens,
-        model_context_window: pressure.model_context_window,
-        model_auto_compact_token_limit: pressure.model_auto_compact_token_limit,
-        remaining_tokens: pressure.remaining_tokens,
-        ratio_per_mille: pressure.ratio_per_mille,
-        should_prepare_compaction: pressure.should_prepare_compaction,
-        note: pressure.note,
-    }
-}
-
-fn should_run_epiphany_pre_compaction_checkpoint_intervention(
-    pressure: &ThreadEpiphanyPressure,
-) -> bool {
-    pressure.status == ThreadEpiphanyPressureStatus::Ready && pressure.should_prepare_compaction
-}
-
-fn render_epiphany_pre_compaction_checkpoint_intervention(
-    pressure: &ThreadEpiphanyPressure,
-) -> String {
-    let usage = match (
-        pressure.used_tokens,
-        pressure.remaining_tokens,
-        pressure.ratio_per_mille,
-    ) {
-        (Some(used), Some(remaining), Some(ratio)) => format!(
-            "{used} tokens used, {remaining} remaining, {}.{}% of the selected limit",
-            ratio / 10,
-            ratio % 10
-        ),
-        (Some(used), _, _) => format!("{used} tokens used"),
-        _ => "token usage known only as a pressure threshold crossing".to_string(),
-    };
-    let template = epiphany_agent_prompt_with_memory(
-        &epiphany_specialist_prompt_config()
-            .crrc
-            .pre_compaction_checkpoint_intervention,
-    );
-    template
-        .trim()
-        .replace("{pressure_level}", pressure_level_label(pressure.level))
-        .replace("{usage}", &usage)
 }
 
 pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
