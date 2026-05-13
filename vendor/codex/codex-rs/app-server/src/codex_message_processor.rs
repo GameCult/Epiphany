@@ -1,6 +1,15 @@
 mod epiphany_mutation_routes;
 mod epiphany_read_routes;
 
+use self::epiphany_mutation_routes::epiphany_job_launch_changed_fields;
+use self::epiphany_mutation_routes::epiphany_promote_changed_fields;
+use self::epiphany_mutation_routes::epiphany_update_patch_changed_fields;
+use self::epiphany_mutation_routes::imagination_role_accept_patch_errors;
+use self::epiphany_mutation_routes::modeling_role_accept_patch_errors;
+use self::epiphany_mutation_routes::reorient_finding_code_refs;
+use self::epiphany_mutation_routes::reorient_finding_investigation_checkpoint;
+use self::epiphany_mutation_routes::reorient_finding_scratch;
+use self::epiphany_mutation_routes::role_finding_summary;
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
 use crate::command_exec::CommandExecManager;
@@ -10483,192 +10492,6 @@ fn latest_epiphany_runtime_link_for_binding<'a>(
         .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
 }
 
-async fn load_completed_epiphany_reorient_finding(
-    thread: &CodexThread,
-    state: &EpiphanyThreadState,
-    binding_id: &str,
-) -> CodexResult<ThreadEpiphanyReorientFinding> {
-    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
-        let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine_job(
-            link.runtime_job_id.as_str(),
-            Some(runtime_store_path.as_path()),
-        );
-        if status != ThreadEpiphanyReorientResultStatus::Completed {
-            return Err(CodexErr::InvalidRequest(format!(
-                "cannot accept reorientation result while worker status is {:?}",
-                status
-            )));
-        }
-        return finding.ok_or_else(|| {
-            CodexErr::InvalidRequest(
-                "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
-                    .to_string(),
-            )
-        });
-    }
-
-    if !state
-        .job_bindings
-        .iter()
-        .any(|binding| binding.id == binding_id)
-    {
-        return Err(CodexErr::InvalidRequest(format!(
-            "epiphany reorientation binding {:?} was not found",
-            binding_id
-        )));
-    }
-
-    Err(CodexErr::InvalidRequest(
-        "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
-            .to_string(),
-    ))
-}
-
-async fn load_completed_epiphany_role_finding(
-    thread: &CodexThread,
-    state: &EpiphanyThreadState,
-    role_id: ThreadEpiphanyRoleId,
-    binding_id: &str,
-) -> CodexResult<ThreadEpiphanyRoleFinding> {
-    if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
-        let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine_job(
-            link.runtime_job_id.as_str(),
-            Some(runtime_store_path.as_path()),
-            role_id,
-        );
-        if status != ThreadEpiphanyRoleResultStatus::Completed {
-            return Err(CodexErr::InvalidRequest(format!(
-                "cannot accept role result while worker status is {:?}",
-                status
-            )));
-        }
-        return finding.ok_or_else(|| {
-            CodexErr::InvalidRequest(
-                "cannot accept completed role worker because no typed runtime-spine result was recorded"
-                    .to_string(),
-            )
-        });
-    }
-
-    if !state
-        .job_bindings
-        .iter()
-        .any(|binding| binding.id == binding_id)
-    {
-        return Err(CodexErr::InvalidRequest(format!(
-            "epiphany role binding {:?} was not found",
-            binding_id
-        )));
-    }
-
-    Err(CodexErr::InvalidRequest(
-        "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
-            .to_string(),
-    ))
-}
-
-fn parse_role_finding_state_patch(
-    finding: &ThreadEpiphanyRoleFinding,
-) -> Result<ThreadEpiphanyUpdatePatch, String> {
-    finding
-        .state_patch
-        .clone()
-        .ok_or_else(|| "completed role finding did not include a reviewable statePatch".to_string())
-}
-
-fn imagination_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
-    imagination_role_state_patch_policy_errors(&core_state_patch_from_protocol(patch))
-}
-
-fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
-    modeling_role_state_patch_policy_errors(&core_state_patch_from_protocol(patch))
-}
-
-fn role_finding_summary(finding: &ThreadEpiphanyRoleFinding) -> String {
-    let summary = finding
-        .summary
-        .clone()
-        .unwrap_or_else(|| "Role worker returned a structured finding.".to_string());
-    if let Some(next_safe_move) = finding.next_safe_move.as_deref() {
-        format!("{summary} Next safe move: {next_safe_move}")
-    } else {
-        summary
-    }
-}
-
-fn reorient_finding_code_refs(finding: &ThreadEpiphanyReorientFinding) -> Vec<EpiphanyCodeRef> {
-    finding
-        .files_inspected
-        .iter()
-        .filter(|path| !path.trim().is_empty())
-        .map(|path| EpiphanyCodeRef {
-            path: PathBuf::from(path),
-            start_line: None,
-            end_line: None,
-            symbol: None,
-            note: Some("Inspected by accepted reorientation worker.".to_string()),
-        })
-        .collect()
-}
-
-fn reorient_finding_scratch(
-    binding_id: &str,
-    finding: &ThreadEpiphanyReorientFinding,
-) -> EpiphanyScratchPad {
-    let mode = finding.mode.as_deref().unwrap_or("unknown");
-    let checkpoint_validity = match finding.checkpoint_still_valid {
-        Some(true) => "valid",
-        Some(false) => "invalid",
-        None => "unknown",
-    };
-    EpiphanyScratchPad {
-        summary: finding.summary.clone(),
-        hypothesis: Some(format!(
-            "Accepted {mode} reorientation finding from {binding_id}; checkpoint validity is {checkpoint_validity}."
-        )),
-        next_probe: finding.next_safe_move.clone(),
-        notes: vec![format!(
-            "Files inspected: {}",
-            if finding.files_inspected.is_empty() {
-                "none reported".to_string()
-            } else {
-                finding.files_inspected.join(", ")
-            }
-        )],
-    }
-}
-
-fn reorient_finding_investigation_checkpoint(
-    checkpoint: &EpiphanyInvestigationCheckpoint,
-    evidence_id: &str,
-    code_refs: &[EpiphanyCodeRef],
-    finding: &ThreadEpiphanyReorientFinding,
-) -> EpiphanyInvestigationCheckpoint {
-    let mut checkpoint = checkpoint.clone();
-    checkpoint.summary = finding.summary.clone().or(checkpoint.summary);
-    checkpoint.next_action = finding.next_safe_move.clone().or(checkpoint.next_action);
-    checkpoint.disposition = EpiphanyInvestigationDisposition::ResumeReady;
-    if !checkpoint
-        .evidence_ids
-        .iter()
-        .any(|existing| existing == evidence_id)
-    {
-        checkpoint.evidence_ids.push(evidence_id.to_string());
-    }
-    for code_ref in code_refs {
-        if !checkpoint
-            .code_refs
-            .iter()
-            .any(|existing| existing.path == code_ref.path)
-        {
-            checkpoint.code_refs.push(code_ref.clone());
-        }
-    }
-    checkpoint
-}
-
 pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     thread_id: ThreadId,
     thread: Arc<CodexThread>,
@@ -10860,13 +10683,6 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     }
 }
 
-fn epiphany_job_launch_changed_fields() -> Vec<ThreadEpiphanyStateUpdatedField> {
-    vec![
-        ThreadEpiphanyStateUpdatedField::JobBindings,
-        ThreadEpiphanyStateUpdatedField::RuntimeLinks,
-    ]
-}
-
 pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count(
     thread_id: ThreadId,
     turn_id: String,
@@ -10918,92 +10734,6 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
             );
         }
     }
-}
-
-fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatch) -> bool {
-    patch.objective.is_some()
-        || patch.active_subgoal_id.is_some()
-        || patch.subgoals.is_some()
-        || patch.invariants.is_some()
-        || patch.graphs.is_some()
-        || patch.graph_frontier.is_some()
-        || patch.graph_checkpoint.is_some()
-        || patch.scratch.is_some()
-        || patch.investigation_checkpoint.is_some()
-        || patch.job_bindings.is_some()
-        || !patch.acceptance_receipts.is_empty()
-        || !patch.runtime_links.is_empty()
-        || patch.churn.is_some()
-        || patch.mode.is_some()
-        || patch.planning.is_some()
-}
-
-fn epiphany_update_patch_changed_fields(
-    patch: &ThreadEpiphanyUpdatePatch,
-) -> Vec<ThreadEpiphanyStateUpdatedField> {
-    let mut fields = Vec::new();
-    if patch.objective.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Objective);
-    }
-    if patch.active_subgoal_id.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::ActiveSubgoalId);
-    }
-    if patch.subgoals.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Subgoals);
-    }
-    if patch.invariants.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Invariants);
-    }
-    if patch.graphs.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Graphs);
-    }
-    if patch.graph_frontier.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::GraphFrontier);
-    }
-    if patch.graph_checkpoint.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::GraphCheckpoint);
-    }
-    if patch.scratch.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Scratch);
-    }
-    if patch.investigation_checkpoint.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint);
-    }
-    if patch.job_bindings.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::JobBindings);
-    }
-    if !patch.acceptance_receipts.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::AcceptanceReceipts);
-    }
-    if !patch.runtime_links.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::RuntimeLinks);
-    }
-    if !patch.observations.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Observations);
-    }
-    if !patch.evidence.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Evidence);
-    }
-    if patch.churn.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Churn);
-    }
-    if patch.mode.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Mode);
-    }
-    if patch.planning.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Planning);
-    }
-    fields
-}
-
-fn epiphany_promote_changed_fields(
-    patch: &ThreadEpiphanyUpdatePatch,
-) -> Vec<ThreadEpiphanyStateUpdatedField> {
-    let mut fields = epiphany_update_patch_changed_fields(patch);
-    if !fields.contains(&ThreadEpiphanyStateUpdatedField::Evidence) {
-        fields.push(ThreadEpiphanyStateUpdatedField::Evidence);
-    }
-    fields
 }
 
 pub(crate) fn summary_to_thread(

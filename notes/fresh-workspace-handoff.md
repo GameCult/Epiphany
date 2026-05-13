@@ -441,14 +441,18 @@ cut split that route chamber into read/proposal routes at
 and mutation/launch/accept/index routes at
 `vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_mutation_routes.rs`.
 The processor is about 16,089 lines after the split; this pass clarified
-authority rather than removing another large block.
+authority rather than removing another large block. The thirteenth cut moved
+mutation support helpers for completed-result loading, accept patch rendering,
+patch validation, and changed-field derivation into
+`vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_mutation_routes.rs`,
+taking the processor to about 15,819 lines.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.
 
-Continue with the actual whale-carcass cut: move mutation policy and runtime
-authority out of the mutation route module and out of
+Continue with the actual whale-carcass cut: move coordinator automation,
+result snapshot plumbing, and remaining runtime authority out of
 `codex_message_processor.rs` into Epiphany-owned app-server modules, moving
 logic further into `epiphany-core` whenever it owns real policy. Success is a
 visibly smaller `codex_message_processor.rs`, not merely nicer payload names. Do
