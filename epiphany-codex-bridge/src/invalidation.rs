@@ -17,7 +17,7 @@ use tracing::warn;
 const INVALIDATION_WATCH_DEBOUNCE: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct EpiphanyInvalidationSnapshot {
+pub struct EpiphanyInvalidationSnapshot {
     pub available: bool,
     pub workspace_root: Option<AbsolutePathBuf>,
     pub observed_at_unix_seconds: Option<i64>,
@@ -25,7 +25,7 @@ pub(crate) struct EpiphanyInvalidationSnapshot {
 }
 
 #[derive(Clone)]
-pub(crate) struct EpiphanyInvalidationManager {
+pub struct EpiphanyInvalidationManager {
     available: bool,
     file_watcher: Arc<FileWatcher>,
     state: Arc<AsyncMutex<HashMap<String, WatchEntry>>>,
@@ -46,7 +46,7 @@ struct LatestInvalidation {
 }
 
 impl EpiphanyInvalidationManager {
-    pub(crate) fn new() -> Self {
+    pub fn new() -> Self {
         match FileWatcher::new() {
             Ok(file_watcher) => Self {
                 available: true,
@@ -64,11 +64,7 @@ impl EpiphanyInvalidationManager {
         }
     }
 
-    pub(crate) async fn ensure_thread_watch(
-        &self,
-        thread_id: &str,
-        workspace_root: &AbsolutePathBuf,
-    ) {
+    pub async fn ensure_thread_watch(&self, thread_id: &str, workspace_root: &AbsolutePathBuf) {
         if !self.available {
             return;
         }
@@ -135,7 +131,7 @@ impl EpiphanyInvalidationManager {
         });
     }
 
-    pub(crate) async fn snapshot(&self, thread_id: &str) -> EpiphanyInvalidationSnapshot {
+    pub async fn snapshot(&self, thread_id: &str) -> EpiphanyInvalidationSnapshot {
         if !self.available {
             return EpiphanyInvalidationSnapshot {
                 available: false,
@@ -174,7 +170,7 @@ impl EpiphanyInvalidationManager {
         }
     }
 
-    pub(crate) async fn remove_thread(&self, thread_id: &str) {
+    pub async fn remove_thread(&self, thread_id: &str) {
         let entry = self.state.lock().await.remove(thread_id);
         if let Some(entry) = entry {
             stop_watch_entry(entry).await;

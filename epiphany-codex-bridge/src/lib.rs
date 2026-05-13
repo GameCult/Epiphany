@@ -1,5 +1,6 @@
 pub mod context;
 pub mod coordinator;
+pub mod invalidation;
 pub mod jobs;
 pub mod launch;
 pub mod mutation;

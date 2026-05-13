@@ -74,7 +74,6 @@ mod config_manager;
 mod config_manager_service;
 mod device_key_api;
 mod dynamic_tools;
-mod epiphany_invalidation;
 mod error_code;
 mod filters;
 mod fs_api;

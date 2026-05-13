@@ -760,6 +760,13 @@ depends directly on `codex-chatgpt`, `codex-core-plugins`, or `codex-plugin`.
 `codex_message_processor.rs` is still too large, but it is no longer carrying
 the plugin marketplace altar in its chest cavity.
 
+The watcher invalidation adapter has left the vendored app-server root too.
+`epiphany-codex-bridge::invalidation` now owns `EpiphanyInvalidationManager`
+and its snapshots around Codex's file watcher; app-server keeps only the
+host-lifecycle calls that create, snapshot, and remove watches for loaded
+threads. There is no longer a root `epiphany_invalidation.rs` module under
+vendored app-server.
+
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph
 frontier/churn state and, for loaded threads, watcher-backed invalidation

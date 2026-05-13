@@ -4,7 +4,6 @@ use crate::codex_message_processor::maybe_run_epiphany_pre_compaction_checkpoint
 use crate::codex_message_processor::read_rollout_items_from_rollout;
 use crate::codex_message_processor::read_summary_from_rollout;
 use crate::codex_message_processor::summary_to_thread;
-use crate::epiphany_invalidation::EpiphanyInvalidationManager;
 use crate::error_code::INTERNAL_ERROR_CODE;
 use crate::error_code::INVALID_REQUEST_ERROR_CODE;
 use crate::outgoing_message::ClientRequestResult;
@@ -148,6 +147,7 @@ use codex_protocol::request_user_input::RequestUserInputResponse as CoreRequestU
 use codex_sandboxing::policy_transforms::intersect_permission_profiles;
 use codex_shell_command::parse_command::shlex_join;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
