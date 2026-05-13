@@ -4,7 +4,6 @@ use codex_app_server_protocol::*;
 use codex_core::EpiphanyJobInterruptRequest;
 use codex_core::EpiphanyJobLaunchRequest;
 use codex_core::EpiphanyPromotionInput;
-use codex_core::EpiphanyStateUpdate;
 use codex_core::evaluate_promotion;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
@@ -573,6 +572,7 @@ impl CodexMessageProcessor {
         let accepted_evidence_id = format!("ev-reorient-{}", Uuid::new_v4());
         let accepted_observation_id = format!("obs-reorient-{}", Uuid::new_v4());
         let acceptance_update = match build_reorient_acceptance_update(
+            expected_revision,
             &binding_id,
             &finding,
             accepted_evidence_id,
@@ -594,15 +594,7 @@ impl CodexMessageProcessor {
         let changed_fields = acceptance_update.changed_fields.clone();
 
         let epiphany_state = match loaded_thread
-            .epiphany_update_state(EpiphanyStateUpdate {
-                expected_revision,
-                scratch: acceptance_update.scratch,
-                investigation_checkpoint: acceptance_update.investigation_checkpoint,
-                acceptance_receipts: vec![acceptance_update.receipt],
-                observations: vec![acceptance_update.observation],
-                evidence: vec![acceptance_update.evidence],
-                ..Default::default()
-            })
+            .epiphany_update_state(acceptance_update.state_update)
             .await
         {
             Ok(state) => {

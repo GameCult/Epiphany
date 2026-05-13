@@ -33,11 +33,7 @@ pub struct RoleAcceptanceUpdate {
 }
 
 pub struct ReorientAcceptanceUpdate {
-    pub scratch: Option<EpiphanyScratchPad>,
-    pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
-    pub receipt: codex_protocol::protocol::EpiphanyAcceptanceReceipt,
-    pub observation: codex_protocol::protocol::EpiphanyObservation,
-    pub evidence: codex_protocol::protocol::EpiphanyEvidenceRecord,
+    pub state_update: EpiphanyStateUpdate,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
@@ -209,6 +205,7 @@ pub fn build_role_acceptance_update(
 }
 
 pub fn build_reorient_acceptance_update(
+    expected_revision: Option<u64>,
     binding_id: &str,
     finding: &ThreadEpiphanyReorientFinding,
     accepted_evidence_id: String,
@@ -254,11 +251,15 @@ pub fn build_reorient_acceptance_update(
     }
 
     Ok(ReorientAcceptanceUpdate {
-        scratch,
-        investigation_checkpoint,
-        receipt: acceptance_bundle.receipt,
-        observation: acceptance_bundle.observation,
-        evidence: acceptance_bundle.evidence,
+        state_update: EpiphanyStateUpdate {
+            expected_revision,
+            scratch,
+            investigation_checkpoint,
+            acceptance_receipts: vec![acceptance_bundle.receipt],
+            observations: vec![acceptance_bundle.observation],
+            evidence: vec![acceptance_bundle.evidence],
+            ..Default::default()
+        },
         changed_fields,
         accepted_receipt_id,
         accepted_observation_id,
