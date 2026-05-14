@@ -751,13 +751,14 @@ The Codex product-surface starvation cuts are landed too. App-server
 apps/skills/plugin/marketplace list routes are inert, mutation/detail routes
 return explicit disabled errors, the helper modules and stale v2 endpoint tests
 were deleted, and the broken private `processor_tests.rs` implementation-shape
-suite is gone. `externalAgentConfig/*` is now a compatibility husk: detect
-returns no imports, import is disabled, and the Claude/app/skill/plugin import
-machinery plus tests were deleted. Config no longer treats `apps` or `plugins`
-as supported runtime feature enablement, no longer refreshes app lists after
-feature writes, no longer starts plugin warmups at app-server startup, and no
-longer emits plugin-toggle analytics from config writes. App-server no longer
-depends directly on `codex-chatgpt`, `codex-core-plugins`, or `codex-plugin`.
+suite is gone. `externalAgentConfig/*` was later cut completely; there is no
+detect/import route, import-completed notification, TUI prompt, migration
+module, snapshot, disabled handler, or generated schema left. Config no longer
+treats `apps` or `plugins` as supported runtime feature enablement, no longer
+refreshes app lists after feature writes, no longer starts plugin warmups at
+app-server startup, and no longer emits plugin-toggle analytics from config
+writes. App-server no longer depends directly on `codex-chatgpt`,
+`codex-core-plugins`, or `codex-plugin`.
 `codex_message_processor.rs` is still too large, but it is no longer carrying
 the plugin marketplace altar in its chest cavity.
 
@@ -962,6 +963,14 @@ absolute-path, and template tests. A vendored-wide search for product-shaped
 `marketplace`, `plugin`, `app://`, `plugin://`, `codex_apps`, and stale Apps
 test names now returns only external URLs, generic URL examples, and real
 package names such as `eslint-plugin`; not live Codex product machinery.
+
+The vendored Codex SDK subtree is now deleted too. `vendor/codex/sdk` was not
+runtime auth/model spine machinery; it was Python/TypeScript app-server client
+and release packaging scaffolding, including stale generated Python types for
+plugin, marketplace, and external-agent routes after the live Rust protocol had
+already stopped owning those organs. The root pnpm workspace no longer lists
+`sdk/typescript`, the lockfile SDK importer is gone, and a vendored-wide search
+for those stale SDK/product route strings is empty.
 
 The typed worker-result boundary is now stricter. `roleResult` and
 `reorientResult` read-back no longer falls back from
