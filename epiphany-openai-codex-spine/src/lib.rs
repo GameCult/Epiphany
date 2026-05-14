@@ -1,20 +1,18 @@
 use std::sync::Arc;
-use std::sync::OnceLock;
+use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
-use codex_api::Compression;
-use codex_api::ReqwestTransport;
-use codex_api::ResponseEvent;
-use codex_api::ResponsesClient;
-use codex_api::build_conversation_headers;
+use codex_client::HttpTransport;
+use codex_client::Request;
+use codex_client::ReqwestTransport;
+use codex_client::TransportError;
+use codex_client::sse_stream;
 use codex_login::AuthCredentialsStoreMode;
 use codex_login::AuthManager;
 use codex_login::AuthMode;
 use codex_login::CodexAuth;
 use codex_login::default_client::build_reqwest_client;
-use codex_model_provider::create_model_provider;
-use codex_model_provider_info::ModelProviderInfo;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiAuthMode;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
@@ -23,8 +21,13 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
-use futures::StreamExt;
+use serde::Deserialize;
 use serde::Serialize;
+use serde_json::Value;
+
+const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
+const OPENAI_API_BASE_URL: &str = "https://api.openai.com/v1";
+const RESPONSES_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
 
 pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
 
@@ -93,91 +96,89 @@ pub fn status_from_codex_auth(
 
 pub struct EpiphanyCodexOpenAiTransport {
     auth_manager: Arc<AuthManager>,
-    provider_info: ModelProviderInfo,
+    base_url: Option<String>,
 }
 
 impl EpiphanyCodexOpenAiTransport {
-    pub fn new(auth_manager: Arc<AuthManager>, provider_info: ModelProviderInfo) -> Self {
+    pub fn new(auth_manager: Arc<AuthManager>, base_url: Option<String>) -> Self {
         Self {
             auth_manager,
-            provider_info,
+            base_url,
         }
     }
 
     pub fn openai(auth_manager: Arc<AuthManager>) -> Self {
-        Self::new(
-            auth_manager,
-            ModelProviderInfo::create_openai_provider(/*base_url*/ None),
-        )
+        Self::new(auth_manager, None)
     }
 
     pub async fn collect_model_events(
         &self,
         request: EpiphanyOpenAiModelRequest,
     ) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
-        let model_provider = create_model_provider(
-            self.provider_info.clone(),
-            Some(Arc::clone(&self.auth_manager)),
-        );
-        let api_provider = model_provider.api_provider().await?;
-        let api_auth = model_provider.api_auth().await?;
-        let client = ResponsesClient::new(
-            ReqwestTransport::new(build_reqwest_client()),
-            api_provider,
-            api_auth,
-        );
-        let mut headers = build_conversation_headers(Some(request.conversation_id.clone()));
-        if let Ok(value) = request.conversation_id.parse() {
-            headers.insert("x-client-request-id", value);
-        }
         let request_id = request.request_id.clone();
         let model = request.model.clone();
-        let mut stream = client
-            .stream(
-                responses_body_from_epiphany(request)?,
-                headers,
-                Compression::None,
-                Some(Arc::new(OnceLock::new())),
-            )
+        let auth = self
+            .auth_manager
+            .auth()
             .await
-            .context("failed to open OpenAI Responses stream through Codex spine")?;
+            .ok_or_else(|| anyhow::anyhow!("Codex auth is unavailable"))?;
+        let stream_response = self.open_responses_stream(&auth, request).await?;
+        let (tx, mut rx) = tokio::sync::mpsc::channel(1600);
+        sse_stream(stream_response.bytes, RESPONSES_STREAM_IDLE_TIMEOUT, tx);
 
-        let mut sequence = 0;
-        let mut events = Vec::new();
-        while let Some(event) = stream.next().await {
-            match event {
-                Ok(event) => {
-                    if let Some(payload) = stream_payload_from_response_event(
-                        event,
-                        request_id.as_str(),
-                        model.as_str(),
-                    ) {
-                        events.push(EpiphanyOpenAiStreamEvent {
-                            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID
-                                .to_string(),
-                            request_id: request_id.clone(),
-                            sequence,
-                            payload,
-                        });
-                        sequence += 1;
-                    }
-                }
-                Err(err) => {
-                    events.push(EpiphanyOpenAiStreamEvent {
-                        schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID
-                            .to_string(),
-                        request_id: request_id.clone(),
-                        sequence,
-                        payload: EpiphanyOpenAiStreamPayload::Failed {
-                            message: err.to_string(),
-                        },
-                    });
-                    break;
-                }
+        let mut stream_state = EpiphanyResponsesStreamState::new(&request_id, &model);
+        while let Some(frame) = rx.recv().await {
+            match frame {
+                Ok(frame) => stream_state.push_sse_frame(&frame),
+                Err(err) => stream_state.push_failed(err.to_string()),
+            }
+            if stream_state.completed {
+                break;
             }
         }
 
-        Ok(events)
+        if stream_state.events.is_empty() {
+            stream_state.push_failed("Responses stream closed without typed events".to_string());
+        }
+        Ok(stream_state.events)
+    }
+
+    async fn open_responses_stream(
+        &self,
+        auth: &CodexAuth,
+        request: EpiphanyOpenAiModelRequest,
+    ) -> Result<codex_client::StreamResponse> {
+        let base_url = self
+            .base_url
+            .clone()
+            .unwrap_or_else(|| default_base_url_for_auth(auth).to_string());
+        let url = format!("{}/responses", base_url.trim_end_matches('/'));
+        let conversation_id = request.conversation_id.clone();
+        let mut outbound = Request::new(http::Method::POST, url)
+            .with_json(&responses_body_from_epiphany(request)?);
+        attach_codex_auth_headers(auth, &mut outbound.headers)
+            .context("failed to attach Codex auth headers")?;
+        outbound
+            .headers
+            .insert(http::header::ACCEPT, "text/event-stream".parse()?);
+        outbound
+            .headers
+            .insert("session_id", conversation_id.parse()?);
+        outbound
+            .headers
+            .insert("x-client-request-id", conversation_id.parse()?);
+        attach_optional_env_header(
+            &mut outbound.headers,
+            "OpenAI-Organization",
+            "OPENAI_ORGANIZATION",
+        );
+        attach_optional_env_header(&mut outbound.headers, "OpenAI-Project", "OPENAI_PROJECT");
+
+        let transport = ReqwestTransport::new(build_reqwest_client());
+        transport
+            .stream(outbound)
+            .await
+            .map_err(transport_error_to_anyhow)
     }
 }
 
@@ -279,51 +280,125 @@ fn openai_input_item_from_epiphany_input(
     }
 }
 
-fn stream_payload_from_response_event(
-    event: ResponseEvent,
-    request_id: &str,
-    requested_model: &str,
-) -> Option<EpiphanyOpenAiStreamPayload> {
-    match event {
-        ResponseEvent::OutputTextDelta(text) => {
-            Some(EpiphanyOpenAiStreamPayload::TextDelta { text })
+#[derive(Debug, Deserialize)]
+struct EpiphanyResponsesStreamEvent {
+    #[serde(rename = "type")]
+    kind: String,
+    response: Option<Value>,
+    item_id: Option<String>,
+    call_id: Option<String>,
+    delta: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EpiphanyResponseCompleted {
+    id: String,
+    #[serde(default)]
+    usage: Option<EpiphanyResponseCompletedUsage>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EpiphanyResponseCompletedUsage {
+    input_tokens: i64,
+    output_tokens: i64,
+    output_tokens_details: Option<EpiphanyResponseCompletedOutputTokensDetails>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EpiphanyResponseCompletedOutputTokensDetails {
+    reasoning_tokens: i64,
+}
+
+struct EpiphanyResponsesStreamState {
+    request_id: String,
+    requested_model: String,
+    sequence: u64,
+    completed: bool,
+    events: Vec<EpiphanyOpenAiStreamEvent>,
+}
+
+impl EpiphanyResponsesStreamState {
+    fn new(request_id: &str, requested_model: &str) -> Self {
+        Self {
+            request_id: request_id.to_string(),
+            requested_model: requested_model.to_string(),
+            sequence: 0,
+            completed: false,
+            events: Vec::new(),
         }
-        ResponseEvent::ReasoningSummaryDelta { delta, .. }
-        | ResponseEvent::ReasoningContentDelta { delta, .. } => {
-            Some(EpiphanyOpenAiStreamPayload::ReasoningDelta { text: delta })
-        }
-        ResponseEvent::ToolCallInputDelta {
-            item_id,
-            call_id,
-            delta,
-        } => Some(EpiphanyOpenAiStreamPayload::ToolCall {
-            call_id: call_id.unwrap_or(item_id.clone()),
-            name: item_id,
-            arguments: delta,
-        }),
-        ResponseEvent::Completed {
-            response_id,
-            token_usage,
-        } => {
-            let mut receipt = EpiphanyOpenAiModelReceipt::new(request_id, requested_model);
-            receipt.response_id = Some(response_id);
-            receipt.transport = Some("codex_responses_http".to_string());
-            if let Some(usage) = token_usage {
-                receipt.input_tokens = nonnegative_i64_to_u64(usage.input_tokens);
-                receipt.output_tokens = nonnegative_i64_to_u64(usage.output_tokens);
-                receipt.reasoning_output_tokens =
-                    nonnegative_i64_to_u64(usage.reasoning_output_tokens);
+    }
+
+    fn push_sse_frame(&mut self, frame: &str) {
+        let Ok(event) = serde_json::from_str::<EpiphanyResponsesStreamEvent>(frame) else {
+            return;
+        };
+        match event.kind.as_str() {
+            "response.output_text.delta" => {
+                if let Some(text) = event.delta {
+                    self.push_payload(EpiphanyOpenAiStreamPayload::TextDelta { text });
+                }
             }
-            Some(EpiphanyOpenAiStreamPayload::Completed { receipt })
+            "response.reasoning_summary_text.delta" | "response.reasoning_text.delta" => {
+                if let Some(text) = event.delta {
+                    self.push_payload(EpiphanyOpenAiStreamPayload::ReasoningDelta { text });
+                }
+            }
+            "response.custom_tool_call_input.delta" => {
+                if let (Some(arguments), Some(name)) =
+                    (event.delta, event.item_id.clone().or(event.call_id.clone()))
+                {
+                    self.push_payload(EpiphanyOpenAiStreamPayload::ToolCall {
+                        call_id: event.call_id.unwrap_or_else(|| name.clone()),
+                        name,
+                        arguments,
+                    });
+                }
+            }
+            "response.completed" => {
+                if let Some(response) = event.response {
+                    match serde_json::from_value::<EpiphanyResponseCompleted>(response) {
+                        Ok(completed) => self.push_completed(completed),
+                        Err(err) => self.push_failed(format!(
+                            "failed to parse response.completed event: {err}"
+                        )),
+                    }
+                }
+                self.completed = true;
+            }
+            "response.failed" | "response.incomplete" => {
+                self.push_failed(response_error_message(event.response.as_ref()));
+            }
+            _ => {}
         }
-        ResponseEvent::Created
-        | ResponseEvent::OutputItemAdded(_)
-        | ResponseEvent::OutputItemDone(_)
-        | ResponseEvent::ServerModel(_)
-        | ResponseEvent::ServerReasoningIncluded(_)
-        | ResponseEvent::ReasoningSummaryPartAdded { .. }
-        | ResponseEvent::RateLimits(_)
-        | ResponseEvent::ModelsEtag(_) => None,
+    }
+
+    fn push_completed(&mut self, completed: EpiphanyResponseCompleted) {
+        let mut receipt = EpiphanyOpenAiModelReceipt::new(&self.request_id, &self.requested_model);
+        receipt.response_id = Some(completed.id);
+        receipt.transport = Some("epiphany_direct_responses_http".to_string());
+        if let Some(usage) = completed.usage {
+            receipt.input_tokens = nonnegative_i64_to_u64(usage.input_tokens);
+            receipt.output_tokens = nonnegative_i64_to_u64(usage.output_tokens);
+            receipt.reasoning_output_tokens = usage
+                .output_tokens_details
+                .and_then(|details| nonnegative_i64_to_u64(details.reasoning_tokens));
+        }
+        self.push_payload(EpiphanyOpenAiStreamPayload::Completed { receipt });
+    }
+
+    fn push_failed(&mut self, message: String) {
+        self.push_payload(EpiphanyOpenAiStreamPayload::Failed { message });
+        self.completed = true;
+    }
+
+    fn push_payload(&mut self, payload: EpiphanyOpenAiStreamPayload) {
+        self.events.push(EpiphanyOpenAiStreamEvent {
+            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+            request_id: self.request_id.clone(),
+            sequence: self.sequence,
+            payload,
+        });
+        self.sequence += 1;
     }
 }
 
@@ -355,6 +430,70 @@ fn parse_service_tier(value: Option<&str>) -> Result<Option<String>> {
 
 fn nonnegative_i64_to_u64(value: i64) -> Option<u64> {
     u64::try_from(value).ok()
+}
+
+fn default_base_url_for_auth(auth: &CodexAuth) -> &'static str {
+    if auth.uses_codex_backend() {
+        CHATGPT_CODEX_BASE_URL
+    } else {
+        OPENAI_API_BASE_URL
+    }
+}
+
+fn attach_codex_auth_headers(
+    auth: &CodexAuth,
+    headers: &mut http::HeaderMap,
+) -> std::io::Result<()> {
+    let token = auth.get_token()?;
+    let value = format!("Bearer {token}");
+    if let Ok(value) = value.parse() {
+        headers.insert(http::header::AUTHORIZATION, value);
+    }
+    if let Some(account_id) = auth.get_account_id()
+        && let Ok(value) = account_id.parse()
+    {
+        headers.insert("ChatGPT-Account-ID", value);
+    }
+    if auth.is_fedramp_account() {
+        headers.insert("X-OpenAI-Fedramp", "true".parse().expect("valid header"));
+    }
+    headers.insert(
+        "version",
+        env!("CARGO_PKG_VERSION").parse().expect("valid header"),
+    );
+    Ok(())
+}
+
+fn attach_optional_env_header(headers: &mut http::HeaderMap, name: &'static str, env_key: &str) {
+    let Ok(value) = std::env::var(env_key) else {
+        return;
+    };
+    let value = value.trim();
+    if value.is_empty() {
+        return;
+    }
+    if let Ok(value) = value.parse() {
+        headers.insert(name, value);
+    }
+}
+
+fn response_error_message(response: Option<&Value>) -> String {
+    response
+        .and_then(|response| response.get("error"))
+        .and_then(|error| error.get("message"))
+        .and_then(Value::as_str)
+        .or_else(|| {
+            response
+                .and_then(|response| response.get("incomplete_details"))
+                .and_then(|details| details.get("reason"))
+                .and_then(Value::as_str)
+        })
+        .unwrap_or("Responses stream failed")
+        .to_string()
+}
+
+fn transport_error_to_anyhow(err: TransportError) -> anyhow::Error {
+    anyhow::anyhow!("failed to open direct Responses stream: {err}")
 }
 
 fn auth_mode_from_manager(

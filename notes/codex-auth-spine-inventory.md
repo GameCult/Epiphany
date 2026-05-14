@@ -9,7 +9,8 @@ here is suspect until proven otherwise.
 
 - User authentication material from Codex auth storage or an external auth
   provider.
-- Model/provider configuration from Codex config and model provider metadata.
+- Model name and optional endpoint override from Epiphany-owned request/config
+  surfaces.
 - Per-turn model request data: prompt instructions, formatted input, tools,
   output schema, reasoning controls, service tier, and model metadata.
 - Session identity: conversation/thread id, installation id, window id,
@@ -21,33 +22,30 @@ here is suspect until proven otherwise.
   `vendor/codex/codex-rs/login/src/auth/manager.rs`.
 - Auth token state in `CodexAuth` / `ChatgptAuthState`, including refreshable
   ChatGPT tokens and account metadata.
-- Model cache managed by
-  `vendor/codex/codex-rs/models-manager/src/manager.rs`.
-- Session-scoped model transport state inside
-  `vendor/codex/codex-rs/core/src/client.rs`: provider, auth environment
-  telemetry, conversation id, websocket fallback state, and cached websocket
-  session.
+- No durable model/provider state is owned by the current OpenAI spine. The
+  model string is request data; catalog/default selection must become a typed
+  Epiphany document before it can be keeper machinery.
 
 ### Transformations
 
 - `codex-login` loads auth, refreshes ChatGPT access tokens, preserves account
   metadata, and exposes `CodexAuth`.
-- `codex-model-provider` converts `CodexAuth` plus provider config into a
-  bearer auth provider and API provider.
-- `models-manager` uses provider auth to fetch `/models`, cache the catalog,
-  and choose default/model metadata.
-- `codex-core::client` builds Responses API requests from typed prompt/model
-  structures, adds Codex/OpenAI identity headers, chooses HTTP or websocket
-  transport, streams response events, and handles auth/error/rate-limit
-  telemetry.
+- `epiphany-openai-codex-spine` converts `CodexAuth` directly into
+  authorization/account headers, chooses the ChatGPT Codex backend or OpenAI API
+  base URL from auth mode, builds a local serializable Responses request body,
+  opens an HTTP/SSE stream through `codex-client`, and parses Responses frames
+  into typed Epiphany stream events.
+- `codex-login` still drags `codex-config`, `codex-model-provider-info`,
+  `codex-api`, and `codex-protocol` transitively. That is dependency rot, not
+  current request-path ownership.
 
 ### Outputs
 
 - Bearer-authenticated OpenAI/ChatGPT-compatible model calls.
 - Streaming model response events.
-- Compaction/memory/realtime model helper calls that use the same provider
-  setup.
-- Model catalog and model metadata.
+- No compaction/memory/realtime helper calls are part of this spine unless a
+  typed Epiphany caller explicitly earns them later.
+- No model catalog or model metadata store is keeper machinery yet.
 - Auth and transport telemetry/errors needed to recover or report failure.
 
 ## Keep
@@ -56,16 +54,9 @@ here is suspect until proven otherwise.
   organ. It knows ChatGPT/API-key/agent/external auth modes, refresh semantics,
   token storage, and account metadata. Long term, wrap it behind an Epiphany
   `OpenAIAuthAdapter` instead of letting the rest of Epiphany import it.
-- `model-provider/src/auth.rs` and `model-provider/src/provider.rs`: keep as
-  the provider auth resolver. This is the narrow bridge from Codex auth state to
-  API bearer auth.
-- `core/src/client.rs`: keep only the model transport subset: provider setup,
-  Responses request construction, HTTP/websocket streaming, identity headers,
-  and auth recovery telemetry. It is too entangled to delete before a native
-  Epiphany model adapter exists.
-- `models-manager/src/manager.rs`: keep narrowly for model catalog refresh,
-  default model selection, and auth-mode filtering until Epiphany has its own
-  typed model catalog document.
+- `codex-client`: keep only as a plain HTTP/SSE transport helper for now. It
+  does not own Epiphany request shape, model policy, stream semantics, or durable
+  state.
 
 ## Cut Or Seal
 
@@ -78,8 +69,10 @@ here is suspect until proven otherwise.
 - `codex-core::client` helper calls for memories/realtime/compaction are
   suspicious unless Epiphany deliberately needs that OpenAI endpoint. Keep them
   sealed with the transport until the native adapter split can decide.
-- `models-manager` collaboration mode surfaces are not part of the auth spine.
-  Model catalog yes; collaboration-mode presets no.
+- `codex-api`, `codex-model-provider`, `codex-model-provider-info`,
+  `codex-core::client`, and `models-manager` are no longer part of the direct
+  OpenAI request path. If a later model catalog is needed, it should be a typed
+  Epiphany catalog document, not a revival of the old Codex provider stack.
 
 ## Extract Target
 
@@ -96,11 +89,10 @@ EpiphanyOpenAIModelTransport
   -> emit typed stream events / receipts
 ```
 
-The adapter may depend on `codex-login`, `codex-model-provider`,
-`codex-model-provider-info`, `codex-api`, and the narrow model-transport pieces
-of `codex-core`. It must not depend on `codex-app-server`,
-`codex_message_processor`, plugin/app/skill/marketplace modules, or Epiphany
-state ownership.
+The adapter may depend on `codex-login` and `codex-client` only while the
+reliquary survives. It must not depend on
+`codex-app-server`, `codex_message_processor`, plugin/app/skill/marketplace
+modules, Codex provider/request construction, or Epiphany state ownership.
 
 ## Next Cut
 
@@ -124,15 +116,14 @@ keeper Codex auth types and projects `AuthManager` / `CodexAuth` into a typed
 the current app-server compatibility shell can compile it without making the
 pure document crate depend on Codex.
 
-The first transport wrapper is now also in that spine. It maps typed
-`EpiphanyOpenAiModelRequest` documents into Codex API `ResponsesApiRequest`,
-resolves auth/provider through `codex-login` + `codex-model-provider`, opens an
-HTTP Responses stream with `codex-api`, and converts stream deltas/completion
-into typed `EpiphanyOpenAiStreamEvent` / `EpiphanyOpenAiModelReceipt`
-documents. This is still a compatibility reliquary, not final native purity:
-the next cut is to make an Epiphany-native runtime call this transport boundary
-directly instead of reaching model turns through `thread/epiphany/*` JSON-RPC or
-the Codex host brain.
+The transport wrapper is now also in that spine. It maps typed
+`EpiphanyOpenAiModelRequest` documents into a local serializable Responses
+request body, resolves credentials through `codex-login`, chooses the
+ChatGPT/OpenAI base URL from auth mode, opens an HTTP Responses SSE stream with
+`codex-client`, and converts stream deltas/completion into typed
+`EpiphanyOpenAiStreamEvent` / `EpiphanyOpenAiModelReceipt` documents. It no
+longer directly imports Codex `ResponsesApiRequest`, `ResponsesClient`,
+`ResponseEvent`, provider config, model-provider, or protocol enums.
 
 The CultNet paperwork is now public too. `schemas/cultnet/` contains typed
 schemas for OpenAI adapter status, model request, stream event, and terminal
@@ -180,12 +171,13 @@ application. `codex-core` re-exports the contract only as a compatibility
 alias, and `CodexThread` now calls native state-update functions around its
 remaining revision check, persistence validation, and rollout/session writeback.
 
-The bad news is useful: the current spine still drags in `codex-api` and its
-large transport dependency stack. That is tolerable as a sealed compatibility
-reliquary, but not as the final shape. The next purification should shrink the
-surviving Codex dependency surface to credential loading/refresh, provider
-auth, model selection, and the smallest OpenAI Responses HTTP call that keeps
-Codex subscription compatibility.
+The bad news is useful: `cargo tree -i codex-api` still shows `codex-api` and
+`codex-protocol` entering through `codex-login`'s dependency graph
+(`codex-config`, `codex-model-provider-info`, and `codex-otel`). That is not
+proof the request path needs them. It is proof the credential organ is still
+fat. The next purification should extract or rewrite the minimum auth surface:
+credential loading, token refresh, account metadata, and header material needed
+to keep Codex subscription/API-key compatibility.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

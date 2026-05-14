@@ -11,12 +11,11 @@ path = "src/lib.rs"
 
 [dependencies]
 anyhow = "1"
-codex-api = { path = "../vendor/codex/codex-rs/codex-api" }
+codex-client = { path = "../vendor/codex/codex-rs/codex-client" }
 codex-login = { path = "../vendor/codex/codex-rs/login" }
-codex-model-provider = { path = "../vendor/codex/codex-rs/model-provider" }
-codex-model-provider-info = { path = "../vendor/codex/codex-rs/model-provider-info" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 futures = "0.3"
+http = "1"
 serde = "1"
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
