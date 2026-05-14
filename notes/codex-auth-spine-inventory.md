@@ -28,9 +28,9 @@ here is suspect until proven otherwise.
 
 ### Transformations
 
-- `epiphany-openai-auth-spine` loads file/env auth, refreshes ChatGPT access
-  tokens, preserves account metadata, and exposes the auth subset needed by the
-  Epiphany OpenAI transport.
+- `epiphany-openai-auth-spine` loads env, file, keyring, and auto-fallback
+  Codex auth, refreshes ChatGPT access tokens, preserves account metadata, and
+  exposes the auth subset needed by the Epiphany OpenAI transport.
 - `epiphany-openai-codex-spine` converts `CodexAuth` directly into
   authorization/account headers, chooses the ChatGPT Codex backend or OpenAI API
   base URL from auth mode, builds a local serializable Responses request body,
@@ -52,8 +52,9 @@ here is suspect until proven otherwise.
 
 - `epiphany-openai-auth-spine`: keep as the native credential compatibility
   organ. It knows the path Epiphany actually uses now: `CODEX_API_KEY` /
-  `OPENAI_API_KEY`, `$CODEX_HOME/auth.json`, ChatGPT token refresh, account id,
-  plan metadata, FedRAMP flag, and the standard HTTP client edge.
+  `OPENAI_API_KEY`, `$CODEX_HOME/auth.json`, Codex keyring entries, auto
+  keyring/file fallback, ChatGPT token refresh, account id, plan metadata,
+  FedRAMP flag, and the standard HTTP client edge.
 - `codex-client`: keep only as a plain HTTP/SSE transport helper for now. It
   does not own Epiphany request shape, model policy, stream semantics, or durable
   state.
@@ -74,9 +75,9 @@ here is suspect until proven otherwise.
   of the native OpenAI spine graph. If a later model catalog is needed, it
   should be a typed Epiphany catalog document, not a revival of the old Codex
   provider stack.
-- Native auth does not yet preserve every Codex auth mode. Keyring storage,
-  external bearer command auth, and agent identity are legacy/reference gaps
-  unless a concrete user path proves they are needed.
+- Native auth does not yet preserve every Codex auth mode. External bearer
+  command auth and agent identity are legacy/reference gaps unless a concrete
+  user path proves they are needed.
 
 ## Extract Target
 
@@ -176,13 +177,15 @@ application. `codex-core` re-exports the contract only as a compatibility
 alias, and `CodexThread` now calls native state-update functions around its
 remaining revision check, persistence validation, and rollout/session writeback.
 
-The first credential extraction is now landed: `epiphany-openai-auth-spine`
-replaces `codex-login` in the native OpenAI path for file/env auth, ChatGPT
-token refresh, account metadata, and header material. `cargo tree` for
-`epiphany-openai-codex-spine` now finds no `codex-login`, `codex-api`,
-`codex-protocol`, `codex-app-server-protocol`, or model-provider crates. The
-remaining question is whether keyring/external bearer/agent-identity support
-deserves native implementation or should remain a sealed legacy Codex path.
+The credential extraction now covers Codex file/keyring/auto auth plus env API
+keys, ChatGPT token refresh, account metadata, and header material.
+`epiphany-openai-codex-spine` uses `AuthCredentialsStoreMode::Auto` by default,
+so native runtime calls preserve normal Codex keyring storage without importing
+`codex-login`. `cargo tree` for `epiphany-openai-codex-spine` now finds no
+`codex-login`, `codex-api`, `codex-protocol`, `codex-app-server-protocol`, or
+model-provider crates. The remaining question is whether external
+bearer-command auth or agent identity deserves native implementation or should
+remain a sealed legacy Codex path.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

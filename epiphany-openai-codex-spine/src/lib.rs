@@ -45,7 +45,7 @@ pub fn auth_manager(codex_home: std::path::PathBuf) -> Arc<AuthManager> {
     AuthManager::shared(
         codex_home,
         /*enable_codex_api_key_env*/ true,
-        AuthCredentialsStoreMode::File,
+        AuthCredentialsStoreMode::Auto,
         /*chatgpt_base_url*/ None,
     )
 }

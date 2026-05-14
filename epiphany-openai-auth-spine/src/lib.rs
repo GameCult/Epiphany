@@ -1,3 +1,6 @@
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -7,6 +10,8 @@ use chrono::DateTime;
 use chrono::Utc;
 use codex_client::build_reqwest_client_with_custom_ca;
 use codex_client::with_chatgpt_cloudflare_cookie_store;
+use codex_keyring_store::DefaultKeyringStore;
+use codex_keyring_store::KeyringStore;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
@@ -14,7 +19,10 @@ use serde::Deserialize;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use sha2::Digest;
+use sha2::Sha256;
 use thiserror::Error;
+use tracing::warn;
 
 pub const OPENAI_API_KEY_ENV_VAR: &str = "OPENAI_API_KEY";
 pub const CODEX_API_KEY_ENV_VAR: &str = "CODEX_API_KEY";
@@ -22,12 +30,16 @@ pub const REFRESH_TOKEN_URL_OVERRIDE_ENV_VAR: &str = "CODEX_REFRESH_TOKEN_URL_OV
 const REFRESH_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const TOKEN_REFRESH_INTERVAL_MINUTES: i64 = 8;
+const KEYRING_SERVICE: &str = "Codex Auth";
 
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthCredentialsStoreMode {
     #[default]
     File,
+    Keyring,
+    Auto,
+    Ephemeral,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -141,6 +153,7 @@ pub struct ApiKeyAuth {
 pub struct ChatgptAuth {
     auth: AuthDotJson,
     codex_home: PathBuf,
+    store_mode: AuthCredentialsStoreMode,
 }
 
 #[derive(Debug, Clone)]
@@ -239,6 +252,7 @@ impl ChatgptAuth {
             let previous_access_token = tokens.access_token.clone();
             return refresh_and_persist_tokens(
                 self.codex_home.clone(),
+                self.store_mode,
                 tokens.refresh_token.clone(),
             )
             .map(|auth| {
@@ -296,6 +310,7 @@ impl ChatgptAuthTokens {
 pub struct AuthManager {
     codex_home: PathBuf,
     enable_codex_api_key_env: bool,
+    store_mode: AuthCredentialsStoreMode,
     cached_auth: RwLock<Option<CodexAuth>>,
 }
 
@@ -303,19 +318,28 @@ impl AuthManager {
     pub fn shared(
         codex_home: PathBuf,
         enable_codex_api_key_env: bool,
-        _auth_credentials_store_mode: AuthCredentialsStoreMode,
+        auth_credentials_store_mode: AuthCredentialsStoreMode,
         _chatgpt_base_url: Option<String>,
     ) -> Arc<Self> {
-        Arc::new(Self::new(codex_home, enable_codex_api_key_env))
+        Arc::new(Self::new(
+            codex_home,
+            enable_codex_api_key_env,
+            auth_credentials_store_mode,
+        ))
     }
 
-    pub fn new(codex_home: PathBuf, enable_codex_api_key_env: bool) -> Self {
-        let cached_auth = load_auth(&codex_home, enable_codex_api_key_env)
+    pub fn new(
+        codex_home: PathBuf,
+        enable_codex_api_key_env: bool,
+        store_mode: AuthCredentialsStoreMode,
+    ) -> Self {
+        let cached_auth = load_auth(&codex_home, enable_codex_api_key_env, store_mode)
             .ok()
             .flatten();
         Self {
             codex_home,
             enable_codex_api_key_env,
+            store_mode,
             cached_auth: RwLock::new(cached_auth),
         }
     }
@@ -331,9 +355,13 @@ impl AuthManager {
         {
             return Some(auth);
         }
-        let auth = load_auth(&self.codex_home, self.enable_codex_api_key_env)
-            .ok()
-            .flatten();
+        let auth = load_auth(
+            &self.codex_home,
+            self.enable_codex_api_key_env,
+            self.store_mode,
+        )
+        .ok()
+        .flatten();
         if let Ok(mut guard) = self.cached_auth.write() {
             *guard = auth.clone();
         }
@@ -373,6 +401,7 @@ fn read_trimmed_env(key: &str) -> Option<String> {
 fn load_auth(
     codex_home: &PathBuf,
     enable_codex_api_key_env: bool,
+    store_mode: AuthCredentialsStoreMode,
 ) -> std::io::Result<Option<CodexAuth>> {
     if enable_codex_api_key_env && let Some(api_key) = read_codex_api_key_from_env() {
         return Ok(Some(CodexAuth::from_api_key(api_key)));
@@ -380,17 +409,17 @@ fn load_auth(
     if let Some(api_key) = read_openai_api_key_from_env() {
         return Ok(Some(CodexAuth::from_api_key(api_key)));
     }
-    let auth_path = codex_home.join("auth.json");
-    let contents = match std::fs::read_to_string(&auth_path) {
-        Ok(contents) => contents,
-        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-        Err(err) => return Err(err),
+    let Some(auth_dot_json) = load_auth_dot_json(codex_home, store_mode)? else {
+        return Ok(None);
     };
-    let auth_dot_json: AuthDotJson = serde_json::from_str(&contents)?;
-    build_auth(codex_home.clone(), auth_dot_json).map(Some)
+    build_auth(codex_home.clone(), store_mode, auth_dot_json).map(Some)
 }
 
-fn build_auth(codex_home: PathBuf, auth_dot_json: AuthDotJson) -> std::io::Result<CodexAuth> {
+fn build_auth(
+    codex_home: PathBuf,
+    store_mode: AuthCredentialsStoreMode,
+    auth_dot_json: AuthDotJson,
+) -> std::io::Result<CodexAuth> {
     if let Some(api_key) = auth_dot_json.openai_api_key.as_ref() {
         return Ok(CodexAuth::from_api_key(api_key.clone()));
     }
@@ -402,6 +431,7 @@ fn build_auth(codex_home: PathBuf, auth_dot_json: AuthDotJson) -> std::io::Resul
         AuthMode::Chatgpt => Ok(CodexAuth::Chatgpt(ChatgptAuth {
             auth: auth_dot_json,
             codex_home,
+            store_mode,
         })),
         AuthMode::ChatgptAuthTokens => Ok(CodexAuth::ChatgptAuthTokens(ChatgptAuthTokens {
             auth: auth_dot_json,
@@ -411,6 +441,129 @@ fn build_auth(codex_home: PathBuf, auth_dot_json: AuthDotJson) -> std::io::Resul
             plan_type: None,
             chatgpt_account_is_fedramp: false,
         })),
+    }
+}
+
+fn auth_file(codex_home: &Path) -> PathBuf {
+    codex_home.join("auth.json")
+}
+
+fn load_file_auth_dot_json(codex_home: &Path) -> std::io::Result<Option<AuthDotJson>> {
+    let auth_path = auth_file(codex_home);
+    let contents = match std::fs::read_to_string(&auth_path) {
+        Ok(contents) => contents,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err),
+    };
+    serde_json::from_str(&contents)
+        .map(Some)
+        .map_err(std::io::Error::other)
+}
+
+fn save_file_auth_dot_json(codex_home: &Path, auth: &AuthDotJson) -> std::io::Result<()> {
+    let auth_path = auth_file(codex_home);
+    if let Some(parent) = auth_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let json_data = serde_json::to_string_pretty(auth).map_err(std::io::Error::other)?;
+    let mut options = OpenOptions::new();
+    options.truncate(true).write(true).create(true);
+    let mut file = options.open(auth_path)?;
+    file.write_all(json_data.as_bytes())?;
+    file.flush()
+}
+
+fn delete_file_if_exists(codex_home: &Path) -> std::io::Result<bool> {
+    match std::fs::remove_file(auth_file(codex_home)) {
+        Ok(()) => Ok(true),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err),
+    }
+}
+
+fn compute_store_key(codex_home: &Path) -> String {
+    let canonical = codex_home
+        .canonicalize()
+        .unwrap_or_else(|_| codex_home.to_path_buf());
+    let path_str = canonical.to_string_lossy();
+    let mut hasher = Sha256::new();
+    hasher.update(path_str.as_bytes());
+    let digest = hasher.finalize();
+    let hex = format!("{digest:x}");
+    let truncated = hex.get(..16).unwrap_or(&hex);
+    format!("cli|{truncated}")
+}
+
+fn load_keyring_auth_dot_json(codex_home: &Path) -> std::io::Result<Option<AuthDotJson>> {
+    let store = DefaultKeyringStore;
+    let key = compute_store_key(codex_home);
+    match store.load(KEYRING_SERVICE, &key) {
+        Ok(Some(serialized)) => serde_json::from_str(&serialized).map(Some).map_err(|err| {
+            std::io::Error::other(format!(
+                "failed to deserialize CLI auth from keyring: {err}"
+            ))
+        }),
+        Ok(None) => Ok(None),
+        Err(error) => Err(std::io::Error::other(format!(
+            "failed to load CLI auth from keyring: {}",
+            error.message()
+        ))),
+    }
+}
+
+fn save_keyring_auth_dot_json(codex_home: &Path, auth: &AuthDotJson) -> std::io::Result<()> {
+    let store = DefaultKeyringStore;
+    let key = compute_store_key(codex_home);
+    let serialized = serde_json::to_string(auth).map_err(std::io::Error::other)?;
+    store
+        .save(KEYRING_SERVICE, &key, &serialized)
+        .map_err(|error| {
+            std::io::Error::other(format!(
+                "failed to write OAuth tokens to keyring: {}",
+                error.message()
+            ))
+        })?;
+    if let Err(err) = delete_file_if_exists(codex_home) {
+        warn!("failed to remove CLI auth fallback file: {err}");
+    }
+    Ok(())
+}
+
+fn load_auth_dot_json(
+    codex_home: &Path,
+    store_mode: AuthCredentialsStoreMode,
+) -> std::io::Result<Option<AuthDotJson>> {
+    match store_mode {
+        AuthCredentialsStoreMode::File => load_file_auth_dot_json(codex_home),
+        AuthCredentialsStoreMode::Keyring => load_keyring_auth_dot_json(codex_home),
+        AuthCredentialsStoreMode::Auto => match load_keyring_auth_dot_json(codex_home) {
+            Ok(Some(auth)) => Ok(Some(auth)),
+            Ok(None) => load_file_auth_dot_json(codex_home),
+            Err(err) => {
+                warn!("failed to load CLI auth from keyring, falling back to file storage: {err}");
+                load_file_auth_dot_json(codex_home)
+            }
+        },
+        AuthCredentialsStoreMode::Ephemeral => Ok(None),
+    }
+}
+
+fn save_auth_dot_json(
+    codex_home: &Path,
+    store_mode: AuthCredentialsStoreMode,
+    auth: &AuthDotJson,
+) -> std::io::Result<()> {
+    match store_mode {
+        AuthCredentialsStoreMode::File => save_file_auth_dot_json(codex_home, auth),
+        AuthCredentialsStoreMode::Keyring => save_keyring_auth_dot_json(codex_home, auth),
+        AuthCredentialsStoreMode::Auto => match save_keyring_auth_dot_json(codex_home, auth) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                warn!("failed to save auth to keyring, falling back to file storage: {err}");
+                save_file_auth_dot_json(codex_home, auth)
+            }
+        },
+        AuthCredentialsStoreMode::Ephemeral => Ok(()),
     }
 }
 
@@ -453,12 +606,12 @@ fn token_is_fedramp(tokens: Option<&TokenData>) -> bool {
 
 fn refresh_and_persist_tokens(
     codex_home: PathBuf,
+    store_mode: AuthCredentialsStoreMode,
     refresh_token: String,
 ) -> std::io::Result<AuthDotJson> {
     let response = request_chatgpt_token_refresh_blocking(refresh_token)?;
-    let auth_path = codex_home.join("auth.json");
-    let contents = std::fs::read_to_string(&auth_path)?;
-    let mut auth_dot_json: AuthDotJson = serde_json::from_str(&contents)?;
+    let mut auth_dot_json = load_auth_dot_json(&codex_home, store_mode)?
+        .ok_or_else(|| std::io::Error::other("ChatGPT auth record is not available"))?;
     let tokens = auth_dot_json.tokens.get_or_insert_with(TokenData::default);
     if let Some(id_token) = response.id_token {
         tokens.id_token = parse_chatgpt_jwt_claims(&id_token).map_err(std::io::Error::other)?;
@@ -470,7 +623,7 @@ fn refresh_and_persist_tokens(
         tokens.refresh_token = refresh_token;
     }
     auth_dot_json.last_refresh = Some(Utc::now());
-    std::fs::write(&auth_path, serde_json::to_string_pretty(&auth_dot_json)?)?;
+    save_auth_dot_json(&codex_home, store_mode, &auth_dot_json)?;
     Ok(auth_dot_json)
 }
 
@@ -726,7 +879,19 @@ mod tests {
     fn parses_minimal_api_key_auth_json() {
         let auth: AuthDotJson =
             serde_json::from_str(r#"{"auth_mode":"apikey","OPENAI_API_KEY":"sk-test"}"#).unwrap();
-        let built = build_auth(PathBuf::from("."), auth).unwrap();
+        let built = build_auth(PathBuf::from("."), AuthCredentialsStoreMode::File, auth).unwrap();
         assert_eq!(built.auth_mode(), AuthMode::ApiKey);
+    }
+
+    #[test]
+    fn parses_codex_auth_store_modes() {
+        assert_eq!(
+            serde_json::from_str::<AuthCredentialsStoreMode>(r#""auto""#).unwrap(),
+            AuthCredentialsStoreMode::Auto
+        );
+        assert_eq!(
+            serde_json::from_str::<AuthCredentialsStoreMode>(r#""keyring""#).unwrap(),
+            AuthCredentialsStoreMode::Keyring
+        );
     }
 }
