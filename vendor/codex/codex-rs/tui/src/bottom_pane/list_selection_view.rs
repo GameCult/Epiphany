@@ -1629,7 +1629,7 @@ mod tests {
         let mut view = ListSelectionView::new(
             SelectionViewParams {
                 items: vec![SelectionItem {
-                    name: "Plugin".to_string(),
+                    name: "Module".to_string(),
                     toggle: Some(SelectionToggle {
                         is_on: false,
                         action: Box::new(|_enabled, tx: &_| {
@@ -1643,11 +1643,11 @@ mod tests {
             },
             tx,
         );
-        view.set_search_query("plugin".to_string());
+        view.set_search_query("module".to_string());
 
         view.handle_key_event(KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE));
 
-        assert_eq!(view.search_query, "plugin ");
+        assert_eq!(view.search_query, "module ");
         assert!(
             !view.active_items()[0]
                 .toggle
@@ -1669,7 +1669,7 @@ mod tests {
             SelectionViewParams {
                 title: Some("Debug".to_string()),
                 items: vec![SelectionItem {
-                    name: "A very long plugin name".to_string(),
+                    name: "A very long module name".to_string(),
                     description: Some(
                         "A very long description that would normally wrap onto another line."
                             .to_string(),
@@ -1688,7 +1688,7 @@ mod tests {
             SelectionViewParams {
                 title: Some("Debug".to_string()),
                 items: vec![SelectionItem {
-                    name: "A very long plugin name".to_string(),
+                    name: "A very long module name".to_string(),
                     description: Some(
                         "A very long description that would normally wrap onto another line."
                             .to_string(),

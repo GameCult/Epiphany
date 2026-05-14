@@ -6,7 +6,7 @@ expression: rendered
 
 🔌  MCP Tools
 
-  • plugin_docs
+  • docs_server
     • Status: enabled
     • Auth: Unsupported
     • Command: docs-server --stdio

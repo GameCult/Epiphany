@@ -959,7 +959,7 @@ fn drop_last_n_user_turns_clears_reference_context_for_mixed_developer_context_b
         assistant_msg("turn 1 assistant"),
         developer_msg_with_fragments(&[
             "<permissions instructions>contextual permissions</permissions instructions>",
-            "persistent plugin instructions",
+            "persistent capability instructions",
         ]),
         user_input_text_msg(
             "<environment_context><cwd>PRETURN_CONTEXT_DIFF_CWD</cwd></environment_context>",

@@ -91,7 +91,7 @@ pub fn mcp_permission_prompt_is_auto_approved(
 ///
 /// This struct should contain only long-lived configuration values that the
 /// `codex-mcp` crate needs to construct server transports, enforce MCP
-/// approval/sandbox policy, locate OAuth state, and merge plugin-provided MCP
+/// approval/sandbox policy, locate OAuth state, and merge configured MCP
 /// servers. Request-scoped or auth-scoped state should not be stored here;
 /// thread those values explicitly into runtime entry points such as
 /// [`effective_mcp_servers`] and [`collect_mcp_snapshot`] so config objects do
@@ -114,7 +114,7 @@ pub struct McpConfig {
     pub codex_linux_sandbox_exe: Option<PathBuf>,
     /// Whether to use legacy Landlock behavior in the MCP sandbox state.
     pub use_legacy_landlock: bool,
-    /// User-configured and plugin-provided MCP servers keyed by server name.
+    /// Configured MCP servers keyed by server name.
     pub configured_mcp_servers: HashMap<String, McpServerConfig>,
 }
 

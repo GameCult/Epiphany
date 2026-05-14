@@ -297,11 +297,11 @@ fn unregister_holds_state_lock_until_unwatch_finishes() {
 async fn matching_subscribers_are_notified() {
     let watcher = Arc::new(FileWatcher::noop());
     let (alpha_subscriber, alpha_rx) = watcher.add_subscriber();
-    let (plugins_subscriber, plugins_rx) = watcher.add_subscriber();
+    let (beta_subscriber, beta_rx) = watcher.add_subscriber();
     let _alpha = alpha_subscriber.register_path(path("/tmp/watch-alpha"), /*recursive*/ true);
-    let _plugins = plugins_subscriber.register_path(path("/tmp/plugins"), /*recursive*/ true);
+    let _beta = beta_subscriber.register_path(path("/tmp/watch-beta"), /*recursive*/ true);
     let mut alpha_rx = ThrottledWatchReceiver::new(alpha_rx, TEST_THROTTLE_INTERVAL);
-    let mut plugins_rx = ThrottledWatchReceiver::new(plugins_rx, TEST_THROTTLE_INTERVAL);
+    let mut beta_rx = ThrottledWatchReceiver::new(beta_rx, TEST_THROTTLE_INTERVAL);
 
     watcher
         .send_paths_for_test(vec![path("/tmp/watch-alpha/rust/file.txt")])
@@ -318,8 +318,8 @@ async fn matching_subscribers_are_notified() {
         }
     );
 
-    let plugins_event = timeout(TEST_THROTTLE_INTERVAL, plugins_rx.recv()).await;
-    assert_eq!(plugins_event.is_err(), true);
+    let beta_event = timeout(TEST_THROTTLE_INTERVAL, beta_rx.recv()).await;
+    assert_eq!(beta_event.is_err(), true);
 }
 
 #[tokio::test]

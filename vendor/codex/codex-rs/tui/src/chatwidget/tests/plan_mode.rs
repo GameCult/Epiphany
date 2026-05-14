@@ -1047,7 +1047,7 @@ async fn submit_user_message_queues_while_compaction_turn_is_running() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn submit_user_message_ignores_plugin_mentions_from_bindings() {
+async fn submit_user_message_ignores_stale_structured_mentions_from_bindings() {
     let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     let conversation_id = ThreadId::new();
     let rollout_file = NamedTempFile::new().unwrap();

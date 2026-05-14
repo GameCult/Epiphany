@@ -1741,25 +1741,6 @@ mod tests {
         assert!(matches!(cli.subcommand, Some(Subcommand::Responses(_))));
     }
 
-    #[test]
-    fn marketplace_and_plugin_commands_no_longer_parse() {
-        let add_result =
-            MultitoolCli::try_parse_from(["codex", "marketplace", "add", "owner/repo"]);
-        assert!(add_result.is_err());
-
-        let upgrade_result =
-            MultitoolCli::try_parse_from(["codex", "marketplace", "upgrade", "debug"]);
-        assert!(upgrade_result.is_err());
-
-        let remove_result =
-            MultitoolCli::try_parse_from(["codex", "marketplace", "remove", "debug"]);
-        assert!(remove_result.is_err());
-
-        let plugin_result =
-            MultitoolCli::try_parse_from(["codex", "plugin", "marketplace", "add", "owner/repo"]);
-        assert!(plugin_result.is_err());
-    }
-
     fn sample_exit_info(conversation_id: Option<&str>, thread_name: Option<&str>) -> AppExitInfo {
         let token_usage = TokenUsage {
             output_tokens: 2,

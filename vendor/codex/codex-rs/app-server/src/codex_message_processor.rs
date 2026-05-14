@@ -5891,9 +5891,8 @@ impl CodexMessageProcessor {
             .mcp_servers
             .keys()
             .cloned()
-            // Include built-in/plugin MCP servers that are present in the
-            // effective runtime config even when they are not user-declared in
-            // `config.mcp_servers`.
+            // Include MCP servers that are present in the effective runtime
+            // config even when they are not user-declared in `config.mcp_servers`.
             .chain(effective_servers.keys().cloned())
             .chain(auth_statuses.keys().cloned())
             .chain(resources.keys().cloned())

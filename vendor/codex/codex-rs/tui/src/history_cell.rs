@@ -3418,18 +3418,18 @@ mod tests {
     #[tokio::test]
     async fn mcp_tools_output_from_statuses_renders_status_only_servers() {
         let mut config = test_config().await;
-        let mut plugin_docs =
+        let mut docs_server =
             stdio_server_config("docs-server", vec!["--stdio"], /*env*/ None, vec![]);
-        plugin_docs.enabled = false;
-        plugin_docs.disabled_reason = Some(McpServerDisabledReason::Unknown);
-        let servers = HashMap::from([("plugin_docs".to_string(), plugin_docs)]);
+        docs_server.enabled = false;
+        docs_server.disabled_reason = Some(McpServerDisabledReason::Unknown);
+        let servers = HashMap::from([("docs_server".to_string(), docs_server)]);
         config
             .mcp_servers
             .set(servers)
             .expect("test mcp servers should accept any configuration");
 
         let statuses = vec![McpServerStatus {
-            name: "plugin_docs".to_string(),
+            name: "docs_server".to_string(),
             tools: HashMap::from([(
                 "lookup".to_string(),
                 Tool {
@@ -3461,16 +3461,16 @@ mod tests {
     #[tokio::test]
     async fn mcp_tools_output_from_statuses_renders_verbose_inventory() {
         let mut config = test_config().await;
-        let plugin_docs =
+        let docs_server =
             stdio_server_config("docs-server", vec!["--stdio"], /*env*/ None, vec![]);
-        let servers = HashMap::from([("plugin_docs".to_string(), plugin_docs)]);
+        let servers = HashMap::from([("docs_server".to_string(), docs_server)]);
         config
             .mcp_servers
             .set(servers)
             .expect("test mcp servers should accept any configuration");
 
         let statuses = vec![McpServerStatus {
-            name: "plugin_docs".to_string(),
+            name: "docs_server".to_string(),
             tools: HashMap::from([(
                 "lookup".to_string(),
                 Tool {

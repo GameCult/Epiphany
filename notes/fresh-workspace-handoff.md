@@ -953,6 +953,15 @@ app-server MCP resource/elicitation/tool tests now use demo/resource MCP server
 names instead of `Apps*` wrappers. This is naming purification only, not a
 protocol rewrite.
 
+The product-label residue sweep then cut the CLI tombstone that preserved
+`codex marketplace` / `codex plugin marketplace` command strings as a negative
+contract, neutralized "plugin-provided MCP" comments, and renamed lingering
+plugin/app fixture labels in watcher, context, TUI mention, MCP inventory,
+absolute-path, and template tests. A vendored-wide search for product-shaped
+`marketplace`, `plugin`, `app://`, `plugin://`, `codex_apps`, and stale Apps
+test names now returns only external URLs, generic URL examples, and real
+package names such as `eslint-plugin`; not live Codex product machinery.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests
