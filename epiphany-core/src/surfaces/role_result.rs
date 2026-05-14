@@ -106,7 +106,8 @@ pub struct EpiphanyReorientAcceptanceBundle {
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
 }
 
-pub fn interpret_role_finding(
+#[cfg(test)]
+fn interpret_role_finding(
     role_id: EpiphanyRoleResultRoleId,
     raw_result: &serde_json::Value,
     _legacy_state_patch_parse_error: Option<String>,
@@ -172,7 +173,8 @@ pub fn interpret_role_finding(
     }
 }
 
-pub fn interpret_reorient_finding(
+#[cfg(test)]
+fn interpret_reorient_finding(
     raw_result: &serde_json::Value,
     job_error: Option<String>,
     item_error: Option<String>,
@@ -468,6 +470,7 @@ pub fn review_role_self_patch(
     }
 }
 
+#[cfg(test)]
 fn decode_role_self_patch(
     role_id: EpiphanyRoleResultRoleId,
     patch: &serde_json::Value,
@@ -833,6 +836,7 @@ fn reorient_finding_investigation_checkpoint(
     checkpoint
 }
 
+#[cfg(test)]
 fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
     value
         .get(key)
@@ -840,6 +844,7 @@ fn json_string_field(value: &serde_json::Value, key: &str) -> Option<String> {
         .map(str::to_string)
 }
 
+#[cfg(test)]
 fn json_string_array_field(value: &serde_json::Value, key: &str) -> Vec<String> {
     value
         .get(key)

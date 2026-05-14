@@ -12,20 +12,6 @@ use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleSelfPersistenceReview as CoreEpiphanyRoleSelfPersistenceReview;
 use epiphany_core::EpiphanyRoleSelfPersistenceStatus as CoreEpiphanyRoleSelfPersistenceStatus;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
-use epiphany_core::interpret_reorient_finding;
-use epiphany_core::interpret_role_finding;
-
-pub fn map_epiphany_reorient_finding(
-    raw_result: serde_json::Value,
-    job_error: Option<String>,
-    item_error: Option<String>,
-) -> ThreadEpiphanyReorientFinding {
-    map_protocol_reorient_finding(interpret_reorient_finding(
-        &raw_result,
-        job_error,
-        item_error,
-    ))
-}
 
 pub fn map_protocol_reorient_finding(
     finding: EpiphanyReorientFindingInterpretation,
@@ -44,22 +30,6 @@ pub fn map_protocol_reorient_finding(
         job_error: finding.job_error,
         item_error: finding.item_error,
     }
-}
-
-pub fn map_epiphany_role_finding(
-    role_id: ThreadEpiphanyRoleId,
-    raw_result: serde_json::Value,
-    job_error: Option<String>,
-    item_error: Option<String>,
-) -> ThreadEpiphanyRoleFinding {
-    let finding = interpret_role_finding(
-        map_core_role_result_role_id(role_id),
-        &raw_result,
-        None,
-        job_error,
-        item_error,
-    );
-    map_protocol_role_finding(role_id, finding)
 }
 
 pub fn map_protocol_role_finding(

@@ -288,5 +288,8 @@ current_status:
     completed runtime job without the typed worker-result CultCache document now
     reports backend-unavailable with a repair note instead of manufacturing a
     reviewable finding from summary strings. Generic runtime job results remain
-    lifecycle receipts; reviewable specialist findings are typed documents.
+    lifecycle receipts; reviewable specialist findings are typed documents. The
+    unused bridge functions that accepted raw JSON findings were deleted, and
+    the remaining raw-result interpreters are private test fixtures rather than
+    public runtime API.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

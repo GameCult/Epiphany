@@ -969,7 +969,10 @@ The typed worker-result boundary is now stricter. `roleResult` and
 CultCache documents to generic `EpiphanyRuntimeJobResult` lifecycle receipts.
 If a job completed without the typed worker-result document, the bridge reports
 backend-unavailable and names the missing document instead of laundering summary
-strings into a reviewable finding.
+strings into a reviewable finding. The old public bridge helpers that accepted
+raw JSON role/reorient findings are deleted; the only remaining raw-result
+interpreters in `epiphany-core` are private test fixtures for legacy contract
+coverage.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,

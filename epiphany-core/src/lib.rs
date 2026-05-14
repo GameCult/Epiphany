@@ -256,8 +256,6 @@ pub use surfaces::derive_pressure_view;
 pub use surfaces::derive_role_board;
 pub use surfaces::derive_scene;
 pub use surfaces::imagination_role_state_patch_policy_errors;
-pub use surfaces::interpret_reorient_finding;
-pub use surfaces::interpret_role_finding;
 pub use surfaces::interpret_runtime_reorient_worker_result;
 pub use surfaces::interpret_runtime_role_worker_result;
 pub use surfaces::modeling_role_state_patch_policy_errors;
