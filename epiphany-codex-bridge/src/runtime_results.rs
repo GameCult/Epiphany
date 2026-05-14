@@ -12,8 +12,6 @@ use codex_protocol::protocol::EpiphanyRuntimeLink;
 use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
-use epiphany_core::interpret_reorient_runtime_job_result;
-use epiphany_core::interpret_role_runtime_job_result;
 use epiphany_core::interpret_runtime_reorient_worker_result;
 use epiphany_core::interpret_runtime_role_worker_result;
 use epiphany_core::runtime_job_snapshot;
@@ -94,24 +92,26 @@ pub fn load_epiphany_role_result_from_runtime_spine_job(
                     &result,
                 ),
             )),
-            Ok(None) => snapshot.result.as_ref().map(|result| {
-                map_protocol_role_finding(
-                    role_id,
-                    interpret_role_runtime_job_result(
-                        map_core_role_result_role_id(role_id),
-                        result,
+            Ok(None) => {
+                return (
+                    ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+                    None,
+                    format!(
+                        "Heartbeat runtime job {:?} completed without an EpiphanyRuntimeRoleWorkerResult typed document; generic lifecycle receipts are not reviewable findings.",
+                        job_id
                     ),
-                )
-            }),
-            Err(_) => snapshot.result.as_ref().map(|result| {
-                map_protocol_role_finding(
-                    role_id,
-                    interpret_role_runtime_job_result(
-                        map_core_role_result_role_id(role_id),
-                        result,
+                );
+            }
+            Err(err) => {
+                return (
+                    ThreadEpiphanyRoleResultStatus::BackendUnavailable,
+                    None,
+                    format!(
+                        "Failed to read typed role worker result for heartbeat runtime job {:?}: {err}",
+                        job_id
                     ),
-                )
-            }),
+                );
+            }
         }
     } else {
         None
@@ -165,12 +165,26 @@ pub fn load_epiphany_reorient_result_from_runtime_spine_job(
             Ok(Some(result)) => Some(map_protocol_reorient_finding(
                 interpret_runtime_reorient_worker_result(&result),
             )),
-            Ok(None) => snapshot.result.as_ref().map(|result| {
-                map_protocol_reorient_finding(interpret_reorient_runtime_job_result(result))
-            }),
-            Err(_) => snapshot.result.as_ref().map(|result| {
-                map_protocol_reorient_finding(interpret_reorient_runtime_job_result(result))
-            }),
+            Ok(None) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                    None,
+                    format!(
+                        "Heartbeat runtime job {:?} completed without an EpiphanyRuntimeReorientWorkerResult typed document; generic lifecycle receipts are not reviewable findings.",
+                        job_id
+                    ),
+                );
+            }
+            Err(err) => {
+                return (
+                    ThreadEpiphanyReorientResultStatus::BackendUnavailable,
+                    None,
+                    format!(
+                        "Failed to read typed reorientation worker result for heartbeat runtime job {:?}: {err}",
+                        job_id
+                    ),
+                );
+            }
         }
     } else {
         None
@@ -390,4 +404,120 @@ pub fn latest_epiphany_runtime_link_for_binding<'a>(
         .runtime_links
         .iter()
         .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::Path;
+    use std::path::PathBuf;
+
+    use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
+    use codex_app_server_protocol::ThreadEpiphanyRoleId;
+    use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
+    use epiphany_core::RuntimeSpineInitOptions;
+    use epiphany_core::RuntimeSpineJobOptions;
+    use epiphany_core::RuntimeSpineJobResultOptions;
+    use epiphany_core::RuntimeSpineSessionOptions;
+    use epiphany_core::complete_runtime_job;
+    use epiphany_core::create_runtime_job;
+    use epiphany_core::create_runtime_session;
+    use epiphany_core::initialize_runtime_spine;
+
+    use super::*;
+
+    const NOW: &str = "2026-05-13T00:00:00Z";
+
+    #[test]
+    fn role_result_requires_typed_worker_document() {
+        let store = temp_store_path();
+        seed_completed_lifecycle_result(&store, "role-job", "modeling");
+
+        let (status, finding, note) = load_epiphany_role_result_from_runtime_spine_job(
+            "role-job",
+            Some(store.as_path()),
+            ThreadEpiphanyRoleId::Modeling,
+        );
+
+        assert_eq!(status, ThreadEpiphanyRoleResultStatus::BackendUnavailable);
+        assert!(finding.is_none());
+        assert!(note.contains("EpiphanyRuntimeRoleWorkerResult typed document"));
+
+        let _ = fs::remove_file(store);
+    }
+
+    #[test]
+    fn reorient_result_requires_typed_worker_document() {
+        let store = temp_store_path();
+        seed_completed_lifecycle_result(&store, "reorient-job", "reorientation");
+
+        let (status, finding, note) = load_epiphany_reorient_result_from_runtime_spine_job(
+            "reorient-job",
+            Some(store.as_path()),
+        );
+
+        assert_eq!(
+            status,
+            ThreadEpiphanyReorientResultStatus::BackendUnavailable
+        );
+        assert!(finding.is_none());
+        assert!(note.contains("EpiphanyRuntimeReorientWorkerResult typed document"));
+
+        let _ = fs::remove_file(store);
+    }
+
+    fn temp_store_path() -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "epiphany-runtime-results-{}.msgpack",
+            uuid::Uuid::new_v4()
+        ))
+    }
+
+    fn seed_completed_lifecycle_result(store: &Path, job_id: &str, role: &str) {
+        initialize_runtime_spine(
+            store,
+            RuntimeSpineInitOptions {
+                runtime_id: "test-runtime".to_string(),
+                display_name: "Test Runtime".to_string(),
+                created_at: NOW.to_string(),
+            },
+        )
+        .expect("initialize runtime");
+        create_runtime_session(
+            store,
+            RuntimeSpineSessionOptions {
+                session_id: "session-1".to_string(),
+                objective: "test typed result boundary".to_string(),
+                created_at: NOW.to_string(),
+                coordinator_note: "test".to_string(),
+            },
+        )
+        .expect("create session");
+        create_runtime_job(
+            store,
+            RuntimeSpineJobOptions {
+                job_id: job_id.to_string(),
+                session_id: "session-1".to_string(),
+                role: role.to_string(),
+                created_at: NOW.to_string(),
+                summary: "generic lifecycle job".to_string(),
+                artifact_refs: Vec::new(),
+            },
+        )
+        .expect("create job");
+        complete_runtime_job(
+            store,
+            RuntimeSpineJobResultOptions {
+                result_id: format!("result-{job_id}"),
+                job_id: job_id.to_string(),
+                completed_at: NOW.to_string(),
+                verdict: "completed".to_string(),
+                summary: "generic lifecycle result".to_string(),
+                next_safe_move: "do not review generic lifecycle receipts".to_string(),
+                evidence_refs: Vec::new(),
+                artifact_refs: Vec::new(),
+            },
+        )
+        .expect("complete job");
+    }
 }

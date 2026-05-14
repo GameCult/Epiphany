@@ -195,33 +195,6 @@ pub fn interpret_reorient_finding(
     }
 }
 
-pub fn interpret_role_runtime_job_result(
-    _role_id: EpiphanyRoleResultRoleId,
-    result: &EpiphanyRuntimeJobResult,
-) -> EpiphanyRoleFindingInterpretation {
-    EpiphanyRoleFindingInterpretation {
-        verdict: Some(result.verdict.clone()),
-        summary: Some(result.summary.clone()),
-        next_safe_move: empty_string_as_none(&result.next_safe_move),
-        checkpoint_summary: None,
-        scratch_summary: None,
-        files_inspected: Vec::new(),
-        frontier_node_ids: Vec::new(),
-        evidence_ids: result.evidence_refs.clone(),
-        artifact_refs: result.artifact_refs.clone(),
-        runtime_result_id: Some(result.result_id.clone()),
-        runtime_job_id: Some(result.job_id.clone()),
-        open_questions: Vec::new(),
-        evidence_gaps: Vec::new(),
-        risks: Vec::new(),
-        state_patch: None,
-        self_patch: None,
-        self_persistence: None,
-        job_error: None,
-        item_error: None,
-    }
-}
-
 pub fn interpret_runtime_role_worker_result(
     role_id: EpiphanyRoleResultRoleId,
     result: &crate::EpiphanyRuntimeRoleWorkerResult,
@@ -284,25 +257,6 @@ pub fn interpret_runtime_role_worker_result(
             | EpiphanyRoleResultRoleId::Verification
             | EpiphanyRoleResultRoleId::Reorientation => item_error,
         },
-    }
-}
-
-pub fn interpret_reorient_runtime_job_result(
-    result: &EpiphanyRuntimeJobResult,
-) -> EpiphanyReorientFindingInterpretation {
-    EpiphanyReorientFindingInterpretation {
-        mode: Some(result.role.clone()),
-        summary: Some(result.summary.clone()),
-        next_safe_move: empty_string_as_none(&result.next_safe_move),
-        checkpoint_still_valid: Some(result.verdict != "fail"),
-        files_inspected: Vec::new(),
-        frontier_node_ids: Vec::new(),
-        evidence_ids: result.evidence_refs.clone(),
-        artifact_refs: result.artifact_refs.clone(),
-        runtime_result_id: Some(result.result_id.clone()),
-        runtime_job_id: Some(result.job_id.clone()),
-        job_error: None,
-        item_error: None,
     }
 }
 
@@ -1227,7 +1181,6 @@ use super::state_patch::EpiphanyRoleStatePatchDocument;
 use crate::agent_memory::AgentSelfPatch;
 use crate::agent_memory::decode_agent_self_patch;
 use crate::agent_memory::review_agent_self_patch_contract;
-use crate::runtime_spine::EpiphanyRuntimeJobResult;
 use epiphany_state_model::EpiphanyAcceptanceReceipt;
 use epiphany_state_model::EpiphanyCodeRef;
 use epiphany_state_model::EpiphanyEvidenceRecord;

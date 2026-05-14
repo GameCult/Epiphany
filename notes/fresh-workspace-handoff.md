@@ -598,8 +598,9 @@ storage route without network. Its `run-worker` command now reads a durable
 model request, calls the native runtime route, persists typed
 `EpiphanyRuntimeRoleWorkerResult` or `EpiphanyRuntimeReorientWorkerResult`
 documents, and completes the original heartbeat/specialist runtime job without
-Codex worker execution. `roleResult` and `reorientResult` now prefer those typed
-worker result documents and use generic job summaries only as legacy fallback.
+Codex worker execution. `roleResult` and `reorientResult` now require those
+typed worker result documents; generic runtime job summaries are lifecycle
+receipts, not reviewable findings.
 The next cut is wiring coordinator/heartbeat automation to invoke `run-worker`
 for launched runtime job ids, then carving down the `codex-api` dependency
 weight.
@@ -961,6 +962,14 @@ absolute-path, and template tests. A vendored-wide search for product-shaped
 `marketplace`, `plugin`, `app://`, `plugin://`, `codex_apps`, and stale Apps
 test names now returns only external URLs, generic URL examples, and real
 package names such as `eslint-plugin`; not live Codex product machinery.
+
+The typed worker-result boundary is now stricter. `roleResult` and
+`reorientResult` read-back no longer falls back from
+`EpiphanyRuntimeRoleWorkerResult` / `EpiphanyRuntimeReorientWorkerResult`
+CultCache documents to generic `EpiphanyRuntimeJobResult` lifecycle receipts.
+If a job completed without the typed worker-result document, the bridge reports
+backend-unavailable and names the missing document instead of laundering summary
+strings into a reviewable finding.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
