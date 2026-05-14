@@ -28,7 +28,6 @@ use codex_config::permissions_toml::PermissionProfileToml;
 use codex_config::permissions_toml::PermissionsToml;
 use codex_config::profile_toml::ConfigProfile;
 use codex_config::types::ApprovalsReviewer;
-use codex_config::types::BundledSkillsConfig;
 use codex_config::types::FeedbackConfigToml;
 use codex_config::types::HistoryPersistence;
 use codex_config::types::McpServerEnvVar;
@@ -42,7 +41,6 @@ use codex_config::types::NotificationCondition;
 use codex_config::types::NotificationMethod;
 use codex_config::types::Notifications;
 use codex_config::types::SandboxWorkspaceWrite;
-use codex_config::types::SkillsConfig;
 use codex_config::types::Tui;
 use codex_config::types::TuiNotificationSettings;
 use codex_exec_server::LOCAL_FS;
@@ -288,29 +286,6 @@ consolidation_model = "gpt-5.2"
                 .expect("legacy memories config")
         )
         .disable_on_external_context
-    );
-}
-
-#[test]
-fn parses_bundled_skills_config() {
-    let cfg: ConfigToml = toml::from_str(
-        r#"
-[skills]
-include_instructions = false
-
-[skills.bundled]
-enabled = false
-"#,
-    )
-    .expect("TOML deserialization should succeed");
-
-    assert_eq!(
-        cfg.skills,
-        Some(SkillsConfig {
-            bundled: Some(BundledSkillsConfig { enabled: false }),
-            include_instructions: Some(false),
-            config: Vec::new(),
-        })
     );
 }
 
@@ -2601,9 +2576,6 @@ async fn to_mcp_config_quarantines_codex_product_surfaces() -> std::io::Result<(
     )
     .await?;
 
-    let mcp_config = config.to_mcp_config();
-    assert!(!mcp_config.skill_mcp_dependency_install_enabled);
-    assert_eq!(config.to_mcp_config().configured_mcp_servers.len(), 0);
     assert_eq!(config.to_mcp_config().configured_mcp_servers.len(), 0);
 
     Ok(())
@@ -5225,7 +5197,6 @@ async fn test_precedence_fixture_with_o3_profile() -> std::io::Result<()> {
             developer_instructions: None,
             guardian_policy_config: None,
             include_permissions_instructions: true,
-            include_skill_instructions: true,
             include_environment_context: true,
             compact_prompt: None,
             commit_attribution: None,
@@ -5374,7 +5345,6 @@ async fn test_precedence_fixture_with_gpt3_profile() -> std::io::Result<()> {
         developer_instructions: None,
         guardian_policy_config: None,
         include_permissions_instructions: true,
-        include_skill_instructions: true,
         include_environment_context: true,
         compact_prompt: None,
         commit_attribution: None,
@@ -5521,7 +5491,6 @@ async fn test_precedence_fixture_with_zdr_profile() -> std::io::Result<()> {
         developer_instructions: None,
         guardian_policy_config: None,
         include_permissions_instructions: true,
-        include_skill_instructions: true,
         include_environment_context: true,
         compact_prompt: None,
         commit_attribution: None,
@@ -5653,7 +5622,6 @@ async fn test_precedence_fixture_with_gpt5_profile() -> std::io::Result<()> {
         developer_instructions: None,
         guardian_policy_config: None,
         include_permissions_instructions: true,
-        include_skill_instructions: true,
         include_environment_context: true,
         compact_prompt: None,
         commit_attribution: None,
@@ -6629,9 +6597,6 @@ async fn prompt_instruction_blocks_can_be_disabled_from_config_and_profiles() ->
 include_environment_context = false
 profile = "chatty"
 
-[skills]
-include_instructions = false
-
 [profiles.chatty]
 include_permissions_instructions = true
 include_environment_context = true
@@ -6645,7 +6610,6 @@ include_environment_context = true
         .await?;
 
     assert!(config.include_permissions_instructions);
-    assert!(!config.include_skill_instructions);
     assert!(config.include_environment_context);
     Ok(())
 }

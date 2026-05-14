@@ -8,7 +8,6 @@ use crate::facts::CompactionStatus;
 use crate::facts::CompactionStrategy;
 use crate::facts::CompactionTrigger;
 use crate::facts::HookRunFact;
-use crate::facts::InvocationType;
 use crate::facts::SubAgentThreadStartedInput;
 use crate::facts::ThreadInitializationMode;
 use crate::facts::TrackEventsContext;
@@ -48,31 +47,12 @@ pub(crate) struct TrackEventsRequest {
 #[derive(Serialize)]
 #[serde(untagged)]
 pub(crate) enum TrackEventRequest {
-    SkillInvocation(SkillInvocationEventRequest),
     ThreadInitialized(ThreadInitializedEvent),
     GuardianReview(Box<GuardianReviewEventRequest>),
     HookRun(CodexHookRunEventRequest),
     Compaction(Box<CodexCompactionEventRequest>),
     TurnEvent(Box<CodexTurnEventRequest>),
     TurnSteer(CodexTurnSteerEventRequest),
-}
-
-#[derive(Serialize)]
-pub(crate) struct SkillInvocationEventRequest {
-    pub(crate) event_type: &'static str,
-    pub(crate) skill_id: String,
-    pub(crate) skill_name: String,
-    pub(crate) event_params: SkillInvocationEventParams,
-}
-
-#[derive(Serialize)]
-pub(crate) struct SkillInvocationEventParams {
-    pub(crate) product_client_id: Option<String>,
-    pub(crate) skill_scope: Option<String>,
-    pub(crate) repo_url: Option<String>,
-    pub(crate) thread_id: Option<String>,
-    pub(crate) invoke_type: Option<InvocationType>,
-    pub(crate) model_slug: Option<String>,
 }
 
 #[derive(Clone, Serialize)]

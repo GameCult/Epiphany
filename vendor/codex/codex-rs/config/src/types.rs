@@ -517,10 +517,6 @@ pub struct Notice {
     pub external_config_migration_prompts: ExternalConfigMigrationPrompts,
 }
 
-pub use crate::skills_config::BundledSkillsConfig;
-pub use crate::skills_config::SkillConfig;
-pub use crate::skills_config::SkillsConfig;
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]
 pub struct SandboxWorkspaceWrite {

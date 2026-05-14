@@ -299,9 +299,6 @@ pub struct Config {
     /// Whether to inject the `<permissions instructions>` developer block.
     pub include_permissions_instructions: bool,
 
-    /// Whether to inject the `<skills_instructions>` developer block.
-    pub include_skill_instructions: bool,
-
     /// Whether to inject the `<environment_context>` user block.
     pub include_environment_context: bool,
 
@@ -805,7 +802,6 @@ impl Config {
             mcp_oauth_credentials_store_mode: self.mcp_oauth_credentials_store_mode,
             mcp_oauth_callback_port: self.mcp_oauth_callback_port,
             mcp_oauth_callback_url: self.mcp_oauth_callback_url.clone(),
-            skill_mcp_dependency_install_enabled: false,
             approval_policy: self.permissions.approval_policy.clone(),
             codex_linux_sandbox_exe: self.codex_linux_sandbox_exe.clone(),
             use_legacy_landlock: self.features.use_legacy_landlock(),
@@ -2003,11 +1999,6 @@ impl Config {
             .include_permissions_instructions
             .or(cfg.include_permissions_instructions)
             .unwrap_or(true);
-        let include_skill_instructions = cfg
-            .skills
-            .as_ref()
-            .and_then(|skills| skills.include_instructions)
-            .unwrap_or(true);
         let include_environment_context = config_profile
             .include_environment_context
             .or(cfg.include_environment_context)
@@ -2228,7 +2219,6 @@ impl Config {
             compact_prompt,
             commit_attribution,
             include_permissions_instructions,
-            include_skill_instructions,
             include_environment_context,
             // The config.toml omits "_mode" because it's a config file. However, "_mode"
             // is important in code to differentiate the mode from the store implementation.

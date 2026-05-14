@@ -282,113 +282,18 @@ rejected_paths:
 current_status:
   summary: The Codex starvation pass has five typing receipts, forty-nine processor/foundation cuts, a real physical extraction in `epiphany-codex-bridge`, a root `epiphany-state-model` crate for durable Epiphany state, a source-grounded Codex auth spine inventory, the native `epiphany-openai-adapter` document boundary, a buildable Codex auth/model wrapper in `epiphany-openai-codex-spine`, the first native runtime caller in `epiphany-openai-runtime`, native heartbeat launch planning/job opening in `epiphany-core`, native state-update contract/validation/application in `epiphany-core`, native exact retrieval path matching in `epiphany-core`, and the route-facing mutation/view/coordinator projection services in `epiphany-codex-bridge`. `codex-protocol` no longer defines the durable `Epiphany*` state structs; it re-exports the native model for legacy rollout/API compatibility while `epiphany-core` imports the native model directly. `epiphany-core` now has no direct vendored Codex dependency: pressure derivation accepts native `EpiphanyTokenUsageSnapshot`, Codex rollout replay moved to `codex-core::epiphany_rollout`, and exact retrieval search uses Epiphany-owned workspace walking/path scoring instead of `codex-file-search`. The bridge owns Codex-facing Epiphany adapters for scene, jobs, context/planning/graph query, retrieval/indexing projection, result projection, runtime-spine result adaptation, launch/prompt doctrine, mutation document mechanics, mutation service update/promote/role-accept/reorient-accept/role-launch/reorient-launch/job-launch/job-interrupt application, live-state projection, pressure/pre-compaction rendering, freshness/reorientation projection, CRRC/coordinator/role-board projection, watcher invalidation adaptation, full `thread/epiphany/view` response construction, freshness/context/graph-query response construction, role/reorient result response construction, distill/propose patch-response construction, coordinator status/view construction, and acceptance/evidence signal helpers. Vendored app-server no longer retains root Epiphany modules; `codex_message_processor.rs` still contains route dispatch, JSON-RPC response shaping, watcher registration/snapshotting calls, and notification emission, but its root no longer imports the evacuated Epiphany policy/protocol registry or owns the watcher invalidation manager. Codex product surfaces for apps, skills, plugins, marketplace, and external agent config import are now inert in the app-server compatibility path: list routes return empty lists, mutation/detail/import routes report disabled, `externalAgentConfig/detect` returns no import candidates, helper/import modules and stale implementation-shape tests were deleted, runtime feature enablement no longer supports `apps` or `plugins`, config writes no longer emit plugin-toggle analytics, plugin/skill cache invalidation on config writes is gone, plugin startup warmups and app-list refreshes were removed, and app-server no longer directly depends on `codex-plugin`, `codex-chatgpt`, or `codex-core-plugins`. `Config::to_mcp_config` now keeps user-declared MCP servers but no longer accepts `PluginsManager`, folds plugin MCP servers into the runtime, enables Codex apps, enables skill MCP dependency install, or advertises plugin capability summaries; `TurnContext::apps_enabled()` now returns false so model turns cannot awaken Codex Apps through ChatGPT auth or feature flags; session startup and per-turn context no longer load skills, turns receive an empty `SkillLoadOutcome`, internal `Op::ListSkills` is gone from `codex-protocol` / `codex-core` / TUI command routing, the Codex skill watcher has been collapsed to a no-op marker with no file watcher, skill-root registration, cache-clear task, or `SkillsUpdateAvailable` session listener, model turns no longer run skill mention collection, skill env-var prompts, skill MCP dependency installation, skill instruction injection, or implicit skill invocation analytics from shell tools, and the turn prompt/router path no longer loads plugin/app capability summaries, injects available-skill/available-plugin/plugin instruction fragments, parses plugin/app mentions, records app/plugin invocation telemetry, or filters MCP tools through Codex app connectors. Skill mutation/list/notification is gone from the app-server edge too: `skills/list`, `skills/config/write`, `skills/changed`, `Op::ListSkills`, `EventMsg::ListSkillsResponse`, `EventMsg::SkillsUpdateAvailable`, the app-server handlers, TUI slash/startup/list/manage-skill surfaces, generated schema entries, core skill-list suite, and fake live-reload/developer-message tests were deleted. Skill mention plumbing is also gone from the live TUI/protocol edge: no `UserInput::Skill` variant, app-server schema branch, TUI skill popup, `skills_all` cache, composer `set_skill_mentions`, skill mention insertion, `skill://` / `SKILL.md` history decoding, or stale skill popup snapshot remains. The `codex-core-skills` crate, core `skills` re-export shim, no-op `skills_watcher`, session `SkillsManager` service, and per-turn `TurnSkillsContext` are deleted; core now keeps only a local legacy `<skill>` fragment recognizer for old history classification. The TUI app connector product path is also deleted: no `/apps` slash command, app-link view, connector AppEvent variants, app connector cache/popup/refresh loop, app mention insertion, `app://` mention codec support, stale app-popup tests, or TUI browser-opening shim remains. The `app/list` route and `app/list/updated` notification are gone from app-server protocol, generated schemas, app-server dispatch, test helpers, and docs; `AppInfo`/app-list metadata schema structs are deleted; the orphaned `codex-connectors` crate and `core::connectors` shim are deleted from the workspace; Codex app analytics no longer tracks `codex_app_mentioned` / `codex_app_used` facts, events, reducer arms, client APIs, or dedupe cache state; `[apps.*]`, `Feature::Apps`, `include_apps_instructions`, app config/read schemas, app managed requirements, app prompt tests, and app file-MCP tests are gone; `Feature::Plugins`, `Feature::RemotePlugin`, `plugin://` structured mentions, plugin instruction tags, and stale plugin popup snapshots are gone too; `[plugins]` / `[marketplaces]`, `PluginConfig`, `MarketplaceConfig`, marketplace edit helpers, stale plugin/external-agent README route claims, and generated schema entries are removed from config; and the bundled `codex-skills` sample-skill crate plus embedded imagegen/openai-docs/plugin-creator/skill-creator/skill-installer payloads are deleted from the workspace. Live MCP tool approval is named `McpToolApproval`, not `AppToolApproval`, and remains under MCP server config; live structured user-input mentions are MCP-shaped only. `codex_message_processor.rs` is about 9,637 lines; root `message_processor.rs` is about 1,292 lines after the external-agent/config-product cuts; `epiphany_read_routes.rs` is about 579 lines after the full view and read-response extractions; `epiphany_mutation_routes.rs` is about 694 lines after route-load/notification helper cuts and product-surface starvation; `epiphany_state_helpers.rs` is down to a 19-line rollout-state loader; and `codex_thread.rs` is about 1,425 lines after state-update law moved native. `epiphany-openai-adapter` defines CultCache `DatabaseEntry` request/event/receipt/auth-status documents with no Codex app-server or generic JSON dependency. `epiphany-openai-codex-spine` owns all direct Codex auth/model-transport imports for the native OpenAI path: it exposes `default_codex_home` and `auth_manager`, projects `AuthManager` / `CodexAuth` into typed `EpiphanyOpenAiAdapterStatus`, maps typed `EpiphanyOpenAiModelRequest` into Codex API `ResponsesApiRequest`, resolves auth/provider through keeper Codex crates, opens HTTP Responses streams through `codex-api`, maps deltas / completion into typed stream events and receipts, and no longer directly depends on `codex-app-server-protocol` just to name auth mode. `epiphany-openai-runtime` no longer depends directly on `codex-login`; it writes OpenAI status/request/stream-event/receipt records plus runtime sessions/jobs/results/events into `epiphany-core::runtime_spine_cache`, can emit the assistant text artifact for legacy result consumers, is now the default executor for startup-only repo birth specialists, and now has `run-worker` to load a durable `EpiphanyRuntimeWorkerLaunchRequest`, call the typed OpenAI runtime through the spine, persist typed `EpiphanyRuntimeRoleWorkerResult` / `EpiphanyRuntimeReorientWorkerResult` documents, and complete the original heartbeat/specialist runtime job without Codex worker execution; `codex exec` survives only as explicit fallback in repo-birth startup. `epiphany-mvp-coordinator` now invokes `epiphany-openai-runtime run-worker` for launched runtime job ids and no longer creates a second coordinator-owned shadow runtime job/result as a compensator. `epiphany-core::plan_runtime_spine_heartbeat_launch` validates launch contracts/conflicts and projects durable job bindings/runtime links; `epiphany-core::open_runtime_spine_heartbeat_job` owns the initialize-runtime/ensure-session/create-job sequence and now persists `EpiphanyRuntimeWorkerLaunchRequest` CultCache records keyed by runtime job id, with indexed kind/contract fields plus MessagePack-encoded typed launch documents instead of discarding work intent after queue receipt creation; `roleResult` and `reorientResult` now prefer typed worker result documents and fall back only to generic job summaries for older receipts; `epiphany-core::EpiphanyStateUpdate`, `epiphany_state_update_validation_errors`, and `apply_epiphany_state_update` own state-update document shape and mutation law while `codex-core` calls them for compatibility. Vendored `CodexThread::epiphany_launch_job` is now mostly revision check, persistence validation, launch request handoff, and rollout/session writeback for the compatibility route. Vendored `codex-core` no longer has `epiphany_distillation`, `epiphany_promotion`, `epiphany_proposal`, or `epiphany_retrieval` husk modules; it re-exports native surfaces from `epiphany-core` directly, and now owns only the real Codex rollout adapter because it is a host seam. `epiphany-runtime-spine` advertises OpenAI adapter status/model-request/stream-event/receipt CultNet schemas and mutation contracts, so the native caller now has a real storage route instead of only JSON-RPC. MCP itself is correctly JSON at its protocol edge; the target is typed Epiphany intent/result/receipt wrappers around MCP, not replacing MCP JSON. The current OpenAI spine still pulls `codex-api` and a large transport dependency stack, so its next cut is dependency starvation after richer live callers move.
   latest_cut: >
-    Codex Apps no longer have privileged MCP/runtime treatment in the keeper
-    path. MCP exposure is now uniform: small tool sets are direct, large or
-    always-defer sets go through `tool_search`, and no server name gets an app
-    exemption. Core MCP tool calls no longer consult app tool policy, block via
-    app config, track app invocation analytics, forward `_codex_apps` metadata,
-    render bundled Codex app approval templates, persist approvals under
-    `[apps.*]`, or decorate approval elicitation metadata with connector-source
-    fields. The 962-line consequential app-template JSON relic was deleted.
-    `codex-mcp` no longer auto-injects `codex_apps`, exports
-    `with_codex_apps_mcp`, keeps a ChatGPT-auth-keyed Codex Apps tool cache,
-    exposes `hard_refresh_codex_apps_tools_cache`, filters non-app MCP tools,
-    normalizes app callable names/namespaces/titles, or masks app file params at
-    app-specific return boundaries. The live MCP manager/config shape also no
-    longer carries plugin provenance: `ToolPluginProvenance`,
-    `plugin_capability_summaries`, and the `codex-plugin` / `codex-utils-plugins`
-    dependencies were removed from `codex-mcp`, and MCP tool descriptions are no
-    longer decorated from plugin product metadata. The TUI connector prefetch
-    path now uses the inert core connector stub instead of `codex-chatgpt`, so
-    ChatGPT app connector listing is not a TUI dependency. CLI `apply` is now a
-    disabled compatibility shell, so `codex-cli` no longer depends on
-    `codex-chatgpt` for ChatGPT task/apply product commands. TUI prompt
-    composition no longer owns plugin mention state, emits structured plugin
-    mentions, refreshes plugin mentions through `AppEvent`, decodes legacy
-    `[@plugin](plugin://...)` mention links, or depends on `codex-plugin` /
-    `codex-utils-plugins`. The TUI `/plugins` command and marketplace organ are
-    now deleted too: no slash command, plugin popup module, plugin AppEvent
-    variants, plugin background RPC helpers, plugin enablement queue, or
-    marketplace popup tests remain in `codex-tui`. The app-server plugin JSON-RPC
-    route surface is no longer live either: `plugin/list`, `plugin/read`,
-    `plugin/install`, and `plugin/uninstall` were removed from the shared
-    `ClientRequest` protocol and from `codex_message_processor.rs`; only inert
-    legacy protocol structs remain for orphaned plugin crates. The orphaned
-    `codex-chatgpt` product crate was deleted from the vendored workspace; only
-    ChatGPT auth originator strings remain where they serve the subscription
-    compatibility spine. The orphaned `codex-core-plugins` crate was also
-    deleted from the workspace. Analytics no longer knows plugin lifecycle/use
-    events, keeps plugin dedupe state, or depends on `codex-plugin`; the
-    unreferenced `codex-plugin` crate was deleted from the workspace. The final
-    `codex-utils-plugins` husk was deleted too: `$` / `@` mention sigils now
-    live in their actual owners, plugin manifest skill namespacing is gone, and
-    stale plugin/marketplace tests were removed instead of preserving
-    implementation fossils. The disabled CLI plugin marketplace parser was
-    deleted as well: `codex plugin marketplace ...` no longer parses just to
-    reject itself. App-server `marketplace/add` and `marketplace/remove` are
-    gone too: no shared `ClientRequest` variants, `codex_message_processor.rs`
-    dispatch arms, disabled handlers, test-client helpers, README claims,
-    add/remove params/responses, or generated client schemas remain. The
-    orphaned app-server-protocol `Plugin*` / marketplace plugin structs and
-    their serialization tests were deleted from source after the route and
-    schema surfaces disappeared. The unreferenced curated plugin startup-sync
-    metric constants are gone from `codex-otel`. The external agent config
-    import product is gone too: no `externalAgentConfig/detect`,
-    `externalAgentConfig/import`, import-completed notification, TUI startup
-    prompt, migration modules, snapshots, disabled app-server handlers, or
-    generated schemas remain. The tool-suggestion marketplace organ is now
-    deleted, not merely disabled: no `tool_suggest` feature/config/schema, tool
-    spec, handler kind, discoverable-tool side channel, connector filter, TUI
-    suggestion elicitation flow, prompt template, or implementation-shape tests
-    remain. Plugin provenance no longer rides inside every connector/app record:
-    `AppInfo.plugin_display_names`, `ToolInfo.plugin_display_names`, the plugin
-    connector merge helpers, plugin-name search indexing, stale Codex Apps cache
-    tests, and regenerated schema references were deleted. The Codex Apps
-    readiness/cache superstition is also gone from connector prefetch:
-    `AccessibleConnectorsStatus.codex_apps_ready` and the TUI force-refetch loop
-    were removed, and TUI connector activation is hard-off while the core
-    connector list remains an inert compatibility stub. The unreferenced
-    `core/src/connectors_tests.rs` app-policy/cache fossil was deleted rather
-    than preserved as a fake guardrail. The TUI app connector surface has now
-    been deleted instead of left hard-off: `/apps`, the app-link view,
-    connector AppEvent variants, connector cache/popup/refresh machinery, app
-    mention insertion, `app://` mention codec support, stale app-popup tests,
-    the browser-opening shim, and the one-use selection-refresh plumbing are
-    gone. `cargo check -p codex-tui` passes; `cargo test -p codex-tui --lib
-    --no-run` timed out at 3 minutes without a diagnostic. The `app/list`
-    app-server route and `app/list/updated` notification are now deleted from
-    the shared protocol, generated schemas, `codex_message_processor.rs`, test
-    helpers, and docs. The app-list `AppInfo`/metadata schema structs and the
-    orphaned `codex-connectors` crate / `core::connectors` shim are gone from
-    the workspace. Codex app analytics is gone too: no `codex_app_mentioned` /
-    `codex_app_used` facts, event payloads, reducer arms, client APIs, dedupe
-    cache, or tests remain. The app config throne is gone: no `[apps.*]`,
-    `Feature::Apps`, `include_apps_instructions`, app config/read schema,
-    app managed requirements, app prompt tests, or app file-MCP tests remain,
-    and live MCP approval is named `McpToolApproval`. The plugin feature and
-    mention residue is gone too: no `Feature::Plugins`,
-    `Feature::RemotePlugin`, `plugin://` structured mention support, plugin
-    instruction tags, stale plugin popup snapshots, or app/plugin mention path
-    classification in `codex-core-skills` remain. Config no longer accepts `[plugins]` or
-    `[marketplaces]`, and the old marketplace edit helper module plus
-    stale plugin/external-agent app-server README route claims were deleted.
-    The bundled `codex-skills` crate is gone as well: no embedded sample
-    skill payloads are installed into `CODEX_HOME/skills/.system`; the old
-    cache path remains only so stale cached samples can be removed.
-    The dead skill mutation/notification surface is also gone:
-    `skills/list`, `skills/config/write`, `skills/changed`, `Op::ListSkills`,
-    `EventMsg::ListSkillsResponse`, `EventMsg::SkillsUpdateAvailable`,
-    app-server handlers, TUI slash/startup/list/manage-skill surfaces, generated
-    schema entries, core skill-list suite, and stale live-reload/developer-message
-    tests were deleted.
-    The TUI/protocol skill mention organ is deleted: no `UserInput::Skill`,
-    app-server schema branch, TUI skill popup, `skills_all` cache,
-    composer `set_skill_mentions`, skill mention insertion, `skill://` /
-    `SKILL.md` history decoding, or stale skill popup snapshot remains. The
-    `codex-core-skills` crate, core `skills` shim, no-op `skills_watcher`,
-    session `SkillsManager` service, and per-turn `TurnSkillsContext` are
-    deleted; core keeps only a local legacy `<skill>` fragment recognizer for
-    old history classification. Live
-    structured user-input mentions are MCP-shaped only. MCP remains JSON-RPC at
-    the edge; user-declared MCP servers are the only runtime MCP authority.
+    The remaining live Codex skill config/protocol/analytics residues have now
+    been cut below the deleted `codex-core-skills` crate. `[skills]` TOML
+    parsing, config schema definitions, config edit helpers, and config tests
+    are gone; `SkillScope`, `SkillMetadata`, `SkillInterface`,
+    `SkillDependencies`, and `SkillToolDependency` are gone from
+    `codex-protocol`; skill invocation facts/events/client APIs/reducer logic
+    and thread skill metric constants are gone from analytics/OTEL; the skill
+    MCP dependency installer is gone from `codex-mcp`; and the stale skill
+    approval integration suite was deleted instead of preserving a removed path
+    as a test-shaped memorial. `config.schema.json` was regenerated without a
+    `skills` table. Residue remains in the separate granular
+    `skill_approval` permission flag and old `<skill>` / `<skills_instructions>`
+    history/snapshot compatibility surfaces; those are compatibility stumps to
+    classify next, not keeper auth/model-spine machinery.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

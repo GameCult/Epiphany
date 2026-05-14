@@ -1,5 +1,4 @@
 pub(crate) mod auth;
-mod skill_dependencies;
 pub use auth::McpAuthStatusEntry;
 pub use auth::McpOAuthLoginConfig;
 pub use auth::McpOAuthLoginSupport;
@@ -10,8 +9,6 @@ pub use auth::discover_supported_scopes;
 pub use auth::oauth_login_support;
 pub use auth::resolve_oauth_scopes;
 pub use auth::should_retry_without_scopes;
-pub use skill_dependencies::canonical_mcp_server_key;
-pub use skill_dependencies::collect_missing_mcp_dependencies;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -111,8 +108,6 @@ pub struct McpConfig {
     pub mcp_oauth_callback_port: Option<u16>,
     /// Optional OAuth redirect URI override for MCP login.
     pub mcp_oauth_callback_url: Option<String>,
-    /// Whether skill MCP dependency installation prompts are enabled.
-    pub skill_mcp_dependency_install_enabled: bool,
     /// Approval policy used for MCP tool calls and MCP elicitation requests.
     pub approval_policy: Constrained<AskForApproval>,
     /// Optional path to `codex-linux-sandbox` for sandboxed MCP tool execution.

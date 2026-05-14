@@ -10,8 +10,6 @@ use crate::events::CodexTurnSteerEventRequest;
 use crate::events::GuardianReviewEventParams;
 use crate::events::GuardianReviewEventPayload;
 use crate::events::GuardianReviewEventRequest;
-use crate::events::SkillInvocationEventParams;
-use crate::events::SkillInvocationEventRequest;
 use crate::events::ThreadInitializedEvent;
 use crate::events::ThreadInitializedEventParams;
 use crate::events::TrackEventRequest;
@@ -25,7 +23,6 @@ use crate::facts::AnalyticsJsonRpcError;
 use crate::facts::CodexCompactionEvent;
 use crate::facts::CustomAnalyticsFact;
 use crate::facts::HookRunInput;
-use crate::facts::SkillInvokedInput;
 use crate::facts::SubAgentThreadStartedInput;
 use crate::facts::ThreadInitializationMode;
 use crate::facts::TurnResolvedConfigFact;
@@ -42,19 +39,13 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::TurnSteerResponse;
 use codex_app_server_protocol::UserInput;
-use codex_git_utils::collect_git_info;
-use codex_git_utils::get_git_repo_root;
-use codex_login::default_client::originator;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
-use codex_protocol::protocol::SkillScope;
 use codex_protocol::protocol::TokenUsage;
-use sha1::Digest;
 use std::collections::HashMap;
-use std::path::Path;
 
 #[derive(Default)]
 pub(crate) struct AnalyticsReducer {
@@ -197,9 +188,6 @@ impl AnalyticsReducer {
                 }
                 CustomAnalyticsFact::TurnTokenUsage(input) => {
                     self.ingest_turn_token_usage(*input, out);
-                }
-                CustomAnalyticsFact::SkillInvoked(input) => {
-                    self.ingest_skill_invoked(input, out).await;
                 }
                 CustomAnalyticsFact::HookRun(input) => {
                     self.ingest_hook_run(input, out);
@@ -353,54 +341,6 @@ impl AnalyticsReducer {
         turn_state.thread_id = Some(input.thread_id);
         turn_state.token_usage = Some(input.token_usage);
         self.maybe_emit_turn_event(&turn_id, out);
-    }
-
-    async fn ingest_skill_invoked(
-        &mut self,
-        input: SkillInvokedInput,
-        out: &mut Vec<TrackEventRequest>,
-    ) {
-        let SkillInvokedInput {
-            tracking,
-            invocations,
-        } = input;
-        for invocation in invocations {
-            let skill_scope = match invocation.skill_scope {
-                SkillScope::User => "user",
-                SkillScope::Repo => "repo",
-                SkillScope::System => "system",
-                SkillScope::Admin => "admin",
-            };
-            let repo_root = get_git_repo_root(invocation.skill_path.as_path());
-            let repo_url = if let Some(root) = repo_root.as_ref() {
-                collect_git_info(root)
-                    .await
-                    .and_then(|info| info.repository_url)
-            } else {
-                None
-            };
-            let skill_id = skill_id_for_local_skill(
-                repo_url.as_deref(),
-                repo_root.as_deref(),
-                invocation.skill_path.as_path(),
-                invocation.skill_name.as_str(),
-            );
-            out.push(TrackEventRequest::SkillInvocation(
-                SkillInvocationEventRequest {
-                    event_type: "skill_invocation",
-                    skill_id,
-                    skill_name: invocation.skill_name.clone(),
-                    event_params: SkillInvocationEventParams {
-                        thread_id: Some(tracking.thread_id.clone()),
-                        invoke_type: Some(invocation.invocation_type),
-                        model_slug: Some(tracking.model_slug.clone()),
-                        product_client_id: Some(originator().value),
-                        repo_url,
-                        skill_scope: Some(skill_scope.to_string()),
-                    },
-                },
-            ));
-        }
     }
 
     fn ingest_hook_run(&mut self, input: HookRunInput, out: &mut Vec<TrackEventRequest>) {
@@ -935,47 +875,5 @@ fn rejection_reason_from_error_type(
     match error_type? {
         AnalyticsJsonRpcError::TurnSteer(error) => Some(error.into()),
         AnalyticsJsonRpcError::Input(error) => Some(error.into()),
-    }
-}
-
-pub(crate) fn skill_id_for_local_skill(
-    repo_url: Option<&str>,
-    repo_root: Option<&Path>,
-    skill_path: &Path,
-    skill_name: &str,
-) -> String {
-    let path = normalize_path_for_skill_id(repo_url, repo_root, skill_path);
-    let prefix = if let Some(url) = repo_url {
-        format!("repo_{url}")
-    } else {
-        "personal".to_string()
-    };
-    let raw_id = format!("{prefix}_{path}_{skill_name}");
-    let mut hasher = sha1::Sha1::new();
-    sha1::Digest::update(&mut hasher, raw_id.as_bytes());
-    format!("{:x}", sha1::Digest::finalize(hasher))
-}
-
-/// Returns a normalized path for skill ID construction.
-///
-/// - Repo-scoped skills use a path relative to the repo root.
-/// - User/admin/system skills use an absolute path.
-pub(crate) fn normalize_path_for_skill_id(
-    repo_url: Option<&str>,
-    repo_root: Option<&Path>,
-    skill_path: &Path,
-) -> String {
-    let resolved_path =
-        std::fs::canonicalize(skill_path).unwrap_or_else(|_| skill_path.to_path_buf());
-    match (repo_url, repo_root) {
-        (Some(_), Some(root)) => {
-            let resolved_root = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-            resolved_path
-                .strip_prefix(&resolved_root)
-                .unwrap_or(resolved_path.as_path())
-                .to_string_lossy()
-                .replace('\\', "/")
-        }
-        _ => resolved_path.to_string_lossy().replace('\\', "/"),
     }
 }

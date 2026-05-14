@@ -28,9 +28,6 @@ use crate::facts::CustomAnalyticsFact;
 use crate::facts::HookRunFact;
 use crate::facts::HookRunInput;
 use crate::facts::InputError;
-use crate::facts::InvocationType;
-use crate::facts::SkillInvocation;
-use crate::facts::SkillInvokedInput;
 use crate::facts::SubAgentThreadStartedInput;
 use crate::facts::ThreadInitializationMode;
 use crate::facts::TrackEventsContext;
@@ -39,8 +36,6 @@ use crate::facts::TurnStatus;
 use crate::facts::TurnSteerRequestError;
 use crate::facts::TurnTokenUsageFact;
 use crate::reducer::AnalyticsReducer;
-use crate::reducer::normalize_path_for_skill_id;
-use crate::reducer::skill_id_for_local_skill;
 use codex_app_server_protocol::ApprovalsReviewer as AppServerApprovalsReviewer;
 use codex_app_server_protocol::AskForApproval as AppServerAskForApproval;
 use codex_app_server_protocol::ClientInfo;
@@ -70,7 +65,6 @@ use codex_app_server_protocol::TurnSteerParams;
 use codex_app_server_protocol::TurnSteerResponse;
 use codex_app_server_protocol::UserInput;
 use codex_login::default_client::DEFAULT_ORIGINATOR;
-use codex_login::default_client::originator;
 use codex_protocol::approvals::NetworkApprovalProtocol;
 use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::config_types::ModeKind;
@@ -87,7 +81,6 @@ use codex_utils_absolute_path::test_support::PathBufExt;
 use codex_utils_absolute_path::test_support::test_path_buf;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::path::PathBuf;
 
 fn sample_thread(thread_id: &str, ephemeral: bool) -> Thread {
     sample_thread_with_source(thread_id, ephemeral, AppServerSessionSource::Exec)
@@ -530,70 +523,6 @@ async fn ingest_turn_prerequisites(
             )
             .await;
     }
-}
-
-fn expected_absolute_path(path: &PathBuf) -> String {
-    std::fs::canonicalize(path)
-        .unwrap_or_else(|_| path.to_path_buf())
-        .to_string_lossy()
-        .replace('\\', "/")
-}
-
-#[test]
-fn normalize_path_for_skill_id_repo_scoped_uses_relative_path() {
-    let repo_root = PathBuf::from("/repo/root");
-    let skill_path = PathBuf::from("/repo/root/.codex/skills/doc/SKILL.md");
-
-    let path = normalize_path_for_skill_id(
-        Some("https://example.com/repo.git"),
-        Some(repo_root.as_path()),
-        skill_path.as_path(),
-    );
-
-    assert_eq!(path, ".codex/skills/doc/SKILL.md");
-}
-
-#[test]
-fn normalize_path_for_skill_id_user_scoped_uses_absolute_path() {
-    let skill_path = PathBuf::from("/Users/abc/.codex/skills/doc/SKILL.md");
-
-    let path = normalize_path_for_skill_id(
-        /*repo_url*/ None,
-        /*repo_root*/ None,
-        skill_path.as_path(),
-    );
-    let expected = expected_absolute_path(&skill_path);
-
-    assert_eq!(path, expected);
-}
-
-#[test]
-fn normalize_path_for_skill_id_admin_scoped_uses_absolute_path() {
-    let skill_path = PathBuf::from("/etc/codex/skills/doc/SKILL.md");
-
-    let path = normalize_path_for_skill_id(
-        /*repo_url*/ None,
-        /*repo_root*/ None,
-        skill_path.as_path(),
-    );
-    let expected = expected_absolute_path(&skill_path);
-
-    assert_eq!(path, expected);
-}
-
-#[test]
-fn normalize_path_for_skill_id_repo_root_not_in_skill_path_uses_absolute_path() {
-    let repo_root = PathBuf::from("/repo/root");
-    let skill_path = PathBuf::from("/other/path/.codex/skills/doc/SKILL.md");
-
-    let path = normalize_path_for_skill_id(
-        Some("https://example.com/repo.git"),
-        Some(repo_root.as_path()),
-        skill_path.as_path(),
-    );
-    let expected = expected_absolute_path(&skill_path);
-
-    assert_eq!(path, expected);
 }
 
 #[test]
@@ -1351,57 +1280,6 @@ fn hook_run_metadata_maps_stopped_status() {
 
     assert_eq!(stopped["hook_source"], "user");
     assert_eq!(stopped["status"], "stopped");
-}
-
-#[tokio::test]
-async fn reducer_ingests_skill_invoked_fact() {
-    let mut reducer = AnalyticsReducer::default();
-    let mut events = Vec::new();
-    let tracking = TrackEventsContext {
-        model_slug: "gpt-5".to_string(),
-        thread_id: "thread-1".to_string(),
-        turn_id: "turn-1".to_string(),
-    };
-    let skill_path = PathBuf::from("/Users/abc/.codex/skills/doc/SKILL.md");
-    let expected_skill_id = skill_id_for_local_skill(
-        /*repo_url*/ None,
-        /*repo_root*/ None,
-        skill_path.as_path(),
-        "doc",
-    );
-
-    reducer
-        .ingest(
-            AnalyticsFact::Custom(CustomAnalyticsFact::SkillInvoked(SkillInvokedInput {
-                tracking,
-                invocations: vec![SkillInvocation {
-                    skill_name: "doc".to_string(),
-                    skill_scope: codex_protocol::protocol::SkillScope::User,
-                    skill_path,
-                    invocation_type: InvocationType::Explicit,
-                }],
-            })),
-            &mut events,
-        )
-        .await;
-
-    let payload = serde_json::to_value(&events).expect("serialize events");
-    assert_eq!(
-        payload,
-        json!([{
-            "event_type": "skill_invocation",
-            "skill_id": expected_skill_id,
-            "skill_name": "doc",
-            "event_params": {
-                "product_client_id": originator().value,
-                "skill_scope": "user",
-                "repo_url": null,
-                "thread_id": "thread-1",
-                "invoke_type": "explicit",
-                "model_slug": "gpt-5"
-            }
-        }])
-    );
 }
 
 #[tokio::test]

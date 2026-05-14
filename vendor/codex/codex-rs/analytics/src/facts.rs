@@ -19,11 +19,9 @@ use codex_protocol::protocol::HookRunStatus;
 use codex_protocol::protocol::HookSource;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::SessionSource;
-use codex_protocol::protocol::SkillScope;
 use codex_protocol::protocol::SubAgentSource;
 use codex_protocol::protocol::TokenUsage;
 use serde::Serialize;
-use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct TrackEventsContext {
@@ -164,21 +162,6 @@ impl From<InputError> for TurnSteerRejectionReason {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct SkillInvocation {
-    pub skill_name: String,
-    pub skill_scope: SkillScope,
-    pub skill_path: PathBuf,
-    pub invocation_type: InvocationType,
-}
-
-#[derive(Clone, Copy, Debug, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum InvocationType {
-    Explicit,
-    Implicit,
-}
-
 #[derive(Clone)]
 pub struct SubAgentThreadStartedInput {
     pub thread_id: String,
@@ -291,13 +274,7 @@ pub(crate) enum CustomAnalyticsFact {
     GuardianReview(Box<GuardianReviewEventParams>),
     TurnResolvedConfig(Box<TurnResolvedConfigFact>),
     TurnTokenUsage(Box<TurnTokenUsageFact>),
-    SkillInvoked(SkillInvokedInput),
     HookRun(HookRunInput),
-}
-
-pub(crate) struct SkillInvokedInput {
-    pub tracking: TrackEventsContext,
-    pub invocations: Vec<SkillInvocation>,
 }
 
 pub(crate) struct HookRunInput {

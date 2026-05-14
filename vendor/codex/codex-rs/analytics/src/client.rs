@@ -9,8 +9,6 @@ use crate::facts::AnalyticsJsonRpcError;
 use crate::facts::CustomAnalyticsFact;
 use crate::facts::HookRunFact;
 use crate::facts::HookRunInput;
-use crate::facts::SkillInvocation;
-use crate::facts::SkillInvokedInput;
 use crate::facts::SubAgentThreadStartedInput;
 use crate::facts::TrackEventsContext;
 use crate::facts::TurnResolvedConfigFact;
@@ -73,22 +71,6 @@ impl AnalyticsEventsClient {
             queue: AnalyticsEventsQueue::new(Arc::clone(&auth_manager), base_url),
             analytics_enabled,
         }
-    }
-
-    pub fn track_skill_invocations(
-        &self,
-        tracking: TrackEventsContext,
-        invocations: Vec<SkillInvocation>,
-    ) {
-        if invocations.is_empty() {
-            return;
-        }
-        self.record_fact(AnalyticsFact::Custom(CustomAnalyticsFact::SkillInvoked(
-            SkillInvokedInput {
-                tracking,
-                invocations,
-            },
-        )));
     }
 
     pub fn track_initialize(

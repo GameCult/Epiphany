@@ -910,6 +910,16 @@ for old history classification. Live structured user-input mentions are
 MCP-shaped only; MCP remains JSON-RPC at its protocol edge, not a reason to keep
 Codex skills alive inside the organ.
 
+The remaining live skill config/protocol/analytics residues are now cut too.
+`[skills]` TOML parsing, config schema entries, config edit helpers,
+`SkillScope` / `SkillMetadata` protocol structs, skill invocation analytics,
+thread skill metric constants, the skill MCP dependency installer, and the stale
+skill approval integration suite were deleted. `config.schema.json` was
+regenerated without a `skills` table. The remaining skill-shaped stumps are the
+separate granular `skill_approval` permission flag and old `<skill>` /
+`<skills_instructions>` history/snapshot compatibility surfaces; classify and
+cut those next instead of treating them as auth/model spine machinery.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

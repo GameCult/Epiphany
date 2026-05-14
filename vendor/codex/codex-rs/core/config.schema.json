@@ -185,16 +185,6 @@
       },
       "type": "object"
     },
-    "BundledSkillsConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "default": true,
-          "type": "boolean"
-        }
-      },
-      "type": "object"
-    },
     "ConfigProfile": {
       "additionalProperties": false,
       "description": "Collection of common configuration options that a user can define as a unit in `config.toml`.",
@@ -1720,49 +1710,6 @@
       },
       "type": "object"
     },
-    "SkillConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "name": {
-          "description": "Name-based selector.",
-          "type": "string"
-        },
-        "path": {
-          "allOf": [
-            {
-              "$ref": "#/definitions/AbsolutePathBuf"
-            }
-          ],
-          "description": "Path-based selector."
-        }
-      },
-      "required": [
-        "enabled"
-      ],
-      "type": "object"
-    },
-    "SkillsConfig": {
-      "additionalProperties": false,
-      "properties": {
-        "bundled": {
-          "$ref": "#/definitions/BundledSkillsConfig"
-        },
-        "config": {
-          "items": {
-            "$ref": "#/definitions/SkillConfig"
-          },
-          "type": "array"
-        },
-        "include_instructions": {
-          "description": "Whether turns receive the automatic skills instructions block.",
-          "type": "boolean"
-        }
-      },
-      "type": "object"
-    },
     "ToolsToml": {
       "additionalProperties": false,
       "properties": {
@@ -2657,14 +2604,6 @@
     "show_raw_agent_reasoning": {
       "description": "When set to `true`, `AgentReasoningRawContentEvent` events will be shown in the UI/output. Defaults to `false`.",
       "type": "boolean"
-    },
-    "skills": {
-      "allOf": [
-        {
-          "$ref": "#/definitions/SkillsConfig"
-        }
-      ],
-      "description": "User-level skill config entries keyed by SKILL.md path."
     },
     "sqlite_home": {
       "allOf": [
