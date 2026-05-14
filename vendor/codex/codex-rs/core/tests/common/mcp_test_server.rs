@@ -16,23 +16,23 @@ const DISCOVERABLE_CALENDAR_ID: &str = "connector_2128aebfecb84f64a069897515042a
 const DISCOVERABLE_GMAIL_ID: &str = "connector_68df038e0ba48191908c8434991bbac2";
 const CONNECTOR_DESCRIPTION: &str = "Plan events and manage your calendar.";
 const PROTOCOL_VERSION: &str = "2025-11-25";
-const SERVER_NAME: &str = "codex-apps-test";
+const SERVER_NAME: &str = "demo-mcp-test";
 const SERVER_VERSION: &str = "1.0.0";
 const SEARCHABLE_TOOL_COUNT: usize = 100;
 pub const CALENDAR_CREATE_EVENT_RESOURCE_URI: &str =
     "connector://calendar/tools/calendar_create_event";
-pub const CALENDAR_CREATE_EVENT_MCP_APP_RESOURCE_URI: &str =
+pub const CALENDAR_CREATE_EVENT_MCP_RESOURCE_URI: &str =
     "ui://widget/calendar-create-event.html";
 const CALENDAR_LIST_EVENTS_RESOURCE_URI: &str = "connector://calendar/tools/calendar_list_events";
 pub const DOCUMENT_EXTRACT_TEXT_RESOURCE_URI: &str =
     "connector://calendar/tools/calendar_extract_text";
 
 #[derive(Clone)]
-pub struct AppsTestServer {
-    pub chatgpt_base_url: String,
+pub struct McpTestServer {
+    pub mcp_base_url: String,
 }
 
-impl AppsTestServer {
+impl McpTestServer {
     pub async fn mount(server: &MockServer) -> Result<Self> {
         Self::mount_with_connector_name(server, CONNECTOR_NAME).await
     }
@@ -48,7 +48,7 @@ impl AppsTestServer {
         )
         .await;
         Ok(Self {
-            chatgpt_base_url: server.uri(),
+            mcp_base_url: server.uri(),
         })
     }
 
@@ -66,7 +66,7 @@ impl AppsTestServer {
         )
         .await;
         Ok(Self {
-            chatgpt_base_url: server.uri(),
+            mcp_base_url: server.uri(),
         })
     }
 }
@@ -122,7 +122,7 @@ async fn mount_streamable_http_json_rpc(
 ) {
     Mock::given(method("POST"))
         .and(path_regex("^/api/mcp/demo/?$"))
-        .respond_with(CodexAppsJsonRpcResponder {
+        .respond_with(DemoMcpJsonRpcResponder {
             connector_name,
             connector_description,
             searchable,
@@ -131,13 +131,13 @@ async fn mount_streamable_http_json_rpc(
         .await;
 }
 
-struct CodexAppsJsonRpcResponder {
+struct DemoMcpJsonRpcResponder {
     connector_name: String,
     connector_description: String,
     searchable: bool,
 }
 
-impl Respond for CodexAppsJsonRpcResponder {
+impl Respond for DemoMcpJsonRpcResponder {
     fn respond(&self, request: &Request) -> ResponseTemplate {
         let body: Value = match serde_json::from_slice(&request.body) {
             Ok(body) => body,
@@ -208,7 +208,7 @@ impl Respond for CodexAppsJsonRpcResponder {
                                     "connector_id": CONNECTOR_ID,
                                     "connector_name": self.connector_name.clone(),
                                     "connector_description": self.connector_description.clone(),
-                                    "openai/outputTemplate": CALENDAR_CREATE_EVENT_MCP_APP_RESOURCE_URI,
+                                    "openai/outputTemplate": CALENDAR_CREATE_EVENT_MCP_RESOURCE_URI,
                                     "_mcp_bridge": {
                                         "resource_uri": CALENDAR_CREATE_EVENT_RESOURCE_URI,
                                         "contains_mcp_source": true,

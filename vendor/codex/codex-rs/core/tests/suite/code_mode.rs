@@ -16,8 +16,8 @@ use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::user_input::UserInput;
-use core_test_support::apps_test_server::AppsTestServer;
 use core_test_support::assert_regex_match;
+use core_test_support::mcp_test_server::McpTestServer;
 use core_test_support::responses;
 use core_test_support::responses::ResponseMock;
 use core_test_support::responses::ResponsesRequest;
@@ -356,7 +356,7 @@ async fn code_mode_only_guides_all_tools_search_and_calls_deferred_app_tools() -
     skip_if_no_network!(Ok(()));
 
     let server = responses::start_mock_server().await;
-    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let mcp_server = McpTestServer::mount_searchable(&server).await?;
     let resp_mock = responses::mount_sse_once(
         &server,
         sse(vec![
@@ -393,7 +393,7 @@ if (!tool) {
     )
     .await;
 
-    let apps_base_url = apps_server.chatgpt_base_url.clone();
+    let mcp_base_url = mcp_server.mcp_base_url.clone();
     let mut builder = test_codex()
         .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
         .with_config(move |config| {
@@ -416,7 +416,7 @@ if (!tool) {
                 .iter_mut()
                 .find(|model| model.slug == "gpt-5.4")
                 .expect("gpt-5.4 exists in bundled models.json");
-            config.chatgpt_base_url = apps_base_url;
+            config.chatgpt_base_url = mcp_base_url;
             config.model = Some("gpt-5.4".to_string());
             model.supports_search_tool = true;
             config.model_catalog = Some(model_catalog);

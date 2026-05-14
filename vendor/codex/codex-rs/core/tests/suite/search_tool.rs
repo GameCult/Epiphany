@@ -18,9 +18,9 @@ use codex_protocol::protocol::McpInvocation;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::user_input::UserInput;
-use core_test_support::apps_test_server::AppsTestServer;
-use core_test_support::apps_test_server::CALENDAR_CREATE_EVENT_MCP_APP_RESOURCE_URI;
-use core_test_support::apps_test_server::CALENDAR_CREATE_EVENT_RESOURCE_URI;
+use core_test_support::mcp_test_server::CALENDAR_CREATE_EVENT_MCP_RESOURCE_URI;
+use core_test_support::mcp_test_server::CALENDAR_CREATE_EVENT_RESOURCE_URI;
+use core_test_support::mcp_test_server::McpTestServer;
 use core_test_support::responses::ResponsesRequest;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;
@@ -111,27 +111,27 @@ fn configure_search_capable_model(config: &mut Config) {
     config.model_catalog = Some(model_catalog);
 }
 
-fn configure_search_capable_apps(config: &mut Config, apps_base_url: &str) {
-    config.chatgpt_base_url = apps_base_url.to_string();
+fn configure_search_capable_mcp(config: &mut Config, mcp_base_url: &str) {
+    config.chatgpt_base_url = mcp_base_url.to_string();
     configure_search_capable_model(config);
 }
 
-fn configure_apps_without_tool_search(config: &mut Config, apps_base_url: &str) {
-    configure_search_capable_apps(config, apps_base_url);
+fn configure_mcp_without_tool_search(config: &mut Config, mcp_base_url: &str) {
+    configure_search_capable_mcp(config, mcp_base_url);
     config
         .features
         .disable(Feature::ToolSearch)
         .expect("test config should allow feature update");
 }
 
-fn configure_apps(config: &mut Config, apps_base_url: &str) {
-    configure_search_capable_apps(config, apps_base_url);
+fn configure_mcp(config: &mut Config, mcp_base_url: &str) {
+    configure_search_capable_mcp(config, mcp_base_url);
 }
 
-fn configured_builder(apps_base_url: String) -> TestCodexBuilder {
+fn configured_builder(mcp_base_url: String) -> TestCodexBuilder {
     test_codex()
         .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
-        .with_config(move |config| configure_apps(config, apps_base_url.as_str()))
+        .with_config(move |config| configure_mcp(config, mcp_base_url.as_str()))
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -139,7 +139,7 @@ async fn search_tool_enabled_by_default_adds_tool_search() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let mcp_server = McpTestServer::mount_searchable(&server).await?;
     let mock = mount_sse_once(
         &server,
         sse(vec![
@@ -150,7 +150,7 @@ async fn search_tool_enabled_by_default_adds_tool_search() -> Result<()> {
     )
     .await;
 
-    let mut builder = configured_builder(apps_server.chatgpt_base_url.clone());
+    let mut builder = configured_builder(mcp_server.mcp_base_url.clone());
     let test = builder.build(&server).await?;
 
     test.submit_turn_with_policies(
@@ -197,7 +197,7 @@ async fn always_defer_feature_hides_small_app_tool_sets() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount(&server).await?;
+    let mcp_server = McpTestServer::mount(&server).await?;
     let mock = mount_sse_once(
         &server,
         sse(vec![
@@ -208,13 +208,12 @@ async fn always_defer_feature_hides_small_app_tool_sets() -> Result<()> {
     )
     .await;
 
-    let mut builder =
-        configured_builder(apps_server.chatgpt_base_url.clone()).with_config(|config| {
-            config
-                .features
-                .enable(Feature::ToolSearchAlwaysDeferMcpTools)
-                .expect("test config should allow feature update");
-        });
+    let mut builder = configured_builder(mcp_server.mcp_base_url.clone()).with_config(|config| {
+        config
+            .features
+            .enable(Feature::ToolSearchAlwaysDeferMcpTools)
+            .expect("test config should allow feature update");
+    });
     let test = builder.build(&server).await?;
 
     test.submit_turn_with_policies(
@@ -239,11 +238,11 @@ async fn always_defer_feature_hides_small_app_tool_sets() -> Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn tool_search_disabled_exposes_apps_tools_directly() -> Result<()> {
+async fn tool_search_disabled_exposes_mcp_tools_directly() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let mcp_server = McpTestServer::mount_searchable(&server).await?;
     let mock = mount_sse_once(
         &server,
         sse(vec![
@@ -257,7 +256,7 @@ async fn tool_search_disabled_exposes_apps_tools_directly() -> Result<()> {
     let mut builder = test_codex()
         .with_auth(CodexAuth::create_dummy_chatgpt_auth_for_testing())
         .with_config(move |config| {
-            configure_apps_without_tool_search(config, apps_server.chatgpt_base_url.as_str())
+            configure_mcp_without_tool_search(config, mcp_server.mcp_base_url.as_str())
         });
     let test = builder.build(&server).await?;
 
@@ -291,7 +290,7 @@ async fn search_tool_is_hidden_for_api_key_auth() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount(&server).await?;
+    let mcp_server = McpTestServer::mount(&server).await?;
     let mock = mount_sse_once(
         &server,
         sse(vec![
@@ -304,7 +303,7 @@ async fn search_tool_is_hidden_for_api_key_auth() -> Result<()> {
 
     let mut builder = test_codex()
         .with_auth(CodexAuth::from_api_key("Test API Key"))
-        .with_config(move |config| configure_apps(config, apps_server.chatgpt_base_url.as_str()));
+        .with_config(move |config| configure_mcp(config, mcp_server.mcp_base_url.as_str()));
     let test = builder.build(&server).await?;
 
     test.submit_turn_with_policies(
@@ -329,7 +328,7 @@ async fn search_tool_adds_discovery_instructions_to_tool_description() -> Result
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let mcp_server = McpTestServer::mount_searchable(&server).await?;
     let mock = mount_sse_once(
         &server,
         sse(vec![
@@ -340,7 +339,7 @@ async fn search_tool_adds_discovery_instructions_to_tool_description() -> Result
     )
     .await;
 
-    let mut builder = configured_builder(apps_server.chatgpt_base_url.clone());
+    let mut builder = configured_builder(mcp_server.mcp_base_url.clone());
     let test = builder.build(&server).await?;
 
     test.submit_turn_with_policies(
@@ -367,11 +366,11 @@ async fn search_tool_adds_discovery_instructions_to_tool_description() -> Result
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn search_tool_hides_apps_tools_without_search() -> Result<()> {
+async fn search_tool_hides_mcp_tools_without_search() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let mcp_server = McpTestServer::mount_searchable(&server).await?;
     let mock = mount_sse_once(
         &server,
         sse(vec![
@@ -382,7 +381,7 @@ async fn search_tool_hides_apps_tools_without_search() -> Result<()> {
     )
     .await;
 
-    let mut builder = configured_builder(apps_server.chatgpt_base_url.clone());
+    let mut builder = configured_builder(mcp_server.mcp_base_url.clone());
     let test = builder.build(&server).await?;
 
     test.submit_turn_with_policies(
@@ -407,7 +406,7 @@ async fn explicit_mcp_mentions_expose_mcp_tools_without_search() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount(&server).await?;
+    let mcp_server = McpTestServer::mount(&server).await?;
     let mock = mount_sse_once(
         &server,
         sse(vec![
@@ -418,7 +417,7 @@ async fn explicit_mcp_mentions_expose_mcp_tools_without_search() -> Result<()> {
     )
     .await;
 
-    let mut builder = configured_builder(apps_server.chatgpt_base_url.clone());
+    let mut builder = configured_builder(mcp_server.mcp_base_url.clone());
     let test = builder.build(&server).await?;
 
     test.submit_turn_with_policies(
@@ -452,7 +451,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let mcp_server = McpTestServer::mount_searchable(&server).await?;
     let call_id = "tool-search-1";
     let mock = mount_sse_sequence(
         &server,
@@ -494,7 +493,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
     )
     .await;
 
-    let mut builder = configured_builder(apps_server.chatgpt_base_url.clone());
+    let mut builder = configured_builder(mcp_server.mcp_base_url.clone());
     let test = builder.build(&server).await?;
     test.codex
         .submit(Op::UserInput {
@@ -518,7 +517,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
     assert_eq!(begin.call_id, "calendar-call-1");
     assert_eq!(
         begin.mcp_app_resource_uri.as_deref(),
-        Some(CALENDAR_CREATE_EVENT_MCP_APP_RESOURCE_URI)
+        Some(CALENDAR_CREATE_EVENT_MCP_RESOURCE_URI)
     );
 
     let EventMsg::McpToolCallEnd(end) = wait_for_event(&test.codex, |event| {
@@ -531,7 +530,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
     assert_eq!(end.call_id, "calendar-call-1");
     assert_eq!(
         end.mcp_app_resource_uri.as_deref(),
-        Some(CALENDAR_CREATE_EVENT_MCP_APP_RESOURCE_URI)
+        Some(CALENDAR_CREATE_EVENT_MCP_RESOURCE_URI)
     );
     assert_eq!(
         end.invocation,
@@ -566,7 +565,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
     let requests = mock.requests();
     assert_eq!(requests.len(), 3);
 
-    let apps_tool_call = server
+    let mcp_tool_call = server
         .received_requests()
         .await
         .unwrap_or_default()
@@ -577,10 +576,10 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
                 && body.get("method").and_then(Value::as_str) == Some("tools/call"))
             .then_some(body)
         })
-        .expect("apps tools/call request should be recorded");
+        .expect("MCP tools/call request should be recorded");
 
     assert_eq!(
-        apps_tool_call.pointer("/params/_meta/_mcp_bridge"),
+        mcp_tool_call.pointer("/params/_meta/_mcp_bridge"),
         Some(&json!({
             "resource_uri": CALENDAR_CREATE_EVENT_RESOURCE_URI,
             "contains_mcp_source": true,
@@ -588,15 +587,15 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
         }))
     );
     assert_eq!(
-        apps_tool_call.pointer("/params/_meta/x-codex-turn-metadata/session_id"),
+        mcp_tool_call.pointer("/params/_meta/x-codex-turn-metadata/session_id"),
         Some(&json!(test.session_configured.session_id.to_string()))
     );
     assert!(
-        apps_tool_call
+        mcp_tool_call
             .pointer("/params/_meta/x-codex-turn-metadata/turn_id")
             .and_then(Value::as_str)
             .is_some_and(|turn_id| !turn_id.is_empty()),
-        "apps tools/call should include turn metadata turn_id: {apps_tool_call:?}"
+        "MCP tools/call should include turn metadata turn_id: {mcp_tool_call:?}"
     );
 
     let first_request_tools = tool_names(&requests[0].body_json());
@@ -878,7 +877,7 @@ async fn tool_search_indexes_only_enabled_non_app_mcp_tools() -> Result<()> {
     skip_if_no_network!(Ok(()));
 
     let server = start_mock_server().await;
-    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let mcp_server = McpTestServer::mount_searchable(&server).await?;
     let echo_call_id = "tool-search-echo";
     let image_call_id = "tool-search-image";
     let mock = mount_sse_sequence(
@@ -913,7 +912,7 @@ async fn tool_search_indexes_only_enabled_non_app_mcp_tools() -> Result<()> {
 
     let rmcp_test_server_bin = stdio_server_bin()?;
     let mut builder =
-        configured_builder(apps_server.chatgpt_base_url.clone()).with_config(move |config| {
+        configured_builder(mcp_server.mcp_base_url.clone()).with_config(move |config| {
             let mut servers = config.mcp_servers.get().clone();
             servers.insert(
                 "rmcp".to_string(),

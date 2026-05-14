@@ -162,9 +162,9 @@ async fn mcp_server_tool_call_returns_error_for_unknown_thread() -> Result<()> {
 }
 
 #[derive(Clone, Default)]
-struct ToolAppsMcpServer;
+struct ToolDemoMcpServer;
 
-impl ServerHandler for ToolAppsMcpServer {
+impl ServerHandler for ToolDemoMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             capabilities: ServerCapabilities::builder().enable_tools().build(),
@@ -238,7 +238,7 @@ async fn start_mcp_server() -> Result<(String, JoinHandle<()>)> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
     let mcp_service = StreamableHttpService::new(
-        || Ok(ToolAppsMcpServer),
+        || Ok(ToolDemoMcpServer),
         Arc::new(LocalSessionManager::default()),
         StreamableHttpServerConfig::default(),
     );

@@ -306,6 +306,9 @@ current_status:
     constants/snapshot handling are gone, and old `codex_apps` MCP fixtures now
     use neutral MCP server names so tests do not launder deleted Codex Apps
     branding back into the harness.
+    The follow-up test-support rename moved `apps_test_server.rs` to
+    `mcp_test_server.rs` and renamed `Apps*` MCP fixture wrappers to neutral
+    `Mcp*` / demo-resource names without changing MCP behavior.
     surfaces; those are compatibility stumps to classify next, not keeper
     auth/model-spine machinery.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.

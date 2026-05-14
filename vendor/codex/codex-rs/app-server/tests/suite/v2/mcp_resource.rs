@@ -55,7 +55,7 @@ const TEST_RESOURCE_TEXT: &str = "Resource body from the MCP server.";
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn mcp_resource_read_returns_resource_contents() -> Result<()> {
     let responses_server = responses::start_mock_server().await;
-    let (apps_server_url, apps_server_handle) = start_resource_apps_mcp_server().await?;
+    let (mcp_server_url, mcp_server_handle) = start_resource_demo_mcp_server().await?;
 
     let codex_home = TempDir::new()?;
     let responses_server_uri = responses_server.uri();
@@ -68,11 +68,11 @@ approval_policy = "untrusted"
 sandbox_mode = "read-only"
 
 model_provider = "mock_provider"
-chatgpt_base_url = "{apps_server_url}"
+chatgpt_base_url = "{mcp_server_url}"
 mcp_oauth_credentials_store = "file"
 
 [features]
-apps = true
+
 
 [model_providers.mock_provider]
 name = "Mock provider for test"
@@ -126,25 +126,25 @@ stream_max_retries = 0
         expected_resource_read_response()
     );
 
-    apps_server_handle.abort();
-    let _ = apps_server_handle.await;
+    mcp_server_handle.abort();
+    let _ = mcp_server_handle.await;
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn mcp_resource_read_returns_resource_contents_without_thread() -> Result<()> {
-    let (apps_server_url, apps_server_handle) = start_resource_apps_mcp_server().await?;
+    let (mcp_server_url, mcp_server_handle) = start_resource_demo_mcp_server().await?;
 
     let codex_home = TempDir::new()?;
     std::fs::write(
         codex_home.path().join("config.toml"),
         format!(
             r#"
-chatgpt_base_url = "{apps_server_url}"
+chatgpt_base_url = "{mcp_server_url}"
 mcp_oauth_credentials_store = "file"
 
 [features]
-apps = true
+
 "#
         ),
     )?;
@@ -178,8 +178,8 @@ apps = true
         expected_resource_read_response()
     );
 
-    apps_server_handle.abort();
-    let _ = apps_server_handle.await;
+    mcp_server_handle.abort();
+    let _ = mcp_server_handle.await;
     Ok(())
 }
 
@@ -244,22 +244,22 @@ async fn mcp_resource_read_returns_error_for_unknown_thread() -> Result<()> {
     Ok(())
 }
 
-async fn start_resource_apps_mcp_server() -> Result<(String, JoinHandle<()>)> {
+async fn start_resource_demo_mcp_server() -> Result<(String, JoinHandle<()>)> {
     let listener = TcpListener::bind("127.0.0.1:0").await?;
     let addr = listener.local_addr()?;
-    let apps_server_url = format!("http://{addr}");
+    let mcp_server_url = format!("http://{addr}");
 
     let mcp_service = StreamableHttpService::new(
-        move || Ok(ResourceAppsMcpServer),
+        move || Ok(ResourceDemoMcpServer),
         Arc::new(LocalSessionManager::default()),
         StreamableHttpServerConfig::default(),
     );
     let router = Router::new().nest_service("/api/mcp/demo", mcp_service);
-    let apps_server_handle = tokio::spawn(async move {
+    let mcp_server_handle = tokio::spawn(async move {
         let _ = axum::serve(listener, router).await;
     });
 
-    Ok((apps_server_url, apps_server_handle))
+    Ok((mcp_server_url, mcp_server_handle))
 }
 
 fn expected_resource_read_response() -> McpResourceReadResponse {
@@ -282,9 +282,9 @@ fn expected_resource_read_response() -> McpResourceReadResponse {
 }
 
 #[derive(Clone, Default)]
-struct ResourceAppsMcpServer;
+struct ResourceDemoMcpServer;
 
-impl ServerHandler for ResourceAppsMcpServer {
+impl ServerHandler for ResourceDemoMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             protocol_version: ProtocolVersion::V_2025_06_18,

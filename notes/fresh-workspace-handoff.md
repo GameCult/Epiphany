@@ -947,6 +947,12 @@ MCP names. MCP itself remains valid JSON-RPC protocol edge machinery; the cut is
 only the deleted Codex Apps product identity leaking into tests and prompt
 snapshots.
 
+The test-support type names were then cleaned to match: `apps_test_server.rs`
+became `mcp_test_server.rs`, `AppsTestServer` became `McpTestServer`, and
+app-server MCP resource/elicitation/tool tests now use demo/resource MCP server
+names instead of `Apps*` wrappers. This is naming purification only, not a
+protocol rewrite.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

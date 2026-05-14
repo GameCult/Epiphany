@@ -103,10 +103,10 @@ async fn mcp_server_elicitation_round_trip() -> Result<()> {
     )
     .await;
 
-    let (apps_server_url, apps_server_handle) = start_apps_server().await?;
+    let (mcp_server_url, mcp_server_handle) = start_demo_mcp_server().await?;
 
     let codex_home = TempDir::new()?;
-    write_config_toml(codex_home.path(), &responses_server.uri(), &apps_server_url)?;
+    write_config_toml(codex_home.path(), &responses_server.uri(), &mcp_server_url)?;
     write_chatgpt_auth(
         codex_home.path(),
         ChatGptAuthFixture::new("chatgpt-token")
@@ -292,21 +292,21 @@ async fn mcp_server_elicitation_round_trip() -> Result<()> {
         }])
     );
 
-    apps_server_handle.abort();
-    let _ = apps_server_handle.await;
+    mcp_server_handle.abort();
+    let _ = mcp_server_handle.await;
     Ok(())
 }
 
 #[derive(Clone)]
-struct AppsServerState {
+struct McpServerState {
     expected_bearer: String,
     expected_account_id: String,
 }
 
 #[derive(Clone, Default)]
-struct ElicitationAppsMcpServer;
+struct ElicitationDemoMcpServer;
 
-impl ServerHandler for ElicitationAppsMcpServer {
+impl ServerHandler for ElicitationDemoMcpServer {
     fn get_info(&self) -> ServerInfo {
         ServerInfo {
             protocol_version: rmcp::model::ProtocolVersion::V_2025_06_18,
@@ -385,8 +385,8 @@ impl ServerHandler for ElicitationAppsMcpServer {
     }
 }
 
-async fn start_apps_server() -> Result<(String, JoinHandle<()>)> {
-    let state = Arc::new(AppsServerState {
+async fn start_demo_mcp_server() -> Result<(String, JoinHandle<()>)> {
+    let state = Arc::new(McpServerState {
         expected_bearer: "Bearer chatgpt-token".to_string(),
         expected_account_id: "account-123".to_string(),
     });
@@ -395,7 +395,7 @@ async fn start_apps_server() -> Result<(String, JoinHandle<()>)> {
     let addr = listener.local_addr()?;
 
     let mcp_service = StreamableHttpService::new(
-        move || Ok(ElicitationAppsMcpServer),
+        move || Ok(ElicitationDemoMcpServer),
         Arc::new(LocalSessionManager::default()),
         StreamableHttpServerConfig::default(),
     );
@@ -417,7 +417,7 @@ async fn start_apps_server() -> Result<(String, JoinHandle<()>)> {
 }
 
 async fn list_directory_connectors(
-    State(state): State<Arc<AppsServerState>>,
+    State(state): State<Arc<McpServerState>>,
     headers: HeaderMap,
     uri: Uri,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -461,7 +461,7 @@ async fn list_directory_connectors(
 fn write_config_toml(
     codex_home: &std::path::Path,
     responses_server_uri: &str,
-    apps_server_url: &str,
+    mcp_server_url: &str,
 ) -> std::io::Result<()> {
     std::fs::write(
         codex_home.join("config.toml"),
@@ -472,11 +472,11 @@ approval_policy = "untrusted"
 sandbox_mode = "read-only"
 
 model_provider = "mock_provider"
-chatgpt_base_url = "{apps_server_url}"
+chatgpt_base_url = "{mcp_server_url}"
 mcp_oauth_credentials_store = "file"
 
 [features]
-apps = true
+
 
 [model_providers.mock_provider]
 name = "Mock provider for test"
