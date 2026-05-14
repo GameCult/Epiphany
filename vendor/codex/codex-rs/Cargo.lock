@@ -5131,17 +5131,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "epiphany-openai-auth-spine"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "chrono",
+ "codex-client",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tracing",
+]
+
+[[package]]
 name = "epiphany-openai-codex-spine"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "codex-api",
- "codex-login",
- "codex-model-provider",
- "codex-model-provider-info",
- "codex-protocol",
+ "codex-client",
  "epiphany-openai-adapter",
+ "epiphany-openai-auth-spine",
  "futures",
+ "http 1.4.0",
  "serde",
  "serde_json",
  "tokio",
