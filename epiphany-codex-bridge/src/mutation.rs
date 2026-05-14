@@ -3,11 +3,10 @@ use std::path::PathBuf;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
-use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
-use codex_core::EpiphanyStateUpdate;
 use codex_protocol::protocol::EpiphanyCodeRef;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
@@ -15,6 +14,7 @@ use codex_protocol::protocol::EpiphanyScratchPad;
 use epiphany_core::EpiphanyReorientAcceptanceFinding;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
+use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::imagination_role_state_patch_policy_errors;
@@ -248,7 +248,9 @@ pub fn build_reorient_acceptance_update(
         accepted_observation_id,
         accepted_at,
         update_scratch,
-        update_investigation_checkpoint.then_some(checkpoint).flatten(),
+        update_investigation_checkpoint
+            .then_some(checkpoint)
+            .flatten(),
     )?;
     let accepted_receipt_id = acceptance_bundle.accepted_receipt_id.clone();
     let accepted_observation_id = acceptance_bundle.accepted_observation_id.clone();
@@ -297,9 +299,7 @@ pub fn role_finding_summary(finding: &ThreadEpiphanyRoleFinding) -> String {
     }
 }
 
-pub fn reorient_finding_code_refs(
-    finding: &ThreadEpiphanyReorientFinding,
-) -> Vec<EpiphanyCodeRef> {
+pub fn reorient_finding_code_refs(finding: &ThreadEpiphanyReorientFinding) -> Vec<EpiphanyCodeRef> {
     finding
         .files_inspected
         .iter()

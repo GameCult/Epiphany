@@ -5,11 +5,11 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
 use codex_core::CodexThread;
-use codex_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
-use codex_core::EpiphanyRetrieveResult as CoreEpiphanyRetrieveResult;
-use codex_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
+use epiphany_core::EpiphanyRetrieveResult as CoreEpiphanyRetrieveResult;
+use epiphany_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
 
 pub fn map_epiphany_retrieve_response(
     response: CoreEpiphanyRetrieveResponse,

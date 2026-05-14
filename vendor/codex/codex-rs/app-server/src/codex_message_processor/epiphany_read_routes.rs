@@ -1,7 +1,4 @@
 use codex_app_server_protocol::*;
-use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
-use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
-use codex_core::EpiphanyRetrieveQuery;
 use codex_protocol::ThreadId;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -24,6 +21,9 @@ use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
+use epiphany_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
+use epiphany_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
+use epiphany_core::EpiphanyRetrieveQuery;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
