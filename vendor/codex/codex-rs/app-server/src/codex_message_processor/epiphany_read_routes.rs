@@ -3,6 +3,7 @@ use codex_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
 use codex_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
 use codex_core::EpiphanyRetrieveQuery;
 use codex_protocol::ThreadId;
+use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
@@ -27,7 +28,6 @@ use epiphany_codex_bridge::view::map_epiphany_view_response;
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
-use super::epiphany_freshness_watcher_snapshot;
 use super::latest_token_usage_info_from_rollout_path;
 
 impl CodexMessageProcessor {

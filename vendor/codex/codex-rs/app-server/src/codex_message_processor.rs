@@ -312,7 +312,6 @@ use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataP
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
-use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::state::live_thread_epiphany_state;
 use epiphany_codex_bridge::state::load_epiphany_state_from_rollout_path;
 use std::collections::HashMap;

@@ -4,6 +4,7 @@ use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::launch::map_core_worker_launch_document;
@@ -23,7 +24,6 @@ use std::sync::Arc;
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
-use super::epiphany_freshness_watcher_snapshot;
 
 impl CodexMessageProcessor {
     async fn load_epiphany_thread(

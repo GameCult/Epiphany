@@ -17,6 +17,7 @@ use epiphany_codex_bridge::coordinator::map_epiphany_crrc_recommendation;
 use epiphany_codex_bridge::coordinator::map_epiphany_roles;
 use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation_action;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
+use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::jobs::map_epiphany_jobs;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_reorient_launch_request;
@@ -31,7 +32,6 @@ use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
 use tokio::sync::Mutex;
 use tracing::warn;
 
-use super::epiphany_freshness_watcher_snapshot;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::thread_state::ThreadState;
 
