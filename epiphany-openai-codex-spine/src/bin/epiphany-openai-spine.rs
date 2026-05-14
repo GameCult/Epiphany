@@ -5,13 +5,13 @@ use std::path::PathBuf;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
-use codex_login::CodexAuth;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
+use epiphany_openai_auth_spine::CodexAuth;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::auth_manager;
 use epiphany_openai_codex_spine::default_codex_home;
-use epiphany_openai_codex_spine::responses_request_from_epiphany;
+use epiphany_openai_codex_spine::responses_body_from_epiphany;
 use epiphany_openai_codex_spine::status_from_auth_manager;
 use epiphany_openai_codex_spine::status_from_codex_auth;
 use serde_json::json;
@@ -54,11 +54,11 @@ async fn main() -> Result<()> {
             request.input.push(EpiphanyOpenAiInputItem::UserText {
                 text: "smoke".to_string(),
             });
-            let mapped = responses_request_from_epiphany(request)?;
+            let mapped = responses_body_from_epiphany(request)?;
             print_json(&json!({
                 "status": status,
-                "mappedModel": mapped.model,
-                "mappedInputItems": mapped.input.len(),
+                "mappedModel": mapped.get("model"),
+                "mappedInputItems": mapped.get("input").and_then(serde_json::Value::as_array).map(Vec::len),
                 "transport": "not-opened"
             }))?;
         }

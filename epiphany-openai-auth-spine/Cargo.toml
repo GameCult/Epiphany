@@ -1,0 +1,19 @@
+[package]
+name = "epiphany-openai-auth-spine"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "epiphany_openai_auth_spine"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+codex-client = { path = "../vendor/codex/codex-rs/codex-client" }
+reqwest = { version = "0.12", features = ["blocking", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tracing = "0.1"

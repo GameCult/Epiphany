@@ -8,11 +8,6 @@ use codex_client::Request;
 use codex_client::ReqwestTransport;
 use codex_client::TransportError;
 use codex_client::sse_stream;
-use codex_login::AuthCredentialsStoreMode;
-use codex_login::AuthManager;
-use codex_login::AuthMode;
-use codex_login::CodexAuth;
-use codex_login::default_client::build_reqwest_client;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiAuthMode;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
@@ -21,6 +16,11 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
+use epiphany_openai_auth_spine::AuthCredentialsStoreMode;
+use epiphany_openai_auth_spine::AuthManager;
+use epiphany_openai_auth_spine::AuthMode;
+use epiphany_openai_auth_spine::CodexAuth;
+use epiphany_openai_auth_spine::default_client::build_reqwest_client;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
@@ -549,7 +549,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_typed_request_to_responses_body_without_codex_protocol_cargo() {
+    fn maps_typed_request_to_responses_body_without_codex_protocol_payload() {
         let mut request = EpiphanyOpenAiModelRequest::new(
             "req-1",
             "conversation-1",
