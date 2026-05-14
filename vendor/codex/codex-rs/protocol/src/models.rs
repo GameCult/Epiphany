@@ -944,7 +944,7 @@ impl From<Vec<UserInput>> for ResponseInputItem {
                             Err(err) => vec![local_image_error_placeholder(&path, err)],
                         }
                     }
-                    UserInput::Skill { .. } | UserInput::Mention { .. } => Vec::new(), // Tool bodies are injected later in core
+                    UserInput::Mention { .. } => Vec::new(),
                 })
                 .collect::<Vec<ContentItem>>(),
         }

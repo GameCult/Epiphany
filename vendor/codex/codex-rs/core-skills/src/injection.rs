@@ -11,7 +11,6 @@ use codex_analytics::SkillInvocation;
 use codex_analytics::TrackEventsContext;
 use codex_exec_server::LOCAL_FS;
 use codex_otel::SessionTelemetry;
-use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
 
 const TOOL_MENTION_SIGIL: char = '$';
@@ -101,19 +100,18 @@ fn emit_skill_injected_metric(
     );
 }
 
-/// Collect explicitly mentioned skills from structured and text mentions.
+/// Collect explicitly mentioned skills from text mentions.
 ///
-/// Structured `UserInput::Skill` selections are resolved first by path against
-/// enabled skills. Text inputs are then scanned to extract `$skill-name` tokens, and we
-/// iterate `skills` in their existing order to preserve prior ordering semantics.
+/// Text inputs are scanned to extract `$skill-name` tokens, and we iterate `skills` in
+/// their existing order to preserve prior ordering semantics.
 /// Explicit links are resolved by path and plain names are only used when the match
 /// is unambiguous.
 ///
-/// Complexity: `O(T + (N_s + N_t) * S)` time, `O(S + M)` space, where:
-/// `S` = number of skills, `T` = total text length, `N_s` = number of structured skill inputs,
-/// `N_t` = number of text inputs, `M` = max mentions parsed from a single text input.
+/// Complexity: `O(T + N * S)` time, `O(S + M)` space, where:
+/// `S` = number of skills, `T` = total text length, `N` = number of text inputs,
+/// and `M` = max mentions parsed from a single text input.
 pub fn collect_explicit_skill_mentions(
-    inputs: &[UserInput],
+    inputs: &[codex_protocol::user_input::UserInput],
     skills: &[SkillMetadata],
     disabled_paths: &HashSet<AbsolutePathBuf>,
     connector_slug_counts: &HashMap<String, usize>,
@@ -129,37 +127,12 @@ pub fn collect_explicit_skill_mentions(
     let mut selected: Vec<SkillMetadata> = Vec::new();
     let mut seen_names: HashSet<String> = HashSet::new();
     let mut seen_paths: HashSet<AbsolutePathBuf> = HashSet::new();
-    let mut blocked_plain_names: HashSet<String> = HashSet::new();
 
     for input in inputs {
-        if let UserInput::Skill { name, path } = input {
-            blocked_plain_names.insert(name.clone());
-            let Ok(path) = AbsolutePathBuf::relative_to_current_dir(path) else {
-                continue;
-            };
-
-            if selection_context.disabled_paths.contains(&path) || seen_paths.contains(&path) {
-                continue;
-            }
-
-            if let Some(skill) = selection_context
-                .skills
-                .iter()
-                .find(|skill| skill.path_to_skills_md == path)
-            {
-                seen_paths.insert(skill.path_to_skills_md.clone());
-                seen_names.insert(skill.name.clone());
-                selected.push(skill.clone());
-            }
-        }
-    }
-
-    for input in inputs {
-        if let UserInput::Text { text, .. } = input {
+        if let codex_protocol::user_input::UserInput::Text { text, .. } = input {
             let mentioned_names = extract_tool_mentions(text);
             select_skills_from_mentions(
                 &selection_context,
-                &blocked_plain_names,
                 &mentioned_names,
                 &mut seen_names,
                 &mut seen_paths,
@@ -300,7 +273,6 @@ pub fn extract_tool_mentions_with_sigil(text: &str, sigil: char) -> ToolMentions
 /// Select mentioned skills while preserving the order of `skills`.
 fn select_skills_from_mentions(
     selection_context: &SkillSelectionContext<'_>,
-    blocked_plain_names: &HashSet<String>,
     mentions: &ToolMentions<'_>,
     seen_names: &mut HashSet<String>,
     seen_paths: &mut HashSet<AbsolutePathBuf>,
@@ -342,9 +314,6 @@ fn select_skills_from_mentions(
             continue;
         }
 
-        if blocked_plain_names.contains(skill.name.as_str()) {
-            continue;
-        }
         if !mentions.plain_names.contains(skill.name.as_str()) {
             continue;
         }

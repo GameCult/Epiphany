@@ -91,7 +91,6 @@ pub(super) use codex_config::types::ApprovalsReviewer;
 pub(super) use codex_config::types::Notifications;
 #[cfg(target_os = "windows")]
 pub(super) use codex_config::types::WindowsSandboxModeToml;
-pub(super) use codex_core_skills::model::SkillMetadata;
 pub(super) use codex_features::FEATURES;
 pub(super) use codex_features::Feature;
 pub(super) use codex_git_utils::CommitLogEntry;
@@ -172,7 +171,6 @@ pub(super) use codex_protocol::protocol::ReviewRequest;
 pub(super) use codex_protocol::protocol::ReviewTarget;
 pub(super) use codex_protocol::protocol::SessionConfiguredEvent;
 pub(super) use codex_protocol::protocol::SessionSource;
-pub(super) use codex_protocol::protocol::SkillScope;
 pub(super) use codex_protocol::protocol::StreamErrorEvent;
 pub(super) use codex_protocol::protocol::TerminalInteractionEvent;
 pub(super) use codex_protocol::protocol::ThreadRolledBackEvent;

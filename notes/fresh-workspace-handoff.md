@@ -874,8 +874,7 @@ and lives under MCP server config.
 The plugin feature and mention residue is gone too. `Feature::Plugins`,
 `Feature::RemotePlugin`, `plugin://` structured mentions, plugin instruction
 tags, stale plugin popup snapshots, and app/plugin path classification in
-`codex-core-skills` were deleted. Live structured mentions are MCP/skill-shaped
-only. Do not resurrect plugin product routing or `app://` compatibility to make
+`codex-core-skills` were deleted. Do not resurrect plugin product routing or `app://` compatibility to make
 old tests feel less lonely; the blessed route is `mcp://` at the MCP edge and
 typed CultCache/CultNet documents inside Epiphany.
 
@@ -899,6 +898,13 @@ exist in the shared protocols, generated schemas, app-server dispatch, core
 handlers, TUI slash/startup/list/manage-skill surfaces, docs, or test helpers.
 The fake live-reload/developer-message and skill-list tests were deleted rather
 than repaired into new compatibility lies.
+
+The live skill mention channel is also gone. `UserInput::Skill`, the app-server
+schema branch, TUI skill popup, `skills_all` cache, composer skill mention API,
+skill insertion path, `skill://` / `SKILL.md` history decoding, and stale skill
+popup snapshot were deleted. Live structured user-input mentions are MCP-shaped
+only; MCP remains JSON-RPC at its protocol edge, not a reason to keep Codex
+skills alive inside the organ.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,

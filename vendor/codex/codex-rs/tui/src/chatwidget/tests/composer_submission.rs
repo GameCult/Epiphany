@@ -369,86 +369,6 @@ async fn enter_with_only_remote_images_does_not_submit_when_input_disabled() {
 }
 
 #[tokio::test]
-async fn submission_prefers_selected_duplicate_skill_path() {
-    let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-
-    let conversation_id = ThreadId::new();
-    let rollout_file = NamedTempFile::new().unwrap();
-    let configured = codex_protocol::protocol::SessionConfiguredEvent {
-        session_id: conversation_id,
-        forked_from_id: None,
-        thread_name: None,
-        model: "test-model".to_string(),
-        model_provider_id: "test-provider".to_string(),
-        service_tier: None,
-        approval_policy: AskForApproval::Never,
-        approvals_reviewer: ApprovalsReviewer::User,
-        sandbox_policy: SandboxPolicy::new_read_only_policy(),
-        cwd: test_path_buf("/home/user/project").abs(),
-        reasoning_effort: Some(ReasoningEffortConfig::default()),
-        history_log_id: 0,
-        history_entry_count: 0,
-        initial_messages: None,
-        network_proxy: None,
-        rollout_path: Some(rollout_file.path().to_path_buf()),
-    };
-    chat.handle_codex_event(Event {
-        id: "initial".into(),
-        msg: EventMsg::SessionConfigured(configured),
-    });
-    drain_insert_history(&mut rx);
-
-    let repo_skill_path = test_path_buf("/tmp/repo/figma/SKILL.md").abs();
-    let user_skill_path = test_path_buf("/tmp/user/figma/SKILL.md").abs();
-    chat.set_skills(Some(vec![
-        SkillMetadata {
-            name: "figma".to_string(),
-            description: "Repo skill".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: repo_skill_path,
-            scope: SkillScope::Repo,
-        },
-        SkillMetadata {
-            name: "figma".to_string(),
-            description: "User skill".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: user_skill_path.clone(),
-            scope: SkillScope::User,
-        },
-    ]));
-
-    chat.bottom_pane.set_composer_text_with_mention_bindings(
-        "please use $figma now".to_string(),
-        Vec::new(),
-        Vec::new(),
-        vec![MentionBinding {
-            mention: "figma".to_string(),
-            path: user_skill_path.to_string_lossy().into_owned(),
-        }],
-    );
-    chat.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-
-    let items = match next_submit_op(&mut op_rx) {
-        Op::UserTurn { items, .. } => items,
-        other => panic!("expected Op::UserTurn, got {other:?}"),
-    };
-    let selected_skill_paths = items
-        .iter()
-        .filter_map(|item| match item {
-            UserInput::Skill { path, .. } => Some(path.clone()),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(selected_skill_paths, vec![user_skill_path.to_path_buf()]);
-}
-
-#[tokio::test]
 async fn blocked_image_restore_preserves_mention_bindings() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
@@ -464,7 +384,7 @@ async fn blocked_image_restore_preserves_mention_bindings() {
     }];
     let mention_bindings = vec![MentionBinding {
         mention: "file".to_string(),
-        path: "/tmp/skills/file/SKILL.md".to_string(),
+        path: "mcp://file".to_string(),
     }];
 
     chat.restore_blocked_image_submission(
@@ -997,10 +917,6 @@ fn rendered_user_message_event_from_inputs_matches_flattened_user_message_shape(
         },
         UserInput::LocalImage {
             path: local_image.clone(),
-        },
-        UserInput::Skill {
-            name: "demo".to_string(),
-            path: PathBuf::from("/tmp/skill/SKILL.md"),
         },
         UserInput::Mention {
             name: "repo".to_string(),

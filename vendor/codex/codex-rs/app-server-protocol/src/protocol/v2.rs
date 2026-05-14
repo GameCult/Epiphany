@@ -6171,10 +6171,6 @@ pub enum UserInput {
     LocalImage {
         path: PathBuf,
     },
-    Skill {
-        name: String,
-        path: PathBuf,
-    },
     Mention {
         name: String,
         path: String,
@@ -6193,7 +6189,6 @@ impl UserInput {
             },
             UserInput::Image { url } => CoreUserInput::Image { image_url: url },
             UserInput::LocalImage { path } => CoreUserInput::LocalImage { path },
-            UserInput::Skill { name, path } => CoreUserInput::Skill { name, path },
             UserInput::Mention { name, path } => CoreUserInput::Mention { name, path },
         }
     }
@@ -6211,7 +6206,6 @@ impl From<CoreUserInput> for UserInput {
             },
             CoreUserInput::Image { image_url } => UserInput::Image { url: image_url },
             CoreUserInput::LocalImage { path } => UserInput::LocalImage { path },
-            CoreUserInput::Skill { name, path } => UserInput::Skill { name, path },
             CoreUserInput::Mention { name, path } => UserInput::Mention { name, path },
             _ => unreachable!("unsupported user input variant"),
         }
@@ -6222,10 +6216,7 @@ impl UserInput {
     pub fn text_char_count(&self) -> usize {
         match self {
             UserInput::Text { text, .. } => text.chars().count(),
-            UserInput::Image { .. }
-            | UserInput::LocalImage { .. }
-            | UserInput::Skill { .. }
-            | UserInput::Mention { .. } => 0,
+            UserInput::Image { .. } | UserInput::LocalImage { .. } | UserInput::Mention { .. } => 0,
         }
     }
 }
@@ -10401,10 +10392,6 @@ mod tests {
                 CoreUserInput::LocalImage {
                     path: PathBuf::from("local/image.png"),
                 },
-                CoreUserInput::Skill {
-                    name: "skill-creator".to_string(),
-                    path: PathBuf::from("/repo/.codex/skills/skill-creator/SKILL.md"),
-                },
                 CoreUserInput::Mention {
                     name: "Docs MCP".to_string(),
                     path: "mcp://docs".to_string(),
@@ -10426,10 +10413,6 @@ mod tests {
                     },
                     UserInput::LocalImage {
                         path: PathBuf::from("local/image.png"),
-                    },
-                    UserInput::Skill {
-                        name: "skill-creator".to_string(),
-                        path: PathBuf::from("/repo/.codex/skills/skill-creator/SKILL.md"),
                     },
                     UserInput::Mention {
                         name: "Docs MCP".to_string(),

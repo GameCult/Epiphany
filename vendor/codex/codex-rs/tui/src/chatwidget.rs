@@ -108,7 +108,6 @@ use codex_config::ConfigLayerStackOrdering;
 use codex_config::types::ApprovalsReviewer;
 use codex_config::types::Notifications;
 use codex_config::types::WindowsSandboxModeToml;
-use codex_core_skills::model::SkillMetadata;
 use codex_features::FEATURES;
 use codex_features::Feature;
 #[cfg(test)]
@@ -195,7 +194,6 @@ use codex_protocol::protocol::RateLimitReachedType;
 use codex_protocol::protocol::RateLimitSnapshot;
 use codex_protocol::protocol::ReviewRequest;
 use codex_protocol::protocol::ReviewTarget;
-use codex_protocol::protocol::SkillMetadata as ProtocolSkillMetadata;
 #[cfg(test)]
 use codex_protocol::protocol::StreamErrorEvent;
 use codex_protocol::protocol::TerminalInteractionEvent;
@@ -359,11 +357,8 @@ mod interrupts;
 use self::interrupts::InterruptManager;
 mod session_header;
 use self::session_header::SessionHeader;
-mod skills;
-mod slash_dispatch;
-use self::skills::collect_tool_mentions;
-use self::skills::find_skill_mentions_with_tool_mentions;
 mod plan_implementation;
+mod slash_dispatch;
 use self::plan_implementation::PLAN_IMPLEMENTATION_TITLE;
 mod realtime;
 use self::realtime::RealtimeConversationUiState;
@@ -799,7 +794,6 @@ pub(crate) struct ChatWidget {
     collab_agent_metadata: HashMap<ThreadId, CollabAgentMetadata>,
     pending_collab_spawn_requests: HashMap<String, multi_agents::SpawnRequestSummary>,
     suppressed_exec_calls: HashSet<String>,
-    skills_all: Vec<ProtocolSkillMetadata>,
     last_unified_wait: Option<UnifiedExecWaitState>,
     unified_exec_wait_streak: Option<UnifiedExecWaitStreak>,
     turn_sleep_inhibitor: SleepInhibitor,
@@ -2069,7 +2063,6 @@ impl ChatWidget {
         self.saw_copy_source_this_turn = false;
         self.bottom_pane
             .set_history_metadata(event.history_log_id, event.history_entry_count);
-        self.set_skills(/*skills*/ None);
         self.session_network_proxy = event.network_proxy.clone();
         self.thread_id = Some(event.session_id);
         self.last_turn_id = None;
@@ -2244,10 +2237,6 @@ impl ChatWidget {
             self.request_redraw();
             self.maybe_send_next_queued_input();
         }
-    }
-
-    fn set_skills(&mut self, skills: Option<Vec<SkillMetadata>>) {
-        self.bottom_pane.set_skills(skills);
     }
 
     pub(crate) fn open_feedback_note(
@@ -4658,7 +4647,6 @@ impl ChatWidget {
             Some(rc) => (rc.command, rc.parsed_cmd, rc.source),
             None => (ev.command.clone(), ev.parsed_cmd.clone(), ev.source),
         };
-        let parsed = self.annotate_skill_reads_in_parsed_cmd(parsed);
         let is_unified_exec_interaction =
             matches!(source, ExecCommandSource::UnifiedExecInteraction);
         let is_user_shell = source == ExecCommandSource::UserShell;
@@ -4886,7 +4874,7 @@ impl ChatWidget {
     pub(crate) fn handle_exec_begin_now(&mut self, ev: ExecCommandBeginEvent) {
         // Ensure the status indicator is visible while the command runs.
         self.bottom_pane.ensure_status_indicator();
-        let parsed_cmd = self.annotate_skill_reads_in_parsed_cmd(ev.parsed_cmd.clone());
+        let parsed_cmd = ev.parsed_cmd.clone();
         self.running_commands.insert(
             ev.call_id.clone(),
             RunningCommand {
@@ -5066,12 +5054,10 @@ impl ChatWidget {
                 placeholder_text: placeholder.clone(),
                 disable_paste_burst: config.disable_paste_burst,
                 animations_enabled: config.animations,
-                skills: None,
             }),
             active_cell,
             active_cell_revision: 0,
             config,
-            skills_all: Vec::new(),
             current_collaboration_mode,
             active_collaboration_mask,
             has_chatgpt_account,
@@ -5738,45 +5724,6 @@ impl ChatWidget {
                 text: text.clone(),
                 text_elements: text_elements.clone(),
             });
-        }
-
-        let mentions = collect_tool_mentions(&text, &HashMap::new());
-        let bound_names: HashSet<String> = mention_bindings
-            .iter()
-            .map(|binding| binding.mention.clone())
-            .collect();
-        let mut selected_skill_paths: HashSet<AbsolutePathBuf> = HashSet::new();
-        if let Some(skills) = self.bottom_pane.skills() {
-            for binding in &mention_bindings {
-                let path = binding
-                    .path
-                    .strip_prefix("skill://")
-                    .unwrap_or(binding.path.as_str());
-                let path = Path::new(path);
-                if let Some(skill) = skills
-                    .iter()
-                    .find(|skill| skill.path_to_skills_md.as_path() == path)
-                    && selected_skill_paths.insert(skill.path_to_skills_md.clone())
-                {
-                    items.push(UserInput::Skill {
-                        name: skill.name.clone(),
-                        path: skill.path_to_skills_md.to_path_buf(),
-                    });
-                }
-            }
-
-            let skill_mentions = find_skill_mentions_with_tool_mentions(&mentions, skills);
-            for skill in skill_mentions {
-                if bound_names.contains(skill.name.as_str())
-                    || !selected_skill_paths.insert(skill.path_to_skills_md.clone())
-                {
-                    continue;
-                }
-                items.push(UserInput::Skill {
-                    name: skill.name.clone(),
-                    path: skill.path_to_skills_md.to_path_buf(),
-                });
-            }
         }
 
         let effective_mode = self.effective_collaboration_mode();

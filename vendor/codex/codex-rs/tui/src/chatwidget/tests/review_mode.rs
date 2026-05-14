@@ -911,7 +911,7 @@ async fn manual_interrupt_restores_pending_steer_mention_bindings_to_composer() 
 
     let mention_bindings = vec![MentionBinding {
         mention: "figma".to_string(),
-        path: "/tmp/skills/figma/SKILL.md".to_string(),
+        path: "mcp://figma".to_string(),
     }];
     chat.bottom_pane.set_composer_text_with_mention_bindings(
         "please use $figma".to_string(),

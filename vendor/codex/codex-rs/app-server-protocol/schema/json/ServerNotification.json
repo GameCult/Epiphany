@@ -6912,30 +6912,6 @@
             "type": {
               "type": "string",
               "enum": [
-                "skill"
-              ],
-              "title": "SkillUserInputType"
-            }
-          },
-          "title": "SkillUserInput"
-        },
-        {
-          "type": "object",
-          "required": [
-            "name",
-            "path",
-            "type"
-          ],
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "path": {
-              "type": "string"
-            },
-            "type": {
-              "type": "string",
-              "enum": [
                 "mention"
               ],
               "title": "MentionUserInputType"

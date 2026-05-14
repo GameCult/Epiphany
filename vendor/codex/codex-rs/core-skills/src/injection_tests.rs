@@ -1,4 +1,5 @@
 use super::*;
+use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_absolute_path::test_support::PathBufExt;
 use codex_utils_absolute_path::test_support::test_path_buf;
@@ -144,71 +145,6 @@ fn collect_explicit_skill_mentions_text_respects_skill_order() {
 
     // Text scanning should not change the previous selection ordering semantics.
     assert_eq!(selected, vec![beta, alpha]);
-}
-
-#[test]
-fn collect_explicit_skill_mentions_prioritizes_structured_inputs() {
-    let alpha = make_skill("alpha-skill", "/tmp/alpha");
-    let beta = make_skill("beta-skill", "/tmp/beta");
-    let skills = vec![alpha.clone(), beta.clone()];
-    let inputs = vec![
-        UserInput::Text {
-            text: "please run $alpha-skill".to_string(),
-            text_elements: Vec::new(),
-        },
-        UserInput::Skill {
-            name: "beta-skill".to_string(),
-            path: test_path_buf("/tmp/beta"),
-        },
-    ];
-    let connector_counts = HashMap::new();
-
-    let selected = collect_mentions(&inputs, &skills, &HashSet::new(), &connector_counts);
-
-    assert_eq!(selected, vec![beta, alpha]);
-}
-
-#[test]
-fn collect_explicit_skill_mentions_skips_invalid_structured_and_blocks_plain_fallback() {
-    let alpha = make_skill("alpha-skill", "/tmp/alpha");
-    let skills = vec![alpha];
-    let inputs = vec![
-        UserInput::Text {
-            text: "please run $alpha-skill".to_string(),
-            text_elements: Vec::new(),
-        },
-        UserInput::Skill {
-            name: "alpha-skill".to_string(),
-            path: test_path_buf("/tmp/missing"),
-        },
-    ];
-    let connector_counts = HashMap::new();
-
-    let selected = collect_mentions(&inputs, &skills, &HashSet::new(), &connector_counts);
-
-    assert_eq!(selected, Vec::new());
-}
-
-#[test]
-fn collect_explicit_skill_mentions_skips_disabled_structured_and_blocks_plain_fallback() {
-    let alpha = make_skill("alpha-skill", "/tmp/alpha");
-    let skills = vec![alpha];
-    let inputs = vec![
-        UserInput::Text {
-            text: "please run $alpha-skill".to_string(),
-            text_elements: Vec::new(),
-        },
-        UserInput::Skill {
-            name: "alpha-skill".to_string(),
-            path: test_path_buf("/tmp/alpha"),
-        },
-    ];
-    let disabled = HashSet::from([test_path_buf("/tmp/alpha").abs()]);
-    let connector_counts = HashMap::new();
-
-    let selected = collect_mentions(&inputs, &skills, &disabled, &connector_counts);
-
-    assert_eq!(selected, Vec::new());
 }
 
 #[test]

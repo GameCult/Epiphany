@@ -1080,7 +1080,7 @@ async fn submit_user_message_ignores_plugin_mentions_from_bindings() {
         text_elements: Vec::new(),
         mention_bindings: vec![MentionBinding {
             mention: "sample".to_string(),
-            path: "skill://sample".to_string(),
+            path: "mcp://sample".to_string(),
         }],
     });
 

@@ -121,7 +121,7 @@ impl ChatWidget {
             match item {
                 UserInput::Text { text, .. } => message.push_str(text),
                 UserInput::Image { .. } | UserInput::LocalImage { .. } => image_count += 1,
-                UserInput::Skill { .. } | UserInput::Mention { .. } => {}
+                UserInput::Mention { .. } => {}
                 _ => {}
             }
         }
@@ -165,7 +165,7 @@ impl ChatWidget {
                 ),
                 UserInput::Image { image_url } => remote_image_urls.push(image_url.clone()),
                 UserInput::LocalImage { path } => local_images.push(path.clone()),
-                UserInput::Skill { .. } | UserInput::Mention { .. } => {}
+                UserInput::Mention { .. } => {}
                 _ => {}
             }
         }

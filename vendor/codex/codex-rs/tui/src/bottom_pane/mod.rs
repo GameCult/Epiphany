@@ -28,7 +28,6 @@ use crate::render::renderable::RenderableItem;
 use crate::tui::FrameRequester;
 use bottom_pane_view::BottomPaneView;
 use bottom_pane_view::ViewCompletion;
-use codex_core_skills::model::SkillMetadata;
 use codex_features::Features;
 use codex_file_search::FileMatch;
 use codex_protocol::request_user_input::RequestUserInputEvent;
@@ -66,7 +65,7 @@ pub(crate) struct LocalImageAttachment {
 pub(crate) struct MentionBinding {
     /// Mention token text without the leading `$`.
     pub(crate) mention: String,
-    /// Canonical mention target (for example `mcp://...` or absolute SKILL.md path).
+    /// Canonical mention target (for example `mcp://...`).
     pub(crate) path: String,
 }
 mod chat_composer;
@@ -79,7 +78,6 @@ mod footer;
 mod list_selection_view;
 mod memories_settings_view;
 pub(crate) mod prompt_args;
-mod skill_popup;
 pub(crate) mod slash_commands;
 pub(crate) use footer::CollaborationModeIndicator;
 pub(crate) use list_selection_view::SelectionViewParams;
@@ -199,7 +197,6 @@ pub(crate) struct BottomPaneParams {
     pub(crate) placeholder_text: String,
     pub(crate) disable_paste_burst: bool,
     pub(crate) animations_enabled: bool,
-    pub(crate) skills: Option<Vec<SkillMetadata>>,
 }
 
 impl BottomPane {
@@ -212,7 +209,6 @@ impl BottomPane {
             placeholder_text,
             disable_paste_burst,
             animations_enabled,
-            skills,
         } = params;
         let mut composer = ChatComposer::new(
             has_input_focus,
@@ -222,7 +218,6 @@ impl BottomPane {
             disable_paste_burst,
         );
         composer.set_frame_requester(frame_requester.clone());
-        composer.set_skill_mentions(skills);
         Self {
             composer,
             view_stack: Vec::new(),
@@ -241,11 +236,6 @@ impl BottomPane {
             context_window_percent: None,
             context_window_used_tokens: None,
         }
-    }
-
-    pub fn set_skills(&mut self, skills: Option<Vec<SkillMetadata>>) {
-        self.composer.set_skill_mentions(skills);
-        self.request_redraw();
     }
 
     /// Update image-paste behavior for the active composer and repaint immediately.
@@ -338,10 +328,6 @@ impl BottomPane {
 
     pub fn status_widget(&self) -> Option<&StatusIndicatorWidget> {
         self.status.as_ref()
-    }
-
-    pub fn skills(&self) -> Option<&Vec<SkillMetadata>> {
-        self.composer.skills()
     }
 
     #[cfg(test)]
@@ -1264,7 +1250,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         })
     }
 
@@ -1364,7 +1349,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: true,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
         pane.push_approval_request(exec_request(), &features);
         assert_eq!(CancellationEvent::Handled, pane.on_ctrl_c());
@@ -1384,7 +1368,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: true,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
         pane.insert_str("draft");
 
@@ -1412,7 +1395,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         // Create an approval modal (active view).
@@ -1529,7 +1511,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         // Start a running task so the status indicator is active above the composer.
@@ -1596,7 +1577,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         // Begin a task: show initial status.
@@ -1623,7 +1603,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         // Activate spinner (status view replaces composer) with no live ring.
@@ -1654,7 +1633,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -1677,7 +1655,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -1706,7 +1683,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -1743,7 +1719,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -1775,7 +1750,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -1806,7 +1780,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_remote_image_urls(vec![
@@ -1835,7 +1808,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_remote_image_urls(vec!["https://example.com/one.png".to_string()]);
@@ -1844,53 +1816,6 @@ mod tests {
         pane.drain_pending_submission_state();
 
         assert!(pane.remote_image_urls().is_empty());
-    }
-
-    #[test]
-    fn esc_with_skill_popup_does_not_interrupt_task() {
-        let (tx_raw, mut rx) = unbounded_channel::<AppEvent>();
-        let tx = AppEventSender::new(tx_raw);
-        let mut pane = BottomPane::new(BottomPaneParams {
-            app_event_tx: tx,
-            frame_requester: FrameRequester::test_dummy(),
-            has_input_focus: true,
-            enhanced_keys_supported: false,
-            placeholder_text: "Ask Codex to do anything".to_string(),
-            disable_paste_burst: false,
-            animations_enabled: true,
-            skills: Some(vec![SkillMetadata {
-                name: "test-skill".to_string(),
-                description: "test skill".to_string(),
-                short_description: None,
-                interface: None,
-                dependencies: None,
-                policy: None,
-                path_to_skills_md: test_path_buf("/tmp/test-skill/SKILL.md").abs(),
-                scope: SkillScope::User,
-            }]),
-        });
-
-        pane.set_task_running(/*running*/ true);
-
-        // Repro: a running task + skill popup + Esc should dismiss the popup, not interrupt.
-        pane.insert_str("$");
-        assert!(
-            pane.composer.popup_active(),
-            "expected skill popup after typing `$`"
-        );
-
-        pane.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
-
-        while let Ok(ev) = rx.try_recv() {
-            assert!(
-                !matches!(ev, AppEvent::CodexOp(Op::Interrupt)),
-                "expected Esc to not send Op::Interrupt when dismissing skill popup"
-            );
-        }
-        assert!(
-            !pane.composer.popup_active(),
-            "expected Esc to dismiss skill popup"
-        );
     }
 
     #[test]
@@ -1905,7 +1830,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -1940,7 +1864,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -1976,7 +1899,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -2024,7 +1946,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_task_running(/*running*/ true);
@@ -2080,7 +2001,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         let on_ctrl_c_calls = Rc::new(Cell::new(0));
@@ -2128,7 +2048,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         let handle_calls = Rc::new(Cell::new(0));
@@ -2206,7 +2125,6 @@ mod tests {
             placeholder_text: "Ask Codex to do anything".to_string(),
             disable_paste_burst: false,
             animations_enabled: true,
-            skills: Some(Vec::new()),
         });
 
         pane.set_composer_input_enabled(/*enabled*/ false, /*placeholder*/ None);

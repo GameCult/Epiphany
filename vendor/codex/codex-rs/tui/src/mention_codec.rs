@@ -200,11 +200,6 @@ fn is_common_env_var(name: &str) -> bool {
 
 fn is_tool_path(path: &str) -> bool {
     path.starts_with("mcp://")
-        || path.starts_with("skill://")
-        || path
-            .rsplit(['/', '\\'])
-            .next()
-            .is_some_and(|name| name.eq_ignore_ascii_case("SKILL.md"))
 }
 
 #[cfg(test)]
@@ -214,10 +209,8 @@ mod tests {
 
     #[test]
     fn decode_history_mentions_restores_visible_tokens() {
-        let decoded = decode_history_mentions(
-            "Use [$repo](mcp://repo), [$sample](skill://sample), and [$figma](/tmp/figma/SKILL.md).",
-        );
-        assert_eq!(decoded.text, "Use $repo, $sample, and $figma.");
+        let decoded = decode_history_mentions("Use [$repo](mcp://repo) and [$figma](mcp://figma).");
+        assert_eq!(decoded.text, "Use $repo and $figma.");
         assert_eq!(
             decoded.mentions,
             vec![
@@ -226,12 +219,8 @@ mod tests {
                     path: "mcp://repo".to_string(),
                 },
                 LinkedMention {
-                    mention: "sample".to_string(),
-                    path: "skill://sample".to_string(),
-                },
-                LinkedMention {
                     mention: "figma".to_string(),
-                    path: "/tmp/figma/SKILL.md".to_string(),
+                    path: "mcp://figma".to_string(),
                 },
             ]
         );
@@ -257,17 +246,17 @@ mod tests {
                 },
                 LinkedMention {
                     mention: "sample".to_string(),
-                    path: "skill://sample".to_string(),
+                    path: "mcp://sample".to_string(),
                 },
                 LinkedMention {
                     mention: "figma".to_string(),
-                    path: "/tmp/figma/SKILL.md".to_string(),
+                    path: "mcp://figma-alt".to_string(),
                 },
             ],
         );
         assert_eq!(
             encoded,
-            "[$figma](mcp://figma) then [$sample](skill://sample) then [$figma](/tmp/figma/SKILL.md) then $other"
+            "[$figma](mcp://figma) then [$sample](mcp://sample) then [$figma](mcp://figma-alt) then $other"
         );
     }
 }

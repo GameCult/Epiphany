@@ -166,7 +166,6 @@ pub(super) async fn make_chatwidget_manual(
         placeholder_text: "Ask Codex to do anything".to_string(),
         disable_paste_burst: false,
         animations_enabled: cfg.animations,
-        skills: None,
     });
     bottom.set_collaboration_modes_enabled(/*enabled*/ true);
     let model_catalog = test_model_catalog(&cfg);
@@ -221,7 +220,6 @@ pub(super) async fn make_chatwidget_manual(
         collab_agent_metadata: HashMap::new(),
         pending_collab_spawn_requests: HashMap::new(),
         suppressed_exec_calls: HashSet::new(),
-        skills_all: Vec::new(),
         last_unified_wait: None,
         unified_exec_wait_streak: None,
         turn_sleep_inhibitor: SleepInhibitor::new(prevent_idle_sleep),
