@@ -111,7 +111,7 @@ stream_max_retries = 0
     let read_request_id = mcp
         .send_mcp_resource_read_request(McpResourceReadParams {
             thread_id: Some(thread.id),
-            server: "codex_apps".to_string(),
+            server: "demo_mcp".to_string(),
             uri: TEST_RESOURCE_URI.to_string(),
         })
         .await?;
@@ -163,7 +163,7 @@ apps = true
     let read_request_id = mcp
         .send_mcp_resource_read_request(McpResourceReadParams {
             thread_id: None,
-            server: "codex_apps".to_string(),
+            server: "demo_mcp".to_string(),
             uri: TEST_RESOURCE_URI.to_string(),
         })
         .await?;
@@ -225,7 +225,7 @@ async fn mcp_resource_read_returns_error_for_unknown_thread() -> Result<()> {
             request_id: RequestId::Integer(1),
             params: McpResourceReadParams {
                 thread_id: Some("00000000-0000-4000-8000-000000000000".to_string()),
-                server: "codex_apps".to_string(),
+                server: "demo_mcp".to_string(),
                 uri: TEST_RESOURCE_URI.to_string(),
             },
         })
@@ -254,7 +254,7 @@ async fn start_resource_apps_mcp_server() -> Result<(String, JoinHandle<()>)> {
         Arc::new(LocalSessionManager::default()),
         StreamableHttpServerConfig::default(),
     );
-    let router = Router::new().nest_service("/api/codex/apps", mcp_service);
+    let router = Router::new().nest_service("/api/mcp/demo", mcp_service);
     let apps_server_handle = tokio::spawn(async move {
         let _ = axum::serve(listener, router).await;
     });

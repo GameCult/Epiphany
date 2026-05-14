@@ -239,7 +239,7 @@ async fn build_tool_call_uses_namespace_for_registry_name() -> anyhow::Result<()
         ResponseItem::FunctionCall {
             id: None,
             name: tool_name.clone(),
-            namespace: Some("mcp__codex_apps__calendar".to_string()),
+            namespace: Some("mcp__calendar_mcp__calendar".to_string()),
             arguments: "{}".to_string(),
             call_id: "call-namespace".to_string(),
         },
@@ -249,7 +249,7 @@ async fn build_tool_call_uses_namespace_for_registry_name() -> anyhow::Result<()
 
     assert_eq!(
         call.tool_name,
-        ToolName::namespaced("mcp__codex_apps__calendar", tool_name)
+        ToolName::namespaced("mcp__calendar_mcp__calendar", tool_name)
     );
     assert_eq!(call.call_id, "call-namespace");
     match call.payload {

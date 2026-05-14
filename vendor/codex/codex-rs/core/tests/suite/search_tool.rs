@@ -47,9 +47,9 @@ const SEARCH_TOOL_DESCRIPTION_SNIPPETS: [&str; 2] = [
     "- Calendar: Plan events and manage your calendar.",
 ];
 const TOOL_SEARCH_TOOL_NAME: &str = "tool_search";
-const CALENDAR_CREATE_TOOL: &str = "mcp__codex_apps__calendar_create_event";
-const CALENDAR_LIST_TOOL: &str = "mcp__codex_apps__calendar_list_events";
-const SEARCH_CALENDAR_NAMESPACE: &str = "mcp__codex_apps__calendar";
+const CALENDAR_CREATE_TOOL: &str = "mcp__calendar_mcp__calendar_create_event";
+const CALENDAR_LIST_TOOL: &str = "mcp__calendar_mcp__calendar_list_events";
+const SEARCH_CALENDAR_NAMESPACE: &str = "mcp__calendar_mcp__calendar";
 const SEARCH_CALENDAR_CREATE_TOOL: &str = "_create_event";
 const SEARCH_CALENDAR_LIST_TOOL: &str = "_list_events";
 
@@ -536,7 +536,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
     assert_eq!(
         end.invocation,
         McpInvocation {
-            server: "codex_apps".to_string(),
+            server: "demo_mcp".to_string(),
             tool: "calendar_create_event".to_string(),
             arguments: Some(json!({
                 "title": "Lunch",
@@ -550,7 +550,7 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
             .expect("tool call should succeed")
             .structured_content,
         Some(json!({
-            "_codex_apps": {
+            "_mcp_bridge": {
                 "resource_uri": CALENDAR_CREATE_EVENT_RESOURCE_URI,
                 "contains_mcp_source": true,
                 "connector_id": "calendar",
@@ -573,14 +573,14 @@ async fn tool_search_returns_deferred_tools_without_follow_up_tool_injection() -
         .into_iter()
         .find_map(|request| {
             let body: Value = serde_json::from_slice(&request.body).ok()?;
-            (request.url.path() == "/api/codex/apps"
+            (request.url.path() == "/api/mcp/demo"
                 && body.get("method").and_then(Value::as_str) == Some("tools/call"))
             .then_some(body)
         })
         .expect("apps tools/call request should be recorded");
 
     assert_eq!(
-        apps_tool_call.pointer("/params/_meta/_codex_apps"),
+        apps_tool_call.pointer("/params/_meta/_mcp_bridge"),
         Some(&json!({
             "resource_uri": CALENDAR_CREATE_EVENT_RESOURCE_URI,
             "contains_mcp_source": true,

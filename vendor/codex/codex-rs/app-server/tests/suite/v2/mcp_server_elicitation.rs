@@ -66,7 +66,7 @@ use tokio::time::timeout;
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 const CONNECTOR_ID: &str = "calendar";
 const CONNECTOR_NAME: &str = "Calendar";
-const TOOL_NAMESPACE: &str = "mcp__codex_apps__calendar";
+const TOOL_NAMESPACE: &str = "mcp__calendar_mcp__calendar";
 const CALLABLE_TOOL_NAME: &str = "_confirm_action";
 const TOOL_NAME: &str = "calendar_confirm_action";
 const TOOL_CALL_ID: &str = "call-calendar-confirm";
@@ -202,7 +202,7 @@ async fn mcp_server_elicitation_round_trip() -> Result<()> {
         McpServerElicitationRequestParams {
             thread_id: thread.id.clone(),
             turn_id: Some(turn.id.clone()),
-            server_name: "codex_apps".to_string(),
+            server_name: "demo_mcp".to_string(),
             request: McpServerElicitationRequest::Form {
                 meta: None,
                 message: ELICITATION_MESSAGE.to_string(),
@@ -407,7 +407,7 @@ async fn start_apps_server() -> Result<(String, JoinHandle<()>)> {
             get(list_directory_connectors),
         )
         .with_state(state)
-        .nest_service("/api/codex/apps", mcp_service);
+        .nest_service("/api/mcp/demo", mcp_service);
 
     let handle = tokio::spawn(async move {
         let _ = axum::serve(listener, router).await;

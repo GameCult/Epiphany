@@ -106,7 +106,7 @@ fn deferred_responses_api_tool_serializes_with_defer_loading() {
 
     let serialized = serde_json::to_value(ToolSpec::Function(
         mcp_tool_to_deferred_responses_api_tool(
-            &ToolName::namespaced("mcp__codex_apps__", "lookup_order"),
+            &ToolName::namespaced("mcp__demo_mcp__", "lookup_order"),
             &tool,
         )
         .expect("convert deferred tool"),
@@ -808,11 +808,11 @@ async fn search_tool_description_falls_back_to_connector_name_without_descriptio
         &tools_config,
         /*mcp_tools*/ None,
         Some(HashMap::from([(
-            "mcp__codex_apps__calendar_create_event".to_string(),
+            "mcp__calendar_mcp__calendar_create_event".to_string(),
             ToolInfo {
-                server_name: "codex_apps".to_string(),
+                server_name: "demo_mcp".to_string(),
                 callable_name: "_create_event".to_string(),
-                callable_namespace: "mcp__codex_apps__calendar".to_string(),
+                callable_namespace: "mcp__calendar_mcp__calendar".to_string(),
                 server_instructions: None,
                 tool: mcp_tool(
                     "calendar_create_event",
@@ -858,11 +858,11 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
         /*mcp_tools*/ None,
         Some(HashMap::from([
             (
-                "mcp__codex_apps__calendar_create_event".to_string(),
+                "mcp__calendar_mcp__calendar_create_event".to_string(),
                 ToolInfo {
-                    server_name: "codex_apps".to_string(),
+                    server_name: "demo_mcp".to_string(),
                     callable_name: "_create_event".to_string(),
-                    callable_namespace: "mcp__codex_apps__calendar".to_string(),
+                    callable_namespace: "mcp__calendar_mcp__calendar".to_string(),
                     server_instructions: None,
                     tool: mcp_tool(
                         "calendar-create-event",
@@ -875,11 +875,11 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
                 },
             ),
             (
-                "mcp__codex_apps__calendar_list_events".to_string(),
+                "mcp__calendar_mcp__calendar_list_events".to_string(),
                 ToolInfo {
-                    server_name: "codex_apps".to_string(),
+                    server_name: "demo_mcp".to_string(),
                     callable_name: "_list_events".to_string(),
-                    callable_namespace: "mcp__codex_apps__calendar".to_string(),
+                    callable_namespace: "mcp__calendar_mcp__calendar".to_string(),
                     server_instructions: None,
                     tool: mcp_tool(
                         "calendar-list-events",
@@ -909,7 +909,7 @@ async fn search_tool_registers_namespaced_mcp_tool_aliases() {
     )
     .build();
 
-    let app_alias = ToolName::namespaced("mcp__codex_apps__calendar", "_create_event");
+    let app_alias = ToolName::namespaced("mcp__calendar_mcp__calendar", "_create_event");
     let mcp_alias = ToolName::namespaced("mcp__rmcp__", "echo");
 
     assert!(registry.has_handler(&ToolName::plain(TOOL_SEARCH_TOOL_NAME)));
@@ -972,7 +972,7 @@ async fn unavailable_mcp_tools_are_exposed_as_dummy_function_tools() {
         windows_sandbox_level: WindowsSandboxLevel::Disabled,
     });
 
-    let unavailable_tool = ToolName::namespaced("mcp__codex_apps__calendar", "_create_event");
+    let unavailable_tool = ToolName::namespaced("mcp__calendar_mcp__calendar", "_create_event");
     let (tools, registry) = build_specs_with_unavailable_tools(
         &tools_config,
         /*mcp_tools*/ None,
@@ -982,7 +982,7 @@ async fn unavailable_mcp_tools_are_exposed_as_dummy_function_tools() {
     )
     .build();
 
-    let tool = find_tool(&tools, "mcp__codex_apps__calendar_create_event");
+    let tool = find_tool(&tools, "mcp__calendar_mcp__calendar_create_event");
     let ToolSpec::Function(ResponsesApiTool {
         description,
         parameters,
@@ -997,10 +997,10 @@ async fn unavailable_mcp_tools_are_exposed_as_dummy_function_tools() {
         Some(AdditionalProperties::Boolean(false))
     );
     assert!(registry.has_handler(&ToolName::namespaced(
-        "mcp__codex_apps__calendar",
+        "mcp__calendar_mcp__calendar",
         "_create_event"
     )));
-    assert!(!registry.has_handler(&ToolName::plain("mcp__codex_apps__calendar_create_event")));
+    assert!(!registry.has_handler(&ToolName::plain("mcp__calendar_mcp__calendar_create_event")));
 }
 
 #[tokio::test]

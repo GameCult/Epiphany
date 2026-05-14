@@ -34,7 +34,7 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 
-const CODEX_APPS_MCP_SERVER_NAME: &str = "codex_apps";
+const DEMO_MCP_SERVER_NAME: &str = "demo_mcp";
 const DEFAULT_AGENT_TYPE_DESCRIPTION: &str = "Test agent type description.";
 const DEFAULT_WAIT_TIMEOUT_MS: i64 = 30_000;
 const MIN_WAIT_TIMEOUT_MS: i64 = 10_000;
@@ -1208,7 +1208,7 @@ fn search_tool_description_lists_each_mcp_source_once() {
         &tools_config,
         Some(HashMap::from([
             (
-                ToolName::namespaced("mcp__codex_apps__calendar", "_create_event"),
+                ToolName::namespaced("mcp__calendar_mcp__calendar", "_create_event"),
                 mcp_tool(
                     "calendar_create_event",
                     "Create calendar event",
@@ -1223,22 +1223,22 @@ fn search_tool_description_lists_each_mcp_source_once() {
         Some(vec![
             deferred_mcp_tool(
                 "_create_event",
-                "mcp__codex_apps__calendar",
-                CODEX_APPS_MCP_SERVER_NAME,
+                "mcp__calendar_mcp__calendar",
+                DEMO_MCP_SERVER_NAME,
                 Some("Calendar"),
                 Some("Plan events and manage your calendar."),
             ),
             deferred_mcp_tool(
                 "_list_events",
-                "mcp__codex_apps__calendar",
-                CODEX_APPS_MCP_SERVER_NAME,
+                "mcp__calendar_mcp__calendar",
+                DEMO_MCP_SERVER_NAME,
                 Some("Calendar"),
                 Some("Plan events and manage your calendar."),
             ),
             deferred_mcp_tool(
                 "_search_threads",
-                "mcp__codex_apps__gmail",
-                CODEX_APPS_MCP_SERVER_NAME,
+                "mcp__mail_mcp__gmail",
+                DEMO_MCP_SERVER_NAME,
                 Some("Gmail"),
                 Some("Find and summarize email threads."),
             ),
@@ -1270,7 +1270,7 @@ fn search_tool_description_lists_each_mcp_source_once() {
     assert!(!description.contains("mcp__rmcp__echo"));
 
     assert!(handlers.contains(&ToolHandlerSpec {
-        name: ToolName::namespaced("mcp__codex_apps__calendar", "_create_event"),
+        name: ToolName::namespaced("mcp__calendar_mcp__calendar", "_create_event"),
         kind: ToolHandlerKind::Mcp,
     }));
     assert!(handlers.contains(&ToolHandlerSpec {
@@ -1284,8 +1284,8 @@ fn search_tool_requires_model_capability_and_enabled_feature() {
     let model_info = search_capable_model_info();
     let deferred_mcp_tools = Some(vec![deferred_mcp_tool(
         "_create_event",
-        "mcp__codex_apps__calendar",
-        CODEX_APPS_MCP_SERVER_NAME,
+        "mcp__calendar_mcp__calendar",
+        DEMO_MCP_SERVER_NAME,
         Some("Calendar"),
         /*connector_description*/ None,
     )]);

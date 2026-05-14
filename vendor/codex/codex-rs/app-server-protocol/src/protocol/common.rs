@@ -1424,7 +1424,7 @@ mod tests {
         let params = v2::McpServerElicitationRequestParams {
             thread_id: "thr_123".to_string(),
             turn_id: Some("turn_123".to_string()),
-            server_name: "codex_apps".to_string(),
+            server_name: "demo_mcp".to_string(),
             request: v2::McpServerElicitationRequest::Form {
                 meta: None,
                 message: "Allow this request?".to_string(),
@@ -1443,7 +1443,7 @@ mod tests {
                 "params": {
                     "threadId": "thr_123",
                     "turnId": "turn_123",
-                    "serverName": "codex_apps",
+                    "serverName": "demo_mcp",
                     "mode": "form",
                     "_meta": null,
                     "message": "Allow this request?",

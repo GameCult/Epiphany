@@ -121,7 +121,7 @@ async fn mount_streamable_http_json_rpc(
     searchable: bool,
 ) {
     Mock::given(method("POST"))
-        .and(path_regex("^/api/codex/apps/?$"))
+        .and(path_regex("^/api/mcp/demo/?$"))
         .respond_with(CodexAppsJsonRpcResponder {
             connector_name,
             connector_description,
@@ -209,7 +209,7 @@ impl Respond for CodexAppsJsonRpcResponder {
                                     "connector_name": self.connector_name.clone(),
                                     "connector_description": self.connector_description.clone(),
                                     "openai/outputTemplate": CALENDAR_CREATE_EVENT_MCP_APP_RESOURCE_URI,
-                                    "_codex_apps": {
+                                    "_mcp_bridge": {
                                         "resource_uri": CALENDAR_CREATE_EVENT_RESOURCE_URI,
                                         "contains_mcp_source": true,
                                         "connector_id": CONNECTOR_ID
@@ -234,7 +234,7 @@ impl Respond for CodexAppsJsonRpcResponder {
                                     "connector_id": CONNECTOR_ID,
                                     "connector_name": self.connector_name.clone(),
                                     "connector_description": self.connector_description.clone(),
-                                    "_codex_apps": {
+                                    "_mcp_bridge": {
                                         "resource_uri": CALENDAR_LIST_EVENTS_RESOURCE_URI,
                                         "contains_mcp_source": true,
                                         "connector_id": CONNECTOR_ID
@@ -267,7 +267,7 @@ impl Respond for CodexAppsJsonRpcResponder {
                                     "connector_name": self.connector_name.clone(),
                                     "connector_description": self.connector_description.clone(),
                                     "openai/fileParams": ["file"],
-                                    "_codex_apps": {
+                                    "_mcp_bridge": {
                                         "resource_uri": DOCUMENT_EXTRACT_TEXT_RESOURCE_URI,
                                         "contains_mcp_source": true,
                                         "connector_id": CONNECTOR_ID
@@ -325,7 +325,7 @@ impl Respond for CodexAppsJsonRpcResponder {
                     .pointer("/params/arguments/file/file_id")
                     .and_then(Value::as_str)
                     .unwrap_or_default();
-                let codex_apps_meta = body.pointer("/params/_meta/_codex_apps").cloned();
+                let demo_mcp_meta = body.pointer("/params/_meta/_mcp_bridge").cloned();
 
                 ResponseTemplate::new(200).set_body_json(json!({
                     "jsonrpc": "2.0",
@@ -336,7 +336,7 @@ impl Respond for CodexAppsJsonRpcResponder {
                             "text": format!("called {tool_name} for {title} at {starts_at} with {file_id}")
                         }],
                         "structuredContent": {
-                            "_codex_apps": codex_apps_meta,
+                            "_mcp_bridge": demo_mcp_meta,
                         },
                         "isError": false
                     }

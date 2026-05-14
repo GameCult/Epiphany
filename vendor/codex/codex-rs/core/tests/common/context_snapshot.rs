@@ -1,7 +1,6 @@
 use serde_json::Value;
 
 use crate::responses::ResponsesRequest;
-use codex_protocol::protocol::APPS_INSTRUCTIONS_OPEN_TAG;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum ContextSnapshotRenderMode {
@@ -85,12 +84,6 @@ pub fn format_response_items_snapshot(items: &[Value], options: &ContextSnapshot
                                 .iter()
                                 .filter_map(|entry| {
                                     if let Some(text) = entry.get("text").and_then(Value::as_str) {
-                                        if options.strip_capability_instructions
-                                            && role == "developer"
-                                            && is_capability_instruction_text(text)
-                                        {
-                                            return None;
-                                        }
                                         if options.strip_agents_md_user_context
                                             && role == "user"
                                             && text.starts_with("# AGENTS.md instructions for ")
@@ -268,9 +261,6 @@ fn canonicalize_snapshot_text(text: &str) -> String {
     if text.starts_with("<permissions instructions>") {
         return "<PERMISSIONS_INSTRUCTIONS>".to_string();
     }
-    if text.starts_with(APPS_INSTRUCTIONS_OPEN_TAG) {
-        return "<APPS_INSTRUCTIONS>".to_string();
-    }
     if text.starts_with("# AGENTS.md instructions for ") {
         return "<AGENTS_MD>".to_string();
     }
@@ -313,10 +303,6 @@ fn canonicalize_snapshot_text(text: &str) -> String {
         return format!("<COMPACTION_SUMMARY>\n{summary}");
     }
     text.to_string()
-}
-
-fn is_capability_instruction_text(text: &str) -> bool {
-    text.starts_with(APPS_INSTRUCTIONS_OPEN_TAG)
 }
 
 #[cfg(test)]
@@ -385,49 +371,6 @@ mod tests {
         );
 
         assert_eq!(rendered, "00:message/user:<AGENTS_MD>");
-    }
-
-    #[test]
-    fn redacted_text_mode_keeps_app_instruction_placeholder() {
-        let items = vec![json!({
-            "type": "message",
-            "role": "developer",
-            "content": [{
-                "type": "input_text",
-                "text": "<apps_instructions>\n## Apps\nbody\n</apps_instructions>"
-            }]
-        })];
-
-        let rendered = format_response_items_snapshot(
-            &items,
-            &ContextSnapshotOptions::default().render_mode(ContextSnapshotRenderMode::RedactedText),
-        );
-
-        assert_eq!(
-            rendered,
-            "00:message/developer:<APPS_INSTRUCTIONS>"
-        );
-    }
-
-    #[test]
-    fn strip_capability_instructions_omits_capability_parts_from_developer_messages() {
-        let items = vec![json!({
-            "type": "message",
-            "role": "developer",
-            "content": [
-                { "type": "input_text", "text": "<permissions instructions>\n...</permissions instructions>" },
-                { "type": "input_text", "text": "<apps_instructions>\n## Apps\n...</apps_instructions>" }
-            ]
-        })];
-
-        let rendered = format_response_items_snapshot(
-            &items,
-            &ContextSnapshotOptions::default()
-                .render_mode(ContextSnapshotRenderMode::RedactedText)
-                .strip_capability_instructions(),
-        );
-
-        assert_eq!(rendered, "00:message/developer:<PERMISSIONS_INSTRUCTIONS>");
     }
 
     #[test]

@@ -939,6 +939,14 @@ plus generated config schema entries were removed. A vendored-wide search for
 product-shaped skill markers now returns nothing; only the ordinary English word
 "skill" remains in personality copy.
 
+The app-instruction compatibility stump is cut too. `APPS_INSTRUCTIONS` protocol
+constants and `<apps_instructions>` snapshot canonicalization/tests are gone.
+MCP tests that previously used `codex_apps`, `_codex_apps`, `mcp__codex_apps`,
+or `/api/codex/apps` as fixture branding were renamed to neutral demo/calendar
+MCP names. MCP itself remains valid JSON-RPC protocol edge machinery; the cut is
+only the deleted Codex Apps product identity leaking into tests and prompt
+snapshots.
+
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
 and the core plugin manager / marketplace add-remove-sync modules and tests

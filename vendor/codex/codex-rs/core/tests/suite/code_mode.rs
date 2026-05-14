@@ -366,7 +366,7 @@ async fn code_mode_only_guides_all_tools_search_and_calls_deferred_app_tools() -
                 "exec",
                 r#"
 const tool = ALL_TOOLS.find(
-  ({ name }) => name === "mcp__codex_apps__calendar_timezone_option_99"
+  ({ name }) => name === "mcp__calendar_mcp__calendar_timezone_option_99"
 );
 if (!tool) {
   text(JSON.stringify({ found: false }));

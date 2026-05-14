@@ -62,7 +62,7 @@ mod tests {
         let input = vec![
             function_call("shell", /*namespace*/ None),
             function_call("mcp__server__lookup", /*namespace*/ None),
-            function_call("_create_event", Some("mcp__codex_apps__calendar")),
+            function_call("_create_event", Some("mcp__calendar_mcp__calendar")),
         ];
 
         let tools = collect_unavailable_called_tools(&input, &HashSet::new());
@@ -70,7 +70,7 @@ mod tests {
         assert_eq!(
             tools,
             vec![
-                ToolName::namespaced("mcp__codex_apps__calendar", "_create_event"),
+                ToolName::namespaced("mcp__calendar_mcp__calendar", "_create_event"),
                 ToolName::plain("mcp__server__lookup"),
             ]
         );
