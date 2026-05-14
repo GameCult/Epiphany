@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -7,9 +6,8 @@ use anyhow::Result;
 use codex_api::Compression;
 use codex_api::ReqwestTransport;
 use codex_api::ResponseEvent;
-use codex_api::ResponsesApiRequest;
 use codex_api::ResponsesClient;
-use codex_api::ResponsesOptions;
+use codex_api::build_conversation_headers;
 use codex_login::AuthCredentialsStoreMode;
 use codex_login::AuthManager;
 use codex_login::AuthMode;
@@ -17,12 +15,6 @@ use codex_login::CodexAuth;
 use codex_login::default_client::build_reqwest_client;
 use codex_model_provider::create_model_provider;
 use codex_model_provider_info::ModelProviderInfo;
-use codex_protocol::config_types::ReasoningSummary;
-use codex_protocol::config_types::ServiceTier;
-use codex_protocol::models::ContentItem;
-use codex_protocol::models::FunctionCallOutputPayload;
-use codex_protocol::models::ResponseItem;
-use codex_protocol::openai_models::ReasoningEffort;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiAuthMode;
 use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
@@ -32,6 +24,7 @@ use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_adapter::OPENAI_ADAPTER_STATUS_SCHEMA_ID;
 use futures::StreamExt;
+use serde::Serialize;
 
 pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
 
@@ -133,19 +126,18 @@ impl EpiphanyCodexOpenAiTransport {
             api_provider,
             api_auth,
         );
-        let conversation_id = Some(request.conversation_id.clone());
+        let mut headers = build_conversation_headers(Some(request.conversation_id.clone()));
+        if let Ok(value) = request.conversation_id.parse() {
+            headers.insert("x-client-request-id", value);
+        }
         let request_id = request.request_id.clone();
         let model = request.model.clone();
         let mut stream = client
-            .stream_request(
-                responses_request_from_epiphany(request)?,
-                ResponsesOptions {
-                    conversation_id,
-                    session_source: None,
-                    extra_headers: Default::default(),
-                    compression: Compression::None,
-                    turn_state: Some(Arc::new(OnceLock::new())),
-                },
+            .stream(
+                responses_body_from_epiphany(request)?,
+                headers,
+                Compression::None,
+                Some(Arc::new(OnceLock::new())),
             )
             .await
             .context("failed to open OpenAI Responses stream through Codex spine")?;
@@ -189,56 +181,100 @@ impl EpiphanyCodexOpenAiTransport {
     }
 }
 
-pub fn responses_request_from_epiphany(
+pub fn responses_body_from_epiphany(
     request: EpiphanyOpenAiModelRequest,
-) -> Result<ResponsesApiRequest> {
-    Ok(ResponsesApiRequest {
+) -> Result<serde_json::Value> {
+    let body = EpiphanyResponsesBody {
         model: request.model,
         instructions: request.instructions,
         input: request
             .input
             .into_iter()
-            .map(response_item_from_epiphany_input)
+            .map(openai_input_item_from_epiphany_input)
             .collect(),
         tools: Vec::new(),
         tool_choice: "auto".to_string(),
         parallel_tool_calls: false,
-        reasoning: Some(codex_api::Reasoning {
+        reasoning: Some(EpiphanyResponsesReasoning {
             effort: parse_reasoning_effort(request.reasoning_effort.as_deref())?,
             summary: parse_reasoning_summary(request.reasoning_summary.as_deref())?,
         }),
         store: true,
         stream: true,
         include: Vec::new(),
-        service_tier: parse_service_tier(request.service_tier.as_deref())?
-            .map(|tier| tier.to_string()),
+        service_tier: parse_service_tier(request.service_tier.as_deref())?,
         prompt_cache_key: None,
         text: None,
         client_metadata: None,
-    })
+    };
+    serde_json::to_value(body).context("failed to encode typed Epiphany Responses body")
 }
 
-fn response_item_from_epiphany_input(input: EpiphanyOpenAiInputItem) -> ResponseItem {
+#[derive(Debug, Clone, Serialize)]
+struct EpiphanyResponsesBody {
+    model: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    instructions: String,
+    input: Vec<EpiphanyResponsesInputItem>,
+    tools: Vec<serde_json::Value>,
+    tool_choice: String,
+    parallel_tool_calls: bool,
+    reasoning: Option<EpiphanyResponsesReasoning>,
+    store: bool,
+    stream: bool,
+    include: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    service_tier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    prompt_cache_key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    client_metadata: Option<std::collections::HashMap<String, String>>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct EpiphanyResponsesReasoning {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    summary: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum EpiphanyResponsesInputItem {
+    Message {
+        role: String,
+        content: Vec<EpiphanyResponsesContentItem>,
+    },
+    FunctionCallOutput {
+        call_id: String,
+        output: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum EpiphanyResponsesContentItem {
+    InputText { text: String },
+    OutputText { text: String },
+}
+
+fn openai_input_item_from_epiphany_input(
+    input: EpiphanyOpenAiInputItem,
+) -> EpiphanyResponsesInputItem {
     match input {
-        EpiphanyOpenAiInputItem::UserText { text } => ResponseItem::Message {
-            id: None,
+        EpiphanyOpenAiInputItem::UserText { text } => EpiphanyResponsesInputItem::Message {
             role: "user".to_string(),
-            content: vec![ContentItem::InputText { text }],
-            end_turn: None,
-            phase: None,
+            content: vec![EpiphanyResponsesContentItem::InputText { text }],
         },
-        EpiphanyOpenAiInputItem::AssistantText { text } => ResponseItem::Message {
-            id: None,
+        EpiphanyOpenAiInputItem::AssistantText { text } => EpiphanyResponsesInputItem::Message {
             role: "assistant".to_string(),
-            content: vec![ContentItem::OutputText { text }],
-            end_turn: None,
-            phase: None,
+            content: vec![EpiphanyResponsesContentItem::OutputText { text }],
         },
         EpiphanyOpenAiInputItem::ToolResult { call_id, output } => {
-            ResponseItem::FunctionCallOutput {
-                call_id,
-                output: FunctionCallOutputPayload::from_text(output),
-            }
+            EpiphanyResponsesInputItem::FunctionCallOutput { call_id, output }
         }
     }
 }
@@ -264,38 +300,6 @@ fn stream_payload_from_response_event(
             call_id: call_id.unwrap_or(item_id.clone()),
             name: item_id,
             arguments: delta,
-        }),
-        ResponseEvent::OutputItemDone(ResponseItem::FunctionCall {
-            name,
-            arguments,
-            call_id,
-            ..
-        })
-        | ResponseEvent::OutputItemAdded(ResponseItem::FunctionCall {
-            name,
-            arguments,
-            call_id,
-            ..
-        }) => Some(EpiphanyOpenAiStreamPayload::ToolCall {
-            call_id,
-            name,
-            arguments,
-        }),
-        ResponseEvent::OutputItemDone(ResponseItem::CustomToolCall {
-            call_id,
-            name,
-            input,
-            ..
-        })
-        | ResponseEvent::OutputItemAdded(ResponseItem::CustomToolCall {
-            call_id,
-            name,
-            input,
-            ..
-        }) => Some(EpiphanyOpenAiStreamPayload::ToolCall {
-            call_id,
-            name,
-            arguments: input,
         }),
         ResponseEvent::Completed {
             response_id,
@@ -323,29 +327,28 @@ fn stream_payload_from_response_event(
     }
 }
 
-fn parse_reasoning_effort(value: Option<&str>) -> Result<Option<ReasoningEffort>> {
-    value
-        .map(ReasoningEffort::from_str)
-        .transpose()
-        .map_err(anyhow::Error::msg)
-}
-
-fn parse_reasoning_summary(value: Option<&str>) -> Result<Option<ReasoningSummary>> {
+fn parse_reasoning_effort(value: Option<&str>) -> Result<Option<String>> {
     match value {
         None => Ok(None),
-        Some("auto") => Ok(Some(ReasoningSummary::Auto)),
-        Some("concise") => Ok(Some(ReasoningSummary::Concise)),
-        Some("detailed") => Ok(Some(ReasoningSummary::Detailed)),
-        Some("none") => Ok(Some(ReasoningSummary::None)),
+        Some("none" | "minimal" | "low" | "medium" | "high" | "xhigh") => {
+            Ok(value.map(ToString::to_string))
+        }
+        Some(other) => anyhow::bail!("invalid reasoning_effort: {other}"),
+    }
+}
+
+fn parse_reasoning_summary(value: Option<&str>) -> Result<Option<String>> {
+    match value {
+        None => Ok(None),
+        Some("auto" | "concise" | "detailed" | "none") => Ok(value.map(ToString::to_string)),
         Some(other) => anyhow::bail!("invalid reasoning_summary: {other}"),
     }
 }
 
-fn parse_service_tier(value: Option<&str>) -> Result<Option<ServiceTier>> {
+fn parse_service_tier(value: Option<&str>) -> Result<Option<String>> {
     match value {
         None => Ok(None),
-        Some("fast") => Ok(Some(ServiceTier::Fast)),
-        Some("flex") => Ok(Some(ServiceTier::Flex)),
+        Some("fast" | "flex") => Ok(value.map(ToString::to_string)),
         Some(other) => anyhow::bail!("invalid service_tier: {other}"),
     }
 }
@@ -407,7 +410,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_typed_request_to_responses_request_without_json_cargo() {
+    fn maps_typed_request_to_responses_body_without_codex_protocol_cargo() {
         let mut request = EpiphanyOpenAiModelRequest::new(
             "req-1",
             "conversation-1",
@@ -421,13 +424,13 @@ mod tests {
         request.reasoning_summary = Some("concise".to_string());
         request.service_tier = Some("flex".to_string());
 
-        let responses = responses_request_from_epiphany(request).expect("request should map");
+        let responses = responses_body_from_epiphany(request).expect("request should map");
 
-        assert_eq!(responses.model, "gpt-5.4");
-        assert_eq!(responses.instructions, "Answer plainly.");
-        assert_eq!(responses.input.len(), 1);
-        assert!(responses.stream);
-        assert_eq!(responses.service_tier.as_deref(), Some("flex"));
-        assert!(responses.tools.is_empty());
+        assert_eq!(responses["model"], "gpt-5.4");
+        assert_eq!(responses["instructions"], "Answer plainly.");
+        assert_eq!(responses["input"][0]["content"][0]["type"], "input_text");
+        assert_eq!(responses["stream"], true);
+        assert_eq!(responses["service_tier"], "flex");
+        assert_eq!(responses["tools"].as_array().expect("tools").len(), 0);
     }
 }

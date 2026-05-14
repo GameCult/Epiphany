@@ -15,7 +15,6 @@ codex-api = { path = "../vendor/codex/codex-rs/codex-api" }
 codex-login = { path = "../vendor/codex/codex-rs/login" }
 codex-model-provider = { path = "../vendor/codex/codex-rs/model-provider" }
 codex-model-provider-info = { path = "../vendor/codex/codex-rs/model-provider-info" }
-codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 futures = "0.3"
 serde = "1"
