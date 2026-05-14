@@ -892,12 +892,13 @@ were deleted from the workspace, and `SkillsManager::new` no longer installs
 anything into `CODEX_HOME/skills/.system`. The legacy cache path remains only
 so stale bundled samples can be removed when bundled skills are disabled.
 
-The dead skill mutation/notification edge is gone too. `skills/config/write`,
-`skills/changed`, and `EventMsg::SkillsUpdateAvailable` no longer exist in the
-shared protocol, generated schemas, app-server dispatch, core event handling,
-TUI refresh reactions, or docs. The fake live-reload/developer-message skill
-tests were deleted rather than repaired into a new compatibility lie. Only the
-inert `skills/list` projection remains for legacy callers.
+The dead skill list/mutation/notification edge is gone too. `skills/list`,
+`skills/config/write`, `skills/changed`, `Op::ListSkills`,
+`EventMsg::ListSkillsResponse`, and `EventMsg::SkillsUpdateAvailable` no longer
+exist in the shared protocols, generated schemas, app-server dispatch, core
+handlers, TUI slash/startup/list/manage-skill surfaces, docs, or test helpers.
+The fake live-reload/developer-message and skill-list tests were deleted rather
+than repaired into new compatibility lies.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,

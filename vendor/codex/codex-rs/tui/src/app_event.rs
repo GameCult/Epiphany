@@ -14,14 +14,12 @@ use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
 use codex_app_server_protocol::McpServerStatus;
 use codex_app_server_protocol::McpServerStatusDetail;
-use codex_app_server_protocol::SkillsListResponse;
 use codex_file_search::FileMatch;
 use codex_protocol::ThreadId;
 use codex_protocol::openai_models::ModelPreset;
 use codex_protocol::protocol::GetHistoryEntryResponseEvent;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::RateLimitSnapshot;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_approval_presets::ApprovalPreset;
 
 use crate::bottom_pane::ApprovalRequest;
@@ -202,15 +200,6 @@ pub(crate) enum AppEvent {
     McpInventoryLoaded {
         result: Result<Vec<McpServerStatus>, String>,
         detail: McpServerStatusDetail,
-    },
-
-    /// Result of the startup skills refresh that runs after the first frame is scheduled.
-    ///
-    /// This event is startup-only. Interactive skills refreshes are handled synchronously through the app
-    /// command path because those callers expect the visible skill state to be current when their command
-    /// completes.
-    SkillsListLoaded {
-        result: Result<SkillsListResponse, String>,
     },
 
     InsertHistoryCell(Box<dyn HistoryCell>),
@@ -429,21 +418,6 @@ pub(crate) enum AppEvent {
 
     /// Re-open the approval presets popup.
     OpenApprovalsPopup,
-
-    /// Open the skills list popup.
-    OpenSkillsList,
-
-    /// Open the skills enable/disable picker.
-    OpenManageSkillsPopup,
-
-    /// Enable or disable a skill by path.
-    SetSkillEnabled {
-        path: AbsolutePathBuf,
-        enabled: bool,
-    },
-
-    /// Notify that the manage skills popup was closed.
-    ManageSkillsClosed,
 
     /// Re-open the permissions presets popup.
     OpenPermissionsPopup,

@@ -435,10 +435,6 @@ client_request_definitions! {
         params: v2::ThreadInjectItemsParams,
         response: v2::ThreadInjectItemsResponse,
     },
-    SkillsList => "skills/list" {
-        params: v2::SkillsListParams,
-        response: v2::SkillsListResponse,
-    },
     DeviceKeyCreate => "device/key/create" {
         params: v2::DeviceKeyCreateParams,
         response: v2::DeviceKeyCreateResponse,

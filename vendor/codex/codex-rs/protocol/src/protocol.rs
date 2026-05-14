@@ -732,19 +732,6 @@ pub enum Op {
     /// enable/disable state) without restarting the thread.
     ReloadUserConfig,
 
-    /// Request the list of skills for the provided `cwd` values or the session default.
-    ListSkills {
-        /// Working directories to scope repo skills discovery.
-        ///
-        /// When empty, the session default working directory is used.
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
-        cwds: Vec<PathBuf>,
-
-        /// When true, recompute skills even if a cached result exists.
-        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-        force_reload: bool,
-    },
-
     /// Request the agent to summarize the current conversation context.
     /// The agent will use its existing context (either conversation history or previous response id)
     /// to generate a summary which will be returned as an AgentMessage event.
@@ -893,7 +880,6 @@ impl Op {
             Self::ListMcpTools => "list_mcp_tools",
             Self::RefreshMcpServers { .. } => "refresh_mcp_servers",
             Self::ReloadUserConfig => "reload_user_config",
-            Self::ListSkills { .. } => "list_skills",
             Self::Compact => "compact",
             Self::DropMemories => "drop_memories",
             Self::UpdateMemories => "update_memories",
@@ -1667,9 +1653,6 @@ pub enum EventMsg {
 
     /// List of MCP tools available to the agent.
     McpListToolsResponse(McpListToolsResponseEvent),
-
-    /// List of skills available to the agent.
-    ListSkillsResponse(ListSkillsResponseEvent),
 
     /// List of voices supported by realtime conversation streams.
     RealtimeConversationListVoicesResponse(RealtimeConversationListVoicesResponseEvent),
@@ -3564,12 +3547,6 @@ impl fmt::Display for McpAuthStatus {
     }
 }
 
-/// Response payload for `Op::ListSkills`.
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
-pub struct ListSkillsResponseEvent {
-    pub skills: Vec<SkillsListEntry>,
-}
-
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]
 pub struct RealtimeConversationListVoicesResponseEvent {
     pub voices: RealtimeVoicesList,
@@ -3677,19 +3654,6 @@ pub struct SkillToolDependency {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub url: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
-pub struct SkillErrorInfo {
-    pub path: PathBuf,
-    pub message: String,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS)]
-pub struct SkillsListEntry {
-    pub cwd: PathBuf,
-    pub skills: Vec<SkillMetadata>,
-    pub errors: Vec<SkillErrorInfo>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, TS, PartialEq, Eq)]

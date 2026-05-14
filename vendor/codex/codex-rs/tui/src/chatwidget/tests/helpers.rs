@@ -222,7 +222,6 @@ pub(super) async fn make_chatwidget_manual(
         pending_collab_spawn_requests: HashMap::new(),
         suppressed_exec_calls: HashSet::new(),
         skills_all: Vec::new(),
-        skills_initial_state: None,
         last_unified_wait: None,
         unified_exec_wait_streak: None,
         turn_sleep_inhibitor: SleepInhibitor::new(prevent_idle_sleep),

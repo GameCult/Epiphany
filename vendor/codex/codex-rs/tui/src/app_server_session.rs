@@ -27,8 +27,6 @@ use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ReviewDelivery;
 use codex_app_server_protocol::ReviewStartParams;
 use codex_app_server_protocol::ReviewStartResponse;
-use codex_app_server_protocol::SkillsListParams;
-use codex_app_server_protocol::SkillsListResponse;
 use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadApproveGuardianDeniedActionParams;
 use codex_app_server_protocol::ThreadApproveGuardianDeniedActionResponse;
@@ -775,17 +773,6 @@ impl AppServerSession {
             })
             .await
             .wrap_err("review/start failed in TUI")
-    }
-
-    pub(crate) async fn skills_list(
-        &mut self,
-        params: SkillsListParams,
-    ) -> Result<SkillsListResponse> {
-        let request_id = self.next_request_id();
-        self.client
-            .request_typed(ClientRequest::SkillsList { request_id, params })
-            .await
-            .wrap_err("skills/list failed in TUI")
     }
 
     pub(crate) async fn reload_user_config(&mut self) -> Result<()> {

@@ -245,16 +245,6 @@ export type { SendAddCreditsNudgeEmailParams } from "./SendAddCreditsNudgeEmailP
 export type { SendAddCreditsNudgeEmailResponse } from "./SendAddCreditsNudgeEmailResponse";
 export type { ServerRequestResolvedNotification } from "./ServerRequestResolvedNotification";
 export type { SessionSource } from "./SessionSource";
-export type { SkillDependencies } from "./SkillDependencies";
-export type { SkillErrorInfo } from "./SkillErrorInfo";
-export type { SkillInterface } from "./SkillInterface";
-export type { SkillMetadata } from "./SkillMetadata";
-export type { SkillScope } from "./SkillScope";
-export type { SkillToolDependency } from "./SkillToolDependency";
-export type { SkillsListEntry } from "./SkillsListEntry";
-export type { SkillsListExtraRootsForCwd } from "./SkillsListExtraRootsForCwd";
-export type { SkillsListParams } from "./SkillsListParams";
-export type { SkillsListResponse } from "./SkillsListResponse";
 export type { SortDirection } from "./SortDirection";
 export type { TerminalInteractionNotification } from "./TerminalInteractionNotification";
 export type { TextElement } from "./TextElement";

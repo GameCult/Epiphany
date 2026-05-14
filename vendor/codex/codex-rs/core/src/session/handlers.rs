@@ -39,7 +39,6 @@ use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::GuardianAssessmentEvent;
 use codex_protocol::protocol::GuardianAssessmentStatus;
 use codex_protocol::protocol::InterAgentCommunication;
-use codex_protocol::protocol::ListSkillsResponseEvent;
 use codex_protocol::protocol::McpServerRefreshConfig;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::RealtimeConversationListVoicesResponseEvent;
@@ -47,7 +46,6 @@ use codex_protocol::protocol::RealtimeVoicesList;
 use codex_protocol::protocol::ReviewDecision;
 use codex_protocol::protocol::ReviewRequest;
 use codex_protocol::protocol::RolloutItem;
-use codex_protocol::protocol::SkillsListEntry;
 use codex_protocol::protocol::ThreadMemoryMode;
 use codex_protocol::protocol::ThreadNameUpdatedEvent;
 use codex_protocol::protocol::ThreadRolledBackEvent;
@@ -67,7 +65,6 @@ use codex_protocol::user_input::UserInput;
 use codex_rmcp_client::ElicitationAction;
 use codex_rmcp_client::ElicitationResponse;
 use serde_json::Value;
-use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::debug;
 use tracing::info;
@@ -543,31 +540,6 @@ pub async fn list_mcp_tools(sess: &Session, config: &Arc<Config>, sub_id: String
     let event = Event {
         id: sub_id,
         msg: EventMsg::McpListToolsResponse(snapshot),
-    };
-    sess.send_event_raw(event).await;
-}
-
-pub async fn list_skills(sess: &Session, sub_id: String, cwds: Vec<PathBuf>, _force_reload: bool) {
-    let default_cwd = {
-        let state = sess.state.lock().await;
-        state.session_configuration.cwd.to_path_buf()
-    };
-    let cwds = if cwds.is_empty() {
-        vec![default_cwd]
-    } else {
-        cwds
-    };
-    let skills = cwds
-        .into_iter()
-        .map(|cwd| SkillsListEntry {
-            cwd,
-            skills: Vec::new(),
-            errors: Vec::new(),
-        })
-        .collect();
-    let event = Event {
-        id: sub_id,
-        msg: EventMsg::ListSkillsResponse(ListSkillsResponseEvent { skills }),
     };
     sess.send_event_raw(event).await;
 }
@@ -1127,10 +1099,6 @@ pub(super) async fn submission_loop(
                 }
                 Op::ReloadUserConfig => {
                     reload_user_config(&sess).await;
-                    false
-                }
-                Op::ListSkills { cwds, force_reload } => {
-                    list_skills(&sess, sub.id.clone(), cwds, force_reload).await;
                     false
                 }
                 Op::Undo => {

@@ -113,8 +113,6 @@ use codex_app_server_protocol::SendAddCreditsNudgeEmailParams;
 use codex_app_server_protocol::SendAddCreditsNudgeEmailResponse;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestResolvedNotification;
-use codex_app_server_protocol::SkillsListParams;
-use codex_app_server_protocol::SkillsListResponse;
 use codex_app_server_protocol::SortDirection;
 use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadApproveGuardianDeniedActionParams;
@@ -992,10 +990,6 @@ impl CodexMessageProcessor {
                     params,
                 )
                 .await;
-            }
-            ClientRequest::SkillsList { request_id, params } => {
-                self.skills_list(to_connection_request_id(request_id), params)
-                    .await;
             }
             ClientRequest::TurnStart { request_id, params } => {
                 self.turn_start(
@@ -6300,12 +6294,6 @@ impl CodexMessageProcessor {
             }
         }
         self.finalize_thread_teardown(thread_id).await;
-    }
-
-    async fn skills_list(&self, request_id: ConnectionRequestId, _params: SkillsListParams) {
-        self.outgoing
-            .send_response(request_id, SkillsListResponse { data: Vec::new() })
-            .await;
     }
 
     async fn turn_start(

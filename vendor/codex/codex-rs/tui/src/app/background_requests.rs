@@ -59,25 +59,6 @@ impl App {
         });
     }
 
-    /// Starts the initial skills refresh without delaying the first interactive frame.
-    ///
-    /// Startup only needs skill metadata to populate skill mentions and the skills UI; the prompt can be
-    /// rendered before that metadata arrives. The result is routed through the normal app event queue so
-    /// the same response handler updates the chat widget and emits invalid `SKILL.md` warnings once the
-    /// app-server RPC finishes. User-initiated skills refreshes still use the blocking app command path so
-    /// callers that explicitly asked for fresh skill state do not race ahead of their own refresh.
-    pub(super) fn refresh_startup_skills(&mut self, app_server: &AppServerSession) {
-        let request_handle = app_server.request_handle();
-        let app_event_tx = self.app_event_tx.clone();
-        let cwd = self.config.cwd.to_path_buf();
-        tokio::spawn(async move {
-            let result = fetch_skills_list(request_handle, cwd)
-                .await
-                .map_err(|err| format!("{err:#}"));
-            app_event_tx.send(AppEvent::SkillsListLoaded { result });
-        });
-    }
-
     pub(super) fn submit_feedback(
         &mut self,
         app_server: &AppServerSession,
@@ -309,26 +290,6 @@ pub(super) async fn send_add_credits_nudge_email(
         .wrap_err("account/sendAddCreditsNudgeEmail failed in TUI")?;
 
     Ok(response.status)
-}
-
-pub(super) async fn fetch_skills_list(
-    request_handle: AppServerRequestHandle,
-    cwd: PathBuf,
-) -> Result<SkillsListResponse> {
-    let request_id = RequestId::String(format!("startup-skills-list-{}", Uuid::new_v4()));
-    // Use the cloneable request handle so startup can issue this RPC from a background task without
-    // extending a borrow of `AppServerSession` across the first frame render.
-    request_handle
-        .request_typed(ClientRequest::SkillsList {
-            request_id,
-            params: SkillsListParams {
-                cwds: vec![cwd],
-                force_reload: true,
-                per_cwd_extra_user_roots: None,
-            },
-        })
-        .await
-        .wrap_err("skills/list failed in TUI")
 }
 
 pub(super) fn build_feedback_upload_params(

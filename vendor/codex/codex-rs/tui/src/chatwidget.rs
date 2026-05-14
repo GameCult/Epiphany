@@ -180,7 +180,6 @@ use codex_protocol::protocol::GuardianAssessmentEvent;
 use codex_protocol::protocol::GuardianAssessmentStatus;
 use codex_protocol::protocol::ImageGenerationBeginEvent;
 use codex_protocol::protocol::ImageGenerationEndEvent;
-use codex_protocol::protocol::ListSkillsResponseEvent;
 #[cfg(test)]
 use codex_protocol::protocol::McpListToolsResponseEvent;
 #[cfg(test)]
@@ -801,7 +800,6 @@ pub(crate) struct ChatWidget {
     pending_collab_spawn_requests: HashMap<String, multi_agents::SpawnRequestSummary>,
     suppressed_exec_calls: HashSet<String>,
     skills_all: Vec<ProtocolSkillMetadata>,
-    skills_initial_state: Option<HashMap<AbsolutePathBuf, bool>>,
     last_unified_wait: Option<UnifiedExecWaitState>,
     unified_exec_wait_streak: Option<UnifiedExecWaitStreak>,
     turn_sleep_inhibitor: SleepInhibitor,
@@ -2148,7 +2146,6 @@ impl ChatWidget {
             self.bump_active_cell_revision();
         }
         self.saw_copy_source_this_turn = false;
-        self.refresh_skills_for_current_cwd(/*force_reload*/ true);
         if let Some(user_message) = self.initial_user_message.take() {
             if self.suppress_initial_user_message_submit {
                 self.initial_user_message = Some(user_message);
@@ -5075,7 +5072,6 @@ impl ChatWidget {
             active_cell_revision: 0,
             config,
             skills_all: Vec::new(),
-            skills_initial_state: None,
             current_collaboration_mode,
             active_collaboration_mask,
             has_chatgpt_account,
@@ -6562,10 +6558,6 @@ impl ChatWidget {
         }
     }
 
-    pub(crate) fn handle_skills_list_response(&mut self, response: ListSkillsResponseEvent) {
-        self.on_list_skills(response);
-    }
-
     fn on_mcp_server_elicitation_request(
         &mut self,
         request_id: codex_protocol::mcp::RequestId,
@@ -7014,7 +7006,6 @@ impl ChatWidget {
             EventMsg::WebSearchEnd(ev) => self.on_web_search_end(ev),
             EventMsg::GetHistoryEntryResponse(ev) => self.handle_history_entry_response(ev),
             EventMsg::McpListToolsResponse(ev) => self.on_list_mcp_tools(ev),
-            EventMsg::ListSkillsResponse(ev) => self.on_list_skills(ev),
             EventMsg::ShutdownComplete => self.on_shutdown_complete(),
             EventMsg::TurnDiff(TurnDiffEvent { unified_diff }) => self.on_turn_diff(unified_diff),
             EventMsg::DeprecationNotice(ev) => self.on_deprecation_notice(ev),
@@ -10371,13 +10362,6 @@ impl ChatWidget {
         self.bottom_pane.clear_esc_backtrack_hint();
     }
 
-    fn refresh_skills_for_current_cwd(&mut self, force_reload: bool) {
-        self.submit_op(AppCommand::list_skills(
-            vec![self.config.cwd.to_path_buf()],
-            force_reload,
-        ));
-    }
-
     /// Forward a command directly to codex.
     pub(crate) fn submit_op<T>(&mut self, op: T) -> bool
     where
@@ -10411,10 +10395,6 @@ impl ChatWidget {
             ev.resource_templates,
             &ev.auth_statuses,
         ));
-    }
-
-    fn on_list_skills(&mut self, ev: ListSkillsResponseEvent) {
-        self.set_skills_from_response(&ev);
     }
 
     pub(crate) fn open_review_popup(&mut self) {

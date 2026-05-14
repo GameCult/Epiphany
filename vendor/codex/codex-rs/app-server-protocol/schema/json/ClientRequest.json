@@ -451,30 +451,6 @@
         "method": {
           "type": "string",
           "enum": [
-            "skills/list"
-          ],
-          "title": "Skills/listRequestMethod"
-        },
-        "params": {
-          "$ref": "#/definitions/SkillsListParams"
-        }
-      },
-      "title": "Skills/listRequest"
-    },
-    {
-      "type": "object",
-      "required": [
-        "id",
-        "method",
-        "params"
-      ],
-      "properties": {
-        "id": {
-          "$ref": "#/definitions/RequestId"
-        },
-        "method": {
-          "type": "string",
-          "enum": [
             "device/key/create"
           ],
           "title": "Device/key/createRequestMethod"
@@ -4543,16 +4519,8 @@
             }
           ]
         },
-        "summary": {
-          "description": "Override the reasoning summary for this turn and subsequent turns.",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ReasoningSummary"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "threadId": {
+          "type": "string"
         },
         "cwd": {
           "description": "Override the working directory for this turn and subsequent turns.",
@@ -4572,18 +4540,11 @@
             }
           ]
         },
-        "serviceTier": {
-          "description": "Override the service tier for this turn and subsequent turns.",
+        "summary": {
+          "description": "Override the reasoning summary for this turn and subsequent turns.",
           "anyOf": [
             {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/ServiceTier"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/ReasoningSummary"
             },
             {
               "type": "null"
@@ -4628,8 +4589,23 @@
             }
           ]
         },
-        "threadId": {
-          "type": "string"
+        "serviceTier": {
+          "description": "Override the service tier for this turn and subsequent turns.",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ServiceTier"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sandboxPolicy": {
           "description": "Override the sandbox policy for this turn and subsequent turns.",
@@ -5825,51 +5801,6 @@
               "type": "null"
             }
           ]
-        }
-      }
-    },
-    "SkillsListExtraRootsForCwd": {
-      "type": "object",
-      "required": [
-        "cwd",
-        "extraUserRoots"
-      ],
-      "properties": {
-        "cwd": {
-          "type": "string"
-        },
-        "extraUserRoots": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "SkillsListParams": {
-      "type": "object",
-      "properties": {
-        "cwds": {
-          "description": "When empty, defaults to the current session working directory.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "forceReload": {
-          "description": "When true, bypass the skills cache and re-scan skills from disk.",
-          "type": "boolean"
-        },
-        "perCwdExtraUserRoots": {
-          "description": "Optional per-cwd extra roots to scan as user-scoped skills.",
-          "default": null,
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "$ref": "#/definitions/SkillsListExtraRootsForCwd"
-          }
         }
       }
     },

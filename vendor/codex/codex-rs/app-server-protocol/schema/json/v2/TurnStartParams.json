@@ -29,16 +29,8 @@
         }
       ]
     },
-    "summary": {
-      "description": "Override the reasoning summary for this turn and subsequent turns.",
-      "anyOf": [
-        {
-          "$ref": "#/definitions/ReasoningSummary"
-        },
-        {
-          "type": "null"
-        }
-      ]
+    "threadId": {
+      "type": "string"
     },
     "cwd": {
       "description": "Override the working directory for this turn and subsequent turns.",
@@ -58,18 +50,11 @@
         }
       ]
     },
-    "serviceTier": {
-      "description": "Override the service tier for this turn and subsequent turns.",
+    "summary": {
+      "description": "Override the reasoning summary for this turn and subsequent turns.",
       "anyOf": [
         {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ServiceTier"
-            },
-            {
-              "type": "null"
-            }
-          ]
+          "$ref": "#/definitions/ReasoningSummary"
         },
         {
           "type": "null"
@@ -114,8 +99,23 @@
         }
       ]
     },
-    "threadId": {
-      "type": "string"
+    "serviceTier": {
+      "description": "Override the service tier for this turn and subsequent turns.",
+      "anyOf": [
+        {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ServiceTier"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "sandboxPolicy": {
       "description": "Override the sandbox policy for this turn and subsequent turns.",

@@ -90,10 +90,6 @@ pub(crate) enum AppCommandView<'a> {
         response: &'a RequestPermissionsResponse,
     },
     ReloadUserConfig,
-    ListSkills {
-        cwds: &'a [PathBuf],
-        force_reload: bool,
-    },
     Compact,
     SetThreadName {
         name: &'a str,
@@ -238,10 +234,6 @@ impl AppCommand {
         Self(Op::RequestPermissionsResponse { id, response })
     }
 
-    pub(crate) fn list_skills(cwds: Vec<PathBuf>, force_reload: bool) -> Self {
-        Self(Op::ListSkills { cwds, force_reload })
-    }
-
     pub(crate) fn compact() -> Self {
         Self(Op::Compact)
     }
@@ -365,10 +357,6 @@ impl AppCommand {
                 AppCommandView::RequestPermissionsResponse { id, response }
             }
             Op::ReloadUserConfig => AppCommandView::ReloadUserConfig,
-            Op::ListSkills { cwds, force_reload } => AppCommandView::ListSkills {
-                cwds,
-                force_reload: *force_reload,
-            },
             Op::Compact => AppCommandView::Compact,
             Op::SetThreadName { name } => AppCommandView::SetThreadName { name },
             Op::Shutdown => AppCommandView::Shutdown,

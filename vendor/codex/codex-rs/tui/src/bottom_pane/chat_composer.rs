@@ -1469,13 +1469,6 @@ impl ChatComposer {
                     cmd
                 });
                 if let Some(cmd) = selected_cmd {
-                    if cmd == SlashCommand::Skills {
-                        self.stage_selected_slash_command_history(cmd);
-                        self.textarea.set_text_clearing_elements("");
-                        self.is_bash_mode = false;
-                        return (InputResult::Command(cmd), true);
-                    }
-
                     let selected_command_text = format!("/{}", cmd.command());
                     let starts_with_cmd =
                         first_line.trim_start().starts_with(&selected_command_text);

@@ -280,12 +280,6 @@ impl App {
             AppEvent::McpInventoryLoaded { result, detail } => {
                 self.handle_mcp_inventory_result(result, detail);
             }
-            AppEvent::SkillsListLoaded { result } => {
-                self.handle_skills_list_result(
-                    result.map_err(|err| color_eyre::eyre::eyre!(err)),
-                    "failed to load skills on startup",
-                );
-            }
             AppEvent::StartFileSearch(query) => {
                 self.file_search.on_user_query(query);
             }
@@ -1153,39 +1147,6 @@ impl App {
                     .handle_start_side(tui, app_server, parent_thread_id, user_message)
                     .await;
             }
-            AppEvent::OpenSkillsList => {
-                self.chat_widget.open_skills_list();
-            }
-            AppEvent::OpenManageSkillsPopup => {
-                self.chat_widget.open_manage_skills_popup();
-            }
-            AppEvent::SetSkillEnabled { path, enabled } => {
-                let edits = [ConfigEdit::SetSkillConfig {
-                    path: path.to_path_buf(),
-                    enabled,
-                }];
-                match ConfigEditsBuilder::new(&self.config.codex_home)
-                    .with_edits(edits)
-                    .apply()
-                    .await
-                {
-                    Ok(()) => {
-                        self.chat_widget.update_skill_enabled(path, enabled);
-                        if let Err(err) = self.refresh_in_memory_config_from_disk().await {
-                            tracing::warn!(
-                                error = %err,
-                                "failed to refresh config after skill toggle"
-                            );
-                        }
-                    }
-                    Err(err) => {
-                        let path_display = path.display();
-                        self.chat_widget.add_error_message(format!(
-                            "Failed to update skill config for {path_display}: {err}"
-                        ));
-                    }
-                }
-            }
             AppEvent::OpenPermissionsPopup => {
                 self.chat_widget.open_permissions_popup();
             }
@@ -1204,9 +1165,6 @@ impl App {
             } => {
                 self.chat_widget
                     .submit_user_message_with_mode(text, collaboration_mode);
-            }
-            AppEvent::ManageSkillsClosed => {
-                self.chat_widget.handle_manage_skills_closed();
             }
             AppEvent::FullScreenApprovalRequest(request) => match request {
                 ApprovalRequest::ApplyPatch { cwd, changes, .. } => {

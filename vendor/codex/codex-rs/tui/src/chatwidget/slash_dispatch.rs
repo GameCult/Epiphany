@@ -316,9 +316,6 @@ impl ChatWidget {
             SlashCommand::Mention => {
                 self.insert_str("@");
             }
-            SlashCommand::Skills => {
-                self.open_skills_menu();
-            }
             SlashCommand::Status => {
                 if self.should_prefetch_rate_limits() {
                     let request_id = self.next_status_refresh_request_id;
@@ -749,7 +746,6 @@ impl ChatWidget {
             | SlashCommand::Exit
             | SlashCommand::Logout
             | SlashCommand::Mention
-            | SlashCommand::Skills
             | SlashCommand::Title
             | SlashCommand::Statusline
             | SlashCommand::Theme => QueueDrain::Stop,

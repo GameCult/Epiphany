@@ -5,27 +5,6 @@
 
 use super::*;
 
-pub(super) fn emit_skill_load_warnings(app_event_tx: &AppEventSender, errors: &[SkillErrorInfo]) {
-    if errors.is_empty() {
-        return;
-    }
-
-    let error_count = errors.len();
-    app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
-        crate::history_cell::new_warning_event(format!(
-            "Skipped loading {error_count} skill(s) due to invalid SKILL.md files."
-        )),
-    )));
-
-    for error in errors {
-        let path = error.path.display();
-        let message = error.message.as_str();
-        app_event_tx.send(AppEvent::InsertHistoryCell(Box::new(
-            crate::history_cell::new_warning_event(format!("{path}: {message}")),
-        )));
-    }
-}
-
 pub(super) fn emit_project_config_warnings(app_event_tx: &AppEventSender, config: &Config) {
     let mut disabled_folders = Vec::new();
 
@@ -51,7 +30,7 @@ pub(super) fn emit_project_config_warnings(app_event_tx: &AppEventSender, config
 
     let mut message = concat!(
         "Project-local config, hooks, and exec policies are disabled in the following folders ",
-        "until the project is trusted, but skills still load.\n",
+        "until the project is trusted.\n",
     )
     .to_string();
     for (index, (folder, reason)) in disabled_folders.iter().enumerate() {

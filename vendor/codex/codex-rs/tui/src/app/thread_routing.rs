@@ -592,19 +592,6 @@ impl App {
                 }
                 Ok(true)
             }
-            AppCommandView::ListSkills { cwds, force_reload } => {
-                self.handle_skills_list_result(
-                    app_server
-                        .skills_list(codex_app_server_protocol::SkillsListParams {
-                            cwds: cwds.to_vec(),
-                            force_reload,
-                            per_cwd_extra_user_roots: None,
-                        })
-                        .await,
-                    "failed to refresh skills",
-                );
-                Ok(true)
-            }
             AppCommandView::Compact => {
                 app_server.thread_compact_start(thread_id).await?;
                 Ok(true)
@@ -679,21 +666,6 @@ impl App {
                 Ok(true)
             }
             _ => Ok(false),
-        }
-    }
-
-    pub(super) fn handle_skills_list_result(
-        &mut self,
-        result: Result<SkillsListResponse>,
-        failure_message: &str,
-    ) {
-        match result {
-            Ok(response) => self.handle_skills_list_response(response),
-            Err(err) => {
-                tracing::warn!("{failure_message}: {err:#}");
-                self.chat_widget
-                    .add_error_message(format!("{failure_message}: {err:#}"));
-            }
         }
     }
 
@@ -1269,15 +1241,6 @@ impl App {
         primary_thread_id: Option<ThreadId>,
     ) -> bool {
         waiting_for_initial_session_configured && primary_thread_id.is_some()
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(super) fn handle_skills_list_response(&mut self, response: SkillsListResponse) {
-        let response = list_skills_response_to_core(response);
-        let cwd = self.chat_widget.config_ref().cwd.clone();
-        let errors = errors_for_cwd(&cwd, &response);
-        emit_skill_load_warnings(&self.app_event_tx, &errors);
-        self.chat_widget.handle_skills_list_response(response);
     }
 
     pub(super) async fn handle_thread_rollback_response(

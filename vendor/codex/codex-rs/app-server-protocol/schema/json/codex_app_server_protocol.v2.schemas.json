@@ -4331,53 +4331,6 @@
         }
       }
     },
-    "SkillsListExtraRootsForCwd": {
-      "type": "object",
-      "required": [
-        "cwd",
-        "extraUserRoots"
-      ],
-      "properties": {
-        "cwd": {
-          "type": "string"
-        },
-        "extraUserRoots": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "SkillsListParams": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SkillsListParams",
-      "type": "object",
-      "properties": {
-        "cwds": {
-          "description": "When empty, defaults to the current session working directory.",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "forceReload": {
-          "description": "When true, bypass the skills cache and re-scan skills from disk.",
-          "type": "boolean"
-        },
-        "perCwdExtraUserRoots": {
-          "description": "Optional per-cwd extra roots to scan as user-scoped skills.",
-          "default": null,
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "$ref": "#/definitions/SkillsListExtraRootsForCwd"
-          }
-        }
-      }
-    },
     "DeviceKeyProtectionPolicy": {
       "description": "Protection policy for creating or loading a controller-local device key.",
       "type": "string",
@@ -5268,16 +5221,8 @@
             }
           ]
         },
-        "summary": {
-          "description": "Override the reasoning summary for this turn and subsequent turns.",
-          "anyOf": [
-            {
-              "$ref": "#/definitions/ReasoningSummary"
-            },
-            {
-              "type": "null"
-            }
-          ]
+        "threadId": {
+          "type": "string"
         },
         "cwd": {
           "description": "Override the working directory for this turn and subsequent turns.",
@@ -5297,18 +5242,11 @@
             }
           ]
         },
-        "serviceTier": {
-          "description": "Override the service tier for this turn and subsequent turns.",
+        "summary": {
+          "description": "Override the reasoning summary for this turn and subsequent turns.",
           "anyOf": [
             {
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/ServiceTier"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+              "$ref": "#/definitions/ReasoningSummary"
             },
             {
               "type": "null"
@@ -5353,8 +5291,23 @@
             }
           ]
         },
-        "threadId": {
-          "type": "string"
+        "serviceTier": {
+          "description": "Override the service tier for this turn and subsequent turns.",
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "$ref": "#/definitions/ServiceTier"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "sandboxPolicy": {
           "description": "Override the sandbox policy for this turn and subsequent turns.",
@@ -11624,227 +11577,6 @@
       "title": "ThreadInjectItemsResponse",
       "type": "object"
     },
-    "SkillDependencies": {
-      "type": "object",
-      "required": [
-        "tools"
-      ],
-      "properties": {
-        "tools": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SkillToolDependency"
-          }
-        }
-      }
-    },
-    "SkillErrorInfo": {
-      "type": "object",
-      "required": [
-        "message",
-        "path"
-      ],
-      "properties": {
-        "message": {
-          "type": "string"
-        },
-        "path": {
-          "type": "string"
-        }
-      }
-    },
-    "SkillInterface": {
-      "type": "object",
-      "properties": {
-        "brandColor": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "defaultPrompt": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "displayName": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "iconLarge": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AbsolutePathBuf"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "iconSmall": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/AbsolutePathBuf"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "shortDescription": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
-    },
-    "SkillMetadata": {
-      "type": "object",
-      "required": [
-        "description",
-        "enabled",
-        "name",
-        "path",
-        "scope"
-      ],
-      "properties": {
-        "dependencies": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/SkillDependencies"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "description": {
-          "type": "string"
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "interface": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/SkillInterface"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "name": {
-          "type": "string"
-        },
-        "path": {
-          "$ref": "#/definitions/AbsolutePathBuf"
-        },
-        "scope": {
-          "$ref": "#/definitions/SkillScope"
-        },
-        "shortDescription": {
-          "description": "Legacy short_description from SKILL.md. Prefer SKILL.json interface.short_description.",
-          "type": [
-            "string",
-            "null"
-          ]
-        }
-      }
-    },
-    "SkillScope": {
-      "type": "string",
-      "enum": [
-        "user",
-        "repo",
-        "system",
-        "admin"
-      ]
-    },
-    "SkillToolDependency": {
-      "type": "object",
-      "required": [
-        "type",
-        "value"
-      ],
-      "properties": {
-        "command": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "description": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "transport": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "type": {
-          "type": "string"
-        },
-        "url": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "value": {
-          "type": "string"
-        }
-      }
-    },
-    "SkillsListEntry": {
-      "type": "object",
-      "required": [
-        "cwd",
-        "errors",
-        "skills"
-      ],
-      "properties": {
-        "cwd": {
-          "type": "string"
-        },
-        "errors": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SkillErrorInfo"
-          }
-        },
-        "skills": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SkillMetadata"
-          }
-        }
-      }
-    },
-    "SkillsListResponse": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "SkillsListResponse",
-      "type": "object",
-      "required": [
-        "data"
-      ],
-      "properties": {
-        "data": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/SkillsListEntry"
-          }
-        }
-      }
-    },
     "DeviceKeyAlgorithm": {
       "description": "Device-key algorithm reported at enrollment and signing boundaries.",
       "type": "string",
@@ -15060,6 +14792,94 @@
         }
       }
     },
+    "InitializeCapabilities": {
+      "description": "Client-declared capabilities negotiated during initialize.",
+      "type": "object",
+      "properties": {
+        "experimentalApi": {
+          "description": "Opt into receiving experimental API methods and fields.",
+          "default": false,
+          "type": "boolean"
+        },
+        "optOutNotificationMethods": {
+          "description": "Exact notification method names that should be suppressed for this connection (for example `thread/started`).",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "InitializeParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "InitializeParams",
+      "type": "object",
+      "required": [
+        "clientInfo"
+      ],
+      "properties": {
+        "capabilities": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/InitializeCapabilities"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "clientInfo": {
+          "$ref": "#/definitions/ClientInfo"
+        }
+      }
+    },
+    "FuzzyFileSearchSessionCompletedNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FuzzyFileSearchSessionCompletedNotification",
+      "type": "object",
+      "required": [
+        "sessionId"
+      ],
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      }
+    },
+    "FuzzyFileSearchSessionUpdatedNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "FuzzyFileSearchSessionUpdatedNotification",
+      "type": "object",
+      "required": [
+        "files",
+        "query",
+        "sessionId"
+      ],
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/FuzzyFileSearchResult"
+          }
+        },
+        "query": {
+          "type": "string"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      }
+    },
+    "FuzzyFileSearchMatchType": {
+      "type": "string",
+      "enum": [
+        "file",
+        "directory"
+      ]
+    },
     "FuzzyFileSearchParams": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "FuzzyFileSearchParams",
@@ -15107,29 +14927,6 @@
         }
       }
     },
-    "InitializeParams": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "InitializeParams",
-      "type": "object",
-      "required": [
-        "clientInfo"
-      ],
-      "properties": {
-        "capabilities": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/InitializeCapabilities"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "clientInfo": {
-          "$ref": "#/definitions/ClientInfo"
-        }
-      }
-    },
     "FuzzyFileSearchResult": {
       "description": "Superset of [`codex_file_search::FileMatch`]",
       "type": "object",
@@ -15168,71 +14965,6 @@
           "type": "integer",
           "format": "uint32",
           "minimum": 0.0
-        }
-      }
-    },
-    "InitializeCapabilities": {
-      "description": "Client-declared capabilities negotiated during initialize.",
-      "type": "object",
-      "properties": {
-        "experimentalApi": {
-          "description": "Opt into receiving experimental API methods and fields.",
-          "default": false,
-          "type": "boolean"
-        },
-        "optOutNotificationMethods": {
-          "description": "Exact notification method names that should be suppressed for this connection (for example `thread/started`).",
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        }
-      }
-    },
-    "FuzzyFileSearchMatchType": {
-      "type": "string",
-      "enum": [
-        "file",
-        "directory"
-      ]
-    },
-    "FuzzyFileSearchSessionCompletedNotification": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FuzzyFileSearchSessionCompletedNotification",
-      "type": "object",
-      "required": [
-        "sessionId"
-      ],
-      "properties": {
-        "sessionId": {
-          "type": "string"
-        }
-      }
-    },
-    "FuzzyFileSearchSessionUpdatedNotification": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
-      "title": "FuzzyFileSearchSessionUpdatedNotification",
-      "type": "object",
-      "required": [
-        "files",
-        "query",
-        "sessionId"
-      ],
-      "properties": {
-        "files": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/FuzzyFileSearchResult"
-          }
-        },
-        "query": {
-          "type": "string"
-        },
-        "sessionId": {
-          "type": "string"
         }
       }
     },
@@ -15674,30 +15406,6 @@
             }
           },
           "title": "Thread/injectItemsRequest"
-        },
-        {
-          "type": "object",
-          "required": [
-            "id",
-            "method",
-            "params"
-          ],
-          "properties": {
-            "id": {
-              "$ref": "#/definitions/RequestId"
-            },
-            "method": {
-              "type": "string",
-              "enum": [
-                "skills/list"
-              ],
-              "title": "Skills/listRequestMethod"
-            },
-            "params": {
-              "$ref": "#/definitions/SkillsListParams"
-            }
-          },
-          "title": "Skills/listRequest"
         },
         {
           "type": "object",
