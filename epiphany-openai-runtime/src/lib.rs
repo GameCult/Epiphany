@@ -32,7 +32,7 @@ use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
-use serde_json::Value;
+use serde::de::DeserializeOwned;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
@@ -324,16 +324,15 @@ pub fn complete_worker_job_from_assistant_text(
     openai_summary: &EpiphanyOpenAiRuntimeRunSummary,
     assistant_text: &str,
 ) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
-    let parsed = parse_assistant_json_object(assistant_text).ok();
+    let launch_document = launch_request.launch_document()?;
+    let parsed = parse_worker_result_ingress(&launch_document, assistant_text).ok();
     let openai_failed = openai_summary.verdict != "pass";
     let verdict = if openai_failed {
         "failed".to_string()
     } else {
         parsed
             .as_ref()
-            .and_then(|value| {
-                string_field(value, "verdict").or_else(|| string_field(value, "mode"))
-            })
+            .and_then(WorkerResultIngress::verdict)
             .unwrap_or_else(|| "completed".to_string())
     };
     let summary = if openai_failed {
@@ -341,30 +340,30 @@ pub fn complete_worker_job_from_assistant_text(
     } else {
         parsed
             .as_ref()
-            .and_then(|value| string_field(value, "summary"))
+            .and_then(WorkerResultIngress::summary)
             .unwrap_or_else(|| "Worker completed without a structured summary.".to_string())
     };
     let next_safe_move = parsed
         .as_ref()
-        .and_then(|value| string_field(value, "nextSafeMove"))
+        .and_then(WorkerResultIngress::next_safe_move)
         .unwrap_or_else(|| {
             "Review the typed worker runtime result before accepting state.".to_string()
         });
     let mut evidence_refs = parsed
         .as_ref()
-        .map(|value| string_array_field(value, "evidenceIds"))
+        .map(WorkerResultIngress::evidence_ids)
         .unwrap_or_default();
     evidence_refs.push(format!("openai-request:{openai_request_id}"));
     let mut artifact_refs = parsed
         .as_ref()
-        .map(|value| string_array_field(value, "artifactRefs"))
+        .map(WorkerResultIngress::artifact_refs)
         .unwrap_or_default();
     artifact_refs.push(format!("openai-result:{}", openai_summary.result_id));
     let result_id = format!("result-worker-{}", launch_request.job_id);
     if let Some(parsed) = parsed.as_ref() {
-        match launch_request.launch_document()? {
-            EpiphanyWorkerLaunchDocument::Role(document) => {
-                let typed_result = role_worker_result_from_value(
+        match (&launch_document, parsed) {
+            (EpiphanyWorkerLaunchDocument::Role(document), WorkerResultIngress::Role(parsed)) => {
+                let typed_result = role_worker_result_from_ingress(
                     launch_request,
                     &document.role_id,
                     &result_id,
@@ -373,14 +372,19 @@ pub fn complete_worker_job_from_assistant_text(
                 );
                 put_runtime_role_worker_result(store_path.as_ref(), &typed_result)?;
             }
-            EpiphanyWorkerLaunchDocument::Reorient(_) => {
-                let typed_result = reorient_worker_result_from_value(
+            (EpiphanyWorkerLaunchDocument::Reorient(_), WorkerResultIngress::Reorient(parsed)) => {
+                let typed_result = reorient_worker_result_from_ingress(
                     launch_request,
                     &result_id,
                     parsed,
                     artifact_refs.clone(),
                 );
                 put_runtime_reorient_worker_result(store_path.as_ref(), &typed_result)?;
+            }
+            _ => {
+                return Err(anyhow!(
+                    "worker launch document and parsed result kind diverged"
+                ));
             }
         }
     }
@@ -545,38 +549,139 @@ fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'sta
     }
 }
 
-fn role_worker_result_from_value(
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct RoleWorkerResultIngress {
+    role_id: Option<String>,
+    verdict: Option<String>,
+    summary: Option<String>,
+    next_safe_move: Option<String>,
+    checkpoint_summary: Option<String>,
+    scratch_summary: Option<String>,
+    files_inspected: Vec<String>,
+    frontier_node_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    artifact_refs: Vec<String>,
+    open_questions: Vec<String>,
+    evidence_gaps: Vec<String>,
+    risks: Vec<String>,
+    state_patch: Option<epiphany_core::EpiphanyRoleStatePatchDocument>,
+    self_patch: Option<epiphany_core::AgentSelfPatch>,
+}
+
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct ReorientWorkerResultIngress {
+    mode: Option<String>,
+    summary: Option<String>,
+    next_safe_move: Option<String>,
+    checkpoint_still_valid: Option<bool>,
+    files_inspected: Vec<String>,
+    frontier_node_ids: Vec<String>,
+    evidence_ids: Vec<String>,
+    artifact_refs: Vec<String>,
+    open_questions: Vec<String>,
+    continuity_risks: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+enum WorkerResultIngress {
+    Role(RoleWorkerResultIngress),
+    Reorient(ReorientWorkerResultIngress),
+}
+
+impl WorkerResultIngress {
+    fn verdict(&self) -> Option<String> {
+        match self {
+            WorkerResultIngress::Role(result) => clean_optional_string(result.verdict.as_deref()),
+            WorkerResultIngress::Reorient(result) => clean_optional_string(result.mode.as_deref()),
+        }
+    }
+
+    fn summary(&self) -> Option<String> {
+        match self {
+            WorkerResultIngress::Role(result) => clean_optional_string(result.summary.as_deref()),
+            WorkerResultIngress::Reorient(result) => {
+                clean_optional_string(result.summary.as_deref())
+            }
+        }
+    }
+
+    fn next_safe_move(&self) -> Option<String> {
+        match self {
+            WorkerResultIngress::Role(result) => {
+                clean_optional_string(result.next_safe_move.as_deref())
+            }
+            WorkerResultIngress::Reorient(result) => {
+                clean_optional_string(result.next_safe_move.as_deref())
+            }
+        }
+    }
+
+    fn evidence_ids(&self) -> Vec<String> {
+        match self {
+            WorkerResultIngress::Role(result) => clean_string_vec(&result.evidence_ids),
+            WorkerResultIngress::Reorient(result) => clean_string_vec(&result.evidence_ids),
+        }
+    }
+
+    fn artifact_refs(&self) -> Vec<String> {
+        match self {
+            WorkerResultIngress::Role(result) => clean_string_vec(&result.artifact_refs),
+            WorkerResultIngress::Reorient(result) => clean_string_vec(&result.artifact_refs),
+        }
+    }
+}
+
+fn parse_worker_result_ingress(
+    document: &EpiphanyWorkerLaunchDocument,
+    assistant_text: &str,
+) -> Result<WorkerResultIngress> {
+    match document {
+        EpiphanyWorkerLaunchDocument::Role(_) => {
+            parse_assistant_json::<RoleWorkerResultIngress>(assistant_text)
+                .map(WorkerResultIngress::Role)
+        }
+        EpiphanyWorkerLaunchDocument::Reorient(_) => {
+            parse_assistant_json::<ReorientWorkerResultIngress>(assistant_text)
+                .map(WorkerResultIngress::Reorient)
+        }
+    }
+}
+
+fn role_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     role_id: &str,
     result_id: &str,
-    value: &Value,
+    result: &RoleWorkerResultIngress,
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeRoleWorkerResult {
-    let (state_patch_msgpack, state_patch_error) = encode_optional_value_field::<
-        epiphany_core::EpiphanyRoleStatePatchDocument,
-    >(value, "statePatch");
+    let (state_patch_msgpack, state_patch_error) =
+        encode_optional_document(&result.state_patch, "statePatch");
     let (self_patch_msgpack, self_patch_error) =
-        encode_optional_value_field::<epiphany_core::AgentSelfPatch>(value, "selfPatch");
+        encode_optional_document(&result.self_patch, "selfPatch");
     EpiphanyRuntimeRoleWorkerResult {
         schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         result_id: result_id.to_string(),
         job_id: launch_request.job_id.clone(),
-        role_id: string_field(value, "roleId").unwrap_or_else(|| role_id.to_string()),
-        verdict: string_field(value, "verdict").unwrap_or_else(|| "completed".to_string()),
-        summary: string_field(value, "summary")
+        role_id: clean_optional_string(result.role_id.as_deref())
+            .unwrap_or_else(|| role_id.to_string()),
+        verdict: clean_optional_string(result.verdict.as_deref())
+            .unwrap_or_else(|| "completed".to_string()),
+        summary: clean_optional_string(result.summary.as_deref())
             .unwrap_or_else(|| "Worker completed without a structured summary.".to_string()),
-        next_safe_move: string_field(value, "nextSafeMove").unwrap_or_else(|| {
-            "Review the typed worker runtime result before accepting state.".to_string()
-        }),
-        checkpoint_summary: string_field(value, "checkpointSummary"),
-        scratch_summary: string_field(value, "scratchSummary"),
-        files_inspected: string_array_field(value, "filesInspected"),
-        frontier_node_ids: string_array_field(value, "frontierNodeIds"),
-        evidence_ids: string_array_field(value, "evidenceIds"),
+        next_safe_move: clean_optional_string(result.next_safe_move.as_deref()).unwrap_or_else(
+            || "Review the typed worker runtime result before accepting state.".to_string(),
+        ),
+        checkpoint_summary: clean_optional_string(result.checkpoint_summary.as_deref()),
+        scratch_summary: clean_optional_string(result.scratch_summary.as_deref()),
+        files_inspected: clean_string_vec(&result.files_inspected),
+        frontier_node_ids: clean_string_vec(&result.frontier_node_ids),
+        evidence_ids: clean_string_vec(&result.evidence_ids),
         artifact_refs,
-        open_questions: string_array_field(value, "openQuestions"),
-        evidence_gaps: string_array_field(value, "evidenceGaps"),
-        risks: string_array_field(value, "risks"),
+        open_questions: clean_string_vec(&result.open_questions),
+        evidence_gaps: clean_string_vec(&result.evidence_gaps),
+        risks: clean_string_vec(&result.risks),
         state_patch_msgpack,
         self_patch_msgpack,
         item_error: merge_optional_errors(state_patch_error, self_patch_error),
@@ -584,48 +689,46 @@ fn role_worker_result_from_value(
     }
 }
 
-fn reorient_worker_result_from_value(
+fn reorient_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     result_id: &str,
-    value: &Value,
+    result: &ReorientWorkerResultIngress,
     artifact_refs: Vec<String>,
 ) -> EpiphanyRuntimeReorientWorkerResult {
     EpiphanyRuntimeReorientWorkerResult {
         schema_version: epiphany_core::RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         result_id: result_id.to_string(),
         job_id: launch_request.job_id.clone(),
-        mode: string_field(value, "mode").unwrap_or_else(|| "regather".to_string()),
-        summary: string_field(value, "summary").unwrap_or_else(|| {
+        mode: clean_optional_string(result.mode.as_deref())
+            .unwrap_or_else(|| "regather".to_string()),
+        summary: clean_optional_string(result.summary.as_deref()).unwrap_or_else(|| {
             "Reorient worker completed without a structured summary.".to_string()
         }),
-        next_safe_move: string_field(value, "nextSafeMove").unwrap_or_else(|| {
-            "Review the typed reorient runtime result before accepting state.".to_string()
-        }),
-        checkpoint_still_valid: value.get("checkpointStillValid").and_then(Value::as_bool),
-        files_inspected: string_array_field(value, "filesInspected"),
-        frontier_node_ids: string_array_field(value, "frontierNodeIds"),
-        evidence_ids: string_array_field(value, "evidenceIds"),
+        next_safe_move: clean_optional_string(result.next_safe_move.as_deref()).unwrap_or_else(
+            || "Review the typed reorient runtime result before accepting state.".to_string(),
+        ),
+        checkpoint_still_valid: result.checkpoint_still_valid,
+        files_inspected: clean_string_vec(&result.files_inspected),
+        frontier_node_ids: clean_string_vec(&result.frontier_node_ids),
+        evidence_ids: clean_string_vec(&result.evidence_ids),
         artifact_refs,
-        open_questions: string_array_field(value, "openQuestions"),
-        continuity_risks: string_array_field(value, "continuityRisks"),
+        open_questions: clean_string_vec(&result.open_questions),
+        continuity_risks: clean_string_vec(&result.continuity_risks),
         item_error: None,
         metadata: std::collections::BTreeMap::new(),
     }
 }
 
-fn encode_optional_value_field<T>(value: &Value, key: &str) -> (Option<Vec<u8>>, Option<String>)
+fn encode_optional_document<T>(value: &Option<T>, key: &str) -> (Option<Vec<u8>>, Option<String>)
 where
-    T: serde::Serialize + serde::de::DeserializeOwned,
+    T: serde::Serialize,
 {
-    let Some(field) = value.get(key).cloned() else {
+    let Some(document) = value else {
         return (None, None);
     };
-    match serde_json::from_value::<T>(field) {
-        Ok(document) => match rmp_serde::to_vec_named(&document) {
-            Ok(payload) => (Some(payload), None),
-            Err(err) => (None, Some(format!("failed to encode {key}: {err}"))),
-        },
-        Err(err) => (None, Some(format!("failed to parse {key}: {err}"))),
+    match rmp_serde::to_vec_named(document) {
+        Ok(payload) => (Some(payload), None),
+        Err(err) => (None, Some(format!("failed to encode {key}: {err}"))),
     }
 }
 
@@ -638,7 +741,10 @@ fn merge_optional_errors(left: Option<String>, right: Option<String>) -> Option<
     }
 }
 
-fn parse_assistant_json_object(text: &str) -> Result<Value> {
+fn parse_assistant_json<T>(text: &str) -> Result<T>
+where
+    T: DeserializeOwned,
+{
     let trimmed = text.trim();
     let candidate = trimmed
         .strip_prefix("```json")
@@ -650,30 +756,20 @@ fn parse_assistant_json_object(text: &str) -> Result<Value> {
         })
         .unwrap_or(trimmed)
         .trim();
-    let value: Value = serde_json::from_str(candidate).context("assistant text was not JSON")?;
-    if !value.is_object() {
-        return Err(anyhow!("assistant JSON result must be an object"));
-    }
-    Ok(value)
+    serde_json::from_str(candidate).context("assistant text was not typed worker-result JSON")
 }
 
-fn string_field(value: &Value, key: &str) -> Option<String> {
+fn clean_optional_string(value: Option<&str>) -> Option<String> {
     value
-        .get(key)
-        .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
 }
 
-fn string_array_field(value: &Value, key: &str) -> Vec<String> {
-    value
-        .get(key)
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .map(str::trim)
+fn clean_string_vec(values: &[String]) -> Vec<String> {
+    values
+        .iter()
+        .map(|value| value.trim())
         .filter(|value| !value.is_empty())
         .map(ToString::to_string)
         .collect()
@@ -835,7 +931,7 @@ mod tests {
             &launch_request,
             &model_request.request_id,
             &openai_summary,
-            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"]}"#,
+            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"statePatch":{"objective":"Keep the machine mapped."},"selfPatch":{"reason":"typed nested document"}} "#,
         )?;
 
         assert_eq!(result.job_id, "worker-job-1");
@@ -848,6 +944,14 @@ mod tests {
         assert_eq!(typed_result.verdict, "checkpoint-ready");
         assert_eq!(typed_result.files_inspected, vec!["src/lib.rs".to_string()]);
         assert_eq!(typed_result.artifact_refs, result.artifact_refs);
+        assert_eq!(
+            typed_result.state_patch()?.expect("state patch").objective,
+            Some("Keep the machine mapped.".to_string())
+        );
+        assert_eq!(
+            typed_result.self_patch()?.expect("self patch").reason,
+            Some("typed nested document".to_string())
+        );
         assert!(
             runtime_job_snapshot(&store, "worker-job-1")?
                 .expect("snapshot")
