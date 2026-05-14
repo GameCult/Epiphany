@@ -767,7 +767,10 @@ The watcher invalidation adapter has left the vendored app-server root too.
 and its snapshots around Codex's file watcher; app-server keeps only the
 host-lifecycle calls that create, snapshot, and remove watches for loaded
 threads. There is no longer a root `epiphany_invalidation.rs` module under
-vendored app-server.
+vendored app-server. The small snapshot-to-freshness adapter also lives in the
+bridge now: app-server passes `EpiphanyInvalidationSnapshot` to
+`epiphany_freshness_watcher_snapshot` instead of defining that mapping beside
+`codex_message_processor.rs`.
 
 The MCP config path is now product-quarantined. `Config::to_mcp_config` keeps
 user-declared MCP servers but no longer accepts a `PluginsManager`, folds

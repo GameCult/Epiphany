@@ -14,6 +14,8 @@ use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::oneshot;
 use tracing::warn;
 
+use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
+
 const INVALIDATION_WATCH_DEBOUNCE: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -22,6 +24,17 @@ pub struct EpiphanyInvalidationSnapshot {
     pub workspace_root: Option<AbsolutePathBuf>,
     pub observed_at_unix_seconds: Option<i64>,
     pub changed_paths: Vec<PathBuf>,
+}
+
+pub fn epiphany_freshness_watcher_snapshot(
+    snapshot: &EpiphanyInvalidationSnapshot,
+) -> EpiphanyFreshnessWatcherSnapshot<'_> {
+    EpiphanyFreshnessWatcherSnapshot {
+        available: snapshot.available,
+        workspace_root: snapshot.workspace_root.as_ref().map(|path| path.as_path()),
+        observed_at_unix_seconds: snapshot.observed_at_unix_seconds,
+        changed_paths: snapshot.changed_paths.as_slice(),
+    }
 }
 
 #[derive(Clone)]

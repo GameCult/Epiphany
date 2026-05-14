@@ -314,8 +314,7 @@ use codex_thread_store::UpdateThreadMetadataParams as StoreUpdateThreadMetadataP
 use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
-use epiphany_codex_bridge::invalidation::EpiphanyInvalidationSnapshot;
-use epiphany_codex_bridge::reorient::EpiphanyFreshnessWatcherSnapshot;
+use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::state::live_thread_epiphany_state;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -339,17 +338,6 @@ use tracing::error;
 use tracing::info;
 use tracing::warn;
 use uuid::Uuid;
-
-fn epiphany_freshness_watcher_snapshot(
-    snapshot: &EpiphanyInvalidationSnapshot,
-) -> EpiphanyFreshnessWatcherSnapshot<'_> {
-    EpiphanyFreshnessWatcherSnapshot {
-        available: snapshot.available,
-        workspace_root: snapshot.workspace_root.as_ref().map(|path| path.as_path()),
-        observed_at_unix_seconds: snapshot.observed_at_unix_seconds,
-        changed_paths: snapshot.changed_paths.as_slice(),
-    }
-}
 
 mod token_usage_replay;
 
