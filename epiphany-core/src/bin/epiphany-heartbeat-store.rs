@@ -6,7 +6,7 @@ use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatPumpOptions;
 use epiphany_core::HeartbeatTickOptions;
 use epiphany_core::VoidRoutineOptions;
-use epiphany_core::apply_agent_self_patch;
+use epiphany_core::apply_agent_self_patch_document;
 use epiphany_core::complete_heartbeat_store;
 use epiphany_core::heartbeat_status_projection;
 use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
@@ -398,8 +398,9 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             .as_str()
             .ok_or_else(|| anyhow!("idle rumination has no roleId"))?
             .to_string();
-        let patch = serde_json::Value::Object(patch.clone());
-        let applied = apply_agent_self_patch(&role_id, &patch, &temp_agent_store)?;
+        let patch = serde_json::from_value(serde_json::Value::Object(patch.clone()))
+            .context("idle rumination selfPatch is not a typed AgentSelfPatch")?;
+        let applied = apply_agent_self_patch_document(&role_id, patch, &temp_agent_store)?;
         idle["rumination"]["result"] = serde_json::to_value(applied)?;
         idle["rumination"]["applied"] = serde_json::Value::Bool(true);
         write_rumination_artifact(&artifact_dir, "smoke-idle", &idle["rumination"])?;
@@ -587,8 +588,9 @@ fn apply_rumination_patch(
         .as_str()
         .ok_or_else(|| anyhow!("rumination has no roleId"))?
         .to_string();
-    let patch = serde_json::Value::Object(patch.clone());
-    let applied = apply_agent_self_patch(&role_id, &patch, agent_store)?;
+    let patch = serde_json::from_value(serde_json::Value::Object(patch.clone()))
+        .context("rumination selfPatch is not a typed AgentSelfPatch")?;
+    let applied = apply_agent_self_patch_document(&role_id, patch, agent_store)?;
     result["rumination"]["result"] = serde_json::to_value(applied)?;
     result["rumination"]["applied"] = serde_json::Value::Bool(true);
     write_rumination_artifact(artifact_dir, schedule_id, &result["rumination"])?;

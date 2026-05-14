@@ -6,11 +6,12 @@ use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use epiphany_core::AgentCanonicalTraitSeed;
+use epiphany_core::AgentSelfPatch;
 use epiphany_core::apply_agent_canonical_trait_seeds;
-use epiphany_core::apply_agent_self_patch;
+use epiphany_core::apply_agent_self_patch_document;
 use epiphany_core::default_heartbeat_state;
 use epiphany_core::load_heartbeat_state_entry;
-use epiphany_core::review_agent_self_patch;
+use epiphany_core::review_agent_self_patch_document;
 use epiphany_core::write_heartbeat_state_entry;
 use ignore::WalkBuilder;
 use serde::Deserialize;
@@ -1414,9 +1415,9 @@ fn process_initialization_result_patches(
     let mut applied = 0usize;
     for patch in patches {
         let review = if apply_self_patches {
-            apply_agent_self_patch(&patch.role_id, &patch.self_patch, store)?
+            apply_agent_self_patch_document(&patch.role_id, patch.self_patch.clone(), store)?
         } else {
-            review_agent_self_patch(&patch.role_id, &patch.self_patch, store)
+            review_agent_self_patch_document(&patch.role_id, &patch.self_patch, store)
         };
         if review.status == "accepted" {
             accepted += 1;
@@ -2114,7 +2115,7 @@ fn number_from_map(values: &BTreeMap<String, f64>, key: &str) -> f64 {
 struct InitializationSelfPatch {
     role_id: String,
     source: String,
-    self_patch: Value,
+    self_patch: AgentSelfPatch,
 }
 
 fn extract_initialization_self_patches(
@@ -2135,13 +2136,13 @@ fn extract_trajectory_self_patches(result: &Value) -> Result<Vec<InitializationS
     };
     let mut patches = Vec::new();
     for (index, item) in items.iter().enumerate() {
-        let self_patch = item.get("selfPatch").unwrap_or(item).clone();
+        let self_patch_value = item.get("selfPatch").unwrap_or(item).clone();
         let role_id = item
             .get("roleId")
             .and_then(Value::as_str)
             .map(str::to_string)
             .or_else(|| {
-                self_patch
+                self_patch_value
                     .get("agentId")
                     .and_then(Value::as_str)
                     .and_then(role_id_for_agent_id)
@@ -2150,6 +2151,8 @@ fn extract_trajectory_self_patches(result: &Value) -> Result<Vec<InitializationS
             .ok_or_else(|| {
                 anyhow!("selfPatchCandidates[{index}] needs roleId or known selfPatch.agentId")
             })?;
+        let self_patch = serde_json::from_value(self_patch_value)
+            .with_context(|| format!("selfPatchCandidates[{index}] is not a typed selfPatch"))?;
         patches.push(InitializationSelfPatch {
             role_id,
             source: format!("selfPatchCandidates[{index}]"),
@@ -2165,13 +2168,13 @@ fn extract_personality_self_patches(result: &Value) -> Result<Vec<Initialization
     };
     let mut patches = Vec::new();
     for (index, item) in items.iter().enumerate() {
-        let self_patch = item.get("selfPatch").unwrap_or(item).clone();
+        let self_patch_value = item.get("selfPatch").unwrap_or(item).clone();
         let role_id = item
             .get("roleId")
             .and_then(Value::as_str)
             .map(str::to_string)
             .or_else(|| {
-                self_patch
+                self_patch_value
                     .get("agentId")
                     .and_then(Value::as_str)
                     .and_then(role_id_for_agent_id)
@@ -2180,6 +2183,8 @@ fn extract_personality_self_patches(result: &Value) -> Result<Vec<Initialization
             .ok_or_else(|| {
                 anyhow!("selfPatchCandidates[{index}] needs roleId or known selfPatch.agentId")
             })?;
+        let self_patch = serde_json::from_value(self_patch_value)
+            .with_context(|| format!("selfPatchCandidates[{index}] is not a typed selfPatch"))?;
         patches.push(InitializationSelfPatch {
             role_id,
             source: format!("selfPatchCandidates[{index}]"),
@@ -2195,7 +2200,7 @@ fn extract_memory_self_patches(result: &Value) -> Result<Vec<InitializationSelfP
     };
     let mut patches = Vec::new();
     for (index, item) in items.iter().enumerate() {
-        let Some(self_patch) = item.get("selfPatch").cloned() else {
+        let Some(self_patch_value) = item.get("selfPatch").cloned() else {
             continue;
         };
         let role_id = item
@@ -2203,7 +2208,7 @@ fn extract_memory_self_patches(result: &Value) -> Result<Vec<InitializationSelfP
             .and_then(Value::as_str)
             .map(str::to_string)
             .or_else(|| {
-                self_patch
+                self_patch_value
                     .get("agentId")
                     .and_then(Value::as_str)
                     .and_then(role_id_for_agent_id)
@@ -2212,6 +2217,9 @@ fn extract_memory_self_patches(result: &Value) -> Result<Vec<InitializationSelfP
             .ok_or_else(|| {
                 anyhow!("roleMemoryPatches[{index}] needs roleId or known selfPatch.agentId")
             })?;
+        let self_patch = serde_json::from_value(self_patch_value).with_context(|| {
+            format!("roleMemoryPatches[{index}].selfPatch is not a typed selfPatch")
+        })?;
         patches.push(InitializationSelfPatch {
             role_id,
             source: format!("roleMemoryPatches[{index}].selfPatch"),

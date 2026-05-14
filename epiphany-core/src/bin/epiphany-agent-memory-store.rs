@@ -1,10 +1,11 @@
 use anyhow::Context;
 use anyhow::Result;
+use epiphany_core::AgentSelfPatch;
 use epiphany_core::agent_memory_status;
-use epiphany_core::apply_agent_self_patch;
+use epiphany_core::apply_agent_self_patch_document;
 use epiphany_core::migrate_agent_memory_json_dir_to_cultcache;
 use epiphany_core::project_agent_memory_to_json_dir;
-use epiphany_core::review_agent_self_patch;
+use epiphany_core::review_agent_self_patch_document;
 use epiphany_core::validate_agent_memory_store;
 use std::env;
 use std::fs;
@@ -51,13 +52,13 @@ fn main() -> Result<()> {
             let store = require_path_arg(&mut args, "--store")?;
             let role_id = require_string_arg(&mut args, "--role-id")?;
             let patch = read_patch_arg(&require_string_arg(&mut args, "--patch")?)?;
-            print_json(&review_agent_self_patch(&role_id, &patch, store))?;
+            print_json(&review_agent_self_patch_document(&role_id, &patch, store))?;
         }
         "apply-patch" => {
             let store = require_path_arg(&mut args, "--store")?;
             let role_id = require_string_arg(&mut args, "--role-id")?;
             let patch = read_patch_arg(&require_string_arg(&mut args, "--patch")?)?;
-            let result = apply_agent_self_patch(&role_id, &patch, store)?;
+            let result = apply_agent_self_patch_document(&role_id, patch, store)?;
             let accepted = result.status == "accepted";
             print_json(&result)?;
             if !accepted {
@@ -111,15 +112,15 @@ fn optional_path_arg(
     Ok(Some(PathBuf::from(&values[1])))
 }
 
-fn read_patch_arg(value: &str) -> Result<serde_json::Value> {
+fn read_patch_arg(value: &str) -> Result<AgentSelfPatch> {
     let path = PathBuf::from(value);
     if path.exists() {
         let raw = fs::read_to_string(&path)
             .with_context(|| format!("failed to read patch {}", path.display()))?;
         return serde_json::from_str(&raw)
-            .with_context(|| format!("failed to decode patch {}", path.display()));
+            .with_context(|| format!("failed to decode typed selfPatch {}", path.display()));
     }
-    serde_json::from_str(value).context("failed to decode patch JSON")
+    serde_json::from_str(value).context("failed to decode typed selfPatch JSON")
 }
 
 fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
@@ -142,7 +143,7 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
             "errors": errors,
         }));
     }
-    let accepted_patch = serde_json::json!({
+    let accepted_patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
         "agentId": "epiphany.body",
         "reason": "The Body should remember accepted graph growth must be source-grounded and bounded.",
         "semanticMemories": [{
@@ -151,10 +152,10 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
             "salience": 0.74,
             "confidence": 0.86,
         }],
-    });
-    let accepted = review_agent_self_patch("modeling", &accepted_patch, store);
-    let wrong_role = review_agent_self_patch("verification", &accepted_patch, store);
-    let forbidden_patch = serde_json::json!({
+    }))?;
+    let accepted = review_agent_self_patch_document("modeling", &accepted_patch, store);
+    let wrong_role = review_agent_self_patch_document("verification", &accepted_patch, store);
+    let forbidden_patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
         "agentId": "epiphany.body",
         "reason": "This tries to put project state in lane memory, which should be refused.",
         "graphs": {},
@@ -164,8 +165,8 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
             "salience": 0.5,
             "confidence": 0.5,
         }],
-    });
-    let forbidden = review_agent_self_patch("modeling", &forbidden_patch, store);
+    }))?;
+    let forbidden = review_agent_self_patch_document("modeling", &forbidden_patch, store);
 
     let temp_dir = scoped_temp_dir("epiphany-agent-memory-smoke")?;
     let temp_store = temp_dir.join("agents.msgpack");
@@ -176,7 +177,7 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
             temp_store.display()
         )
     })?;
-    let applied = apply_agent_self_patch("modeling", &accepted_patch, &temp_store)?;
+    let applied = apply_agent_self_patch_document("modeling", accepted_patch, &temp_store)?;
     let temp_validation_errors = validate_agent_memory_store(&temp_store)?;
     let _ = fs::remove_dir_all(&temp_dir);
 

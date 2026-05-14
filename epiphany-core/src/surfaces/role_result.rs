@@ -452,11 +452,26 @@ pub fn review_role_self_patch(
     role_id: EpiphanyRoleResultRoleId,
     patch: &serde_json::Value,
 ) -> EpiphanyRoleSelfPersistenceReview {
+    match decode_agent_self_patch(patch) {
+        Ok(patch) => review_role_self_patch_document(role_id, &patch),
+        Err(reason) => {
+            let (expected_agent_id, target_path) = role_self_memory_target(role_id);
+            EpiphanyRoleSelfPersistenceReview {
+                status: EpiphanyRoleSelfPersistenceStatus::Rejected,
+                target_agent_id: Some(expected_agent_id.to_string()),
+                target_path: Some(target_path.to_string()),
+                reasons: vec![reason],
+            }
+        }
+    }
+}
+
+pub fn review_role_self_patch_document(
+    role_id: EpiphanyRoleResultRoleId,
+    patch: &AgentSelfPatch,
+) -> EpiphanyRoleSelfPersistenceReview {
     let (expected_agent_id, target_path) = role_self_memory_target(role_id);
-    let reasons = match decode_agent_self_patch(patch) {
-        Ok(patch) => review_agent_self_patch_contract(expected_agent_id, &patch),
-        Err(reason) => vec![reason],
-    };
+    let reasons = review_agent_self_patch_contract(expected_agent_id, patch);
 
     EpiphanyRoleSelfPersistenceReview {
         status: if reasons.is_empty() {

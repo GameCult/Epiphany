@@ -367,23 +367,13 @@ pub fn review_agent_self_patch(
     };
 
     match decode_agent_self_patch(patch_value) {
-        Ok(patch) => reasons.extend(review_agent_self_patch_contract(&target_agent_id, &patch)),
+        Ok(patch) => {
+            return review_agent_self_patch_document(role_id, &patch, store_path);
+        }
         Err(reason) => reasons.push(reason),
     }
 
-    AgentMemoryReview {
-        status: if reasons.is_empty() {
-            "accepted"
-        } else {
-            "rejected"
-        }
-        .to_string(),
-        target_agent_id,
-        target_role_id: role_id.to_string(),
-        target_store: store_path.display().to_string(),
-        reasons,
-        applied: None,
-    }
+    agent_memory_review(role_id, &target_agent_id, store_path, reasons, None)
 }
 
 pub(crate) fn decode_agent_self_patch(
@@ -394,6 +384,30 @@ pub(crate) fn decode_agent_self_patch(
     }
     serde_json::from_value(patch_value.clone())
         .map_err(|err| format!("selfPatch is not a valid AgentSelfPatch document: {err}"))
+}
+
+pub fn review_agent_self_patch_document(
+    role_id: &str,
+    patch: &AgentSelfPatch,
+    store_path: impl AsRef<Path>,
+) -> AgentMemoryReview {
+    let store_path = store_path.as_ref();
+    let target_agent_id = match agent_id_for_role(role_id) {
+        Ok(agent_id) => agent_id,
+        Err(reason) => {
+            return AgentMemoryReview {
+                status: "rejected".to_string(),
+                target_agent_id: String::new(),
+                target_role_id: role_id.to_string(),
+                target_store: store_path.display().to_string(),
+                reasons: vec![reason],
+                applied: None,
+            };
+        }
+    };
+
+    let reasons = review_agent_self_patch_contract(target_agent_id, patch);
+    agent_memory_review(role_id, target_agent_id, store_path, reasons, None)
 }
 
 pub(crate) fn review_agent_self_patch_contract(
@@ -467,13 +481,23 @@ pub fn apply_agent_self_patch(
     patch_value: &Value,
     store_path: impl AsRef<Path>,
 ) -> Result<AgentMemoryReview> {
+    let patch = match decode_agent_self_patch(patch_value) {
+        Ok(patch) => patch,
+        Err(_) => return Ok(review_agent_self_patch(role_id, patch_value, store_path)),
+    };
+    apply_agent_self_patch_document(role_id, patch, store_path)
+}
+
+pub fn apply_agent_self_patch_document(
+    role_id: &str,
+    patch: AgentSelfPatch,
+    store_path: impl AsRef<Path>,
+) -> Result<AgentMemoryReview> {
     let store_path = store_path.as_ref();
-    let mut review = review_agent_self_patch(role_id, patch_value, store_path);
+    let mut review = review_agent_self_patch_document(role_id, &patch, store_path);
     if review.status != "accepted" {
         return Ok(review);
     }
-    let patch: AgentSelfPatch = serde_json::from_value(patch_value.clone())
-        .context("failed to decode accepted selfPatch")?;
     let mut cache = agent_memory_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     let mut entry = cache
@@ -508,6 +532,28 @@ pub fn apply_agent_self_patch(
     cache.put(role_id.to_string(), &entry)?;
     review.applied = Some(true);
     Ok(review)
+}
+
+fn agent_memory_review(
+    role_id: &str,
+    target_agent_id: &str,
+    store_path: &Path,
+    reasons: Vec<String>,
+    applied: Option<bool>,
+) -> AgentMemoryReview {
+    AgentMemoryReview {
+        status: if reasons.is_empty() {
+            "accepted"
+        } else {
+            "rejected"
+        }
+        .to_string(),
+        target_agent_id: target_agent_id.to_string(),
+        target_role_id: role_id.to_string(),
+        target_store: store_path.display().to_string(),
+        reasons,
+        applied,
+    }
 }
 
 pub fn apply_agent_canonical_trait_seeds(
@@ -1244,7 +1290,7 @@ mod tests {
         migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
         assert!(validate_agent_memory_store(&store)?.is_empty());
 
-        let patch = serde_json::json!({
+        let patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
             "agentId": "epiphany.body",
             "reason": "The Body should remember accepted graph growth must stay source-grounded.",
             "semanticMemories": [{
@@ -1253,10 +1299,10 @@ mod tests {
                 "salience": 0.74,
                 "confidence": 0.86
             }]
-        });
-        let review = review_agent_self_patch("modeling", &patch, &store);
+        }))?;
+        let review = review_agent_self_patch_document("modeling", &patch, &store);
         assert_eq!(review.status, "accepted");
-        let applied = apply_agent_self_patch("modeling", &patch, &store)?;
+        let applied = apply_agent_self_patch_document("modeling", patch, &store)?;
         assert_eq!(applied.status, "accepted");
         assert_eq!(applied.applied, Some(true));
 
