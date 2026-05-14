@@ -5138,9 +5138,11 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "codex-client",
+ "codex-keyring-store",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "thiserror 2.0.18",
  "tracing",
 ]

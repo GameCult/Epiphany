@@ -781,6 +781,12 @@ bridge now: app-server passes `EpiphanyInvalidationSnapshot` to
 `epiphany_freshness_watcher_snapshot` instead of defining that mapping beside
 `codex_message_processor.rs`.
 
+Token-usage rollout projection has also left the app-server helper.
+`epiphany-codex-bridge::token_usage` owns the pure logic that finds the latest
+persisted token-usage snapshot and maps it back to the rebuilt turn owner.
+`token_usage_replay.rs` is now just the host shell: read rollout items, choose
+whether to replay, and send a connection-scoped JSON-RPC notification.
+
 The MCP config path is now product-quarantined. `Config::to_mcp_config` keeps
 user-declared MCP servers but no longer accepts a `PluginsManager`, folds
 plugin-provided MCP servers into the runtime, enables Codex apps, enables skill
