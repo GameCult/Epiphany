@@ -795,6 +795,13 @@ request. `epiphany_automation.rs` still gathers live host facts and executes
 the host side effects: submit `Op::Compact`, call `epiphany_launch_job`, and
 emit JSON-RPC state-update notifications.
 
+The native OpenAI auth spine no longer depends on the vendored
+`codex-keyring-store` wrapper. It uses the standard `keyring` crate directly
+while keeping Codex's `Codex Auth` service name and `cli|{sha256 path prefix}`
+store key so existing Codex subscription keyring entries remain readable.
+`codex-client` is now the only vendored crate intentionally kept in the native
+OpenAI request path.
+
 The MCP config path is now product-quarantined. `Config::to_mcp_config` keeps
 user-declared MCP servers but no longer accepts a `PluginsManager`, folds
 plugin-provided MCP servers into the runtime, enables Codex apps, enables skill

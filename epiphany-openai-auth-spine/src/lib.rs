@@ -10,8 +10,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use codex_client::build_reqwest_client_with_custom_ca;
 use codex_client::with_chatgpt_cloudflare_cookie_store;
-use codex_keyring_store::DefaultKeyringStore;
-use codex_keyring_store::KeyringStore;
+use keyring::Entry;
 use reqwest::StatusCode;
 use reqwest::header::HeaderMap;
 use reqwest::header::HeaderValue;
@@ -495,34 +494,32 @@ fn compute_store_key(codex_home: &Path) -> String {
 }
 
 fn load_keyring_auth_dot_json(codex_home: &Path) -> std::io::Result<Option<AuthDotJson>> {
-    let store = DefaultKeyringStore;
     let key = compute_store_key(codex_home);
-    match store.load(KEYRING_SERVICE, &key) {
-        Ok(Some(serialized)) => serde_json::from_str(&serialized).map(Some).map_err(|err| {
+    let entry = Entry::new(KEYRING_SERVICE, &key).map_err(|error| {
+        std::io::Error::other(format!("failed to open CLI auth keyring entry: {error}"))
+    })?;
+    match entry.get_password() {
+        Ok(serialized) => serde_json::from_str(&serialized).map(Some).map_err(|err| {
             std::io::Error::other(format!(
                 "failed to deserialize CLI auth from keyring: {err}"
             ))
         }),
-        Ok(None) => Ok(None),
+        Err(keyring::Error::NoEntry) => Ok(None),
         Err(error) => Err(std::io::Error::other(format!(
-            "failed to load CLI auth from keyring: {}",
-            error.message()
+            "failed to load CLI auth from keyring: {error}"
         ))),
     }
 }
 
 fn save_keyring_auth_dot_json(codex_home: &Path, auth: &AuthDotJson) -> std::io::Result<()> {
-    let store = DefaultKeyringStore;
     let key = compute_store_key(codex_home);
     let serialized = serde_json::to_string(auth).map_err(std::io::Error::other)?;
-    store
-        .save(KEYRING_SERVICE, &key, &serialized)
-        .map_err(|error| {
-            std::io::Error::other(format!(
-                "failed to write OAuth tokens to keyring: {}",
-                error.message()
-            ))
-        })?;
+    let entry = Entry::new(KEYRING_SERVICE, &key).map_err(|error| {
+        std::io::Error::other(format!("failed to open CLI auth keyring entry: {error}"))
+    })?;
+    entry.set_password(&serialized).map_err(|error| {
+        std::io::Error::other(format!("failed to write OAuth tokens to keyring: {error}"))
+    })?;
     if let Err(err) = delete_file_if_exists(codex_home) {
         warn!("failed to remove CLI auth fallback file: {err}");
     }
