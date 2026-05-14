@@ -511,11 +511,13 @@ patch projection, role patch policy reviewability, finding summaries,
 reorient acceptance scratch/checkpoint synthesis, and changed-field derivation.
 It also moved completed role/reorient runtime-result loading into
 `epiphany-codex-bridge/src/runtime_results.rs` and live-state projection into
-`epiphany-codex-bridge/src/state.rs`. `epiphany_mutation_routes.rs` is now
-about 1,271 lines and `epiphany_state_helpers.rs` is down to a 19-line
-rollout-state loader. This is a real authority cut, but not a sufficient
-carcass cut: route-level launch/accept/update/promote/interrupt orchestration
-still lives in vendored Codex.
+`epiphany-codex-bridge/src/state.rs`. `epiphany_mutation_routes.rs` was then
+about 1,271 lines and `epiphany_state_helpers.rs` was down to a 19-line
+rollout-state loader. A later cut moved that loader into
+`epiphany-codex-bridge::state` too and deleted the vendored helper module. This
+is a real authority cut, but not a sufficient carcass cut: route-level
+launch/accept/update/promote/interrupt orchestration still lives in vendored
+Codex.
 The twenty-fourth cut moved launched-job fallback projection into
 `epiphany-codex-bridge/src/jobs.rs`, so role launch and generic job launch no
 longer hand-build duplicate `ThreadEpiphanyJob` fallback structs inside

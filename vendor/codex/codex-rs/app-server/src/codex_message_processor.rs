@@ -1,11 +1,9 @@
 mod epiphany_automation;
 mod epiphany_mutation_routes;
 mod epiphany_read_routes;
-mod epiphany_state_helpers;
 
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count;
-use self::epiphany_state_helpers::load_epiphany_state_from_rollout_path;
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
 use crate::command_exec::CommandExecManager;
@@ -316,6 +314,7 @@ use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::state::live_thread_epiphany_state;
+use epiphany_codex_bridge::state::load_epiphany_state_from_rollout_path;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::io::Error as IoError;
