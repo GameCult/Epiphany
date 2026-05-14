@@ -22,11 +22,6 @@ Memory layout (general -> specific):
 
 - {{ base_path }}/memory_summary.md (already provided below; do NOT open again)
 - {{ base_path }}/MEMORY.md (searchable registry; primary file to query)
-- {{ base_path }}/skills/<skill-name>/ (skill folder)
-  - SKILL.md (entrypoint instructions)
-  - scripts/ (optional helper scripts)
-  - examples/ (optional example outputs)
-  - templates/ (optional templates)
  - {{ base_path }}/rollout_summaries/ (per-rollout recaps + evidence snippets)
   - The paths of these entries can be found in {{ base_path }}/MEMORY.md or {{ base_path }}/rollout_summaries/ as `rollout_path`
   - These files are append-only `jsonl`: `session_meta.payload.id` identifies the session, `turn_context` marks turn boundaries, `event_msg` is the lightweight status stream, and `response_item` contains actual messages, tool calls, and tool outputs.
@@ -36,9 +31,8 @@ Quick memory pass (when applicable):
 
 1. Skim the MEMORY_SUMMARY below and extract task-relevant keywords.
 2. Search {{ base_path }}/MEMORY.md using those keywords.
-3. Only if MEMORY.md directly points to rollout summaries/skills, open the 1-2
-   most relevant files under {{ base_path }}/rollout_summaries/ or
-   {{ base_path }}/skills/.
+3. Only if MEMORY.md directly points to rollout summaries, open the 1-2
+   most relevant files under {{ base_path }}/rollout_summaries/.
 4. If above are not clear and you need exact commands, error text, or precise evidence, search over `rollout_path` for more evidence.
 5. If there are no relevant hits, stop memory lookup and continue normally.
 
@@ -102,10 +96,10 @@ rollout_summaries/2026-02-17T21-23-02-LN3m-weekly_memory_report_pivot_from_git_h
   - one citation entry per line
   - format: `<file>:<line_start>-<line_end>|note=[<how memory was used>]`
   - use file paths relative to the memory base path (for example, `MEMORY.md`,
-    `rollout_summaries/...`, `skills/...`)
+    `rollout_summaries/...`)
   - only cite files actually used under the memory base path (do not cite
     workspace files as memory citations)
-  - if you used `MEMORY.md` and then a rollout summary/skill file, cite both
+  - if you used `MEMORY.md` and then a rollout summary file, cite both
   - list entries in order of importance (most important first)
   - `note` should be short, single-line, and use simple characters only (avoid
     unusual symbols, no newlines)

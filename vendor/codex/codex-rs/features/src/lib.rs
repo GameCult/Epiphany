@@ -160,10 +160,6 @@ pub enum Feature {
     ExternalMigration,
     /// Allow the model to invoke the built-in image generation tool.
     ImageGeneration,
-    /// Allow prompting and installing missing MCP dependencies.
-    SkillMcpDependencyInstall,
-    /// Prompt for missing skill env var dependencies.
-    SkillEnvVarDependencyPrompt,
     /// Steer feature flag - when enabled, Enter submits immediately instead of queuing.
     /// Kept for config backward compatibility; behavior is always steer-enabled.
     Steer,
@@ -842,18 +838,6 @@ pub const FEATURES: &[FeatureSpec] = &[
         key: "image_generation",
         stage: Stage::Stable,
         default_enabled: true,
-    },
-    FeatureSpec {
-        id: Feature::SkillMcpDependencyInstall,
-        key: "skill_mcp_dependency_install",
-        stage: Stage::Stable,
-        default_enabled: true,
-    },
-    FeatureSpec {
-        id: Feature::SkillEnvVarDependencyPrompt,
-        key: "skill_env_var_dependency_prompt",
-        stage: Stage::UnderDevelopment,
-        default_enabled: false,
     },
     FeatureSpec {
         id: Feature::Steer,

@@ -1,6 +1,6 @@
 //! Background app-server requests launched by the TUI app.
 //!
-//! This module owns fire-and-forget fetch/write helpers for MCP inventory, skills, rate
+//! This module owns fire-and-forget fetch/write helpers for MCP inventory, rate
 //! limits, add-credit nudges, and feedback uploads. Results are routed back through `AppEvent` so
 //! the main event loop remains single-threaded.
 

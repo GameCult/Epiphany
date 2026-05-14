@@ -273,7 +273,7 @@ struct AttachedImage {
 /// specific behaviors by constructing a config with those flags set to `false`.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ChatComposerConfig {
-    /// Whether command/file/skill popups are allowed to appear.
+    /// Whether command/file popups are allowed to appear.
     pub(crate) popups_enabled: bool,
     /// Whether `/...` input is parsed and dispatched as slash commands.
     pub(crate) slash_commands_enabled: bool,

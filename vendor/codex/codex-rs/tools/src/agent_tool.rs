@@ -476,7 +476,7 @@ fn create_collab_input_items_schema() -> JsonSchema {
         (
             "type".to_string(),
             JsonSchema::string(Some(
-                "Input item type: text, image, local_image, skill, or mention.".to_string(),
+                "Input item type: text, image, local_image, or mention.".to_string(),
             )),
         ),
         (
@@ -490,13 +490,13 @@ fn create_collab_input_items_schema() -> JsonSchema {
         (
             "path".to_string(),
             JsonSchema::string(Some(
-                "Path when type is local_image/skill, or structured mention target such as mcp://<server-name> when type is mention."
+                "Path when type is local_image, or structured mention target such as mcp://<server-name> when type is mention."
                     .to_string(),
             )),
         ),
         (
             "name".to_string(),
-            JsonSchema::string(Some("Display name when type is skill or mention.".to_string())),
+            JsonSchema::string(Some("Display name when type is mention.".to_string())),
         ),
     ]);
 

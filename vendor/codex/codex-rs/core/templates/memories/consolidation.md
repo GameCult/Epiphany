@@ -27,8 +27,6 @@ Folder structure (under {{ memory_root }}/):
     pointers to rollout summaries if certain past rollouts are very relevant.
 - raw_memories.md
   - Temporary file: merged raw memories from Phase 1. Input for Phase 2.
-- skills/<skill-name>/
-  - Reusable procedures. Entrypoint: SKILL.md; may include scripts/, templates/, examples/.
 - rollout_summaries/<rollout_slug>.md
   - Recap of the rollout, including lessons learned, reusable knowledge,
     pointers/references, and pruned raw evidence snippets. Distilled version of
@@ -133,13 +131,11 @@ Under `{{ memory_root }}/`:
 - `rollout_summaries/*.md`
 - `memory_summary.md`
   - read the existing summary so updates stay consistent
-- `skills/*`
-  - read existing skills so updates are incremental and non-duplicative
 {{ memory_extensions_primary_inputs }}
 Mode selection:
 
 - INIT phase: existing artifacts are missing/empty (especially `memory_summary.md`
-  and `skills/`).
+  and `MEMORY.md`).
 - INCREMENTAL UPDATE: existing artifacts already exist and `raw_memories.md`
   mostly contains new additions.
 
@@ -170,8 +166,7 @@ Incremental update and forgetting mechanism:
 Outputs:
 Under `{{ memory_root }}/`:
 A) `MEMORY.md`
-B) `skills/*` (optional)
-C) `memory_summary.md`
+B) `memory_summary.md`
 
 Rules:
 
@@ -317,9 +312,6 @@ Schema rules (strict):
     `## Failures and how to do differently`.
   - Do not hide high-value failure shields or reusable procedures inside generic summaries.
     Preserve them in their dedicated block-level subsections.
-  - If you reference skills, do it in body bullets only (for example:
-    `- Related skill: skills/<skill-name>/SKILL.md`).
-  - Use lowercase, hyphenated skill folder names.
 - E) Ordering and conflict handling
   - Order top-level `# Task Group` blocks by expected future utility, with recency as a
     strong default proxy (usually the freshest meaningful `updated_at` represented in that
@@ -534,8 +526,8 @@ For example, include (when known):
   often has to ask for repeatedly or avoid the kinds of overreach that trigger interruption.
 ## What's in Memory
 
-This is a compact index to help future agents quickly find details in `MEMORY.md`,
-`skills/`, and `rollout_summaries/`.
+This is a compact index to help future agents quickly find details in `MEMORY.md`
+and `rollout_summaries/`.
 Treat it as a routing/index layer, not a mini-handbook:
 
 - tell future agents what to search first,
@@ -631,7 +623,7 @@ Notes:
 - Do not include large snippets; push details into MEMORY.md and rollout summaries.
 - Prefer topics/keywords that help a future agent search MEMORY.md efficiently.
 - Prefer clear topic taxonomy over verbose drill-down pointers.
-- This section is primarily an index to `MEMORY.md`; mention `skills/` / `rollout_summaries/`
+- This section is primarily an index to `MEMORY.md`; mention `rollout_summaries/`
   only when they materially improve routing.
 - Separation rule: recent-topic `learnings` should emphasize topic-local recent deltas,
   caveats, and decision triggers; move cross-task, stable, broadly reusable user defaults to
@@ -648,78 +640,6 @@ Notes:
   - `desc:` lines when a raw-memory `description:` already says it well
   - `learnings:` lines when there is a concise original phrase worth preserving
 
-# ============================================================ 3) `skills/` FORMAT (optional)
-
-A skill is a reusable "slash-command" package: a directory containing a SKILL.md
-entrypoint (YAML frontmatter + instructions), plus optional supporting files.
-
-Where skills live (in this memory folder):
-skills/<skill-name>/
-SKILL.md # required entrypoint
-scripts/<tool>.\* # optional; executed, not loaded (prefer stdlib-only)
-templates/<tpl>.md # optional; filled in by the model
-examples/<example>.md # optional; expected output format / worked example
-
-What to turn into a skill (high priority):
-
-- recurring tool/workflow sequences
-- recurring failure shields with a proven fix + verification
-- recurring formatting/contracts that must be followed exactly
-- recurring "efficient first steps" that reliably reduce search/tool calls
-- Create a skill when the procedure repeats (more than once) and clearly saves time or
-  reduces errors for future agents.
-- It does not need to be broadly general; it just needs to be reusable and valuable.
-
-Skill quality rules (strict):
-
-- Merge duplicates aggressively; prefer improving an existing skill.
-- Keep scopes distinct; avoid overlapping "do-everything" skills.
-- A skill must be actionable: triggers + inputs + procedure + verification + efficiency plan.
-- Do not create a skill for one-off trivia or generic advice.
-- If you cannot write a reliable procedure (too many unknowns), do not create a skill.
-
-SKILL.md frontmatter (YAML between --- markers):
-
-- name: <skill-name> (lowercase letters, numbers, hyphens only; <= 64 chars)
-- description: 1-2 lines; include concrete triggers/cues in user-like language
-- argument-hint: optional; e.g. "[branch]" or "[path] [mode]"
-- disable-model-invocation: true for workflows with side effects (push/deploy/delete/etc.)
-- user-invocable: false for background/reference-only skills
-- allowed-tools: optional; list what the skill needs (e.g., Read, Grep, Glob, Bash)
-- context / agent / model: optional; use only when truly needed (e.g., context: fork)
-
-SKILL.md content expectations:
-
-- Use $ARGUMENTS, $ARGUMENTS[N], or $N (e.g., $0, $1) for user-provided arguments.
-- Distinguish two content types:
-  - Reference: conventions/context to apply inline (keep very short).
-  - Task: step-by-step procedure (preferred for this memory system).
-- Keep SKILL.md focused. Put long reference docs, large examples, or complex code in supporting files.
-- Keep SKILL.md under 500 lines; move detailed reference content to supporting files.
-- Always include:
-  - When to use (triggers + non-goals)
-  - Inputs / context to gather (what to check first)
-  - Procedure (numbered steps; include commands/paths when known)
-  - Efficiency plan (how to reduce tool calls/tokens; what to cache; stop rules)
-  - Pitfalls and fixes (symptom -> likely cause -> fix)
-  - Verification checklist (concrete success checks)
-
-Supporting scripts (optional but highly recommended):
-
-- Put helper scripts in scripts/ and reference them from SKILL.md (e.g.,
-  collect_context.py, verify.sh, extract_errors.py).
-- Prefer Python (stdlib only) or small shell scripts.
-- Make scripts safe by default:
-  - avoid destructive actions, or require explicit confirmation flags
-  - do not print secrets
-  - deterministic outputs when possible
-- Include a minimal usage example in SKILL.md.
-
-Supporting files (use sparingly; only when they add value):
-
-- templates/: a fill-in skeleton for the skill's output (plans, reports, checklists).
-- examples/: one or two small, high-quality example outputs showing the expected format.
-
 ============================================================
 WORKFLOW
 ============================================================
@@ -734,7 +654,6 @@ WORKFLOW
      influence clustering decisions (not just the newest chunk).
    - Build Phase 2 artifacts from scratch:
      - produce/refresh `MEMORY.md`
-     - create initial `skills/*` (optional but highly recommended)
      - write `memory_summary.md` last (highest-signal file)
    - Use your best efforts to get the most high-quality memory files
    - Do not be lazy at browsing files in INIT mode; deep-dive high-value rollouts and
@@ -767,7 +686,6 @@ WORKFLOW
      - doing light clustering and merging if needed
      - refreshing `MEMORY.md` top-of-file ordering so recent high-utility task families stay easy to find
      - rebuilding the `memory_summary.md` recent active window (last 3 memory days) from current `updated_at` coverage
-     - updating existing skills or adding new skills only when there is clear new reusable procedure
      - updating `memory_summary.md` last to reflect the final state of the memory folder
    - Minimize churn in incremental mode: if an existing `MEMORY.md` block or `## What's in Memory`
      topic still reflects the current evidence and points to the same task family / retrieval
@@ -799,23 +717,19 @@ WORKFLOW
    - For user-profile or preference claims, recurrence matters: repeated evidence across
      rollouts should generally outrank a single polished but isolated summary.
 
-5. For both modes, update `MEMORY.md` after skill updates:
-   - add clear related-skill pointers as plain bullets in the BODY of corresponding task
-     sections (do not change the `# Task Group` / `scope:` block header format)
-
-6. Housekeeping (optional):
+5. Housekeeping (optional):
    - remove clearly redundant/low-signal rollout summaries
    - if multiple summaries overlap for the same thread, keep the best one
 
-7. Final pass:
-   - remove duplication in memory_summary, skills/, and MEMORY.md
+6. Final pass:
+   - remove duplication in memory_summary and MEMORY.md
    - remove stale or low-signal blocks that are less likely to be useful in the future
    - remove or rewrite blocks/task sections whose supporting rollout references point only to
      removed thread ids or missing rollout summary files
    - run a global rollout-reference audit on final `MEMORY.md` and fix accidental duplicate
      entries / redundant repetition, while preserving intentional multi-task or multi-block
      reuse when it adds distinct task-local value
-   - ensure any referenced skills/summaries actually exist
+   - ensure any referenced summaries actually exist
    - ensure MEMORY blocks and "What's in Memory" use a consistent task-oriented taxonomy
    - ensure recent important task families are easy to find (description + keywords + topic wording)
    - remove or downgrade memory that mainly preserves exploratory discussion, assistant-only

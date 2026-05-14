@@ -180,7 +180,7 @@ fn render_debug_config_lines(stack: &ConfigLayerStack) -> Vec<Line<'static>> {
         ));
     }
 
-    // TODO(gt): Expand this debug output with detailed skills and rules display.
+    // TODO(gt): Expand this debug output with detailed rules display.
     if requirements_toml.rules.is_some() {
         requirement_lines.push(requirement_line(
             "rules",
@@ -663,7 +663,6 @@ mod tests {
                     },
                 },
             )])),
-            apps: None,
             rules: None,
             enforce_residency: Some(ResidencyRequirement::Us),
             network: None,
@@ -861,7 +860,6 @@ approval_policy = "never"
             guardian_policy_config: None,
             feature_requirements: None,
             mcp_servers: None,
-            apps: None,
             rules: None,
             enforce_residency: None,
             network: None,

@@ -12,7 +12,6 @@
 - [API Overview](#api-overview)
 - [Events](#events)
 - [Approvals](#approvals)
-- [Skills](#skills)
 - [Auth endpoints](#auth-endpoints)
 - [Experimental API Opt-in](#experimental-api-opt-in)
 
@@ -575,26 +574,6 @@ You can optionally specify config overrides on the new turn. If specified, these
 } } }
 ```
 
-### Example: Start a turn (invoke a skill)
-
-Invoke a skill explicitly by including `$<skill-name>` in the text input and adding a `skill` input item alongside it.
-
-```json
-{ "method": "turn/start", "id": 33, "params": {
-    "threadId": "thr_123",
-    "input": [
-        { "type": "text", "text": "$skill-creator Add a new skill for triaging flaky CI and include step-by-step usage." },
-        { "type": "skill", "name": "skill-creator", "path": "/Users/me/.codex/skills/skill-creator/SKILL.md" }
-    ]
-} }
-{ "id": 33, "result": { "turn": {
-    "id": "turn_457",
-    "status": "inProgress",
-    "items": [],
-    "error": null
-} } }
-```
-
 ### Example: Start a turn (invoke an MCP server)
 
 Invoke an MCP server by including a linked mention in the text input and adding a `mention` input item with the server name in `mcp://<server-name>` form.
@@ -960,7 +939,7 @@ Thread realtime uses a separate thread-scoped notification surface. `thread/real
 
 Recoverable configuration and initialization warnings use the existing `configWarning` notification: `{ summary, details?, path?, range? }`. App-server may emit it during initialization for config parsing and related setup diagnostics.
 
-Generic runtime warnings use the `warning` notification: `{ threadId?, message }`. App-server emits this for non-fatal warnings from the core event stream, including cases where not all enabled skills are included in the model-visible skills list for a session.
+Generic runtime warnings use the `warning` notification: `{ threadId?, message }`. App-server emits this for non-fatal warnings from the core event stream.
 
 ### Notification opt-out
 

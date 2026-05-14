@@ -10777,7 +10777,7 @@ const PLACEHOLDERS: [&str; 8] = [
     "Write tests for @filename",
     "Improve documentation in @filename",
     "Run /review on my current changes",
-    "Use /skills to list available skills",
+    "Use /mcp to list configured MCP tools",
 ];
 
 const SIDE_PLACEHOLDERS: [&str; 3] = [

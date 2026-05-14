@@ -776,7 +776,7 @@ impl MultiSelectPickerBuilder {
 /// # Returns
 ///
 /// * `Some((Some(indices), score))` - Matched on display name with highlight indices
-/// * `Some((None, score))` - Matched on skill name only (no highlights for display)
+/// * `Some((None, score))` - Matched on canonical name only (no highlights for display)
 /// * `None` - No match
 pub(crate) fn match_item(
     filter: &str,

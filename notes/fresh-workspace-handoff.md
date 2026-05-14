@@ -926,9 +926,18 @@ usage classification, stale skill cleanup, and AGENTS skill-append tests were
 deleted rather than preserved as compatibility incense. Verified with
 `cargo check -p codex-protocol -p codex-core`, focused core
 context/history/memory/session/file-watcher tests, and the model-visible layout
-snapshot suite. Remaining skill hits are app-server README/tests, TUI
-warnings/tooltips, agent-tool schema text, and memory consolidation/read-path
-templates.
+snapshot suite.
+
+The app-server/TUI/template skill residue is cut as well. Memory consolidation
+and read-path templates no longer create or read `skills/`; app-server README,
+protocol v1 docs, warnings, and turn-start tests no longer advertise skill
+invocation; TUI tooltips/placeholders/comments and warning tests no longer
+mention `/skills` or skill context budgets; agent-tool schema text no longer
+lists `skill` as an input item; stale `UserInput::Skill` test arms are gone;
+and `Feature::SkillMcpDependencyInstall` / `Feature::SkillEnvVarDependencyPrompt`
+plus generated config schema entries were removed. A vendored-wide search for
+product-shaped skill markers now returns nothing; only the ordinary English word
+"skill" remains in personality copy.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,

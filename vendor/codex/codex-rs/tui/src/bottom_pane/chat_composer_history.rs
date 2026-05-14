@@ -33,7 +33,7 @@ pub(crate) struct HistoryEntry {
     pub(crate) local_image_paths: Vec<PathBuf>,
     /// Remote image URLs restored with this draft.
     pub(crate) remote_image_urls: Vec<String>,
-    /// Mention bindings for tool/app/skill references inside `text`.
+    /// Mention bindings for tool or MCP references inside `text`.
     pub(crate) mention_bindings: Vec<MentionBinding>,
     /// Placeholder-to-payload pairs used to restore large paste content.
     pub(crate) pending_pastes: Vec<(String, String)>,
