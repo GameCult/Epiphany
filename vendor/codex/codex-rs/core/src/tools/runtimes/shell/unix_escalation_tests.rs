@@ -73,7 +73,6 @@ fn execve_prompt_rejection_keeps_prefix_rules_on_rules_flag() {
             AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),
@@ -90,7 +89,6 @@ fn execve_prompt_rejection_keeps_unmatched_commands_on_sandbox_flag() {
             AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: false,
                 rules: true,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),

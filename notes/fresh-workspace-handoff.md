@@ -915,10 +915,12 @@ The remaining live skill config/protocol/analytics residues are now cut too.
 `SkillScope` / `SkillMetadata` protocol structs, skill invocation analytics,
 thread skill metric constants, the skill MCP dependency installer, and the stale
 skill approval integration suite were deleted. `config.schema.json` was
-regenerated without a `skills` table. The remaining skill-shaped stumps are the
-separate granular `skill_approval` permission flag and old `<skill>` /
-`<skills_instructions>` history/snapshot compatibility surfaces; classify and
-cut those next instead of treating them as auth/model spine machinery.
+regenerated without a `skills` table. The granular `skill_approval` permission
+flag was then removed from core protocol, app-server v2 protocol, generated
+schemas, permission prompt rendering, and tests. The remaining skill-shaped
+stumps are old `<skill>` / `<skills_instructions>` history/snapshot
+compatibility surfaces; classify and cut those next instead of treating them as
+auth/model spine machinery.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,

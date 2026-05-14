@@ -162,10 +162,6 @@
                 },
                 "sandbox_approval": {
                   "type": "boolean"
-                },
-                "skill_approval": {
-                  "default": false,
-                  "type": "boolean"
                 }
               }
             }

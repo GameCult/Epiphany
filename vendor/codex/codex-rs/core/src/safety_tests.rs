@@ -121,7 +121,6 @@ fn granular_with_all_flags_true_matches_on_request_for_out_of_root_patch() {
             AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: true,
                 rules: true,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),
@@ -155,7 +154,6 @@ fn granular_sandbox_approval_false_rejects_out_of_root_patch() {
             AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: false,
                 rules: true,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),

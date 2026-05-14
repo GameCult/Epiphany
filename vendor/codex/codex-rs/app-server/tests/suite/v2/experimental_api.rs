@@ -263,7 +263,6 @@ async fn thread_start_granular_approval_policy_requires_experimental_api_capabil
             approval_policy: Some(AskForApproval::Granular {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: false,
                 request_permissions: true,
                 mcp_elicitations: false,
             }),

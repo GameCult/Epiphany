@@ -277,8 +277,6 @@ pub enum AskForApproval {
         sandbox_approval: bool,
         rules: bool,
         #[serde(default)]
-        skill_approval: bool,
-        #[serde(default)]
         request_permissions: bool,
         mcp_elicitations: bool,
     },
@@ -294,13 +292,11 @@ impl AskForApproval {
             AskForApproval::Granular {
                 sandbox_approval,
                 rules,
-                skill_approval,
                 request_permissions,
                 mcp_elicitations,
             } => CoreAskForApproval::Granular(CoreGranularApprovalConfig {
                 sandbox_approval,
                 rules,
-                skill_approval,
                 request_permissions,
                 mcp_elicitations,
             }),
@@ -318,7 +314,6 @@ impl From<CoreAskForApproval> for AskForApproval {
             CoreAskForApproval::Granular(granular_config) => AskForApproval::Granular {
                 sandbox_approval: granular_config.sandbox_approval,
                 rules: granular_config.rules,
-                skill_approval: granular_config.skill_approval,
                 request_permissions: granular_config.request_permissions,
                 mcp_elicitations: granular_config.mcp_elicitations,
             },
@@ -9570,7 +9565,6 @@ mod tests {
         let v2_policy = AskForApproval::Granular {
             sandbox_approval: true,
             rules: false,
-            skill_approval: false,
             request_permissions: true,
             mcp_elicitations: false,
         };
@@ -9581,7 +9575,6 @@ mod tests {
             CoreAskForApproval::Granular(CoreGranularApprovalConfig {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: false,
                 request_permissions: true,
                 mcp_elicitations: false,
             })
@@ -9607,7 +9600,6 @@ mod tests {
             AskForApproval::Granular {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: false,
                 request_permissions: false,
                 mcp_elicitations: true,
             }
@@ -9620,7 +9612,6 @@ mod tests {
             &AskForApproval::Granular {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: false,
                 request_permissions: false,
                 mcp_elicitations: true,
             },
@@ -9643,7 +9634,6 @@ mod tests {
             approval_policy: Some(AskForApproval::Granular {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: false,
                 request_permissions: true,
                 mcp_elicitations: false,
             }),
@@ -9672,7 +9662,6 @@ mod tests {
             approval_policy: Some(AskForApproval::Granular {
                 sandbox_approval: false,
                 rules: true,
-                skill_approval: false,
                 request_permissions: false,
                 mcp_elicitations: true,
             }),
@@ -9756,7 +9745,6 @@ mod tests {
                     approval_policy: Some(AskForApproval::Granular {
                         sandbox_approval: true,
                         rules: false,
-                        skill_approval: false,
                         request_permissions: false,
                         mcp_elicitations: true,
                     }),
@@ -9840,7 +9828,6 @@ mod tests {
                 allowed_approval_policies: Some(vec![AskForApproval::Granular {
                     sandbox_approval: true,
                     rules: true,
-                    skill_approval: false,
                     request_permissions: false,
                     mcp_elicitations: false,
                 }]),
@@ -9864,7 +9851,6 @@ mod tests {
                     approval_policy: Some(AskForApproval::Granular {
                         sandbox_approval: true,
                         rules: false,
-                        skill_approval: false,
                         request_permissions: true,
                         mcp_elicitations: false,
                     }),
@@ -9886,7 +9872,6 @@ mod tests {
                     approval_policy: Some(AskForApproval::Granular {
                         sandbox_approval: false,
                         rules: true,
-                        skill_approval: false,
                         request_permissions: false,
                         mcp_elicitations: true,
                     }),
@@ -9908,7 +9893,6 @@ mod tests {
                     approval_policy: Some(AskForApproval::Granular {
                         sandbox_approval: true,
                         rules: false,
-                        skill_approval: false,
                         request_permissions: false,
                         mcp_elicitations: true,
                     }),
@@ -9931,7 +9915,6 @@ mod tests {
                     approval_policy: Some(AskForApproval::Granular {
                         sandbox_approval: false,
                         rules: true,
-                        skill_approval: false,
                         request_permissions: false,
                         mcp_elicitations: true,
                     }),

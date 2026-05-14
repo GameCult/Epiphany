@@ -63,7 +63,6 @@ fn elicitation_granular_policy_defaults_to_prompting() {
         GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: false,
         }
@@ -77,7 +76,6 @@ fn elicitation_granular_policy_respects_never_and_config() {
         GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: false,
         }

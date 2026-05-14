@@ -263,7 +263,6 @@ fn granular_policy_lists_prompted_and_rejected_categories_separately() {
         AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: false,
             rules: true,
-            skill_approval: false,
             request_permissions: true,
             mcp_elicitations: false,
         }),
@@ -283,11 +282,7 @@ fn granular_policy_lists_prompted_and_rejected_categories_separately() {
             ),
             granular_categories_section(
                 "These approval categories are automatically rejected instead of prompting the user:",
-                &[
-                    "- `sandbox_approval`",
-                    "- `skill_approval`",
-                    "- `mcp_elicitations`",
-                ],
+                &["- `sandbox_approval`", "- `mcp_elicitations`"],
             ),
         ]
         .join("\n\n")
@@ -300,7 +295,6 @@ fn granular_policy_includes_command_permission_instructions_when_sandbox_approva
         AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: true,
         }),
@@ -313,12 +307,7 @@ fn granular_policy_includes_command_permission_instructions_when_sandbox_approva
     assert_eq!(
         text,
         granular_prompt_expected(
-            &[
-                "- `sandbox_approval`",
-                "- `rules`",
-                "- `skill_approval`",
-                "- `mcp_elicitations`",
-            ],
+            &["- `sandbox_approval`", "- `rules`", "- `mcp_elicitations`",],
             &[],
             /*include_shell_permission_request_instructions*/ true,
             /*include_request_permissions_tool_section*/ false,
@@ -332,7 +321,6 @@ fn granular_policy_omits_shell_permission_instructions_when_inline_requests_are_
         AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: true,
         }),
@@ -345,12 +333,7 @@ fn granular_policy_omits_shell_permission_instructions_when_inline_requests_are_
     assert_eq!(
         text,
         granular_prompt_expected(
-            &[
-                "- `sandbox_approval`",
-                "- `rules`",
-                "- `skill_approval`",
-                "- `mcp_elicitations`",
-            ],
+            &["- `sandbox_approval`", "- `rules`", "- `mcp_elicitations`",],
             &[],
             /*include_shell_permission_request_instructions*/ false,
             /*include_request_permissions_tool_section*/ false,
@@ -364,7 +347,6 @@ fn granular_policy_includes_request_permissions_tool_only_when_that_prompt_can_s
         AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: true,
         }),
@@ -379,7 +361,6 @@ fn granular_policy_includes_request_permissions_tool_only_when_that_prompt_can_s
         AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: false,
             mcp_elicitations: true,
         }),
@@ -397,7 +378,6 @@ fn granular_policy_lists_request_permissions_category_without_tool_section_when_
         AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: false,
             rules: false,
-            skill_approval: false,
             request_permissions: true,
             mcp_elicitations: false,
         }),

@@ -954,9 +954,6 @@ pub struct GranularApprovalConfig {
     pub sandbox_approval: bool,
     /// Whether to allow prompts triggered by execpolicy `prompt` rules.
     pub rules: bool,
-    /// Whether to allow approval prompts triggered by skill script execution.
-    #[serde(default)]
-    pub skill_approval: bool,
     /// Whether to allow prompts triggered by the `request_permissions` tool.
     #[serde(default)]
     pub request_permissions: bool,
@@ -971,10 +968,6 @@ impl GranularApprovalConfig {
 
     pub const fn allows_rules_approval(self) -> bool {
         self.rules
-    }
-
-    pub const fn allows_skill_approval(self) -> bool {
-        self.skill_approval
     }
 
     pub const fn allows_request_permissions(self) -> bool {
@@ -4225,7 +4218,6 @@ mod tests {
             GranularApprovalConfig {
                 sandbox_approval: false,
                 rules: false,
-                skill_approval: false,
                 request_permissions: false,
                 mcp_elicitations: true,
             }
@@ -4235,35 +4227,10 @@ mod tests {
             !GranularApprovalConfig {
                 sandbox_approval: false,
                 rules: false,
-                skill_approval: false,
                 request_permissions: false,
                 mcp_elicitations: false,
             }
             .allows_mcp_elicitations()
-        );
-    }
-
-    #[test]
-    fn granular_approval_config_skill_approval_flag_is_field_driven() {
-        assert!(
-            GranularApprovalConfig {
-                sandbox_approval: false,
-                rules: false,
-                skill_approval: true,
-                request_permissions: false,
-                mcp_elicitations: false,
-            }
-            .allows_skill_approval()
-        );
-        assert!(
-            !GranularApprovalConfig {
-                sandbox_approval: false,
-                rules: false,
-                skill_approval: false,
-                request_permissions: false,
-                mcp_elicitations: false,
-            }
-            .allows_skill_approval()
         );
     }
 
@@ -4273,7 +4240,6 @@ mod tests {
             GranularApprovalConfig {
                 sandbox_approval: false,
                 rules: false,
-                skill_approval: false,
                 request_permissions: true,
                 mcp_elicitations: false,
             }
@@ -4283,7 +4249,6 @@ mod tests {
             !GranularApprovalConfig {
                 sandbox_approval: false,
                 rules: false,
-                skill_approval: false,
                 request_permissions: false,
                 mcp_elicitations: false,
             }
@@ -4305,7 +4270,6 @@ mod tests {
             GranularApprovalConfig {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: false,
                 request_permissions: false,
                 mcp_elicitations: true,
             }

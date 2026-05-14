@@ -925,7 +925,6 @@ async fn routes_approval_to_guardian_allows_granular_review_policy() {
         .set(AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: true,
         }))

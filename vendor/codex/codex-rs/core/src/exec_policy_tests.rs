@@ -950,7 +950,6 @@ fn unmatched_granular_policy_still_prompts_for_restricted_sandbox_escalation() {
             AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: true,
                 rules: true,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),
@@ -1018,7 +1017,6 @@ async fn exec_approval_requirement_rejects_unmatched_sandbox_escalation_when_gra
             approval_policy: AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: false,
                 rules: true,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),
@@ -1054,7 +1052,6 @@ async fn mixed_rule_and_sandbox_prompt_prioritizes_rule_for_rejection_decision()
             approval_policy: AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: true,
                 rules: true,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),
@@ -1091,7 +1088,6 @@ async fn mixed_rule_and_sandbox_prompt_rejects_when_granular_rules_are_disabled(
             approval_policy: AskForApproval::Granular(GranularApprovalConfig {
                 sandbox_approval: true,
                 rules: false,
-                skill_approval: true,
                 request_permissions: true,
                 mcp_elicitations: true,
             }),

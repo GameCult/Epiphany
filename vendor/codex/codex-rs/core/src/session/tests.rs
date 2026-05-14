@@ -3388,7 +3388,6 @@ async fn request_permissions_emits_event_when_granular_policy_allows_requests() 
         .set(AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: true,
         }))
@@ -3464,7 +3463,6 @@ async fn request_permissions_response_materializes_session_cwd_grants_before_rec
         .set(AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: true,
             mcp_elicitations: true,
         }))
@@ -3561,7 +3559,6 @@ async fn request_permissions_is_auto_denied_when_granular_policy_blocks_tool_req
         .set(AskForApproval::Granular(GranularApprovalConfig {
             sandbox_approval: true,
             rules: true,
-            skill_approval: true,
             request_permissions: false,
             mcp_elicitations: true,
         }))

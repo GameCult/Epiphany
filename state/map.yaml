@@ -292,8 +292,10 @@ current_status:
     MCP dependency installer is gone from `codex-mcp`; and the stale skill
     approval integration suite was deleted instead of preserving a removed path
     as a test-shaped memorial. `config.schema.json` was regenerated without a
-    `skills` table. Residue remains in the separate granular
-    `skill_approval` permission flag and old `<skill>` / `<skills_instructions>`
-    history/snapshot compatibility surfaces; those are compatibility stumps to
-    classify next, not keeper auth/model-spine machinery.
+    `skills` table. The later granular `skill_approval` permission flag was
+    also removed from core protocol, app-server v2 protocol, generated schemas,
+    permission prompt rendering, and tests. Residue remains only in old
+    `<skill>` / `<skills_instructions>` history/snapshot compatibility
+    surfaces; those are compatibility stumps to classify next, not keeper
+    auth/model-spine machinery.
   next_action: Continue starving coordinator/runtime execution and operator surfaces off app-server JSON-RPC and out of `codex_message_processor.rs`; keep the vestigial Codex organ narrowed to subscription auth/model transport.
