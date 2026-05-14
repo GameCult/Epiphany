@@ -19,8 +19,11 @@ use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
 use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanySceneAction;
 use codex_app_server_protocol::ThreadEpiphanyViewCoordinator;
+use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
+use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
+use codex_protocol::protocol::TokenUsageInfo;
 use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use epiphany_core::EpiphanyCoordinatorAutomationAction as CoreEpiphanyCoordinatorAutomationAction;
 use epiphany_core::EpiphanyCoordinatorCrrcRecommendation;
@@ -55,11 +58,18 @@ use epiphany_core::select_coordinator_automation_action;
 use crate::launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
 use crate::launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 use crate::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
+use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use crate::launch::EPIPHANY_REORIENT_OWNER_ROLE;
 use crate::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
+use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::epiphany_role_label;
 use crate::launch::render_epiphany_coordinator_note;
 use crate::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
+use crate::pressure::map_epiphany_pressure;
+use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
+use crate::reorient::map_epiphany_freshness;
+use crate::reorient::map_epiphany_reorient;
+use crate::runtime_results::load_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_role_result_snapshot;
 
 use std::collections::HashSet;
@@ -373,6 +383,124 @@ pub fn select_epiphany_coordinator_automation_action(
         &map_core_coordinator_decision_from_protocol(decision),
         force_checkpoint_compaction,
     ))
+}
+
+pub struct EpiphanyCoordinatorAutomationInput<'a> {
+    pub thread_id: &'a str,
+    pub state: &'a EpiphanyThreadState,
+    pub retrieval_override: &'a EpiphanyRetrievalState,
+    pub watcher_snapshot: EpiphanyFreshnessWatcherSnapshot<'a>,
+    pub token_usage_info: Option<&'a TokenUsageInfo>,
+    pub runtime_store_path: &'a Path,
+    pub force_checkpoint_compaction: bool,
+}
+
+pub struct EpiphanyCoordinatorAutomationVerdict {
+    pub action: EpiphanyCoordinatorAutomationAction,
+    pub launch_request: Option<EpiphanyJobLaunchRequest>,
+}
+
+pub async fn select_epiphany_coordinator_automation(
+    input: EpiphanyCoordinatorAutomationInput<'_>,
+) -> EpiphanyCoordinatorAutomationVerdict {
+    let (_state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+        Some(input.state),
+        Some(input.retrieval_override),
+        Some(input.watcher_snapshot),
+    );
+    let pressure = map_epiphany_pressure(input.token_usage_info);
+    let (state_status, reorient_decision) =
+        map_epiphany_reorient(Some(input.state), &pressure, &retrieval, &graph, &watcher);
+    if state_status != ThreadEpiphanyReorientStateStatus::Ready {
+        return EpiphanyCoordinatorAutomationVerdict {
+            action: EpiphanyCoordinatorAutomationAction::None,
+            launch_request: None,
+        };
+    }
+
+    let jobs = crate::jobs::map_epiphany_jobs(Some(input.state), Some(input.retrieval_override));
+    let reorient_job = jobs
+        .iter()
+        .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
+        .cloned();
+    let (reorient_result_status, reorient_finding, _) = load_epiphany_reorient_result_snapshot(
+        Some(input.state),
+        Some(input.runtime_store_path),
+        EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+    )
+    .await;
+    let reorient_finding_accepted = reorient_finding
+        .as_ref()
+        .is_some_and(|finding| epiphany_reorient_finding_already_accepted(input.state, finding));
+    let crrc_recommendation = map_epiphany_crrc_recommendation(
+        true,
+        state_status,
+        &pressure,
+        &reorient_decision,
+        reorient_result_status,
+        input.state.investigation_checkpoint.as_ref().is_some(),
+        reorient_finding.is_some(),
+        reorient_finding_accepted,
+    );
+    let roles = map_epiphany_roles(
+        Some(input.state),
+        &jobs,
+        &reorient_decision,
+        &pressure,
+        &crrc_recommendation,
+        reorient_result_status,
+        reorient_job.as_ref(),
+    );
+    let coordinator = derive_epiphany_coordinator_status(
+        Some(input.state),
+        Some(input.runtime_store_path),
+        state_status,
+        &pressure,
+        &crrc_recommendation,
+        roles,
+        Some(&reorient_decision),
+        reorient_result_status,
+        reorient_finding.as_ref(),
+        input.state.investigation_checkpoint.as_ref().is_some(),
+    )
+    .await;
+
+    let action = select_epiphany_coordinator_automation_action(
+        &coordinator.decision,
+        input.force_checkpoint_compaction,
+    );
+    let launch_request = match action {
+        EpiphanyCoordinatorAutomationAction::LaunchReorientWorker => input
+            .state
+            .investigation_checkpoint
+            .as_ref()
+            .map(|checkpoint| {
+                build_epiphany_reorient_launch_request(
+                    input.thread_id,
+                    Some(input.state.revision),
+                    None,
+                    input.state,
+                    checkpoint,
+                    &reorient_decision,
+                )
+            }),
+        EpiphanyCoordinatorAutomationAction::None
+        | EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient => None,
+    };
+    let action = if matches!(
+        action,
+        EpiphanyCoordinatorAutomationAction::LaunchReorientWorker
+    ) && launch_request.is_none()
+    {
+        EpiphanyCoordinatorAutomationAction::None
+    } else {
+        action
+    };
+
+    EpiphanyCoordinatorAutomationVerdict {
+        action,
+        launch_request,
+    }
 }
 
 pub fn map_epiphany_coordinator(

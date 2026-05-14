@@ -787,6 +787,14 @@ persisted token-usage snapshot and maps it back to the rebuilt turn owner.
 `token_usage_replay.rs` is now just the host shell: read rollout items, choose
 whether to replay, and send a connection-scoped JSON-RPC notification.
 
+Safe-boundary coordinator automation decision composition has followed.
+`epiphany-codex-bridge::coordinator::select_epiphany_coordinator_automation`
+now owns the freshness/pressure/reorient/jobs/CRRC/roles/coordinator
+composition and returns either no action, compact, or a typed reorient launch
+request. `epiphany_automation.rs` still gathers live host facts and executes
+the host side effects: submit `Op::Compact`, call `epiphany_launch_job`, and
+emit JSON-RPC state-update notifications.
+
 The MCP config path is now product-quarantined. `Config::to_mcp_config` keeps
 user-declared MCP servers but no longer accepts a `PluginsManager`, folds
 plugin-provided MCP servers into the runtime, enables Codex apps, enables skill
