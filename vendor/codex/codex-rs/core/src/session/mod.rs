@@ -187,7 +187,6 @@ pub(crate) use self::session::SessionSettingsUpdate;
 use self::turn::AssistantMessageStreamParsers;
 use self::turn::realtime_text_for_event;
 use self::turn_context::TurnContext;
-use self::turn_context::TurnSkillsContext;
 #[cfg(test)]
 mod rollout_reconstruction_tests;
 
@@ -242,8 +241,6 @@ pub(crate) struct PreviousTurnSettings {
     pub(crate) realtime_active: Option<bool>,
 }
 
-use crate::SkillLoadOutcome;
-use crate::SkillsManager;
 use crate::agents_md::AgentsMdManager;
 use crate::context::UserInstructions;
 use crate::exec_policy::ExecPolicyUpdateError;
@@ -259,7 +256,6 @@ use crate::rollout::policy::EventPersistenceMode;
 use crate::session_startup_prewarm::SessionStartupPrewarmHandle;
 use crate::shell;
 use crate::shell_snapshot::ShellSnapshot;
-use crate::skills_watcher::SkillsWatcher;
 use crate::state::ActiveTurn;
 use crate::state::MailboxDeliveryPhase;
 use crate::state::PendingRequestPermissions;
@@ -364,9 +360,7 @@ pub(crate) struct CodexSpawnArgs {
     pub(crate) auth_manager: Arc<AuthManager>,
     pub(crate) models_manager: Arc<ModelsManager>,
     pub(crate) environment_manager: Arc<EnvironmentManager>,
-    pub(crate) skills_manager: Arc<SkillsManager>,
     pub(crate) mcp_manager: Arc<McpManager>,
-    pub(crate) skills_watcher: Arc<SkillsWatcher>,
     pub(crate) conversation_history: InitialHistory,
     pub(crate) session_source: SessionSource,
     pub(crate) agent_control: AgentControl,
@@ -419,9 +413,7 @@ impl Codex {
             auth_manager,
             models_manager,
             environment_manager,
-            skills_manager,
             mcp_manager,
-            skills_watcher,
             conversation_history,
             session_source,
             agent_control,
@@ -604,9 +596,7 @@ impl Codex {
             agent_status_tx.clone(),
             conversation_history,
             session_source_clone,
-            skills_manager,
             mcp_manager.clone(),
-            skills_watcher,
             agent_control,
             environment_manager,
             analytics_events_client,

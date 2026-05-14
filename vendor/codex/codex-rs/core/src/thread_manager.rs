@@ -1,4 +1,3 @@
-use crate::SkillsManager;
 use crate::agent::AgentControl;
 use crate::codex_thread::CodexThread;
 use crate::config::Config;
@@ -10,7 +9,6 @@ use crate::session::CodexSpawnArgs;
 use crate::session::CodexSpawnOk;
 use crate::session::INITIAL_SUBMIT_ID;
 use crate::shell_snapshot::ShellSnapshot;
-use crate::skills_watcher::SkillsWatcher;
 use crate::tasks::interrupted_turn_history_marker;
 use codex_analytics::AnalyticsEventsClient;
 use codex_app_server_protocol::ThreadHistoryBuilder;
@@ -42,7 +40,6 @@ use codex_protocol::protocol::TurnAbortReason;
 use codex_protocol::protocol::TurnAbortedEvent;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_state::DirectionalThreadSpawnEdgeStatus;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use std::collections::HashMap;
@@ -83,10 +80,6 @@ impl Drop for TempCodexHomeGuard {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.path);
     }
-}
-
-fn build_skills_watcher(_skills_manager: Arc<SkillsManager>) -> Arc<SkillsWatcher> {
-    Arc::new(SkillsWatcher::noop())
 }
 
 /// Represents a newly created Codex thread (formerly called a conversation), including the first event
@@ -165,9 +158,7 @@ pub(crate) struct ThreadManagerState {
     auth_manager: Arc<AuthManager>,
     models_manager: Arc<ModelsManager>,
     environment_manager: Arc<EnvironmentManager>,
-    skills_manager: Arc<SkillsManager>,
     mcp_manager: Arc<McpManager>,
-    skills_watcher: Arc<SkillsWatcher>,
     session_source: SessionSource,
     analytics_events_client: Option<AnalyticsEventsClient>,
     // Captures submitted ops for testing purpose when test mode is enabled.
@@ -203,16 +194,8 @@ impl ThreadManager {
         environment_manager: Arc<EnvironmentManager>,
         analytics_events_client: Option<AnalyticsEventsClient>,
     ) -> Self {
-        let codex_home = config.codex_home.clone();
-        let restriction_product = session_source.restriction_product();
         let (thread_created_tx, _) = broadcast::channel(THREAD_CREATED_CHANNEL_CAPACITY);
         let mcp_manager = Arc::new(McpManager::new());
-        let skills_manager = Arc::new(SkillsManager::new_with_restriction_product(
-            codex_home,
-            config.bundled_skills_enabled(),
-            restriction_product,
-        ));
-        let skills_watcher = build_skills_watcher(Arc::clone(&skills_manager));
         Self {
             state: Arc::new(ThreadManagerState {
                 threads: Arc::new(RwLock::new(HashMap::new())),
@@ -223,9 +206,7 @@ impl ThreadManager {
                     collaboration_modes_config,
                 ),
                 environment_manager,
-                skills_manager,
                 mcp_manager,
-                skills_watcher,
                 auth_manager,
                 session_source,
                 analytics_events_client,
@@ -269,19 +250,8 @@ impl ThreadManager {
     ) -> Self {
         set_thread_manager_test_mode_for_tests(/*enabled*/ true);
         let auth_manager = AuthManager::from_auth_for_testing(auth);
-        let skills_codex_home = match AbsolutePathBuf::from_absolute_path_checked(&codex_home) {
-            Ok(codex_home) => codex_home,
-            Err(err) => panic!("test codex_home should be absolute: {err}"),
-        };
         let (thread_created_tx, _) = broadcast::channel(THREAD_CREATED_CHANNEL_CAPACITY);
-        let restriction_product = SessionSource::Exec.restriction_product();
         let mcp_manager = Arc::new(McpManager::new());
-        let skills_manager = Arc::new(SkillsManager::new_with_restriction_product(
-            skills_codex_home,
-            /*bundled_skills_enabled*/ true,
-            restriction_product,
-        ));
-        let skills_watcher = build_skills_watcher(Arc::clone(&skills_manager));
         Self {
             state: Arc::new(ThreadManagerState {
                 threads: Arc::new(RwLock::new(HashMap::new())),
@@ -292,9 +262,7 @@ impl ThreadManager {
                     provider,
                 )),
                 environment_manager,
-                skills_manager,
                 mcp_manager,
-                skills_watcher,
                 auth_manager,
                 session_source: SessionSource::Exec,
                 analytics_events_client: None,
@@ -311,10 +279,6 @@ impl ThreadManager {
 
     pub fn auth_manager(&self) -> Arc<AuthManager> {
         self.state.auth_manager.clone()
-    }
-
-    pub fn skills_manager(&self) -> Arc<SkillsManager> {
-        self.state.skills_manager.clone()
     }
 
     pub fn mcp_manager(&self) -> Arc<McpManager> {
@@ -871,9 +835,7 @@ impl ThreadManagerState {
             auth_manager,
             models_manager: Arc::clone(&self.models_manager),
             environment_manager: Arc::clone(&self.environment_manager),
-            skills_manager: Arc::clone(&self.skills_manager),
             mcp_manager: Arc::clone(&self.mcp_manager),
-            skills_watcher: Arc::clone(&self.skills_watcher),
             conversation_history: initial_history,
             session_source,
             agent_control,

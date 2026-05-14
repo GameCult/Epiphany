@@ -1,5 +1,3 @@
-use codex_core_skills::injection::SkillInjection;
-
 use super::ContextualUserFragment;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -7,16 +5,6 @@ pub(crate) struct SkillInstructions {
     pub(crate) name: String,
     pub(crate) path: String,
     pub(crate) contents: String,
-}
-
-impl From<&SkillInjection> for SkillInstructions {
-    fn from(skill: &SkillInjection) -> Self {
-        Self {
-            name: skill.name.clone(),
-            path: skill.path.clone(),
-            contents: skill.contents.clone(),
-        }
-    }
 }
 
 impl ContextualUserFragment for SkillInstructions {

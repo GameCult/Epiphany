@@ -737,21 +737,14 @@ async fn guardian_subagent_does_not_inherit_parent_exec_policy_rules() {
         /*model_catalog*/ None,
         CollaborationModesConfig::default(),
     ));
-    let skills_manager = Arc::new(SkillsManager::new(
-        config.codex_home.clone(),
-        /*bundled_skills_enabled*/ true,
-    ));
     let mcp_manager = Arc::new(McpManager::new());
-    let skills_watcher = Arc::new(SkillsWatcher::noop());
 
     let CodexSpawnOk { codex, .. } = Codex::spawn(CodexSpawnArgs {
         config,
         auth_manager,
         models_manager,
         environment_manager: Arc::new(EnvironmentManager::default_for_tests()),
-        skills_manager,
         mcp_manager,
-        skills_watcher,
         conversation_history: InitialHistory::New,
         session_source: SessionSource::SubAgent(SubAgentSource::Other(
             GUARDIAN_REVIEWER_NAME.to_string(),

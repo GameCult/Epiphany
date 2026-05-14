@@ -902,9 +902,13 @@ than repaired into new compatibility lies.
 The live skill mention channel is also gone. `UserInput::Skill`, the app-server
 schema branch, TUI skill popup, `skills_all` cache, composer skill mention API,
 skill insertion path, `skill://` / `SKILL.md` history decoding, and stale skill
-popup snapshot were deleted. Live structured user-input mentions are MCP-shaped
-only; MCP remains JSON-RPC at its protocol edge, not a reason to keep Codex
-skills alive inside the organ.
+popup snapshot were deleted. The deeper `codex-core-skills` crate is now deleted
+from the workspace too, along with the core `skills` re-export shim, no-op
+`skills_watcher`, session `SkillsManager` service, and per-turn
+`TurnSkillsContext`; core keeps only a local legacy `<skill>` fragment recognizer
+for old history classification. Live structured user-input mentions are
+MCP-shaped only; MCP remains JSON-RPC at its protocol edge, not a reason to keep
+Codex skills alive inside the organ.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,

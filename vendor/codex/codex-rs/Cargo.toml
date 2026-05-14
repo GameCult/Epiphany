@@ -29,7 +29,6 @@ members = [
     "shell-command",
     "shell-escalation",
     "core",
-    "core-skills",
     "hooks",
     "secrets",
     "exec",
@@ -129,7 +128,6 @@ codex-cloud-tasks-mock-client = { path = "cloud-tasks-mock-client" }
 codex-code-mode = { path = "code-mode" }
 codex-config = { path = "config" }
 codex-core = { path = "core" }
-codex-core-skills = { path = "core-skills" }
 codex-device-key = { path = "device-key" }
 codex-exec = { path = "exec" }
 codex-exec-server = { path = "exec-server" }

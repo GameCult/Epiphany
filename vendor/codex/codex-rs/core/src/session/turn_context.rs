@@ -12,17 +12,6 @@ pub(super) fn image_generation_tool_auth_allowed(auth_manager: Option<&AuthManag
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct TurnSkillsContext {
-    pub(crate) outcome: Arc<SkillLoadOutcome>,
-}
-
-impl TurnSkillsContext {
-    pub(crate) fn new(outcome: Arc<SkillLoadOutcome>) -> Self {
-        Self { outcome }
-    }
-}
-
-#[derive(Clone, Debug)]
 pub(crate) struct TurnEnvironment {
     #[allow(dead_code)]
     pub(crate) environment_id: String,
@@ -76,7 +65,6 @@ pub(crate) struct TurnContext {
     pub(crate) js_repl: Arc<JsReplHandle>,
     pub(crate) dynamic_tools: Vec<DynamicToolSpec>,
     pub(crate) turn_metadata_state: Arc<TurnMetadataState>,
-    pub(crate) turn_skills: TurnSkillsContext,
     pub(crate) turn_timing_state: Arc<TurnTimingState>,
 }
 impl TurnContext {
@@ -204,7 +192,6 @@ impl TurnContext {
             js_repl: Arc::clone(&self.js_repl),
             dynamic_tools: self.dynamic_tools.clone(),
             turn_metadata_state: self.turn_metadata_state.clone(),
-            turn_skills: self.turn_skills.clone(),
             turn_timing_state: Arc::clone(&self.turn_timing_state),
         }
     }
@@ -365,7 +352,6 @@ impl Session {
         cwd: AbsolutePathBuf,
         sub_id: String,
         js_repl: Arc<JsReplHandle>,
-        skills_outcome: Arc<SkillLoadOutcome>,
     ) -> TurnContext {
         let reasoning_effort = session_configuration.collaboration_mode.reasoning_effort();
         let reasoning_summary = session_configuration
@@ -457,7 +443,6 @@ impl Session {
             js_repl,
             dynamic_tools: session_configuration.dynamic_tools.clone(),
             turn_metadata_state,
-            turn_skills: TurnSkillsContext::new(skills_outcome),
             turn_timing_state: Arc::new(TurnTimingState::default()),
         }
     }
@@ -614,7 +599,6 @@ impl Session {
                 &per_turn_config.to_models_manager_config(),
             )
             .await;
-        let skills_outcome = Arc::new(SkillLoadOutcome::default());
         let mut turn_context: TurnContext = Self::make_turn_context(
             self.conversation_id,
             Some(Arc::clone(&self.services.auth_manager)),
@@ -641,7 +625,6 @@ impl Session {
             cwd,
             sub_id,
             Arc::clone(&self.js_repl),
-            skills_outcome,
         );
         turn_context.realtime_active = self.conversation.running_state().await.is_some();
 

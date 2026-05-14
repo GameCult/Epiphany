@@ -1210,7 +1210,6 @@ mod tests {
     use crate::test_support::PathBufExt;
     use crate::test_support::test_path_buf;
     use codex_protocol::protocol::Op;
-    use codex_protocol::protocol::SkillScope;
     use crossterm::event::KeyCode;
     use crossterm::event::KeyEvent;
     use crossterm::event::KeyEventKind;

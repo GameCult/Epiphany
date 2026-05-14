@@ -14,13 +14,8 @@ use crate::context::TurnAborted;
 use crate::exec::ExecCapturePolicy;
 use crate::function_tool::FunctionCallError;
 use crate::shell::default_user_shell;
-use crate::skills::SkillRenderSideEffects;
-use crate::skills::build_available_skills;
-use crate::skills::render::SkillMetadataBudget;
 use crate::tools::format_exec_output_str;
 
-use codex_core_skills::SkillMetadata;
-use codex_core_skills::SkillsLoadInput;
 use codex_features::Feature;
 use codex_features::Features;
 use codex_login::CodexAuth;
@@ -68,12 +63,6 @@ use codex_execpolicy::Decision;
 use codex_execpolicy::NetworkRuleProtocol;
 use codex_execpolicy::Policy;
 use codex_network_proxy::NetworkProxyConfig;
-use codex_otel::MetricsClient;
-use codex_otel::MetricsConfig;
-use codex_otel::THREAD_SKILLS_DESCRIPTION_TRUNCATED_CHARS_METRIC;
-use codex_otel::THREAD_SKILLS_ENABLED_TOTAL_METRIC;
-use codex_otel::THREAD_SKILLS_KEPT_TOTAL_METRIC;
-use codex_otel::THREAD_SKILLS_TRUNCATED_METRIC;
 use codex_otel::TelemetryAuthMode;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::ModeKind;
@@ -116,7 +105,6 @@ use codex_protocol::protocol::RealtimeVoice;
 use codex_protocol::protocol::RealtimeVoicesList;
 use codex_protocol::protocol::ResumedHistory;
 use codex_protocol::protocol::RolloutItem;
-use codex_protocol::protocol::SkillScope;
 use codex_protocol::protocol::Submission;
 use codex_protocol::protocol::ThreadRolledBackEvent;
 use codex_protocol::protocol::TokenCountEvent;
@@ -138,16 +126,10 @@ use core_test_support::responses::mount_sse_once;
 use core_test_support::responses::sse;
 use core_test_support::responses::start_mock_server;
 use core_test_support::test_codex::test_codex;
-use core_test_support::test_path_buf;
 use core_test_support::tracing::install_test_tracing;
 use core_test_support::wait_for_event;
 use opentelemetry::trace::TraceContextExt;
 use opentelemetry::trace::TraceId;
-use opentelemetry_sdk::metrics::InMemoryMetricExporter;
-use opentelemetry_sdk::metrics::data::AggregatedMetrics;
-use opentelemetry_sdk::metrics::data::Metric;
-use opentelemetry_sdk::metrics::data::MetricData;
-use opentelemetry_sdk::metrics::data::ResourceMetrics;
 use std::path::Path;
 use std::time::Duration;
 use tokio::sync::Semaphore;
@@ -165,18 +147,6 @@ use std::sync::Arc;
 use std::time::Duration as StdDuration;
 
 mod guardian_tests;
-
-fn skills_load_input_from_config(
-    config: &Config,
-    effective_skill_roots: Vec<codex_utils_absolute_path::AbsolutePathBuf>,
-) -> SkillsLoadInput {
-    SkillsLoadInput::new(
-        config.cwd.clone(),
-        effective_skill_roots,
-        config.config_layer_stack.clone(),
-        config.bundled_skills_enabled(),
-    )
-}
 
 fn sample_epiphany_state_for_persistence() -> EpiphanyThreadState {
     EpiphanyThreadState {
@@ -465,54 +435,6 @@ fn assistant_message(text: &str) -> ResponseItem {
         }],
         end_turn: None,
         phase: None,
-    }
-}
-
-fn test_session_telemetry_without_metadata() -> SessionTelemetry {
-    let exporter = InMemoryMetricExporter::default();
-    let metrics = MetricsClient::new(
-        MetricsConfig::in_memory("test", "codex-core", env!("CARGO_PKG_VERSION"), exporter)
-            .with_runtime_reader(),
-    )
-    .expect("in-memory metrics client");
-    SessionTelemetry::new(
-        ThreadId::new(),
-        "gpt-5.4",
-        "gpt-5.4",
-        /*account_id*/ None,
-        /*account_email*/ None,
-        /*auth_mode*/ None,
-        "test_originator".to_string(),
-        /*log_user_prompts*/ false,
-        "tty".to_string(),
-        SessionSource::Cli,
-    )
-    .with_metrics_without_metadata_tags(metrics)
-}
-
-fn find_metric<'a>(resource_metrics: &'a ResourceMetrics, name: &str) -> &'a Metric {
-    for scope_metrics in resource_metrics.scope_metrics() {
-        for metric in scope_metrics.metrics() {
-            if metric.name() == name {
-                return metric;
-            }
-        }
-    }
-    panic!("metric {name} missing");
-}
-
-fn histogram_sum(resource_metrics: &ResourceMetrics, name: &str) -> u64 {
-    let metric = find_metric(resource_metrics, name);
-    match metric.data() {
-        AggregatedMetrics::F64(data) => match data {
-            MetricData::Histogram(histogram) => {
-                let points: Vec<_> = histogram.data_points().collect();
-                assert_eq!(points.len(), 1);
-                points[0].sum().round() as u64
-            }
-            _ => panic!("unexpected histogram aggregation"),
-        },
-        _ => panic!("unexpected metric data type"),
     }
 }
 
@@ -2891,92 +2813,6 @@ async fn session_configuration_apply_permission_profile_preserves_existing_deny_
     );
 }
 
-#[cfg_attr(windows, ignore)]
-#[tokio::test]
-async fn new_default_turn_uses_config_aware_skills_for_role_overrides() {
-    let (session, _turn_context) = make_session_and_context().await;
-    let parent_config = session.get_config().await;
-    let codex_home = parent_config.codex_home.clone();
-    let skill_dir = codex_home.join("skills").join("demo");
-    std::fs::create_dir_all(&skill_dir).expect("create skill dir");
-    let skill_path = skill_dir.join("SKILL.md");
-    std::fs::write(
-        &skill_path,
-        "---\nname: demo-skill\ndescription: demo description\n---\n\n# Body\n",
-    )
-    .expect("write skill");
-
-    let skill_fs = session
-        .services
-        .environment_manager
-        .default_environment()
-        .map(|environment| environment.get_filesystem())
-        .unwrap_or_else(|| std::sync::Arc::clone(&codex_exec_server::LOCAL_FS));
-    let parent_outcome = session
-        .services
-        .skills_manager
-        .skills_for_cwd(
-            &skills_load_input_from_config(&parent_config, Vec::new()),
-            /*force_reload*/ true,
-            Some(Arc::clone(&skill_fs)),
-        )
-        .await;
-    let parent_skill = parent_outcome
-        .skills
-        .iter()
-        .find(|skill| skill.name == "demo-skill")
-        .expect("demo skill should be discovered");
-    assert_eq!(parent_outcome.is_skill_enabled(parent_skill), true);
-
-    let role_path = codex_home.join("skills-role.toml");
-    std::fs::write(
-        &role_path,
-        format!(
-            r#"developer_instructions = "Stay focused"
-
-[[skills.config]]
-path = "{}"
-enabled = false
-"#,
-            skill_path.display()
-        ),
-    )
-    .expect("write role config");
-
-    let mut child_config = (*parent_config).clone();
-    child_config.agent_roles.insert(
-        "custom".to_string(),
-        crate::config::AgentRoleConfig {
-            description: None,
-            config_file: Some(role_path.to_path_buf()),
-            nickname_candidates: None,
-        },
-    );
-    crate::agent::role::apply_role_to_config(&mut child_config, Some("custom"))
-        .await
-        .expect("custom role should apply");
-
-    {
-        let mut state = session.state.lock().await;
-        state.session_configuration.original_config_do_not_use = Arc::new(child_config);
-    }
-
-    let child_turn = session
-        .new_default_turn_with_sub_id("role-skill-turn".to_string())
-        .await;
-    let child_skill = child_turn
-        .turn_skills
-        .outcome
-        .skills
-        .iter()
-        .find(|skill| skill.name == "demo-skill")
-        .expect("demo skill should be discovered");
-    assert_eq!(
-        child_turn.turn_skills.outcome.is_skill_enabled(child_skill),
-        false
-    );
-}
-
 #[tokio::test]
 async fn session_configuration_apply_rederives_legacy_file_system_policy_on_cwd_update() {
     let mut session_configuration = make_session_configuration_for_tests().await;
@@ -3115,10 +2951,6 @@ async fn session_new_fails_when_zsh_fork_enabled_without_zsh_path() {
     let (tx_event, _rx_event) = async_channel::unbounded();
     let (agent_status_tx, _agent_status_rx) = watch::channel(AgentStatus::PendingInit);
     let mcp_manager = Arc::new(McpManager::new());
-    let skills_manager = Arc::new(SkillsManager::new(
-        config.codex_home.clone(),
-        /*bundled_skills_enabled*/ true,
-    ));
     let result = Session::new(
         session_configuration,
         Arc::clone(&config),
@@ -3129,9 +2961,7 @@ async fn session_new_fails_when_zsh_fork_enabled_without_zsh_path() {
         agent_status_tx,
         InitialHistory::New,
         SessionSource::Exec,
-        skills_manager,
         mcp_manager,
-        Arc::new(SkillsWatcher::noop()),
         AgentControl::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
         /*analytics_events_client*/ None,
@@ -3225,17 +3055,11 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
 
     let state = SessionState::new(session_configuration.clone());
     let mcp_manager = Arc::new(McpManager::new());
-    let skills_manager = Arc::new(SkillsManager::new(
-        config.codex_home.clone(),
-        /*bundled_skills_enabled*/ true,
-    ));
     let network_approval = Arc::new(NetworkApprovalService::default());
     let environment = Arc::new(
         codex_exec_server::Environment::create_for_tests(/*exec_server_url*/ None)
             .expect("create environment"),
     );
-
-    let skills_watcher = Arc::new(SkillsWatcher::noop());
     let services = SessionServices {
         mcp_connection_manager: Arc::new(RwLock::new(McpConnectionManager::new_uninitialized(
             &config.permissions.approval_policy,
@@ -3269,9 +3093,7 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         guardian_rejections: Mutex::new(std::collections::HashMap::new()),
         guardian_rejection_circuit_breaker: Mutex::new(Default::default()),
         runtime_handle: tokio::runtime::Handle::current(),
-        skills_manager,
         mcp_manager,
-        skills_watcher,
         agent_control,
         network_proxy: None,
         network_approval: Arc::clone(&network_approval),
@@ -3299,15 +3121,6 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         config.js_repl_node_path.clone(),
         config.js_repl_node_module_dirs.clone(),
     ));
-
-    let skills_input = skills_load_input_from_config(&per_turn_config, Vec::new());
-    let skill_fs = environment.get_filesystem();
-    let skills_outcome = Arc::new(
-        services
-            .skills_manager
-            .skills_for_config(&skills_input, Some(Arc::clone(&skill_fs)))
-            .await,
-    );
     let turn_context = Session::make_turn_context(
         conversation_id,
         Some(Arc::clone(&auth_manager)),
@@ -3326,7 +3139,6 @@ pub(crate) async fn make_session_and_context() -> (Session, TurnContext) {
         session_configuration.cwd.clone(),
         "turn_id".to_string(),
         Arc::clone(&js_repl),
-        skills_outcome,
     );
 
     let (mailbox, mailbox_rx) = crate::agent::Mailbox::new();
@@ -3423,10 +3235,6 @@ async fn make_session_with_config_and_rx(
     let (tx_event, rx_event) = async_channel::unbounded();
     let (agent_status_tx, _agent_status_rx) = watch::channel(AgentStatus::PendingInit);
     let mcp_manager = Arc::new(McpManager::new());
-    let skills_manager = Arc::new(SkillsManager::new(
-        config.codex_home.clone(),
-        /*bundled_skills_enabled*/ true,
-    ));
 
     let session = Session::new(
         session_configuration,
@@ -3438,9 +3246,7 @@ async fn make_session_with_config_and_rx(
         agent_status_tx,
         InitialHistory::New,
         SessionSource::Exec,
-        skills_manager,
         mcp_manager,
-        Arc::new(SkillsWatcher::noop()),
         AgentControl::default(),
         Arc::new(codex_exec_server::EnvironmentManager::default_for_tests()),
         /*analytics_events_client*/ None,
@@ -4527,17 +4333,11 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
 
     let state = SessionState::new(session_configuration.clone());
     let mcp_manager = Arc::new(McpManager::new());
-    let skills_manager = Arc::new(SkillsManager::new(
-        config.codex_home.clone(),
-        /*bundled_skills_enabled*/ true,
-    ));
     let network_approval = Arc::new(NetworkApprovalService::default());
     let environment = Arc::new(
         codex_exec_server::Environment::create_for_tests(/*exec_server_url*/ None)
             .expect("create environment"),
     );
-
-    let skills_watcher = Arc::new(SkillsWatcher::noop());
     let services = SessionServices {
         mcp_connection_manager: Arc::new(RwLock::new(McpConnectionManager::new_uninitialized(
             &config.permissions.approval_policy,
@@ -4571,9 +4371,7 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
         guardian_rejections: Mutex::new(std::collections::HashMap::new()),
         guardian_rejection_circuit_breaker: Mutex::new(Default::default()),
         runtime_handle: tokio::runtime::Handle::current(),
-        skills_manager,
         mcp_manager,
-        skills_watcher,
         agent_control,
         network_proxy: None,
         network_approval: Arc::clone(&network_approval),
@@ -4601,15 +4399,6 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
         config.js_repl_node_path.clone(),
         config.js_repl_node_module_dirs.clone(),
     ));
-
-    let skills_input = skills_load_input_from_config(&per_turn_config, Vec::new());
-    let skill_fs = environment.get_filesystem();
-    let skills_outcome = Arc::new(
-        services
-            .skills_manager
-            .skills_for_config(&skills_input, Some(Arc::clone(&skill_fs)))
-            .await,
-    );
     let turn_context = Arc::new(Session::make_turn_context(
         conversation_id,
         Some(Arc::clone(&auth_manager)),
@@ -4628,7 +4417,6 @@ pub(crate) async fn make_session_and_context_with_dynamic_tools_and_rx(
         session_configuration.cwd.clone(),
         "turn_id".to_string(),
         Arc::clone(&js_repl),
-        skills_outcome,
     ));
 
     let (mailbox, mailbox_rx) = crate::agent::Mailbox::new();
@@ -5032,200 +4820,6 @@ async fn build_initial_context_omits_default_image_save_location_without_image_h
             .any(|text| text.contains("Generated images are saved to")),
         "expected initial context to omit image save instructions without image history, got {developer_texts:?}"
     );
-}
-
-#[tokio::test]
-async fn build_initial_context_trims_skill_metadata_from_context_window_budget() {
-    let (session, mut turn_context) = make_session_and_context().await;
-    let mut outcome = SkillLoadOutcome::default();
-    outcome.skills = vec![
-        SkillMetadata {
-            name: "admin-skill".to_string(),
-            description: "desc".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: test_path_buf("/tmp/admin-skill/SKILL.md").abs(),
-            scope: SkillScope::Admin,
-        },
-        SkillMetadata {
-            name: "repo-skill".to_string(),
-            description: "desc".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: test_path_buf("/tmp/repo-skill/SKILL.md").abs(),
-            scope: SkillScope::Repo,
-        },
-    ];
-    turn_context.model_info.context_window = Some(100);
-    turn_context.turn_skills = TurnSkillsContext::new(Arc::new(outcome));
-
-    let initial_context = session.build_initial_context(&turn_context).await;
-    let developer_texts = developer_input_texts(&initial_context);
-
-    assert!(
-        developer_texts
-            .iter()
-            .all(|text| !text.contains("Exceeded skills context budget")),
-        "expected skill budget warning to stay out of the initial context, got {developer_texts:?}"
-    );
-    assert!(
-        developer_texts
-            .iter()
-            .all(|text| !text.contains("- admin-skill:") && !text.contains("- repo-skill:")),
-        "expected no skill metadata entries to fit the tiny budget, got {developer_texts:?}"
-    );
-}
-
-#[test]
-fn emit_thread_start_skill_metrics_records_enabled_kept_and_truncated_values() {
-    let session_telemetry = test_session_telemetry_without_metadata();
-    let rendered = build_available_skills(
-        &[SkillMetadata {
-            name: "repo-skill".to_string(),
-            description: "desc".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: test_path_buf("/tmp/repo-skill/SKILL.md").abs(),
-            scope: SkillScope::Repo,
-        }],
-        SkillMetadataBudget::Characters(1),
-        SkillRenderSideEffects::ThreadStart {
-            session_telemetry: &session_telemetry,
-        },
-    )
-    .expect("skills should render");
-
-    assert_eq!(
-        rendered.warning_message,
-        Some(
-            "Warning: Exceeded skills context budget. All skill descriptions were removed and 1 additional skill was not included in the model-visible skills list."
-                .to_string()
-        )
-    );
-    let snapshot = session_telemetry
-        .snapshot_metrics()
-        .expect("runtime metrics snapshot");
-    assert_eq!(
-        histogram_sum(&snapshot, THREAD_SKILLS_ENABLED_TOTAL_METRIC),
-        1
-    );
-    assert_eq!(histogram_sum(&snapshot, THREAD_SKILLS_KEPT_TOTAL_METRIC), 0);
-    assert_eq!(histogram_sum(&snapshot, THREAD_SKILLS_TRUNCATED_METRIC), 1);
-    assert_eq!(
-        histogram_sum(&snapshot, THREAD_SKILLS_DESCRIPTION_TRUNCATED_CHARS_METRIC),
-        4
-    );
-}
-
-#[test]
-fn emit_thread_start_skill_metrics_records_description_truncated_chars_without_omitted_skills() {
-    let session_telemetry = test_session_telemetry_without_metadata();
-    let alpha = SkillMetadata {
-        name: "alpha-skill".to_string(),
-        description: "abcdef".to_string(),
-        short_description: None,
-        interface: None,
-        dependencies: None,
-        policy: None,
-        path_to_skills_md: test_path_buf("/tmp/alpha-skill/SKILL.md").abs(),
-        scope: SkillScope::Repo,
-    };
-    let beta = SkillMetadata {
-        name: "beta-skill".to_string(),
-        description: "uvwxyz".to_string(),
-        short_description: None,
-        interface: None,
-        dependencies: None,
-        policy: None,
-        path_to_skills_md: test_path_buf("/tmp/beta-skill/SKILL.md").abs(),
-        scope: SkillScope::Repo,
-    };
-    let minimum_skill_line_cost = |skill: &SkillMetadata| {
-        let path = skill.path_to_skills_md.to_string_lossy().replace('\\', "/");
-        format!("- {}: (file: {})\n", skill.name, path)
-            .chars()
-            .count()
-    };
-    let minimum_budget = minimum_skill_line_cost(&alpha) + minimum_skill_line_cost(&beta);
-
-    let rendered = build_available_skills(
-        &[alpha, beta],
-        SkillMetadataBudget::Characters(minimum_budget + 6),
-        SkillRenderSideEffects::ThreadStart {
-            session_telemetry: &session_telemetry,
-        },
-    )
-    .expect("skills should render");
-
-    assert_eq!(rendered.report.omitted_count, 0);
-    assert_eq!(rendered.report.truncated_description_chars, 8);
-    let snapshot = session_telemetry
-        .snapshot_metrics()
-        .expect("runtime metrics snapshot");
-    assert_eq!(histogram_sum(&snapshot, THREAD_SKILLS_TRUNCATED_METRIC), 0);
-    assert_eq!(
-        histogram_sum(&snapshot, THREAD_SKILLS_DESCRIPTION_TRUNCATED_CHARS_METRIC),
-        8
-    );
-}
-
-#[tokio::test]
-async fn build_initial_context_emits_thread_start_skill_warning_on_repeated_builds() {
-    let (session, turn_context, rx) = make_session_and_context_with_rx().await;
-    let mut turn_context = Arc::into_inner(turn_context).expect("sole turn context owner");
-    let mut outcome = SkillLoadOutcome::default();
-    outcome.skills = vec![
-        SkillMetadata {
-            name: "admin-skill".to_string(),
-            description: "desc".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: test_path_buf("/tmp/admin-skill/SKILL.md").abs(),
-            scope: SkillScope::Admin,
-        },
-        SkillMetadata {
-            name: "repo-skill".to_string(),
-            description: "desc".to_string(),
-            short_description: None,
-            interface: None,
-            dependencies: None,
-            policy: None,
-            path_to_skills_md: test_path_buf("/tmp/repo-skill/SKILL.md").abs(),
-            scope: SkillScope::Repo,
-        },
-    ];
-    turn_context.model_info.context_window = Some(100);
-    turn_context.turn_skills = TurnSkillsContext::new(Arc::new(outcome));
-
-    let _ = session.build_initial_context(&turn_context).await;
-    let warning_event = timeout(Duration::from_secs(1), rx.recv())
-        .await
-        .expect("warning event should arrive")
-        .expect("warning event should be readable");
-    assert!(matches!(
-        warning_event.msg,
-        EventMsg::Warning(WarningEvent { message })
-            if message == "Warning: Exceeded skills context budget of 2%. All skill descriptions were removed and 2 additional skills were not included in the model-visible skills list."
-    ));
-
-    let _ = session.build_initial_context(&turn_context).await;
-    let warning_event = timeout(Duration::from_secs(1), rx.recv())
-        .await
-        .expect("warning event should arrive on repeated build")
-        .expect("warning event should be readable");
-    assert!(matches!(
-        warning_event.msg,
-        EventMsg::Warning(WarningEvent { message })
-            if message == "Warning: Exceeded skills context budget of 2%. All skill descriptions were removed and 2 additional skills were not included in the model-visible skills list."
-    ));
 }
 
 #[tokio::test]
@@ -7127,7 +6721,7 @@ async fn rejects_escalated_permissions_when_policy_not_on_request() {
     };
 
     let expected = format!(
-        "approval policy is {policy:?}; reject command — you should not ask for escalated permissions if the approval policy is {policy:?}",
+        "approval policy is {policy:?}; reject command Ã¢â‚¬â€ you should not ask for escalated permissions if the approval policy is {policy:?}",
         policy = turn_context.approval_policy.value()
     );
 
@@ -7204,7 +6798,7 @@ async fn unified_exec_rejects_escalated_permissions_when_policy_not_on_request()
     };
 
     let expected = format!(
-        "approval policy is {policy:?}; reject command — you cannot ask for escalated permissions if the approval policy is {policy:?}",
+        "approval policy is {policy:?}; reject command Ã¢â‚¬â€ you cannot ask for escalated permissions if the approval policy is {policy:?}",
         policy = turn_context.approval_policy.value()
     );
 
