@@ -139,7 +139,6 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use codex_protocol::mcp::CallToolResult as McpCallToolResult;
 use pretty_assertions::assert_eq;
-use regex_lite::Regex;
 use serde_json::json;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -5400,13 +5399,7 @@ async fn build_initial_context_epiphany_state_snapshot() {
         .await;
 
     let initial_context = session.build_initial_context(&turn_context).await;
-    let developer_text = Regex::new(r"C:/Users/Meta/AppData/Local/Temp/\.tmp[^/]+/skills")
-        .expect("valid temp skills root regex")
-        .replace_all(
-            &joined_developer_input_text(&initial_context),
-            "<temp-skills-root>",
-        )
-        .into_owned();
+    let developer_text = joined_developer_input_text(&initial_context);
 
     let mut settings = insta::Settings::clone_current();
     settings.set_snapshot_path("snapshots");

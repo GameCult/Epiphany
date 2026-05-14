@@ -16,7 +16,6 @@ enum MemoriesUsageKind {
     MemorySummary,
     RawMemories,
     RolloutSummaries,
-    Skills,
 }
 
 impl MemoriesUsageKind {
@@ -26,7 +25,6 @@ impl MemoriesUsageKind {
             Self::MemorySummary => "memory_summary",
             Self::RawMemories => "raw_memories",
             Self::RolloutSummaries => "rollout_summaries",
-            Self::Skills => "skills",
         }
     }
 }
@@ -139,8 +137,6 @@ fn get_memory_kind(path: String) -> Option<MemoriesUsageKind> {
         Some(MemoriesUsageKind::RawMemories)
     } else if path.contains("memories/rollout_summaries/") {
         Some(MemoriesUsageKind::RolloutSummaries)
-    } else if path.contains("memories/skills/") {
-        Some(MemoriesUsageKind::Skills)
     } else {
         None
     }

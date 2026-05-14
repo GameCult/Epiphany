@@ -114,50 +114,50 @@ fn is_mutating_event_filters_non_mutating_event_kinds() {
 #[test]
 fn register_dedupes_by_path_and_scope() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
-    let skills = temp_dir.path().join("skills");
-    let other_skills = temp_dir.path().join("other-skills");
-    std::fs::create_dir(&skills).expect("create skills dir");
-    std::fs::create_dir(&other_skills).expect("create other skills dir");
+    let watch_dir = temp_dir.path().join("watch_dir");
+    let other_alpha = temp_dir.path().join("other-watch_dir");
+    std::fs::create_dir(&watch_dir).expect("create watch dir");
+    std::fs::create_dir(&other_alpha).expect("create other watch dir");
 
     let watcher = Arc::new(FileWatcher::noop());
     let (subscriber, _rx) = watcher.add_subscriber();
-    let _first = subscriber.register_path(skills.clone(), /*recursive*/ false);
-    let _second = subscriber.register_path(skills.clone(), /*recursive*/ false);
-    let _third = subscriber.register_path(skills.clone(), /*recursive*/ true);
-    let _fourth = subscriber.register_path(other_skills.clone(), /*recursive*/ true);
+    let _first = subscriber.register_path(watch_dir.clone(), /*recursive*/ false);
+    let _second = subscriber.register_path(watch_dir.clone(), /*recursive*/ false);
+    let _third = subscriber.register_path(watch_dir.clone(), /*recursive*/ true);
+    let _fourth = subscriber.register_path(other_alpha.clone(), /*recursive*/ true);
 
-    assert_eq!(watcher.watch_counts_for_test(&skills), Some((2, 1)));
-    assert_eq!(watcher.watch_counts_for_test(&other_skills), Some((0, 1)));
+    assert_eq!(watcher.watch_counts_for_test(&watch_dir), Some((2, 1)));
+    assert_eq!(watcher.watch_counts_for_test(&other_alpha), Some((0, 1)));
 }
 
 #[test]
 fn watch_registration_drop_unregisters_paths() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
-    let skills = temp_dir.path().join("skills");
-    std::fs::create_dir(&skills).expect("create skills dir");
+    let watch_dir = temp_dir.path().join("watch_dir");
+    std::fs::create_dir(&watch_dir).expect("create watch dir");
 
     let watcher = Arc::new(FileWatcher::noop());
     let (subscriber, _rx) = watcher.add_subscriber();
-    let registration = subscriber.register_path(skills.clone(), /*recursive*/ true);
+    let registration = subscriber.register_path(watch_dir.clone(), /*recursive*/ true);
 
     drop(registration);
 
-    assert_eq!(watcher.watch_counts_for_test(&skills), None);
+    assert_eq!(watcher.watch_counts_for_test(&watch_dir), None);
 }
 
 #[test]
 fn subscriber_drop_unregisters_paths() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
-    let skills = temp_dir.path().join("skills");
-    std::fs::create_dir(&skills).expect("create skills dir");
+    let watch_dir = temp_dir.path().join("watch_dir");
+    std::fs::create_dir(&watch_dir).expect("create watch dir");
 
     let watcher = Arc::new(FileWatcher::noop());
     let registration = {
         let (subscriber, _rx) = watcher.add_subscriber();
-        subscriber.register_path(skills.clone(), /*recursive*/ true)
+        subscriber.register_path(watch_dir.clone(), /*recursive*/ true)
     };
 
-    assert_eq!(watcher.watch_counts_for_test(&skills), None);
+    assert_eq!(watcher.watch_counts_for_test(&watch_dir), None);
     drop(registration);
 }
 
@@ -296,25 +296,25 @@ fn unregister_holds_state_lock_until_unwatch_finishes() {
 #[tokio::test]
 async fn matching_subscribers_are_notified() {
     let watcher = Arc::new(FileWatcher::noop());
-    let (skills_subscriber, skills_rx) = watcher.add_subscriber();
+    let (alpha_subscriber, alpha_rx) = watcher.add_subscriber();
     let (plugins_subscriber, plugins_rx) = watcher.add_subscriber();
-    let _skills = skills_subscriber.register_path(path("/tmp/skills"), /*recursive*/ true);
+    let _alpha = alpha_subscriber.register_path(path("/tmp/watch-alpha"), /*recursive*/ true);
     let _plugins = plugins_subscriber.register_path(path("/tmp/plugins"), /*recursive*/ true);
-    let mut skills_rx = ThrottledWatchReceiver::new(skills_rx, TEST_THROTTLE_INTERVAL);
+    let mut alpha_rx = ThrottledWatchReceiver::new(alpha_rx, TEST_THROTTLE_INTERVAL);
     let mut plugins_rx = ThrottledWatchReceiver::new(plugins_rx, TEST_THROTTLE_INTERVAL);
 
     watcher
-        .send_paths_for_test(vec![path("/tmp/skills/rust/SKILL.md")])
+        .send_paths_for_test(vec![path("/tmp/watch-alpha/rust/file.txt")])
         .await;
 
-    let skills_event = timeout(Duration::from_secs(1), skills_rx.recv())
+    let alpha_event = timeout(Duration::from_secs(1), alpha_rx.recv())
         .await
-        .expect("skills change timeout")
-        .expect("skills change");
+        .expect("alpha change timeout")
+        .expect("alpha change");
     assert_eq!(
-        skills_event,
+        alpha_event,
         FileWatcherEvent {
-            paths: vec![path("/tmp/skills/rust/SKILL.md")],
+            paths: vec![path("/tmp/watch-alpha/rust/file.txt")],
         }
     );
 
@@ -326,11 +326,12 @@ async fn matching_subscribers_are_notified() {
 async fn non_recursive_watch_ignores_grandchildren() {
     let watcher = Arc::new(FileWatcher::noop());
     let (subscriber, rx) = watcher.add_subscriber();
-    let _registration = subscriber.register_path(path("/tmp/skills"), /*recursive*/ false);
+    let _registration =
+        subscriber.register_path(path("/tmp/watch-alpha"), /*recursive*/ false);
     let mut rx = ThrottledWatchReceiver::new(rx, TEST_THROTTLE_INTERVAL);
 
     watcher
-        .send_paths_for_test(vec![path("/tmp/skills/nested/SKILL.md")])
+        .send_paths_for_test(vec![path("/tmp/watch-alpha/nested/file.txt")])
         .await;
 
     let event = timeout(TEST_THROTTLE_INTERVAL, rx.recv()).await;
@@ -340,19 +341,19 @@ async fn non_recursive_watch_ignores_grandchildren() {
 #[tokio::test]
 async fn ancestor_events_notify_child_watches() {
     let temp_dir = tempfile::tempdir().expect("temp dir");
-    let skills_dir = temp_dir.path().join("skills");
-    let rust_dir = skills_dir.join("rust");
-    let skill_file = rust_dir.join("SKILL.md");
-    std::fs::create_dir(&skills_dir).expect("create skills dir");
+    let watch_dir = temp_dir.path().join("watch_dir");
+    let rust_dir = watch_dir.join("rust");
+    let watched_file = rust_dir.join("file.txt");
+    std::fs::create_dir(&watch_dir).expect("create watch dir");
     std::fs::create_dir(&rust_dir).expect("create rust dir");
-    std::fs::write(&skill_file, "name: rust\n").expect("write skill file");
+    std::fs::write(&watched_file, "name: rust\n").expect("write watched file");
 
     let watcher = Arc::new(FileWatcher::noop());
     let (subscriber, rx) = watcher.add_subscriber();
-    let _registration = subscriber.register_path(skill_file, /*recursive*/ false);
+    let _registration = subscriber.register_path(watched_file, /*recursive*/ false);
     let mut rx = ThrottledWatchReceiver::new(rx, TEST_THROTTLE_INTERVAL);
 
-    watcher.send_paths_for_test(vec![skills_dir.clone()]).await;
+    watcher.send_paths_for_test(vec![watch_dir.clone()]).await;
 
     let event = timeout(Duration::from_secs(1), rx.recv())
         .await
@@ -361,7 +362,7 @@ async fn ancestor_events_notify_child_watches() {
     assert_eq!(
         event,
         FileWatcherEvent {
-            paths: vec![skills_dir],
+            paths: vec![watch_dir],
         }
     );
 }
@@ -446,18 +447,18 @@ async fn missing_file_watch_reports_requested_path_when_parent_delete_event_arri
 async fn missing_directory_watch_moves_to_created_directory_for_child_events() {
     // Missing directory watches move closer as components appear, without recursive fallback.
     let temp_dir = tempfile::tempdir().expect("temp dir");
-    let skills_dir = temp_dir.path().join("skills");
-    let skill_file = skills_dir.join("SKILL.md");
+    let watch_dir = temp_dir.path().join("watch_dir");
+    let watched_file = watch_dir.join("file.txt");
 
     let watcher = Arc::new(FileWatcher::noop());
     let (subscriber, rx) = watcher.add_subscriber();
-    let _registration = subscriber.register_path(skills_dir.clone(), /*recursive*/ false);
+    let _registration = subscriber.register_path(watch_dir.clone(), /*recursive*/ false);
     let mut rx = ThrottledWatchReceiver::new(rx, TEST_THROTTLE_INTERVAL);
 
     assert_eq!(watcher.watch_counts_for_test(temp_dir.path()), Some((1, 0)));
-    assert_eq!(watcher.watch_counts_for_test(&skills_dir), None);
+    assert_eq!(watcher.watch_counts_for_test(&watch_dir), None);
 
-    std::fs::create_dir(&skills_dir).expect("create skills dir");
+    std::fs::create_dir(&watch_dir).expect("create watch dir");
     watcher
         .send_paths_for_test(vec![temp_dir.path().into()])
         .await;
@@ -469,14 +470,16 @@ async fn missing_directory_watch_moves_to_created_directory_for_child_events() {
     assert_eq!(
         created,
         FileWatcherEvent {
-            paths: vec![skills_dir.clone()],
+            paths: vec![watch_dir.clone()],
         }
     );
     assert_eq!(watcher.watch_counts_for_test(temp_dir.path()), None);
-    assert_eq!(watcher.watch_counts_for_test(&skills_dir), Some((1, 0)));
+    assert_eq!(watcher.watch_counts_for_test(&watch_dir), Some((1, 0)));
 
-    std::fs::write(&skill_file, "name: rust\n").expect("write skill file");
-    watcher.send_paths_for_test(vec![skill_file.clone()]).await;
+    std::fs::write(&watched_file, "name: rust\n").expect("write watched file");
+    watcher
+        .send_paths_for_test(vec![watched_file.clone()])
+        .await;
 
     let changed_child = timeout(Duration::from_secs(1), rx.recv())
         .await
@@ -485,7 +488,7 @@ async fn missing_directory_watch_moves_to_created_directory_for_child_events() {
     assert_eq!(
         changed_child,
         FileWatcherEvent {
-            paths: vec![skill_file],
+            paths: vec![watched_file],
         }
     );
 }
@@ -494,7 +497,7 @@ async fn missing_directory_watch_moves_to_created_directory_for_child_events() {
 async fn spawn_event_loop_filters_non_mutating_events() {
     let watcher = Arc::new(FileWatcher::noop());
     let (subscriber, rx) = watcher.add_subscriber();
-    let _registration = subscriber.register_path(path("/tmp/skills"), /*recursive*/ true);
+    let _registration = subscriber.register_path(path("/tmp/watch-alpha"), /*recursive*/ true);
     let mut rx = ThrottledWatchReceiver::new(rx, TEST_THROTTLE_INTERVAL);
     let (raw_tx, raw_rx) = mpsc::unbounded_channel();
     watcher.spawn_event_loop_for_test(raw_rx);
@@ -502,7 +505,7 @@ async fn spawn_event_loop_filters_non_mutating_events() {
     raw_tx
         .send(Ok(notify_event(
             EventKind::Access(AccessKind::Open(AccessMode::Any)),
-            vec![path("/tmp/skills/SKILL.md")],
+            vec![path("/tmp/watch-alpha/file.txt")],
         )))
         .expect("send access event");
     let blocked = timeout(TEST_THROTTLE_INTERVAL, rx.recv()).await;
@@ -511,7 +514,7 @@ async fn spawn_event_loop_filters_non_mutating_events() {
     raw_tx
         .send(Ok(notify_event(
             EventKind::Create(CreateKind::File),
-            vec![path("/tmp/skills/SKILL.md")],
+            vec![path("/tmp/watch-alpha/file.txt")],
         )))
         .expect("send create event");
     let event = timeout(Duration::from_secs(1), rx.recv())
@@ -521,7 +524,7 @@ async fn spawn_event_loop_filters_non_mutating_events() {
     assert_eq!(
         event,
         FileWatcherEvent {
-            paths: vec![path("/tmp/skills/SKILL.md")],
+            paths: vec![path("/tmp/watch-alpha/file.txt")],
         }
     );
 }

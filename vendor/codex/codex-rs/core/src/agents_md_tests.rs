@@ -7,7 +7,6 @@ use core_test_support::PathBufExt;
 use core_test_support::TempDirExt;
 use pretty_assertions::assert_eq;
 use std::fs;
-use std::path::PathBuf;
 use tempfile::TempDir;
 
 async fn get_user_instructions(config: &Config) -> Option<String> {
@@ -485,29 +484,4 @@ async fn override_directory_falls_back_to_agents_md_file() {
             .to_string_lossy(),
         DEFAULT_AGENTS_MD_FILENAME
     );
-}
-
-#[tokio::test]
-async fn skills_are_not_appended_to_agents_md() {
-    let tmp = tempfile::tempdir().expect("tempdir");
-    fs::write(tmp.path().join("AGENTS.md"), "base doc").unwrap();
-
-    let cfg = make_config(&tmp, /*limit*/ 4096, /*instructions*/ None).await;
-    create_skill(
-        cfg.codex_home.to_path_buf(),
-        "pdf-processing",
-        "extract from pdfs",
-    );
-
-    let res = get_user_instructions(&cfg)
-        .await
-        .expect("instructions expected");
-    assert_eq!(res, "base doc");
-}
-
-fn create_skill(codex_home: PathBuf, name: &str, description: &str) {
-    let skill_dir = codex_home.join(format!("skills/{name}"));
-    fs::create_dir_all(&skill_dir).unwrap();
-    let content = format!("---\nname: {name}\ndescription: {description}\n---\n\n# Body\n");
-    fs::write(skill_dir.join("SKILL.md"), content).unwrap();
 }

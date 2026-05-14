@@ -47,13 +47,6 @@ pub(super) async fn sync_rollout_summaries_from_memories(
                 return Err(err);
             }
         }
-
-        let skills_dir = root.join("skills");
-        if let Err(err) = tokio::fs::remove_dir_all(skills_dir).await
-            && err.kind() != std::io::ErrorKind::NotFound
-        {
-            return Err(err);
-        }
     }
 
     Ok(())

@@ -27,12 +27,11 @@ fn serializes_memory_rollout_with_agents_removed_but_environment_kept() {
         end_turn: None,
         phase: None,
     };
-    let skill_message = ResponseItem::Message {
+    let legacy_user_message = ResponseItem::Message {
         id: None,
         role: "user".to_string(),
         content: vec![ContentItem::InputText {
-            text: "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>"
-                .to_string(),
+            text: "legacy prompt artifact\nbody".to_string(),
         }],
         end_turn: None,
         phase: None,
@@ -50,7 +49,7 @@ fn serializes_memory_rollout_with_agents_removed_but_environment_kept() {
 
     let serialized = serialize_filtered_rollout_response_items(&[
         RolloutItem::ResponseItem(mixed_contextual_message),
-        RolloutItem::ResponseItem(skill_message),
+        RolloutItem::ResponseItem(legacy_user_message.clone()),
         RolloutItem::ResponseItem(subagent_message.clone()),
     ])
     .expect("serialize");
@@ -69,6 +68,7 @@ fn serializes_memory_rollout_with_agents_removed_but_environment_kept() {
                 end_turn: None,
                 phase: None,
             },
+            legacy_user_message,
             subagent_message,
         ]
     );

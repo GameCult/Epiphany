@@ -41,10 +41,6 @@ fn classifies_memory_excluded_fragments() {
             true,
         ),
         (
-            "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>",
-            true,
-        ),
-        (
             "<environment_context>\n<cwd>/tmp</cwd>\n</environment_context>",
             false,
         ),

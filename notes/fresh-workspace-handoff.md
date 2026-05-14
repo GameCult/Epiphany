@@ -905,8 +905,10 @@ skill insertion path, `skill://` / `SKILL.md` history decoding, and stale skill
 popup snapshot were deleted. The deeper `codex-core-skills` crate is now deleted
 from the workspace too, along with the core `skills` re-export shim, no-op
 `skills_watcher`, session `SkillsManager` service, and per-turn
-`TurnSkillsContext`; core keeps only a local legacy `<skill>` fragment recognizer
-for old history classification. Live structured user-input mentions are
+`TurnSkillsContext`. The later cleanup also removed the old `<skill>` /
+`<skills_instructions>` prompt compatibility recognizer, snapshot
+normalization, memory classification, and stale cleanup paths from
+`codex-core` / `codex-protocol`. Live structured user-input mentions are
 MCP-shaped only; MCP remains JSON-RPC at its protocol edge, not a reason to keep
 Codex skills alive inside the organ.
 
@@ -918,9 +920,15 @@ skill approval integration suite were deleted. `config.schema.json` was
 regenerated without a `skills` table. The granular `skill_approval` permission
 flag was then removed from core protocol, app-server v2 protocol, generated
 schemas, permission prompt rendering, and tests. The remaining skill-shaped
-stumps are old `<skill>` / `<skills_instructions>` history/snapshot
-compatibility surfaces; classify and cut those next instead of treating them as
-auth/model spine machinery.
+stumps in `codex-core` / `codex-protocol` were cut next: `SkillInstructions`,
+protocol tag constants, context/history/session snapshot expectations, memory
+usage classification, stale skill cleanup, and AGENTS skill-append tests were
+deleted rather than preserved as compatibility incense. Verified with
+`cargo check -p codex-protocol -p codex-core`, focused core
+context/history/memory/session/file-watcher tests, and the model-visible layout
+snapshot suite. Remaining skill hits are app-server README/tests, TUI
+warnings/tooltips, agent-tool schema text, and memory consolidation/read-path
+templates.
 
 That husk has now been cut from `codex-core`. The root core crate no longer
 exports `plugins`, no longer depends on `codex-core-plugins` or `codex-plugin`,
@@ -1016,21 +1024,10 @@ runtime.
 Plugin telemetry has now been cut from `codex-analytics`. Analytics no longer
 tracks plugin used/installed/uninstalled/enabled/disabled events, keeps plugin
 dedupe state, or depends on `codex-plugin`; the unreferenced `codex-plugin`
-crate is deleted from the vendored workspace. Verified with
-`cargo check -p codex-analytics` and
-`cargo test -p codex-analytics --tests --no-run`. Remaining `.codex-plugin`
-hits are stale tests and the narrower `codex-utils-plugins` skill-namespace
-utility, not live marketplace machinery.
-
-The final `codex-utils-plugins` husk is deleted too. `$` and `@` mention sigils
-now live in `codex-core-skills` / `codex-core`, plugin manifest ancestry no
-longer namespaces skills, and stale plugin/marketplace tests were removed rather
-than preserving a dead product contract. Verified with
-`cargo test -p codex-core-skills --tests --no-run` and
-`cargo test -p codex-cli --tests --no-run`. A full `cargo test -p codex-core
---tests --no-run` still fails on older stale lib-test scaffolds for deleted
-plugin/skill/app surfaces; do not restore those surfaces just to appease the
-tests.
+The final `codex-utils-plugins` husk was deleted earlier too. `$` and `@`
+mention sigils now live only where surviving callers need them, plugin manifest
+ancestry no longer namespaces skills, and stale plugin/marketplace tests were
+removed rather than preserving a dead product contract.
 
 The Phase 6 freshness slice is landed. It exposes read-only
 `thread/epiphany/freshness` from live retrieval summaries plus graph

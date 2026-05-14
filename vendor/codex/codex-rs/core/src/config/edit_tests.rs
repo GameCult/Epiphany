@@ -531,7 +531,7 @@ existing = "value"
         /*profile*/ None,
         &[
             ConfigEdit::SetNoticeHideExternalConfigMigrationPromptProject(
-                "/Users/alexsong/code/skills".to_string(),
+                "/Users/alexsong/code/workspace-tools".to_string(),
                 true,
             ),
         ],
@@ -543,7 +543,7 @@ existing = "value"
 existing = "value"
 
 [notice.external_config_migration_prompts.projects]
-"/Users/alexsong/code/skills" = true
+"/Users/alexsong/code/workspace-tools" = true
 "#;
     assert_eq!(contents, expected);
 }
@@ -592,7 +592,7 @@ existing = "value"
         /*profile*/ None,
         &[
             ConfigEdit::SetNoticeExternalConfigMigrationPromptProjectLastPromptedAt(
-                "/Users/alexsong/code/skills".to_string(),
+                "/Users/alexsong/code/workspace-tools".to_string(),
                 1_760_000_000,
             ),
         ],
@@ -604,7 +604,7 @@ existing = "value"
 existing = "value"
 
 [notice.external_config_migration_prompts.project_last_prompted_at]
-"/Users/alexsong/code/skills" = 1760000000
+"/Users/alexsong/code/workspace-tools" = 1760000000
 "#;
     assert_eq!(contents, expected);
 }

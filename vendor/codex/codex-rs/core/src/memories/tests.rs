@@ -798,18 +798,6 @@ mod phase2 {
         tokio::fs::write(&memory_summary_path, "stale memory summary\n")
             .await
             .expect("write stale memory summary");
-        let stale_skill_file = root.join("skills/demo/SKILL.md");
-        tokio::fs::create_dir_all(
-            stale_skill_file
-                .parent()
-                .expect("skills subdirectory parent should exist"),
-        )
-        .await
-        .expect("create stale skills dir");
-        tokio::fs::write(&stale_skill_file, "stale skill\n")
-            .await
-            .expect("write stale skill");
-
         harness
             .state_db
             .enqueue_global_consolidation(/*input_watermark*/ 999)
@@ -839,18 +827,6 @@ mod phase2 {
                 .await
                 .expect("check memory summary existence"),
             "empty consolidation should remove stale memory_summary.md"
-        );
-        assert!(
-            !tokio::fs::try_exists(&stale_skill_file)
-                .await
-                .expect("check stale skill existence"),
-            "empty consolidation should remove stale skills artifacts"
-        );
-        assert!(
-            !tokio::fs::try_exists(root.join("skills"))
-                .await
-                .expect("check skills dir existence"),
-            "empty consolidation should remove stale skills directory"
         );
         let next_claim = harness
             .state_db

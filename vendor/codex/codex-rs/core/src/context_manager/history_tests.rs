@@ -836,9 +836,6 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
         user_input_text_msg(
             "# AGENTS.md instructions for test_directory\n\n<INSTRUCTIONS>\ntest_text\n</INSTRUCTIONS>",
         ),
-        user_input_text_msg(
-            "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>",
-        ),
         user_input_text_msg("<user_shell_command>echo 42</user_shell_command>"),
         user_input_text_msg(
             "<subagent_notification>{\"agent_id\":\"a\",\"status\":\"completed\"}</subagent_notification>",
@@ -858,9 +855,6 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
         user_input_text_msg(
             "# AGENTS.md instructions for test_directory\n\n<INSTRUCTIONS>\ntest_text\n</INSTRUCTIONS>",
         ),
-        user_input_text_msg(
-            "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>",
-        ),
         user_input_text_msg("<user_shell_command>echo 42</user_shell_command>"),
         user_input_text_msg(
             "<subagent_notification>{\"agent_id\":\"a\",\"status\":\"completed\"}</subagent_notification>",
@@ -879,9 +873,6 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
         user_input_text_msg(
             "# AGENTS.md instructions for test_directory\n\n<INSTRUCTIONS>\ntest_text\n</INSTRUCTIONS>",
         ),
-        user_input_text_msg(
-            "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>",
-        ),
         user_input_text_msg("<user_shell_command>echo 42</user_shell_command>"),
         user_input_text_msg(
             "<subagent_notification>{\"agent_id\":\"a\",\"status\":\"completed\"}</subagent_notification>",
@@ -892,9 +883,6 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
         user_input_text_msg("<environment_context>ctx</environment_context>"),
         user_input_text_msg(
             "# AGENTS.md instructions for test_directory\n\n<INSTRUCTIONS>\ntest_text\n</INSTRUCTIONS>",
-        ),
-        user_input_text_msg(
-            "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>",
         ),
         user_input_text_msg("<user_shell_command>echo 42</user_shell_command>"),
         user_input_text_msg(
@@ -912,9 +900,6 @@ fn drop_last_n_user_turns_ignores_session_prefix_user_messages() {
         user_input_text_msg("<environment_context>ctx</environment_context>"),
         user_input_text_msg(
             "# AGENTS.md instructions for test_directory\n\n<INSTRUCTIONS>\ntest_text\n</INSTRUCTIONS>",
-        ),
-        user_input_text_msg(
-            "<skill>\n<name>demo</name>\n<path>skills/demo/SKILL.md</path>\nbody\n</skill>",
         ),
         user_input_text_msg("<user_shell_command>echo 42</user_shell_command>"),
         user_input_text_msg(
