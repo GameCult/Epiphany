@@ -1,6 +1,5 @@
 use codex_app_server_protocol::*;
 use codex_core::CodexThread;
-use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyThreadState;
@@ -19,6 +18,7 @@ use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
 use epiphany_codex_bridge::retrieve::index_thread_epiphany_retrieval;
+use epiphany_core::EpiphanyJobLaunchRequest;
 use std::sync::Arc;
 
 use super::CodexMessageProcessor;

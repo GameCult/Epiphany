@@ -18,8 +18,6 @@ mod codex_thread;
 mod compact_remote;
 pub use codex_thread::CodexThread;
 pub use codex_thread::CodexThreadTurnContextOverrides;
-pub use codex_thread::EpiphanyJobInterruptRequest;
-pub use codex_thread::EpiphanyJobLaunchRequest;
 pub use codex_thread::ThreadConfigSnapshot;
 mod epiphany_rollout;
 pub use epiphany_rollout::latest_epiphany_state_from_codex_rollout_items as latest_epiphany_state_from_rollout_items;

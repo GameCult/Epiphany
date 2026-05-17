@@ -12,11 +12,11 @@ use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
-use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
@@ -30,9 +30,7 @@ pub const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
 pub const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 pub const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
-pub fn epiphany_role_binding_id(
-    role_id: ThreadEpiphanyRoleId,
-) -> Result<&'static str, String> {
+pub fn epiphany_role_binding_id(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
     match role_id {
         ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
         ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
@@ -69,9 +67,7 @@ pub fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
     }
 }
 
-pub fn epiphany_role_launch_output_schema(
-    role_id: ThreadEpiphanyRoleId,
-) -> serde_json::Value {
+pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_json::Value {
     let verdict_enum = match role_id {
         ThreadEpiphanyRoleId::Imagination => {
             vec!["draft-ready", "planning-update-needed", "blocked"]
@@ -570,9 +566,7 @@ pub fn build_epiphany_reorient_launch_request(
     }
 }
 
-pub fn build_epiphany_reorient_launch_instruction(
-    action: ThreadEpiphanyReorientAction,
-) -> String {
+pub fn build_epiphany_reorient_launch_instruction(action: ThreadEpiphanyReorientAction) -> String {
     let prompts = &epiphany_specialist_prompt_config().reorientation;
     let body = match action {
         ThreadEpiphanyReorientAction::Resume => prompts.resume.as_str(),

@@ -516,6 +516,45 @@ pub struct RuntimeSpineHeartbeatLaunchPlan {
     pub runtime_link: EpiphanyRuntimeLink,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct EpiphanyJobLaunchRequest {
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    pub kind: EpiphanyJobKind,
+    pub scope: String,
+    pub owner_role: String,
+    pub authority_scope: String,
+    pub linked_subgoal_ids: Vec<String>,
+    pub linked_graph_node_ids: Vec<String>,
+    pub instruction: String,
+    pub launch_document: EpiphanyWorkerLaunchDocument,
+    pub output_contract_id: String,
+    pub max_runtime_seconds: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EpiphanyJobLaunchResult {
+    pub epiphany_state: EpiphanyThreadState,
+    pub binding_id: String,
+    pub launcher_job_id: String,
+    pub backend_job_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyJobInterruptRequest {
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct EpiphanyJobInterruptResult {
+    pub epiphany_state: EpiphanyThreadState,
+    pub binding_id: String,
+    pub cancel_requested: bool,
+    pub interrupted_thread_ids: Vec<String>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct EpiphanyRuntimeJobSnapshot {
     pub job: EpiphanyRuntimeJob,
@@ -726,6 +765,31 @@ pub fn plan_runtime_spine_heartbeat_launch(
             linked_graph_node_ids: options.linked_graph_node_ids,
         },
     })
+}
+
+pub fn replace_or_append_epiphany_job_binding(
+    mut bindings: Vec<EpiphanyJobBinding>,
+    replacement: EpiphanyJobBinding,
+) -> Vec<EpiphanyJobBinding> {
+    if let Some(existing) = bindings
+        .iter_mut()
+        .find(|binding| binding.id == replacement.id)
+    {
+        *existing = replacement;
+        return bindings;
+    }
+    bindings.push(replacement);
+    bindings
+}
+
+pub fn clear_epiphany_job_binding_backend(
+    mut bindings: Vec<EpiphanyJobBinding>,
+    binding_index: usize,
+    blocking_reason: &str,
+) -> Vec<EpiphanyJobBinding> {
+    let binding = &mut bindings[binding_index];
+    binding.blocking_reason = Some(blocking_reason.to_string());
+    bindings
 }
 
 pub fn open_runtime_spine_heartbeat_job(

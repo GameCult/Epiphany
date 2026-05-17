@@ -20,8 +20,6 @@ use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
-use codex_protocol::protocol::EpiphanyJobBinding;
-use codex_protocol::protocol::EpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyStateItem;
 use codex_protocol::protocol::EpiphanyThreadState;
@@ -37,16 +35,21 @@ use codex_protocol::protocol::TokenUsageInfo;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_core::EpiphanyJobInterruptRequest;
+use epiphany_core::EpiphanyJobInterruptResult;
+use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyJobLaunchResult;
 use epiphany_core::EpiphanyRetrieveQuery;
 use epiphany_core::EpiphanyRetrieveResponse;
 use epiphany_core::EpiphanyStateUpdate;
-use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::apply_epiphany_state_update;
+use epiphany_core::clear_epiphany_job_binding_backend;
 use epiphany_core::epiphany_state_update_validation_errors;
 use epiphany_core::open_runtime_spine_heartbeat_job;
 use epiphany_core::plan_runtime_spine_heartbeat_launch;
+use epiphany_core::replace_or_append_epiphany_job_binding;
 use rmcp::model::ReadResourceRequestParams;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -94,45 +97,6 @@ pub struct CodexThread {
     rollout_path: Option<PathBuf>,
     out_of_band_elicitation_count: Mutex<u64>,
     _watch_registration: WatchRegistration,
-}
-
-#[derive(Debug, Clone)]
-pub struct EpiphanyJobLaunchRequest {
-    pub expected_revision: Option<u64>,
-    pub binding_id: String,
-    pub kind: EpiphanyJobKind,
-    pub scope: String,
-    pub owner_role: String,
-    pub authority_scope: String,
-    pub linked_subgoal_ids: Vec<String>,
-    pub linked_graph_node_ids: Vec<String>,
-    pub instruction: String,
-    pub launch_document: EpiphanyWorkerLaunchDocument,
-    pub output_contract_id: String,
-    pub max_runtime_seconds: Option<u64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct EpiphanyJobLaunchResult {
-    pub epiphany_state: EpiphanyThreadState,
-    pub binding_id: String,
-    pub launcher_job_id: String,
-    pub backend_job_id: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct EpiphanyJobInterruptRequest {
-    pub expected_revision: Option<u64>,
-    pub binding_id: String,
-    pub reason: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct EpiphanyJobInterruptResult {
-    pub epiphany_state: EpiphanyThreadState,
-    pub binding_id: String,
-    pub cancel_requested: bool,
-    pub interrupted_thread_ids: Vec<String>,
 }
 
 /// Conduit for the bidirectional stream of messages that compose a thread
@@ -741,31 +705,6 @@ fn open_epiphany_runtime_spine_job(
         ))
     })?;
     Ok(())
-}
-
-fn replace_or_append_epiphany_job_binding(
-    mut bindings: Vec<EpiphanyJobBinding>,
-    replacement: EpiphanyJobBinding,
-) -> Vec<EpiphanyJobBinding> {
-    if let Some(existing) = bindings
-        .iter_mut()
-        .find(|binding| binding.id == replacement.id)
-    {
-        *existing = replacement;
-        return bindings;
-    }
-    bindings.push(replacement);
-    bindings
-}
-
-fn clear_epiphany_job_binding_backend(
-    mut bindings: Vec<EpiphanyJobBinding>,
-    binding_index: usize,
-    blocking_reason: &str,
-) -> Vec<EpiphanyJobBinding> {
-    let binding = &mut bindings[binding_index];
-    binding.blocking_reason = Some(blocking_reason.to_string());
-    bindings
 }
 
 fn pending_message_input_item(message: &ResponseItem) -> CodexResult<ResponseInputItem> {

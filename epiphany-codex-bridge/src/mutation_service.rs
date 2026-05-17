@@ -11,14 +11,14 @@ use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_core::CodexThread;
-use codex_core::EpiphanyJobInterruptRequest;
-use codex_core::EpiphanyJobLaunchRequest;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
+use epiphany_core::EpiphanyJobInterruptRequest;
+use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyPromotionInput;
 use epiphany_core::evaluate_promotion;
 
