@@ -18,6 +18,7 @@ mod thread_projection;
 mod thread_read_routes;
 mod thread_resume_routes;
 mod thread_start_routes;
+mod thread_turn_projection;
 mod turn_routes;
 
 use self::auth_routes::ActiveLogin;
@@ -28,6 +29,7 @@ pub(crate) use self::running_thread_resume_routes::handle_pending_thread_resume_
 pub(crate) use self::thread_config::{config_load_error, validate_dynamic_tools};
 pub(crate) use self::thread_projection::*;
 pub(super) use self::thread_read_routes::ThreadReadViewError;
+pub(crate) use self::thread_turn_projection::*;
 use crate::bespoke_event_handling::apply_bespoke_event_handling;
 use crate::bespoke_event_handling::maybe_emit_hook_prompt_item_completed;
 use crate::command_exec::CommandExecManager;
