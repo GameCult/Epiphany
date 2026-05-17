@@ -1,7 +1,22 @@
 # Codex Auth Spine Inventory
 
 This is the keeper list for the vestigial Codex organ. Anything not justified
-here is suspect until proven otherwise.
+here is suspect until proven otherwise. The organ must stay honest: Epiphany is
+a modified Codex-derived backend with a native CultCache/CultNet body, not a
+clean-room client pretending to be Codex.
+
+## Compliance Invariant
+
+- Keep Codex-compatible auth identity anchored in vendored Codex-derived
+  machinery. Do not fully replace Codex auth with a lookalike native
+  implementation unless OpenAI provides an explicit public path or permission
+  for that use.
+- It is fine to cut Codex apps, skills, marketplace, plugin UX, broad
+  app-server workflow, and generic JSON control surfaces. Those are product and
+  workflow organs, not subscription-auth legitimacy.
+- The retained auth/model organ should be brutally thin, but it must be real:
+  load/refresh credentials, preserve required client headers/identity,
+  respect subscription limits, and call the allowed Codex/OpenAI model route.
 
 ## Live Spine
 
@@ -18,9 +33,11 @@ here is suspect until proven otherwise.
 
 ### Durable Stores
 
-- Codex auth storage under the configured Codex home, loaded by
-  `vendor/codex/codex-rs/login/src/auth/manager.rs`.
-- Auth token state in `CodexAuth` / `ChatgptAuthState`, including refreshable
+- Codex auth storage under the configured Codex home. The legal/compliance
+  authority should remain vendored Codex-derived auth machinery such as
+  `vendor/codex/codex-rs/login/src/auth/manager.rs`, even when Epiphany wraps
+  it in typed status documents.
+- Auth token state in Codex-compatible auth records, including refreshable
   ChatGPT tokens and account metadata.
 - No durable model/provider state is owned by the current OpenAI spine. The
   model string is request data; catalog/default selection must become a typed
@@ -28,16 +45,21 @@ here is suspect until proven otherwise.
 
 ### Transformations
 
-- `epiphany-openai-auth-spine` loads env, file, keyring, and auto-fallback
-  Codex auth, refreshes ChatGPT access tokens, preserves account metadata, and
-  exposes the auth subset needed by the Epiphany OpenAI transport.
+- `epiphany-openai-auth-spine` currently loads env, file, keyring, and
+  auto-fallback Codex auth, refreshes ChatGPT access tokens, preserves account
+  metadata, and exposes the auth subset needed by the Epiphany OpenAI
+  transport. This is now suspect because it has copied too much auth machinery
+  out of vendored Codex; the spine should become a typed wrapper over retained
+  Codex-compatible auth rather than a clean-room replacement.
 - `epiphany-openai-codex-spine` converts `CodexAuth` directly into
   authorization/account headers, chooses the ChatGPT Codex backend or OpenAI API
   base URL from auth mode, builds a local serializable Responses request body,
   opens an HTTP/SSE stream through `codex-client`, and parses Responses frames
   into typed Epiphany stream events.
-- `codex-login` remains in `vendor/codex` as reference/legacy Codex host
-  machinery, but it is no longer in the native Epiphany OpenAI spine graph.
+- `codex-login` remains in `vendor/codex` and should be treated as keeper
+  auth machinery or the source for a thin vendored auth organ. Removing it from
+  the native request graph may be an overcut if it makes Epiphany look like an
+  impersonating client instead of a modified Codex backend.
 
 ### Outputs
 
@@ -50,11 +72,10 @@ here is suspect until proven otherwise.
 
 ## Keep
 
-- `epiphany-openai-auth-spine`: keep as the native credential compatibility
-  organ. It knows the path Epiphany actually uses now: `CODEX_API_KEY` /
-  `OPENAI_API_KEY`, `$CODEX_HOME/auth.json`, Codex keyring entries, auto
-  keyring/file fallback, ChatGPT token refresh, account id, plan metadata,
-  FedRAMP flag, and the standard HTTP client edge.
+- `epiphany-openai-auth-spine`: keep only as a typed Epiphany wrapper/status
+  surface around Codex-compatible auth. It should not pretend to be the legal
+  authority for subscription credentials by cloning the auth behavior outside
+  vendored Codex.
 - `codex-client`: keep only as a plain HTTP/SSE transport helper for now. It
   does not own Epiphany request shape, model policy, stream semantics, or durable
   state.
@@ -71,10 +92,11 @@ here is suspect until proven otherwise.
   suspicious unless Epiphany deliberately needs that OpenAI endpoint. Keep them
   sealed with the transport until the native adapter split can decide.
 - `codex-api`, `codex-model-provider`, `codex-model-provider-info`,
-  `codex-login`, `codex-core::client`, and `models-manager` are no longer part
-  of the native OpenAI spine graph. If a later model catalog is needed, it
-  should be a typed Epiphany catalog document, not a revival of the old Codex
-  provider stack.
+  `codex-core::client`, and `models-manager` are no longer keeper request-path
+  organs. `codex-login` is different: broad login UX can be cut, but the
+  vendored Codex auth semantics should remain the anchor for subscription use.
+  If a later model catalog is needed, it should be a typed Epiphany catalog
+  document, not a revival of the old Codex provider stack.
 - Native auth does not yet preserve every Codex auth mode. External bearer
   command auth and agent identity are legacy/reference gaps unless a concrete
   user path proves they are needed.
@@ -85,7 +107,7 @@ Create an outside-vendor adapter with this shape:
 
 ```text
 EpiphanyOpenAIAuthAdapter
-  -> load/refresh credentials
+  -> wrap retained Codex-compatible credential loading/refresh
   -> expose account/auth mode/model availability
 
 EpiphanyOpenAIModelTransport
@@ -94,10 +116,11 @@ EpiphanyOpenAIModelTransport
   -> emit typed stream events / receipts
 ```
 
-The adapter may depend on `epiphany-openai-auth-spine` and `codex-client` only
-while the reliquary survives. It must not depend on
-`codex-app-server`, `codex_message_processor`, plugin/app/skill/marketplace
-modules, Codex provider/request construction, or Epiphany state ownership.
+The adapter may depend on `epiphany-openai-auth-spine`, retained Codex auth
+machinery, and `codex-client` while the reliquary survives. It must not depend
+on `codex-app-server`, `codex_message_processor`, plugin/app/skill/marketplace
+modules, broad Codex provider/request construction, or Epiphany state
+ownership.
 
 ## Next Cut
 
@@ -177,15 +200,12 @@ application. `codex-core` re-exports the contract only as a compatibility
 alias, and `CodexThread` now calls native state-update functions around its
 remaining revision check, persistence validation, and rollout/session writeback.
 
-The credential extraction now covers Codex file/keyring/auto auth plus env API
-keys, ChatGPT token refresh, account metadata, and header material.
-`epiphany-openai-codex-spine` uses `AuthCredentialsStoreMode::Auto` by default,
-so native runtime calls preserve normal Codex keyring storage without importing
-`codex-login`. `cargo tree` for `epiphany-openai-codex-spine` now finds no
-`codex-login`, `codex-api`, `codex-protocol`, `codex-app-server-protocol`, or
-model-provider crates. The remaining question is whether external
-bearer-command auth or agent identity deserves native implementation or should
-remain a sealed legacy Codex path.
+The credential extraction currently covers Codex file/keyring/auto auth plus
+env API keys, ChatGPT token refresh, account metadata, and header material
+without importing `codex-login`. That is technically clean but architecturally
+suspect under the compliance invariant above. The next corrective cut is to
+re-anchor auth in retained vendored Codex-compatible machinery while keeping
+Epiphany's typed adapter/status/request surfaces outside the Codex host brain.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

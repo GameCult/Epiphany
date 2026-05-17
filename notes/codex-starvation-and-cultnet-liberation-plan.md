@@ -5,8 +5,9 @@ This is the new foundation directive.
 The previous control-plane rebuild made Epiphany cleaner inside Codex. That was
 useful, but it is no longer the target. The target is not a better parasite
 inside the Codex organ. The target is Epiphany as its own CultCache/CultNet
-machine, with Codex reduced to the smallest OpenAI subscription compatibility
-reliquary that can authenticate and call models.
+machine, with Codex reduced to the smallest honest OpenAI subscription
+compatibility reliquary that can authenticate and call models as a modified
+Codex-derived client.
 
 No outward product, bridge, Aquarium, Face, dogfood, Unity, Rider, planning, or
 personality work outranks this liberation pass unless the user explicitly
@@ -20,8 +21,8 @@ Free Epiphany from heretek contamination:
 - subsystem communication is CultNet typed messages and mutation contracts
 - JSON exists only as schema description, wire compatibility at hostile edges,
   or explicitly quarantined forensic/import material
-- vendored Codex stops being a host brain and becomes an OpenAI auth/model-call
-  adapter
+- vendored Codex stops being a host brain and becomes an honest OpenAI
+  auth/model-call compatibility organ
 
 ## Current Mechanism
 
@@ -60,6 +61,11 @@ This is cleaner than the earlier Jenga pile. It is still the wrong organ.
   - deliberately named quarantine experiments with an expiration path
 - OpenAI subscription compatibility is the only long-term reason to preserve a
   Codex-derived organ.
+- Epiphany must remain Codex-compatible rather than merely Codex-impersonating.
+  Do not replace vendored Codex auth semantics with a lookalike implementation
+  just because it is technically possible; keep enough Codex-derived auth/model
+  machinery that the system is honestly a modified Codex backend, not a fake
+  client tunnel.
 - Codex apps, skills, marketplace, broad app-server lifecycle, plugin UX, and
   JSON-RPC surface sprawl are not Epiphany foundations.
 - MCP support may survive, but as a separate CultNet-speaking adapter, not as a
@@ -70,7 +76,9 @@ This is cleaner than the earlier Jenga pile. It is still the wrong organ.
 Keep or extract:
 
 - OpenAI authentication/session compatibility needed for the user's Codex
-  subscription
+  subscription; this should remain anchored in Codex-derived auth machinery
+  unless the user obtains explicit permission or a public first-party API path
+  makes that unnecessary
 - model request/response transport required to use that auth
 - any model/tool streaming primitives that are truly cheaper to extract than
   rewrite
@@ -113,9 +121,11 @@ OpenAIModelTransport
 LegacyCodexImportBridge, only if needed
 ```
 
-The adapter may know how to refresh credentials and submit model calls. It must
-not own Epiphany state, scheduling, view derivation, worker lifecycle,
-operator APIs, plugin UX, app discovery, marketplace state, or document truth.
+The adapter may know how to refresh credentials and submit model calls. It
+should preserve Codex-compatible identity and auth semantics rather than
+pretending to be official Codex from a clean-room clone. It must not own
+Epiphany state, scheduling, view derivation, worker lifecycle, operator APIs,
+plugin UX, app discovery, marketplace state, or document truth.
 
 ## Ranked Liberation Plan
 
@@ -133,7 +143,8 @@ Map the smallest Codex auth/model-call path:
 Output: `notes/codex-auth-spine-inventory.md` with keep/cut/extract verdicts.
 
 Success: every retained Codex dependency is justified by OpenAI subscription
-compatibility or model transport.
+compatibility, Codex-compatible auth identity, or model transport; every cut is
+justified as workflow/product bulk rather than auth impersonation.
 
 ### 2. JSON Contamination Ledger
 
