@@ -9,6 +9,7 @@ use std::fs;
 use std::path::Path;
 
 mod heartbeat_documents;
+mod heartbeat_pacing;
 mod heartbeat_projection;
 mod heartbeat_roles;
 mod heartbeat_store;
@@ -29,6 +30,11 @@ use heartbeat_projection::history_event_json;
 use heartbeat_projection::pending_turn_json;
 use heartbeat_projection::schedule_participant_json;
 use heartbeat_projection::selection_policy_json;
+use heartbeat_pacing::adaptive_swarm_pacing;
+use heartbeat_pacing::effective_cooldown_multiplier;
+use heartbeat_pacing::mood_cooldown_multiplier;
+use heartbeat_pacing::personality_cooldown_multiplier;
+use heartbeat_pacing::running_turn_count;
 use heartbeat_roles::ROLE_ORDER;
 use heartbeat_roles::agent_id_for_role;
 use heartbeat_roles::default_participant;
@@ -1337,165 +1343,6 @@ fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, ap
             }),
         );
     }
-}
-
-#[derive(Clone, Debug)]
-struct AdaptiveSwarmPacing {
-    pressure: f64,
-    effective_heartbeat_rate: f64,
-    target_concurrency: usize,
-    running_turns: usize,
-    active_participants: usize,
-    signals: Value,
-}
-
-fn adaptive_swarm_pacing(
-    state: &EpiphanyHeartbeatStateEntry,
-    options: &HeartbeatPumpOptions,
-) -> AdaptiveSwarmPacing {
-    let active_participants = state
-        .participants
-        .iter()
-        .filter(|participant| participant.status == "active")
-        .count();
-    let running_turns = running_turn_count(state);
-    let mood_signals = swarm_mood_signals(state);
-    let external_urgency = options.external_urgency.clamp(0.0, 1.0);
-    let pending_pressure = if active_participants == 0 {
-        0.0
-    } else {
-        (running_turns as f64 / active_participants as f64).clamp(0.0, 1.0)
-    };
-    let pressure = [
-        external_urgency,
-        mood_signals.max_anxiety,
-        mood_signals.max_urgency,
-        mood_signals.max_reaction_intensity,
-        mood_signals.max_thought_pressure,
-        pending_pressure * 0.65,
-    ]
-    .into_iter()
-    .fold(0.0_f64, f64::max)
-    .clamp(0.0, 1.0);
-
-    let base_rate = options
-        .base_heartbeat_rate
-        .max(state.pacing_policy.minimum_effective_rate)
-        .max(0.001);
-    let min_rate = options.min_heartbeat_rate.max(0.001).min(base_rate);
-    let max_rate = options.max_heartbeat_rate.max(base_rate).max(min_rate);
-    let pressure_curve = pressure * pressure;
-    let effective_heartbeat_rate = round6(min_rate + (max_rate - min_rate) * pressure_curve);
-
-    let max_concurrency = options
-        .max_concurrency
-        .max(1)
-        .min(active_participants.max(1));
-    let relaxed_floor = if pressure < 0.18 {
-        0
-    } else {
-        options.min_concurrency.min(max_concurrency)
-    };
-    let target_concurrency = if pressure < 0.18 {
-        relaxed_floor
-    } else {
-        let span = max_concurrency.saturating_sub(relaxed_floor);
-        (relaxed_floor + (span as f64 * pressure).ceil() as usize).min(max_concurrency)
-    };
-
-    AdaptiveSwarmPacing {
-        pressure: round3(pressure),
-        effective_heartbeat_rate,
-        target_concurrency,
-        running_turns,
-        active_participants,
-        signals: serde_json::json!({
-            "externalUrgency": round3(external_urgency),
-            "maxAnxiety": round3(mood_signals.max_anxiety),
-            "averageAnxiety": round3(mood_signals.average_anxiety),
-            "maxUrgency": round3(mood_signals.max_urgency),
-            "maxArousal": round3(mood_signals.max_arousal),
-            "maxThoughtPressure": round3(mood_signals.max_thought_pressure),
-            "maxReactionIntensity": round3(mood_signals.max_reaction_intensity),
-            "pendingPressure": round3(pending_pressure),
-            "contract": "Anxiety-like state raises tempo and concurrency; calm state lets the swarm sleep slow.",
-        }),
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-struct SwarmMoodSignals {
-    max_anxiety: f64,
-    average_anxiety: f64,
-    max_urgency: f64,
-    max_arousal: f64,
-    max_thought_pressure: f64,
-    max_reaction_intensity: f64,
-}
-
-fn swarm_mood_signals(state: &EpiphanyHeartbeatStateEntry) -> SwarmMoodSignals {
-    let mut signals = SwarmMoodSignals::default();
-    let mut anxiety_total = 0.0;
-    let mut anxiety_count = 0_usize;
-    for participant in &state.participants {
-        let Some(mood) = participant.extra.get("moodTiming") else {
-            continue;
-        };
-        let anxiety = number_at(mood, "/anxiety");
-        let urgency = number_at(mood, "/urgency");
-        let arousal = number_at(mood, "/arousal");
-        let thought_pressure = number_at(mood, "/thoughtPressure");
-        let reaction_intensity = number_at(mood, "/reactionIntensity");
-        signals.max_anxiety = signals.max_anxiety.max(anxiety);
-        signals.max_urgency = signals.max_urgency.max(urgency);
-        signals.max_arousal = signals.max_arousal.max(arousal);
-        signals.max_thought_pressure = signals.max_thought_pressure.max(thought_pressure);
-        signals.max_reaction_intensity = signals.max_reaction_intensity.max(reaction_intensity);
-        anxiety_total += anxiety;
-        anxiety_count += 1;
-    }
-    if anxiety_count > 0 {
-        signals.average_anxiety = anxiety_total / anxiety_count as f64;
-    }
-    signals
-}
-
-fn running_turn_count(state: &EpiphanyHeartbeatStateEntry) -> usize {
-    state
-        .participants
-        .iter()
-        .filter(|participant| is_turn_pending(participant))
-        .count()
-}
-
-fn number_at(value: &Value, pointer: &str) -> f64 {
-    value
-        .pointer(pointer)
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0)
-}
-
-pub(super) fn personality_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
-    participant
-        .extra
-        .get("personalityCooldownMultiplier")
-        .and_then(Value::as_f64)
-        .unwrap_or(1.0)
-        .clamp(0.25, 3.0)
-}
-
-pub(super) fn mood_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
-    participant
-        .extra
-        .get("moodCooldownMultiplier")
-        .and_then(Value::as_f64)
-        .unwrap_or(1.0)
-        .clamp(0.25, 3.0)
-}
-
-pub(super) fn effective_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
-    round3(personality_cooldown_multiplier(participant) * mood_cooldown_multiplier(participant))
-        .clamp(0.20, 4.0)
 }
 
 fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
@@ -3220,11 +3067,11 @@ fn now_stamp() -> String {
     chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string()
 }
 
-fn round6(value: f64) -> f64 {
+pub(super) fn round6(value: f64) -> f64 {
     (value * 1_000_000.0).round() / 1_000_000.0
 }
 
-fn round3(value: f64) -> f64 {
+pub(super) fn round3(value: f64) -> f64 {
     (value * 1_000.0).round() / 1_000.0
 }
 
