@@ -13,6 +13,7 @@ mod thread_admin_routes;
 mod thread_archive_routes;
 mod thread_config;
 mod thread_fork_routes;
+mod thread_metadata_routes;
 mod thread_projection;
 mod thread_read_routes;
 mod thread_resume_routes;
