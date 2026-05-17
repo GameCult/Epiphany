@@ -192,3 +192,49 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::heartbeat_state::default_heartbeat_state;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn round_trips_state_and_cognition_documents() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("heartbeats.msgpack");
+        let state = default_heartbeat_state(1.0);
+
+        write_heartbeat_state_entry(&store_path, &state)?;
+        let loaded = load_heartbeat_state_entry(&store_path)?
+            .expect("heartbeat state should round-trip through CultCache");
+
+        assert_eq!(loaded.schema_version, HEARTBEAT_STATE_SCHEMA_VERSION);
+        assert_eq!(loaded.participants.len(), state.participants.len());
+
+        let cognition = EpiphanyHeartbeatCognitionEntry {
+            schema_version: HEARTBEAT_COGNITION_SCHEMA_VERSION.to_string(),
+            updated_at: "2026-05-17T00:00:00Z".to_string(),
+            latest_run_id: Some("run-1".to_string()),
+            latest_artifact_ref: None,
+            source: Some("unit-test".to_string()),
+            sleep_cycle: None,
+            memory_resonance: None,
+            incubation: None,
+            thought_lanes: None,
+            bridge: None,
+            candidate_interventions: None,
+            appraisals: None,
+            reactions: None,
+            extra: BTreeMap::new(),
+        };
+
+        write_heartbeat_cognition_entry(&store_path, &cognition)?;
+        let loaded_cognition = load_heartbeat_cognition_entry(&store_path)?
+            .expect("heartbeat cognition should round-trip through CultCache");
+
+        assert_eq!(loaded_cognition.schema_version, HEARTBEAT_COGNITION_SCHEMA_VERSION);
+        assert_eq!(loaded_cognition.latest_run_id.as_deref(), Some("run-1"));
+        Ok(())
+    }
+}

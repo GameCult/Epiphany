@@ -269,3 +269,65 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
         role_specific,
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn default_state_defines_the_fixed_lane_catalog() {
+        let state = default_heartbeat_state(1.5);
+
+        assert_eq!(state.target_heartbeat_rate, 1.5);
+        assert_eq!(state.pacing_policy.work_base_recovery, 6.0);
+        assert_eq!(state.pacing_policy.idle_base_recovery, 2.0);
+        assert_eq!(
+            state
+                .participants
+                .iter()
+                .map(|participant| participant.role_id.as_str())
+                .collect::<Vec<_>>(),
+            ROLE_ORDER
+        );
+        assert_eq!(
+            state
+                .participants
+                .iter()
+                .find(|participant| participant.role_id == "face")
+                .map(|participant| participant.agent_id.as_str()),
+            Some("epiphany.face")
+        );
+    }
+
+    #[test]
+    fn ghostlight_scene_state_replaces_maintenance_lanes_with_scene_characters() -> Result<()> {
+        let state = ghostlight_scene_heartbeat_state(
+            0.5,
+            "room",
+            vec![GhostlightSceneParticipantSeed {
+                agent_id: "Ariadne Prime".to_string(),
+                display_name: "Ariadne".to_string(),
+                initiative_speed: 1.2,
+                reaction_bias: 0.8,
+                interrupt_threshold: 0.4,
+                constraints: vec!["Speak only in the room.".to_string()],
+            }],
+        )?;
+
+        assert_eq!(state.participants.len(), 1);
+        let participant = &state.participants[0];
+        assert_eq!(participant.role_id, "ghostlight.character.ariadne-prime");
+        assert_eq!(participant.arena, HEARTBEAT_ARENA_SCENE);
+        assert_eq!(participant.participant_kind, PARTICIPANT_KIND_CHARACTER);
+        assert_eq!(
+            state
+                .extra
+                .get("protocol")
+                .and_then(|value| value.get("domain"))
+                .and_then(|value| value.as_str()),
+            Some("ghostlight")
+        );
+        Ok(())
+    }
+}
