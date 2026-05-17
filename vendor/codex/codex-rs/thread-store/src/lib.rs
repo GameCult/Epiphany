@@ -24,6 +24,7 @@ pub use types::GitInfoPatch;
 pub use types::ListThreadsParams;
 pub use types::LoadThreadHistoryParams;
 pub use types::OptionalStringPatch;
+pub use types::ReadThreadByRolloutPathParams;
 pub use types::ReadThreadParams;
 pub use types::ResumeThreadRecorderParams;
 pub use types::SortDirection;

@@ -393,14 +393,16 @@ mod tests {
             .expect("path should be under codex home")
             .to_path_buf();
 
-        let thread = store
-            .read_thread_by_rollout_path(
-                relative_path,
-                /*include_archived*/ false,
-                /*include_history*/ false,
-            )
-            .await
-            .expect("read thread by rollout path");
+        let thread = crate::ThreadStore::read_thread_by_rollout_path(
+            &store,
+            crate::ReadThreadByRolloutPathParams {
+                rollout_path: relative_path,
+                include_archived: false,
+                include_history: false,
+            },
+        )
+        .await
+        .expect("read thread by rollout path");
 
         assert_eq!(thread.thread_id, thread_id);
         assert_eq!(

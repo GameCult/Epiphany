@@ -8,6 +8,7 @@ use crate::ArchiveThreadParams;
 use crate::CreateThreadParams;
 use crate::ListThreadsParams;
 use crate::LoadThreadHistoryParams;
+use crate::ReadThreadByRolloutPathParams;
 use crate::ReadThreadParams;
 use crate::ResumeThreadRecorderParams;
 use crate::StoredThread;
@@ -48,10 +49,6 @@ impl RemoteThreadStore {
 
 #[async_trait]
 impl ThreadStore for RemoteThreadStore {
-    fn as_any(&self) -> &dyn std::any::Any {
-        self
-    }
-
     async fn create_thread(
         &self,
         _params: CreateThreadParams,
@@ -79,6 +76,15 @@ impl ThreadStore for RemoteThreadStore {
 
     async fn read_thread(&self, _params: ReadThreadParams) -> ThreadStoreResult<StoredThread> {
         Err(not_implemented("read_thread"))
+    }
+
+    async fn read_thread_by_rollout_path(
+        &self,
+        _params: ReadThreadByRolloutPathParams,
+    ) -> ThreadStoreResult<StoredThread> {
+        Err(ThreadStoreError::InvalidRequest {
+            message: "rollout path queries are only supported by local thread stores".to_string(),
+        })
     }
 
     async fn list_threads(&self, params: ListThreadsParams) -> ThreadStoreResult<ThreadPage> {

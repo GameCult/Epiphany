@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use async_trait::async_trait;
 
 use crate::AppendThreadItemsParams;
@@ -7,6 +5,7 @@ use crate::ArchiveThreadParams;
 use crate::CreateThreadParams;
 use crate::ListThreadsParams;
 use crate::LoadThreadHistoryParams;
+use crate::ReadThreadByRolloutPathParams;
 use crate::ReadThreadParams;
 use crate::ResumeThreadRecorderParams;
 use crate::StoredThread;
@@ -18,11 +17,7 @@ use crate::UpdateThreadMetadataParams;
 
 /// Storage-neutral thread persistence boundary.
 #[async_trait]
-pub trait ThreadStore: Any + Send + Sync {
-    /// Return this store as [`Any`] so callers at API boundaries can reject requests that only
-    /// make sense for a concrete store implementation.
-    fn as_any(&self) -> &dyn Any;
-
+pub trait ThreadStore: Send + Sync {
     /// Creates a new thread and returns a live recorder for future appends.
     async fn create_thread(
         &self,
@@ -46,6 +41,12 @@ pub trait ThreadStore: Any + Send + Sync {
 
     /// Reads a thread summary and optionally its persisted history.
     async fn read_thread(&self, params: ReadThreadParams) -> ThreadStoreResult<StoredThread>;
+
+    /// Reads a thread summary by rollout path when the backing store exposes local paths.
+    async fn read_thread_by_rollout_path(
+        &self,
+        params: ReadThreadByRolloutPathParams,
+    ) -> ThreadStoreResult<StoredThread>;
 
     /// Lists stored threads matching the supplied filters.
     async fn list_threads(&self, params: ListThreadsParams) -> ThreadStoreResult<ThreadPage>;

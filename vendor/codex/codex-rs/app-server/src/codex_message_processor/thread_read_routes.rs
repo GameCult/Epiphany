@@ -574,31 +574,15 @@ impl CodexMessageProcessor {
                 })
                 .await
                 .map_err(|err| conversation_summary_thread_id_read_error(conversation_id, err)),
-            GetConversationSummaryParams::RolloutPath { rollout_path } => {
-                let Some(local_thread_store) = self
-                    .thread_store
-                    .as_any()
-                    .downcast_ref::<LocalThreadStore>()
-                else {
-                    let error = JSONRPCErrorError {
-                        code: INVALID_REQUEST_ERROR_CODE,
-                        message:
-                            "rollout path queries are only supported with the local thread store"
-                                .to_string(),
-                        data: None,
-                    };
-                    return self.outgoing.send_error(request_id, error).await;
-                };
-
-                local_thread_store
-                    .read_thread_by_rollout_path(
-                        rollout_path.clone(),
-                        /*include_archived*/ true,
-                        /*include_history*/ false,
-                    )
-                    .await
-                    .map_err(|err| conversation_summary_rollout_path_read_error(&rollout_path, err))
-            }
+            GetConversationSummaryParams::RolloutPath { rollout_path } => self
+                .thread_store
+                .read_thread_by_rollout_path(StoreReadThreadByRolloutPathParams {
+                    rollout_path: rollout_path.clone(),
+                    include_archived: true,
+                    include_history: false,
+                })
+                .await
+                .map_err(|err| conversation_summary_rollout_path_read_error(&rollout_path, err)),
         };
 
         match read_result {
