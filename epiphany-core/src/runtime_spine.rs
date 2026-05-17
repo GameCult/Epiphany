@@ -1965,6 +1965,60 @@ mod tests {
     }
 
     #[test]
+    fn heartbeat_launch_plan_leaves_lifecycle_to_runtime_links() {
+        let launch_plan = plan_runtime_spine_heartbeat_launch(
+            &EpiphanyThreadState::default(),
+            RuntimeSpineHeartbeatLaunchPlanOptions {
+                binding_id: "modeling-checkpoint-worker".to_string(),
+                kind: EpiphanyJobKind::Specialist,
+                scope: "role-scoped modeling/checkpoint maintenance".to_string(),
+                owner_role: "epiphany-modeler".to_string(),
+                authority_scope: "epiphany.role.modeling".to_string(),
+                linked_subgoal_ids: vec!["phase-6".to_string()],
+                linked_graph_node_ids: vec!["runtime-spine".to_string()],
+                instruction: "Model the target before implementation.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    crate::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "modeling".to_string(),
+                        state_revision: 7,
+                        objective: Some("keep state typed".to_string()),
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: vec!["runtime-spine".to_string()],
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: "epiphany.worker.role_result.v0".to_string(),
+                max_runtime_seconds: Some(60),
+                runtime_job_id: "turn-1".to_string(),
+            },
+        )
+        .expect("launch planning should build binding and runtime link");
+
+        assert_eq!(
+            launch_plan.binding.authority_scope.as_deref(),
+            Some("epiphany.role.modeling")
+        );
+        assert_eq!(
+            launch_plan.runtime_link.id,
+            "runtime-link-modeling-checkpoint-worker-turn-1"
+        );
+        assert_eq!(launch_plan.runtime_link.runtime_job_id, "turn-1");
+        assert_eq!(launch_plan.runtime_link.runtime_result_id, None);
+        assert_eq!(launch_plan.runtime_link.role_id, "epiphany-modeler");
+    }
+
+    #[test]
     fn runtime_spine_emits_cultnet_hello_frame() -> Result<()> {
         let temp = tempdir()?;
         let store = temp.path().join("runtime.msgpack");

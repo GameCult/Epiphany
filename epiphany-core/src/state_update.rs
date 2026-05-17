@@ -231,6 +231,479 @@ pub fn apply_epiphany_state_update(
     state.last_updated_turn_id = reference_turn_id;
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use epiphany_state_model::EpiphanyBacklogItem;
+    use epiphany_state_model::EpiphanyGraph;
+    use epiphany_state_model::EpiphanyGraphNode;
+    use epiphany_state_model::EpiphanyJobKind;
+    use epiphany_state_model::EpiphanyObjectiveDraft;
+    use epiphany_state_model::EpiphanyPlanningCapture;
+    use epiphany_state_model::EpiphanyPlanningPriority;
+    use epiphany_state_model::EpiphanyPlanningSourceRef;
+    use epiphany_state_model::EpiphanyRoadmapStream;
+
+    fn evidence(id: &str) -> EpiphanyEvidenceRecord {
+        EpiphanyEvidenceRecord {
+            id: id.to_string(),
+            kind: "verification".to_string(),
+            status: "ok".to_string(),
+            summary: "Evidence summary".to_string(),
+            code_refs: Vec::new(),
+        }
+    }
+
+    fn observation(id: &str, evidence_ids: Vec<&str>) -> EpiphanyObservation {
+        EpiphanyObservation {
+            id: id.to_string(),
+            summary: "Observation summary".to_string(),
+            source_kind: "smoke".to_string(),
+            status: "ok".to_string(),
+            code_refs: Vec::new(),
+            evidence_ids: evidence_ids.into_iter().map(str::to_string).collect(),
+        }
+    }
+
+    fn job_binding(id: &str) -> EpiphanyJobBinding {
+        EpiphanyJobBinding {
+            id: id.to_string(),
+            kind: EpiphanyJobKind::Specialist,
+            scope: "role-scoped specialist work".to_string(),
+            owner_role: "epiphany-harness".to_string(),
+            authority_scope: Some("epiphany.specialist".to_string()),
+            linked_subgoal_ids: vec!["phase-6".to_string()],
+            linked_graph_node_ids: vec!["job-surface".to_string()],
+            blocking_reason: None,
+        }
+    }
+
+    fn acceptance_receipt(
+        id: &str,
+        result_id: &str,
+        evidence_id: &str,
+    ) -> EpiphanyAcceptanceReceipt {
+        EpiphanyAcceptanceReceipt {
+            id: id.to_string(),
+            result_id: result_id.to_string(),
+            job_id: "runtime-job-1".to_string(),
+            binding_id: "modeling".to_string(),
+            surface: "roleAccept".to_string(),
+            role_id: "modeling".to_string(),
+            status: "accepted".to_string(),
+            accepted_at: "2026-05-12T00:00:00Z".to_string(),
+            accepted_observation_id: Some("obs-modeling".to_string()),
+            accepted_evidence_id: Some(evidence_id.to_string()),
+            summary: Some("Accepted modeling result.".to_string()),
+        }
+    }
+
+    #[test]
+    fn state_update_replaces_typed_fields_and_prepends_evidence() {
+        let mut state = EpiphanyThreadState {
+            revision: 3,
+            recent_evidence: vec![EpiphanyEvidenceRecord {
+                id: "old-evidence".to_string(),
+                kind: "research".to_string(),
+                status: "ok".to_string(),
+                summary: "Older finding".to_string(),
+                code_refs: Vec::new(),
+            }],
+            ..Default::default()
+        };
+
+        apply_epiphany_state_update(
+            &mut state,
+            EpiphanyStateUpdate {
+                objective: Some("Keep the map honest".to_string()),
+                investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
+                    checkpoint_id: "ix-1".to_string(),
+                    kind: "slice_planning".to_string(),
+                    focus: "Keep the durable packet small and explicit.".to_string(),
+                    next_action: Some(
+                        "Resume from the packet instead of the ghost transcript.".to_string(),
+                    ),
+                    ..Default::default()
+                }),
+                evidence: vec![EpiphanyEvidenceRecord {
+                    id: "new-evidence".to_string(),
+                    kind: "verification".to_string(),
+                    status: "ok".to_string(),
+                    summary: "New finding".to_string(),
+                    code_refs: Vec::new(),
+                }],
+                churn: Some(EpiphanyChurnState {
+                    understanding_status: "grounded".to_string(),
+                    diff_pressure: "low".to_string(),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            Some("turn-1".to_string()),
+        );
+
+        assert_eq!(state.revision, 4);
+        assert_eq!(state.objective.as_deref(), Some("Keep the map honest"));
+        assert_eq!(state.last_updated_turn_id.as_deref(), Some("turn-1"));
+        assert_eq!(
+            state
+                .investigation_checkpoint
+                .as_ref()
+                .map(|checkpoint| checkpoint.checkpoint_id.as_str()),
+            Some("ix-1")
+        );
+        assert_eq!(state.recent_evidence[0].id, "new-evidence");
+        assert_eq!(state.recent_evidence[1].id, "old-evidence");
+        assert_eq!(
+            state
+                .churn
+                .as_ref()
+                .map(|churn| churn.diff_pressure.as_str()),
+            Some("low")
+        );
+    }
+
+    #[test]
+    fn state_update_replaces_job_bindings_and_prepends_acceptance_receipts() {
+        let mut state = EpiphanyThreadState {
+            revision: 2,
+            recent_evidence: vec![evidence("ev-new")],
+            job_bindings: vec![job_binding("old")],
+            acceptance_receipts: vec![acceptance_receipt("accept-old", "result-old", "ev-old")],
+            ..Default::default()
+        };
+
+        apply_epiphany_state_update(
+            &mut state,
+            EpiphanyStateUpdate {
+                job_bindings: Some(vec![job_binding("new")]),
+                acceptance_receipts: vec![acceptance_receipt("accept-new", "result-new", "ev-new")],
+                ..Default::default()
+            },
+            Some("turn-jobs".to_string()),
+        );
+
+        assert_eq!(state.revision, 3);
+        assert_eq!(state.job_bindings.len(), 1);
+        assert_eq!(state.job_bindings[0].id, "new");
+        assert_eq!(
+            state.job_bindings[0].authority_scope.as_deref(),
+            Some("epiphany.specialist")
+        );
+        assert_eq!(state.acceptance_receipts[0].id, "accept-new");
+        assert_eq!(state.acceptance_receipts[1].id, "accept-old");
+    }
+
+    #[test]
+    fn state_update_validation_accepts_and_rejects_planning_state() {
+        let valid = EpiphanyStateUpdate {
+            planning: Some(EpiphanyPlanningState {
+                captures: vec![EpiphanyPlanningCapture {
+                    id: "capture-github-42".to_string(),
+                    title: "Import issue backlog".to_string(),
+                    confidence: "medium".to_string(),
+                    status: "new".to_string(),
+                    source: EpiphanyPlanningSourceRef {
+                        kind: "github_issue".to_string(),
+                        provider: Some("github".to_string()),
+                        repo: Some("GameCult/Epiphany".to_string()),
+                        issue_number: Some(42),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }],
+                backlog_items: vec![EpiphanyBacklogItem {
+                    id: "backlog-planning-api".to_string(),
+                    title: "Expose planning projection".to_string(),
+                    kind: "feature".to_string(),
+                    summary: "Make planning state queryable by the GUI.".to_string(),
+                    status: "ready".to_string(),
+                    horizon: "now".to_string(),
+                    priority: EpiphanyPlanningPriority {
+                        value: "p1".to_string(),
+                        rationale: "Unblocks planning operations.".to_string(),
+                        ..Default::default()
+                    },
+                    confidence: "high".to_string(),
+                    product_area: "gui".to_string(),
+                    lane_hints: vec!["imagination".to_string()],
+                    ..Default::default()
+                }],
+                roadmap_streams: vec![EpiphanyRoadmapStream {
+                    id: "stream-gui".to_string(),
+                    title: "GUI Operator Surface".to_string(),
+                    purpose: "Let the human inspect and steer planning.".to_string(),
+                    status: "active".to_string(),
+                    item_ids: vec!["backlog-planning-api".to_string()],
+                    ..Default::default()
+                }],
+                objective_drafts: vec![EpiphanyObjectiveDraft {
+                    id: "objdraft-planning-api".to_string(),
+                    title: "Build planning API slice".to_string(),
+                    summary: "Land typed planning state and read-only projection.".to_string(),
+                    source_item_ids: vec!["backlog-planning-api".to_string()],
+                    acceptance_criteria: vec!["Projection returns planning counts.".to_string()],
+                    status: "draft".to_string(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert!(
+            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &valid)
+                .is_empty()
+        );
+
+        let invalid = EpiphanyStateUpdate {
+            planning: Some(EpiphanyPlanningState {
+                captures: vec![EpiphanyPlanningCapture {
+                    id: "capture-bad-github".to_string(),
+                    title: "Missing repo issue".to_string(),
+                    confidence: "medium".to_string(),
+                    status: "new".to_string(),
+                    source: EpiphanyPlanningSourceRef {
+                        kind: "github_issue".to_string(),
+                        issue_number: None,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }],
+                backlog_items: vec![EpiphanyBacklogItem {
+                    id: "backlog-1".to_string(),
+                    title: "Backlog without priority rationale".to_string(),
+                    kind: "feature".to_string(),
+                    summary: "Invalid on purpose.".to_string(),
+                    status: "ready".to_string(),
+                    horizon: "now".to_string(),
+                    priority: EpiphanyPlanningPriority {
+                        value: "p1".to_string(),
+                        rationale: String::new(),
+                        ..Default::default()
+                    },
+                    confidence: "high".to_string(),
+                    product_area: "gui".to_string(),
+                    ..Default::default()
+                }],
+                roadmap_streams: vec![EpiphanyRoadmapStream {
+                    id: "stream-gui".to_string(),
+                    title: "GUI Operator Surface".to_string(),
+                    purpose: "Let the human inspect and steer planning.".to_string(),
+                    status: "active".to_string(),
+                    item_ids: vec!["missing-backlog".to_string()],
+                    ..Default::default()
+                }],
+                objective_drafts: vec![EpiphanyObjectiveDraft {
+                    id: "objdraft-empty".to_string(),
+                    title: "Empty acceptance draft".to_string(),
+                    summary: "Invalid on purpose.".to_string(),
+                    source_item_ids: vec!["missing-backlog".to_string()],
+                    status: "draft".to_string(),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let errors =
+            epiphany_state_update_validation_errors(&EpiphanyThreadState::default(), &invalid);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("repo is required for github_issue"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("priority.rationale"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("references missing backlog item"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("must include at least one acceptance criterion"))
+        );
+    }
+
+    #[test]
+    fn state_update_validation_rejects_bad_evidence_observations_acceptance_and_bindings() {
+        let state = EpiphanyThreadState {
+            observations: vec![observation("obs-existing", vec!["ev-existing"])],
+            recent_evidence: vec![evidence("ev-existing"), evidence("ev-new")],
+            acceptance_receipts: vec![acceptance_receipt(
+                "accept-existing",
+                "result-existing",
+                "ev-existing",
+            )],
+            ..Default::default()
+        };
+        let update = EpiphanyStateUpdate {
+            observations: vec![
+                observation("obs-existing", vec!["ev-new"]),
+                observation("obs-dup", vec!["ev-new"]),
+                observation("obs-dup", vec!["ev-missing"]),
+                EpiphanyObservation {
+                    id: String::new(),
+                    ..observation("unused", vec!["ev-new"])
+                },
+            ],
+            evidence: vec![
+                evidence("ev-existing"),
+                evidence("ev-new"),
+                evidence("ev-new"),
+                EpiphanyEvidenceRecord {
+                    id: String::new(),
+                    ..evidence("unused")
+                },
+            ],
+            acceptance_receipts: vec![
+                acceptance_receipt("accept-new", "result-existing", "ev-new"),
+                acceptance_receipt("accept-new", "result-new", "ev-new"),
+            ],
+            job_bindings: Some(vec![
+                job_binding("dup"),
+                job_binding("dup"),
+                EpiphanyJobBinding {
+                    id: String::new(),
+                    kind: EpiphanyJobKind::Verification,
+                    scope: String::new(),
+                    owner_role: String::new(),
+                    authority_scope: Some(String::new()),
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                    blocking_reason: Some(String::new()),
+                },
+            ]),
+            ..Default::default()
+        };
+
+        let errors = epiphany_state_update_validation_errors(&state, &update);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("evidence id \"ev-existing\" already exists"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("duplicate evidence id \"ev-new\""))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("observation id \"obs-existing\" already exists"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("duplicate observation id \"obs-dup\""))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("cites missing evidence id"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("runtime result \"result-existing\" already has"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("acceptance receipt id \"accept-new\" is duplicated"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("duplicate job binding id"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.id must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.scope must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.owner_role must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.authority_scope must not be empty"))
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("job_binding.blocking_reason must not be empty"))
+        );
+    }
+
+    #[test]
+    fn state_update_validation_rejects_structural_replacements_and_checkpoint_evidence_gap() {
+        let state = EpiphanyThreadState {
+            graphs: EpiphanyGraphs {
+                architecture: EpiphanyGraph {
+                    nodes: vec![EpiphanyGraphNode {
+                        id: "state".to_string(),
+                        title: "State".to_string(),
+                        purpose: "Carry the explicit map".to_string(),
+                        ..Default::default()
+                    }],
+                    edges: Vec::new(),
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let frontier_update = EpiphanyStateUpdate {
+            graph_frontier: Some(EpiphanyGraphFrontier {
+                active_node_ids: vec!["missing".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let errors = epiphany_state_update_validation_errors(&state, &frontier_update);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("graph frontier references missing node"))
+        );
+
+        let checkpoint_update = EpiphanyStateUpdate {
+            investigation_checkpoint: Some(EpiphanyInvestigationCheckpoint {
+                checkpoint_id: "ix-missing".to_string(),
+                kind: "source_gathering".to_string(),
+                focus: "Trace the compaction seam.".to_string(),
+                next_action: Some("Re-gather source before implementation.".to_string()),
+                evidence_ids: vec!["ev-missing".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let errors = epiphany_state_update_validation_errors(
+            &EpiphanyThreadState::default(),
+            &checkpoint_update,
+        );
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("investigation checkpoint cites missing evidence id"))
+        );
+    }
+}
+
 fn validate_epiphany_runtime_links(
     existing: &[EpiphanyRuntimeLink],
     links: &[EpiphanyRuntimeLink],
