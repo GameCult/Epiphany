@@ -115,3 +115,29 @@ fn not_implemented(method: &str) -> ThreadStoreError {
         message: format!("remote thread store does not implement {method} yet"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn rollout_path_read_rejects_remote_store_without_downcast() {
+        let store = RemoteThreadStore::new("http://127.0.0.1:9");
+
+        let error = store
+            .read_thread_by_rollout_path(ReadThreadByRolloutPathParams {
+                rollout_path: "rollout.jsonl".into(),
+                include_archived: true,
+                include_history: false,
+            })
+            .await
+            .expect_err("remote rollout path read should be rejected before network access");
+
+        match error {
+            ThreadStoreError::InvalidRequest { message } => {
+                assert!(message.contains("local thread stores"));
+            }
+            other => panic!("expected invalid request, got {other:?}"),
+        }
+    }
+}
