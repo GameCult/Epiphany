@@ -456,4 +456,81 @@ impl CodexMessageProcessor {
             }
         }
     }
+    fn normalize_turn_start_collaboration_mode(
+        &self,
+        mut collaboration_mode: CollaborationMode,
+        collaboration_modes_config: CollaborationModesConfig,
+    ) -> CollaborationMode {
+        if collaboration_mode.settings.developer_instructions.is_none()
+            && let Some(instructions) = self
+                .thread_manager
+                .get_models_manager()
+                .list_collaboration_modes_for_config(collaboration_modes_config)
+                .into_iter()
+                .find(|preset| preset.mode == Some(collaboration_mode.mode))
+                .and_then(|preset| preset.developer_instructions.flatten())
+                .filter(|instructions| !instructions.is_empty())
+        {
+            collaboration_mode.settings.developer_instructions = Some(instructions);
+        }
+
+        collaboration_mode
+    }
+
+    fn input_too_large_error(actual_chars: usize) -> JSONRPCErrorError {
+        JSONRPCErrorError {
+            code: INVALID_PARAMS_ERROR_CODE,
+            message: format!(
+                "Input exceeds the maximum length of {MAX_USER_INPUT_TEXT_CHARS} characters."
+            ),
+            data: Some(serde_json::json!({
+                "input_error_code": INPUT_TOO_LARGE_ERROR_CODE,
+                "max_chars": MAX_USER_INPUT_TEXT_CHARS,
+                "actual_chars": actual_chars,
+            })),
+        }
+    }
+
+    fn validate_v2_input_limit(items: &[V2UserInput]) -> Result<(), JSONRPCErrorError> {
+        let actual_chars: usize = items.iter().map(V2UserInput::text_char_count).sum();
+        if actual_chars > MAX_USER_INPUT_TEXT_CHARS {
+            return Err(Self::input_too_large_error(actual_chars));
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text_input(text: String) -> V2UserInput {
+        V2UserInput::Text {
+            text,
+            text_elements: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn input_limit_accepts_exact_boundary() {
+        let input = vec![text_input("x".repeat(MAX_USER_INPUT_TEXT_CHARS))];
+
+        assert!(CodexMessageProcessor::validate_v2_input_limit(&input).is_ok());
+    }
+
+    #[test]
+    fn input_limit_rejects_total_text_over_boundary() {
+        let input = vec![
+            text_input("x".repeat(MAX_USER_INPUT_TEXT_CHARS)),
+            text_input("y".to_string()),
+        ];
+
+        let error = CodexMessageProcessor::validate_v2_input_limit(&input)
+            .expect_err("oversized input should fail");
+        assert_eq!(error.code, INVALID_PARAMS_ERROR_CODE);
+        assert_eq!(
+            error.message,
+            format!("Input exceeds the maximum length of {MAX_USER_INPUT_TEXT_CHARS} characters.")
+        );
+    }
 }

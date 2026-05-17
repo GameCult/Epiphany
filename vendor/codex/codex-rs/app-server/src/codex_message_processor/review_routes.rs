@@ -251,4 +251,113 @@ impl CodexMessageProcessor {
             }
         }
     }
+    fn review_request_from_target(
+        target: ApiReviewTarget,
+    ) -> Result<(ReviewRequest, String), JSONRPCErrorError> {
+        fn invalid_request(message: String) -> JSONRPCErrorError {
+            JSONRPCErrorError {
+                code: INVALID_REQUEST_ERROR_CODE,
+                message,
+                data: None,
+            }
+        }
+
+        let cleaned_target = match target {
+            ApiReviewTarget::UncommittedChanges => ApiReviewTarget::UncommittedChanges,
+            ApiReviewTarget::BaseBranch { branch } => {
+                let branch = branch.trim().to_string();
+                if branch.is_empty() {
+                    return Err(invalid_request("branch must not be empty".to_string()));
+                }
+                ApiReviewTarget::BaseBranch { branch }
+            }
+            ApiReviewTarget::Commit { sha, title } => {
+                let sha = sha.trim().to_string();
+                if sha.is_empty() {
+                    return Err(invalid_request("sha must not be empty".to_string()));
+                }
+                let title = title
+                    .map(|t| t.trim().to_string())
+                    .filter(|t| !t.is_empty());
+                ApiReviewTarget::Commit { sha, title }
+            }
+            ApiReviewTarget::Custom { instructions } => {
+                let trimmed = instructions.trim().to_string();
+                if trimmed.is_empty() {
+                    return Err(invalid_request(
+                        "instructions must not be empty".to_string(),
+                    ));
+                }
+                ApiReviewTarget::Custom {
+                    instructions: trimmed,
+                }
+            }
+        };
+
+        let core_target = match cleaned_target {
+            ApiReviewTarget::UncommittedChanges => CoreReviewTarget::UncommittedChanges,
+            ApiReviewTarget::BaseBranch { branch } => CoreReviewTarget::BaseBranch { branch },
+            ApiReviewTarget::Commit { sha, title } => CoreReviewTarget::Commit { sha, title },
+            ApiReviewTarget::Custom { instructions } => CoreReviewTarget::Custom { instructions },
+        };
+
+        let hint = codex_core::review_prompts::user_facing_hint(&core_target);
+        let review_request = ReviewRequest {
+            target: core_target,
+            user_facing_hint: Some(hint.clone()),
+        };
+
+        Ok((review_request, hint))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn review_target_trims_branch_and_preserves_user_hint() {
+        let (request, hint) =
+            CodexMessageProcessor::review_request_from_target(ApiReviewTarget::BaseBranch {
+                branch: "  main  ".to_string(),
+            })
+            .expect("branch target should parse");
+
+        assert_eq!(
+            request.target,
+            CoreReviewTarget::BaseBranch {
+                branch: "main".to_string()
+            }
+        );
+        assert_eq!(request.user_facing_hint.as_deref(), Some(hint.as_str()));
+    }
+
+    #[test]
+    fn review_target_rejects_empty_custom_instruction() {
+        let error = CodexMessageProcessor::review_request_from_target(ApiReviewTarget::Custom {
+            instructions: "   ".to_string(),
+        })
+        .expect_err("empty custom target should fail");
+
+        assert_eq!(error.code, INVALID_REQUEST_ERROR_CODE);
+        assert_eq!(error.message, "instructions must not be empty");
+    }
+
+    #[test]
+    fn review_target_trims_commit_title_without_inventing_metadata() {
+        let (request, _) =
+            CodexMessageProcessor::review_request_from_target(ApiReviewTarget::Commit {
+                sha: " abc123 ".to_string(),
+                title: Some("   ".to_string()),
+            })
+            .expect("commit target should parse");
+
+        assert_eq!(
+            request.target,
+            CoreReviewTarget::Commit {
+                sha: "abc123".to_string(),
+                title: None
+            }
+        );
+    }
 }

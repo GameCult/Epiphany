@@ -9,6 +9,7 @@ mod mcp_routes;
 mod realtime_routes;
 mod review_routes;
 mod thread_admin_routes;
+mod thread_config;
 mod thread_projection;
 mod thread_read_routes;
 mod thread_resume_routes;
@@ -19,6 +20,7 @@ use self::auth_routes::ActiveLogin;
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_coordinator_automation_for_turn_boundary;
 pub(crate) use self::epiphany_automation::maybe_run_epiphany_pre_compaction_checkpoint_intervention_for_token_count;
 pub(super) use self::listener_lifecycle::{EnsureConversationListenerResult, ListenerTaskContext};
+pub(crate) use self::thread_config::{config_load_error, validate_dynamic_tools};
 pub(crate) use self::thread_projection::*;
 pub(super) use self::thread_read_routes::ThreadReadViewError;
 pub(crate) use self::thread_resume_routes::handle_pending_thread_resume_request;
@@ -429,12 +431,6 @@ fn configured_thread_store(config: &Config) -> Arc<dyn ThreadStore> {
 }
 
 impl CodexMessageProcessor {
-    async fn instruction_sources_from_config(config: &Config) -> Vec<AbsolutePathBuf> {
-        codex_core::AgentsMdManager::new(config)
-            .instruction_sources(LOCAL_FS.as_ref())
-            .await
-    }
-
     fn current_account_updated_notification(&self) -> AccountUpdatedNotification {
         let auth = self.auth_manager.auth_cached();
         AccountUpdatedNotification {
@@ -533,86 +529,6 @@ impl CodexMessageProcessor {
 
     /// If a client sends `developer_instructions: null` during a mode switch,
     /// use the built-in instructions for that mode.
-    fn normalize_turn_start_collaboration_mode(
-        &self,
-        mut collaboration_mode: CollaborationMode,
-        collaboration_modes_config: CollaborationModesConfig,
-    ) -> CollaborationMode {
-        if collaboration_mode.settings.developer_instructions.is_none()
-            && let Some(instructions) = self
-                .thread_manager
-                .get_models_manager()
-                .list_collaboration_modes_for_config(collaboration_modes_config)
-                .into_iter()
-                .find(|preset| preset.mode == Some(collaboration_mode.mode))
-                .and_then(|preset| preset.developer_instructions.flatten())
-                .filter(|instructions| !instructions.is_empty())
-        {
-            collaboration_mode.settings.developer_instructions = Some(instructions);
-        }
-
-        collaboration_mode
-    }
-
-    fn review_request_from_target(
-        target: ApiReviewTarget,
-    ) -> Result<(ReviewRequest, String), JSONRPCErrorError> {
-        fn invalid_request(message: String) -> JSONRPCErrorError {
-            JSONRPCErrorError {
-                code: INVALID_REQUEST_ERROR_CODE,
-                message,
-                data: None,
-            }
-        }
-
-        let cleaned_target = match target {
-            ApiReviewTarget::UncommittedChanges => ApiReviewTarget::UncommittedChanges,
-            ApiReviewTarget::BaseBranch { branch } => {
-                let branch = branch.trim().to_string();
-                if branch.is_empty() {
-                    return Err(invalid_request("branch must not be empty".to_string()));
-                }
-                ApiReviewTarget::BaseBranch { branch }
-            }
-            ApiReviewTarget::Commit { sha, title } => {
-                let sha = sha.trim().to_string();
-                if sha.is_empty() {
-                    return Err(invalid_request("sha must not be empty".to_string()));
-                }
-                let title = title
-                    .map(|t| t.trim().to_string())
-                    .filter(|t| !t.is_empty());
-                ApiReviewTarget::Commit { sha, title }
-            }
-            ApiReviewTarget::Custom { instructions } => {
-                let trimmed = instructions.trim().to_string();
-                if trimmed.is_empty() {
-                    return Err(invalid_request(
-                        "instructions must not be empty".to_string(),
-                    ));
-                }
-                ApiReviewTarget::Custom {
-                    instructions: trimmed,
-                }
-            }
-        };
-
-        let core_target = match cleaned_target {
-            ApiReviewTarget::UncommittedChanges => CoreReviewTarget::UncommittedChanges,
-            ApiReviewTarget::BaseBranch { branch } => CoreReviewTarget::BaseBranch { branch },
-            ApiReviewTarget::Commit { sha, title } => CoreReviewTarget::Commit { sha, title },
-            ApiReviewTarget::Custom { instructions } => CoreReviewTarget::Custom { instructions },
-        };
-
-        let hint = codex_core::review_prompts::user_facing_hint(&core_target);
-        let review_request = ReviewRequest {
-            target: core_target,
-            user_facing_hint: Some(hint.clone()),
-        };
-
-        Ok((review_request, hint))
-    }
-
     pub async fn process_request(
         &self,
         connection_id: ConnectionId,
@@ -1052,41 +968,6 @@ impl CodexMessageProcessor {
             .await
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn build_thread_config_overrides(
-        &self,
-        model: Option<String>,
-        model_provider: Option<String>,
-        service_tier: Option<Option<codex_protocol::config_types::ServiceTier>>,
-        cwd: Option<String>,
-        approval_policy: Option<codex_app_server_protocol::AskForApproval>,
-        approvals_reviewer: Option<codex_app_server_protocol::ApprovalsReviewer>,
-        sandbox: Option<SandboxMode>,
-        permission_profile: Option<ApiPermissionProfile>,
-        base_instructions: Option<String>,
-        developer_instructions: Option<String>,
-        personality: Option<Personality>,
-    ) -> ConfigOverrides {
-        ConfigOverrides {
-            model,
-            model_provider,
-            service_tier,
-            cwd: cwd.map(PathBuf::from),
-            approval_policy: approval_policy
-                .map(codex_app_server_protocol::AskForApproval::to_core),
-            approvals_reviewer: approvals_reviewer
-                .map(codex_app_server_protocol::ApprovalsReviewer::to_core),
-            sandbox_mode: sandbox.map(SandboxMode::to_core),
-            permission_profile: permission_profile.map(Into::into),
-            codex_linux_sandbox_exe: self.arg0_paths.codex_linux_sandbox_exe.clone(),
-            main_execve_wrapper_exe: self.arg0_paths.main_execve_wrapper_exe.clone(),
-            base_instructions,
-            developer_instructions,
-            personality,
-            ..Default::default()
-        }
-    }
-
     async fn send_invalid_request_error(&self, request_id: ConnectionRequestId, message: String) {
         let error = JSONRPCErrorError {
             code: INVALID_REQUEST_ERROR_CODE,
@@ -1094,28 +975,6 @@ impl CodexMessageProcessor {
             data: None,
         };
         self.outgoing.send_error(request_id, error).await;
-    }
-
-    fn input_too_large_error(actual_chars: usize) -> JSONRPCErrorError {
-        JSONRPCErrorError {
-            code: INVALID_PARAMS_ERROR_CODE,
-            message: format!(
-                "Input exceeds the maximum length of {MAX_USER_INPUT_TEXT_CHARS} characters."
-            ),
-            data: Some(serde_json::json!({
-                "input_error_code": INPUT_TOO_LARGE_ERROR_CODE,
-                "max_chars": MAX_USER_INPUT_TEXT_CHARS,
-                "actual_chars": actual_chars,
-            })),
-        }
-    }
-
-    fn validate_v2_input_limit(items: &[V2UserInput]) -> Result<(), JSONRPCErrorError> {
-        let actual_chars: usize = items.iter().map(V2UserInput::text_char_count).sum();
-        if actual_chars > MAX_USER_INPUT_TEXT_CHARS {
-            return Err(Self::input_too_large_error(actual_chars));
-        }
-        Ok(())
     }
 
     async fn send_internal_error(&self, request_id: ConnectionRequestId, message: String) {
@@ -1147,97 +1006,4 @@ impl CodexMessageProcessor {
                 None
             })
     }
-}
-
-fn cloud_requirements_load_error(err: &std::io::Error) -> Option<&CloudRequirementsLoadError> {
-    let mut current: Option<&(dyn std::error::Error + 'static)> = err
-        .get_ref()
-        .map(|source| source as &(dyn std::error::Error + 'static));
-    while let Some(source) = current {
-        if let Some(cloud_error) = source.downcast_ref::<CloudRequirementsLoadError>() {
-            return Some(cloud_error);
-        }
-        current = source.source();
-    }
-    None
-}
-
-fn config_load_error(err: &std::io::Error) -> JSONRPCErrorError {
-    let data = cloud_requirements_load_error(err).map(|cloud_error| {
-        let mut data = serde_json::json!({
-            "reason": "cloudRequirements",
-            "errorCode": format!("{:?}", cloud_error.code()),
-            "detail": cloud_error.to_string(),
-        });
-        if let Some(status_code) = cloud_error.status_code() {
-            data["statusCode"] = serde_json::json!(status_code);
-        }
-        if cloud_error.code() == CloudRequirementsLoadErrorCode::Auth {
-            data["action"] = serde_json::json!("relogin");
-        }
-        data
-    });
-
-    JSONRPCErrorError {
-        code: INVALID_REQUEST_ERROR_CODE,
-        message: format!("failed to load configuration: {err}"),
-        data,
-    }
-}
-
-fn validate_dynamic_tools(tools: &[ApiDynamicToolSpec]) -> Result<(), String> {
-    let mut seen = HashSet::new();
-    for tool in tools {
-        let name = tool.name.trim();
-        if name.is_empty() {
-            return Err("dynamic tool name must not be empty".to_string());
-        }
-        if name != tool.name {
-            return Err(format!(
-                "dynamic tool name has leading/trailing whitespace: {}",
-                tool.name
-            ));
-        }
-        if name == "mcp" || name.starts_with("mcp__") {
-            return Err(format!("dynamic tool name is reserved: {name}"));
-        }
-        let namespace = tool.namespace.as_deref().map(str::trim);
-        if let Some(namespace) = namespace {
-            if namespace.is_empty() {
-                return Err(format!(
-                    "dynamic tool namespace must not be empty for {name}"
-                ));
-            }
-            if Some(namespace) != tool.namespace.as_deref() {
-                return Err(format!(
-                    "dynamic tool namespace has leading/trailing whitespace for {name}: {namespace}",
-                ));
-            }
-            if namespace == "mcp" || namespace.starts_with("mcp__") {
-                return Err(format!(
-                    "dynamic tool namespace is reserved for {name}: {namespace}"
-                ));
-            }
-        }
-        if !seen.insert((namespace, name)) {
-            if let Some(namespace) = namespace {
-                return Err(format!(
-                    "duplicate dynamic tool name in namespace {namespace}: {name}"
-                ));
-            }
-            return Err(format!("duplicate dynamic tool name: {name}"));
-        }
-        if tool.defer_loading && namespace.is_none() {
-            return Err(format!(
-                "deferred dynamic tool must include a namespace: {name}"
-            ));
-        }
-
-        if let Err(err) = codex_tools::parse_tool_input_schema(&tool.input_schema) {
-            return Err(format!(
-                "dynamic tool input schema is not supported for {name}: {err}"
-            ));
-        }
-    }
-    Ok(())
 }
