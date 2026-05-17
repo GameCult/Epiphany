@@ -518,4 +518,173 @@ impl CodexMessageProcessor {
             }
         }
     }
+    pub(super) async fn get_thread_summary(
+        &self,
+        request_id: ConnectionRequestId,
+        params: GetConversationSummaryParams,
+    ) {
+        let fallback_provider = self.config.model_provider_id.as_str();
+        let read_result = match params {
+            GetConversationSummaryParams::ThreadId { conversation_id } => self
+                .thread_store
+                .read_thread(StoreReadThreadParams {
+                    thread_id: conversation_id,
+                    include_archived: true,
+                    include_history: false,
+                })
+                .await
+                .map_err(|err| conversation_summary_thread_id_read_error(conversation_id, err)),
+            GetConversationSummaryParams::RolloutPath { rollout_path } => {
+                let Some(local_thread_store) = self
+                    .thread_store
+                    .as_any()
+                    .downcast_ref::<LocalThreadStore>()
+                else {
+                    let error = JSONRPCErrorError {
+                        code: INVALID_REQUEST_ERROR_CODE,
+                        message:
+                            "rollout path queries are only supported with the local thread store"
+                                .to_string(),
+                        data: None,
+                    };
+                    return self.outgoing.send_error(request_id, error).await;
+                };
+
+                local_thread_store
+                    .read_thread_by_rollout_path(
+                        rollout_path.clone(),
+                        /*include_archived*/ true,
+                        /*include_history*/ false,
+                    )
+                    .await
+                    .map_err(|err| conversation_summary_rollout_path_read_error(&rollout_path, err))
+            }
+        };
+
+        match read_result {
+            Ok(stored_thread) => {
+                let Some(summary) = summary_from_stored_thread(stored_thread, fallback_provider)
+                else {
+                    let error = JSONRPCErrorError {
+                        code: INTERNAL_ERROR_CODE,
+                        message:
+                            "failed to load conversation summary: thread is missing rollout path"
+                                .to_string(),
+                        data: None,
+                    };
+                    self.outgoing.send_error(request_id, error).await;
+                    return;
+                };
+                let response = GetConversationSummaryResponse { summary };
+                self.outgoing.send_response(request_id, response).await;
+            }
+            Err(error) => {
+                self.outgoing.send_error(request_id, error).await;
+            }
+        }
+    }
+
+    async fn list_threads_common(
+        &self,
+        requested_page_size: usize,
+        cursor: Option<String>,
+        sort_key: StoreThreadSortKey,
+        sort_direction: SortDirection,
+        filters: ThreadListFilters,
+    ) -> Result<(Vec<ConversationSummary>, Option<String>), JSONRPCErrorError> {
+        let ThreadListFilters {
+            model_providers,
+            source_kinds,
+            archived,
+            cwd_filters,
+            search_term,
+            use_state_db_only,
+        } = filters;
+        let mut cursor_obj = cursor;
+        let mut last_cursor = cursor_obj.clone();
+        let mut remaining = requested_page_size;
+        let mut items = Vec::with_capacity(requested_page_size);
+        let mut next_cursor: Option<String> = None;
+
+        let model_provider_filter = match model_providers {
+            Some(providers) => {
+                if providers.is_empty() {
+                    None
+                } else {
+                    Some(providers)
+                }
+            }
+            None => Some(vec![self.config.model_provider_id.clone()]),
+        };
+        let fallback_provider = self.config.model_provider_id.clone();
+        let (allowed_sources_vec, source_kind_filter) = compute_source_filters(source_kinds);
+        let allowed_sources = allowed_sources_vec.as_slice();
+        let store_sort_direction = match sort_direction {
+            SortDirection::Asc => StoreSortDirection::Asc,
+            SortDirection::Desc => StoreSortDirection::Desc,
+        };
+
+        while remaining > 0 {
+            let page_size = remaining.min(THREAD_LIST_MAX_LIMIT);
+            let page = self
+                .thread_store
+                .list_threads(StoreListThreadsParams {
+                    page_size,
+                    cursor: cursor_obj.clone(),
+                    sort_key,
+                    sort_direction: store_sort_direction,
+                    allowed_sources: allowed_sources.to_vec(),
+                    model_providers: model_provider_filter.clone(),
+                    cwd_filters: cwd_filters.clone(),
+                    archived,
+                    search_term: search_term.clone(),
+                    use_state_db_only,
+                })
+                .await
+                .map_err(thread_store_list_error)?;
+
+            let mut filtered = Vec::with_capacity(page.items.len());
+            for it in page.items {
+                let Some(summary) = summary_from_stored_thread(it, fallback_provider.as_str())
+                else {
+                    continue;
+                };
+                if source_kind_filter
+                    .as_ref()
+                    .is_none_or(|filter| source_kind_matches(&summary.source, filter))
+                    && cwd_filters.as_ref().is_none_or(|expected_cwds| {
+                        expected_cwds.iter().any(|expected_cwd| {
+                            path_utils::paths_match_after_normalization(&summary.cwd, expected_cwd)
+                        })
+                    })
+                {
+                    filtered.push(summary);
+                    if filtered.len() >= remaining {
+                        break;
+                    }
+                }
+            }
+            items.extend(filtered);
+            remaining = requested_page_size.saturating_sub(items.len());
+
+            next_cursor = page.next_cursor;
+            if remaining == 0 {
+                break;
+            }
+
+            let Some(cursor_val) = next_cursor.clone() else {
+                break;
+            };
+            // Break if our pagination would reuse the same cursor again; this avoids
+            // an infinite loop when filtering drops everything on the page.
+            if last_cursor.as_ref() == Some(&cursor_val) {
+                next_cursor = None;
+                break;
+            }
+            last_cursor = Some(cursor_val.clone());
+            cursor_obj = Some(cursor_val);
+        }
+
+        Ok((items, next_cursor))
+    }
 }
