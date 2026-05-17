@@ -2,8 +2,6 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::Duration;
-use cultcache_rs::CultCache;
-use cultcache_rs::SingleFileMessagePackBackingStore;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -12,17 +10,25 @@ use std::path::Path;
 
 mod heartbeat_documents;
 mod heartbeat_projection;
+mod heartbeat_store;
 pub use heartbeat_documents::*;
 pub use heartbeat_projection::heartbeat_status_projection;
+pub use heartbeat_store::heartbeat_state_cache;
+pub use heartbeat_store::load_heartbeat_cognition_entry;
+pub use heartbeat_store::load_heartbeat_state_entry;
+pub use heartbeat_store::validate_heartbeat_cognition;
+pub use heartbeat_store::validate_heartbeat_state;
+pub use heartbeat_store::write_heartbeat_cognition_entry;
+pub use heartbeat_store::write_heartbeat_state_entry;
 use heartbeat_projection::history_event_json;
 use heartbeat_projection::pending_turn_json;
 use heartbeat_projection::schedule_participant_json;
 use heartbeat_projection::selection_policy_json;
 
-const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
-const HEARTBEAT_ARENA_SCENE: &str = "scene";
-const PARTICIPANT_KIND_AGENT: &str = "agent";
-const PARTICIPANT_KIND_CHARACTER: &str = "character";
+pub(super) const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
+pub(super) const HEARTBEAT_ARENA_SCENE: &str = "scene";
+pub(super) const PARTICIPANT_KIND_AGENT: &str = "agent";
+pub(super) const PARTICIPANT_KIND_CHARACTER: &str = "character";
 
 const ROLE_ORDER: &[&str] = &[
     "coordinator",
@@ -45,179 +51,6 @@ struct HeartbeatAction {
     interruptibility: f64,
     commitment: f64,
     local_affordance_basis: Vec<String>,
-}
-
-pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
-    let mut cache = CultCache::new();
-    cache.register_entry_type::<EpiphanyHeartbeatStateEntry>()?;
-    cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
-    cache.pull_all_backing_stores()?;
-    Ok(cache)
-}
-
-fn legacy_heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
-    let mut cache = CultCache::new();
-    cache.register_entry_type::<LegacyHeartbeatStateWithCognition>()?;
-    cache.register_entry_type::<EpiphanyHeartbeatCognitionEntry>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(store_path.as_ref()));
-    cache.pull_all_backing_stores()?;
-    Ok(cache)
-}
-
-pub fn load_heartbeat_state_entry(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<EpiphanyHeartbeatStateEntry>> {
-    let cache = heartbeat_state_cache(store_path)?;
-    cache.get::<EpiphanyHeartbeatStateEntry>(HEARTBEAT_STATE_KEY)
-}
-
-pub fn write_heartbeat_state_entry(
-    store_path: impl AsRef<Path>,
-    state: &EpiphanyHeartbeatStateEntry,
-) -> Result<EpiphanyHeartbeatStateEntry> {
-    validate_heartbeat_state(state)?;
-    let mut cache = heartbeat_state_cache(store_path)?;
-    cache.put(HEARTBEAT_STATE_KEY, state)
-}
-
-pub fn load_heartbeat_cognition_entry(
-    store_path: impl AsRef<Path>,
-) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
-    let store_path = store_path.as_ref();
-    let cache = heartbeat_state_cache(store_path)?;
-    if let Some(cognition) = cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
-    {
-        return Ok(Some(cognition));
-    }
-    let legacy_cache = legacy_heartbeat_state_cache(store_path)?;
-    let Some(legacy) =
-        legacy_cache.get::<LegacyHeartbeatStateWithCognition>(HEARTBEAT_STATE_KEY)?
-    else {
-        return Ok(None);
-    };
-    legacy_heartbeat_cognition_entry(legacy)
-}
-
-pub fn write_heartbeat_cognition_entry(
-    store_path: impl AsRef<Path>,
-    cognition: &EpiphanyHeartbeatCognitionEntry,
-) -> Result<EpiphanyHeartbeatCognitionEntry> {
-    validate_heartbeat_cognition(cognition)?;
-    let mut cache = heartbeat_state_cache(store_path)?;
-    cache.put(HEARTBEAT_COGNITION_KEY, cognition)
-}
-
-pub fn validate_heartbeat_cognition(cognition: &EpiphanyHeartbeatCognitionEntry) -> Result<()> {
-    if cognition.schema_version != HEARTBEAT_COGNITION_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "heartbeat cognition schema_version is {:?}, expected {:?}",
-            cognition.schema_version,
-            HEARTBEAT_COGNITION_SCHEMA_VERSION
-        ));
-    }
-    Ok(())
-}
-
-fn legacy_heartbeat_cognition_entry(
-    legacy: LegacyHeartbeatStateWithCognition,
-) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
-    if legacy.sleep_cycle.is_none()
-        && legacy.memory_resonance.is_none()
-        && legacy.incubation.is_none()
-        && legacy.thought_lanes.is_none()
-        && legacy.bridge.is_none()
-        && legacy.candidate_interventions.is_none()
-        && legacy.appraisals.is_none()
-        && legacy.reactions.is_none()
-    {
-        return Ok(None);
-    }
-    let routine = legacy.extra.get("voidRoutine");
-    let latest_run_id = routine
-        .and_then(|value| value.get("lastRunId"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let source = routine
-        .and_then(|value| value.get("source"))
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let updated_at = routine
-        .and_then(|value| value.get("lastRunAt"))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-        .unwrap_or_else(now_iso);
-    Ok(Some(EpiphanyHeartbeatCognitionEntry {
-        schema_version: HEARTBEAT_COGNITION_SCHEMA_VERSION.to_string(),
-        updated_at,
-        latest_run_id,
-        latest_artifact_ref: None,
-        source,
-        sleep_cycle: legacy.sleep_cycle,
-        memory_resonance: legacy.memory_resonance,
-        incubation: legacy.incubation,
-        thought_lanes: legacy.thought_lanes,
-        bridge: legacy.bridge,
-        candidate_interventions: legacy.candidate_interventions,
-        appraisals: legacy.appraisals,
-        reactions: legacy.reactions,
-        extra: BTreeMap::new(),
-    }))
-}
-
-pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<()> {
-    if state.schema_version != HEARTBEAT_STATE_SCHEMA_VERSION {
-        return Err(anyhow!(
-            "heartbeat state schema_version is {:?}, expected {:?}",
-            state.schema_version,
-            HEARTBEAT_STATE_SCHEMA_VERSION
-        ));
-    }
-    if state.participants.is_empty() {
-        return Err(anyhow!("heartbeat state has no participants"));
-    }
-    if state.target_heartbeat_rate < 0.0 {
-        return Err(anyhow!(
-            "heartbeat target_heartbeat_rate must be non-negative"
-        ));
-    }
-    for participant in &state.participants {
-        if participant.agent_id.trim().is_empty() {
-            return Err(anyhow!("heartbeat participant has empty agent_id"));
-        }
-        if participant.role_id.trim().is_empty() {
-            return Err(anyhow!(
-                "heartbeat participant {} has empty role_id",
-                participant.agent_id
-            ));
-        }
-        if participant.initiative_speed <= 0.0 {
-            return Err(anyhow!(
-                "heartbeat participant {} initiative_speed must be positive",
-                participant.agent_id
-            ));
-        }
-        let arena = participant_arena(participant);
-        if !matches!(arena, HEARTBEAT_ARENA_MAINTENANCE | HEARTBEAT_ARENA_SCENE) {
-            return Err(anyhow!(
-                "heartbeat participant {} arena {:?} is unsupported",
-                participant.agent_id,
-                arena
-            ));
-        }
-        let participant_kind = participant_kind(participant);
-        if !matches!(
-            participant_kind,
-            PARTICIPANT_KIND_AGENT | PARTICIPANT_KIND_CHARACTER
-        ) {
-            return Err(anyhow!(
-                "heartbeat participant {} participant_kind {:?} is unsupported",
-                participant.agent_id,
-                participant_kind
-            ));
-        }
-    }
-    Ok(())
 }
 
 pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatStateEntry {
@@ -3530,7 +3363,7 @@ fn stable_theme_suffix(value: &str) -> String {
     format!("{:x}", hash & 0xffff)
 }
 
-fn now_iso() -> String {
+pub(super) fn now_iso() -> String {
     chrono::Utc::now()
         .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
         .replace('Z', "+00:00")
