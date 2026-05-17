@@ -797,6 +797,12 @@ request. `epiphany_automation.rs` still gathers live host facts and executes
 the host side effects: submit `Op::Compact`, call `epiphany_launch_job`, and
 emit JSON-RPC state-update notifications.
 
+The pre-compaction checkpoint intervention latch has also left app-server
+ownership. `epiphany-codex-bridge::checkpoint::EpiphanyCheckpointInterventionState`
+owns the one-steer-per-turn and same-turn pending-compaction invariant; vendored
+`ThreadState` only stores and delegates the latch while event handling remains
+host lifecycle glue.
+
 The native OpenAI auth spine overcut has been corrected. It no longer owns a
 clone of Codex keyring/file/env auth or ChatGPT token refresh; it re-exports
 vendored `codex-login` and carries the Codex workspace tungstenite patches

@@ -9,6 +9,7 @@ use codex_core::ThreadConfigSnapshot;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EventMsg;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use epiphany_codex_bridge::checkpoint::EpiphanyCheckpointInterventionState;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -65,8 +66,7 @@ pub(crate) struct ThreadState {
     pub(crate) listener_generation: u64,
     listener_command_tx: Option<mpsc::UnboundedSender<ThreadListenerCommand>>,
     current_turn_history: ThreadHistoryBuilder,
-    last_epiphany_checkpoint_intervention_turn_id: Option<String>,
-    pending_epiphany_checkpoint_compaction_turn_id: Option<String>,
+    epiphany_checkpoint_intervention: EpiphanyCheckpointInterventionState,
     listener_thread: Option<Weak<CodexThread>>,
 }
 
@@ -99,7 +99,8 @@ impl ThreadState {
         }
         self.listener_command_tx = None;
         self.current_turn_history.reset();
-        self.pending_epiphany_checkpoint_compaction_turn_id = None;
+        self.epiphany_checkpoint_intervention
+            .clear_pending_compaction();
         self.listener_thread = None;
     }
 
@@ -130,71 +131,29 @@ impl ThreadState {
     }
 
     pub(crate) fn record_epiphany_checkpoint_intervention(&mut self, turn_id: &str) -> bool {
-        if self
-            .last_epiphany_checkpoint_intervention_turn_id
-            .as_deref()
-            == Some(turn_id)
-        {
-            return false;
-        }
-        self.last_epiphany_checkpoint_intervention_turn_id = Some(turn_id.to_string());
-        true
+        self.epiphany_checkpoint_intervention
+            .record_intervention(turn_id)
     }
 
     pub(crate) fn mark_epiphany_checkpoint_intervention_pending_compaction(
         &mut self,
         turn_id: &str,
     ) {
-        self.pending_epiphany_checkpoint_compaction_turn_id = Some(turn_id.to_string());
+        self.epiphany_checkpoint_intervention
+            .mark_pending_compaction(turn_id);
     }
 
     pub(crate) fn take_epiphany_checkpoint_intervention_pending_compaction(
         &mut self,
         turn_id: &str,
     ) -> bool {
-        if self
-            .pending_epiphany_checkpoint_compaction_turn_id
-            .as_deref()
-            != Some(turn_id)
-        {
-            return false;
-        }
-        self.pending_epiphany_checkpoint_compaction_turn_id = None;
-        true
+        self.epiphany_checkpoint_intervention
+            .take_pending_compaction(turn_id)
     }
 
     pub(crate) fn clear_epiphany_checkpoint_intervention_pending_compaction(&mut self) {
-        self.pending_epiphany_checkpoint_compaction_turn_id = None;
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::ThreadState;
-
-    #[test]
-    fn epiphany_checkpoint_intervention_pending_compaction_is_turn_scoped() {
-        let mut state = ThreadState::default();
-
-        assert!(state.record_epiphany_checkpoint_intervention("turn-a"));
-        assert!(!state.record_epiphany_checkpoint_intervention("turn-a"));
-        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
-
-        state.mark_epiphany_checkpoint_intervention_pending_compaction("turn-a");
-
-        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-b"));
-        assert!(state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
-        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
-    }
-
-    #[test]
-    fn epiphany_checkpoint_intervention_pending_compaction_can_be_cleared() {
-        let mut state = ThreadState::default();
-
-        state.mark_epiphany_checkpoint_intervention_pending_compaction("turn-a");
-        state.clear_epiphany_checkpoint_intervention_pending_compaction();
-
-        assert!(!state.take_epiphany_checkpoint_intervention_pending_compaction("turn-a"));
+        self.epiphany_checkpoint_intervention
+            .clear_pending_compaction();
     }
 }
 

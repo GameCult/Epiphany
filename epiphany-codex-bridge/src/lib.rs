@@ -1,3 +1,4 @@
+pub mod checkpoint;
 pub mod context;
 pub mod coordinator;
 pub mod invalidation;
