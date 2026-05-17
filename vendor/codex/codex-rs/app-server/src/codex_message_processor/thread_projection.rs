@@ -909,6 +909,59 @@ fn parse_thread_turns_cursor(cursor: &str) -> Result<ThreadTurnsCursor, JSONRPCE
     })
 }
 
+pub(crate) enum ThreadTurnSource<'a> {
+    RolloutPath(&'a Path),
+    HistoryItems(&'a [RolloutItem]),
+}
+
+pub(crate) async fn populate_thread_turns(
+    thread: &mut Thread,
+    turn_source: ThreadTurnSource<'_>,
+    active_turn: Option<&Turn>,
+) -> std::result::Result<(), String> {
+    let mut turns = match turn_source {
+        ThreadTurnSource::RolloutPath(rollout_path) => {
+            read_rollout_items_from_rollout(rollout_path)
+                .await
+                .map(|items| build_turns_from_rollout_items(&items))
+                .map_err(|err| {
+                    format!(
+                        "failed to load rollout `{}` for thread {}: {err}",
+                        rollout_path.display(),
+                        thread.id
+                    )
+                })?
+        }
+        ThreadTurnSource::HistoryItems(items) => build_turns_from_rollout_items(items),
+    };
+    if let Some(active_turn) = active_turn {
+        merge_turn_history_with_active_turn(&mut turns, active_turn.clone());
+    }
+    thread.turns = turns;
+    Ok(())
+}
+
+fn merge_turn_history_with_active_turn(turns: &mut Vec<Turn>, active_turn: Turn) {
+    turns.retain(|turn| turn.id != active_turn.id);
+    turns.push(active_turn);
+}
+
+pub(crate) fn set_thread_status_and_interrupt_stale_turns(
+    thread: &mut Thread,
+    loaded_status: ThreadStatus,
+    has_live_in_progress_turn: bool,
+) {
+    let status = resolve_thread_status(loaded_status, has_live_in_progress_turn);
+    if !matches!(status, ThreadStatus::Active { .. }) {
+        for turn in &mut thread.turns {
+            if matches!(turn.status, TurnStatus::InProgress) {
+                turn.status = TurnStatus::Interrupted;
+            }
+        }
+    }
+    thread.status = status;
+}
+
 pub(crate) fn reconstruct_thread_turns_from_rollout_items(
     items: &[RolloutItem],
     loaded_status: ThreadStatus,

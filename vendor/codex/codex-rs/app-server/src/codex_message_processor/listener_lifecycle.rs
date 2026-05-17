@@ -663,3 +663,71 @@ impl CodexMessageProcessor {
         Ok(())
     }
 }
+
+async fn resolve_pending_server_request(
+    conversation_id: ThreadId,
+    thread_state_manager: &ThreadStateManager,
+    outgoing: &Arc<OutgoingMessageSender>,
+    request_id: RequestId,
+) {
+    let thread_id = conversation_id.to_string();
+    let subscribed_connection_ids = thread_state_manager
+        .subscribed_connection_ids(conversation_id)
+        .await;
+    let outgoing = ThreadScopedOutgoingMessageSender::new(
+        outgoing.clone(),
+        subscribed_connection_ids,
+        conversation_id,
+    );
+    outgoing
+        .send_server_notification(ServerNotification::ServerRequestResolved(
+            ServerRequestResolvedNotification {
+                thread_id,
+                request_id,
+            },
+        ))
+        .await;
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_thread_listener_command(
+    conversation_id: ThreadId,
+    conversation: &Arc<CodexThread>,
+    codex_home: &Path,
+    thread_state_manager: &ThreadStateManager,
+    thread_state: &Arc<Mutex<ThreadState>>,
+    thread_watch_manager: &ThreadWatchManager,
+    outgoing: &Arc<OutgoingMessageSender>,
+    pending_thread_unloads: &Arc<Mutex<HashSet<ThreadId>>>,
+    listener_command: ThreadListenerCommand,
+) {
+    match listener_command {
+        ThreadListenerCommand::SendThreadResumeResponse(resume_request) => {
+            handle_pending_thread_resume_request(
+                conversation_id,
+                conversation,
+                codex_home,
+                thread_state_manager,
+                thread_state,
+                thread_watch_manager,
+                outgoing,
+                pending_thread_unloads,
+                *resume_request,
+            )
+            .await;
+        }
+        ThreadListenerCommand::ResolveServerRequest {
+            request_id,
+            completion_tx,
+        } => {
+            resolve_pending_server_request(
+                conversation_id,
+                thread_state_manager,
+                outgoing,
+                request_id,
+            )
+            .await;
+            let _ = completion_tx.send(());
+        }
+    }
+}
