@@ -19,6 +19,7 @@ mod thread_read_routes;
 mod thread_resume_routes;
 mod thread_start_routes;
 mod thread_turn_projection;
+mod thread_turn_routes;
 mod turn_routes;
 
 use self::auth_routes::ActiveLogin;
