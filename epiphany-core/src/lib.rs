@@ -273,7 +273,6 @@ pub use surfaces::recommend_crrc_action;
 pub use surfaces::recommend_reorientation;
 pub use surfaces::render_role_board_note;
 pub use surfaces::reorientation_role_status;
-pub use surfaces::review_role_self_patch;
 pub use surfaces::review_role_self_patch_document;
 pub use surfaces::role_board_job_status_to_role_status;
 pub use surfaces::role_self_memory_target;

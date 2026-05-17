@@ -132,7 +132,7 @@ fn interpret_role_finding(
         EpiphanyRoleResultRoleId::Imagination => merge_item_error(
             item_error,
             imagination_role_state_patch_error(
-                raw_result,
+                raw_result.get("statePatch").is_some(),
                 state_patch.as_ref(),
                 state_patch_parse_error,
             ),
@@ -140,7 +140,7 @@ fn interpret_role_finding(
         EpiphanyRoleResultRoleId::Modeling => merge_item_error(
             item_error,
             modeling_role_state_patch_error(
-                raw_result,
+                raw_result.get("statePatch").is_some(),
                 state_patch.as_ref(),
                 state_patch_parse_error,
             ),
@@ -242,7 +242,7 @@ pub fn interpret_runtime_role_worker_result(
             EpiphanyRoleResultRoleId::Modeling => merge_item_error(
                 item_error,
                 modeling_role_state_patch_error(
-                    &serde_json::Value::Null,
+                    result.state_patch_msgpack.is_some(),
                     state_patch.as_ref(),
                     None,
                 ),
@@ -250,7 +250,7 @@ pub fn interpret_runtime_role_worker_result(
             EpiphanyRoleResultRoleId::Imagination => merge_item_error(
                 item_error,
                 imagination_role_state_patch_error(
-                    &serde_json::Value::Null,
+                    result.state_patch_msgpack.is_some(),
                     state_patch.as_ref(),
                     None,
                 ),
@@ -448,7 +448,8 @@ pub fn role_label(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, Str
     }
 }
 
-pub fn review_role_self_patch(
+#[cfg(test)]
+fn review_role_self_patch(
     role_id: EpiphanyRoleResultRoleId,
     patch: &serde_json::Value,
 ) -> EpiphanyRoleSelfPersistenceReview {
@@ -646,11 +647,11 @@ pub fn imagination_role_state_patch_policy_errors(
 }
 
 fn modeling_role_state_patch_error(
-    raw_result: &serde_json::Value,
+    state_patch_present: bool,
     state_patch: Option<&EpiphanyRoleStatePatchDocument>,
     parse_error: Option<String>,
 ) -> Option<String> {
-    if raw_result.get("statePatch").is_none() {
+    if !state_patch_present {
         return Some("modeling result is not reviewable: missing required statePatch".to_string());
     };
     if let Some(error) = parse_error {
@@ -673,11 +674,11 @@ fn modeling_role_state_patch_error(
 }
 
 fn imagination_role_state_patch_error(
-    raw_result: &serde_json::Value,
+    state_patch_present: bool,
     state_patch: Option<&EpiphanyRoleStatePatchDocument>,
     parse_error: Option<String>,
 ) -> Option<String> {
-    if raw_result.get("statePatch").is_none() {
+    if !state_patch_present {
         return Some(
             "imagination result is not reviewable: missing required statePatch".to_string(),
         );
@@ -1199,6 +1200,7 @@ mod tests {
 }
 use super::state_patch::EpiphanyRoleStatePatchDocument;
 use crate::agent_memory::AgentSelfPatch;
+#[cfg(test)]
 use crate::agent_memory::decode_agent_self_patch;
 use crate::agent_memory::review_agent_self_patch_contract;
 use epiphany_state_model::EpiphanyAcceptanceReceipt;
