@@ -1,5 +1,45 @@
 use super::*;
 
+struct ThreadListFilters {
+    model_providers: Option<Vec<String>>,
+    source_kinds: Option<Vec<ThreadSourceKind>>,
+    archived: bool,
+    cwd_filters: Option<Vec<PathBuf>>,
+    search_term: Option<String>,
+    use_state_db_only: bool,
+}
+
+pub(crate) enum ThreadReadViewError {
+    InvalidRequest(String),
+    Internal(String),
+}
+
+fn normalize_thread_list_cwd_filters(
+    cwd: Option<ThreadListCwdFilter>,
+) -> Result<Option<Vec<PathBuf>>, JSONRPCErrorError> {
+    let Some(cwd) = cwd else {
+        return Ok(None);
+    };
+
+    let cwds = match cwd {
+        ThreadListCwdFilter::One(cwd) => vec![cwd],
+        ThreadListCwdFilter::Many(cwds) => cwds,
+    };
+    let mut normalized_cwds = Vec::with_capacity(cwds.len());
+    for cwd in cwds {
+        let cwd = AbsolutePathBuf::relative_to_current_dir(cwd.as_str())
+            .map(AbsolutePathBuf::into_path_buf)
+            .map_err(|err| JSONRPCErrorError {
+                code: INVALID_PARAMS_ERROR_CODE,
+                message: format!("invalid thread/list cwd filter `{cwd}`: {err}"),
+                data: None,
+            })?;
+        normalized_cwds.push(cwd);
+    }
+
+    Ok(Some(normalized_cwds))
+}
+
 impl CodexMessageProcessor {
     pub(super) async fn thread_list(
         &self,
@@ -686,5 +726,44 @@ impl CodexMessageProcessor {
         }
 
         Ok((items, next_cursor))
+    }
+}
+
+#[cfg(test)]
+mod thread_list_cwd_filter_tests {
+    use super::normalize_thread_list_cwd_filters;
+    use codex_app_server_protocol::ThreadListCwdFilter;
+    use codex_utils_absolute_path::AbsolutePathBuf;
+    use pretty_assertions::assert_eq;
+    use std::path::PathBuf;
+
+    #[test]
+    fn normalize_thread_list_cwd_filter_preserves_absolute_paths() {
+        let cwd = if cfg!(windows) {
+            String::from(r"C:\srv\repo-b")
+        } else {
+            String::from("/srv/repo-b")
+        };
+
+        assert_eq!(
+            normalize_thread_list_cwd_filters(Some(ThreadListCwdFilter::One(cwd.clone())))
+                .expect("cwd filter should parse"),
+            Some(vec![PathBuf::from(cwd)])
+        );
+    }
+
+    #[test]
+    fn normalize_thread_list_cwd_filter_resolves_relative_paths_against_server_cwd()
+    -> std::io::Result<()> {
+        let expected = AbsolutePathBuf::relative_to_current_dir("repo-b")?.to_path_buf();
+
+        assert_eq!(
+            normalize_thread_list_cwd_filters(Some(ThreadListCwdFilter::Many(vec![String::from(
+                "repo-b"
+            ),])))
+            .expect("cwd filter should parse"),
+            Some(vec![expected])
+        );
+        Ok(())
     }
 }
