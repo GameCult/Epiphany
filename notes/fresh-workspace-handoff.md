@@ -803,6 +803,11 @@ owns the one-steer-per-turn and same-turn pending-compaction invariant; vendored
 `ThreadState` only stores and delegates the latch while event handling remains
 host lifecycle glue.
 
+The vendored Codex prompt-fragment test for `<epiphany_state>` is now only a
+host wrapper/tag smoke. The full render contract and graph-heavy fixture live in
+native `epiphany-core::prompt`; do not re-grow that duplicated Epiphany prompt
+authority inside `codex-core`.
+
 The native OpenAI auth spine overcut has been corrected. It no longer owns a
 clone of Codex keyring/file/env auth or ChatGPT token refresh; it re-exports
 vendored `codex-login` and carries the Codex workspace tungstenite patches
