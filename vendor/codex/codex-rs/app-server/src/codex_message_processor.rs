@@ -10,6 +10,7 @@ mod realtime_routes;
 mod review_routes;
 mod running_thread_resume_routes;
 mod thread_admin_routes;
+mod thread_archive_routes;
 mod thread_config;
 mod thread_fork_routes;
 mod thread_projection;
