@@ -70,6 +70,29 @@ impl EpiphanyRetrieveQuery {
     }
 }
 
+pub fn normalize_epiphany_retrieve_query(
+    query: String,
+    limit: Option<u32>,
+    path_prefixes: Vec<PathBuf>,
+) -> std::result::Result<EpiphanyRetrieveQuery, &'static str> {
+    let query = query.trim().to_string();
+    if query.is_empty() {
+        return Err("query must not be empty");
+    }
+    if matches!(limit, Some(0)) {
+        return Err("limit must be greater than zero");
+    }
+    let limit = limit
+        .map(|value| value as usize)
+        .unwrap_or(EPIPHANY_RETRIEVAL_DEFAULT_LIMIT)
+        .clamp(1, EPIPHANY_RETRIEVAL_MAX_LIMIT);
+    Ok(EpiphanyRetrieveQuery {
+        query,
+        limit,
+        path_prefixes,
+    })
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EpiphanyRetrieveResultKind {
     ExactFile,
@@ -1669,6 +1692,28 @@ mod tests {
     use wiremock::ResponseTemplate;
     use wiremock::matchers::method;
     use wiremock::matchers::path;
+
+    #[test]
+    fn normalize_epiphany_retrieve_query_trims_and_clamps_limit() {
+        let query =
+            normalize_epiphany_retrieve_query("  auth spine  ".to_string(), Some(999), Vec::new())
+                .unwrap();
+
+        assert_eq!(query.query, "auth spine");
+        assert_eq!(query.limit, EPIPHANY_RETRIEVAL_MAX_LIMIT);
+    }
+
+    #[test]
+    fn normalize_epiphany_retrieve_query_rejects_empty_query_and_zero_limit() {
+        assert_eq!(
+            normalize_epiphany_retrieve_query("  ".to_string(), Some(1), Vec::new()),
+            Err("query must not be empty")
+        );
+        assert_eq!(
+            normalize_epiphany_retrieve_query("auth".to_string(), Some(0), Vec::new()),
+            Err("limit must be greater than zero")
+        );
+    }
 
     #[test]
     fn retrieve_workspace_prioritizes_exact_hits_without_losing_semantic_chunks() -> Result<()> {

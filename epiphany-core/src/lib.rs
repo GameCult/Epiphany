@@ -88,6 +88,7 @@ pub use retrieval::EpiphanyRetrieveResponse;
 pub use retrieval::EpiphanyRetrieveResult;
 pub use retrieval::EpiphanyRetrieveResultKind;
 pub use retrieval::index_workspace;
+pub use retrieval::normalize_epiphany_retrieve_query;
 pub use retrieval::retrieval_state_for_workspace;
 pub use retrieval::retrieve_workspace;
 pub use runtime_spine::EpiphanyRuntimeEvent;

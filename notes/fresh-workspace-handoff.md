@@ -808,6 +808,12 @@ host wrapper/tag smoke. The full render contract and graph-heavy fixture live in
 native `epiphany-core::prompt`; do not re-grow that duplicated Epiphany prompt
 authority inside `codex-core`.
 
+Retrieval query normalization is native too:
+`epiphany-core::normalize_epiphany_retrieve_query` owns trimming, empty-query
+rejection, zero-limit rejection, and default/max limit clamping. Vendored
+`thread/epiphany/retrieve` only turns that native validation verdict into a
+JSON-RPC response and invokes the loaded CodexThread host seam.
+
 The native OpenAI auth spine overcut has been corrected. It no longer owns a
 clone of Codex keyring/file/env auth or ChatGPT token refresh; it re-exports
 vendored `codex-login` and carries the Codex workspace tungstenite patches

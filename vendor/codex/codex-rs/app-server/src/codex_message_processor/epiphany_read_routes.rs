@@ -21,9 +21,7 @@ use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
-use epiphany_core::EPIPHANY_RETRIEVAL_DEFAULT_LIMIT;
-use epiphany_core::EPIPHANY_RETRIEVAL_MAX_LIMIT;
-use epiphany_core::EpiphanyRetrieveQuery;
+use epiphany_core::normalize_epiphany_retrieve_query;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -419,21 +417,14 @@ impl CodexMessageProcessor {
             }
         };
 
-        let query = query.trim().to_string();
-        if query.is_empty() {
-            self.send_invalid_request_error(request_id, "query must not be empty".to_string())
-                .await;
-            return;
-        }
-
-        if matches!(limit, Some(0)) {
-            self.send_invalid_request_error(
-                request_id,
-                "limit must be greater than zero".to_string(),
-            )
-            .await;
-            return;
-        }
+        let query = match normalize_epiphany_retrieve_query(query, limit, path_prefixes) {
+            Ok(query) => query,
+            Err(message) => {
+                self.send_invalid_request_error(request_id, message.to_string())
+                    .await;
+                return;
+            }
+        };
 
         let thread = match self.thread_manager.get_thread(thread_uuid).await {
             Ok(thread) => thread,
@@ -447,16 +438,8 @@ impl CodexMessageProcessor {
             }
         };
 
-        let limit = limit
-            .map(|value| value as usize)
-            .unwrap_or(EPIPHANY_RETRIEVAL_DEFAULT_LIMIT)
-            .clamp(1, EPIPHANY_RETRIEVAL_MAX_LIMIT);
         let response = match thread
-            .epiphany_retrieve(EpiphanyRetrieveQuery {
-                query,
-                limit,
-                path_prefixes,
-            })
+            .epiphany_retrieve(query)
             .await
             .and_then(map_epiphany_retrieve_response)
         {
