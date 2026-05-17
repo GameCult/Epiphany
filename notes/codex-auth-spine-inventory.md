@@ -45,12 +45,12 @@ clean-room client pretending to be Codex.
 
 ### Transformations
 
-- `epiphany-openai-auth-spine` currently loads env, file, keyring, and
-  auto-fallback Codex auth, refreshes ChatGPT access tokens, preserves account
-  metadata, and exposes the auth subset needed by the Epiphany OpenAI
-  transport. This is now suspect because it has copied too much auth machinery
-  out of vendored Codex; the spine should become a typed wrapper over retained
-  Codex-compatible auth rather than a clean-room replacement.
+- `epiphany-openai-auth-spine` is now a thin Epiphany-named boundary over
+  vendored `codex-login`. It re-exports Codex auth types and default-client
+  construction instead of cloning env/file/keyring/token-refresh behavior.
+  Subscription credential authority remains in retained Codex-compatible
+  machinery; Epiphany owns only the typed status/request/event/runtime surfaces
+  around it.
 - `epiphany-openai-codex-spine` converts `CodexAuth` directly into
   authorization/account headers, chooses the ChatGPT Codex backend or OpenAI API
   base URL from auth mode, builds a local serializable Responses request body,
@@ -97,9 +97,9 @@ clean-room client pretending to be Codex.
   vendored Codex auth semantics should remain the anchor for subscription use.
   If a later model catalog is needed, it should be a typed Epiphany catalog
   document, not a revival of the old Codex provider stack.
-- Native auth does not yet preserve every Codex auth mode. External bearer
-  command auth and agent identity are legacy/reference gaps unless a concrete
-  user path proves they are needed.
+- External bearer command auth and agent identity remain inside the retained
+  vendored Codex auth organ. Epiphany should expose them only if a concrete
+  typed runtime/status need appears; do not clone them into a second authority.
 
 ## Extract Target
 
@@ -150,9 +150,11 @@ request body, resolves credentials through `epiphany-openai-auth-spine`, chooses
 ChatGPT/OpenAI base URL from auth mode, opens an HTTP Responses SSE stream with
 `codex-client`, and converts stream deltas/completion into typed
 `EpiphanyOpenAiStreamEvent` / `EpiphanyOpenAiModelReceipt` documents. It no
-longer directly or transitively imports `codex-login`, Codex
-`ResponsesApiRequest`, `ResponsesClient`, `ResponseEvent`, provider config,
-model-provider, app-server protocol, or protocol enums.
+longer imports Codex `ResponsesApiRequest`, `ResponsesClient`,
+`ResponseEvent`, provider config, model-provider, or broad app-server
+workflow. It intentionally reaches vendored `codex-login` only through
+`epiphany-openai-auth-spine` so auth identity remains Codex-compatible without
+letting Codex own Epiphany request/state shape.
 
 The CultNet paperwork is now public too. `schemas/cultnet/` contains typed
 schemas for OpenAI adapter status, model request, stream event, and terminal
@@ -200,12 +202,13 @@ application. `codex-core` re-exports the contract only as a compatibility
 alias, and `CodexThread` now calls native state-update functions around its
 remaining revision check, persistence validation, and rollout/session writeback.
 
-The credential extraction currently covers Codex file/keyring/auto auth plus
-env API keys, ChatGPT token refresh, account metadata, and header material
-without importing `codex-login`. That is technically clean but architecturally
-suspect under the compliance invariant above. The next corrective cut is to
-re-anchor auth in retained vendored Codex-compatible machinery while keeping
-Epiphany's typed adapter/status/request surfaces outside the Codex host brain.
+The credential extraction overcut has been corrected. The native clone of
+Codex file/keyring/auto auth, env API key handling, ChatGPT token refresh,
+account metadata parsing, and header-client setup was deleted from
+`epiphany-openai-auth-spine`; the crate now depends on vendored `codex-login`
+and carries the Codex workspace `tokio-tungstenite` / `tungstenite` patches
+needed for standalone builds. The remaining simplification target is not auth
+purity; it is the next Epiphany-in-vendor evacuation surface.
 
 The point is ownership: Epiphany calls a model adapter; it does not live inside
 the Codex host brain.

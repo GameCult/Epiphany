@@ -34,11 +34,11 @@ remembers doctrine; the branch remembers the blade.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - The active foundation directive is now `notes/codex-starvation-and-cultnet-liberation-plan.md`. The previous Codex app-server control-plane rebuild made Epiphany less rotten inside Codex, but that is not the destination. Epiphany must become a native CultCache/CultNet runtime while remaining an honest modified Codex-derived backend for subscription auth/model use. Codex is a compatibility reliquary for OpenAI subscription auth and model transport, not the host brain and not a mask for impersonation.
-- `notes/codex-auth-spine-inventory.md` is the source-grounded keeper list for that reliquary. Corrected compliance invariant: Codex-compatible auth identity should stay anchored in vendored Codex-derived auth machinery. The current `epiphany-openai-auth-spine` native credential implementation is technically clean but now suspect; it should become a typed wrapper over retained Codex auth rather than a clean-room replacement. Codex apps, skills, marketplace, plugin UX, broad app-server workflow, and JSON-RPC sprawl remain cuttable because they are not subscription-auth legitimacy.
+- `notes/codex-auth-spine-inventory.md` is the source-grounded keeper list for that reliquary. Corrected compliance invariant: Codex-compatible auth identity stays anchored in vendored Codex-derived auth machinery. `epiphany-openai-auth-spine` is now a thin Epiphany-named boundary over `codex-login`, not a clean-room clone of credential storage or token refresh. Codex apps, skills, marketplace, plugin UX, broad app-server workflow, and JSON-RPC sprawl remain cuttable because they are not subscription-auth legitimacy.
 - Edge JSON is allowed for schema description, hostile ingress before immediate typed parsing, sealed forensic artifacts, or named quarantine experiments. When both subsystems are ours, runtime data must remain typed CultCache documents and move over CultNet typed contracts. Generic `serde_json::Value` in worker launch/result/selfPatch/runtime flow is contamination until classified and replaced.
 - `epiphany-openai-runtime` worker result ingress now parses assistant output directly into typed role/reorient ingress structs selected from the durable launch document, stores nested `statePatch` and `selfPatch` as typed MessagePack in `EpiphanyRuntimeRoleWorkerResult`, and no longer passes worker result data through generic `serde_json::Value`. JSON survives there only as the OpenAI text-output edge before typed deserialization.
 - Agent self-memory review/application now has typed `AgentSelfPatch` core APIs. JSON-value selfPatch functions are compatibility wrappers for CLI/artifact ingress; native callers should parse once at the edge and then call `review_agent_self_patch_document` / `apply_agent_self_patch_document`.
-- `epiphany-openai-codex-spine` no longer uses Codex's Responses client, model-provider layer, `codex-api`, `codex-model-provider`, `codex-model-provider-info`, `codex-protocol`, or `codex-login` for outbound model requests. That cut may have gone too far on auth. Keep the typed request/status/event surfaces, but re-anchor credential loading/refresh in retained Codex-compatible auth before further transport purges.
+- `epiphany-openai-codex-spine` no longer uses Codex's Responses client, model-provider layer, `codex-api`, `codex-model-provider`, `codex-model-provider-info`, or `codex-protocol` for outbound model requests. It reaches `codex-login` only through `epiphany-openai-auth-spine` so credential loading/refresh stays Codex-compatible while request/status/event/runtime surfaces stay typed Epiphany documents.
 - Durable Epiphany state types now live in root crate `epiphany-state-model`. `codex-protocol` re-exports them only so old rollout/API callers keep compiling; do not add new durable `Epiphany*` state structs under `vendor/codex`. `epiphany-core` imports the native model directly and no longer depends on `codex-protocol`. Pressure derives from native `EpiphanyTokenUsageSnapshot`; Codex token telemetry is mapped at the bridge. Codex rollout/event reconstruction now lives in `codex-core::epiphany_rollout`, where the Codex `RolloutItem` / `EventMsg` types belong. Exact retrieval path matching is native to `epiphany-core`, so `epiphany-core` has no direct vendored Codex crate dependency.
 - The May 2026 foundation migration in `notes/epiphany-ideal-architecture-rebuild-plan.md` is complete enough to defend. Read `notes/epiphany-architectural-teardown.md` before touching Epiphany control-plane code, but do not treat it as an open-ended excuse to keep shaving the altar. The rebuild moved scene projection, freshness derivation, pressure policy, targeted context shards, bounded graph traversal, job/progress view derivation, planning view derivation, reorientation resume/regather verdict policy, pure CRRC recommendation policy, fixed-lane coordinator decision policy, role-board projection policy, role/reorient result interpretation, role self-persistence review policy, and role/reorient acceptance bundle policy into `epiphany-core`; typed acceptance receipts replaced summary-string identity for live accept paths, runtime links are dual-written on launch, and result read-back now prefers runtime links.
 - Read `notes/epiphany-ideal-architecture-rebuild-plan.md` immediately after the teardown. It defines the smallest coherent replacement architecture: durable `EpiphanyState`, runtime-spine-owned `RuntimeState`, separate role memory/heartbeat state, `epiphany-core` as policy owner, app-server as adapter, Aquarium as reflector, typed acceptance receipts, and derived view lenses instead of a protocol verb zoo.
@@ -560,9 +560,9 @@ dependency and no generic JSON payload. A direct standalone `codex-core` path
 dependency attempt hit transitive dependency skew outside the vendored Codex
 workspace lock; do not "fix" that with random version pins. The first
 workspace-verified wrapper now exists as `epiphany-openai-codex-spine`: it
-depends on the pure typed adapter plus the Epiphany-owned auth spine and
-projects `AuthManager` / `CodexAuth` into a typed
-`EpiphanyOpenAiAdapterStatus`.
+depends on the pure typed adapter plus the Epiphany-named auth spine, which now
+re-exports retained vendored `codex-login`, and projects `AuthManager` /
+`CodexAuth` into a typed `EpiphanyOpenAiAdapterStatus`.
 `epiphany-codex-bridge` re-exports that spine so the current app-server shell
 can compile the attachment without contaminating the pure document crate. The
 same spine now owns the HTTP Responses transport wrapper without Codex's
@@ -571,22 +571,23 @@ documents map into a local serializable Responses body, auth comes from
 `epiphany-openai-auth-spine`, the stream opens through `codex-client`, and
 Responses SSE frames parse back into typed `EpiphanyOpenAiStreamEvent` and
 `EpiphanyOpenAiModelReceipt` documents. The spine no longer directly or
-transitively depends on `codex-login`, `codex-app-server-protocol`,
-`codex-protocol`, `codex-api`, `codex-model-provider`, or
-`codex-model-provider-info`. The CultNet schema
+transitively depends on Codex's Responses client, model-provider stack, or
+`codex-protocol`; it intentionally reaches `codex-login` through the retained
+auth boundary. The CultNet schema
 catalog advertises OpenAI adapter status, model request, stream event, and
 receipt document types plus the coordinator-owned model request contract. The
-remaining auth caveat is functional, not architectural: external bearer command
-auth and agent identity are not implemented natively yet.
+remaining auth caveat is exposure, not ownership: external bearer command auth
+and agent identity remain in the retained vendored auth organ until a typed
+Epiphany surface actually needs them.
 
 The `epiphany-openai-spine` binary is now the first native edge for that
 wrapper. It can print typed adapter status and consume a serialized
 `EpiphanyOpenAiModelRequest` document for a model turn outside Codex
 app-server. Treat its JSON as CLI/file-edge serialization of typed documents,
-not internal data cargo. The native request path no longer pulls `codex-login`
-or `codex-api`; the next real cut is deciding whether external bearer or
-agent-identity auth deserves native implementation or remains sealed legacy
-Codex compatibility.
+not internal data cargo. The native request path no longer pulls `codex-api`;
+`codex-login` remains deliberately sealed behind `epiphany-openai-auth-spine`.
+The next real cut is another Epiphany-in-vendor evacuation surface, not a
+second attempt to clone Codex auth.
 
 The native runtime no longer imports `codex-login` directly. The Codex spine now
 exports the `default_codex_home` and `auth_manager` helpers, and those helpers
@@ -611,8 +612,9 @@ Codex worker execution. `roleResult` and `reorientResult` now require those
 typed worker result documents; generic runtime job summaries are lifecycle
 receipts, not reviewable findings.
 The next cut is no longer `codex-login` weight or keyring support in this
-spine; it is either native external bearer/agent-identity auth support or the
-next Epiphany-in-vendor evacuation surface.
+spine; the auth reliquary has been re-anchored. Continue with the next
+Epiphany-in-vendor evacuation surface unless a concrete typed status/runtime
+need demands external bearer or agent-identity exposure.
 
 That coordinator cut is now landed for the MVP runner. `epiphany-mvp-coordinator`
 accepts `--openai-runtime-bin`, resolves the local `epiphany-openai-runtime`
@@ -795,13 +797,11 @@ request. `epiphany_automation.rs` still gathers live host facts and executes
 the host side effects: submit `Op::Compact`, call `epiphany_launch_job`, and
 emit JSON-RPC state-update notifications.
 
-The native OpenAI auth spine currently no longer depends on the vendored
-`codex-keyring-store` wrapper and uses the standard `keyring` crate directly
-while keeping Codex's `Codex Auth` service name and `cli|{sha256 path prefix}`
-store key. Treat that as an overcleaned technical state, not doctrine. The next
-auth cut should re-anchor auth in retained vendored Codex-compatible machinery
-so Epiphany remains a modified Codex backend rather than a clean-room
-impersonator.
+The native OpenAI auth spine overcut has been corrected. It no longer owns a
+clone of Codex keyring/file/env auth or ChatGPT token refresh; it re-exports
+vendored `codex-login` and carries the Codex workspace tungstenite patches
+needed for standalone builds. This is intentional impurity: a sealed
+Codex-compatible auth organ, not workflow authority.
 
 The MCP config path is now product-quarantined. `Config::to_mcp_config` keeps
 user-declared MCP servers but no longer accepts a `PluginsManager`, folds
