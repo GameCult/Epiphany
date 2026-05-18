@@ -658,20 +658,17 @@ runner completes that job.
 
 The Codex-core re-export husks for `epiphany_distillation`, `epiphany_promotion`,
 `epiphany_proposal`, and `epiphany_retrieval` have also been deleted.
-`codex-core` now re-exports those native types/functions directly from
-`epiphany-core`, and `CodexThread` calls `epiphany_core::retrieve_workspace` /
-`index_workspace` / `retrieval_state_for_workspace` directly.
-The `epiphany_rollout` husk is gone too; `codex-core::lib` keeps only the
-one host-boundary function that passes Codex's turn-boundary predicate into
-`epiphany-core`.
+Retrieval status, indexing, and retrieve execution now live in
+`epiphany-codex-bridge::retrieve`; `CodexThread` supplies only cwd/codex-home
+host facts. The `epiphany_rollout` adapter remains the real Codex host seam for
+rollout reconstruction, because it touches Codex rollout/event types.
 
 The runtime-spine job-opening mechanism for heartbeat/specialist launches has
 also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.
-Vendored `codex_core::CodexThread::epiphany_launch_job` still validates,
-persists, and updates Codex thread state, but it no longer owns the
-initialize-session-open-job sequence. That is a small cut, but a real ownership
-move: native runtime lifecycle belongs to the runtime spine, not the Codex
-thread wrapper.
+`epiphany-codex-bridge::mutation_service` owns the launch application path now:
+it validates/applies state updates, opens runtime-spine jobs, and then asks
+`CodexThread` only to persist the already-mutated snapshot. Native runtime
+lifecycle belongs to the runtime spine, not the Codex thread wrapper.
 
 That job-opening path now preserves the work order instead of shaving it into a
 generic job id. `epiphany-core::EpiphanyRuntimeWorkerLaunchRequest` is a
@@ -685,8 +682,9 @@ The job-launch plan has now followed it. `epiphany-core` owns
 `plan_runtime_spine_heartbeat_launch`, which validates heartbeat launch
 requests, reserved binding ids, output contract/document consistency, active
 runtime-link conflicts, and projects the durable job binding plus runtime link.
-Vendored `CodexThread` now performs only revision checking, persistence
-validation, and rollout/session writeback around that native plan.
+`epiphany-codex-bridge::mutation_service` now performs the bridge application
+around that native plan; vendored `CodexThread` only persists an already-mutated
+Epiphany snapshot into Codex rollout/session storage.
 
 The Epiphany state-update document shape and mutation law have now left
 vendored Codex too. `epiphany-core::EpiphanyStateUpdate` owns the update
@@ -694,11 +692,9 @@ contract used by update, promote, role/reorient accept, and launch
 compatibility paths, while
 `epiphany-core::epiphany_state_update_validation_errors` and
 `epiphany-core::apply_epiphany_state_update` own typed validation/application.
-`codex-core` re-exports the contract only so older callers keep compiling.
-`CodexThread` is now a compatibility caller around revision checks,
-persistence validation, and rollout/session writeback. The remaining impurity
-is route-facing orchestration in `codex_message_processor.rs` /
-`epiphany_mutation_routes.rs`; move that behind a native service boundary next.
+`epiphany-codex-bridge::mutation_service` owns route-facing state-update
+application; `CodexThread` exposes only current state/reference-turn reads and
+rollout/session snapshot persistence.
 
 The first route-facing mutation service cut has started. Update/promote
 mutation application now routes through
@@ -733,7 +729,8 @@ The next small route cut landed without pretending it was the final purge.
 `epiphany-codex-bridge::retrieve::index_thread_epiphany_retrieval` now owns the
 index operation/protocol projection, and `epiphany_mutation_routes.rs` collapsed
 its repeated parse/load-thread and state-updated notification boilerplate into
-transport-only helpers. The mutation route module is about 691 lines. This is
+transport-only helpers. The mutation route module is about 620 lines after the
+route job-launch DTO construction moved behind the bridge too. This is
 adapter consolidation, not a new architectural throne: app-server still owns
 JSON-RPC response shape and watcher/thread-view details while the bridge owns
 route-independent Epiphany work.
@@ -748,6 +745,13 @@ paths, then emits JSON-RPC responses or safe-boundary notifications; it no
 longer owns that coordinator policy. The root `codex_message_processor.rs`
 imports for the evacuated Epiphany protocol/policy registry were cut as proof
 that those names no longer belong to the host file.
+
+Safe-boundary automation assembly has followed: the bridge now loads the live
+state, retrieval summary, watcher snapshot, token usage, and runtime store for
+coordinator automation, and it renders pre-compaction checkpoint intervention
+text from token pressure. Vendored app-server automation only submits Codex
+compaction, launches through the bridge, steers the active turn, and emits
+JSON-RPC notifications.
 
 The full `thread/epiphany/view` projection has now followed. App-server still
 parses the thread id, loads live/stored thread state, registers watcher input,
