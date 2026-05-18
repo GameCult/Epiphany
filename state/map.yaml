@@ -41,6 +41,8 @@ objective:
     rendering are now bridge-owned; vendored app-server keeps only Codex host
     actions such as submitting compaction, steering active turns, and emitting
     JSON-RPC notifications.
+    Epiphany prompt-state boundary tags live in `epiphany-state-model` and are
+    re-exported through `codex-protocol` for compatibility.
 
 constraints:
   - No frontier-scale training tithe.

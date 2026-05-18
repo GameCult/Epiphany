@@ -5,6 +5,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use ts_rs::TS;
 
+pub const EPIPHANY_STATE_OPEN_TAG: &str = "<epiphany_state>";
+pub const EPIPHANY_STATE_CLOSE_TAG: &str = "</epiphany_state>";
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
 pub struct EpiphanyStateItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]
