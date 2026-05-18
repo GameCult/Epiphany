@@ -79,6 +79,15 @@ pub async fn load_thread_memory_graph_snapshot(
     })
 }
 
+pub async fn load_optional_thread_memory_graph_snapshot(
+    thread: Option<&CodexThread>,
+) -> Result<Option<EpiphanyMemoryGraphSnapshot>, CodexErr> {
+    let Some(thread) = thread else {
+        return Ok(None);
+    };
+    load_thread_memory_graph_snapshot(thread).await
+}
+
 pub fn mirror_thread_state_to_workspace(
     workspace_root: &Path,
     thread_id: &str,

@@ -1,11 +1,10 @@
 use codex_app_server_protocol::*;
-use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
-use epiphany_codex_bridge::state::load_thread_memory_graph_snapshot;
+use epiphany_codex_bridge::state::load_optional_thread_memory_graph_snapshot;
 use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
@@ -23,7 +22,6 @@ use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
-use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::normalize_epiphany_retrieve_query;
 
 use super::CodexMessageProcessor;
@@ -59,7 +57,8 @@ impl CodexMessageProcessor {
             match load_optional_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
                 Err(message) => {
-                    self.send_internal_error(request_id, message).await;
+                    self.send_internal_error(request_id, message.to_string())
+                        .await;
                     return;
                 }
             };
@@ -241,7 +240,8 @@ impl CodexMessageProcessor {
             match load_optional_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
                 Err(message) => {
-                    self.send_internal_error(request_id, message).await;
+                    self.send_internal_error(request_id, message.to_string())
+                        .await;
                     return;
                 }
             };
@@ -309,7 +309,8 @@ impl CodexMessageProcessor {
             match load_optional_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
                 Err(message) => {
-                    self.send_internal_error(request_id, message).await;
+                    self.send_internal_error(request_id, message.to_string())
+                        .await;
                     return;
                 }
             };
@@ -356,7 +357,8 @@ impl CodexMessageProcessor {
             match load_optional_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
                 Err(message) => {
-                    self.send_internal_error(request_id, message).await;
+                    self.send_internal_error(request_id, message.to_string())
+                        .await;
                     return;
                 }
             };
@@ -579,7 +581,8 @@ impl CodexMessageProcessor {
             match load_optional_thread_memory_graph_snapshot(Some(&thread)).await {
                 Ok(snapshot) => snapshot,
                 Err(message) => {
-                    self.send_internal_error(request_id, message).await;
+                    self.send_internal_error(request_id, message.to_string())
+                        .await;
                     return;
                 }
             };
@@ -612,15 +615,4 @@ impl CodexMessageProcessor {
 
         self.outgoing.send_response(request_id, response).await;
     }
-}
-
-async fn load_optional_thread_memory_graph_snapshot(
-    loaded_thread: Option<&CodexThread>,
-) -> std::result::Result<Option<EpiphanyMemoryGraphSnapshot>, String> {
-    let Some(loaded_thread) = loaded_thread else {
-        return Ok(None);
-    };
-    load_thread_memory_graph_snapshot(loaded_thread)
-        .await
-        .map_err(|err| err.to_string())
 }
