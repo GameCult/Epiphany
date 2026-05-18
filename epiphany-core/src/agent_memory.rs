@@ -56,15 +56,11 @@ pub struct GhostlightWorld {
     pub setting: String,
     pub time: GhostlightTime,
     pub canon_context: Vec<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct GhostlightTime {
     pub label: String,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -75,8 +71,6 @@ pub struct GhostlightAgent {
     pub goals: Vec<GhostlightGoal>,
     pub memories: GhostlightMemories,
     pub perceived_state_overlays: Vec<GhostlightPerceivedStateOverlay>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -87,8 +81,6 @@ pub struct GhostlightIdentity {
     pub public_description: String,
     #[serde(default)]
     pub private_notes: Vec<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -100,8 +92,6 @@ pub struct GhostlightCanonicalState {
     pub voice_style: BTreeMap<String, GhostlightTraitVector>,
     pub situational_state: BTreeMap<String, GhostlightTraitVector>,
     pub values: Vec<GhostlightValue>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -109,8 +99,6 @@ pub struct GhostlightTraitVector {
     pub mean: f64,
     pub plasticity: f64,
     pub current_activation: f64,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -119,8 +107,6 @@ pub struct GhostlightValue {
     pub label: String,
     pub priority: f64,
     pub unforgivable_if_betrayed: bool,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -133,8 +119,6 @@ pub struct GhostlightGoal {
     #[serde(default)]
     pub blockers: Vec<String>,
     pub status: String,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -142,8 +126,6 @@ pub struct GhostlightMemories {
     pub episodic: Vec<GhostlightMemory>,
     pub semantic: Vec<GhostlightMemory>,
     pub relationship_summaries: Vec<GhostlightMemory>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -156,8 +138,6 @@ pub struct GhostlightMemory {
     pub linked_event_ids: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linked_relationship_id: Option<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -648,7 +628,6 @@ pub fn apply_agent_canonical_trait_seeds(
             mean: clamp_unit(seed.mean),
             plasticity: clamp_unit(seed.plasticity),
             current_activation: clamp_unit(seed.current_activation),
-            extra: BTreeMap::new(),
         };
         let mut entry = cache
             .get::<EpiphanyAgentMemoryEntry>(&seed.role_id)?
@@ -1284,7 +1263,6 @@ fn upsert_memories(records: &mut Vec<GhostlightMemory>, incoming: Vec<SelfPatchM
                 confidence: item.confidence,
                 linked_event_ids: item.linked_event_ids,
                 linked_relationship_id: item.linked_relationship_id,
-                extra: BTreeMap::new(),
             },
         );
     }
@@ -1308,7 +1286,6 @@ fn upsert_goals(records: &mut Vec<GhostlightGoal>, incoming: Vec<SelfPatchGoal>)
                 emotional_stake: item.emotional_stake,
                 blockers: item.blockers,
                 status: item.status,
-                extra: BTreeMap::new(),
             },
         );
     }
@@ -1329,7 +1306,6 @@ fn upsert_values(records: &mut Vec<GhostlightValue>, incoming: Vec<SelfPatchValu
                 label: item.label,
                 priority: item.priority,
                 unforgivable_if_betrayed: item.unforgivable_if_betrayed,
-                extra: BTreeMap::new(),
             },
         );
     }
