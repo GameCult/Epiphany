@@ -1,5 +1,33 @@
 # Repo Fractal Dataflow Cache Plan
 
+## Correction: This Is A Memory Graph Profile
+
+The repo fractal dataflow graph is not separate from agent memory. It is a
+domain profile of the same underlying machine.
+
+The shared creature is an `EpiphanyMemoryGraph`:
+
+```text
+typed domain claim
+-> node / edge / anchor / summary
+-> lifecycle state
+-> conservative context cut
+-> semantic embedding cache
+-> role/repo/Face/coordinator context packet
+```
+
+The repo graph uses this substrate for architecture/dataflow/source domains.
+Agent memory uses it for role-local self memories, short-term residue,
+incubation, identity, agency pressure, and candidate interventions. Evidence
+and planning can also attach as graph domains.
+
+Do not implement a standalone repo-model graph engine and then another
+agent-memory graph engine. That is duplicated authority. Build shared typed
+memory graph primitives, then add domain-specific policies.
+
+This note remains the `repo_architecture` / `repo_dataflow` profile plan. The
+agent-memory profile plan lives in `notes/agent-memory-fractal-cache-plan.md`.
+
 This note applies the lesson from
 `E:\Projects\gamecult-site\GameCult\Blog\fractal-domains-cache-that-bites.md`
 to Epiphany's repo-modeling architecture.
@@ -42,14 +70,15 @@ better coat.
 
 ## Desired Mechanism
 
-Introduce an Epiphany-owned `RepoModel` organ:
+Add repo architecture/dataflow profiles to the shared
+`EpiphanyMemoryGraph` organ:
 
 ```text
 repo files / docs / manifests / build metadata / git history
 -> typed repo scanner
 -> typed code/document domains
--> fractal architecture/dataflow graph documents
--> conservative node and edge summaries
+-> shared memory graph architecture/dataflow nodes and edges
+-> conservative memory graph summaries
 -> Qdrant embeddings for nodes, edges, summaries, and candidate neighborhoods
 -> query planner chooses a stable context cut
 -> coding agent receives exact typed context packet
@@ -71,7 +100,8 @@ It makes selection fast. It does not become the source of truth.
 
 ## Durable State Stores
 
-Keep truth in typed CultCache documents:
+Keep truth in typed CultCache documents. These are repo-profile projections of
+the shared memory graph documents, not a separate graph store:
 
 - `epiphany.repo_model.snapshot`: repo identity, scan revision, source hashes,
   root domains, and model status.
@@ -156,12 +186,16 @@ must not be the only home of graph truth.
 Target module network:
 
 - `epiphany-state-model`
-  - owns typed document structs for repo model snapshots, nodes, edges,
-    summaries, embedding manifests, context packets, freshness, and receipts.
+  - owns shared memory graph document structs plus repo-profile public contract
+    projections when they need CultNet/schema advertisement.
 
-- `epiphany-core::repo_model`
-  - owns domain mapping, graph grammar, summary construction, freshness,
-    context-cut planning, validation, and patch proposal policy.
+- `epiphany-core::memory_graph`
+  - owns shared graph grammar, lifecycle law, summary construction, freshness,
+    context-cut planning, validation, and Qdrant embedding manifests.
+
+- `epiphany-core::memory_graph::profiles::repo`
+  - owns repo architecture/dataflow domain mapping, scanner policy, source-hash
+    freshness, and reviewable patch proposal policy over the shared graph.
 
 - `epiphany-core::retrieval`
   - remains text/chunk retrieval and low-level Qdrant/Ollama backend adapter
@@ -316,16 +350,16 @@ staleness, open questions, and required verification hooks.
 
 ### Rebuild
 
-- Build `epiphany-core::repo_model` as the new architecture organ before adding
-  more retrieval features.
-- Build typed repo-model CultNet contracts so Aquarium and coding lanes can ask
-  for context packets without Codex JSON-RPC.
+- Build `epiphany-core::memory_graph` as the shared architecture/memory organ
+  before adding more retrieval features.
+- Build typed memory-graph CultNet contracts so Aquarium and coding lanes can
+  ask for repo-profile context packets without Codex JSON-RPC.
 
 ## First Slice
 
 Do not start by embedding everything. First prove the typed shape.
 
-1. Add typed repo-model document structs in `epiphany-state-model`:
+1. Add shared typed memory graph document structs in `epiphany-state-model`:
    - snapshot
    - domain
    - node
@@ -334,8 +368,9 @@ Do not start by embedding everything. First prove the typed shape.
    - embedding manifest
    - context packet
    - freshness
-2. Add `epiphany-core::repo_model` with pure in-memory validation and context
-   cut planning over mocked documents.
+   - repo profile kind/lifecycle hooks
+2. Add `epiphany-core::memory_graph` with repo-profile policy hooks plus pure
+   in-memory validation and context cut planning over mocked documents.
 3. Add unit tests:
    - node ids are stable from domain/path/symbol
    - edges cannot reference missing nodes
@@ -389,7 +424,7 @@ The plan above is architecturally concrete, but not yet implementation-concrete.
 This roadmap is the cut order. Do not jump to Qdrant first. A fast lie is still
 a lie; it just gets to the wrong answer with better posture.
 
-### Phase 0: Name The Contract
+### Phase 0: Name The Shared Contract
 
 Objective: make the target type surface explicit before any scanner, model, or
 vector store can smuggle authority into the system.
@@ -402,6 +437,16 @@ Files:
 
 Add typed state-model structs:
 
+- `EpiphanyMemoryGraphSnapshot`
+- `EpiphanyMemoryDomain`
+- `EpiphanyMemoryNode`
+- `EpiphanyMemoryEdge`
+- `EpiphanyMemorySummary`
+- `EpiphanyMemoryEmbeddingManifest`
+- `EpiphanyMemoryFreshness`
+- `EpiphanyMemoryContextQuery`
+- `EpiphanyMemoryContextPacket`
+- `EpiphanyMemoryPatchCandidate`
 - `EpiphanyRepoModelSnapshot`
 - `EpiphanyRepoDomain`
 - `EpiphanyRepoNode`
@@ -436,31 +481,34 @@ Tests:
 
 Exit criteria:
 
-- The repo-model document vocabulary compiles without Qdrant.
+- The shared memory graph document vocabulary compiles without Qdrant.
+- Repo-profile aliases/projections can be represented without a second graph
+  engine.
 - The contracts can be advertised without any scanner implementation.
 
-### Phase 1: Pure Repo Model Core
+### Phase 1: Pure Memory Graph Core With Repo Profile
 
 Objective: build the in-memory law engine that can validate and select graph
 context without touching disk, Qdrant, Ollama, Codex, or app-server routing.
 
 Files:
 
-- `epiphany-core/src/repo_model.rs`
-- `epiphany-core/src/repo_model/ids.rs`
-- `epiphany-core/src/repo_model/validation.rs`
-- `epiphany-core/src/repo_model/freshness.rs`
-- `epiphany-core/src/repo_model/context_cut.rs`
+- `epiphany-core/src/memory_graph.rs`
+- `epiphany-core/src/memory_graph/ids.rs`
+- `epiphany-core/src/memory_graph/validation.rs`
+- `epiphany-core/src/memory_graph/freshness.rs`
+- `epiphany-core/src/memory_graph/context_cut.rs`
+- `epiphany-core/src/memory_graph/profiles/repo.rs`
 - `epiphany-core/src/lib.rs`
 
 Functions:
 
-- `repo_model_domain_id(kind, path_or_name) -> String`
-- `repo_model_node_id(domain_id, kind, path, symbol) -> String`
-- `repo_model_edge_id(source_id, target_id, kind, code_refs) -> String`
-- `validate_repo_model_snapshot(snapshot) -> Vec<EpiphanyRepoModelValidationError>`
-- `derive_repo_model_freshness(snapshot, source_hashes, dirty_paths) -> EpiphanyRepoFreshness`
-- `plan_repo_context_cut(snapshot, query, budget) -> EpiphanyRepoContextPacket`
+- `memory_graph_domain_id(profile, kind, path_or_name) -> String`
+- `memory_graph_node_id(domain_id, kind, path, symbol) -> String`
+- `memory_graph_edge_id(source_id, target_id, kind, code_refs) -> String`
+- `validate_memory_graph_snapshot(snapshot) -> Vec<EpiphanyMemoryGraphValidationError>`
+- `derive_memory_graph_freshness(snapshot, source_hashes, dirty_paths) -> EpiphanyMemoryFreshness`
+- `plan_memory_graph_context_cut(snapshot, query, budget) -> EpiphanyMemoryContextPacket`
 
 Tests:
 
@@ -477,9 +525,10 @@ Tests:
 
 Exit criteria:
 
-- `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib repo_model`
+- `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib memory_graph`
   passes.
-- Repo context packets can be produced from fixture documents without Qdrant.
+- Repo-profile context packets can be produced from fixture documents without
+  Qdrant.
 
 ### Phase 2: Deterministic Scanner
 
@@ -816,15 +865,18 @@ objective
 
 ## First Implementable Ticket
 
-Start here if the user says "build it."
+Do not start here directly anymore. Start with
+`notes/epiphany-memory-graph-unified-plan.md`.
 
-Title: `Add typed RepoModel documents and pure context-cut validation`
+Title: `Add shared EpiphanyMemoryGraph typed documents and pure validation`
 
 Scope:
 
-- Add repo-model document structs to `epiphany-state-model/src/lib.rs`.
-- Add `epiphany-core/src/repo_model.rs` plus `ids`, `validation`,
-  `freshness`, and `context_cut` submodules.
+- Add shared memory graph document structs to `epiphany-state-model/src/lib.rs`.
+- Add `epiphany-core/src/memory_graph.rs` plus document, id, validation,
+  freshness, and context-cut submodules.
+- Include `repo_architecture` and `repo_dataflow` profile enums/policy hooks,
+  but do not implement the scanner yet.
 - Export the pure APIs from `epiphany-core/src/lib.rs`.
 - Add fixture-only unit tests for stable ids, missing-edge validation, stale
   hash propagation, and parent-summary context cuts.
@@ -842,12 +894,12 @@ Verification:
 
 ```powershell
 cargo fmt --manifest-path .\epiphany-core\Cargo.toml
-cargo test --manifest-path .\epiphany-core\Cargo.toml --lib repo_model
+cargo test --manifest-path .\epiphany-core\Cargo.toml --lib memory_graph
 cargo check --manifest-path .\epiphany-core\Cargo.toml
 ```
 
 Definition of done:
 
-- The repo-model organ has typed bones and pure tests.
+- The shared memory-graph organ has typed bones and pure tests.
 - The next ticket can add deterministic scanning without debating what a node,
   edge, summary, freshness record, or context packet is supposed to be.
