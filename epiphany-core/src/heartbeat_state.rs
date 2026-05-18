@@ -483,7 +483,7 @@ pub fn complete_heartbeat_store(
         scene_clock: Some(state.scene_clock),
         next_ready_at: Some(participant.next_ready_at),
         turn_status: Some("completed".to_string()),
-        cooldown_started_after_completion: None,
+        cooldown_started_after_completion: Some(true),
         extra: BTreeMap::new(),
     };
     state.history.push(event.clone());
@@ -565,6 +565,15 @@ fn tick_once(
     pending.extra.insert(
         "initiativeHeatMultiplier".to_string(),
         serde_json::json!(initiative_heat_multiplier(&selected)),
+    );
+    pending
+        .extra
+        .insert("initiativeFrozen".to_string(), serde_json::json!(true));
+    pending.extra.insert(
+        "initiativeFreezeReason".to_string(),
+        serde_json::json!(
+            "Participant has an active heartbeat turn; initiative cannot queue it again until the turn completes."
+        ),
     );
     state.participants[selected_index].pending_turn = Some(pending.clone());
     state.participants[selected_index].last_action_id = Some(action.action_id.clone());
@@ -949,6 +958,8 @@ fn readiness_snapshot(
                 "arena": participant_arena(item),
                 "participant_kind": participant_kind(item),
                 "next_ready_at": item.next_ready_at,
+                "initiative_frozen": pending,
+                "freeze_reason": pending.then_some("running_heartbeat_turn"),
                 "reaction_readiness": reaction_readiness,
                 "eligible_for_reaction": eligible,
             })
@@ -3226,6 +3237,19 @@ mod tests {
         )?;
         assert_eq!(work["event"]["selectedRole"], "implementation");
         assert_eq!(work["event"]["turnStatus"], "running");
+        let implementation = work["schedule"]["participants"]
+            .as_array()
+            .and_then(|participants| {
+                participants
+                    .iter()
+                    .find(|participant| participant["role_id"] == "implementation")
+            })
+            .expect("implementation participant should be projected");
+        assert_eq!(implementation["initiative_frozen"], true);
+        assert_eq!(
+            implementation["pending_turn"]["initiativeFrozen"],
+            serde_json::json!(true)
+        );
         assert!(artifact_dir.join("native-work.initiative.json").exists());
 
         let blocked = tick_heartbeat_store(
@@ -3258,7 +3282,86 @@ mod tests {
             },
         )?;
         assert_eq!(completed["event"]["turnStatus"], "completed");
+        assert_eq!(
+            completed["event"]["cooldownStartedAfterCompletion"],
+            serde_json::json!(true)
+        );
         assert!(artifact_dir.join("native-work.completion.json").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn high_heat_cannot_requeue_running_participant() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("hot-heartbeats.msgpack");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_heartbeat_store(&store_path, 1.0)?;
+        update_heartbeat_heat_store(
+            &store_path,
+            HeartbeatHeatUpdateOptions {
+                scope: "role".to_string(),
+                selector: "implementation".to_string(),
+                multiplier: 25.0,
+                id: Some("implementation-overheat".to_string()),
+                label: None,
+                reason: Some("High heat must still respect active thought freeze.".to_string()),
+                expires_after_scene_clock: None,
+                clear: false,
+            },
+        )?;
+
+        let work = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 4.0,
+                coordinator_action: Some("continueImplementation".to_string()),
+                target_role: None,
+                urgency: 1.0,
+                schedule_id: "hot-work".to_string(),
+                source_scene_ref: "test/high-heat".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )?;
+        assert_eq!(
+            work["schedule"]["action_catalog"][0]["initiative_heat_multiplier"],
+            serde_json::json!(25.0)
+        );
+        let implementation = work["schedule"]["participants"]
+            .as_array()
+            .and_then(|participants| {
+                participants
+                    .iter()
+                    .find(|participant| participant["role_id"] == "implementation")
+            })
+            .expect("implementation participant should be projected");
+        assert_eq!(implementation["initiative_frozen"], true);
+        assert_eq!(
+            implementation["pending_turn"]["initiativeFrozen"],
+            serde_json::json!(true)
+        );
+
+        let blocked = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 4.0,
+                coordinator_action: Some("continueImplementation".to_string()),
+                target_role: None,
+                urgency: 1.0,
+                schedule_id: "hot-work-repeat".to_string(),
+                source_scene_ref: "test/high-heat".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )
+        .unwrap_err();
+        assert!(
+            blocked
+                .to_string()
+                .contains("already has running heartbeat turn")
+        );
         Ok(())
     }
 

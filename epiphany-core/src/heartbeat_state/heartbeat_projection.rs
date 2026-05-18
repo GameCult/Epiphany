@@ -227,6 +227,14 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "initiativeHeatMultiplier": initiative_heat_multiplier(participant),
         "initiativeHeat": participant.extra.get("initiativeHeat"),
         "effectiveCooldownMultiplier": effective_cooldown_multiplier(participant),
+        "initiativeFrozen": participant
+            .pending_turn
+            .as_ref()
+            .is_some_and(|turn| turn.status == "running"),
+        "initiativeFreezeReason": participant
+            .pending_turn
+            .as_ref()
+            .and_then(|turn| turn.extra.get("initiativeFreezeReason")),
         "personalityTiming": participant.extra.get("personalityTiming"),
         "moodTiming": participant.extra.get("moodTiming"),
         "nextReadyAt": participant.next_ready_at,
@@ -253,6 +261,14 @@ pub(super) fn schedule_participant_json(participant: &HeartbeatParticipant) -> V
         "mood_cooldown_multiplier": mood_cooldown_multiplier(participant),
         "initiative_heat_multiplier": initiative_heat_multiplier(participant),
         "effective_cooldown_multiplier": effective_cooldown_multiplier(participant),
+        "initiative_frozen": participant
+            .pending_turn
+            .as_ref()
+            .is_some_and(|turn| turn.status == "running"),
+        "initiative_freeze_reason": participant
+            .pending_turn
+            .as_ref()
+            .and_then(|turn| turn.extra.get("initiativeFreezeReason")),
         "next_ready_at": participant.next_ready_at,
         "reaction_bias": participant.reaction_bias,
         "interrupt_threshold": participant.interrupt_threshold,
@@ -287,6 +303,8 @@ pub(super) fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "moodCooldownMultiplier": turn.extra.get("moodCooldownMultiplier"),
         "initiativeHeatMultiplier": turn.extra.get("initiativeHeatMultiplier"),
         "effectiveCooldownMultiplier": turn.extra.get("effectiveCooldownMultiplier"),
+        "initiativeFrozen": turn.extra.get("initiativeFrozen"),
+        "initiativeFreezeReason": turn.extra.get("initiativeFreezeReason"),
         "recovery": turn.recovery,
         "cooldownPolicy": turn.cooldown_policy,
         "completedAt": turn.completed_at,

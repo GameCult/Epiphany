@@ -796,6 +796,8 @@ fn validate_schedule_shape(schedule: &serde_json::Value) -> Vec<String> {
                         "arena",
                         "participant_kind",
                         "next_ready_at",
+                        "initiative_frozen",
+                        "freeze_reason",
                         "reaction_readiness",
                         "eligible_for_reaction",
                     ]
