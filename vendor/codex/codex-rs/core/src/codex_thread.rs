@@ -20,7 +20,6 @@ use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::protocol::AskForApproval;
-use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyStateItem;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::Event;
@@ -35,8 +34,6 @@ use codex_protocol::protocol::TokenUsageInfo;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use epiphany_core::EpiphanyRetrieveQuery;
-use epiphany_core::EpiphanyRetrieveResponse;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::apply_epiphany_state_update;
 use epiphany_core::epiphany_state_update_validation_errors;
@@ -324,6 +321,10 @@ impl CodexThread {
         self.codex.thread_config_snapshot().await
     }
 
+    pub async fn codex_home(&self) -> PathBuf {
+        self.codex.session.codex_home().await.to_path_buf()
+    }
+
     pub async fn epiphany_state(&self) -> Option<EpiphanyThreadState> {
         self.codex.session.epiphany_state().await
     }
@@ -381,56 +382,6 @@ impl CodexThread {
             .await;
         self.codex.session.flush_rollout().await?;
         Ok(next_state)
-    }
-
-    pub async fn epiphany_retrieval_state(&self) -> EpiphanyRetrievalState {
-        let config = self.codex.thread_config_snapshot().await;
-        let workspace_root = config.cwd.to_path_buf();
-        let codex_home = self.codex.session.codex_home().await;
-        let fallback_workspace_root = workspace_root.clone();
-        let fallback_codex_home = codex_home.clone();
-        tokio::task::spawn_blocking(move || {
-            epiphany_core::retrieval_state_for_workspace(&workspace_root, codex_home.as_path())
-        })
-        .await
-        .unwrap_or_else(|_| {
-            epiphany_core::retrieval_state_for_workspace(
-                &fallback_workspace_root,
-                fallback_codex_home.as_path(),
-            )
-        })
-    }
-
-    pub async fn epiphany_index(
-        &self,
-        force_full_rebuild: bool,
-    ) -> anyhow::Result<EpiphanyRetrievalState> {
-        let config = self.codex.thread_config_snapshot().await;
-        let workspace_root = config.cwd.to_path_buf();
-        let codex_home = self.codex.session.codex_home().await;
-        tokio::task::spawn_blocking(move || {
-            epiphany_core::index_workspace(
-                &workspace_root,
-                codex_home.as_path(),
-                force_full_rebuild,
-            )
-        })
-        .await
-        .map_err(|err| anyhow::anyhow!("epiphany index worker failed: {err}"))?
-    }
-
-    pub async fn epiphany_retrieve(
-        &self,
-        query: EpiphanyRetrieveQuery,
-    ) -> anyhow::Result<EpiphanyRetrieveResponse> {
-        let config = self.codex.thread_config_snapshot().await;
-        let workspace_root = config.cwd.to_path_buf();
-        let codex_home = self.codex.session.codex_home().await;
-        tokio::task::spawn_blocking(move || {
-            epiphany_core::retrieve_workspace(&workspace_root, codex_home.as_path(), query)
-        })
-        .await
-        .map_err(|err| anyhow::anyhow!("epiphany retrieval worker failed: {err}"))?
     }
 
     pub async fn read_mcp_resource(

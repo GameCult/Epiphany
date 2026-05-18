@@ -29,6 +29,9 @@ objective:
     launch/interrupt policy now lives in
     `epiphany-codex-bridge::mutation_service`; vendored `CodexThread` remains
     the narrow Codex-session persistence seam for Epiphany state read/update.
+    Retrieval status, indexing, and retrieval execution now live in
+    `epiphany-codex-bridge::retrieve`; vendored Codex supplies cwd/codex-home
+    host facts rather than owning Epiphany retrieval behavior.
 
 constraints:
   - No frontier-scale training tithe.

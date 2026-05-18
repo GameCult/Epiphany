@@ -13,6 +13,8 @@ use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::write_thread_state;
 use tracing::warn;
 
+use crate::retrieve::thread_epiphany_retrieval_state;
+
 pub async fn load_epiphany_state_from_rollout_path(
     rollout_path: &Path,
 ) -> std::result::Result<Option<EpiphanyThreadState>, String> {
@@ -36,7 +38,7 @@ pub async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<Epiphany
     if let Some(state) = epiphany_state.as_mut()
         && state.retrieval.is_none()
     {
-        state.retrieval = Some(thread.epiphany_retrieval_state().await);
+        state.retrieval = Some(thread_epiphany_retrieval_state(thread).await);
     }
     if let Some(state) = epiphany_state.as_ref() {
         let config = thread.config_snapshot().await;

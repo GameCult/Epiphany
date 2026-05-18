@@ -4,6 +4,8 @@ use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
+use epiphany_codex_bridge::retrieve::retrieve_thread_epiphany;
+use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
 use epiphany_codex_bridge::state::load_optional_thread_memory_graph_snapshot;
 use epiphany_codex_bridge::state::runtime_spine_store_path;
 use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
@@ -86,7 +88,7 @@ impl CodexMessageProcessor {
                 .is_none()
         {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
-                Some(loaded_thread.epiphany_retrieval_state().await)
+                Some(thread_epiphany_retrieval_state(loaded_thread).await)
             } else {
                 None
             }
@@ -259,7 +261,7 @@ impl CodexMessageProcessor {
         };
 
         let retrieval_override = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_retrieval_state().await)
+            Some(thread_epiphany_retrieval_state(loaded_thread).await)
         } else {
             None
         };
@@ -482,8 +484,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let response = match thread
-            .epiphany_retrieve(query)
+        let response = match retrieve_thread_epiphany(thread.as_ref(), query)
             .await
             .and_then(map_epiphany_retrieve_response)
         {
