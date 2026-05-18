@@ -61,7 +61,7 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     #[cultcache(key = 6, default)]
     pub memory_resonance: Option<HeartbeatMemoryResonance>,
     #[cultcache(key = 7, default)]
-    pub incubation: Option<Value>,
+    pub incubation: Option<HeartbeatIncubation>,
     #[cultcache(key = 8, default)]
     pub thought_lanes: Option<HeartbeatThoughtLanes>,
     #[cultcache(key = 9, default)]
@@ -178,6 +178,46 @@ pub struct HeartbeatCognitionBridge {
     pub refractory_topics: Vec<HeartbeatRefractoryTopic>,
     pub unresolved_tensions: Vec<HeartbeatUnresolvedTension>,
     pub decision: HeartbeatBridgeDecision,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatIncubation {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub source_coverage: HeartbeatSourceCoverage,
+    pub last_incubation_summary: String,
+    pub themes: Vec<HeartbeatIncubationTheme>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatIncubationTheme {
+    pub theme_id: String,
+    pub summary: String,
+    pub strength: f64,
+    pub source: String,
+    pub source_roles: Vec<String>,
+    pub source_kinds: Vec<String>,
+    pub source_memory_ids: Vec<String>,
+    pub support_count: usize,
+    pub evidence_diversity: f64,
+    pub exploration_bonus: f64,
+    pub novelty: f64,
+    pub novelty_to_self: f64,
+    pub novelty_to_room: f64,
+    pub maturation: f64,
+    pub desire_to_speak: f64,
+    pub saturation_score: f64,
+    pub recent_match_count: usize,
+    pub refractory_penalty: f64,
+    pub priority_score: f64,
+    pub status: String,
+    pub latent_question: String,
+    pub why_it_pulls: String,
+    pub holding_close_because: String,
+    pub updated_at: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

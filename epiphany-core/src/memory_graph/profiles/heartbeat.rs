@@ -8,7 +8,6 @@ use crate::memory_graph::EpiphanyMemoryProfile;
 use crate::memory_graph::EpiphanyMemorySummary;
 use crate::memory_graph::memory_graph_domain_id;
 use crate::memory_graph::memory_graph_node_id;
-use serde_json::Value;
 
 pub fn memory_graph_from_heartbeat_cognition(
     graph_id: impl Into<String>,
@@ -100,44 +99,41 @@ fn import_incubation(
     let Some(incubation) = cognition.incubation.as_ref() else {
         return;
     };
-    let Some(themes) = incubation.get("themes").and_then(Value::as_array) else {
+    if incubation.themes.is_empty() {
         return;
-    };
+    }
     let domain_id = push_domain(
         domains,
         EpiphanyMemoryProfile::Incubation,
         "heartbeat incubation",
     );
     let before = nodes.len();
-    for theme in themes.iter().take(12) {
-        let theme_id = string_at(theme, "themeId");
-        let status = string_at(theme, "status");
+    for theme in incubation.themes.iter().take(12) {
+        let theme_id = theme.theme_id.clone();
+        let status = theme.status.clone();
         nodes.push(EpiphanyMemoryNode {
             id: memory_graph_node_id(&domain_id, "incubation", &theme_id, None),
             domain_id: domain_id.clone(),
             profile: EpiphanyMemoryProfile::Incubation,
             kind: EpiphanyMemoryNodeKind::IncubationThread,
             title: theme_id.clone(),
-            claim: string_at(theme, "summary"),
-            question: string_at_any(
-                theme,
-                &["latentQuestion", "question"],
+            claim: theme.summary.clone(),
+            question: nonempty_or(
+                &theme.latent_question,
                 "What is this incubation theme trying to become?",
             ),
-            tension: string_at_any(
-                theme,
-                &["holdingCloseBecause", "tension"],
+            tension: nonempty_or(
+                &theme.holding_close_because,
                 "Heartbeat marked this theme but did not preserve a tension.",
             ),
-            action_implication: string_at_any(
-                theme,
-                &["whyItPulls", "actionImplication"],
+            action_implication: nonempty_or(
+                &theme.why_it_pulls,
                 "Keep in incubation until sleep or review accounts for it.",
             ),
             source_hashes: vec!["anchor:missing".to_string()],
             lifecycle: incubation_lifecycle(&status),
-            salience: score_to_u32(number_at(theme, "priorityScore")),
-            confidence: score_to_u32(number_at(theme, "maturation")),
+            salience: score_to_u32(theme.priority_score),
+            confidence: score_to_u32(theme.maturation),
             ..Default::default()
         });
     }
@@ -312,29 +308,12 @@ fn push_summary(
     });
 }
 
-fn string_at(value: &Value, key: &str) -> String {
-    value
-        .get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn string_at_any(value: &Value, keys: &[&str], fallback: &str) -> String {
-    keys.iter()
-        .find_map(|key| {
-            let value = value.get(key).and_then(Value::as_str)?;
-            if value.trim().is_empty() {
-                None
-            } else {
-                Some(value.to_string())
-            }
-        })
-        .unwrap_or_else(|| fallback.to_string())
-}
-
-fn number_at(value: &Value, key: &str) -> f64 {
-    value.get(key).and_then(Value::as_f64).unwrap_or_default()
+fn nonempty_or(value: &str, fallback: &str) -> String {
+    if value.trim().is_empty() {
+        fallback.to_string()
+    } else {
+        value.to_string()
+    }
 }
 
 fn score_to_u32(value: f64) -> u32 {
@@ -361,6 +340,8 @@ mod tests {
     use crate::heartbeat_state::HeartbeatCandidateIntervention;
     use crate::heartbeat_state::HeartbeatCandidateInterventions;
     use crate::heartbeat_state::HeartbeatCognitionBridge;
+    use crate::heartbeat_state::HeartbeatIncubation;
+    use crate::heartbeat_state::HeartbeatIncubationTheme;
     use crate::heartbeat_state::HeartbeatMemoryResonance;
     use crate::heartbeat_state::HeartbeatMemoryResonancePair;
     use crate::memory_graph::validate_memory_graph_snapshot;
@@ -386,22 +367,29 @@ mod tests {
                 }],
                 ..Default::default()
             }),
-            incubation: Some(serde_json::json!({
-                "themes": [{
-                    "themeId": "theme-body-soul",
-                    "summary": "Body and Soul keep touching evidence boundaries.",
-                    "latentQuestion": "Should this become doctrine?",
-                    "holdingCloseBecause": "It is live but not settled.",
-                    "whyItPulls": "It affects future review gates.",
-                    "status": "deepening",
-                    "priorityScore": 0.72,
-                    "maturation": 0.6
-                }, {
-                    "themeId": "theme-live-store-shape",
-                    "summary": "Live heartbeat stores may omit optional explanatory fields.",
-                    "status": "deepening"
-                }]
-            })),
+            incubation: Some(HeartbeatIncubation {
+                themes: vec![
+                    HeartbeatIncubationTheme {
+                        theme_id: "theme-body-soul".to_string(),
+                        summary: "Body and Soul keep touching evidence boundaries.".to_string(),
+                        latent_question: "Should this become doctrine?".to_string(),
+                        holding_close_because: "It is live but not settled.".to_string(),
+                        why_it_pulls: "It affects future review gates.".to_string(),
+                        status: "deepening".to_string(),
+                        priority_score: 0.72,
+                        maturation: 0.6,
+                        ..Default::default()
+                    },
+                    HeartbeatIncubationTheme {
+                        theme_id: "theme-live-store-shape".to_string(),
+                        summary: "Live heartbeat stores may omit optional explanatory fields."
+                            .to_string(),
+                        status: "deepening".to_string(),
+                        ..Default::default()
+                    },
+                ],
+                ..Default::default()
+            }),
             thought_lanes: None,
             bridge: Some(HeartbeatCognitionBridge {
                 decision: HeartbeatBridgeDecision {

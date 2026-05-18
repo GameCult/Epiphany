@@ -60,20 +60,22 @@ objective:
     candidates; Face/Aquarium pressure no longer reads that surface as an
     arbitrary JSON item list except when migrating legacy stores.
     Heartbeat cognition memory resonance is a typed pair list consumed by
-    incubation and memory-graph import; JSON resonance exists only as a local
-    projection for still-untyped thought-lane/bridge builders and status output.
+    incubation and memory-graph import; JSON resonance exists only as
+    status/artifact projection output.
     Heartbeat cognition sleep cycle is typed physiology state; old JSON sleep
     blobs are parsed only during legacy-store migration and status/artifacts
     receive JSON projections.
     Heartbeat cognition bridge judgment is typed durable state: syntheses,
     source coverage, saturation, refractory topics, tensions, and speech
-    decision are typed fields. Incubation/thought lanes are the remaining live
-    cognition JSON pockets, with bridge consuming them through explicit
-    temporary projections until their own cuts land.
+    decision are typed fields.
     Heartbeat cognition thought lanes are typed durable state; analytic and
-    associative active-thread lists no longer persist as arbitrary JSON. The
-    only remaining live cognition `Option<Value>` pocket is incubation, while
-    legacy cognition fields remain JSON only for old-store migration.
+    associative active-thread lists no longer persist as arbitrary JSON.
+    Heartbeat cognition incubation is typed durable state: source coverage,
+    theme identity, evidence lineage, maturation, novelty, saturation,
+    refractory cooling, priority, status, and explanatory strings live in
+    `HeartbeatIncubation` / `HeartbeatIncubationTheme`. Legacy cognition JSON
+    fields remain only for old-store migration; status, routine artifacts, and
+    protocol surfaces receive JSON projections of typed documents.
 
 constraints:
   - No frontier-scale training tithe.
