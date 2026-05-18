@@ -26,9 +26,11 @@ objective:
     compatibility. Memory graph loading and runtime-spine path derivation now
     live in `epiphany-codex-bridge::state`; vendored app-server route code
     calls that bridge instead of owning store path/load mechanics itself. Job
-    launch/interrupt policy now lives in
+    launch/interrupt policy and state-update application now live in
     `epiphany-codex-bridge::mutation_service`; vendored `CodexThread` remains
-    the narrow Codex-session persistence seam for Epiphany state read/update.
+    the narrow Codex-session persistence seam for reading the live Epiphany
+    state and writing an already-mutated snapshot into Codex rollout/session
+    storage.
     Retrieval status, indexing, and retrieval execution now live in
     `epiphany-codex-bridge::retrieve`; vendored Codex supplies cwd/codex-home
     host facts rather than owning Epiphany retrieval behavior.

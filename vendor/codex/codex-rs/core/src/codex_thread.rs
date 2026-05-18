@@ -34,9 +34,6 @@ use codex_protocol::protocol::TokenUsageInfo;
 use codex_protocol::protocol::W3cTraceContext;
 use codex_protocol::user_input::UserInput;
 use codex_utils_absolute_path::AbsolutePathBuf;
-use epiphany_core::EpiphanyStateUpdate;
-use epiphany_core::apply_epiphany_state_update;
-use epiphany_core::epiphany_state_update_validation_errors;
 use rmcp::model::ReadResourceRequestParams;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -329,59 +326,32 @@ impl CodexThread {
         self.codex.session.epiphany_state().await
     }
 
-    pub async fn epiphany_update_state(
-        &self,
-        update: EpiphanyStateUpdate,
-    ) -> CodexResult<EpiphanyThreadState> {
-        if update.is_empty() {
-            return Err(CodexErr::InvalidRequest(
-                "epiphany update patch must contain at least one mutation".to_string(),
-            ));
-        }
-
-        let reference_turn_id = self
-            .codex
+    pub async fn epiphany_reference_turn_id(&self) -> Option<String> {
+        self.codex
             .session
             .reference_context_item()
             .await
-            .and_then(|item| item.turn_id);
-        let mut next_state = self
-            .codex
-            .session
-            .epiphany_state()
-            .await
-            .unwrap_or_default();
-        if let Some(expected_revision) = update.expected_revision
-            && next_state.revision != expected_revision
-        {
-            return Err(CodexErr::InvalidRequest(format!(
-                "epiphany state revision mismatch: expected {expected_revision}, found {}",
-                next_state.revision
-            )));
-        }
+            .and_then(|item| item.turn_id)
+    }
 
-        let validation_errors = epiphany_state_update_validation_errors(&next_state, &update);
-        if !validation_errors.is_empty() {
-            return Err(CodexErr::InvalidRequest(format!(
-                "invalid epiphany update patch: {}",
-                validation_errors.join("; ")
-            )));
-        }
-
-        apply_epiphany_state_update(&mut next_state, update, reference_turn_id.clone());
+    pub async fn persist_epiphany_state(
+        &self,
+        reference_turn_id: Option<String>,
+        state: EpiphanyThreadState,
+    ) -> CodexResult<EpiphanyThreadState> {
         self.codex
             .session
-            .set_epiphany_state(Some(next_state.clone()))
+            .set_epiphany_state(Some(state.clone()))
             .await;
         self.codex
             .session
             .persist_rollout_items(&[RolloutItem::EpiphanyState(EpiphanyStateItem {
                 turn_id: reference_turn_id,
-                state: next_state.clone(),
+                state: state.clone(),
             })])
             .await;
         self.codex.session.flush_rollout().await?;
-        Ok(next_state)
+        Ok(state)
     }
 
     pub async fn read_mcp_resource(

@@ -25,6 +25,7 @@ use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::apply_memory_patch_candidate;
+use epiphany_core::apply_epiphany_state_update;
 use epiphany_core::clear_epiphany_job_binding_backend;
 use epiphany_core::epiphany_state_update_validation_errors;
 use epiphany_core::evaluate_promotion;
@@ -131,6 +132,34 @@ pub struct EpiphanyReorientLaunchApplied {
     pub job: ThreadEpiphanyJob,
 }
 
+async fn apply_thread_epiphany_state_update(
+    thread: &CodexThread,
+    update: EpiphanyStateUpdate,
+) -> Result<EpiphanyThreadState, CodexErr> {
+    if update.is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany update patch must contain at least one mutation".to_string(),
+        ));
+    }
+
+    let reference_turn_id = thread.epiphany_reference_turn_id().await;
+    let mut next_state = thread.epiphany_state().await.unwrap_or_default();
+    validate_expected_revision(update.expected_revision, next_state.revision)?;
+
+    let validation_errors = epiphany_state_update_validation_errors(&next_state, &update);
+    if !validation_errors.is_empty() {
+        return Err(CodexErr::InvalidRequest(format!(
+            "invalid epiphany update patch: {}",
+            validation_errors.join("; ")
+        )));
+    }
+
+    apply_epiphany_state_update(&mut next_state, update, reference_turn_id.clone());
+    thread
+        .persist_epiphany_state(reference_turn_id, next_state)
+        .await
+}
+
 pub async fn apply_thread_epiphany_update(
     thread: &CodexThread,
     expected_revision: Option<u64>,
@@ -138,7 +167,7 @@ pub async fn apply_thread_epiphany_update(
 ) -> Result<EpiphanyThreadUpdateApplied, CodexErr> {
     let changed_fields = epiphany_update_patch_changed_fields(&patch);
     let update = state_update_from_thread_patch(expected_revision, patch);
-    let epiphany_state = thread.epiphany_update_state(update).await?;
+    let epiphany_state = apply_thread_epiphany_state_update(thread, update).await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
     Ok(EpiphanyThreadUpdateApplied {
         revision: epiphany_state.revision,
@@ -176,7 +205,7 @@ pub async fn apply_thread_epiphany_promote(
     let mut patch = patch;
     patch.evidence.push(verifier_evidence);
     let update = state_update_from_thread_patch(expected_revision, patch);
-    let epiphany_state = thread.epiphany_update_state(update).await?;
+    let epiphany_state = apply_thread_epiphany_state_update(thread, update).await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
     Ok(EpiphanyThreadPromoteApplied::Accepted(
         EpiphanyThreadUpdateApplied {
@@ -227,12 +256,11 @@ pub async fn apply_thread_epiphany_role_accept(
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
     let applied_patch = acceptance_update.patch.clone();
-    let epiphany_state = thread
-        .epiphany_update_state(state_update_from_thread_patch(
-            expected_revision,
-            acceptance_update.patch,
-        ))
-        .await?;
+    let epiphany_state = apply_thread_epiphany_state_update(
+        thread,
+        state_update_from_thread_patch(expected_revision, acceptance_update.patch),
+    )
+    .await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
 
     Ok(EpiphanyRoleAcceptApplied {
@@ -363,9 +391,8 @@ pub async fn apply_thread_epiphany_reorient_accept(
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
-    let epiphany_state = thread
-        .epiphany_update_state(acceptance_update.state_update)
-        .await?;
+    let epiphany_state =
+        apply_thread_epiphany_state_update(thread, acceptance_update.state_update).await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
 
     Ok(EpiphanyReorientAcceptApplied {
@@ -465,7 +492,7 @@ pub async fn launch_thread_epiphany_job(
             validation_errors.join("; ")
         )));
     }
-    let epiphany_state = thread.epiphany_update_state(update).await?;
+    let epiphany_state = apply_thread_epiphany_state_update(thread, update).await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
     let job = map_launched_epiphany_job(
         &epiphany_state,
@@ -551,13 +578,15 @@ pub async fn interrupt_thread_epiphany_job(
         binding_index,
         "No active heartbeat turn is currently bound; launch explicitly to resume specialist work.",
     );
-    let epiphany_state = thread
-        .epiphany_update_state(EpiphanyStateUpdate {
+    let epiphany_state = apply_thread_epiphany_state_update(
+        thread,
+        EpiphanyStateUpdate {
             expected_revision,
             job_bindings: Some(next_job_bindings),
             ..Default::default()
-        })
-        .await?;
+        },
+    )
+    .await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
     let job = map_interrupted_epiphany_job(&epiphany_state, binding_id);
 
