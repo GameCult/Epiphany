@@ -105,8 +105,11 @@ pub fn map_epiphany_context_response(
     thread_id: String,
     loaded: bool,
     state: Option<&EpiphanyThreadState>,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
     params: &ThreadEpiphanyContextParams,
 ) -> ThreadEpiphanyContextResponse {
+    let memory_backed_state = memory_backed_thread_state(state, memory_graph_snapshot);
+    let state = memory_backed_state.as_ref().or(state);
     let (state_status, state_revision, context, missing) = map_epiphany_context(state, params);
     ThreadEpiphanyContextResponse {
         thread_id,
@@ -129,11 +132,7 @@ pub fn map_epiphany_graph_query_response(
     memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
     query: &ThreadEpiphanyGraphQuery,
 ) -> ThreadEpiphanyGraphQueryResponse {
-    let memory_backed_state = state.zip(memory_graph_snapshot).map(|(state, snapshot)| {
-        let mut state = state.clone();
-        state.graphs = epiphany_graphs_from_memory_graph(snapshot);
-        state
-    });
+    let memory_backed_state = memory_backed_thread_state(state, memory_graph_snapshot);
     let state = memory_backed_state.as_ref().or(state);
     let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
         map_epiphany_graph_query(state, query);
@@ -152,6 +151,17 @@ pub fn map_epiphany_graph_query_response(
         matched,
         missing,
     }
+}
+
+fn memory_backed_thread_state(
+    state: Option<&EpiphanyThreadState>,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
+) -> Option<EpiphanyThreadState> {
+    state.zip(memory_graph_snapshot).map(|(state, snapshot)| {
+        let mut state = state.clone();
+        state.graphs = epiphany_graphs_from_memory_graph(snapshot);
+        state
+    })
 }
 
 pub struct EpiphanyViewResponseInput<'a> {
