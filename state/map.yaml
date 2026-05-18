@@ -59,6 +59,9 @@ objective:
     Heartbeat cognition memory resonance is a typed pair list consumed by
     incubation and memory-graph import; JSON resonance exists only as a local
     projection for still-untyped thought-lane/bridge builders and status output.
+    Heartbeat cognition sleep cycle is typed physiology state; old JSON sleep
+    blobs are parsed only during legacy-store migration and status/artifacts
+    receive JSON projections.
 
 constraints:
   - No frontier-scale training tithe.

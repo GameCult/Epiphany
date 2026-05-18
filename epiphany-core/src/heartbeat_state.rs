@@ -2882,20 +2882,21 @@ fn overlap_ratio_strings(left: &[String], right: &[String]) -> f64 {
     if union <= 0.0 { 0.0 } else { shared / union }
 }
 
-fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream: bool) -> Value {
+fn update_sleep_cycle(
+    previous: Option<&HeartbeatSleepCycle>,
+    incubation: &Value,
+    allow_dream: bool,
+) -> HeartbeatSleepCycle {
     let cycle_hours = previous
-        .and_then(|value| value.get("cycleHours"))
-        .and_then(Value::as_i64)
+        .map(|value| value.cycle_hours)
         .unwrap_or(4)
         .clamp(2, 12);
     let nap_duration_minutes = previous
-        .and_then(|value| value.get("napDurationMinutes"))
-        .and_then(Value::as_i64)
+        .map(|value| value.nap_duration_minutes)
         .unwrap_or(60)
         .clamp(15, cycle_hours * 60 - 5);
     let phase_offset_minutes = previous
-        .and_then(|value| value.get("phaseOffsetMinutesLocal"))
-        .and_then(Value::as_i64)
+        .map(|value| value.phase_offset_minutes_local)
         .unwrap_or(120)
         .clamp(0, cycle_hours * 60 - 1);
     let now = chrono::Utc::now();
@@ -2924,8 +2925,7 @@ fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream:
         .map(str::to_string)
         .collect::<Vec<_>>();
     let previous_dream_count = previous
-        .and_then(|value| value.get("dreamCountInCurrentNap"))
-        .and_then(Value::as_u64)
+        .map(|value| value.dream_count_in_current_nap)
         .unwrap_or(0);
     let dream_count = if is_napping && allow_dream {
         previous_dream_count.saturating_add(1)
@@ -2934,26 +2934,39 @@ fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream:
     } else {
         0
     };
-    serde_json::json!({
-        "schema_version": "epiphany.sleep_cycle.v0",
-        "enabled": true,
-        "cycleHours": cycle_hours,
-        "napDurationMinutes": nap_duration_minutes,
-        "phaseOffsetMinutesLocal": phase_offset_minutes,
-        "replyMode": "sleep_rumination",
-        "isNapping": is_napping,
-        "currentNapStartedAt": if is_napping { Some(nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { None },
-        "currentNapEndsAt": if is_napping { Some(nap_end.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { None },
-        "nextNapStartsAt": next_nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        "lastDreamAt": if is_napping && allow_dream { Some(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { previous.and_then(|value| value.get("lastDreamAt")).cloned().and_then(|value| value.as_str().map(str::to_string)) },
-        "dreamCountInCurrentNap": dream_count,
-        "activeDreamThemes": active_themes,
-        "lastDistillationSummary": if is_napping {
+    HeartbeatSleepCycle {
+        schema_version: "epiphany.sleep_cycle.v0".to_string(),
+        enabled: true,
+        cycle_hours,
+        nap_duration_minutes,
+        phase_offset_minutes_local: phase_offset_minutes,
+        reply_mode: "sleep_rumination".to_string(),
+        is_napping,
+        current_nap_started_at: if is_napping {
+            Some(nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        } else {
+            None
+        },
+        current_nap_ends_at: if is_napping {
+            Some(nap_end.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        } else {
+            None
+        },
+        next_nap_starts_at: next_nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        last_dream_at: if is_napping && allow_dream {
+            Some(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        } else {
+            previous.and_then(|value| value.last_dream_at.clone())
+        },
+        dream_count_in_current_nap: dream_count,
+        active_dream_themes: active_themes,
+        last_distillation_summary: if is_napping {
             "Sleep pass prefers memory compression, resonance cooling, and dream residue over active work."
         } else {
             "Awake pass keeps resonance/incubation fresh without speaking unless Face has a real surface reason."
-        },
-    })
+        }
+        .to_string(),
+    }
 }
 
 fn summary_tokens(summary: &str) -> BTreeSet<String> {

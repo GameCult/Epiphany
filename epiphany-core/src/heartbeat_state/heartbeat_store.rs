@@ -127,7 +127,9 @@ fn legacy_heartbeat_cognition_entry(
         latest_run_id,
         latest_artifact_ref: None,
         source,
-        sleep_cycle: legacy.sleep_cycle,
+        sleep_cycle: legacy
+            .sleep_cycle
+            .and_then(|value| serde_json::from_value(value).ok()),
         memory_resonance: legacy
             .memory_resonance
             .and_then(|value| serde_json::from_value(value).ok()),

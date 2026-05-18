@@ -78,7 +78,7 @@ pub fn heartbeat_status_projection(
         "history": history,
         "latestArtifacts": latest_json_artifacts(artifact_dir, artifact_limit),
         "cognitionQuarantine": cognition.as_ref().map(heartbeat_cognition_status_json),
-        "sleepCycle": cognition.as_ref().and_then(|entry| entry.sleep_cycle.clone()),
+        "sleepCycle": cognition.as_ref().and_then(|entry| entry.sleep_cycle.as_ref()).and_then(typed_json),
         "memoryResonance": cognition.as_ref().and_then(|entry| entry.memory_resonance.as_ref()).and_then(typed_json),
         "incubation": cognition.as_ref().and_then(|entry| entry.incubation.clone()),
         "thoughtLanes": cognition.as_ref().and_then(|entry| entry.thought_lanes.clone()),
