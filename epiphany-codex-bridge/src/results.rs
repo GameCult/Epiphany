@@ -54,6 +54,7 @@ pub fn map_protocol_role_finding(
         evidence_gaps: finding.evidence_gaps,
         risks: finding.risks,
         state_patch,
+        memory_patch_candidates: finding.memory_patch_candidates,
         self_patch: finding.self_patch.map(|patch| {
             serde_json::to_value(patch)
                 .expect("AgentSelfPatch is a serializable protocol projection")

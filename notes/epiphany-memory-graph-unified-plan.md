@@ -399,8 +399,10 @@ from accepted thread graphs when the store is missing, applies accepted
 candidates through the graph law, and rejects invalid candidates before role
 acceptance. `thread/epiphany/roleAccept` responses now expose typed
 `memoryPatchReviews` at the JSON edge so operators can see exactly which graph
-growth was accepted or rejected. Legacy Modeling `statePatch.graphs` is now
-rejected by policy and the specialist prompt routes graph growth through
+growth was accepted or rejected. `thread/epiphany/roleResult` findings also
+expose typed `memoryPatchCandidates`, so the operator can inspect proposed graph
+growth before acceptance. Legacy Modeling `statePatch.graphs` is now rejected by
+policy and the specialist prompt routes graph growth through
 `memoryPatchCandidates`; graph replacement remains only a non-normal legacy
 surface outside Modeling acceptance. The next cleanup is removing remaining
 operator/UI assumptions that graph growth comes from thread-state graph

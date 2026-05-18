@@ -72,6 +72,7 @@ use codex_protocol::protocol::EpiphanyInvestigationCheckpoint as CoreEpiphanyInv
 use codex_protocol::protocol::EpiphanyInvestigationDisposition as CoreEpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobBinding as CoreEpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
+use codex_protocol::protocol::EpiphanyMemoryPatchCandidate as CoreEpiphanyMemoryPatchCandidate;
 use codex_protocol::protocol::EpiphanyMemoryPatchReview as CoreEpiphanyMemoryPatchReview;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
@@ -4083,6 +4084,9 @@ pub struct ThreadEpiphanyRoleFinding {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub state_patch: Option<ThreadEpiphanyUpdatePatch>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<CoreEpiphanyMemoryPatchCandidate>")]
+    pub memory_patch_candidates: Vec<CoreEpiphanyMemoryPatchCandidate>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable, type = "unknown")]
     pub self_patch: Option<serde_json::Value>,
