@@ -6,9 +6,11 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyMapProposalInput;
+use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::derive_scene;
 use epiphany_core::distill_observation;
+use epiphany_core::epiphany_graphs_from_memory_graph;
 use epiphany_core::propose_map_update;
 
 use crate::context::map_epiphany_context;
@@ -124,8 +126,15 @@ pub fn map_epiphany_graph_query_response(
     thread_id: String,
     loaded: bool,
     state: Option<&EpiphanyThreadState>,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
     query: &ThreadEpiphanyGraphQuery,
 ) -> ThreadEpiphanyGraphQueryResponse {
+    let memory_backed_state = state.zip(memory_graph_snapshot).map(|(state, snapshot)| {
+        let mut state = state.clone();
+        state.graphs = epiphany_graphs_from_memory_graph(snapshot);
+        state
+    });
+    let state = memory_backed_state.as_ref().or(state);
     let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
         map_epiphany_graph_query(state, query);
     ThreadEpiphanyGraphQueryResponse {

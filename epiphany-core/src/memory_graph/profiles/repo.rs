@@ -120,6 +120,151 @@ pub fn memory_graph_from_epiphany_graphs(
     }
 }
 
+pub fn epiphany_graphs_from_memory_graph(snapshot: &EpiphanyMemoryGraphSnapshot) -> EpiphanyGraphs {
+    let architecture = EpiphanyGraph {
+        nodes: snapshot
+            .nodes
+            .iter()
+            .filter(|node| node.profile == EpiphanyMemoryProfile::RepoArchitecture)
+            .map(graph_node_from_memory_node)
+            .collect(),
+        edges: snapshot
+            .edges
+            .iter()
+            .filter(|edge| edge.profile == EpiphanyMemoryProfile::RepoArchitecture)
+            .map(graph_edge_from_memory_edge)
+            .collect(),
+    };
+    let dataflow = EpiphanyGraph {
+        nodes: snapshot
+            .nodes
+            .iter()
+            .filter(|node| node.profile == EpiphanyMemoryProfile::RepoDataflow)
+            .map(graph_node_from_memory_node)
+            .collect(),
+        edges: snapshot
+            .edges
+            .iter()
+            .filter(|edge| edge.profile == EpiphanyMemoryProfile::RepoDataflow)
+            .map(graph_edge_from_memory_edge)
+            .collect(),
+    };
+    EpiphanyGraphs {
+        architecture,
+        dataflow,
+        links: repo_graph_links_from_memory_graph(snapshot),
+    }
+}
+
+fn graph_node_from_memory_node(node: &EpiphanyMemoryNode) -> EpiphanyGraphNode {
+    EpiphanyGraphNode {
+        id: node.id.clone(),
+        title: node.title.clone(),
+        purpose: node.claim.clone(),
+        mechanism: (!node.tension.trim().is_empty()).then_some(node.tension.clone()),
+        metaphor: None,
+        status: Some(memory_lifecycle_label(node.lifecycle).to_string()),
+        code_refs: code_refs_from_anchors(&node.anchors),
+    }
+}
+
+fn graph_edge_from_memory_edge(edge: &EpiphanyMemoryEdge) -> EpiphanyGraphEdge {
+    EpiphanyGraphEdge {
+        source_id: edge.source_id.clone(),
+        target_id: edge.target_id.clone(),
+        kind: memory_edge_kind_label(edge.kind).to_string(),
+        id: Some(edge.id.clone()),
+        label: Some(edge.claim.clone()),
+        mechanism: None,
+        code_refs: code_refs_from_anchors(&edge.anchors),
+    }
+}
+
+fn repo_graph_links_from_memory_graph(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+) -> Vec<EpiphanyGraphLink> {
+    snapshot
+        .edges
+        .iter()
+        .filter(|edge| edge.profile == EpiphanyMemoryProfile::RepoDataflow)
+        .filter_map(|edge| {
+            let architecture_node_id = edge
+                .anchors
+                .iter()
+                .find(|anchor| anchor.kind == "architecture_node")
+                .map(|anchor| anchor.target.clone())?;
+            Some(EpiphanyGraphLink {
+                dataflow_node_id: edge.source_id.clone(),
+                architecture_node_id,
+                relationship: Some(edge.claim.clone()),
+                code_refs: code_refs_from_anchors(&edge.anchors),
+            })
+        })
+        .collect()
+}
+
+fn code_refs_from_anchors(anchors: &[EpiphanyMemoryAnchor]) -> Vec<EpiphanyCodeRef> {
+    anchors
+        .iter()
+        .filter_map(|anchor| anchor.code_ref.clone())
+        .collect()
+}
+
+fn memory_edge_kind_label(kind: EpiphanyMemoryEdgeKind) -> &'static str {
+    match kind {
+        EpiphanyMemoryEdgeKind::Owns => "owns",
+        EpiphanyMemoryEdgeKind::Reads => "reads",
+        EpiphanyMemoryEdgeKind::Writes => "writes",
+        EpiphanyMemoryEdgeKind::Derives => "derives",
+        EpiphanyMemoryEdgeKind::Adapts => "adapts",
+        EpiphanyMemoryEdgeKind::Persists => "persists",
+        EpiphanyMemoryEdgeKind::Launches => "launches",
+        EpiphanyMemoryEdgeKind::Verifies => "verifies",
+        EpiphanyMemoryEdgeKind::Supports => "supports",
+        EpiphanyMemoryEdgeKind::Contradicts => "contradicts",
+        EpiphanyMemoryEdgeKind::Distills => "distills",
+        EpiphanyMemoryEdgeKind::Revises => "revises",
+        EpiphanyMemoryEdgeKind::Retires => "retires",
+        EpiphanyMemoryEdgeKind::Grounds => "grounds",
+        EpiphanyMemoryEdgeKind::Triggers => "triggers",
+        EpiphanyMemoryEdgeKind::SpokenAs => "spoken_as",
+        EpiphanyMemoryEdgeKind::Cools => "cools",
+        EpiphanyMemoryEdgeKind::ClustersWith => "clusters_with",
+        EpiphanyMemoryEdgeKind::ResonatesWith => "resonates_with",
+        EpiphanyMemoryEdgeKind::DependsOn => "depends_on",
+        EpiphanyMemoryEdgeKind::Other => "other",
+    }
+}
+
+fn memory_lifecycle_label(lifecycle: EpiphanyMemoryLifecycle) -> &'static str {
+    match lifecycle {
+        EpiphanyMemoryLifecycle::Observed => "observed",
+        EpiphanyMemoryLifecycle::Proposed => "proposed",
+        EpiphanyMemoryLifecycle::Accepted => "accepted",
+        EpiphanyMemoryLifecycle::Active => "active",
+        EpiphanyMemoryLifecycle::Clustered => "clustered",
+        EpiphanyMemoryLifecycle::Distilled => "distilled",
+        EpiphanyMemoryLifecycle::Incubated => "incubated",
+        EpiphanyMemoryLifecycle::Pruned => "pruned",
+        EpiphanyMemoryLifecycle::Revised => "revised",
+        EpiphanyMemoryLifecycle::Retired => "retired",
+        EpiphanyMemoryLifecycle::Crystallized => "crystallized",
+        EpiphanyMemoryLifecycle::Stale => "stale",
+        EpiphanyMemoryLifecycle::Deepening => "deepening",
+        EpiphanyMemoryLifecycle::Cooling => "cooling",
+        EpiphanyMemoryLifecycle::Promoted => "promoted",
+        EpiphanyMemoryLifecycle::Queued => "queued",
+        EpiphanyMemoryLifecycle::Deferred => "deferred",
+        EpiphanyMemoryLifecycle::Spoken => "spoken",
+        EpiphanyMemoryLifecycle::Applied => "applied",
+        EpiphanyMemoryLifecycle::Obligated => "obligated",
+        EpiphanyMemoryLifecycle::Answered => "answered",
+        EpiphanyMemoryLifecycle::Reviewed => "reviewed",
+        EpiphanyMemoryLifecycle::Contradicted => "contradicted",
+        EpiphanyMemoryLifecycle::Superseded => "superseded",
+    }
+}
+
 fn repo_domain(id: String, profile: EpiphanyMemoryProfile, title: &str) -> EpiphanyMemoryDomain {
     EpiphanyMemoryDomain {
         id,
@@ -441,6 +586,43 @@ mod tests {
             snapshot.nodes[0].profile,
             EpiphanyMemoryProfile::RepoArchitecture
         );
+    }
+
+    #[test]
+    fn repo_profile_projects_memory_graph_back_to_legacy_graph_view() {
+        let graphs = EpiphanyGraphs {
+            architecture: EpiphanyGraph {
+                nodes: vec![EpiphanyGraphNode {
+                    id: "core".to_string(),
+                    title: "Core policy".to_string(),
+                    purpose: "Owns shared policy.".to_string(),
+                    code_refs: vec![EpiphanyCodeRef {
+                        path: PathBuf::from("epiphany-core/src/lib.rs"),
+                        symbol: Some("policy".to_string()),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                }],
+                edges: vec![EpiphanyGraphEdge {
+                    id: Some("edge-core-self".to_string()),
+                    source_id: "core".to_string(),
+                    target_id: "core".to_string(),
+                    kind: "owns".to_string(),
+                    label: Some("owns itself for fixture".to_string()),
+                    ..Default::default()
+                }],
+            },
+            ..Default::default()
+        };
+
+        let snapshot = memory_graph_from_epiphany_graphs("repo-profile", &graphs);
+        let projected = epiphany_graphs_from_memory_graph(&snapshot);
+
+        assert_eq!(projected.architecture.nodes.len(), 1);
+        assert_eq!(projected.architecture.nodes[0].title, "Core policy");
+        assert_eq!(projected.architecture.nodes[0].code_refs.len(), 1);
+        assert_eq!(projected.architecture.edges.len(), 1);
+        assert_eq!(projected.architecture.edges[0].kind, "owns");
     }
 
     #[test]

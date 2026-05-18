@@ -109,6 +109,7 @@ pub use memory_graph::MEMORY_GRAPH_TYPE;
 pub use memory_graph::apply_memory_patch_candidate;
 pub use memory_graph::compose_memory_graph_snapshots;
 pub use memory_graph::derive_memory_graph_freshness;
+pub use memory_graph::epiphany_graphs_from_memory_graph;
 pub use memory_graph::lifecycle_allowed_for_profile;
 pub use memory_graph::load_memory_graph_entry;
 pub use memory_graph::load_memory_graph_snapshot;

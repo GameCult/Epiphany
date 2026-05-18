@@ -42,6 +42,7 @@ pub use ids::memory_graph_edge_id;
 pub use ids::memory_graph_node_id;
 pub use patch::apply_memory_patch_candidate;
 pub use patch::review_memory_patch_candidate;
+pub use profiles::epiphany_graphs_from_memory_graph;
 pub use profiles::memory_graph_from_agent_memories;
 pub use profiles::memory_graph_from_epiphany_graphs;
 pub use profiles::memory_graph_from_heartbeat_cognition;
