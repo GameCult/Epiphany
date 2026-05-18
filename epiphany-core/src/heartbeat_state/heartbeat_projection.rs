@@ -81,7 +81,7 @@ pub fn heartbeat_status_projection(
         "sleepCycle": cognition.as_ref().and_then(|entry| entry.sleep_cycle.as_ref()).and_then(typed_json),
         "memoryResonance": cognition.as_ref().and_then(|entry| entry.memory_resonance.as_ref()).and_then(typed_json),
         "incubation": cognition.as_ref().and_then(|entry| entry.incubation.clone()),
-        "thoughtLanes": cognition.as_ref().and_then(|entry| entry.thought_lanes.clone()),
+        "thoughtLanes": cognition.as_ref().and_then(|entry| entry.thought_lanes.as_ref()).and_then(typed_json),
         "bridge": cognition.as_ref().and_then(|entry| entry.bridge.as_ref()).and_then(typed_json),
         "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.as_ref()).and_then(typed_json),
         "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.as_ref()).and_then(typed_json),

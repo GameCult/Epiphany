@@ -87,12 +87,14 @@ pub fn run_void_routine_store(
         &resonance,
         &memory_records,
     );
-    let thought_lanes = build_thought_lanes(&resonance_view, &incubation, &memory_records);
+    let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
+    let thought_lanes_view =
+        serde_json::to_value(&thought_lanes).context("failed to project typed thought lanes")?;
     let bridge = build_thought_bridge(
         &previous_cognition
             .as_ref()
             .and_then(|entry| entry.bridge.clone()),
-        &thought_lanes,
+        &thought_lanes_view,
         &resonance_view,
         &incubation,
     );
@@ -101,7 +103,7 @@ pub fn run_void_routine_store(
     let candidate_interventions = build_candidate_interventions(&bridge_view, &incubation);
     let appraisals = build_agent_appraisals(
         &appraisal_profiles,
-        &thought_lanes,
+        &thought_lanes_view,
         &incubation,
         &bridge_view,
     );
@@ -1583,35 +1585,31 @@ fn build_incubation(
 }
 
 fn build_thought_lanes(
-    resonance: &Value,
+    resonance: &HeartbeatMemoryResonance,
     incubation: &Value,
     records: &[RoleMemoryRecord],
-) -> Value {
+) -> HeartbeatThoughtLanes {
     let analytic_threads = resonance
-        .get("pairs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+        .pairs
+        .iter()
         .take(4)
         .enumerate()
         .map(|(index, pair)| {
-            let left_role = pair.get("leftRole").and_then(Value::as_str).unwrap_or("left");
-            let right_role = pair.get("rightRole").and_then(Value::as_str).unwrap_or("right");
-            let strength = pair.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
-            serde_json::json!({
-                "threadId": format!("analytic-{left_role}-{right_role}-{index}"),
-                "topic": format!("{left_role}/{right_role} evidence seam"),
-                "claim": format!("{} and {} share a recurring memory edge; inspect whether this changes lane routing or evidence expectations.", display_name_for_role(left_role), display_name_for_role(right_role)),
-                "evidenceRefs": [
-                    pair.get("leftMemoryId").and_then(Value::as_str).unwrap_or_default(),
-                    pair.get("rightMemoryId").and_then(Value::as_str).unwrap_or_default()
-                ],
-                "salience": round3(strength),
-                "confidence": round3((0.55 + strength).min(0.95)),
-                "desireToAct": round3((strength * 1.4).min(0.85)),
-                "counterweight": "Shared vocabulary is not proof of shared truth; verify against artifacts before changing project state.",
-                "lastTouchedAt": now_iso(),
-            })
+            let left_role = pair.left_role.as_str();
+            let right_role = pair.right_role.as_str();
+            let strength = pair.strength;
+            HeartbeatThoughtThread {
+                thread_id: format!("analytic-{left_role}-{right_role}-{index}"),
+                topic: format!("{left_role}/{right_role} evidence seam"),
+                claim: format!("{} and {} share a recurring memory edge; inspect whether this changes lane routing or evidence expectations.", display_name_for_role(left_role), display_name_for_role(right_role)),
+                evidence_refs: vec![pair.left_memory_id.clone(), pair.right_memory_id.clone()],
+                salience: round3(strength),
+                confidence: round3((0.55 + strength).min(0.95)),
+                desire_to_act: Some(round3((strength * 1.4).min(0.85))),
+                counterweight: "Shared vocabulary is not proof of shared truth; verify against artifacts before changing project state.".to_string(),
+                last_touched_at: now_iso(),
+                ..Default::default()
+            }
         })
         .collect::<Vec<_>>();
 
@@ -1628,18 +1626,40 @@ fn build_thought_lanes(
                 .and_then(Value::as_str)
                 .unwrap_or("incubating-theme");
             let strength = theme.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
-            serde_json::json!({
-                "threadId": format!("associative-{topic}-{index}"),
-                "topic": topic,
-                "claim": theme.get("summary").and_then(Value::as_str).unwrap_or("An incubating thought wants another pass before it speaks."),
-                "sourceThemeId": topic,
-                "novelty": theme.get("novelty").cloned().unwrap_or_else(|| serde_json::json!(round3((0.42 + strength).min(0.92)))),
-                "roomRelevance": theme.get("noveltyToRoom").cloned().unwrap_or_else(|| serde_json::json!(round3((0.35 + strength).min(0.88)))),
-                "desireToSpeak": theme.get("desireToSpeak").cloned().unwrap_or_else(|| serde_json::json!(round3((strength * 1.25).min(0.8)))),
-                "status": theme.get("status").cloned().unwrap_or_else(|| serde_json::json!("incubating")),
-                "counterweight": "A theme that keeps returning may be signal, obsession, or stale echo; the bridge must decide.",
-                "lastTouchedAt": now_iso(),
-            })
+            HeartbeatThoughtThread {
+                thread_id: format!("associative-{topic}-{index}"),
+                topic: topic.to_string(),
+                claim: theme.get("summary").and_then(Value::as_str).unwrap_or("An incubating thought wants another pass before it speaks.").to_string(),
+                source_theme_id: Some(topic.to_string()),
+                novelty: Some(
+                    theme
+                        .get("novelty")
+                        .and_then(Value::as_f64)
+                        .unwrap_or_else(|| round3((0.42 + strength).min(0.92))),
+                ),
+                room_relevance: Some(
+                    theme
+                        .get("noveltyToRoom")
+                        .and_then(Value::as_f64)
+                        .unwrap_or_else(|| round3((0.35 + strength).min(0.88))),
+                ),
+                desire_to_speak: Some(
+                    theme
+                        .get("desireToSpeak")
+                        .and_then(Value::as_f64)
+                        .unwrap_or_else(|| round3((strength * 1.25).min(0.8))),
+                ),
+                status: Some(
+                    theme
+                        .get("status")
+                        .and_then(Value::as_str)
+                        .unwrap_or("incubating")
+                        .to_string(),
+                ),
+                counterweight: "A theme that keeps returning may be signal, obsession, or stale echo; the bridge must decide.".to_string(),
+                last_touched_at: now_iso(),
+                ..Default::default()
+            }
         })
         .collect::<Vec<_>>();
 
@@ -1647,35 +1667,42 @@ fn build_thought_lanes(
         records
             .first()
             .map(|record| {
-                vec![serde_json::json!({
-                    "threadId": format!("analytic-{}-seed", record.role_id),
-                    "topic": format!("{} strongest memory", record.role_id),
-                    "claim": record.summary,
-                    "evidenceRefs": [record.memory_id],
-                    "salience": round3(record.salience),
-                    "confidence": round3(record.confidence),
-                    "desireToAct": 0.2,
-                    "counterweight": "One hot memory is only a seed; do not let it annex the whole mind.",
-                    "lastTouchedAt": now_iso(),
-                })]
+                vec![HeartbeatThoughtThread {
+                    thread_id: format!("analytic-{}-seed", record.role_id),
+                    topic: format!("{} strongest memory", record.role_id),
+                    claim: record.summary.clone(),
+                    evidence_refs: vec![record.memory_id.clone()],
+                    salience: round3(record.salience),
+                    confidence: round3(record.confidence),
+                    desire_to_act: Some(0.2),
+                    counterweight:
+                        "One hot memory is only a seed; do not let it annex the whole mind."
+                            .to_string(),
+                    last_touched_at: now_iso(),
+                    ..Default::default()
+                }]
             })
             .unwrap_or_default()
     } else {
         Vec::new()
     };
 
-    serde_json::json!({
-        "schema_version": "epiphany.cognition_lanes.v0",
-        "updatedAt": now_iso(),
-        "analytic": {
-            "description": "Literal, evidence-facing lane: what is happening, what constraints matter, what action is justified.",
-            "activeThreads": if analytic_threads.is_empty() { seed_threads } else { analytic_threads },
+    HeartbeatThoughtLanes {
+        schema_version: "epiphany.cognition_lanes.v0".to_string(),
+        updated_at: now_iso(),
+        analytic: HeartbeatThoughtLane {
+            description: "Literal, evidence-facing lane: what is happening, what constraints matter, what action is justified.".to_string(),
+            active_threads: if analytic_threads.is_empty() {
+                seed_threads
+            } else {
+                analytic_threads
+            },
         },
-        "associative": {
-            "description": "Pattern-facing lane: what this rhymes with, what seam is ripening, what surprising branch may be worth a later retrieval hop.",
-            "activeThreads": associative_threads,
+        associative: HeartbeatThoughtLane {
+            description: "Pattern-facing lane: what this rhymes with, what seam is ripening, what surprising branch may be worth a later retrieval hop.".to_string(),
+            active_threads: associative_threads,
         },
-    })
+    }
 }
 
 fn build_thought_bridge(

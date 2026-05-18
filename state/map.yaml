@@ -70,6 +70,10 @@ objective:
     decision are typed fields. Incubation/thought lanes are the remaining live
     cognition JSON pockets, with bridge consuming them through explicit
     temporary projections until their own cuts land.
+    Heartbeat cognition thought lanes are typed durable state; analytic and
+    associative active-thread lists no longer persist as arbitrary JSON. The
+    only remaining live cognition `Option<Value>` pocket is incubation, while
+    legacy cognition fields remain JSON only for old-store migration.
 
 constraints:
   - No frontier-scale training tithe.

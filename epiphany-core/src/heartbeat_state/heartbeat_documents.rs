@@ -63,7 +63,7 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     #[cultcache(key = 7, default)]
     pub incubation: Option<Value>,
     #[cultcache(key = 8, default)]
-    pub thought_lanes: Option<Value>,
+    pub thought_lanes: Option<HeartbeatThoughtLanes>,
     #[cultcache(key = 9, default)]
     pub bridge: Option<HeartbeatCognitionBridge>,
     #[cultcache(key = 10, default)]
@@ -178,6 +178,49 @@ pub struct HeartbeatCognitionBridge {
     pub refractory_topics: Vec<HeartbeatRefractoryTopic>,
     pub unresolved_tensions: Vec<HeartbeatUnresolvedTension>,
     pub decision: HeartbeatBridgeDecision,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatThoughtLanes {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub analytic: HeartbeatThoughtLane,
+    pub associative: HeartbeatThoughtLane,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatThoughtLane {
+    pub description: String,
+    pub active_threads: Vec<HeartbeatThoughtThread>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatThoughtThread {
+    pub thread_id: String,
+    pub topic: String,
+    pub claim: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub evidence_refs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_theme_id: Option<String>,
+    pub salience: f64,
+    pub confidence: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desire_to_act: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub novelty: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub room_relevance: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desire_to_speak: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    pub counterweight: String,
+    pub last_touched_at: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
