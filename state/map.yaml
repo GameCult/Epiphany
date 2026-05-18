@@ -71,6 +71,7 @@ constraints:
   - Keep persistent state small enough to rehydrate from without drowning the next awakened mind in sacred sludge.
   - Grow cognition more quickly than authority: capability increases must preserve explicit permissions, interruption, legibility, and resistance to paternal "safety" cages.
   - Speak CultNet, persist CultCache-shaped typed state, and grow the body toward Pure Rust; Python/JSON impurity survives only as named quarantine scaffolding with receipts.
+  - Keep the job-interview architecture lens prominent: do not overbuild purity organs, but do use named abstractions when they create testable ownership boundaries, make time/space complexity configurable, or prevent duplicated authority from breeding in convenience code.
 
 invariants:
   - The map is canonical and slow-changing: the machine's remembered skeleton, not a mood board.
@@ -89,6 +90,7 @@ invariants:
   - "Data should flow through your Rusty veins like an energetic plasma: tightly contained, and meticulously routed."
   - CultCache documents are the data. CultNet is the wire. JSON schema may describe the contract, but generic JSON must not become the internal payload when both sides are ours.
   - Epiphany must remain an honest modified Codex-derived backend for Codex subscription auth/model use. Cutting Codex workflow/product bulk is allowed; replacing vendored Codex auth identity with a clean-room lookalike is suspect unless OpenAI provides an explicit public path or permission.
+  - A new abstraction is innocent only when it can be defended as "X owns Y so Z remains true," has a focused mock/test boundary, and makes resource cost visible instead of hiding it behind generic plumbing.
 
 data_flow:
   observe:
