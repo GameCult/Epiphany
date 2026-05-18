@@ -553,19 +553,24 @@ pub fn modeling_role_state_patch_policy_errors(
         errors
             .push("planning changes are not allowed through modeling role acceptance".to_string());
     }
+    if patch.graphs.is_some() {
+        errors.push(
+            "graph replacement patches are no longer accepted through modeling statePatch; use memoryPatchCandidates"
+                .to_string(),
+        );
+    }
     if patch.churn.is_some() || patch.mode.is_some() {
         errors.push(
             "churn or mode changes are not allowed through modeling role acceptance".to_string(),
         );
     }
-    if patch.graphs.is_none()
-        && patch.graph_frontier.is_none()
+    if patch.graph_frontier.is_none()
         && patch.graph_checkpoint.is_none()
         && patch.scratch.is_none()
         && patch.investigation_checkpoint.is_none()
     {
         errors.push(
-            "statePatch must include a modeling field: graphs, graphFrontier, graphCheckpoint, scratch, or investigationCheckpoint"
+            "statePatch must include a modeling field: graphFrontier, graphCheckpoint, scratch, or investigationCheckpoint"
                 .to_string(),
         );
     }
@@ -1035,6 +1040,29 @@ mod tests {
         );
 
         assert!(reviewable.item_error.is_none());
+    }
+
+    #[test]
+    fn rejects_modeling_graph_replacement_patch() {
+        let finding = interpret_role_finding(
+            EpiphanyRoleResultRoleId::Modeling,
+            &serde_json::json!({
+                "statePatch": {
+                    "graphs": {},
+                    "scratch": {"summary": "Graph growth should use memoryPatchCandidates."}
+                }
+            }),
+            None,
+            None,
+            None,
+        );
+
+        assert!(
+            finding
+                .item_error
+                .as_deref()
+                .is_some_and(|error| error.contains("memoryPatchCandidates"))
+        );
     }
 
     #[test]
