@@ -378,3 +378,34 @@ fn memory_graph_context_cut_reports_missing_explicit_ids() {
     assert_eq!(packet.missing_node_ids, vec!["missing-node".to_string()]);
     assert_eq!(packet.missing_edge_ids, vec!["missing-edge".to_string()]);
 }
+
+#[test]
+fn memory_graph_embedding_documents_are_stable_typed_cache_cargo() {
+    let snapshot = fixture_snapshot();
+
+    let documents = memory_graph_embedding_documents(&snapshot);
+    let manifest = memory_graph_embedding_manifest(
+        &snapshot,
+        "epiphany_memory_graph_test",
+        "test-embed",
+        Some(3),
+    );
+
+    assert_eq!(documents.len(), 4);
+    assert!(documents.iter().any(|document| {
+        document.document_kind == EpiphanyMemoryEmbeddingDocumentKind::Node
+            && document.profile == EpiphanyMemoryProfile::RepoArchitecture
+            && document.text.contains("Memory graph owns shared graph law")
+    }));
+    assert!(documents.iter().any(|document| {
+        document.document_kind == EpiphanyMemoryEmbeddingDocumentKind::Summary
+            && document.profile == EpiphanyMemoryProfile::RepoArchitecture
+    }));
+    assert_eq!(manifest.indexed_document_ids.len(), documents.len());
+    assert_eq!(
+        manifest.collection_name.as_deref(),
+        Some("epiphany_memory_graph_test")
+    );
+    assert!(manifest.source_hashes.contains(&"hash-a".to_string()));
+    assert!(manifest.source_hashes.contains(&"hash-b".to_string()));
+}

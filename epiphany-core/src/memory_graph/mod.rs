@@ -1,5 +1,6 @@
 pub mod compose;
 pub mod context_cut;
+pub mod embedding;
 pub mod freshness;
 pub mod ids;
 pub mod profiles;
@@ -26,6 +27,10 @@ pub use epiphany_state_model::EpiphanyMemorySummary;
 
 pub use compose::compose_memory_graph_snapshots;
 pub use context_cut::plan_memory_graph_context_cut;
+pub use embedding::EpiphanyMemoryEmbeddingDocument;
+pub use embedding::EpiphanyMemoryEmbeddingDocumentKind;
+pub use embedding::memory_graph_embedding_documents;
+pub use embedding::memory_graph_embedding_manifest;
 pub use freshness::derive_memory_graph_freshness;
 pub use ids::memory_graph_domain_id;
 pub use ids::memory_graph_edge_id;
