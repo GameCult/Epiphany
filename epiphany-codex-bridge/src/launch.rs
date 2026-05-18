@@ -453,7 +453,6 @@ pub fn build_epiphany_role_launch_request(
         investigation_checkpoint: state.investigation_checkpoint.clone(),
         scratch: state.scratch.clone(),
         invariants: state.invariants.clone(),
-        graphs: None,
         recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
         recent_observations: state.observations.iter().take(8).cloned().collect(),
         graph_frontier: state.graph_frontier.clone(),
@@ -668,7 +667,6 @@ pub fn build_epiphany_reorient_launch_request(
                 .collect(),
             scratch: state.scratch.clone(),
             memory_context: build_reorient_memory_context(state, checkpoint, decision, memory_graph_snapshot),
-            graphs: None,
             recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
             recent_observations: state.observations.iter().take(8).cloned().collect(),
             active_frontier_node_ids: decision.active_frontier_node_ids.clone(),
@@ -736,7 +734,6 @@ fn map_core_role_worker_launch_document(
         investigation_checkpoint: document.investigation_checkpoint,
         scratch: document.scratch,
         invariants: document.invariants,
-        graphs: document.graphs,
         recent_evidence: document.recent_evidence,
         recent_observations: document.recent_observations,
         graph_frontier: document.graph_frontier,
@@ -771,7 +768,6 @@ fn map_core_reorient_worker_launch_document(
         checkpoint_changed_paths: document.checkpoint_changed_paths,
         scratch: document.scratch,
         memory_context: document.memory_context,
-        graphs: document.graphs,
         recent_evidence: document.recent_evidence,
         recent_observations: document.recent_observations,
         active_frontier_node_ids: document.active_frontier_node_ids,
@@ -854,10 +850,6 @@ mod tests {
         let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document else {
             panic!("expected role launch document");
         };
-        assert!(
-            document.graphs.is_none(),
-            "native role launch should use typed memoryContext instead of full graph cargo"
-        );
         let context = document
             .memory_context
             .expect("role launch should carry typed memory context");
@@ -925,10 +917,6 @@ mod tests {
         let EpiphanyWorkerLaunchDocument::Reorient(document) = launch.launch_document else {
             panic!("expected reorient launch document");
         };
-        assert!(
-            document.graphs.is_none(),
-            "native reorient launch should use typed memoryContext instead of full graph cargo"
-        );
         let context = document
             .memory_context
             .expect("reorient launch should carry typed memory context");

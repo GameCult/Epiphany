@@ -8515,16 +8515,6 @@
                   }
                 ]
               },
-              "graphs": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/v2/EpiphanyGraphs"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
               "invariants": {
                 "type": "array",
                 "items": {
@@ -8686,16 +8676,6 @@
               },
               "graphStatus": {
                 "type": "string"
-              },
-              "graphs": {
-                "anyOf": [
-                  {
-                    "$ref": "#/definitions/v2/EpiphanyGraphs"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ]
               },
               "linkedGraphNodeIds": {
                 "type": "array",

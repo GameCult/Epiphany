@@ -3,7 +3,6 @@ use epiphany_state_model::EpiphanyCodeRef;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyGraphCheckpoint;
 use epiphany_state_model::EpiphanyGraphFrontier;
-use epiphany_state_model::EpiphanyGraphs;
 use epiphany_state_model::EpiphanyInvariant;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyMemoryContextPacket;
@@ -62,8 +61,6 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub scratch: Option<EpiphanyScratchPad>,
     #[serde(default)]
     pub invariants: Vec<EpiphanyInvariant>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub graphs: Option<EpiphanyGraphs>,
     #[serde(default)]
     pub recent_evidence: Vec<EpiphanyEvidenceRecord>,
     #[serde(default)]
@@ -112,8 +109,6 @@ pub struct EpiphanyReorientWorkerLaunchDocument {
     pub scratch: Option<EpiphanyScratchPad>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub memory_context: Option<EpiphanyMemoryContextPacket>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub graphs: Option<EpiphanyGraphs>,
     #[serde(default)]
     pub recent_evidence: Vec<EpiphanyEvidenceRecord>,
     #[serde(default)]

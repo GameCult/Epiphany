@@ -5,7 +5,6 @@ import type { EpiphanyChurnState } from "../EpiphanyChurnState";
 import type { EpiphanyEvidenceRecord } from "../EpiphanyEvidenceRecord";
 import type { EpiphanyGraphCheckpoint } from "../EpiphanyGraphCheckpoint";
 import type { EpiphanyGraphFrontier } from "../EpiphanyGraphFrontier";
-import type { EpiphanyGraphs } from "../EpiphanyGraphs";
 import type { EpiphanyInvariant } from "../EpiphanyInvariant";
 import type { EpiphanyInvestigationCheckpoint } from "../EpiphanyInvestigationCheckpoint";
 import type { EpiphanyObservation } from "../EpiphanyObservation";
@@ -13,4 +12,4 @@ import type { EpiphanyPlanningState } from "../EpiphanyPlanningState";
 import type { EpiphanyScratchPad } from "../EpiphanyScratchPad";
 import type { EpiphanySubgoal } from "../EpiphanySubgoal";
 
-export type ThreadEpiphanyRoleWorkerLaunchDocument = { threadId: string, roleId: string, stateRevision: bigint, objective?: string | null, activeSubgoalId?: string | null, activeSubgoals?: Array<EpiphanySubgoal>, activeGraphNodeIds?: Array<string>, investigationCheckpoint?: EpiphanyInvestigationCheckpoint | null, scratch?: EpiphanyScratchPad | null, invariants?: Array<EpiphanyInvariant>, graphs?: EpiphanyGraphs | null, recentEvidence?: Array<EpiphanyEvidenceRecord>, recentObservations?: Array<EpiphanyObservation>, graphFrontier?: EpiphanyGraphFrontier | null, graphCheckpoint?: EpiphanyGraphCheckpoint | null, planning?: EpiphanyPlanningState | null, churn?: EpiphanyChurnState | null, };
+export type ThreadEpiphanyRoleWorkerLaunchDocument = { threadId: string, roleId: string, stateRevision: bigint, objective?: string | null, activeSubgoalId?: string | null, activeSubgoals?: Array<EpiphanySubgoal>, activeGraphNodeIds?: Array<string>, investigationCheckpoint?: EpiphanyInvestigationCheckpoint | null, scratch?: EpiphanyScratchPad | null, invariants?: Array<EpiphanyInvariant>, recentEvidence?: Array<EpiphanyEvidenceRecord>, recentObservations?: Array<EpiphanyObservation>, graphFrontier?: EpiphanyGraphFrontier | null, graphCheckpoint?: EpiphanyGraphCheckpoint | null, planning?: EpiphanyPlanningState | null, churn?: EpiphanyChurnState | null, };

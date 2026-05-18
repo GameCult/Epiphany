@@ -66,7 +66,6 @@ use codex_protocol::protocol::EpiphanyGraphEdge as CoreEpiphanyGraphEdge;
 use codex_protocol::protocol::EpiphanyGraphFrontier as CoreEpiphanyGraphFrontier;
 use codex_protocol::protocol::EpiphanyGraphLink as CoreEpiphanyGraphLink;
 use codex_protocol::protocol::EpiphanyGraphNode as CoreEpiphanyGraphNode;
-use codex_protocol::protocol::EpiphanyGraphs as CoreEpiphanyGraphs;
 use codex_protocol::protocol::EpiphanyInvariant as CoreEpiphanyInvariant;
 use codex_protocol::protocol::EpiphanyInvestigationCheckpoint as CoreEpiphanyInvestigationCheckpoint;
 use codex_protocol::protocol::EpiphanyInvestigationDisposition as CoreEpiphanyInvestigationDisposition;
@@ -5241,9 +5240,6 @@ pub struct ThreadEpiphanyRoleWorkerLaunchDocument {
     pub scratch: Option<CoreEpiphanyScratchPad>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub invariants: Vec<CoreEpiphanyInvariant>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub graphs: Option<CoreEpiphanyGraphs>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_evidence: Vec<CoreEpiphanyEvidenceRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -5301,9 +5297,6 @@ pub struct ThreadEpiphanyReorientWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable, type = "CoreEpiphanyMemoryContextPacket | null")]
     pub memory_context: Option<CoreEpiphanyMemoryContextPacket>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
-    pub graphs: Option<CoreEpiphanyGraphs>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_evidence: Vec<CoreEpiphanyEvidenceRecord>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

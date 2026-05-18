@@ -918,7 +918,6 @@ mod tests {
                         investigation_checkpoint: None,
                         scratch: None,
                         invariants: Vec::new(),
-                        graphs: None,
                         recent_evidence: Vec::new(),
                         recent_observations: Vec::new(),
                         graph_frontier: None,
