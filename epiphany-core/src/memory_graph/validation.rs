@@ -60,6 +60,11 @@ pub fn validate_memory_graph_snapshot(
         validate_edge(edge, index, &node_ids, &mut errors);
     }
 
+    collect_unique(
+        snapshot.summaries.iter().map(|summary| summary.id.as_str()),
+        "summaries",
+        &mut errors,
+    );
     for (index, summary) in snapshot.summaries.iter().enumerate() {
         validate_summary(
             summary,

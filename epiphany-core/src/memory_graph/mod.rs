@@ -1,3 +1,4 @@
+pub mod compose;
 pub mod context_cut;
 pub mod freshness;
 pub mod ids;
@@ -23,6 +24,7 @@ pub use epiphany_state_model::EpiphanyMemoryPatchCandidate;
 pub use epiphany_state_model::EpiphanyMemoryProfile;
 pub use epiphany_state_model::EpiphanyMemorySummary;
 
+pub use compose::compose_memory_graph_snapshots;
 pub use context_cut::plan_memory_graph_context_cut;
 pub use freshness::derive_memory_graph_freshness;
 pub use ids::memory_graph_domain_id;

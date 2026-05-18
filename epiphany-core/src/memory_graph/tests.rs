@@ -96,6 +96,58 @@ fn fixture_snapshot() -> EpiphanyMemoryGraphSnapshot {
     }
 }
 
+fn role_snapshot() -> EpiphanyMemoryGraphSnapshot {
+    let domain_id = memory_graph_domain_id(EpiphanyMemoryProfile::RoleSelf, "role", "body");
+    let node_id = memory_graph_node_id(&domain_id, "memory", "keeps boundaries typed", None);
+    EpiphanyMemoryGraphSnapshot {
+        graph_id: "role-graph".to_string(),
+        domains: vec![EpiphanyMemoryDomain {
+            id: domain_id.clone(),
+            profile: EpiphanyMemoryProfile::RoleSelf,
+            title: "Body".to_string(),
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            ..Default::default()
+        }],
+        nodes: vec![EpiphanyMemoryNode {
+            id: node_id.clone(),
+            domain_id: domain_id.clone(),
+            profile: EpiphanyMemoryProfile::RoleSelf,
+            kind: EpiphanyMemoryNodeKind::RoleMemory,
+            title: "Typed boundaries".to_string(),
+            claim: "Body remembers that typed boundaries keep the machine legible.".to_string(),
+            question: "Which boundary is currently lying?".to_string(),
+            tension: String::new(),
+            action_implication: "Prefer one owned graph store over profile-local stores."
+                .to_string(),
+            source_hashes: vec!["anchor:missing".to_string()],
+            lifecycle: EpiphanyMemoryLifecycle::Accepted,
+            confidence: 88,
+            ..Default::default()
+        }],
+        summaries: vec![EpiphanyMemorySummary {
+            id: "summary-role-body".to_string(),
+            domain_id,
+            covers_node_ids: vec![node_id],
+            target: "body role memory".to_string(),
+            claim: "Body role memory enters the shared graph as typed state.".to_string(),
+            question: "How should role memory shape context cuts?".to_string(),
+            tension: String::new(),
+            action_implication: "Compose role memory with repo graph truth before retrieval."
+                .to_string(),
+            anchor_count: 0,
+            freshness: EpiphanyMemoryFreshnessStatus::Ready,
+            confidence: 80,
+            ..Default::default()
+        }],
+        freshness: Some(EpiphanyMemoryFreshness {
+            status: EpiphanyMemoryFreshnessStatus::Ready,
+            note: Some("Role memory is ready.".to_string()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }
+}
+
 #[test]
 fn memory_graph_ids_are_stable_and_normalized() {
     let a = memory_graph_node_id("domain", "module", ".\\Src\\Lib.rs", Some("Thing"));
@@ -201,6 +253,54 @@ fn memory_graph_validation_requires_conservative_summary_anatomy() {
             .iter()
             .any(|error| error.message.contains("covers missing node"))
     );
+}
+
+#[test]
+fn memory_graph_compose_merges_profiles_into_one_validated_snapshot() {
+    let mut repo = fixture_snapshot();
+    repo.freshness = Some(derive_memory_graph_freshness(
+        &repo,
+        &["hash-a".to_string()],
+    ));
+
+    let composed = compose_memory_graph_snapshots("composed-memory", vec![repo, role_snapshot()])
+        .expect("profile snapshots should compose");
+
+    assert_eq!(composed.graph_id, "composed-memory");
+    assert!(composed.embedding_manifest.is_none());
+    assert!(
+        composed
+            .domains
+            .iter()
+            .any(|domain| domain.profile == EpiphanyMemoryProfile::RepoArchitecture)
+    );
+    assert!(
+        composed
+            .domains
+            .iter()
+            .any(|domain| domain.profile == EpiphanyMemoryProfile::RoleSelf)
+    );
+    assert_eq!(
+        composed
+            .freshness
+            .as_ref()
+            .map(|freshness| freshness.status),
+        Some(EpiphanyMemoryFreshnessStatus::Stale)
+    );
+}
+
+#[test]
+fn memory_graph_compose_rejects_duplicate_profile_authority() {
+    let snapshot = fixture_snapshot();
+
+    let errors =
+        compose_memory_graph_snapshots("duplicate-memory", vec![snapshot.clone(), snapshot])
+            .expect_err("duplicate ids must not be laundered by compose");
+
+    assert!(errors.iter().any(|error| error.path == "domains"));
+    assert!(errors.iter().any(|error| error.path == "nodes"));
+    assert!(errors.iter().any(|error| error.path == "edges"));
+    assert!(errors.iter().any(|error| error.path == "summaries"));
 }
 
 #[test]
