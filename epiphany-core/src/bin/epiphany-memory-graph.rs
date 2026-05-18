@@ -22,6 +22,8 @@ use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::load_thread_state;
 use epiphany_core::memory_graph_domain_id;
 use epiphany_core::memory_graph_edge_id;
+use epiphany_core::memory_graph_embedding_documents;
+use epiphany_core::memory_graph_embedding_manifest;
 use epiphany_core::memory_graph_from_agent_memories;
 use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::memory_graph_from_heartbeat_cognition;
@@ -79,6 +81,11 @@ fn main() -> Result<()> {
         "refresh" => {
             let refresh = read_refresh_args(args)?;
             let output = refresh_memory_graph_store(refresh)?;
+            print_json(&output)?;
+        }
+        "manifest" => {
+            let manifest = read_manifest_args(args)?;
+            let output = write_memory_graph_embedding_manifest(manifest)?;
             print_json(&output)?;
         }
         "smoke" => {
@@ -172,6 +179,13 @@ struct RefreshArgs {
     agent_roles: Vec<String>,
     heartbeat_store: Option<PathBuf>,
     thread_state_store: Option<PathBuf>,
+}
+
+struct ManifestArgs {
+    store: PathBuf,
+    collection_name: String,
+    embedding_model: String,
+    vector_dimensions: Option<u32>,
 }
 
 fn read_compose_args(args: impl Iterator<Item = String>) -> Result<ComposeArgs> {
@@ -290,6 +304,38 @@ fn read_refresh_args(args: impl Iterator<Item = String>) -> Result<RefreshArgs> 
     })
 }
 
+fn read_manifest_args(args: impl Iterator<Item = String>) -> Result<ManifestArgs> {
+    let mut store = None;
+    let mut collection_name = None;
+    let mut embedding_model = None;
+    let mut vector_dimensions = None;
+    let mut args = args.peekable();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--store" => store = Some(PathBuf::from(next_value(&mut args, "--store")?)),
+            "--collection" => collection_name = Some(next_value(&mut args, "--collection")?),
+            "--model" => embedding_model = Some(next_value(&mut args, "--model")?),
+            "--vector-dim" => {
+                let value = next_value(&mut args, "--vector-dim")?;
+                vector_dimensions = Some(
+                    value
+                        .parse::<u32>()
+                        .with_context(|| format!("invalid --vector-dim {value:?}"))?,
+                );
+            }
+            _ => return Err(anyhow!("unexpected manifest argument {flag:?}")),
+        }
+    }
+    Ok(ManifestArgs {
+        store: store.ok_or_else(|| anyhow!("manifest requires --store <path>"))?,
+        collection_name: collection_name
+            .ok_or_else(|| anyhow!("manifest requires --collection <name>"))?,
+        embedding_model: embedding_model
+            .ok_or_else(|| anyhow!("manifest requires --model <id>"))?,
+        vector_dimensions,
+    })
+}
+
 fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
     let mut snapshots = Vec::new();
     let mut source_status = Vec::new();
@@ -399,6 +445,27 @@ fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
     }))
 }
 
+fn write_memory_graph_embedding_manifest(args: ManifestArgs) -> Result<serde_json::Value> {
+    let mut snapshot = load_memory_graph_snapshot(&args.store)?
+        .ok_or_else(|| anyhow!("memory graph store {} is missing", args.store.display()))?;
+    let documents = memory_graph_embedding_documents(&snapshot);
+    let manifest = memory_graph_embedding_manifest(
+        &snapshot,
+        args.collection_name,
+        args.embedding_model,
+        args.vector_dimensions,
+    );
+    snapshot.embedding_manifest = Some(manifest.clone());
+    write_memory_graph_snapshot(&args.store, &snapshot)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "store": args.store,
+        "graphId": snapshot.graph_id,
+        "embeddingDocuments": documents.len(),
+        "manifest": manifest,
+    }))
+}
+
 fn snapshot_status(
     kind: &str,
     source: &PathBuf,
@@ -471,7 +538,7 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-memory-graph <status|validate|context|compose|refresh|smoke> --store <path> ..."
+        "usage: epiphany-memory-graph <status|validate|context|compose|refresh|manifest|smoke> --store <path> ..."
     );
 }
 
