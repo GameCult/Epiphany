@@ -11,16 +11,10 @@ use codex_protocol::protocol::Op;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use codex_protocol::user_input::UserInput as CoreInputItem;
 use epiphany_codex_bridge::coordinator::EpiphanyCoordinatorAutomationAction;
-use epiphany_codex_bridge::coordinator::EpiphanyCoordinatorAutomationInput;
-use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation;
+use epiphany_codex_bridge::coordinator::select_thread_epiphany_coordinator_automation;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
-use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
-use epiphany_codex_bridge::pressure::map_epiphany_pressure;
-use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
-use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
-use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
-use epiphany_codex_bridge::state::runtime_spine_store_path;
+use epiphany_codex_bridge::pressure::render_pre_compaction_checkpoint_intervention_for_token_usage;
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -35,31 +29,16 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
     force_checkpoint_compaction: bool,
 ) {
     let thread_id_text = thread_id.to_string();
-    let Some(state) = thread.epiphany_state().await else {
+    let Some(verdict) = select_thread_epiphany_coordinator_automation(
+        &thread_id_text,
+        thread.as_ref(),
+        &epiphany_invalidation_manager,
+        force_checkpoint_compaction,
+    )
+    .await
+    else {
         return;
     };
-
-    let retrieval_override = thread_epiphany_retrieval_state(thread.as_ref()).await;
-    let config_snapshot = thread.config_snapshot().await;
-    epiphany_invalidation_manager
-        .ensure_thread_watch(&thread_id_text, &config_snapshot.cwd)
-        .await;
-    let watcher_snapshot = epiphany_invalidation_manager
-        .snapshot(&thread_id_text)
-        .await;
-    let token_usage_info = thread.token_usage_info().await;
-    let runtime_store_path = runtime_spine_store_path(thread.as_ref()).await;
-
-    let verdict = select_epiphany_coordinator_automation(EpiphanyCoordinatorAutomationInput {
-        thread_id: &thread_id_text,
-        state: &state,
-        retrieval_override: &retrieval_override,
-        watcher_snapshot: epiphany_freshness_watcher_snapshot(&watcher_snapshot),
-        token_usage_info: token_usage_info.as_ref(),
-        runtime_store_path: runtime_store_path.as_path(),
-        force_checkpoint_compaction,
-    })
-    .await;
 
     match verdict.action {
         EpiphanyCoordinatorAutomationAction::None => {}
@@ -112,10 +91,11 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
     token_usage_info: Option<CoreTokenUsageInfo>,
     thread_state: &Arc<Mutex<ThreadState>>,
 ) {
-    let pressure = map_epiphany_pressure(token_usage_info.as_ref());
-    if !should_run_epiphany_pre_compaction_checkpoint_intervention(&pressure) {
+    let Some(text) =
+        render_pre_compaction_checkpoint_intervention_for_token_usage(token_usage_info.as_ref())
+    else {
         return;
-    }
+    };
     if thread.epiphany_state().await.is_none() {
         return;
     }
@@ -129,7 +109,6 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
         }
     }
 
-    let text = render_epiphany_pre_compaction_checkpoint_intervention(&pressure);
     match thread
         .steer_input(
             vec![CoreInputItem::Text {

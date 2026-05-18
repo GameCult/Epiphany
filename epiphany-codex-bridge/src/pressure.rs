@@ -88,3 +88,11 @@ pub fn render_epiphany_pre_compaction_checkpoint_intervention(
         .replace("{pressure_level}", pressure_level_label(pressure.level))
         .replace("{usage}", &usage)
 }
+
+pub fn render_pre_compaction_checkpoint_intervention_for_token_usage(
+    info: Option<&CoreTokenUsageInfo>,
+) -> Option<String> {
+    let pressure = map_epiphany_pressure(info);
+    should_run_epiphany_pre_compaction_checkpoint_intervention(&pressure)
+        .then(|| render_epiphany_pre_compaction_checkpoint_intervention(&pressure))
+}

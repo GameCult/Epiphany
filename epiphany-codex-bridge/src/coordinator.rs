@@ -19,6 +19,7 @@ use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
 use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanySceneAction;
 use codex_app_server_protocol::ThreadEpiphanyViewCoordinator;
+use codex_core::CodexThread;
 use codex_protocol::protocol::EpiphanyAcceptanceReceipt;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
@@ -64,13 +65,17 @@ use crate::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::epiphany_role_label;
 use crate::launch::render_epiphany_coordinator_note;
+use crate::invalidation::EpiphanyInvalidationManager;
+use crate::invalidation::epiphany_freshness_watcher_snapshot;
 use crate::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::map_epiphany_freshness;
 use crate::reorient::map_epiphany_reorient;
+use crate::retrieve::thread_epiphany_retrieval_state;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_role_result_snapshot;
+use crate::state::runtime_spine_store_path;
 
 use std::collections::HashSet;
 use std::path::Path;
@@ -502,6 +507,35 @@ pub async fn select_epiphany_coordinator_automation(
         action,
         launch_request,
     }
+}
+
+pub async fn select_thread_epiphany_coordinator_automation(
+    thread_id: &str,
+    thread: &CodexThread,
+    epiphany_invalidation_manager: &EpiphanyInvalidationManager,
+    force_checkpoint_compaction: bool,
+) -> Option<EpiphanyCoordinatorAutomationVerdict> {
+    let state = thread.epiphany_state().await?;
+    let retrieval_override = thread_epiphany_retrieval_state(thread).await;
+    let config_snapshot = thread.config_snapshot().await;
+    epiphany_invalidation_manager
+        .ensure_thread_watch(thread_id, &config_snapshot.cwd)
+        .await;
+    let watcher_snapshot = epiphany_invalidation_manager.snapshot(thread_id).await;
+    let token_usage_info = thread.token_usage_info().await;
+    let runtime_store_path = runtime_spine_store_path(thread).await;
+    Some(
+        select_epiphany_coordinator_automation(EpiphanyCoordinatorAutomationInput {
+            thread_id,
+            state: &state,
+            retrieval_override: &retrieval_override,
+            watcher_snapshot: epiphany_freshness_watcher_snapshot(&watcher_snapshot),
+            token_usage_info: token_usage_info.as_ref(),
+            runtime_store_path: runtime_store_path.as_path(),
+            force_checkpoint_compaction,
+        })
+        .await,
+    )
 }
 
 pub fn map_epiphany_coordinator(

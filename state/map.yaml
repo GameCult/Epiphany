@@ -37,6 +37,10 @@ objective:
     Vendored app-server no longer imports `epiphany_core` directly; retrieval
     query normalization and route job-launch DTO construction are bridge-owned
     adapters.
+    Coordinator automation input assembly and pre-compaction intervention text
+    rendering are now bridge-owned; vendored app-server keeps only Codex host
+    actions such as submitting compaction, steering active turns, and emitting
+    JSON-RPC notifications.
 
 constraints:
   - No frontier-scale training tithe.
