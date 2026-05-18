@@ -6,7 +6,6 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::launch::map_core_worker_launch_document;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
@@ -14,12 +13,11 @@ use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_acce
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_role_accept;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_update;
 use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
-use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
+use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job_from_route_params;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
 use epiphany_codex_bridge::retrieve::index_thread_epiphany_retrieval;
 use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
-use epiphany_core::EpiphanyJobLaunchRequest;
 use std::sync::Arc;
 
 use super::CodexMessageProcessor;
@@ -550,63 +548,29 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyJobLaunchParams,
     ) {
-        let ThreadEpiphanyJobLaunchParams {
-            thread_id,
-            expected_revision,
-            binding_id,
-            kind,
-            scope,
-            owner_role,
-            authority_scope,
-            linked_subgoal_ids,
-            linked_graph_node_ids,
-            instruction,
-            launch_document,
-            output_contract_id,
-            max_runtime_seconds,
-        } = params;
+        let thread_id = params.thread_id.clone();
 
         let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
             Some(thread) => thread,
             None => return,
         };
 
-        let launch_document = map_core_worker_launch_document(launch_document);
-        let applied = match launch_thread_epiphany_job(
-            thread.as_ref(),
-            EpiphanyJobLaunchRequest {
-                expected_revision,
-                binding_id: binding_id.clone(),
-                kind,
-                scope,
-                owner_role,
-                authority_scope,
-                linked_subgoal_ids,
-                linked_graph_node_ids,
-                instruction,
-                launch_document,
-                output_contract_id,
-                max_runtime_seconds,
-            },
-            kind,
-            "missing launched job projection",
-        )
-        .await
-        {
-            Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to launch Epiphany job for {thread_uuid}: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let applied =
+            match launch_thread_epiphany_job_from_route_params(thread.as_ref(), params).await {
+                Ok(applied) => applied,
+                Err(CodexErr::InvalidRequest(message)) => {
+                    self.send_invalid_request_error(request_id, message).await;
+                    return;
+                }
+                Err(err) => {
+                    self.send_internal_error(
+                        request_id,
+                        format!("failed to launch Epiphany job for {thread_uuid}: {err}"),
+                    )
+                    .await;
+                    return;
+                }
+            };
         let changed_fields = applied.changed_fields;
         let epiphany_state = applied.epiphany_state;
 

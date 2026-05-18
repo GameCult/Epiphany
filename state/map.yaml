@@ -34,6 +34,9 @@ objective:
     Retrieval status, indexing, and retrieval execution now live in
     `epiphany-codex-bridge::retrieve`; vendored Codex supplies cwd/codex-home
     host facts rather than owning Epiphany retrieval behavior.
+    Vendored app-server no longer imports `epiphany_core` directly; retrieval
+    query normalization and route job-launch DTO construction are bridge-owned
+    adapters.
 
 constraints:
   - No frontier-scale training tithe.

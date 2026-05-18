@@ -2,6 +2,7 @@ use chrono::SecondsFormat;
 use chrono::Utc;
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
+use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
@@ -46,6 +47,7 @@ use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::build_epiphany_role_launch_request;
 use crate::launch::epiphany_role_label;
+use crate::launch::map_core_worker_launch_document;
 use crate::mutation::build_reorient_acceptance_update;
 use crate::mutation::build_role_acceptance_update;
 use crate::mutation::epiphany_job_launch_changed_fields;
@@ -508,6 +510,48 @@ pub async fn launch_thread_epiphany_job(
         epiphany_state,
         job,
     })
+}
+
+pub async fn launch_thread_epiphany_job_from_route_params(
+    thread: &CodexThread,
+    params: ThreadEpiphanyJobLaunchParams,
+) -> Result<EpiphanyJobLaunchApplied, CodexErr> {
+    let ThreadEpiphanyJobLaunchParams {
+        thread_id: _,
+        expected_revision,
+        binding_id,
+        kind,
+        scope,
+        owner_role,
+        authority_scope,
+        linked_subgoal_ids,
+        linked_graph_node_ids,
+        instruction,
+        launch_document,
+        output_contract_id,
+        max_runtime_seconds,
+    } = params;
+    let launch_document = map_core_worker_launch_document(launch_document);
+    launch_thread_epiphany_job(
+        thread,
+        EpiphanyJobLaunchRequest {
+            expected_revision,
+            binding_id,
+            kind,
+            scope,
+            owner_role,
+            authority_scope,
+            linked_subgoal_ids,
+            linked_graph_node_ids,
+            instruction,
+            launch_document,
+            output_contract_id,
+            max_runtime_seconds,
+        },
+        kind,
+        "missing launched job projection",
+    )
+    .await
 }
 
 fn open_epiphany_runtime_spine_job(

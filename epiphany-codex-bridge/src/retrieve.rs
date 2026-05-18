@@ -11,6 +11,15 @@ use epiphany_core::EpiphanyRetrieveQuery;
 use epiphany_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
 use epiphany_core::EpiphanyRetrieveResult as CoreEpiphanyRetrieveResult;
 use epiphany_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
+use std::path::PathBuf;
+
+pub fn normalize_thread_epiphany_retrieve_query(
+    query: String,
+    limit: Option<u32>,
+    path_prefixes: Vec<PathBuf>,
+) -> std::result::Result<EpiphanyRetrieveQuery, &'static str> {
+    epiphany_core::normalize_epiphany_retrieve_query(query, limit, path_prefixes)
+}
 
 pub async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRetrievalState {
     let config = thread.config_snapshot().await;
