@@ -415,7 +415,9 @@ full `graphs` cargo; the legacy field remains only for compatibility ingress.
 The old `thread/epiphany/propose` route no longer returns replacement `graphs`
 in its patch; graph growth is exposed as typed `memoryPatchCandidates` and
 frontier updates are withheld when the proposal depends on unapplied memory
-growth.
+growth. Generic `thread/epiphany/update` and `thread/epiphany/promote` bridge
+mutation paths now reject `patch.graphs`; graph replacement fields remain only
+as compatibility/deserialization reliquary, not live mutation authority.
 
 ### Phase 7: Sleep And Repo Refresh
 

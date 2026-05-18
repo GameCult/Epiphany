@@ -128,6 +128,7 @@ pub async fn apply_thread_epiphany_update(
     expected_revision: Option<u64>,
     patch: ThreadEpiphanyUpdatePatch,
 ) -> Result<EpiphanyThreadUpdateApplied, CodexErr> {
+    reject_graph_replacement_patch("thread/epiphany/update", &patch)?;
     let changed_fields = epiphany_update_patch_changed_fields(&patch);
     let update = state_update_from_thread_patch(expected_revision, patch);
     let epiphany_state = thread.epiphany_update_state(update).await?;
@@ -145,6 +146,7 @@ pub async fn apply_thread_epiphany_promote(
     patch: ThreadEpiphanyUpdatePatch,
     verifier_evidence: EpiphanyEvidenceRecord,
 ) -> Result<EpiphanyThreadPromoteApplied, CodexErr> {
+    reject_graph_replacement_patch("thread/epiphany/promote", &patch)?;
     let decision = evaluate_promotion(EpiphanyPromotionInput {
         has_state_replacements: thread_epiphany_patch_has_state_replacements(&patch),
         active_subgoal_id: patch.active_subgoal_id.clone(),
@@ -178,6 +180,18 @@ pub async fn apply_thread_epiphany_promote(
             epiphany_state,
         },
     ))
+}
+
+fn reject_graph_replacement_patch(
+    surface: &str,
+    patch: &ThreadEpiphanyUpdatePatch,
+) -> Result<(), CodexErr> {
+    if patch.graphs.is_some() {
+        return Err(CodexErr::InvalidRequest(format!(
+            "{surface} no longer accepts graph replacement patches; propose graph growth as typed memoryPatchCandidates and apply it through the memory graph reviewer"
+        )));
+    }
+    Ok(())
 }
 
 pub async fn apply_thread_epiphany_role_accept(
