@@ -19,7 +19,6 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobLaunchRequest;
-use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::EpiphanyMemoryPatchReview;
 use epiphany_core::EpiphanyMemoryPatchReviewStatus;
 use epiphany_core::EpiphanyPromotionInput;
@@ -53,6 +52,7 @@ use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
 use crate::state::client_visible_live_thread_epiphany_state;
+use crate::state::load_thread_memory_graph_snapshot;
 use crate::state::memory_graph_store_path;
 use uuid::Uuid;
 
@@ -520,19 +520,6 @@ pub async fn launch_thread_epiphany_reorient(
         changed_fields,
         epiphany_state,
         job,
-    })
-}
-
-async fn load_thread_memory_graph_snapshot(
-    thread: &CodexThread,
-) -> Result<Option<EpiphanyMemoryGraphSnapshot>, CodexErr> {
-    let config = thread.config_snapshot().await;
-    let store_path = memory_graph_store_path(config.cwd.as_path());
-    load_memory_graph_snapshot(&store_path).map_err(|err| {
-        CodexErr::InvalidRequest(format!(
-            "failed to load memory graph store {}: {err}",
-            store_path.display()
-        ))
     })
 }
 

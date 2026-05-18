@@ -5,8 +5,11 @@ use std::path::PathBuf;
 use codex_core::CodexThread;
 use codex_core::RolloutRecorder;
 use codex_core::latest_epiphany_state_from_rollout_items;
+use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
+use epiphany_core::EpiphanyMemoryGraphSnapshot;
+use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::write_thread_state;
 use tracing::warn;
 
@@ -61,6 +64,19 @@ pub fn thread_state_store_path(workspace_root: &Path) -> PathBuf {
 
 pub fn memory_graph_store_path(workspace_root: &Path) -> PathBuf {
     workspace_root.join("state").join("memory-graph.msgpack")
+}
+
+pub async fn load_thread_memory_graph_snapshot(
+    thread: &CodexThread,
+) -> Result<Option<EpiphanyMemoryGraphSnapshot>, CodexErr> {
+    let config = thread.config_snapshot().await;
+    let store_path = memory_graph_store_path(config.cwd.as_path());
+    load_memory_graph_snapshot(&store_path).map_err(|err| {
+        CodexErr::InvalidRequest(format!(
+            "failed to load memory graph store {}: {err}",
+            store_path.display()
+        ))
+    })
 }
 
 pub fn mirror_thread_state_to_workspace(
