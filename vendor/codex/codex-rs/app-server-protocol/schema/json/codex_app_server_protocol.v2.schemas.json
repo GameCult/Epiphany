@@ -3774,16 +3774,6 @@
             }
           ]
         },
-        "graphs": {
-          "anyOf": [
-            {
-              "$ref": "#/definitions/EpiphanyGraphs"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "invariants": {
           "type": [
             "array",

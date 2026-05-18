@@ -59,7 +59,7 @@ pub fn core_state_patch_from_protocol(
         active_subgoal_id: patch.active_subgoal_id.clone(),
         subgoals: patch.subgoals.clone(),
         invariants: patch.invariants.clone(),
-        graphs: patch.graphs.clone(),
+        graphs: None,
         graph_frontier: patch.graph_frontier.clone(),
         graph_checkpoint: patch.graph_checkpoint.clone(),
         scratch: patch.scratch.clone(),
@@ -85,7 +85,7 @@ pub fn state_update_from_thread_patch(
         active_subgoal_id: patch.active_subgoal_id,
         subgoals: patch.subgoals,
         invariants: patch.invariants,
-        graphs: patch.graphs,
+        graphs: None,
         graph_frontier: patch.graph_frontier,
         graph_checkpoint: patch.graph_checkpoint,
         scratch: patch.scratch,
@@ -382,7 +382,6 @@ pub fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdate
         || patch.active_subgoal_id.is_some()
         || patch.subgoals.is_some()
         || patch.invariants.is_some()
-        || patch.graphs.is_some()
         || patch.graph_frontier.is_some()
         || patch.graph_checkpoint.is_some()
         || patch.scratch.is_some()
@@ -410,9 +409,6 @@ pub fn epiphany_update_patch_changed_fields(
     }
     if patch.invariants.is_some() {
         fields.push(ThreadEpiphanyStateUpdatedField::Invariants);
-    }
-    if patch.graphs.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Graphs);
     }
     if patch.graph_frontier.is_some() {
         fields.push(ThreadEpiphanyStateUpdatedField::GraphFrontier);

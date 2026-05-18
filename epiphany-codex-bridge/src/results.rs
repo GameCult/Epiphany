@@ -73,7 +73,6 @@ fn map_protocol_update_patch(patch: EpiphanyRoleStatePatchDocument) -> ThreadEpi
         active_subgoal_id: patch.active_subgoal_id,
         subgoals: patch.subgoals,
         invariants: patch.invariants,
-        graphs: patch.graphs,
         graph_frontier: patch.graph_frontier,
         graph_checkpoint: patch.graph_checkpoint,
         scratch: patch.scratch,

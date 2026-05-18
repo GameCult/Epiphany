@@ -5073,9 +5073,6 @@ pub struct ThreadEpiphanyUpdatePatch {
     pub invariants: Option<Vec<CoreEpiphanyInvariant>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
-    pub graphs: Option<CoreEpiphanyGraphs>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional = nullable)]
     pub graph_frontier: Option<CoreEpiphanyGraphFrontier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
