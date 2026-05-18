@@ -440,7 +440,7 @@ pub fn build_epiphany_role_launch_request(
         investigation_checkpoint: state.investigation_checkpoint.clone(),
         scratch: state.scratch.clone(),
         invariants: state.invariants.clone(),
-        graphs: Some(state.graphs.clone()),
+        graphs: None,
         recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
         recent_observations: state.observations.iter().take(8).cloned().collect(),
         graph_frontier: state.graph_frontier.clone(),
@@ -779,6 +779,10 @@ mod tests {
         let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document else {
             panic!("expected role launch document");
         };
+        assert!(
+            document.graphs.is_none(),
+            "native role launch should use typed memoryContext instead of full graph cargo"
+        );
         let context = document
             .memory_context
             .expect("role launch should carry typed memory context");

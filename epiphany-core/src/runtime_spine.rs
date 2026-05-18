@@ -286,6 +286,8 @@ pub struct EpiphanyRuntimeRoleWorkerResult {
     pub item_error: Option<String>,
     #[cultcache(key = 19, default)]
     pub metadata: BTreeMap<String, String>,
+    #[cultcache(key = 20, default)]
+    pub memory_patch_candidates_msgpack: Option<Vec<u8>>,
 }
 
 impl EpiphanyRuntimeRoleWorkerResult {
@@ -298,6 +300,14 @@ impl EpiphanyRuntimeRoleWorkerResult {
 
     pub fn self_patch(&self) -> Result<Option<crate::AgentSelfPatch>> {
         decode_optional_msgpack(self.self_patch_msgpack.as_deref(), "role worker selfPatch")
+    }
+
+    pub fn memory_patch_candidates(&self) -> Result<Vec<crate::EpiphanyMemoryPatchCandidate>> {
+        decode_optional_msgpack(
+            self.memory_patch_candidates_msgpack.as_deref(),
+            "role worker memoryPatchCandidates",
+        )
+        .map(|candidates| candidates.unwrap_or_default())
     }
 }
 

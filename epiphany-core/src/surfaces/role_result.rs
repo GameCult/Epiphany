@@ -40,6 +40,7 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub risks: Vec<String>,
     pub state_patch: Option<EpiphanyRoleStatePatchDocument>,
     pub self_patch: Option<AgentSelfPatch>,
+    pub memory_patch_candidates: Vec<crate::EpiphanyMemoryPatchCandidate>,
     pub self_persistence: Option<EpiphanyRoleSelfPersistenceReview>,
     pub job_error: Option<String>,
     pub item_error: Option<String>,
@@ -167,6 +168,7 @@ fn interpret_role_finding(
         risks: json_string_array_field(raw_result, "risks"),
         state_patch,
         self_patch,
+        memory_patch_candidates: Vec::new(),
         self_persistence,
         job_error,
         item_error,
@@ -211,6 +213,11 @@ pub fn interpret_runtime_role_worker_result(
         .as_ref()
         .ok()
         .and_then(|patch| patch.clone());
+    let memory_patch_candidates_result = result.memory_patch_candidates();
+    let memory_patch_candidates = memory_patch_candidates_result
+        .as_ref()
+        .cloned()
+        .unwrap_or_default();
     let item_error = merge_item_error(
         result.item_error.clone(),
         state_patch_result.as_ref().err().map(ToString::to_string),
@@ -218,6 +225,13 @@ pub fn interpret_runtime_role_worker_result(
     let item_error = merge_item_error(
         item_error,
         self_patch_result.as_ref().err().map(ToString::to_string),
+    );
+    let item_error = merge_item_error(
+        item_error,
+        memory_patch_candidates_result
+            .as_ref()
+            .err()
+            .map(ToString::to_string),
     );
     EpiphanyRoleFindingInterpretation {
         verdict: Some(result.verdict.clone()),
@@ -236,6 +250,7 @@ pub fn interpret_runtime_role_worker_result(
         risks: result.risks.clone(),
         state_patch: state_patch.clone(),
         self_patch,
+        memory_patch_candidates,
         self_persistence: None,
         job_error: None,
         item_error: match role_id {

@@ -541,7 +541,7 @@ fn worker_instructions(
 fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
     match document {
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Modeling workers should put proposed graph/memory changes in memoryPatchCandidates instead of relying on prompt-local full graph rewrites. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, artifactRefs, and memoryPatchCandidates when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -567,6 +567,7 @@ struct RoleWorkerResultIngress {
     risks: Vec<String>,
     state_patch: Option<epiphany_core::EpiphanyRoleStatePatchDocument>,
     self_patch: Option<epiphany_core::AgentSelfPatch>,
+    memory_patch_candidates: Vec<epiphany_core::EpiphanyMemoryPatchCandidate>,
 }
 
 #[derive(Debug, Clone, Default, serde::Deserialize)]
@@ -660,6 +661,8 @@ fn role_worker_result_from_ingress(
         encode_optional_document(&result.state_patch, "statePatch");
     let (self_patch_msgpack, self_patch_error) =
         encode_optional_document(&result.self_patch, "selfPatch");
+    let (memory_patch_candidates_msgpack, memory_patch_candidates_error) =
+        encode_optional_vec_document(&result.memory_patch_candidates, "memoryPatchCandidates");
     EpiphanyRuntimeRoleWorkerResult {
         schema_version: epiphany_core::RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION.to_string(),
         result_id: result_id.to_string(),
@@ -684,8 +687,12 @@ fn role_worker_result_from_ingress(
         risks: clean_string_vec(&result.risks),
         state_patch_msgpack,
         self_patch_msgpack,
-        item_error: merge_optional_errors(state_patch_error, self_patch_error),
+        item_error: merge_optional_errors(
+            merge_optional_errors(state_patch_error, self_patch_error),
+            memory_patch_candidates_error,
+        ),
         metadata: std::collections::BTreeMap::new(),
+        memory_patch_candidates_msgpack,
     }
 }
 
@@ -727,6 +734,19 @@ where
         return (None, None);
     };
     match rmp_serde::to_vec_named(document) {
+        Ok(payload) => (Some(payload), None),
+        Err(err) => (None, Some(format!("failed to encode {key}: {err}"))),
+    }
+}
+
+fn encode_optional_vec_document<T>(value: &[T], key: &str) -> (Option<Vec<u8>>, Option<String>)
+where
+    T: serde::Serialize,
+{
+    if value.is_empty() {
+        return (None, None);
+    }
+    match rmp_serde::to_vec_named(value) {
         Ok(payload) => (Some(payload), None),
         Err(err) => (None, Some(format!("failed to encode {key}: {err}"))),
     }
@@ -932,7 +952,7 @@ mod tests {
             &launch_request,
             &model_request.request_id,
             &openai_summary,
-            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"statePatch":{"objective":"Keep the machine mapped."},"selfPatch":{"reason":"typed nested document"}} "#,
+            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"statePatch":{"objective":"Keep the machine mapped."},"selfPatch":{"reason":"typed nested document"},"memoryPatchCandidates":[{"id":"mempatch-auth-spine","profile":"repo_architecture","status":"proposed","proposedNodes":[{"id":"memnode-auth-spine","domainId":"memdom-repo","profile":"repo_architecture","kind":"module","title":"Auth spine","claim":"Codex remains responsible for OpenAI authentication.","question":"","tension":"","actionImplication":"","lifecycle":"proposed"}],"reasons":["Modeling proposes typed graph growth without full graph cargo."]}]} "#,
         )?;
 
         assert_eq!(result.job_id, "worker-job-1");
@@ -953,6 +973,9 @@ mod tests {
             typed_result.self_patch()?.expect("self patch").reason,
             Some("typed nested document".to_string())
         );
+        let memory_candidates = typed_result.memory_patch_candidates()?;
+        assert_eq!(memory_candidates.len(), 1);
+        assert_eq!(memory_candidates[0].id, "mempatch-auth-spine");
         assert!(
             runtime_job_snapshot(&store, "worker-job-1")?
                 .expect("snapshot")

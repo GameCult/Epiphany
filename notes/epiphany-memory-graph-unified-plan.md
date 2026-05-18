@@ -385,10 +385,13 @@ order before lexical fallback, and if Qdrant is missing, falls back to typed
 graph traversal with an explicit warning.
 
 Still open: bridge/runtime prompt integration should consume these typed context
-packets without serializing a second memory format. First landing: role worker
-launch documents now include optional typed `memoryContext` packets derived
-from the accepted graph through the memory graph substrate. The next cleanup is
-to remove the old full-graph prompt cargo once result contracts are ready.
+packets without serializing a second memory format. First landing: native role
+worker launch documents now include typed `memoryContext` packets derived from
+the accepted graph through the memory graph substrate and no longer carry full
+`graphs` cargo. Runtime role results can persist typed
+`memoryPatchCandidates`; the next cleanup is accepting/reviewing those
+candidates into the unified graph so Modeling stops using full graph
+replacement patches for ordinary graph growth.
 
 ### Phase 7: Sleep And Repo Refresh
 
