@@ -10,7 +10,6 @@ use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::derive_scene;
 use epiphany_core::distill_observation;
-use epiphany_core::epiphany_graphs_from_memory_graph;
 use epiphany_core::propose_map_update;
 
 use crate::context::map_epiphany_context;
@@ -24,6 +23,7 @@ use crate::coordinator::map_epiphany_roles;
 use crate::coordinator::render_epiphany_roles_note;
 use crate::jobs::map_epiphany_jobs;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use crate::legacy_graph_compat::thread_state_with_legacy_graph_projection;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::map_epiphany_freshness;
@@ -84,7 +84,7 @@ pub fn map_epiphany_freshness_response(
     input: EpiphanyFreshnessResponseInput<'_>,
 ) -> ThreadEpiphanyFreshnessResponse {
     let memory_backed_state =
-        memory_backed_thread_state(input.state, input.memory_graph_snapshot);
+        thread_state_with_legacy_graph_projection(input.state, input.memory_graph_snapshot);
     let state = memory_backed_state.as_ref().or(input.state);
     let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
         state,
@@ -112,7 +112,8 @@ pub fn map_epiphany_context_response(
     memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
     params: &ThreadEpiphanyContextParams,
 ) -> ThreadEpiphanyContextResponse {
-    let memory_backed_state = memory_backed_thread_state(state, memory_graph_snapshot);
+    let memory_backed_state =
+        thread_state_with_legacy_graph_projection(state, memory_graph_snapshot);
     let state = memory_backed_state.as_ref().or(state);
     let (state_status, state_revision, context, missing) = map_epiphany_context(state, params);
     ThreadEpiphanyContextResponse {
@@ -136,7 +137,8 @@ pub fn map_epiphany_graph_query_response(
     memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
     query: &ThreadEpiphanyGraphQuery,
 ) -> ThreadEpiphanyGraphQueryResponse {
-    let memory_backed_state = memory_backed_thread_state(state, memory_graph_snapshot);
+    let memory_backed_state =
+        thread_state_with_legacy_graph_projection(state, memory_graph_snapshot);
     let state = memory_backed_state.as_ref().or(state);
     let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
         map_epiphany_graph_query(state, query);
@@ -155,17 +157,6 @@ pub fn map_epiphany_graph_query_response(
         matched,
         missing,
     }
-}
-
-fn memory_backed_thread_state(
-    state: Option<&EpiphanyThreadState>,
-    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
-) -> Option<EpiphanyThreadState> {
-    state.zip(memory_graph_snapshot).map(|(state, snapshot)| {
-        let mut state = state.clone();
-        state.graphs = epiphany_graphs_from_memory_graph(snapshot);
-        state
-    })
 }
 
 pub struct EpiphanyViewResponseInput<'a> {
@@ -194,7 +185,8 @@ pub async fn map_epiphany_view_response(
         token_usage_info,
         runtime_store_path,
     } = input;
-    let memory_backed_state = memory_backed_thread_state(state, memory_graph_snapshot);
+    let memory_backed_state =
+        thread_state_with_legacy_graph_projection(state, memory_graph_snapshot);
     let state = memory_backed_state.as_ref().or(state);
 
     let needs_jobs = epiphany_view_needs_jobs(&lenses);

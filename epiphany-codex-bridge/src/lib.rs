@@ -4,6 +4,7 @@ pub mod coordinator;
 pub mod invalidation;
 pub mod jobs;
 pub mod launch;
+pub mod legacy_graph_compat;
 pub mod mutation;
 pub mod mutation_service;
 pub mod pressure;
