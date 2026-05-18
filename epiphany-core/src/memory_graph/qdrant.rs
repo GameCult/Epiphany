@@ -1,11 +1,8 @@
-use super::EpiphanyMemoryContextPacket;
 use super::EpiphanyMemoryContextQuery;
 use super::EpiphanyMemoryEmbeddingManifest;
 use super::EpiphanyMemoryGraphSnapshot;
 use super::memory_graph_embedding_documents;
 use super::memory_graph_embedding_manifest;
-use super::plan_memory_graph_context_cut;
-use super::push_unique;
 use crate::semantic_cache::OllamaConfig;
 use crate::semantic_cache::OllamaEmbedder;
 use crate::semantic_cache::QdrantClient;
@@ -151,73 +148,6 @@ fn rebuild_memory_graph_embedding_cache_with_config(
         indexed_document_count: documents.len(),
         manifest,
     })
-}
-
-pub fn plan_memory_graph_context_cut_with_semantic_cache(
-    snapshot: &EpiphanyMemoryGraphSnapshot,
-    query: &EpiphanyMemoryContextQuery,
-) -> EpiphanyMemoryContextPacket {
-    let hits = match query_memory_graph_semantic_cache(snapshot, query) {
-        Ok(hits) => hits,
-        Err(err) => {
-            let mut packet = plan_memory_graph_context_cut(snapshot, query);
-            packet.warnings.push(format!(
-                "semantic cache unavailable; used typed graph traversal: {err}"
-            ));
-            return packet;
-        }
-    };
-    plan_memory_graph_context_cut_from_semantic_hits(snapshot, query, hits)
-}
-
-fn plan_memory_graph_context_cut_from_semantic_hits(
-    snapshot: &EpiphanyMemoryGraphSnapshot,
-    query: &EpiphanyMemoryContextQuery,
-    hits: Vec<EpiphanyMemoryGraphSemanticHit>,
-) -> EpiphanyMemoryContextPacket {
-    let mut warnings = Vec::new();
-    if hits.is_empty() {
-        return plan_memory_graph_context_cut(snapshot, query);
-    }
-
-    let mut seeded_query = query.clone();
-    for hit in &hits {
-        match hit.document_kind.as_str() {
-            "node" => push_unique(&mut seeded_query.node_ids, hit.source_id.clone()),
-            "edge" => push_unique(&mut seeded_query.edge_ids, hit.source_id.clone()),
-            "summary" => {
-                if let Some(summary) = snapshot
-                    .summaries
-                    .iter()
-                    .find(|summary| summary.id == hit.source_id)
-                {
-                    for node_id in &summary.covers_node_ids {
-                        push_unique(&mut seeded_query.node_ids, node_id.clone());
-                    }
-                    for edge_id in &summary.covers_edge_ids {
-                        push_unique(&mut seeded_query.edge_ids, edge_id.clone());
-                    }
-                } else {
-                    warnings.push(format!(
-                        "semantic cache hit missing summary {}",
-                        hit.source_id
-                    ));
-                }
-            }
-            other => warnings.push(format!(
-                "semantic cache hit {} had unknown document kind {other}",
-                hit.document_id
-            )),
-        }
-    }
-
-    let mut packet = plan_memory_graph_context_cut(snapshot, &seeded_query);
-    packet.warnings.push(format!(
-        "semantic cache seeded {} typed graph document(s)",
-        hits.len()
-    ));
-    packet.warnings.extend(warnings);
-    packet
 }
 
 pub fn query_memory_graph_semantic_cache(
@@ -455,25 +385,6 @@ mod tests {
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].source_id, "node-auth-spine");
         assert_eq!(hits[0].document_kind, "node");
-
-        let packet = plan_memory_graph_context_cut_from_semantic_hits(
-            &snapshot,
-            &EpiphanyMemoryContextQuery {
-                id: "semantic-query-test".to_string(),
-                text: Some("who owns auth".to_string()),
-                budget: Some(3),
-                ..Default::default()
-            },
-            hits,
-        );
-        assert_eq!(packet.nodes.len(), 1);
-        assert_eq!(packet.nodes[0].id, "node-auth-spine");
-        assert!(
-            packet
-                .warnings
-                .iter()
-                .any(|warning| warning.contains("semantic cache seeded 1"))
-        );
 
         Ok(())
     }

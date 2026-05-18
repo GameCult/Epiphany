@@ -5,6 +5,7 @@ pub mod freshness;
 pub mod ids;
 pub mod profiles;
 pub mod qdrant;
+pub mod semantic_context;
 pub mod store;
 pub mod validation;
 
@@ -42,9 +43,9 @@ pub use profiles::memory_graph_from_heartbeat_cognition;
 pub use qdrant::EpiphanyMemoryGraphEmbeddingCacheReport;
 pub use qdrant::EpiphanyMemoryGraphEmbeddingCacheRequest;
 pub use qdrant::EpiphanyMemoryGraphSemanticHit;
-pub use qdrant::plan_memory_graph_context_cut_with_semantic_cache;
 pub use qdrant::query_memory_graph_semantic_cache;
 pub use qdrant::rebuild_memory_graph_embedding_cache;
+pub use semantic_context::plan_memory_graph_context_cut_with_semantic_cache;
 pub use store::EpiphanyMemoryGraphEntry;
 pub use store::MEMORY_GRAPH_KEY;
 pub use store::MEMORY_GRAPH_SCHEMA_VERSION;
