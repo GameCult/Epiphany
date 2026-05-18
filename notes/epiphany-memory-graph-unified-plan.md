@@ -380,11 +380,12 @@ indexing. `epiphany-memory-graph index` rebuilds a Qdrant collection from typed
 memory graph embedding documents and writes only the resulting
 `EpiphanyMemoryEmbeddingManifest` back to the typed graph store.
 `epiphany-memory-graph semantic-context` asks Qdrant for graph document IDs,
-then resolves all real context from the typed graph. If Qdrant is missing, the
-command falls back to typed graph traversal with an explicit warning.
+then resolves all real context from the typed graph. It preserves cache hit
+order before lexical fallback, and if Qdrant is missing, falls back to typed
+graph traversal with an explicit warning.
 
-Still open: rank-aware context composition should preserve Qdrant ordering more
-precisely when many candidate IDs compete for a small budget.
+Still open: bridge/runtime prompt integration should consume these typed context
+packets without serializing a second memory format.
 
 ### Phase 7: Sleep And Repo Refresh
 
