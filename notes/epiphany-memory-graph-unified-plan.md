@@ -259,7 +259,7 @@ Generic graph operations:
 
 Profile-specific operations:
 
-- repo profiles may propose architecture/dataflow graph patches
+- repo profiles may propose architecture/dataflow memory patch candidates
 - role profiles may apply reviewed selfPatch-derived memory
 - short-term profile may cluster/prune/distill
 - incubation profile may deepen/cool/promote/retire
@@ -412,6 +412,10 @@ launch now prefer the persisted `state/memory-graph.msgpack` snapshot for typed
 `memoryContext` cuts, falling back to accepted thread graphs only as bootstrap
 scaffolding when the store is absent. Reorientation launch no longer carries
 full `graphs` cargo; the legacy field remains only for compatibility ingress.
+The old `thread/epiphany/propose` route no longer returns replacement `graphs`
+in its patch; graph growth is exposed as typed `memoryPatchCandidates` and
+frontier updates are withheld when the proposal depends on unapplied memory
+growth.
 
 ### Phase 7: Sleep And Repo Refresh
 

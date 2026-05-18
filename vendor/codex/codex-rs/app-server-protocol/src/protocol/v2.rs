@@ -5013,6 +5013,9 @@ pub struct ThreadEpiphanyProposeParams {
 pub struct ThreadEpiphanyProposeResponse {
     pub expected_revision: u64,
     pub patch: ThreadEpiphanyUpdatePatch,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<CoreEpiphanyMemoryPatchCandidate>")]
+    pub memory_patch_candidates: Vec<CoreEpiphanyMemoryPatchCandidate>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

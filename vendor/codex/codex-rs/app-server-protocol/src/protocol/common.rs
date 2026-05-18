@@ -2821,6 +2821,7 @@ mod tests {
                     }),
                     ..Default::default()
                 },
+                memory_patch_candidates: Vec::new(),
             },
         };
 

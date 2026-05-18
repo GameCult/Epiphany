@@ -7,6 +7,8 @@ use epiphany_state_model::EpiphanyGraphEdge;
 use epiphany_state_model::EpiphanyGraphFrontier;
 use epiphany_state_model::EpiphanyGraphNode;
 use epiphany_state_model::EpiphanyGraphs;
+use epiphany_state_model::EpiphanyMemoryPatchCandidate;
+use epiphany_state_model::EpiphanyMemoryProfile;
 use epiphany_state_model::EpiphanyObservation;
 use epiphany_state_model::EpiphanyThreadState;
 use sha1::Digest;
@@ -14,6 +16,8 @@ use sha1::Sha1;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
+
+use crate::memory_graph::memory_graph_from_epiphany_graphs;
 
 const SUMMARY_LIMIT: usize = 220;
 const SEMANTIC_REUSE_MIN_SCORE: usize = 4;
@@ -110,6 +114,7 @@ pub struct EpiphanyMapProposal {
     pub graphs: EpiphanyGraphs,
     pub graph_frontier: EpiphanyGraphFrontier,
     pub churn: EpiphanyChurnState,
+    pub memory_patch_candidates: Vec<EpiphanyMemoryPatchCandidate>,
 }
 
 pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMapProposal> {
@@ -119,7 +124,8 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     let code_refs = collect_code_refs(&observations)?;
     let code_ref_paths = unique_code_ref_paths(&code_refs);
     let fingerprint = fingerprint(&input.state.revision, &observation_ids, &code_refs);
-    let mut graphs = input.state.graphs.clone();
+    let base_graphs = input.state.graphs.clone();
+    let mut graphs = base_graphs.clone();
     let mut active_node_ids = Vec::new();
     let mut delta = MapDeltaJudgment {
         touched_paths: code_ref_paths.len(),
@@ -235,10 +241,99 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
     Ok(EpiphanyMapProposal {
         observation,
         evidence,
+        memory_patch_candidates: memory_patch_candidates_for_graph_delta(
+            &fingerprint,
+            &base_graphs,
+            &graphs,
+            &selection_summary,
+        ),
         graphs,
         graph_frontier: frontier,
         churn,
     })
+}
+
+fn memory_patch_candidates_for_graph_delta(
+    fingerprint: &str,
+    base_graphs: &EpiphanyGraphs,
+    proposed_graphs: &EpiphanyGraphs,
+    selection_summary: &str,
+) -> Vec<EpiphanyMemoryPatchCandidate> {
+    let base = memory_graph_from_epiphany_graphs("map-proposal-base", base_graphs);
+    let proposed = memory_graph_from_epiphany_graphs("map-proposal-proposed", proposed_graphs);
+    let base_domain_ids = base
+        .domains
+        .iter()
+        .map(|domain| domain.id.as_str())
+        .collect::<HashSet<_>>();
+    let base_node_ids = base
+        .nodes
+        .iter()
+        .map(|node| node.id.as_str())
+        .collect::<HashSet<_>>();
+    let base_edge_ids = base
+        .edges
+        .iter()
+        .map(|edge| edge.id.as_str())
+        .collect::<HashSet<_>>();
+
+    [
+        EpiphanyMemoryProfile::RepoArchitecture,
+        EpiphanyMemoryProfile::RepoDataflow,
+    ]
+    .into_iter()
+    .filter_map(|profile| {
+        let proposed_domains = proposed
+            .domains
+            .iter()
+            .filter(|domain| domain.profile == profile)
+            .filter(|domain| !base_domain_ids.contains(domain.id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        let proposed_nodes = proposed
+            .nodes
+            .iter()
+            .filter(|node| node.profile == profile)
+            .filter(|node| !base_node_ids.contains(node.id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        let proposed_edges = proposed
+            .edges
+            .iter()
+            .filter(|edge| edge.profile == profile)
+            .filter(|edge| !base_edge_ids.contains(edge.id.as_str()))
+            .cloned()
+            .collect::<Vec<_>>();
+        if proposed_domains.is_empty() && proposed_nodes.is_empty() && proposed_edges.is_empty() {
+            return None;
+        }
+        Some(EpiphanyMemoryPatchCandidate {
+            id: format!("mempatch-map-proposal-{fingerprint}-{}", memory_profile_label(profile)),
+            profile,
+            status: "proposed".to_string(),
+            proposed_domains,
+            proposed_nodes,
+            proposed_edges,
+            reasons: vec![format!(
+                "Map proposal derived from {selection_summary}; graph growth is represented as typed memory patch candidates, not state graph replacement."
+            )],
+        })
+    })
+    .collect()
+}
+
+fn memory_profile_label(profile: EpiphanyMemoryProfile) -> &'static str {
+    match profile {
+        EpiphanyMemoryProfile::RepoArchitecture => "repo-architecture",
+        EpiphanyMemoryProfile::RepoDataflow => "repo-dataflow",
+        EpiphanyMemoryProfile::RoleSelf => "role-self",
+        EpiphanyMemoryProfile::ShortTerm => "short-term",
+        EpiphanyMemoryProfile::Incubation => "incubation",
+        EpiphanyMemoryProfile::AgencyPressure => "agency-pressure",
+        EpiphanyMemoryProfile::CandidateIntervention => "candidate-intervention",
+        EpiphanyMemoryProfile::Evidence => "evidence",
+        EpiphanyMemoryProfile::Identity => "identity",
+    }
 }
 
 fn proposal_observation_ids(
@@ -1187,6 +1282,12 @@ mod tests {
         assert_eq!(proposal.graph_frontier.active_node_ids.len(), 1);
         assert_eq!(proposal.churn.understanding_status, "proposal_expands_map");
         assert_eq!(proposal.churn.diff_pressure, "medium");
+        assert_eq!(proposal.memory_patch_candidates.len(), 1);
+        assert_eq!(
+            proposal.memory_patch_candidates[0].profile,
+            EpiphanyMemoryProfile::RepoArchitecture
+        );
+        assert_eq!(proposal.memory_patch_candidates[0].proposed_nodes.len(), 1);
     }
 
     #[test]
@@ -1227,6 +1328,10 @@ mod tests {
         assert_eq!(
             proposal.churn.graph_freshness.as_deref(),
             Some("proposal-refined")
+        );
+        assert!(
+            proposal.memory_patch_candidates.is_empty(),
+            "existing graph revisions need a separate reviewer, not append-only memory patch candidates"
         );
     }
 

@@ -546,15 +546,19 @@ pub fn map_epiphany_propose_response(
     })
     .map_err(|err| err.to_string())?;
 
+    let graph_frontier = proposal
+        .memory_patch_candidates
+        .is_empty()
+        .then_some(proposal.graph_frontier);
     Ok(ThreadEpiphanyProposeResponse {
         expected_revision,
         patch: ThreadEpiphanyUpdatePatch {
             observations: vec![proposal.observation],
             evidence: vec![proposal.evidence],
-            graphs: Some(proposal.graphs),
-            graph_frontier: Some(proposal.graph_frontier),
+            graph_frontier,
             churn: Some(proposal.churn),
             ..Default::default()
         },
+        memory_patch_candidates: proposal.memory_patch_candidates,
     })
 }
