@@ -1,6 +1,7 @@
 pub mod context_cut;
 pub mod freshness;
 pub mod ids;
+pub mod profiles;
 pub mod store;
 pub mod validation;
 
@@ -27,6 +28,7 @@ pub use freshness::derive_memory_graph_freshness;
 pub use ids::memory_graph_domain_id;
 pub use ids::memory_graph_edge_id;
 pub use ids::memory_graph_node_id;
+pub use profiles::memory_graph_from_epiphany_graphs;
 pub use store::EpiphanyMemoryGraphEntry;
 pub use store::MEMORY_GRAPH_KEY;
 pub use store::MEMORY_GRAPH_SCHEMA_VERSION;
