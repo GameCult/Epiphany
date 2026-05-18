@@ -345,10 +345,9 @@ impl CodexThread {
             .await;
         self.codex
             .session
-            .persist_rollout_items(&[RolloutItem::EpiphanyState(EpiphanyStateItem {
-                turn_id: reference_turn_id,
-                state: state.clone(),
-            })])
+            .persist_rollout_items(&[RolloutItem::EpiphanyState(
+                EpiphanyStateItem::for_optional_turn(reference_turn_id, state.clone()),
+            )])
             .await;
         self.codex.session.flush_rollout().await?;
         Ok(state)

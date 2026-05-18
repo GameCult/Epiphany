@@ -2550,10 +2550,12 @@ impl Session {
         self.persist_rollout_items(&[RolloutItem::TurnContext(turn_context_item.clone())])
             .await;
         if let Some(epiphany_state) = self.epiphany_state().await {
-            self.persist_rollout_items(&[RolloutItem::EpiphanyState(EpiphanyStateItem {
-                turn_id: turn_context_item.turn_id.clone(),
-                state: epiphany_state,
-            })])
+            self.persist_rollout_items(&[RolloutItem::EpiphanyState(
+                EpiphanyStateItem::for_optional_turn(
+                    turn_context_item.turn_id.clone(),
+                    epiphany_state,
+                ),
+            )])
             .await;
         }
 

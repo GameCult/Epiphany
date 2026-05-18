@@ -15,6 +15,26 @@ pub struct EpiphanyStateItem {
     pub state: EpiphanyThreadState,
 }
 
+impl EpiphanyStateItem {
+    pub fn anchored_to_turn(turn_id: impl Into<String>, state: EpiphanyThreadState) -> Self {
+        Self {
+            turn_id: Some(turn_id.into()),
+            state,
+        }
+    }
+
+    pub fn for_optional_turn(turn_id: Option<String>, state: EpiphanyThreadState) -> Self {
+        Self { turn_id, state }
+    }
+
+    pub fn out_of_band(state: EpiphanyThreadState) -> Self {
+        Self {
+            turn_id: None,
+            state,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyThreadState {
     pub revision: u64,
@@ -96,6 +116,41 @@ pub struct EpiphanyAcceptanceReceipt {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
     pub summary: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::EpiphanyStateItem;
+    use super::EpiphanyThreadState;
+
+    #[test]
+    fn state_item_constructors_name_snapshot_anchoring() {
+        let state = EpiphanyThreadState {
+            revision: 7,
+            ..Default::default()
+        };
+
+        let anchored = EpiphanyStateItem::anchored_to_turn("turn-7", state.clone());
+        assert_eq!(anchored.turn_id.as_deref(), Some("turn-7"));
+        assert_eq!(anchored.state, state);
+
+        let optional = EpiphanyStateItem::for_optional_turn(
+            Some("turn-8".to_string()),
+            EpiphanyThreadState {
+                revision: 8,
+                ..Default::default()
+            },
+        );
+        assert_eq!(optional.turn_id.as_deref(), Some("turn-8"));
+        assert_eq!(optional.state.revision, 8);
+
+        let out_of_band = EpiphanyStateItem::out_of_band(EpiphanyThreadState {
+            revision: 9,
+            ..Default::default()
+        });
+        assert!(out_of_band.turn_id.is_none());
+        assert_eq!(out_of_band.state.revision, 9);
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
