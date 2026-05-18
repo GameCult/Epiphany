@@ -246,6 +246,12 @@ pub struct HeartbeatPendingTurn {
     pub started_scene_clock: f64,
     #[serde(rename = "baseRecovery")]
     pub base_recovery: f64,
+    #[serde(rename = "personalityCooldownMultiplier", default)]
+    pub personality_cooldown_multiplier: Option<f64>,
+    #[serde(rename = "moodCooldownMultiplier", default)]
+    pub mood_cooldown_multiplier: Option<f64>,
+    #[serde(rename = "effectiveCooldownMultiplier", default)]
+    pub effective_cooldown_multiplier: Option<f64>,
     pub recovery: f64,
     #[serde(rename = "cooldownPolicy")]
     pub cooldown_policy: String,

@@ -279,15 +279,26 @@ pub(super) fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "startedAt": turn.started_at,
         "startedSceneClock": turn.started_scene_clock,
         "baseRecovery": turn.base_recovery,
-        "personalityCooldownMultiplier": turn.extra.get("personalityCooldownMultiplier"),
-        "moodCooldownMultiplier": turn.extra.get("moodCooldownMultiplier"),
-        "effectiveCooldownMultiplier": turn.extra.get("effectiveCooldownMultiplier"),
+        "personalityCooldownMultiplier": pending_turn_typed_or_extra(turn, "personalityCooldownMultiplier", turn.personality_cooldown_multiplier),
+        "moodCooldownMultiplier": pending_turn_typed_or_extra(turn, "moodCooldownMultiplier", turn.mood_cooldown_multiplier),
+        "effectiveCooldownMultiplier": pending_turn_typed_or_extra(turn, "effectiveCooldownMultiplier", turn.effective_cooldown_multiplier),
         "recovery": turn.recovery,
         "cooldownPolicy": turn.cooldown_policy,
         "completedAt": turn.completed_at,
         "completedSceneClock": turn.completed_scene_clock,
         "nextReadyAt": turn.next_ready_at,
     })
+}
+
+fn pending_turn_typed_or_extra(
+    turn: &HeartbeatPendingTurn,
+    legacy_key: &str,
+    typed: Option<f64>,
+) -> Value {
+    typed
+        .map(|value| serde_json::json!(value))
+        .or_else(|| turn.extra.get(legacy_key).cloned())
+        .unwrap_or(Value::Null)
 }
 
 pub(super) fn history_event_json(event: HeartbeatHistoryEvent) -> Value {

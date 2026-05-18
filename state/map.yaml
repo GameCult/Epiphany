@@ -46,9 +46,10 @@ objective:
     Heartbeat adaptive pacing is now a typed CultCache field on
     `EpiphanyHeartbeatStateEntry`; JSON projection remains only for status and
     artifact output, with legacy `extra["adaptivePacing"]` as read fallback.
-    Heartbeat participant scene id, personality timing, and mood timing are
-    typed participant fields with legacy `extra` read fallbacks; scheduler
-    pacing no longer depends on those values as durable JSON pockets.
+    Heartbeat participant scene id, personality timing, mood timing, and
+    pending-turn cooldown multipliers are typed fields with legacy `extra` read
+    fallbacks; scheduler pacing no longer depends on those values as durable
+    JSON pockets.
 
 constraints:
   - No frontier-scale training tithe.

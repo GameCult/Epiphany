@@ -445,6 +445,9 @@ fn tick_once(
         started_at: now_iso(),
         started_scene_clock: round6(scene_clock),
         base_recovery: round6(action.base_recovery),
+        personality_cooldown_multiplier: Some(round6(personality_cooldown_multiplier(&selected))),
+        mood_cooldown_multiplier: Some(round6(mood_cooldown_multiplier(&selected))),
+        effective_cooldown_multiplier: Some(round6(effective_cooldown_multiplier(&selected))),
         recovery: round6(recovery),
         cooldown_policy: "after_turn_completion".to_string(),
         completed_at: None,
@@ -452,19 +455,6 @@ fn tick_once(
         next_ready_at: None,
         extra: BTreeMap::new(),
     };
-    let mut pending = pending;
-    pending.extra.insert(
-        "personalityCooldownMultiplier".to_string(),
-        serde_json::json!(personality_cooldown_multiplier(&selected)),
-    );
-    pending.extra.insert(
-        "moodCooldownMultiplier".to_string(),
-        serde_json::json!(mood_cooldown_multiplier(&selected)),
-    );
-    pending.extra.insert(
-        "effectiveCooldownMultiplier".to_string(),
-        serde_json::json!(effective_cooldown_multiplier(&selected)),
-    );
     state.participants[selected_index].pending_turn = Some(pending.clone());
     state.participants[selected_index].last_action_id = Some(action.action_id.clone());
     state.participants[selected_index].last_woke_at = Some(now_iso());
