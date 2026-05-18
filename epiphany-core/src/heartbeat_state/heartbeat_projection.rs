@@ -84,8 +84,8 @@ pub fn heartbeat_status_projection(
         "thoughtLanes": cognition.as_ref().and_then(|entry| entry.thought_lanes.clone()),
         "bridge": cognition.as_ref().and_then(|entry| entry.bridge.clone()),
         "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.clone()),
-        "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.clone()),
-        "reactions": cognition.as_ref().and_then(|entry| entry.reactions.clone()),
+        "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.as_ref()).and_then(typed_json),
+        "reactions": cognition.as_ref().and_then(|entry| entry.reactions.as_ref()).and_then(typed_json),
         "adaptivePacing": adaptive_pacing,
         "availableActions": ["init", "tick", "pump", "complete", "status", "routine"],
     }))
@@ -200,6 +200,10 @@ fn heartbeat_cognition_status_json(cognition: &super::EpiphanyHeartbeatCognition
         "source": cognition.source,
         "contract": "Experimental Void/Ghostlight thought-weather is quarantined outside stable heartbeat scheduling state. Status may project it for inspection, but scheduler policy owns only typed timing physiology.",
     })
+}
+
+fn typed_json<T: serde::Serialize>(value: &T) -> Option<Value> {
+    serde_json::to_value(value).ok()
 }
 
 fn participant_status_json(participant: &HeartbeatParticipant) -> Value {

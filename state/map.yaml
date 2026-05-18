@@ -50,6 +50,9 @@ objective:
     pending-turn cooldown multipliers are typed fields with legacy `extra` read
     fallbacks; scheduler pacing no longer depends on those values as durable
     JSON pockets.
+    Heartbeat cognition appraisals and reactions are typed CultCache fields;
+    legacy cognition blobs are parsed only while migrating old stores, and
+    status/artifact JSON is projection output.
 
 constraints:
   - No frontier-scale training tithe.
