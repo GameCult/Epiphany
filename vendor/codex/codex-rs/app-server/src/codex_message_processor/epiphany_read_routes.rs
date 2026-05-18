@@ -1,4 +1,5 @@
 use codex_app_server_protocol::*;
+use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -22,6 +23,7 @@ use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
+use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::normalize_epiphany_retrieve_query;
 
@@ -54,26 +56,14 @@ impl CodexMessageProcessor {
 
         let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
         let loaded = loaded_thread.is_some();
-        let memory_graph_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            let config_snapshot = loaded_thread.config_snapshot().await;
-            let store_path = memory_graph_store_path(config_snapshot.cwd.as_path());
-            match load_memory_graph_snapshot(&store_path) {
+        let memory_graph_snapshot =
+            match load_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!(
-                            "failed to load Epiphany memory graph store {}: {err}",
-                            store_path.display()
-                        ),
-                    )
-                    .await;
+                Err(message) => {
+                    self.send_internal_error(request_id, message).await;
                     return;
                 }
-            }
-        } else {
-            None
-        };
+            };
         let thread = match self.read_thread_view(thread_uuid, false).await {
             Ok(thread) => thread,
             Err(ThreadReadViewError::InvalidRequest(message)) => {
@@ -248,26 +238,14 @@ impl CodexMessageProcessor {
         };
 
         let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
-        let memory_graph_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            let config_snapshot = loaded_thread.config_snapshot().await;
-            let store_path = memory_graph_store_path(config_snapshot.cwd.as_path());
-            match load_memory_graph_snapshot(&store_path) {
+        let memory_graph_snapshot =
+            match load_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!(
-                            "failed to load Epiphany memory graph store {}: {err}",
-                            store_path.display()
-                        ),
-                    )
-                    .await;
+                Err(message) => {
+                    self.send_internal_error(request_id, message).await;
                     return;
                 }
-            }
-        } else {
-            None
-        };
+            };
         let thread = match self.read_thread_view(thread_uuid, false).await {
             Ok(thread) => thread,
             Err(ThreadReadViewError::InvalidRequest(message)) => {
@@ -328,26 +306,14 @@ impl CodexMessageProcessor {
 
         let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
         let loaded = loaded_thread.is_some();
-        let memory_graph_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            let config_snapshot = loaded_thread.config_snapshot().await;
-            let store_path = memory_graph_store_path(config_snapshot.cwd.as_path());
-            match load_memory_graph_snapshot(&store_path) {
+        let memory_graph_snapshot =
+            match load_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!(
-                            "failed to load Epiphany memory graph store {}: {err}",
-                            store_path.display()
-                        ),
-                    )
-                    .await;
+                Err(message) => {
+                    self.send_internal_error(request_id, message).await;
                     return;
                 }
-            }
-        } else {
-            None
-        };
+            };
         let thread = match self.read_thread_view(thread_uuid, false).await {
             Ok(thread) => thread,
             Err(ThreadReadViewError::InvalidRequest(message)) => {
@@ -387,26 +353,14 @@ impl CodexMessageProcessor {
 
         let loaded_thread = self.thread_manager.get_thread(thread_uuid).await.ok();
         let loaded = loaded_thread.is_some();
-        let memory_graph_snapshot = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            let config_snapshot = loaded_thread.config_snapshot().await;
-            let store_path = memory_graph_store_path(config_snapshot.cwd.as_path());
-            match load_memory_graph_snapshot(&store_path) {
+        let memory_graph_snapshot =
+            match load_thread_memory_graph_snapshot(loaded_thread.as_deref()).await {
                 Ok(snapshot) => snapshot,
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!(
-                            "failed to load Epiphany memory graph store {}: {err}",
-                            store_path.display()
-                        ),
-                    )
-                    .await;
+                Err(message) => {
+                    self.send_internal_error(request_id, message).await;
                     return;
                 }
-            }
-        } else {
-            None
-        };
+            };
         let thread = match self.read_thread_view(thread_uuid, false).await {
             Ok(thread) => thread,
             Err(ThreadReadViewError::InvalidRequest(message)) => {
@@ -647,4 +601,20 @@ impl CodexMessageProcessor {
 
         self.outgoing.send_response(request_id, response).await;
     }
+}
+
+async fn load_thread_memory_graph_snapshot(
+    loaded_thread: Option<&CodexThread>,
+) -> std::result::Result<Option<EpiphanyMemoryGraphSnapshot>, String> {
+    let Some(loaded_thread) = loaded_thread else {
+        return Ok(None);
+    };
+    let config_snapshot = loaded_thread.config_snapshot().await;
+    let store_path = memory_graph_store_path(config_snapshot.cwd.as_path());
+    load_memory_graph_snapshot(&store_path).map_err(|err| {
+        format!(
+            "failed to load Epiphany memory graph store {}: {err}",
+            store_path.display()
+        )
+    })
 }
