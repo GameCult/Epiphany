@@ -111,7 +111,6 @@ pub struct EpiphanyMapProposalInput {
 pub struct EpiphanyMapProposal {
     pub observation: EpiphanyObservation,
     pub evidence: EpiphanyEvidenceRecord,
-    pub graphs: EpiphanyGraphs,
     pub graph_frontier: EpiphanyGraphFrontier,
     pub churn: EpiphanyChurnState,
     pub memory_patch_candidates: Vec<EpiphanyMemoryPatchCandidate>,
@@ -149,9 +148,7 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
             &candidate_node_id,
             &selection_quality.semantic_terms,
         ) {
-            let node = &mut graphs.architecture.nodes[node_match.index];
-            active_node_ids.push(node.id.clone());
-            merge_code_refs(&mut node.code_refs, path_code_refs);
+            active_node_ids.push(graphs.architecture.nodes[node_match.index].id.clone());
             delta.record_match(node_match.kind);
         } else {
             let node_id = candidate_node_id;
@@ -247,7 +244,6 @@ pub fn propose_map_update(input: EpiphanyMapProposalInput) -> Result<EpiphanyMap
             &graphs,
             &selection_summary,
         ),
-        graphs,
         graph_frontier: frontier,
         churn,
     })
@@ -859,15 +855,6 @@ fn semantic_node_score(node: &EpiphanyGraphNode, semantic_terms: &[String]) -> u
         .count()
 }
 
-fn merge_code_refs(target: &mut Vec<EpiphanyCodeRef>, additions: Vec<EpiphanyCodeRef>) {
-    let mut seen = target.iter().map(code_ref_key).collect::<HashSet<_>>();
-    for addition in additions {
-        if seen.insert(code_ref_key(&addition)) {
-            target.push(addition);
-        }
-    }
-}
-
 fn linked_frontier_node_ids(graphs: &EpiphanyGraphs, direct_node_ids: Vec<String>) -> Vec<String> {
     let mut linked_node_ids = direct_node_ids;
     let mut seen = linked_node_ids.iter().cloned().collect::<HashSet<_>>();
@@ -1214,8 +1201,6 @@ fn is_verified_status(status: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::promotion::EpiphanyPromotionInput;
-    use crate::promotion::evaluate_promotion;
     use epiphany_state_model::EpiphanyGraph;
     use epiphany_state_model::EpiphanyGraphEdge;
     use epiphany_state_model::EpiphanyGraphLink;
@@ -1257,16 +1242,6 @@ mod tests {
         }
     }
 
-    fn verifier() -> EpiphanyEvidenceRecord {
-        EpiphanyEvidenceRecord {
-            id: "ev-verifier".to_string(),
-            kind: "verification".to_string(),
-            status: "ok".to_string(),
-            summary: "Verifier accepted proposal".to_string(),
-            code_refs: Vec::new(),
-        }
-    }
-
     #[test]
     fn propose_map_update_returns_candidate_patch_parts() {
         let proposal = propose_map_update(EpiphanyMapProposalInput {
@@ -1277,8 +1252,6 @@ mod tests {
 
         assert!(proposal.observation.id.starts_with("obs-map-proposal-"));
         assert_eq!(proposal.evidence.status, "candidate");
-        assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
-        assert_eq!(proposal.graphs.architecture.nodes[0].title, "prompt.rs");
         assert_eq!(proposal.graph_frontier.active_node_ids.len(), 1);
         assert_eq!(proposal.churn.understanding_status, "proposal_expands_map");
         assert_eq!(proposal.churn.diff_pressure, "medium");
@@ -1288,6 +1261,10 @@ mod tests {
             EpiphanyMemoryProfile::RepoArchitecture
         );
         assert_eq!(proposal.memory_patch_candidates[0].proposed_nodes.len(), 1);
+        assert_eq!(
+            proposal.memory_patch_candidates[0].proposed_nodes[0].title,
+            "prompt.rs"
+        );
     }
 
     #[test]
@@ -1315,11 +1292,6 @@ mod tests {
         })
         .expect("proposal");
 
-        assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
-        let node = &proposal.graphs.architecture.nodes[0];
-        assert_eq!(node.id, "prompt-renderer");
-        assert_eq!(node.status.as_deref(), Some("grounded"));
-        assert_eq!(node.code_refs.len(), 2);
         assert_eq!(
             proposal.graph_frontier.active_node_ids,
             vec!["prompt-renderer".to_string()]
@@ -1352,10 +1324,9 @@ mod tests {
         })
         .expect("proposal");
 
-        assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
-        assert_eq!(proposal.graphs.architecture.nodes[0].id, node_id);
-        assert_eq!(proposal.graphs.architecture.nodes[0].code_refs.len(), 1);
+        assert_eq!(proposal.graph_frontier.active_node_ids, vec![node_id]);
         assert_eq!(proposal.churn.understanding_status, "proposal_refines_map");
+        assert!(proposal.memory_patch_candidates.is_empty());
     }
 
     #[test]
@@ -1375,13 +1346,11 @@ mod tests {
         })
         .expect("proposal");
 
-        assert_eq!(proposal.graphs.architecture.nodes.len(), 1);
-        assert_eq!(proposal.graphs.architecture.nodes[0].id, "prompt-renderer");
-        assert_eq!(proposal.graphs.architecture.nodes[0].code_refs.len(), 1);
         assert_eq!(
             proposal.graph_frontier.active_node_ids,
             vec!["prompt-renderer".to_string()]
         );
+        assert!(proposal.memory_patch_candidates.is_empty());
         assert!(
             proposal
                 .churn
@@ -1491,7 +1460,6 @@ mod tests {
         })
         .expect("proposal");
 
-        assert_eq!(proposal.graphs.architecture.nodes.len(), 3);
         assert!(
             proposal
                 .graph_frontier
@@ -1499,6 +1467,8 @@ mod tests {
                 .iter()
                 .any(|node_id| node_id.starts_with("arch-path-"))
         );
+        assert_eq!(proposal.memory_patch_candidates.len(), 1);
+        assert_eq!(proposal.memory_patch_candidates[0].proposed_nodes.len(), 1);
         assert_eq!(proposal.churn.understanding_status, "proposal_expands_map");
     }
 
@@ -1535,8 +1505,8 @@ mod tests {
         .expect("proposal");
 
         assert!(
-            proposal.graphs.architecture.nodes[0]
-                .purpose
+            proposal.memory_patch_candidates[0].proposed_nodes[0]
+                .claim
                 .contains("Live smoke verified")
         );
         assert!(
@@ -1748,32 +1718,6 @@ mod tests {
                 "edge-fragment-context".to_string()
             ]
         );
-    }
-
-    #[test]
-    fn propose_map_update_returns_promotion_acceptable_patch_parts() {
-        let proposal = propose_map_update(EpiphanyMapProposalInput {
-            state: state_with_observation("verified"),
-            observation_ids: vec!["obs-verified".to_string()],
-        })
-        .expect("proposal");
-
-        let decision = evaluate_promotion(EpiphanyPromotionInput {
-            has_state_replacements: true,
-            active_subgoal_id: None,
-            subgoals: None,
-            invariants: None,
-            graphs: Some(proposal.graphs),
-            graph_frontier: Some(proposal.graph_frontier),
-            graph_checkpoint: None,
-            investigation_checkpoint: None,
-            churn: Some(proposal.churn),
-            observations: vec![proposal.observation],
-            evidence: vec![proposal.evidence],
-            verifier_evidence: verifier(),
-        });
-
-        assert!(decision.accepted, "{:?}", decision.reasons);
     }
 
     #[test]
