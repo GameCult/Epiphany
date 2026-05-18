@@ -22,6 +22,7 @@ use epiphany_core::EpiphanyMemoryContextQuery;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::plan_memory_graph_context_cut;
 
@@ -409,6 +410,7 @@ pub fn build_epiphany_role_launch_request(
     expected_revision: Option<u64>,
     max_runtime_seconds: Option<u64>,
     state: &EpiphanyThreadState,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
 ) -> Result<EpiphanyJobLaunchRequest, String> {
     let binding_id = epiphany_role_binding_id(role_id)?;
     let owner_role = epiphany_role_owner(role_id)?;
@@ -447,7 +449,7 @@ pub fn build_epiphany_role_launch_request(
             .cloned()
             .collect(),
         active_graph_node_ids: linked_graph_node_ids.clone(),
-        memory_context: build_role_memory_context(role_id, state),
+        memory_context: build_role_memory_context(role_id, state, memory_graph_snapshot),
         investigation_checkpoint: state.investigation_checkpoint.clone(),
         scratch: state.scratch.clone(),
         invariants: state.invariants.clone(),
@@ -493,14 +495,22 @@ fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> Stri
 fn build_role_memory_context(
     role_id: ThreadEpiphanyRoleId,
     state: &EpiphanyThreadState,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
 ) -> Option<EpiphanyMemoryContextPacket> {
-    let snapshot = memory_graph_from_epiphany_graphs("role-launch-thread-graph", &state.graphs);
+    let fallback_snapshot;
+    let snapshot = if let Some(snapshot) = memory_graph_snapshot {
+        snapshot
+    } else {
+        fallback_snapshot =
+            memory_graph_from_epiphany_graphs("role-launch-thread-graph", &state.graphs);
+        &fallback_snapshot
+    };
     if snapshot.domains.is_empty() && snapshot.nodes.is_empty() && snapshot.edges.is_empty() {
         return None;
     }
     let query_text = role_memory_context_query_text(role_id, state);
     let packet = plan_memory_graph_context_cut(
-        &snapshot,
+        snapshot,
         &EpiphanyMemoryContextQuery {
             id: format!(
                 "role-launch-memory-context-{}",
@@ -546,6 +556,53 @@ fn role_memory_context_query_text(
     parts.join("\n")
 }
 
+fn build_reorient_memory_context(
+    state: &EpiphanyThreadState,
+    checkpoint: &EpiphanyInvestigationCheckpoint,
+    decision: &ThreadEpiphanyReorientDecision,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
+) -> Option<EpiphanyMemoryContextPacket> {
+    let fallback_snapshot;
+    let snapshot = if let Some(snapshot) = memory_graph_snapshot {
+        snapshot
+    } else {
+        fallback_snapshot =
+            memory_graph_from_epiphany_graphs("reorient-launch-thread-graph", &state.graphs);
+        &fallback_snapshot
+    };
+    if snapshot.domains.is_empty() && snapshot.nodes.is_empty() && snapshot.edges.is_empty() {
+        return None;
+    }
+    let mut parts = vec![
+        "reorientation".to_string(),
+        reorient_action_label(decision.action).to_string(),
+        checkpoint.focus.clone(),
+    ];
+    if let Some(next_action) = &checkpoint.next_action {
+        parts.push(next_action.clone());
+    }
+    if let Some(objective) = &state.objective {
+        parts.push(objective.clone());
+    }
+    for node_id in decision
+        .active_frontier_node_ids
+        .iter()
+    {
+        parts.push(node_id.clone());
+    }
+    let packet = plan_memory_graph_context_cut(
+        snapshot,
+        &EpiphanyMemoryContextQuery {
+            id: "reorient-launch-memory-context".to_string(),
+            text: Some(parts.join("\n")),
+            budget: Some(8),
+            ..Default::default()
+        },
+    );
+    (!packet.nodes.is_empty() || !packet.edges.is_empty() || !packet.summaries.is_empty())
+        .then_some(packet)
+}
+
 pub fn build_epiphany_reorient_launch_request(
     thread_id: &str,
     expected_revision: Option<u64>,
@@ -553,6 +610,7 @@ pub fn build_epiphany_reorient_launch_request(
     state: &EpiphanyThreadState,
     checkpoint: &EpiphanyInvestigationCheckpoint,
     decision: &ThreadEpiphanyReorientDecision,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
 ) -> EpiphanyJobLaunchRequest {
     let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
     let linked_graph_node_ids = unique_strings(
@@ -609,7 +667,8 @@ pub fn build_epiphany_reorient_launch_request(
                 .map(path_to_display_string)
                 .collect(),
             scratch: state.scratch.clone(),
-            graphs: Some(state.graphs.clone()),
+            memory_context: build_reorient_memory_context(state, checkpoint, decision, memory_graph_snapshot),
+            graphs: None,
             recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
             recent_observations: state.observations.iter().take(8).cloned().collect(),
             active_frontier_node_ids: decision.active_frontier_node_ids.clone(),
@@ -673,7 +732,7 @@ fn map_core_role_worker_launch_document(
         active_subgoal_id: document.active_subgoal_id,
         active_subgoals: document.active_subgoals,
         active_graph_node_ids: document.active_graph_node_ids,
-        memory_context: None,
+        memory_context: document.memory_context,
         investigation_checkpoint: document.investigation_checkpoint,
         scratch: document.scratch,
         invariants: document.invariants,
@@ -711,6 +770,7 @@ fn map_core_reorient_worker_launch_document(
         checkpoint_dirty_paths: document.checkpoint_dirty_paths,
         checkpoint_changed_paths: document.checkpoint_changed_paths,
         scratch: document.scratch,
+        memory_context: document.memory_context,
         graphs: document.graphs,
         recent_evidence: document.recent_evidence,
         recent_observations: document.recent_observations,
@@ -755,9 +815,12 @@ pub fn render_epiphany_coordinator_note(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
     use codex_protocol::protocol::EpiphanyGraph;
     use codex_protocol::protocol::EpiphanyGraphNode;
     use codex_protocol::protocol::EpiphanyGraphs;
+    use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
+    use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 
     #[test]
     fn role_launch_includes_typed_memory_context_from_accepted_graph() {
@@ -784,6 +847,7 @@ mod tests {
             Some(0),
             None,
             &state,
+            None,
         )
         .expect("role launch should build");
 
@@ -802,6 +866,75 @@ mod tests {
                 .nodes
                 .iter()
                 .any(|node| node.claim.contains("OpenAI authentication"))
+        );
+    }
+
+    #[test]
+    fn reorient_launch_includes_typed_memory_context_without_full_graph_cargo() {
+        let state = EpiphanyThreadState {
+            objective: Some("Resume the auth map cleanly.".to_string()),
+            graphs: EpiphanyGraphs {
+                architecture: EpiphanyGraph {
+                    nodes: vec![EpiphanyGraphNode {
+                        id: "auth-spine".to_string(),
+                        title: "Auth spine".to_string(),
+                        purpose: "Codex remains responsible for OpenAI authentication.".to_string(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let checkpoint = EpiphanyInvestigationCheckpoint {
+            checkpoint_id: "checkpoint-auth".to_string(),
+            kind: "architecture".to_string(),
+            disposition: EpiphanyInvestigationDisposition::ResumeReady,
+            focus: "Auth spine".to_string(),
+            summary: Some("Keep Codex auth as the vestigial organ.".to_string()),
+            next_action: Some("Resume with typed memory context.".to_string()),
+            ..Default::default()
+        };
+        let decision = ThreadEpiphanyReorientDecision {
+            action: ThreadEpiphanyReorientAction::Resume,
+            checkpoint_status: ThreadEpiphanyReorientCheckpointStatus::ResumeReady,
+            checkpoint_id: Some("checkpoint-auth".to_string()),
+            pressure_level: ThreadEpiphanyPressureLevel::Low,
+            retrieval_status: ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+            graph_status: ThreadEpiphanyGraphFreshnessStatus::Ready,
+            watcher_status: ThreadEpiphanyInvalidationStatus::Clean,
+            reasons: Vec::new(),
+            checkpoint_dirty_paths: Vec::new(),
+            checkpoint_changed_paths: Vec::new(),
+            active_frontier_node_ids: vec!["auth-spine".to_string()],
+            next_action: "Resume with typed memory context.".to_string(),
+            note: "resume".to_string(),
+        };
+
+        let launch = build_epiphany_reorient_launch_request(
+            "thread-1",
+            Some(0),
+            None,
+            &state,
+            &checkpoint,
+            &decision,
+            None,
+        );
+
+        let EpiphanyWorkerLaunchDocument::Reorient(document) = launch.launch_document else {
+            panic!("expected reorient launch document");
+        };
+        assert!(
+            document.graphs.is_none(),
+            "native reorient launch should use typed memoryContext instead of full graph cargo"
+        );
+        let context = document
+            .memory_context
+            .expect("reorient launch should carry typed memory context");
+        assert!(
+            !context.nodes.is_empty() || !context.summaries.is_empty(),
+            "reorient launch should carry a bounded typed memory context"
         );
     }
 }

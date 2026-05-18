@@ -407,7 +407,11 @@ policy and the specialist prompt routes graph growth through
 `statePatch.graphs`; graph replacement remains only a non-normal legacy surface
 outside Modeling acceptance. The next cleanup is removing remaining
 operator/UI assumptions that graph growth comes from thread-state graph
-replacement instead of the unified memory graph.
+replacement instead of the unified memory graph. Native role and reorientation
+launch now prefer the persisted `state/memory-graph.msgpack` snapshot for typed
+`memoryContext` cuts, falling back to accepted thread graphs only as bootstrap
+scaffolding when the store is absent. Reorientation launch no longer carries
+full `graphs` cargo; the legacy field remains only for compatibility ingress.
 
 ### Phase 7: Sleep And Repo Refresh
 

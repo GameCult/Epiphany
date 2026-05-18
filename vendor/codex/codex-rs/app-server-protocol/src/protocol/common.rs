@@ -3923,6 +3923,7 @@ mod tests {
                         active_subgoal_id: Some("phase6".to_string()),
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: vec!["job-surface".to_string()],
+                        memory_context: None,
                         investigation_checkpoint: None,
                         scratch: None,
                         invariants: Vec::new(),

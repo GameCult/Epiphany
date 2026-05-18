@@ -482,6 +482,7 @@ pub async fn select_epiphany_coordinator_automation(
                     input.state,
                     checkpoint,
                     &reorient_decision,
+                    None,
                 )
             }),
         EpiphanyCoordinatorAutomationAction::None

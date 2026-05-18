@@ -111,6 +111,8 @@ pub struct EpiphanyReorientWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scratch: Option<EpiphanyScratchPad>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_context: Option<EpiphanyMemoryContextPacket>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graphs: Option<EpiphanyGraphs>,
     #[serde(default)]
     pub recent_evidence: Vec<EpiphanyEvidenceRecord>,

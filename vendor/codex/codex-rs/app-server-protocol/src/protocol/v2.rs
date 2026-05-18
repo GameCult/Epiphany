@@ -72,6 +72,7 @@ use codex_protocol::protocol::EpiphanyInvestigationCheckpoint as CoreEpiphanyInv
 use codex_protocol::protocol::EpiphanyInvestigationDisposition as CoreEpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobBinding as CoreEpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
+use codex_protocol::protocol::EpiphanyMemoryContextPacket as CoreEpiphanyMemoryContextPacket;
 use codex_protocol::protocol::EpiphanyMemoryPatchCandidate as CoreEpiphanyMemoryPatchCandidate;
 use codex_protocol::protocol::EpiphanyMemoryPatchReview as CoreEpiphanyMemoryPatchReview;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
@@ -5230,6 +5231,9 @@ pub struct ThreadEpiphanyRoleWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub active_graph_node_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable, type = "CoreEpiphanyMemoryContextPacket | null")]
+    pub memory_context: Option<CoreEpiphanyMemoryContextPacket>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub investigation_checkpoint: Option<CoreEpiphanyInvestigationCheckpoint>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -5294,6 +5298,9 @@ pub struct ThreadEpiphanyReorientWorkerLaunchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub scratch: Option<CoreEpiphanyScratchPad>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional = nullable, type = "CoreEpiphanyMemoryContextPacket | null")]
+    pub memory_context: Option<CoreEpiphanyMemoryContextPacket>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional = nullable)]
     pub graphs: Option<CoreEpiphanyGraphs>,

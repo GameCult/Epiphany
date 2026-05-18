@@ -19,6 +19,7 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::EpiphanyMemoryPatchReview;
 use epiphany_core::EpiphanyMemoryPatchReviewStatus;
 use epiphany_core::EpiphanyPromotionInput;
@@ -384,12 +385,14 @@ pub async fn launch_thread_epiphany_role(
                 .to_string(),
         )
     })?;
+    let memory_graph_snapshot = load_thread_memory_graph_snapshot(thread).await?;
     let launch_request = build_epiphany_role_launch_request(
         thread_id,
         role_id,
         expected_revision,
         max_runtime_seconds,
         &state,
+        memory_graph_snapshot.as_ref(),
     )
     .map_err(CodexErr::InvalidRequest)?;
     launch_thread_epiphany_job(
@@ -491,6 +494,7 @@ pub async fn launch_thread_epiphany_reorient(
         state,
         checkpoint,
         &decision,
+        load_thread_memory_graph_snapshot(thread).await?.as_ref(),
     );
     let changed_fields = epiphany_job_launch_changed_fields();
     let launched = thread.epiphany_launch_job(launch_request).await?;
@@ -517,6 +521,19 @@ pub async fn launch_thread_epiphany_reorient(
         changed_fields,
         epiphany_state,
         job,
+    })
+}
+
+async fn load_thread_memory_graph_snapshot(
+    thread: &CodexThread,
+) -> Result<Option<EpiphanyMemoryGraphSnapshot>, CodexErr> {
+    let config = thread.config_snapshot().await;
+    let store_path = memory_graph_store_path(config.cwd.as_path());
+    load_memory_graph_snapshot(&store_path).map_err(|err| {
+        CodexErr::InvalidRequest(format!(
+            "failed to load memory graph store {}: {err}",
+            store_path.display()
+        ))
     })
 }
 

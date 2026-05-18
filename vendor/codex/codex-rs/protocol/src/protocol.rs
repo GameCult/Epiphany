@@ -2964,6 +2964,7 @@ pub use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 pub use epiphany_state_model::EpiphanyInvestigationDisposition;
 pub use epiphany_state_model::EpiphanyJobBinding;
 pub use epiphany_state_model::EpiphanyJobKind;
+pub use epiphany_state_model::EpiphanyMemoryContextPacket;
 pub use epiphany_state_model::EpiphanyMemoryPatchCandidate;
 pub use epiphany_state_model::EpiphanyMemoryPatchReview;
 pub use epiphany_state_model::EpiphanyMemoryPatchReviewStatus;
