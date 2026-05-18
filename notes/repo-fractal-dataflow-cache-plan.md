@@ -382,3 +382,472 @@ The target is not "faster search." The target is:
 
 The renderer from the article does not wake every branch of the fractal tree.
 Epiphany should not wake the whole repo every time it wants to move one bolt.
+
+## Implementation Roadmap
+
+The plan above is architecturally concrete, but not yet implementation-concrete.
+This roadmap is the cut order. Do not jump to Qdrant first. A fast lie is still
+a lie; it just gets to the wrong answer with better posture.
+
+### Phase 0: Name The Contract
+
+Objective: make the target type surface explicit before any scanner, model, or
+vector store can smuggle authority into the system.
+
+Files:
+
+- `epiphany-state-model/src/lib.rs`
+- `schemas/cultnet/`
+- `epiphany-core/src/lib.rs`
+
+Add typed state-model structs:
+
+- `EpiphanyRepoModelSnapshot`
+- `EpiphanyRepoDomain`
+- `EpiphanyRepoNode`
+- `EpiphanyRepoEdge`
+- `EpiphanyRepoSummary`
+- `EpiphanyRepoSourceHash`
+- `EpiphanyRepoEmbeddingManifest`
+- `EpiphanyRepoFreshness`
+- `EpiphanyRepoContextQuery`
+- `EpiphanyRepoContextPacket`
+- `EpiphanyRepoModelPatchCandidate`
+- `EpiphanyRepoModelReceipt`
+
+Minimum fields:
+
+- stable id
+- schema version
+- workspace/repo id
+- source hash identity
+- owner domain id
+- kind enum
+- confidence/freshness status
+- code refs
+- evidence refs where applicable
+- summary text where applicable
+
+Tests:
+
+- serde round trip for every document type
+- JSON schema generation or schema catalog inclusion for every public contract
+- stable defaults do not serialize empty ballast
+
+Exit criteria:
+
+- The repo-model document vocabulary compiles without Qdrant.
+- The contracts can be advertised without any scanner implementation.
+
+### Phase 1: Pure Repo Model Core
+
+Objective: build the in-memory law engine that can validate and select graph
+context without touching disk, Qdrant, Ollama, Codex, or app-server routing.
+
+Files:
+
+- `epiphany-core/src/repo_model.rs`
+- `epiphany-core/src/repo_model/ids.rs`
+- `epiphany-core/src/repo_model/validation.rs`
+- `epiphany-core/src/repo_model/freshness.rs`
+- `epiphany-core/src/repo_model/context_cut.rs`
+- `epiphany-core/src/lib.rs`
+
+Functions:
+
+- `repo_model_domain_id(kind, path_or_name) -> String`
+- `repo_model_node_id(domain_id, kind, path, symbol) -> String`
+- `repo_model_edge_id(source_id, target_id, kind, code_refs) -> String`
+- `validate_repo_model_snapshot(snapshot) -> Vec<EpiphanyRepoModelValidationError>`
+- `derive_repo_model_freshness(snapshot, source_hashes, dirty_paths) -> EpiphanyRepoFreshness`
+- `plan_repo_context_cut(snapshot, query, budget) -> EpiphanyRepoContextPacket`
+
+Tests:
+
+- node ids are stable from domain/path/symbol
+- edge ids are stable and collision-resistant for kind/source/target
+- edges referencing missing nodes are rejected
+- summaries referencing missing child ids are rejected
+- dirty source hashes mark affected nodes and summaries stale
+- context planner returns a parent summary when it is fresh, high-confidence,
+  and within task scope
+- context planner descends into children when summary confidence is low,
+  freshness is stale, task relevance is high, or exact refs are required
+- context packet carries required verification seams when nodes name tests
+
+Exit criteria:
+
+- `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib repo_model`
+  passes.
+- Repo context packets can be produced from fixture documents without Qdrant.
+
+### Phase 2: Deterministic Scanner
+
+Objective: populate a useful repo model from deterministic source facts before
+model-assisted semantic extraction enters the room wearing perfume.
+
+Files:
+
+- `epiphany-core/src/repo_model/scanner.rs`
+- `epiphany-core/src/repo_model/rust_scanner.rs`
+- `epiphany-core/src/repo_model/doc_scanner.rs`
+- `epiphany-core/src/repo_model/git_snapshot.rs`
+- `epiphany-core/src/bin/epiphany-repo-model.rs`
+
+Command:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- scan --workspace .
+```
+
+Scanner output:
+
+- crate/workspace domains from Cargo manifests
+- module/file domains from Rust source paths
+- binary/test/example domains where discoverable
+- schema/prompt/doc domains from known Epiphany paths
+- deterministic ownership edges from workspace/module nesting
+- dependency edges from manifests
+- test edges from obvious test modules/files
+- source hashes for every scanned path
+
+Do not parse all Rust semantics by hand. Start with conservative file/module
+domain facts. Pull in `syn` later only where it earns its cost.
+
+Tests:
+
+- fixture workspace produces expected domains and ownership edges
+- ignored/build paths stay excluded
+- dirty git snapshot maps to relative paths
+- scanner output validates through Phase 1 validation
+
+Exit criteria:
+
+- A fresh scan can produce a valid typed snapshot and context packet for a
+  fixture repo without embeddings.
+
+### Phase 3: CultCache Store And Native CLI
+
+Objective: make repo-model state durable as typed MessagePack documents, not a
+JSON export hiding under a nicer noun.
+
+Files:
+
+- `epiphany-core/src/repo_model/store.rs`
+- `epiphany-core/src/bin/epiphany-repo-model.rs`
+- `state/` only as runtime output, not checked-in sample sludge
+
+Commands:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- scan --workspace . --store .\state\repo-model.msgpack
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- status --store .\state\repo-model.msgpack
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- context --store .\state\repo-model.msgpack --query "heartbeat scheduling split"
+```
+
+Tests:
+
+- MessagePack round trip for snapshot, summaries, manifest, and receipts
+- status reports missing, stale, ready, and invalid states correctly
+- context command works against a fixture store
+
+Exit criteria:
+
+- Repo model can be created, persisted, read, and queried locally with no
+  app-server and no Qdrant.
+
+### Phase 4: Summary Construction
+
+Objective: build conservative summaries that can stand in for child detail
+without lying to the coding agent.
+
+Files:
+
+- `epiphany-core/src/repo_model/summary.rs`
+- `epiphany-core/src/repo_model/context_cut.rs`
+
+Deterministic summary fields:
+
+- domain/node title
+- owned invariant
+- known inputs
+- known outputs
+- child ids
+- source hash set
+- public code refs
+- test seam refs
+- confidence
+- freshness
+- blast-radius hint
+
+Model-assisted summaries remain patch candidates only:
+
+- They cite source refs.
+- They include confidence.
+- They do not overwrite deterministic ownership.
+- They require review before promotion to accepted durable project truth.
+
+Tests:
+
+- summary source hash is derived from child hashes
+- stale child makes parent summary stale
+- missing invariant lowers confidence
+- model-assisted summary candidate cannot become accepted graph truth without a
+  review receipt
+
+Exit criteria:
+
+- Context packets can include parent summaries with explicit confidence and
+  freshness.
+
+### Phase 5: Split Retrieval Backend
+
+Objective: stop `retrieval.rs` from being the one-room apartment where BM25,
+chunking, Ollama, Qdrant, manifests, and future repo-model cache code all sleep
+in the same chair.
+
+Files:
+
+- `epiphany-core/src/retrieval.rs`
+- `epiphany-core/src/retrieval/chunking.rs`
+- `epiphany-core/src/retrieval/bm25.rs`
+- `epiphany-core/src/retrieval/embedding.rs`
+- `epiphany-core/src/retrieval/qdrant.rs`
+- `epiphany-core/src/retrieval/manifest.rs`
+
+Keep behavior stable:
+
+- existing retrieve/index APIs continue to work
+- Qdrant/Ollama request shape remains covered by tests
+- BM25 fallback remains available
+
+Tests:
+
+- existing retrieval tests pass
+- Qdrant client mock tests move to `retrieval/qdrant.rs`
+- embedding mock tests move to `retrieval/embedding.rs`
+- manifest freshness tests move to `retrieval/manifest.rs`
+
+Exit criteria:
+
+- Repo model can depend on embedding/vector traits without importing the whole
+  old retrieval monolith.
+
+### Phase 6: Qdrant Repo-Model Cache
+
+Objective: add fast vector selection over typed repo-model documents without
+letting the vector store own architecture truth.
+
+Files:
+
+- `epiphany-core/src/repo_model/embedding_cache.rs`
+- `epiphany-core/src/repo_model/context_cut.rs`
+- `epiphany-core/src/retrieval/qdrant.rs`
+- `epiphany-core/src/retrieval/embedding.rs`
+
+Documents to embed:
+
+- repo domains
+- repo nodes
+- repo edges
+- repo summaries
+- selected source excerpts
+- prior accepted context packets, if useful later
+
+Qdrant point payloads may contain only:
+
+- typed document id
+- document type
+- workspace/repo id
+- source hash
+- summary label
+- freshness
+- compact code refs
+
+They must not contain the full canonical node/edge/summary payload.
+
+Tests:
+
+- cache indexes typed document ids and source hashes
+- stale source hash marks points stale or schedules refresh
+- missing Qdrant falls back to pure graph context planner
+- Qdrant hit for missing typed document id is ignored and reported
+- vector ranking can influence context-cut order but cannot invent packet
+  contents absent from typed documents
+
+Exit criteria:
+
+- Context query uses Qdrant for candidate ranking when ready.
+- Deleting Qdrant preserves correctness with slower graph traversal.
+
+### Phase 7: CultNet Runtime Surface
+
+Objective: make repo-model context a native Epiphany contract instead of another
+Codex JSON-RPC endpoint.
+
+Files:
+
+- `epiphany-core/src/runtime_spine.rs`
+- `epiphany-core/src/bin/epiphany-runtime-spine.rs`
+- `schemas/cultnet/`
+- `epiphany-core/src/repo_model.rs`
+
+Advertise contracts:
+
+- `epiphany.repo_model.status`
+- `epiphany.repo_model.scan_intent`
+- `epiphany.repo_model.scan_receipt`
+- `epiphany.repo_model.context_query`
+- `epiphany.repo_model.context_packet`
+- `epiphany.repo_model.patch_candidate`
+- `epiphany.repo_model.accept_receipt`
+
+Tests:
+
+- runtime-spine schema catalog includes repo-model documents and mutation
+  contracts
+- status/context query can be represented as typed intent/receipt documents
+- read-only context query cannot mutate accepted project state
+
+Exit criteria:
+
+- Aquarium and native CLIs have a non-Codex contract to request repo-model
+  status and context packets.
+
+### Phase 8: Coding-Lane Integration
+
+Objective: give the coding agent context packets before ordinary implementation
+work so repo orientation stops beginning with blind `rg`.
+
+Files:
+
+- `epiphany-core/src/prompt.rs`
+- `epiphany-core/src/surfaces/worker_launch.rs`
+- `vendor/codex/...` only as compatibility bridge surfaces if still needed
+
+Behavior:
+
+- Before a bounded coding/modeling/verification lane starts, request a repo
+  context packet for the objective/current slice.
+- Render compact packet summary into model context.
+- Include exact refs and required verification seams.
+- Include stale/missing regions as explicit warnings.
+- Do not auto-accept repo-model patch candidates.
+
+Tests:
+
+- prompt renderer includes context packet summary when present
+- stale packet warns instead of pretending certainty
+- packet refs do not expose sealed forensic artifacts
+- missing repo model degrades to current retrieval/manual orientation path
+
+Exit criteria:
+
+- Normal work starts with a typed repo context packet when available.
+- Manual grep becomes fallback/exact verification, not primary orientation.
+
+### Phase 9: Accepted Graph Integration
+
+Objective: connect repo-model candidates to existing review-gated Epiphany graph
+truth without creating a second doctrine source.
+
+Files:
+
+- `epiphany-core/src/proposal.rs`
+- `epiphany-core/src/promotion.rs`
+- `epiphany-core/src/state_update.rs`
+- `epiphany-core/src/repo_model/patch.rs`
+
+Behavior:
+
+- Repo model can propose graph nodes/edges/summaries as patch candidates.
+- Promotion validates source hashes, evidence refs, and freshness.
+- Accepted graph remains in `EpiphanyThreadState.graphs`.
+- Repo-model documents may reference accepted graph ids, but may not silently
+  replace them.
+
+Tests:
+
+- stale repo-model candidate cannot promote without regather/re-scan
+- candidate with missing evidence refs is rejected
+- accepted candidate writes typed evidence/observation/graph patch through
+  existing state-update law
+- duplicate graph proposals collapse by stable id/code refs
+
+Exit criteria:
+
+- Repo-model output can improve accepted graph truth only through existing
+  review gates.
+
+### Phase 10: Consumer Migration And Cuts
+
+Objective: collapse ordinary orientation around repo-model packets while
+keeping exact retrieval as a leaf evidence tool.
+
+Migration:
+
+- Native status surfaces show repo-model status/freshness.
+- Aquarium consumes repo-model status and context packets.
+- Modeling/checkpoint lane requests repo context before proposing graph patches.
+- Verification lane requests repo context with test-seam emphasis.
+- `thread/epiphany/retrieve` remains compatibility/exact search, not the
+  conceptual orientation path.
+
+Cuts:
+
+- remove any duplicated graph freshness logic once repo-model freshness owns
+  source hash coverage
+- delete any context packet assembly that ranks raw chunks without graph domain
+  ownership
+- remove Qdrant payload fields that duplicate canonical typed docs
+
+Exit criteria:
+
+- A coding task can be routed:
+
+```text
+objective
+-> repo context query
+-> typed context packet
+-> coding/modeling/verification lane
+-> exact reads only where packet requires descent
+-> reviewed patch/evidence/graph updates
+```
+
+## First Implementable Ticket
+
+Start here if the user says "build it."
+
+Title: `Add typed RepoModel documents and pure context-cut validation`
+
+Scope:
+
+- Add repo-model document structs to `epiphany-state-model/src/lib.rs`.
+- Add `epiphany-core/src/repo_model.rs` plus `ids`, `validation`,
+  `freshness`, and `context_cut` submodules.
+- Export the pure APIs from `epiphany-core/src/lib.rs`.
+- Add fixture-only unit tests for stable ids, missing-edge validation, stale
+  hash propagation, and parent-summary context cuts.
+
+Out of scope:
+
+- no Qdrant
+- no Ollama
+- no scanner
+- no app-server route
+- no CultNet runtime-spine advertisement
+- no prompt integration
+
+Verification:
+
+```powershell
+cargo fmt --manifest-path .\epiphany-core\Cargo.toml
+cargo test --manifest-path .\epiphany-core\Cargo.toml --lib repo_model
+cargo check --manifest-path .\epiphany-core\Cargo.toml
+```
+
+Definition of done:
+
+- The repo-model organ has typed bones and pure tests.
+- The next ticket can add deterministic scanning without debating what a node,
+  edge, summary, freshness record, or context packet is supposed to be.
