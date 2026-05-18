@@ -59,7 +59,7 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     #[cultcache(key = 5, default)]
     pub sleep_cycle: Option<Value>,
     #[cultcache(key = 6, default)]
-    pub memory_resonance: Option<Value>,
+    pub memory_resonance: Option<HeartbeatMemoryResonance>,
     #[cultcache(key = 7, default)]
     pub incubation: Option<Value>,
     #[cultcache(key = 8, default)]
@@ -133,6 +133,35 @@ pub struct HeartbeatCandidateInterventions {
     pub schema_version: String,
     pub updated_at: String,
     pub items: Vec<HeartbeatCandidateIntervention>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatMemoryResonance {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub source: String,
+    pub record_count: usize,
+    pub pairs: Vec<HeartbeatMemoryResonancePair>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatMemoryResonancePair {
+    pub left_role: String,
+    pub left_memory_id: String,
+    pub left_memory_kind: String,
+    pub left_summary: String,
+    pub right_role: String,
+    pub right_memory_id: String,
+    pub right_memory_kind: String,
+    pub right_summary: String,
+    pub strength: f64,
+    pub shared_tokens: Vec<String>,
+    pub source_roles: Vec<String>,
+    pub source_kinds: Vec<String>,
+    pub evidence_refs: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

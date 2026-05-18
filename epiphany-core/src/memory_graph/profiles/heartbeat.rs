@@ -49,33 +49,24 @@ fn import_resonance(
     let Some(resonance) = cognition.memory_resonance.as_ref() else {
         return;
     };
-    let Some(pairs) = resonance.get("pairs").and_then(Value::as_array) else {
-        return;
-    };
     let domain_id = push_domain(
         domains,
         EpiphanyMemoryProfile::ShortTerm,
         "heartbeat resonance",
     );
     let before = nodes.len();
-    for pair in pairs.iter().take(8) {
-        let left = string_at(pair, "leftSummary");
-        let right = string_at(pair, "rightSummary");
-        let left_role = string_at(pair, "leftRole");
-        let right_role = string_at(pair, "rightRole");
+    for pair in resonance.pairs.iter().take(8) {
         let id_seed = format!(
             "{}:{}:{}",
-            left_role,
-            right_role,
-            string_at(pair, "leftMemoryId")
+            pair.left_role, pair.right_role, pair.left_memory_id
         );
         nodes.push(EpiphanyMemoryNode {
             id: memory_graph_node_id(&domain_id, "resonance", id_seed, None),
             domain_id: domain_id.clone(),
             profile: EpiphanyMemoryProfile::ShortTerm,
             kind: EpiphanyMemoryNodeKind::ShortTermThought,
-            title: format!("{left_role}/{right_role} resonance"),
-            claim: format!("{left} / {right}"),
+            title: format!("{}/{} resonance", pair.left_role, pair.right_role),
+            claim: format!("{} / {}", pair.left_summary, pair.right_summary),
             question: "Is this resonance signal, stale echo, or a branch worth following?"
                 .to_string(),
             tension: "Shared vocabulary is not proof of shared truth.".to_string(),
@@ -84,7 +75,7 @@ fn import_resonance(
                     .to_string(),
             source_hashes: vec!["anchor:missing".to_string()],
             lifecycle: EpiphanyMemoryLifecycle::Active,
-            salience: score_to_u32(number_at(pair, "strength")),
+            salience: score_to_u32(pair.strength),
             confidence: 55,
             ..Default::default()
         });
@@ -370,6 +361,8 @@ mod tests {
     use crate::heartbeat_state::HEARTBEAT_COGNITION_SCHEMA_VERSION;
     use crate::heartbeat_state::HeartbeatCandidateIntervention;
     use crate::heartbeat_state::HeartbeatCandidateInterventions;
+    use crate::heartbeat_state::HeartbeatMemoryResonance;
+    use crate::heartbeat_state::HeartbeatMemoryResonancePair;
     use crate::memory_graph::validate_memory_graph_snapshot;
 
     #[test]
@@ -381,16 +374,18 @@ mod tests {
             latest_artifact_ref: None,
             source: Some("unit-test".to_string()),
             sleep_cycle: None,
-            memory_resonance: Some(serde_json::json!({
-                "pairs": [{
-                    "leftRole": "body",
-                    "rightRole": "soul",
-                    "leftMemoryId": "mem-a",
-                    "leftSummary": "Architecture needs anchors.",
-                    "rightSummary": "Verification needs receipts.",
-                    "strength": 0.8
-                }]
-            })),
+            memory_resonance: Some(HeartbeatMemoryResonance {
+                pairs: vec![HeartbeatMemoryResonancePair {
+                    left_role: "body".to_string(),
+                    right_role: "soul".to_string(),
+                    left_memory_id: "mem-a".to_string(),
+                    left_summary: "Architecture needs anchors.".to_string(),
+                    right_summary: "Verification needs receipts.".to_string(),
+                    strength: 0.8,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
             incubation: Some(serde_json::json!({
                 "themes": [{
                     "themeId": "theme-body-soul",
