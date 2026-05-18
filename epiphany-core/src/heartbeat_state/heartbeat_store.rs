@@ -59,7 +59,8 @@ pub fn load_heartbeat_cognition_entry(
 ) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
     let store_path = store_path.as_ref();
     let cache = heartbeat_state_cache(store_path)?;
-    if let Some(cognition) = cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
+    if let Some(cognition) =
+        cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
     {
         return Ok(Some(cognition));
     }
@@ -131,7 +132,9 @@ fn legacy_heartbeat_cognition_entry(
         incubation: legacy.incubation,
         thought_lanes: legacy.thought_lanes,
         bridge: legacy.bridge,
-        candidate_interventions: legacy.candidate_interventions,
+        candidate_interventions: legacy
+            .candidate_interventions
+            .and_then(|value| serde_json::from_value(value).ok()),
         appraisals: legacy
             .appraisals
             .and_then(|value| serde_json::from_value(value).ok()),
@@ -237,7 +240,10 @@ mod tests {
         let loaded_cognition = load_heartbeat_cognition_entry(&store_path)?
             .expect("heartbeat cognition should round-trip through CultCache");
 
-        assert_eq!(loaded_cognition.schema_version, HEARTBEAT_COGNITION_SCHEMA_VERSION);
+        assert_eq!(
+            loaded_cognition.schema_version,
+            HEARTBEAT_COGNITION_SCHEMA_VERSION
+        );
         assert_eq!(loaded_cognition.latest_run_id.as_deref(), Some("run-1"));
         Ok(())
     }

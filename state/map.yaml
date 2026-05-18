@@ -53,6 +53,9 @@ objective:
     Heartbeat cognition appraisals and reactions are typed CultCache fields;
     legacy cognition blobs are parsed only while migrating old stores, and
     status/artifact JSON is projection output.
+    Heartbeat cognition candidate interventions are typed review-gated speech
+    candidates; Face/Aquarium pressure no longer reads that surface as an
+    arbitrary JSON item list except when migrating legacy stores.
 
 constraints:
   - No frontier-scale training tithe.
