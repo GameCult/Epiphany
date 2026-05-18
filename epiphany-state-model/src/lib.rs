@@ -1093,6 +1093,9 @@ pub struct EpiphanyMemoryPatchCandidate {
     pub profile: EpiphanyMemoryProfile,
     pub status: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<EpiphanyMemoryDomain>")]
+    pub proposed_domains: Vec<EpiphanyMemoryDomain>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryNode>")]
     pub proposed_nodes: Vec<EpiphanyMemoryNode>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1101,6 +1104,38 @@ pub struct EpiphanyMemoryPatchCandidate {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
     pub reasons: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
+pub struct EpiphanyMemoryPatchReview {
+    pub candidate_id: String,
+    pub status: EpiphanyMemoryPatchReviewStatus,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub accepted_domain_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub accepted_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub accepted_edge_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub errors: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<string>")]
+    pub warnings: Vec<String>,
+}
+
+#[derive(
+    Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash, JsonSchema, TS, Default,
+)]
+#[serde(rename_all = "snake_case")]
+#[ts(rename_all = "snake_case")]
+pub enum EpiphanyMemoryPatchReviewStatus {
+    #[default]
+    Rejected,
+    Accepted,
 }
 
 fn is_zero_u32(value: &u32) -> bool {

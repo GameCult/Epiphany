@@ -409,3 +409,91 @@ fn memory_graph_embedding_documents_are_stable_typed_cache_cargo() {
     assert!(manifest.source_hashes.contains(&"hash-a".to_string()));
     assert!(manifest.source_hashes.contains(&"hash-b".to_string()));
 }
+
+#[test]
+fn memory_patch_candidate_review_accepts_append_only_graph_growth() {
+    let snapshot = fixture_snapshot();
+    let domain_id = snapshot.domains[0].id.clone();
+    let node_id = memory_graph_node_id(&domain_id, "module", "src/runtime_spine.rs", Some("role"));
+    let candidate = EpiphanyMemoryPatchCandidate {
+        id: "candidate-runtime-spine".to_string(),
+        profile: EpiphanyMemoryProfile::RepoArchitecture,
+        status: "proposed".to_string(),
+        proposed_nodes: vec![EpiphanyMemoryNode {
+            id: node_id.clone(),
+            domain_id,
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            kind: EpiphanyMemoryNodeKind::RuntimeContract,
+            title: "Runtime spine role results".to_string(),
+            claim: "Runtime role results carry typed memory patch candidates.".to_string(),
+            question: "When should candidate review apply them?".to_string(),
+            tension: String::new(),
+            action_implication: "Review candidates against the typed graph before mutation."
+                .to_string(),
+            source_hashes: vec!["anchor:missing".to_string()],
+            lifecycle: EpiphanyMemoryLifecycle::Proposed,
+            confidence: 72,
+            ..Default::default()
+        }],
+        reasons: vec!["Typed result cargo needs a graph-owned review law.".to_string()],
+        ..Default::default()
+    };
+
+    let (accepted, review) = apply_memory_patch_candidate(
+        &snapshot,
+        &candidate,
+        Some("2026-05-18T00:00:00Z".to_string()),
+    );
+
+    assert_eq!(review.status, EpiphanyMemoryPatchReviewStatus::Accepted);
+    assert_eq!(review.accepted_node_ids, vec![node_id.clone()]);
+    assert!(accepted.nodes.iter().any(|node| node.id == node_id));
+    assert!(
+        accepted
+            .lifecycle_receipts
+            .iter()
+            .any(|receipt| receipt.operation == "memoryPatchCandidate.accept")
+    );
+}
+
+#[test]
+fn memory_patch_candidate_review_rejects_duplicate_or_orphan_growth() {
+    let snapshot = fixture_snapshot();
+    let candidate = EpiphanyMemoryPatchCandidate {
+        id: "candidate-bad".to_string(),
+        profile: EpiphanyMemoryProfile::RepoArchitecture,
+        status: "proposed".to_string(),
+        proposed_nodes: vec![EpiphanyMemoryNode {
+            id: snapshot.nodes[0].id.clone(),
+            domain_id: "missing-domain".to_string(),
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            kind: EpiphanyMemoryNodeKind::Module,
+            title: "Duplicate".to_string(),
+            claim: "Duplicate nodes must not be laundered through candidate review.".to_string(),
+            question: "Where should revisions live?".to_string(),
+            tension: String::new(),
+            action_implication: "Reject duplicate append candidates.".to_string(),
+            source_hashes: vec!["anchor:missing".to_string()],
+            lifecycle: EpiphanyMemoryLifecycle::Proposed,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let (unchanged, review) = apply_memory_patch_candidate(&snapshot, &candidate, None);
+
+    assert_eq!(unchanged, snapshot);
+    assert_eq!(review.status, EpiphanyMemoryPatchReviewStatus::Rejected);
+    assert!(
+        review
+            .errors
+            .iter()
+            .any(|error| error.contains("already exists"))
+    );
+    assert!(
+        review
+            .errors
+            .iter()
+            .any(|error| error.contains("missing domain"))
+    );
+}
