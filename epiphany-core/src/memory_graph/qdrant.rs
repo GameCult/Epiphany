@@ -1,7 +1,11 @@
+use super::EpiphanyMemoryContextPacket;
+use super::EpiphanyMemoryContextQuery;
 use super::EpiphanyMemoryEmbeddingManifest;
 use super::EpiphanyMemoryGraphSnapshot;
 use super::memory_graph_embedding_documents;
 use super::memory_graph_embedding_manifest;
+use super::plan_memory_graph_context_cut;
+use super::push_unique;
 use crate::semantic_cache::OllamaConfig;
 use crate::semantic_cache::OllamaEmbedder;
 use crate::semantic_cache::QdrantClient;
@@ -13,6 +17,7 @@ use crate::semantic_cache::validate_embedding_batch;
 use anyhow::Context;
 use anyhow::Result;
 use serde::Serialize;
+use serde_json::Value;
 use serde_json::json;
 use sha1::Digest;
 use sha1::Sha1;
@@ -36,6 +41,15 @@ pub struct EpiphanyMemoryGraphEmbeddingCacheReport {
     pub vector_dimensions: Option<u32>,
     pub indexed_document_count: usize,
     pub manifest: EpiphanyMemoryEmbeddingManifest,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyMemoryGraphSemanticHit {
+    pub document_id: String,
+    pub source_id: String,
+    pub document_kind: String,
+    pub score: f32,
 }
 
 pub fn rebuild_memory_graph_embedding_cache(
@@ -115,7 +129,6 @@ fn rebuild_memory_graph_embedding_cache_with_config(
                     "profile": document.profile,
                     "lifecycle": document.lifecycle,
                     "sourceHashes": document.source_hashes,
-                    "text": document.text,
                 }),
             })
             .collect::<Vec<_>>();
@@ -138,6 +151,138 @@ fn rebuild_memory_graph_embedding_cache_with_config(
         indexed_document_count: documents.len(),
         manifest,
     })
+}
+
+pub fn plan_memory_graph_context_cut_with_semantic_cache(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+) -> EpiphanyMemoryContextPacket {
+    let hits = match query_memory_graph_semantic_cache(snapshot, query) {
+        Ok(hits) => hits,
+        Err(err) => {
+            let mut packet = plan_memory_graph_context_cut(snapshot, query);
+            packet.warnings.push(format!(
+                "semantic cache unavailable; used typed graph traversal: {err}"
+            ));
+            return packet;
+        }
+    };
+    plan_memory_graph_context_cut_from_semantic_hits(snapshot, query, hits)
+}
+
+fn plan_memory_graph_context_cut_from_semantic_hits(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    hits: Vec<EpiphanyMemoryGraphSemanticHit>,
+) -> EpiphanyMemoryContextPacket {
+    let mut warnings = Vec::new();
+    if hits.is_empty() {
+        return plan_memory_graph_context_cut(snapshot, query);
+    }
+
+    let mut seeded_query = query.clone();
+    for hit in &hits {
+        match hit.document_kind.as_str() {
+            "node" => push_unique(&mut seeded_query.node_ids, hit.source_id.clone()),
+            "edge" => push_unique(&mut seeded_query.edge_ids, hit.source_id.clone()),
+            "summary" => {
+                if let Some(summary) = snapshot
+                    .summaries
+                    .iter()
+                    .find(|summary| summary.id == hit.source_id)
+                {
+                    for node_id in &summary.covers_node_ids {
+                        push_unique(&mut seeded_query.node_ids, node_id.clone());
+                    }
+                    for edge_id in &summary.covers_edge_ids {
+                        push_unique(&mut seeded_query.edge_ids, edge_id.clone());
+                    }
+                } else {
+                    warnings.push(format!(
+                        "semantic cache hit missing summary {}",
+                        hit.source_id
+                    ));
+                }
+            }
+            other => warnings.push(format!(
+                "semantic cache hit {} had unknown document kind {other}",
+                hit.document_id
+            )),
+        }
+    }
+
+    let mut packet = plan_memory_graph_context_cut(snapshot, &seeded_query);
+    packet.warnings.push(format!(
+        "semantic cache seeded {} typed graph document(s)",
+        hits.len()
+    ));
+    packet.warnings.extend(warnings);
+    packet
+}
+
+pub fn query_memory_graph_semantic_cache(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+) -> Result<Vec<EpiphanyMemoryGraphSemanticHit>> {
+    let mut ollama_config = ollama_config_from_env(DEFAULT_MEMORY_GRAPH_QUERY_INSTRUCTION);
+    if let Some(manifest) = &snapshot.embedding_manifest {
+        ollama_config.model = manifest.embedding_model.clone();
+    }
+    query_memory_graph_semantic_cache_with_config(
+        snapshot,
+        query,
+        qdrant_config_from_env(),
+        ollama_config,
+    )
+}
+
+fn query_memory_graph_semantic_cache_with_config(
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+    query: &EpiphanyMemoryContextQuery,
+    qdrant_config: QdrantConfig,
+    ollama_config: OllamaConfig,
+) -> Result<Vec<EpiphanyMemoryGraphSemanticHit>> {
+    let query_text = query
+        .text
+        .as_deref()
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .context("semantic cache context requires query.text")?;
+    let manifest = snapshot
+        .embedding_manifest
+        .as_ref()
+        .context("memory graph has no embedding manifest")?;
+    let collection_name = manifest
+        .collection_name
+        .as_deref()
+        .context("memory graph embedding manifest has no collection name")?;
+
+    let query_vector = OllamaEmbedder::new(ollama_config)?.embed_query(query_text)?;
+    let limit = query.budget.unwrap_or(12).clamp(1, 64) as usize;
+    let qdrant = QdrantClient::new(qdrant_config)?;
+    let hits = qdrant.query_points(collection_name, &query_vector, limit)?;
+    Ok(hits.into_iter().filter_map(map_semantic_hit).collect())
+}
+
+fn map_semantic_hit(
+    point: crate::semantic_cache::QdrantQueryPoint,
+) -> Option<EpiphanyMemoryGraphSemanticHit> {
+    let document_id = string_payload(&point.payload, "documentId")?;
+    let source_id = string_payload(&point.payload, "sourceId")?;
+    let document_kind = string_payload(&point.payload, "documentKind")?;
+    Some(EpiphanyMemoryGraphSemanticHit {
+        document_id,
+        source_id,
+        document_kind,
+        score: point.score,
+    })
+}
+
+fn string_payload(
+    payload: &std::collections::BTreeMap<String, Value>,
+    key: &str,
+) -> Option<String> {
+    payload.get(key).and_then(Value::as_str).map(str::to_string)
 }
 
 fn default_memory_graph_collection_name(graph_id: &str) -> String {
@@ -241,6 +386,93 @@ mod tests {
                 .as_ref()
                 .and_then(|manifest| manifest.collection_name.as_deref()),
             Some("test_memory_graph")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn memory_graph_semantic_query_returns_ids_not_cached_payload_text() -> Result<()> {
+        let runtime = tokio::runtime::Runtime::new()?;
+        let qdrant = runtime.block_on(MockServer::start());
+        let ollama = runtime.block_on(MockServer::start());
+
+        runtime.block_on(async {
+            Mock::given(method("POST"))
+                .and(path("/api/embed"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "embeddings": [[0.1_f32, 0.2_f32, 0.3_f32]]
+                })))
+                .mount(&ollama)
+                .await;
+            Mock::given(method("POST"))
+                .and(path("/collections/test_memory_graph/points/query"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "result": {
+                        "points": [{
+                            "score": 0.91_f32,
+                            "payload": {
+                                "documentId": "memembed-node-test",
+                                "sourceId": "node-auth-spine",
+                                "documentKind": "node",
+                                "text": "cached text must not become canonical context"
+                            }
+                        }]
+                    }
+                })))
+                .mount(&qdrant)
+                .await;
+        });
+
+        let mut snapshot = test_snapshot();
+        snapshot.embedding_manifest = Some(memory_graph_embedding_manifest(
+            &snapshot,
+            "test_memory_graph",
+            "test-embedding",
+            Some(3),
+        ));
+        let hits = query_memory_graph_semantic_cache_with_config(
+            &snapshot,
+            &EpiphanyMemoryContextQuery {
+                id: "semantic-query-test".to_string(),
+                text: Some("who owns auth".to_string()),
+                budget: Some(3),
+                ..Default::default()
+            },
+            QdrantConfig {
+                url: qdrant.uri(),
+                api_key: None,
+                timeout_ms: 1_000,
+            },
+            OllamaConfig {
+                base_url: ollama.uri(),
+                model: "test-embedding".to_string(),
+                timeout_ms: 1_000,
+                query_instruction: DEFAULT_MEMORY_GRAPH_QUERY_INSTRUCTION.to_string(),
+            },
+        )?;
+
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].source_id, "node-auth-spine");
+        assert_eq!(hits[0].document_kind, "node");
+
+        let packet = plan_memory_graph_context_cut_from_semantic_hits(
+            &snapshot,
+            &EpiphanyMemoryContextQuery {
+                id: "semantic-query-test".to_string(),
+                text: Some("who owns auth".to_string()),
+                budget: Some(3),
+                ..Default::default()
+            },
+            hits,
+        );
+        assert_eq!(packet.nodes.len(), 1);
+        assert_eq!(packet.nodes[0].id, "node-auth-spine");
+        assert!(
+            packet
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("semantic cache seeded 1"))
         );
 
         Ok(())

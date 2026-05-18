@@ -379,9 +379,12 @@ Qdrant/Ollama transport cache used by both workspace retrieval and memory graph
 indexing. `epiphany-memory-graph index` rebuilds a Qdrant collection from typed
 memory graph embedding documents and writes only the resulting
 `EpiphanyMemoryEmbeddingManifest` back to the typed graph store.
+`epiphany-memory-graph semantic-context` asks Qdrant for graph document IDs,
+then resolves all real context from the typed graph. If Qdrant is missing, the
+command falls back to typed graph traversal with an explicit warning.
 
-Still open: Qdrant candidate ranking should feed context-cut planning but never
-emit canonical memory payloads.
+Still open: rank-aware context composition should preserve Qdrant ordering more
+precisely when many candidate IDs compete for a small budget.
 
 ### Phase 7: Sleep And Repo Refresh
 

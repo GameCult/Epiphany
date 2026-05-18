@@ -30,6 +30,7 @@ use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::memory_graph_from_heartbeat_cognition;
 use epiphany_core::memory_graph_node_id;
 use epiphany_core::plan_memory_graph_context_cut;
+use epiphany_core::plan_memory_graph_context_cut_with_semantic_cache;
 use epiphany_core::rebuild_memory_graph_embedding_cache;
 use epiphany_core::validate_memory_graph_snapshot;
 use epiphany_core::write_memory_graph_snapshot;
@@ -73,6 +74,14 @@ fn main() -> Result<()> {
             let snapshot = load_memory_graph_snapshot(&store)?
                 .ok_or_else(|| anyhow!("memory graph store {} is missing", store.display()))?;
             let packet = plan_memory_graph_context_cut(&snapshot, &query);
+            print_json(&packet)?;
+        }
+        "semantic-context" => {
+            let store = require_path_arg(&mut args, "--store")?;
+            let query = read_context_query(args)?;
+            let snapshot = load_memory_graph_snapshot(&store)?
+                .ok_or_else(|| anyhow!("memory graph store {} is missing", store.display()))?;
+            let packet = plan_memory_graph_context_cut_with_semantic_cache(&snapshot, &query);
             print_json(&packet)?;
         }
         "compose" => {
@@ -590,7 +599,7 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-memory-graph <status|validate|context|compose|refresh|manifest|index|smoke> --store <path> ..."
+        "usage: epiphany-memory-graph <status|validate|context|semantic-context|compose|refresh|manifest|index|smoke> --store <path> ..."
     );
 }
 
