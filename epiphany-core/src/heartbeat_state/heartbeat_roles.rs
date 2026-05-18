@@ -55,6 +55,7 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
             .map(|role_id| default_participant(role_id))
             .collect(),
         history: Vec::new(),
+        initiative_heat: Default::default(),
         extra: BTreeMap::new(),
     }
 }
@@ -254,7 +255,9 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
         }
         "imagination" => "Synthesizes futures; must not adopt objectives.",
         "research" => "Scouts known work; must not turn research into procrastination.",
-        "modeling" => "Grows source-grounded maps and checkpoints; must not edit implementation code.",
+        "modeling" => {
+            "Grows source-grounded maps and checkpoints; must not edit implementation code."
+        }
         "implementation" => {
             "Touches source only with accepted guidance and verifier-readable evidence."
         }

@@ -14,8 +14,23 @@ mod heartbeat_projection;
 mod heartbeat_roles;
 mod heartbeat_store;
 pub use heartbeat_documents::*;
+use heartbeat_pacing::adaptive_swarm_pacing;
+use heartbeat_pacing::apply_initiative_heat_policy;
+use heartbeat_pacing::effective_cooldown_multiplier;
+use heartbeat_pacing::initiative_heat_multiplier;
+use heartbeat_pacing::mood_cooldown_multiplier;
+use heartbeat_pacing::personality_cooldown_multiplier;
+use heartbeat_pacing::running_turn_count;
 pub use heartbeat_projection::heartbeat_status_projection;
+use heartbeat_projection::history_event_json;
+use heartbeat_projection::pending_turn_json;
+use heartbeat_projection::schedule_participant_json;
+use heartbeat_projection::selection_policy_json;
+use heartbeat_roles::ROLE_ORDER;
+use heartbeat_roles::agent_id_for_role;
 pub use heartbeat_roles::default_heartbeat_state;
+use heartbeat_roles::default_participant;
+use heartbeat_roles::display_name_for_role;
 pub use heartbeat_roles::ghostlight_scene_heartbeat_state;
 pub use heartbeat_roles::initialize_ghostlight_scene_heartbeat_store;
 pub use heartbeat_roles::initialize_heartbeat_store;
@@ -26,19 +41,6 @@ pub use heartbeat_store::validate_heartbeat_cognition;
 pub use heartbeat_store::validate_heartbeat_state;
 pub use heartbeat_store::write_heartbeat_cognition_entry;
 pub use heartbeat_store::write_heartbeat_state_entry;
-use heartbeat_projection::history_event_json;
-use heartbeat_projection::pending_turn_json;
-use heartbeat_projection::schedule_participant_json;
-use heartbeat_projection::selection_policy_json;
-use heartbeat_pacing::adaptive_swarm_pacing;
-use heartbeat_pacing::effective_cooldown_multiplier;
-use heartbeat_pacing::mood_cooldown_multiplier;
-use heartbeat_pacing::personality_cooldown_multiplier;
-use heartbeat_pacing::running_turn_count;
-use heartbeat_roles::ROLE_ORDER;
-use heartbeat_roles::agent_id_for_role;
-use heartbeat_roles::default_participant;
-use heartbeat_roles::display_name_for_role;
 
 pub(super) const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
 pub(super) const HEARTBEAT_ARENA_SCENE: &str = "scene";
@@ -73,8 +75,12 @@ pub fn run_void_routine_store(
     apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     let resonance = build_memory_resonance(&memory_records);
     let incubation = build_incubation(
-        &previous_cognition.as_ref().and_then(|entry| entry.incubation.clone()),
-        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.incubation.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.bridge.clone()),
         &previous_cognition
             .as_ref()
             .and_then(|entry| entry.candidate_interventions.clone()),
@@ -83,7 +89,9 @@ pub fn run_void_routine_store(
     );
     let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
     let bridge = build_thought_bridge(
-        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.bridge.clone()),
         &thought_lanes,
         &resonance,
         &incubation,
@@ -181,6 +189,7 @@ pub fn tick_heartbeat_store(
     {
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
     }
+    apply_initiative_heat_policy(&mut state);
     let result = tick_once(&mut state, &options)?;
     write_heartbeat_state_entry(store_path, &state)?;
 
@@ -228,6 +237,7 @@ pub fn pump_heartbeat_store(
     {
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
     }
+    apply_initiative_heat_policy(&mut state);
 
     let pacing = adaptive_swarm_pacing(&state, &options);
     state.target_heartbeat_rate = pacing.effective_heartbeat_rate;
@@ -333,6 +343,96 @@ pub fn pump_heartbeat_store(
         "ok": errors.is_empty(),
         "pump": pump,
     }))
+}
+
+pub fn update_heartbeat_heat_store(
+    store_path: impl AsRef<Path>,
+    options: HeartbeatHeatUpdateOptions,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut state = load_heartbeat_state_entry(store_path)?.unwrap_or_else(|| {
+        let mut state = default_heartbeat_state(1.0);
+        patch_missing_participants(&mut state);
+        state
+    });
+    patch_missing_participants(&mut state);
+    let scope = options.scope.trim().to_lowercase();
+    let selector = options.selector.trim().to_string();
+    let id = options.id.clone().unwrap_or_else(|| {
+        if scope == "global" {
+            "global".to_string()
+        } else {
+            format!("{scope}:{selector}")
+        }
+    });
+
+    if options.clear {
+        if scope == "global" || id == "global" {
+            state.initiative_heat.global_multiplier = 1.0;
+        }
+        state
+            .initiative_heat
+            .multipliers
+            .retain(|multiplier| multiplier.id != id);
+    } else if scope == "global" {
+        state.initiative_heat.global_multiplier = options.multiplier.clamp(0.05, 25.0);
+    } else {
+        if selector.is_empty() && scope != "all" {
+            return Err(anyhow!(
+                "heartbeat heat selector is required for scope {scope}"
+            ));
+        }
+        let multiplier = HeartbeatInitiativeMultiplier {
+            id: id.clone(),
+            label: options.label.clone().unwrap_or_default(),
+            scope: scope.clone(),
+            selector: selector.clone(),
+            multiplier: options.multiplier.clamp(0.05, 25.0),
+            reason: options.reason.clone().unwrap_or_default(),
+            updated_at: Some(now_iso()),
+            expires_at_scene_clock: options
+                .expires_after_scene_clock
+                .map(|delta| round6(state.scene_clock + delta.max(0.0))),
+            extra: BTreeMap::new(),
+        };
+        state
+            .initiative_heat
+            .multipliers
+            .retain(|existing| existing.id != id);
+        state.initiative_heat.multipliers.push(multiplier);
+        state
+            .initiative_heat
+            .multipliers
+            .sort_by(|left, right| left.id.cmp(&right.id));
+    }
+    apply_initiative_heat_policy(&mut state);
+    write_heartbeat_state_entry(store_path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "command": "heat",
+        "storeFile": store_path,
+        "heat": initiative_heat_json(&state),
+        "participants": state.participants.iter().map(schedule_participant_json).collect::<Vec<_>>(),
+    }))
+}
+
+fn initiative_heat_json(state: &EpiphanyHeartbeatStateEntry) -> Value {
+    serde_json::json!({
+        "schemaVersion": state.initiative_heat.schema_version,
+        "globalMultiplier": state.initiative_heat.global_multiplier,
+        "multipliers": state.initiative_heat.multipliers.iter().map(|multiplier| {
+            serde_json::json!({
+                "id": multiplier.id,
+                "label": multiplier.label,
+                "scope": multiplier.scope,
+                "selector": multiplier.selector,
+                "multiplier": multiplier.multiplier,
+                "reason": multiplier.reason,
+                "updatedAt": multiplier.updated_at,
+                "expiresAtSceneClock": multiplier.expires_at_scene_clock,
+            })
+        }).collect::<Vec<_>>(),
+    })
 }
 
 pub fn complete_heartbeat_store(
@@ -462,6 +562,10 @@ fn tick_once(
         "effectiveCooldownMultiplier".to_string(),
         serde_json::json!(effective_cooldown_multiplier(&selected)),
     );
+    pending.extra.insert(
+        "initiativeHeatMultiplier".to_string(),
+        serde_json::json!(initiative_heat_multiplier(&selected)),
+    );
     state.participants[selected_index].pending_turn = Some(pending.clone());
     state.participants[selected_index].last_action_id = Some(action.action_id.clone());
     state.participants[selected_index].last_woke_at = Some(now_iso());
@@ -516,6 +620,7 @@ fn tick_once(
             "base_recovery": action.base_recovery,
             "personality_cooldown_multiplier": personality_cooldown_multiplier(&selected_after),
             "mood_cooldown_multiplier": mood_cooldown_multiplier(&selected_after),
+            "initiative_heat_multiplier": initiative_heat_multiplier(&selected_after),
             "effective_cooldown_multiplier": effective_cooldown_multiplier(&selected_after),
             "initiative_cost": action.initiative_cost,
             "interruptibility": action.interruptibility,

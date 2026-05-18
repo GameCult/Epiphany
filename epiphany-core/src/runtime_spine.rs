@@ -1501,11 +1501,13 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::Coordinator,
             vec![
                 "epiphany.heartbeat_pump_intent.v0",
+                "epiphany.heartbeat_heat_intent.v0",
                 "epiphany.circadian_rhythm_intent.v0",
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
                 "Aquarium controls heartbeat and circadian rhythm through typed intents, not blind state replacement.",
+                "Initiative heat is heartbeat policy: global, group, role, and agent tempo changes enter through the heartbeat heat intent.",
             ],
         ),
         mutation_contract(
@@ -2154,6 +2156,14 @@ mod tests {
                         .operations
                         .contains(&CultNetDocumentOperation::IntentSubmit)
                 );
+                assert!(
+                    heartbeat_contract
+                        .intent_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == "epiphany.heartbeat_heat_intent.v0"))
+                );
                 let coordinator_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == SURFACE_COORDINATOR_TYPE)
@@ -2259,6 +2269,14 @@ mod tests {
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some("epiphany.role_launch_intent.v0")
                 && schema.schema_version.as_deref() == Some("epiphany.role_launch_intent.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some("epiphany.heartbeat_initiative_heat.v0")
+                && schema.schema_version.as_deref() == Some("epiphany.heartbeat_initiative_heat.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some("epiphany.heartbeat_heat_intent.v0")
+                && schema.schema_version.as_deref() == Some("epiphany.heartbeat_heat_intent.v0")
         }));
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some("epiphany.swarm_control_receipt.v0")

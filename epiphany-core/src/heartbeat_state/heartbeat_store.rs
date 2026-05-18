@@ -59,7 +59,8 @@ pub fn load_heartbeat_cognition_entry(
 ) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
     let store_path = store_path.as_ref();
     let cache = heartbeat_state_cache(store_path)?;
-    if let Some(cognition) = cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
+    if let Some(cognition) =
+        cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
     {
         return Ok(Some(cognition));
     }
@@ -154,6 +155,29 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
             "heartbeat target_heartbeat_rate must be non-negative"
         ));
     }
+    if state.initiative_heat.global_multiplier <= 0.0 {
+        return Err(anyhow!(
+            "heartbeat initiative_heat global_multiplier must be positive"
+        ));
+    }
+    for multiplier in &state.initiative_heat.multipliers {
+        if multiplier.id.trim().is_empty() {
+            return Err(anyhow!("heartbeat initiative heat multiplier has empty id"));
+        }
+        if multiplier.multiplier <= 0.0 {
+            return Err(anyhow!(
+                "heartbeat initiative heat multiplier {} must be positive",
+                multiplier.id
+            ));
+        }
+        if multiplier.selector.trim().is_empty() && multiplier.scope != "all" {
+            return Err(anyhow!(
+                "heartbeat initiative heat multiplier {} selector is empty for scope {}",
+                multiplier.id,
+                multiplier.scope
+            ));
+        }
+    }
     for participant in &state.participants {
         if participant.agent_id.trim().is_empty() {
             return Err(anyhow!("heartbeat participant has empty agent_id"));
@@ -233,7 +257,10 @@ mod tests {
         let loaded_cognition = load_heartbeat_cognition_entry(&store_path)?
             .expect("heartbeat cognition should round-trip through CultCache");
 
-        assert_eq!(loaded_cognition.schema_version, HEARTBEAT_COGNITION_SCHEMA_VERSION);
+        assert_eq!(
+            loaded_cognition.schema_version,
+            HEARTBEAT_COGNITION_SCHEMA_VERSION
+        );
         assert_eq!(loaded_cognition.latest_run_id.as_deref(), Some("run-1"));
         Ok(())
     }

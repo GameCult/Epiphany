@@ -23,6 +23,9 @@
       "type": "object",
       "additionalProperties": true
     },
+    "initiativeHeat": {
+      "$ref": "epiphany.heartbeat_initiative_heat.v0.schema.json"
+    },
     "participants": {
       "type": "array",
       "items": {

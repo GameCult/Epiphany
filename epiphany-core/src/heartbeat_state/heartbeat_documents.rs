@@ -34,6 +34,8 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub participants: Vec<HeartbeatParticipant>,
     #[cultcache(key = 6)]
     pub history: Vec<HeartbeatHistoryEvent>,
+    #[cultcache(key = 16, default)]
+    pub initiative_heat: HeartbeatInitiativeHeatPolicy,
     #[cultcache(key = 15, default)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -131,6 +133,50 @@ pub struct HeartbeatPacingPolicy {
     pub idle_base_recovery: f64,
     pub sleep_heartbeat_rate_multiplier: f64,
     pub minimum_effective_rate: f64,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatInitiativeHeatPolicy {
+    #[serde(default = "default_heat_schema_version")]
+    pub schema_version: String,
+    #[serde(default = "default_heat_global_multiplier")]
+    pub global_multiplier: f64,
+    #[serde(default)]
+    pub multipliers: Vec<HeartbeatInitiativeMultiplier>,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+impl Default for HeartbeatInitiativeHeatPolicy {
+    fn default() -> Self {
+        Self {
+            schema_version: default_heat_schema_version(),
+            global_multiplier: default_heat_global_multiplier(),
+            multipliers: Vec::new(),
+            extra: BTreeMap::new(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatInitiativeMultiplier {
+    pub id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default = "default_heat_scope")]
+    pub scope: String,
+    #[serde(default)]
+    pub selector: String,
+    #[serde(default = "default_heat_global_multiplier")]
+    pub multiplier: f64,
+    #[serde(default)]
+    pub reason: String,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub expires_at_scene_clock: Option<f64>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -257,6 +303,18 @@ pub struct HeartbeatPumpOptions {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct HeartbeatHeatUpdateOptions {
+    pub scope: String,
+    pub selector: String,
+    pub multiplier: f64,
+    pub id: Option<String>,
+    pub label: Option<String>,
+    pub reason: Option<String>,
+    pub expires_after_scene_clock: Option<f64>,
+    pub clear: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct HeartbeatCompleteOptions {
     pub role: String,
     pub action_id: Option<String>,
@@ -277,4 +335,16 @@ pub struct GhostlightSceneParticipantSeed {
     pub reaction_bias: f64,
     pub interrupt_threshold: f64,
     pub constraints: Vec<String>,
+}
+
+fn default_heat_schema_version() -> String {
+    "epiphany.heartbeat_initiative_heat.v0".to_string()
+}
+
+fn default_heat_global_multiplier() -> f64 {
+    1.0
+}
+
+fn default_heat_scope() -> String {
+    "agent".to_string()
 }

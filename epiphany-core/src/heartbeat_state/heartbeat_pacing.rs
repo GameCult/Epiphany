@@ -1,4 +1,5 @@
 use super::EpiphanyHeartbeatStateEntry;
+use super::HeartbeatInitiativeMultiplier;
 use super::HeartbeatParticipant;
 use super::HeartbeatPumpOptions;
 use super::round3;
@@ -164,8 +165,102 @@ pub(super) fn mood_cooldown_multiplier(participant: &HeartbeatParticipant) -> f6
 }
 
 pub(super) fn effective_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
-    round3(personality_cooldown_multiplier(participant) * mood_cooldown_multiplier(participant))
-        .clamp(0.20, 4.0)
+    round3(
+        personality_cooldown_multiplier(participant) * mood_cooldown_multiplier(participant)
+            / initiative_heat_multiplier(participant),
+    )
+    .clamp(0.05, 8.0)
+}
+
+pub(super) fn initiative_heat_multiplier(participant: &HeartbeatParticipant) -> f64 {
+    participant
+        .extra
+        .get("initiativeHeatMultiplier")
+        .and_then(Value::as_f64)
+        .unwrap_or(1.0)
+        .clamp(0.05, 25.0)
+}
+
+pub(super) fn apply_initiative_heat_policy(state: &mut EpiphanyHeartbeatStateEntry) {
+    let global = state.initiative_heat.global_multiplier.clamp(0.05, 25.0);
+    let active_multipliers = state
+        .initiative_heat
+        .multipliers
+        .iter()
+        .filter(|multiplier| {
+            multiplier
+                .expires_at_scene_clock
+                .is_none_or(|expires| expires > state.scene_clock)
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    for participant in &mut state.participants {
+        let mut heat = global;
+        let mut basis = Vec::<Value>::new();
+        for multiplier in &active_multipliers {
+            if multiplier_matches_participant(multiplier, participant) {
+                let value = multiplier.multiplier.clamp(0.05, 25.0);
+                heat *= value;
+                basis.push(serde_json::json!({
+                    "id": multiplier.id,
+                    "scope": multiplier.scope,
+                    "selector": multiplier.selector,
+                    "multiplier": value,
+                    "reason": multiplier.reason,
+                }));
+            }
+        }
+        let heat = round3(heat.clamp(0.05, 25.0));
+        participant.extra.insert(
+            "initiativeHeatMultiplier".to_string(),
+            serde_json::json!(heat),
+        );
+        participant.extra.insert(
+            "initiativeHeat".to_string(),
+            serde_json::json!({
+                "schema_version": "epiphany.heartbeat_initiative_heat_projection.v0",
+                "globalMultiplier": global,
+                "effectiveMultiplier": heat,
+                "basis": basis,
+                "contract": "Initiative heat accelerates turn recovery. Proximity or agency pressure may raise heat, but the typed heat policy remains the authority."
+            }),
+        );
+    }
+}
+
+fn multiplier_matches_participant(
+    multiplier: &HeartbeatInitiativeMultiplier,
+    participant: &HeartbeatParticipant,
+) -> bool {
+    let selector = multiplier.selector.trim();
+    match multiplier.scope.as_str() {
+        "all" => true,
+        "agent" | "agent_id" => eq_key(&participant.agent_id, selector),
+        "role" | "role_id" => eq_key(&participant.role_id, selector),
+        "arena" => eq_key(participant.arena.as_str(), selector),
+        "participant_kind" | "kind" => eq_key(participant.participant_kind.as_str(), selector),
+        "group" | "constraint" => {
+            participant
+                .constraints
+                .iter()
+                .any(|constraint| eq_key(constraint, selector))
+                || participant
+                    .extra
+                    .get("groups")
+                    .and_then(Value::as_array)
+                    .is_some_and(|groups| {
+                        groups
+                            .iter()
+                            .filter_map(Value::as_str)
+                            .any(|group| eq_key(group, selector))
+                    })
+        }
+        _ => false,
+    }
+}
+
+fn eq_key(left: &str, right: &str) -> bool {
+    left.trim().eq_ignore_ascii_case(right.trim())
 }
 
 #[cfg(test)]
@@ -177,17 +272,55 @@ mod tests {
     #[test]
     fn running_turn_count_reads_only_running_pending_turns() {
         let mut state = default_heartbeat_state(1.0);
-        state.participants[0].pending_turn =
-            Some(crate::heartbeat_state::HeartbeatPendingTurn {
-                status: "running".to_string(),
-                ..Default::default()
-            });
-        state.participants[1].pending_turn =
-            Some(crate::heartbeat_state::HeartbeatPendingTurn {
-                status: "completed".to_string(),
-                ..Default::default()
-            });
+        state.participants[0].pending_turn = Some(crate::heartbeat_state::HeartbeatPendingTurn {
+            status: "running".to_string(),
+            ..Default::default()
+        });
+        state.participants[1].pending_turn = Some(crate::heartbeat_state::HeartbeatPendingTurn {
+            status: "completed".to_string(),
+            ..Default::default()
+        });
 
         assert_eq!(running_turn_count(&state), 1);
+    }
+
+    #[test]
+    fn initiative_heat_multiplies_agent_and_group_recovery_speed() {
+        let mut state = default_heartbeat_state(1.0);
+        state.initiative_heat.global_multiplier = 2.0;
+        state.initiative_heat.multipliers = vec![
+            HeartbeatInitiativeMultiplier {
+                id: "hands".to_string(),
+                scope: "role".to_string(),
+                selector: "implementation".to_string(),
+                multiplier: 3.0,
+                ..Default::default()
+            },
+            HeartbeatInitiativeMultiplier {
+                id: "all-maintenance".to_string(),
+                scope: "arena".to_string(),
+                selector: "maintenance".to_string(),
+                multiplier: 1.5,
+                ..Default::default()
+            },
+        ];
+
+        apply_initiative_heat_policy(&mut state);
+        let implementation = state
+            .participants
+            .iter()
+            .find(|participant| participant.role_id == "implementation")
+            .expect("implementation participant");
+        let research = state
+            .participants
+            .iter()
+            .find(|participant| participant.role_id == "research")
+            .expect("research participant");
+
+        assert_eq!(initiative_heat_multiplier(implementation), 9.0);
+        assert_eq!(initiative_heat_multiplier(research), 3.0);
+        assert!(
+            effective_cooldown_multiplier(implementation) < effective_cooldown_multiplier(research)
+        );
     }
 }
