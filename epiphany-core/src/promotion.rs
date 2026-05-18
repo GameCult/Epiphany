@@ -72,6 +72,12 @@ pub fn evaluate_promotion(input: EpiphanyPromotionInput) -> EpiphanyPromotionDec
             );
         }
     }
+    if input.graphs.is_some() {
+        reasons.push(
+            "patch.graphs is no longer accepted; graph growth belongs in typed memoryPatchCandidates"
+                .to_string(),
+        );
+    }
 
     validate_evidence_record(&input.verifier_evidence, "verifierEvidence", &mut reasons);
     if !is_accepting_status(&input.verifier_evidence.status) {
@@ -102,7 +108,7 @@ pub fn evaluate_promotion(input: EpiphanyPromotionInput) -> EpiphanyPromotionDec
             active_subgoal_id: input.active_subgoal_id.as_deref(),
             subgoals: input.subgoals.as_deref(),
             invariants: input.invariants.as_deref(),
-            graphs: input.graphs.as_ref(),
+            graphs: None,
             graph_frontier: input.graph_frontier.as_ref(),
             graph_checkpoint: input.graph_checkpoint.as_ref(),
             investigation_checkpoint: input.investigation_checkpoint.as_ref(),
@@ -742,7 +748,7 @@ mod tests {
     }
 
     #[test]
-    fn evaluate_promotion_validates_graph_references_for_map_edits() {
+    fn evaluate_promotion_rejects_graph_replacement() {
         let decision = evaluate_promotion(EpiphanyPromotionInput {
             graphs: Some(EpiphanyGraphs {
                 architecture: EpiphanyGraph {
@@ -770,7 +776,7 @@ mod tests {
             decision
                 .reasons
                 .iter()
-                .any(|reason| reason.contains("missing target node"))
+                .any(|reason| reason.contains("patch.graphs is no longer accepted"))
         );
     }
 
