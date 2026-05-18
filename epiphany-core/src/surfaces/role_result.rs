@@ -553,12 +553,6 @@ pub fn modeling_role_state_patch_policy_errors(
         errors
             .push("planning changes are not allowed through modeling role acceptance".to_string());
     }
-    if patch.graphs.is_some() {
-        errors.push(
-            "graph replacement patches are no longer accepted through modeling statePatch; use memoryPatchCandidates"
-                .to_string(),
-        );
-    }
     if patch.churn.is_some() || patch.mode.is_some() {
         errors.push(
             "churn or mode changes are not allowed through modeling role acceptance".to_string(),
@@ -596,8 +590,7 @@ pub fn imagination_role_state_patch_policy_errors(
             "invariant changes are not allowed through imagination role acceptance".to_string(),
         );
     }
-    if patch.graphs.is_some()
-        || patch.graph_frontier.is_some()
+    if patch.graph_frontier.is_some()
         || patch.graph_checkpoint.is_some()
         || patch.investigation_checkpoint.is_some()
     {
@@ -1061,7 +1054,7 @@ mod tests {
             finding
                 .item_error
                 .as_deref()
-                .is_some_and(|error| error.contains("memoryPatchCandidates"))
+                .is_some_and(|error| error.contains("unknown field `graphs`"))
         );
     }
 

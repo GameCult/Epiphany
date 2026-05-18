@@ -59,7 +59,6 @@ pub fn core_state_patch_from_protocol(
         active_subgoal_id: patch.active_subgoal_id.clone(),
         subgoals: patch.subgoals.clone(),
         invariants: patch.invariants.clone(),
-        graphs: None,
         graph_frontier: patch.graph_frontier.clone(),
         graph_checkpoint: patch.graph_checkpoint.clone(),
         scratch: patch.scratch.clone(),

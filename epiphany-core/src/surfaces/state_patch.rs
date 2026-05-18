@@ -3,7 +3,6 @@ use epiphany_state_model::EpiphanyChurnState;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyGraphCheckpoint;
 use epiphany_state_model::EpiphanyGraphFrontier;
-use epiphany_state_model::EpiphanyGraphs;
 use epiphany_state_model::EpiphanyInvariant;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyJobBinding;
@@ -17,7 +16,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct EpiphanyRoleStatePatchDocument {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub objective: Option<String>,
@@ -27,8 +26,6 @@ pub struct EpiphanyRoleStatePatchDocument {
     pub subgoals: Option<Vec<EpiphanySubgoal>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub invariants: Option<Vec<EpiphanyInvariant>>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub graphs: Option<EpiphanyGraphs>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graph_frontier: Option<EpiphanyGraphFrontier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
