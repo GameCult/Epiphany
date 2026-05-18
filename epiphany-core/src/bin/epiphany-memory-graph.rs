@@ -19,9 +19,11 @@ use epiphany_core::derive_memory_graph_freshness;
 use epiphany_core::load_agent_memory_entry_for_role;
 use epiphany_core::load_heartbeat_cognition_entry;
 use epiphany_core::load_memory_graph_snapshot;
+use epiphany_core::load_thread_state;
 use epiphany_core::memory_graph_domain_id;
 use epiphany_core::memory_graph_edge_id;
 use epiphany_core::memory_graph_from_agent_memories;
+use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::memory_graph_from_heartbeat_cognition;
 use epiphany_core::memory_graph_node_id;
 use epiphany_core::plan_memory_graph_context_cut;
@@ -169,6 +171,7 @@ struct RefreshArgs {
     agent_store: Option<PathBuf>,
     agent_roles: Vec<String>,
     heartbeat_store: Option<PathBuf>,
+    thread_state_store: Option<PathBuf>,
 }
 
 fn read_compose_args(args: impl Iterator<Item = String>) -> Result<ComposeArgs> {
@@ -244,6 +247,7 @@ fn read_refresh_args(args: impl Iterator<Item = String>) -> Result<RefreshArgs> 
     let mut agent_store = None;
     let mut agent_roles = Vec::new();
     let mut heartbeat_store = None;
+    let mut thread_state_store = None;
     let mut args = args.peekable();
     while let Some(flag) = args.next() {
         match flag.as_str() {
@@ -257,12 +261,22 @@ fn read_refresh_args(args: impl Iterator<Item = String>) -> Result<RefreshArgs> 
             "--heartbeat-store" => {
                 heartbeat_store = Some(PathBuf::from(next_value(&mut args, "--heartbeat-store")?))
             }
+            "--thread-state-store" => {
+                thread_state_store = Some(PathBuf::from(next_value(
+                    &mut args,
+                    "--thread-state-store",
+                )?))
+            }
             _ => return Err(anyhow!("unexpected refresh argument {flag:?}")),
         }
     }
-    if sources.is_empty() && agent_store.is_none() && heartbeat_store.is_none() {
+    if sources.is_empty()
+        && agent_store.is_none()
+        && heartbeat_store.is_none()
+        && thread_state_store.is_none()
+    {
         return Err(anyhow!(
-            "refresh requires --source, --agent-store, or --heartbeat-store"
+            "refresh requires --source, --thread-state-store, --agent-store, or --heartbeat-store"
         ));
     }
     Ok(RefreshArgs {
@@ -272,6 +286,7 @@ fn read_refresh_args(args: impl Iterator<Item = String>) -> Result<RefreshArgs> 
         agent_store,
         agent_roles,
         heartbeat_store,
+        thread_state_store,
     })
 }
 
@@ -310,6 +325,27 @@ fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
             "kind": "agent_store",
             "source": agent_store,
             "roles": roles,
+            "graphId": snapshot.graph_id,
+            "domains": snapshot.domains.len(),
+            "nodes": snapshot.nodes.len(),
+            "edges": snapshot.edges.len(),
+            "summaries": snapshot.summaries.len(),
+        }));
+        snapshots.push(snapshot);
+    }
+
+    if let Some(thread_state_store) = &args.thread_state_store {
+        let state = load_thread_state(thread_state_store)?.ok_or_else(|| {
+            anyhow!(
+                "thread state store {} is missing",
+                thread_state_store.display()
+            )
+        })?;
+        let snapshot = memory_graph_from_epiphany_graphs("repo-profile", &state.graphs);
+        source_status.push(serde_json::json!({
+            "kind": "thread_state_store",
+            "source": thread_state_store,
+            "revision": state.revision,
             "graphId": snapshot.graph_id,
             "domains": snapshot.domains.len(),
             "nodes": snapshot.nodes.len(),
