@@ -12,9 +12,11 @@ use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::EpiphanyMemoryLifecycle;
 use epiphany_core::EpiphanyMemoryNode;
 use epiphany_core::EpiphanyMemoryNodeKind;
+use epiphany_core::EpiphanyMemoryPatchCandidate;
 use epiphany_core::EpiphanyMemoryProfile;
 use epiphany_core::EpiphanyMemorySummary;
 use epiphany_core::agent_memory_role_ids;
+use epiphany_core::apply_memory_patch_candidate;
 use epiphany_core::compose_memory_graph_snapshots;
 use epiphany_core::derive_memory_graph_freshness;
 use epiphany_core::load_agent_memory_entry_for_role;
@@ -32,9 +34,11 @@ use epiphany_core::memory_graph_node_id;
 use epiphany_core::plan_memory_graph_context_cut;
 use epiphany_core::plan_memory_graph_context_cut_with_semantic_cache;
 use epiphany_core::rebuild_memory_graph_embedding_cache;
+use epiphany_core::review_memory_patch_candidate;
 use epiphany_core::validate_memory_graph_snapshot;
 use epiphany_core::write_memory_graph_snapshot;
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 
 fn main() -> Result<()> {
@@ -102,6 +106,16 @@ fn main() -> Result<()> {
         "index" => {
             let index = read_index_args(args)?;
             let output = rebuild_memory_graph_qdrant_cache(index)?;
+            print_json(&output)?;
+        }
+        "review-candidate" => {
+            let candidate = read_candidate_args(args, false)?;
+            let output = review_memory_graph_candidate(candidate)?;
+            print_json(&output)?;
+        }
+        "apply-candidate" => {
+            let candidate = read_candidate_args(args, true)?;
+            let output = apply_memory_graph_candidate(candidate)?;
             print_json(&output)?;
         }
         "smoke" => {
@@ -208,6 +222,12 @@ struct IndexArgs {
     store: PathBuf,
     collection_name: Option<String>,
     embedding_model: Option<String>,
+}
+
+struct CandidateArgs {
+    store: PathBuf,
+    candidate: PathBuf,
+    accepted_at: Option<String>,
 }
 
 fn read_compose_args(args: impl Iterator<Item = String>) -> Result<ComposeArgs> {
@@ -378,6 +398,32 @@ fn read_index_args(args: impl Iterator<Item = String>) -> Result<IndexArgs> {
     })
 }
 
+fn read_candidate_args(
+    args: impl Iterator<Item = String>,
+    allow_acceptance: bool,
+) -> Result<CandidateArgs> {
+    let mut store = None;
+    let mut candidate = None;
+    let mut accepted_at = None;
+    let mut args = args.peekable();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--store" => store = Some(PathBuf::from(next_value(&mut args, "--store")?)),
+            "--candidate" => candidate = Some(PathBuf::from(next_value(&mut args, "--candidate")?)),
+            "--accepted-at" if allow_acceptance => {
+                accepted_at = Some(next_value(&mut args, "--accepted-at")?)
+            }
+            _ => return Err(anyhow!("unexpected candidate argument {flag:?}")),
+        }
+    }
+    Ok(CandidateArgs {
+        store: store.ok_or_else(|| anyhow!("candidate command requires --store <path>"))?,
+        candidate: candidate
+            .ok_or_else(|| anyhow!("candidate command requires --candidate <json-path>"))?,
+        accepted_at,
+    })
+}
+
 fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
     let mut snapshots = Vec::new();
     let mut source_status = Vec::new();
@@ -485,6 +531,49 @@ fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
         "summaries": snapshot.summaries.len(),
         "freshness": snapshot.freshness,
     }))
+}
+
+fn review_memory_graph_candidate(args: CandidateArgs) -> Result<serde_json::Value> {
+    let snapshot = load_memory_graph_snapshot(&args.store)?
+        .ok_or_else(|| anyhow!("memory graph store {} is missing", args.store.display()))?;
+    let candidate = load_memory_patch_candidate(&args.candidate)?;
+    let review = review_memory_patch_candidate(&snapshot, &candidate);
+    Ok(serde_json::json!({
+        "ok": review.errors.is_empty(),
+        "store": args.store,
+        "candidate": args.candidate,
+        "graphId": snapshot.graph_id,
+        "review": review,
+    }))
+}
+
+fn apply_memory_graph_candidate(args: CandidateArgs) -> Result<serde_json::Value> {
+    let snapshot = load_memory_graph_snapshot(&args.store)?
+        .ok_or_else(|| anyhow!("memory graph store {} is missing", args.store.display()))?;
+    let candidate = load_memory_patch_candidate(&args.candidate)?;
+    let (updated, review) = apply_memory_patch_candidate(&snapshot, &candidate, args.accepted_at);
+    if review.errors.is_empty() {
+        write_memory_graph_snapshot(&args.store, &updated)?;
+    }
+    Ok(serde_json::json!({
+        "ok": review.errors.is_empty(),
+        "applied": review.errors.is_empty(),
+        "store": args.store,
+        "candidate": args.candidate,
+        "graphId": updated.graph_id,
+        "review": review,
+        "domains": updated.domains.len(),
+        "nodes": updated.nodes.len(),
+        "edges": updated.edges.len(),
+        "summaries": updated.summaries.len(),
+    }))
+}
+
+fn load_memory_patch_candidate(path: &PathBuf) -> Result<EpiphanyMemoryPatchCandidate> {
+    let text = fs::read_to_string(path)
+        .with_context(|| format!("failed to read memory patch candidate {}", path.display()))?;
+    serde_json::from_str(text.trim_start_matches('\u{feff}'))
+        .with_context(|| format!("failed to parse memory patch candidate {}", path.display()))
 }
 
 fn write_memory_graph_embedding_manifest(args: ManifestArgs) -> Result<serde_json::Value> {
@@ -599,7 +688,7 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-memory-graph <status|validate|context|semantic-context|compose|refresh|manifest|index|smoke> --store <path> ..."
+        "usage: epiphany-memory-graph <status|validate|context|semantic-context|compose|refresh|manifest|index|review-candidate|apply-candidate|smoke> --store <path> ..."
     );
 }
 

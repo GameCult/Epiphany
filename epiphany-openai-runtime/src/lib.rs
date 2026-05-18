@@ -976,6 +976,11 @@ mod tests {
         let memory_candidates = typed_result.memory_patch_candidates()?;
         assert_eq!(memory_candidates.len(), 1);
         assert_eq!(memory_candidates[0].id, "mempatch-auth-spine");
+        assert_eq!(memory_candidates[0].proposed_nodes.len(), 1);
+        assert_eq!(
+            memory_candidates[0].proposed_nodes[0].domain_id,
+            "memdom-repo"
+        );
         assert!(
             runtime_job_snapshot(&store, "worker-job-1")?
                 .expect("snapshot")

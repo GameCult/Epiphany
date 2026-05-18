@@ -497,3 +497,41 @@ fn memory_patch_candidate_review_rejects_duplicate_or_orphan_growth() {
             .any(|error| error.contains("missing domain"))
     );
 }
+
+#[test]
+fn memory_patch_candidate_deserializes_camel_case_edge_json() {
+    let candidate: EpiphanyMemoryPatchCandidate = serde_json::from_str(
+        r#"{
+            "id":"candidate-camel",
+            "profile":"repo_architecture",
+            "status":"proposed",
+            "proposedDomains":[{"id":"memdom-camel","profile":"repo_architecture","title":"Camel","lifecycle":"proposed"}],
+            "proposedNodes":[{
+                "id":"memnode-camel",
+                "domainId":"memdom-camel",
+                "profile":"repo_architecture",
+                "kind":"module",
+                "title":"Camel node",
+                "claim":"Camel JSON can cross the model edge without losing typed fields.",
+                "question":"Which edge fields still need aliases?",
+                "tension":"",
+                "actionImplication":"Reject silent field loss at the JSON edge.",
+                "sourceHashes":["anchor:missing"],
+                "lifecycle":"proposed"
+            }]
+        }"#,
+    )
+    .expect("camel-case model edge candidate should parse");
+
+    assert_eq!(candidate.proposed_domains.len(), 1);
+    assert_eq!(candidate.proposed_nodes.len(), 1);
+    assert_eq!(candidate.proposed_nodes[0].domain_id, "memdom-camel");
+    assert_eq!(
+        candidate.proposed_nodes[0].action_implication,
+        "Reject silent field loss at the JSON edge."
+    );
+    assert_eq!(
+        candidate.proposed_nodes[0].source_hashes,
+        vec!["anchor:missing".to_string()]
+    );
+}

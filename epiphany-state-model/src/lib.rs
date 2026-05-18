@@ -840,6 +840,7 @@ pub enum EpiphanyMemoryNodeKind {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyMemoryNode {
     pub id: String,
+    #[serde(alias = "domainId")]
     pub domain_id: String,
     pub profile: EpiphanyMemoryProfile,
     pub kind: EpiphanyMemoryNodeKind,
@@ -847,12 +848,14 @@ pub struct EpiphanyMemoryNode {
     pub claim: String,
     pub question: String,
     pub tension: String,
+    #[serde(alias = "actionImplication")]
     pub action_implication: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryAnchor>")]
     pub anchors: Vec<EpiphanyMemoryAnchor>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "sourceHashes")]
     pub source_hashes: Vec<String>,
     #[serde(default)]
     pub lifecycle: EpiphanyMemoryLifecycle,
@@ -901,7 +904,9 @@ pub enum EpiphanyMemoryEdgeKind {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS, Default)]
 pub struct EpiphanyMemoryEdge {
     pub id: String,
+    #[serde(alias = "sourceId")]
     pub source_id: String,
+    #[serde(alias = "targetId")]
     pub target_id: String,
     pub kind: EpiphanyMemoryEdgeKind,
     pub profile: EpiphanyMemoryProfile,
@@ -922,12 +927,15 @@ pub struct EpiphanyMemoryAnchor {
     pub target: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "EpiphanyCodeRef | null")]
+    #[serde(alias = "codeRef")]
     pub code_ref: Option<EpiphanyCodeRef>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
+    #[serde(alias = "evidenceId")]
     pub evidence_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
+    #[serde(alias = "sourceHash")]
     pub source_hash: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(type = "string | null")]
@@ -940,19 +948,24 @@ pub struct EpiphanyMemorySummary {
     pub domain_id: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "coversNodeIds")]
     pub covers_node_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "coversEdgeIds")]
     pub covers_edge_ids: Vec<String>,
     pub target: String,
     pub claim: String,
     pub question: String,
     pub tension: String,
+    #[serde(alias = "actionImplication")]
     pub action_implication: String,
     #[serde(default, skip_serializing_if = "is_zero_u32")]
+    #[serde(alias = "anchorCount")]
     pub anchor_count: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "sourceHashes")]
     pub source_hashes: Vec<String>,
     #[serde(default)]
     pub freshness: EpiphanyMemoryFreshnessStatus,
@@ -960,6 +973,7 @@ pub struct EpiphanyMemorySummary {
     pub confidence: u32,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "knownOmissions")]
     pub known_omissions: Vec<String>,
 }
 
@@ -1094,12 +1108,15 @@ pub struct EpiphanyMemoryPatchCandidate {
     pub status: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryDomain>")]
+    #[serde(alias = "proposedDomains")]
     pub proposed_domains: Vec<EpiphanyMemoryDomain>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryNode>")]
+    #[serde(alias = "proposedNodes")]
     pub proposed_nodes: Vec<EpiphanyMemoryNode>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<EpiphanyMemoryEdge>")]
+    #[serde(alias = "proposedEdges")]
     pub proposed_edges: Vec<EpiphanyMemoryEdge>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
@@ -1112,12 +1129,15 @@ pub struct EpiphanyMemoryPatchReview {
     pub status: EpiphanyMemoryPatchReviewStatus,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "acceptedDomainIds")]
     pub accepted_domain_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "acceptedNodeIds")]
     pub accepted_node_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]
+    #[serde(alias = "acceptedEdgeIds")]
     pub accepted_edge_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[ts(type = "Array<string>")]

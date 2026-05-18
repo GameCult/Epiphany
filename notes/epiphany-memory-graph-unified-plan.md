@@ -391,9 +391,11 @@ the accepted graph through the memory graph substrate and no longer carry full
 `graphs` cargo. Runtime role results can persist typed
 `memoryPatchCandidates`. The core graph substrate now owns append-only review
 and application for those candidates: proposed domains/nodes/edges are checked
-against the typed graph before they can be applied with lifecycle receipts. The
-next cleanup is adding the command/bridge acceptance path so Modeling stops
-using full graph replacement patches for ordinary graph growth.
+against the typed graph before they can be applied with lifecycle receipts.
+`epiphany-memory-graph review-candidate` and `apply-candidate` expose that law
+for typed candidate files. The next cleanup is wiring bridge role acceptance to
+that path so Modeling stops using full graph replacement patches for ordinary
+graph growth.
 
 ### Phase 7: Sleep And Repo Refresh
 
