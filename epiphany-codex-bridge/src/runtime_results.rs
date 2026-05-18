@@ -23,6 +23,7 @@ use crate::results::map_protocol_reorient_finding;
 use crate::results::map_protocol_role_finding;
 use crate::results::render_epiphany_reorient_result_note;
 use crate::results::render_epiphany_role_result_note;
+use crate::state::runtime_spine_store_path;
 
 pub fn role_finding_runtime_result_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
     finding.runtime_result_id.clone()
@@ -276,7 +277,7 @@ pub async fn load_completed_epiphany_role_finding(
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyRoleFinding> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let runtime_store_path = runtime_spine_store_path(thread).await;
         let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
             Some(runtime_store_path.as_path()),
@@ -360,7 +361,7 @@ pub async fn load_completed_epiphany_reorient_finding(
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyReorientFinding> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+        let runtime_store_path = runtime_spine_store_path(thread).await;
         let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
             Some(runtime_store_path.as_path()),

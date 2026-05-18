@@ -5,6 +5,7 @@ use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
 use epiphany_codex_bridge::state::load_optional_thread_memory_graph_snapshot;
+use epiphany_codex_bridge::state::runtime_spine_store_path;
 use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
@@ -123,7 +124,7 @@ impl CodexMessageProcessor {
         };
         let runtime_store_path = if epiphany_view_needs_runtime_store(&lenses) {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
-                Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+                Some(runtime_spine_store_path(loaded_thread).await)
             } else {
                 None
             }
@@ -202,7 +203,7 @@ impl CodexMessageProcessor {
         }
 
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+            Some(runtime_spine_store_path(loaded_thread).await)
         } else {
             None
         };
@@ -423,7 +424,7 @@ impl CodexMessageProcessor {
             ThreadEpiphanyReorientSource::Stored
         };
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_runtime_spine_store_path().await)
+            Some(runtime_spine_store_path(loaded_thread).await)
         } else {
             None
         };

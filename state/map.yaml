@@ -23,10 +23,10 @@ objective:
     JSON may survive only at schema/wire/forensic/quarantine boundaries; and
     vendored Codex must be reduced to the smallest OpenAI subscription
     auth/model-transport adapter needed to preserve the user's Codex
-    compatibility. Read-route memory graph loading and runtime-spine path
-    derivation now live in `epiphany-codex-bridge::state`; vendored
-    app-server route code calls that bridge instead of owning the store
-    path/load mechanics itself. Job launch/interrupt policy now lives in
+    compatibility. Memory graph loading and runtime-spine path derivation now
+    live in `epiphany-codex-bridge::state`; vendored app-server route code
+    calls that bridge instead of owning store path/load mechanics itself. Job
+    launch/interrupt policy now lives in
     `epiphany-codex-bridge::mutation_service`; vendored `CodexThread` remains
     the narrow Codex-session persistence seam for Epiphany state read/update.
 

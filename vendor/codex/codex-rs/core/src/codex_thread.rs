@@ -401,15 +401,6 @@ impl CodexThread {
         })
     }
 
-    pub async fn epiphany_runtime_spine_store_path(&self) -> PathBuf {
-        self.config_snapshot()
-            .await
-            .cwd
-            .join("state")
-            .join("runtime-spine.msgpack")
-            .to_path_buf()
-    }
-
     pub async fn epiphany_index(
         &self,
         force_full_rebuild: bool,

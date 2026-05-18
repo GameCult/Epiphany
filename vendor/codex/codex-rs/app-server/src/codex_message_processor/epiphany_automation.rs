@@ -19,6 +19,7 @@ use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
+use epiphany_codex_bridge::state::runtime_spine_store_path;
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -46,7 +47,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         .snapshot(&thread_id_text)
         .await;
     let token_usage_info = thread.token_usage_info().await;
-    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let runtime_store_path = runtime_spine_store_path(thread.as_ref()).await;
 
     let verdict = select_epiphany_coordinator_automation(EpiphanyCoordinatorAutomationInput {
         thread_id: &thread_id_text,

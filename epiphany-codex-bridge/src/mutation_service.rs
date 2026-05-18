@@ -261,7 +261,7 @@ async fn apply_modeling_memory_patch_candidates(
     let Some(runtime_job_id) = finding.runtime_job_id.as_deref() else {
         return Ok(Vec::new());
     };
-    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let runtime_store_path = runtime_spine_store_path(thread).await;
     let Some(runtime_result) =
         runtime_role_worker_result(runtime_store_path.as_path(), runtime_job_id).map_err(|err| {
             CodexErr::InvalidRequest(format!(
