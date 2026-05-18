@@ -113,6 +113,7 @@ pub(super) fn default_participant(role_id: &str) -> HeartbeatParticipant {
         display_name: display_name_for_role(role_id).to_string(),
         arena: HEARTBEAT_ARENA_MAINTENANCE.to_string(),
         participant_kind: PARTICIPANT_KIND_AGENT.to_string(),
+        scene_id: None,
         initiative_speed: initiative_speed_for_role(role_id),
         next_ready_at: 0.0,
         reaction_bias: reaction_bias_for_role(role_id),
@@ -127,6 +128,8 @@ pub(super) fn default_participant(role_id: &str) -> HeartbeatParticipant {
         last_woke_at: None,
         last_finished_at: None,
         pending_turn: None,
+        personality_timing: None,
+        mood_timing: None,
         extra: BTreeMap::new(),
     }
 }
@@ -136,14 +139,13 @@ fn ghostlight_scene_participant(
     seed: GhostlightSceneParticipantSeed,
 ) -> HeartbeatParticipant {
     let role_id = ghostlight_role_id(seed.agent_id.as_str());
-    let mut extra = BTreeMap::new();
-    extra.insert("sceneId".to_string(), serde_json::json!(scene_id));
     HeartbeatParticipant {
         agent_id: seed.agent_id,
         role_id,
         display_name: seed.display_name,
         arena: HEARTBEAT_ARENA_SCENE.to_string(),
         participant_kind: PARTICIPANT_KIND_CHARACTER.to_string(),
+        scene_id: Some(scene_id.to_string()),
         initiative_speed: seed.initiative_speed,
         next_ready_at: 0.0,
         reaction_bias: seed.reaction_bias,
@@ -155,7 +157,9 @@ fn ghostlight_scene_participant(
         last_woke_at: None,
         last_finished_at: None,
         pending_turn: None,
-        extra,
+        personality_timing: None,
+        mood_timing: None,
+        extra: BTreeMap::new(),
     }
 }
 

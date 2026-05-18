@@ -174,6 +174,8 @@ pub struct HeartbeatParticipant {
     pub arena: String,
     #[serde(default)]
     pub participant_kind: String,
+    #[serde(rename = "sceneId", default)]
+    pub scene_id: Option<String>,
     pub initiative_speed: f64,
     pub next_ready_at: f64,
     pub reaction_bias: f64,
@@ -185,8 +187,44 @@ pub struct HeartbeatParticipant {
     pub last_woke_at: Option<String>,
     pub last_finished_at: Option<String>,
     pub pending_turn: Option<HeartbeatPendingTurn>,
+    #[serde(rename = "personalityTiming", default)]
+    pub personality_timing: Option<HeartbeatPersonalityTiming>,
+    #[serde(rename = "moodTiming", default)]
+    pub mood_timing: Option<HeartbeatMoodTiming>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatPersonalityTiming {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub source: String,
+    pub cooldown_multiplier: f64,
+    pub work_drive: f64,
+    pub handsiness: f64,
+    pub caution: f64,
+    pub rumination_bias: f64,
+    pub basis: Vec<String>,
+    pub contract: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatMoodTiming {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    pub cooldown_multiplier: f64,
+    pub anxiety: f64,
+    pub urgency: f64,
+    pub arousal: f64,
+    pub thought_pressure: f64,
+    pub guardedness: f64,
+    pub reaction_intensity: f64,
+    pub contract: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

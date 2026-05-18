@@ -203,18 +203,29 @@ fn heartbeat_cognition_status_json(cognition: &super::EpiphanyHeartbeatCognition
 }
 
 fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
+    let personality_timing = participant
+        .personality_timing
+        .as_ref()
+        .and_then(|timing| serde_json::to_value(timing).ok())
+        .or_else(|| participant.extra.get("personalityTiming").cloned());
+    let mood_timing = participant
+        .mood_timing
+        .as_ref()
+        .and_then(|timing| serde_json::to_value(timing).ok())
+        .or_else(|| participant.extra.get("moodTiming").cloned());
     serde_json::json!({
         "agentId": participant.agent_id,
         "roleId": participant.role_id,
         "displayName": participant.display_name,
         "arena": participant_arena(participant),
         "participantKind": participant_kind(participant),
+        "sceneId": participant.scene_id.as_deref().or_else(|| participant.extra.get("sceneId").and_then(Value::as_str)),
         "initiativeSpeed": participant.initiative_speed,
         "personalityCooldownMultiplier": personality_cooldown_multiplier(participant),
         "moodCooldownMultiplier": mood_cooldown_multiplier(participant),
         "effectiveCooldownMultiplier": effective_cooldown_multiplier(participant),
-        "personalityTiming": participant.extra.get("personalityTiming"),
-        "moodTiming": participant.extra.get("moodTiming"),
+        "personalityTiming": personality_timing,
+        "moodTiming": mood_timing,
         "nextReadyAt": participant.next_ready_at,
         "reactionBias": participant.reaction_bias,
         "interruptThreshold": participant.interrupt_threshold,

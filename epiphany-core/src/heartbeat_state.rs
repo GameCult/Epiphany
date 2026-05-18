@@ -1142,24 +1142,17 @@ fn apply_personality_timing_profiles(
             continue;
         };
         let timing = personality_timing_for_profile(profile);
-        participant.extra.insert(
-            "personalityCooldownMultiplier".to_string(),
-            serde_json::json!(timing.cooldown_multiplier),
-        );
-        participant.extra.insert(
-            "personalityTiming".to_string(),
-            serde_json::json!({
-                "schema_version": "epiphany.personality_timing.v0",
-                "source": "state/agents.msgpack",
-                "cooldownMultiplier": timing.cooldown_multiplier,
-                "workDrive": timing.work_drive,
-                "handsiness": timing.handsiness,
-                "caution": timing.caution,
-                "ruminationBias": timing.rumination_bias,
-                "basis": timing.basis,
-                "contract": "Cooldown is personality-shaped. Lower multipliers recover faster; higher multipliers yield the floor to other lanes."
-            }),
-        );
+        participant.personality_timing = Some(HeartbeatPersonalityTiming {
+            schema_version: "epiphany.personality_timing.v0".to_string(),
+            source: "state/agents.msgpack".to_string(),
+            cooldown_multiplier: timing.cooldown_multiplier,
+            work_drive: timing.work_drive,
+            handsiness: timing.handsiness,
+            caution: timing.caution,
+            rumination_bias: timing.rumination_bias,
+            basis: timing.basis,
+            contract: "Cooldown is personality-shaped. Lower multipliers recover faster; higher multipliers yield the floor to other lanes.".to_string(),
+        });
     }
 }
 
@@ -1326,25 +1319,21 @@ fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, ap
             .clamp(0.0, 1.0);
         let multiplier =
             (1.10 - urgency * 0.24 - anxiety * 0.38 - reaction_intensity * 0.12).clamp(0.55, 1.25);
-        participant.extra.insert(
-            "moodCooldownMultiplier".to_string(),
-            serde_json::json!(round3(multiplier)),
-        );
-        participant.extra.insert(
-            "moodTiming".to_string(),
-            serde_json::json!({
-                "schema_version": "epiphany.mood_timing.v0",
-                "source": appraisal.get("appraisalId"),
-                "cooldownMultiplier": round3(multiplier),
-                "anxiety": round3(anxiety),
-                "urgency": round3(urgency),
-                "arousal": round3(arousal),
-                "thoughtPressure": round3(thought_pressure),
-                "guardedness": round3(guardedness),
-                "reactionIntensity": round3(reaction_intensity),
-                "contract": "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner."
-            }),
-        );
+        participant.mood_timing = Some(HeartbeatMoodTiming {
+            schema_version: "epiphany.mood_timing.v0".to_string(),
+            source: appraisal
+                .get("appraisalId")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            cooldown_multiplier: round3(multiplier),
+            anxiety: round3(anxiety),
+            urgency: round3(urgency),
+            arousal: round3(arousal),
+            thought_pressure: round3(thought_pressure),
+            guardedness: round3(guardedness),
+            reaction_intensity: round3(reaction_intensity),
+            contract: "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner.".to_string(),
+        });
     }
 }
 

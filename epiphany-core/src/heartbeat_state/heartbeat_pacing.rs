@@ -104,6 +104,17 @@ fn swarm_mood_signals(state: &EpiphanyHeartbeatStateEntry) -> SwarmMoodSignals {
     let mut anxiety_total = 0.0;
     let mut anxiety_count = 0_usize;
     for participant in &state.participants {
+        if let Some(mood) = participant.mood_timing.as_ref() {
+            signals.max_anxiety = signals.max_anxiety.max(mood.anxiety);
+            signals.max_urgency = signals.max_urgency.max(mood.urgency);
+            signals.max_arousal = signals.max_arousal.max(mood.arousal);
+            signals.max_thought_pressure = signals.max_thought_pressure.max(mood.thought_pressure);
+            signals.max_reaction_intensity =
+                signals.max_reaction_intensity.max(mood.reaction_intensity);
+            anxiety_total += mood.anxiety;
+            anxiety_count += 1;
+            continue;
+        }
         let Some(mood) = participant.extra.get("moodTiming") else {
             continue;
         };
@@ -148,18 +159,30 @@ fn number_at(value: &Value, pointer: &str) -> f64 {
 
 pub(super) fn personality_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
     participant
-        .extra
-        .get("personalityCooldownMultiplier")
-        .and_then(Value::as_f64)
+        .personality_timing
+        .as_ref()
+        .map(|timing| timing.cooldown_multiplier)
+        .or_else(|| {
+            participant
+                .extra
+                .get("personalityCooldownMultiplier")
+                .and_then(Value::as_f64)
+        })
         .unwrap_or(1.0)
         .clamp(0.25, 3.0)
 }
 
 pub(super) fn mood_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
     participant
-        .extra
-        .get("moodCooldownMultiplier")
-        .and_then(Value::as_f64)
+        .mood_timing
+        .as_ref()
+        .map(|timing| timing.cooldown_multiplier)
+        .or_else(|| {
+            participant
+                .extra
+                .get("moodCooldownMultiplier")
+                .and_then(Value::as_f64)
+        })
         .unwrap_or(1.0)
         .clamp(0.25, 3.0)
 }
