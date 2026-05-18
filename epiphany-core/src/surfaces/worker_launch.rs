@@ -6,6 +6,7 @@ use epiphany_state_model::EpiphanyGraphFrontier;
 use epiphany_state_model::EpiphanyGraphs;
 use epiphany_state_model::EpiphanyInvariant;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyMemoryContextPacket;
 use epiphany_state_model::EpiphanyObservation;
 use epiphany_state_model::EpiphanyPlanningState;
 use epiphany_state_model::EpiphanyScratchPad;
@@ -53,6 +54,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub active_subgoals: Vec<EpiphanySubgoal>,
     #[serde(default)]
     pub active_graph_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub memory_context: Option<EpiphanyMemoryContextPacket>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

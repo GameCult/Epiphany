@@ -17,9 +17,13 @@ use codex_protocol::protocol::EpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyMemoryContextPacket;
+use epiphany_core::EpiphanyMemoryContextQuery;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::memory_graph_from_epiphany_graphs;
+use epiphany_core::plan_memory_graph_context_cut;
 
 pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
 pub const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
@@ -432,6 +436,7 @@ pub fn build_epiphany_role_launch_request(
             .cloned()
             .collect(),
         active_graph_node_ids: linked_graph_node_ids.clone(),
+        memory_context: build_role_memory_context(role_id, state),
         investigation_checkpoint: state.investigation_checkpoint.clone(),
         scratch: state.scratch.clone(),
         invariants: state.invariants.clone(),
@@ -472,6 +477,62 @@ fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> Stri
         }
     };
     epiphany_agent_prompt_with_memory(body)
+}
+
+fn build_role_memory_context(
+    role_id: ThreadEpiphanyRoleId,
+    state: &EpiphanyThreadState,
+) -> Option<EpiphanyMemoryContextPacket> {
+    let snapshot = memory_graph_from_epiphany_graphs("role-launch-thread-graph", &state.graphs);
+    if snapshot.domains.is_empty() && snapshot.nodes.is_empty() && snapshot.edges.is_empty() {
+        return None;
+    }
+    let query_text = role_memory_context_query_text(role_id, state);
+    let packet = plan_memory_graph_context_cut(
+        &snapshot,
+        &EpiphanyMemoryContextQuery {
+            id: format!(
+                "role-launch-memory-context-{}",
+                epiphany_role_label(role_id)
+            ),
+            text: Some(query_text),
+            budget: Some(8),
+            ..Default::default()
+        },
+    );
+    (!packet.nodes.is_empty() || !packet.edges.is_empty() || !packet.summaries.is_empty())
+        .then_some(packet)
+}
+
+fn role_memory_context_query_text(
+    role_id: ThreadEpiphanyRoleId,
+    state: &EpiphanyThreadState,
+) -> String {
+    let mut parts = vec![epiphany_role_label(role_id).to_string()];
+    if let Some(objective) = &state.objective {
+        parts.push(objective.clone());
+    }
+    if let Some(active_subgoal_id) = &state.active_subgoal_id
+        && let Some(subgoal) = state
+            .subgoals
+            .iter()
+            .find(|subgoal| &subgoal.id == active_subgoal_id)
+    {
+        parts.push(subgoal.title.clone());
+        if let Some(summary) = &subgoal.summary {
+            parts.push(summary.clone());
+        }
+    }
+    if let Some(checkpoint) = &state.investigation_checkpoint {
+        parts.push(checkpoint.focus.clone());
+        if let Some(summary) = &checkpoint.summary {
+            parts.push(summary.clone());
+        }
+        if let Some(next_action) = &checkpoint.next_action {
+            parts.push(next_action.clone());
+        }
+    }
+    parts.join("\n")
 }
 
 pub fn build_epiphany_reorient_launch_request(
@@ -601,6 +662,7 @@ fn map_core_role_worker_launch_document(
         active_subgoal_id: document.active_subgoal_id,
         active_subgoals: document.active_subgoals,
         active_graph_node_ids: document.active_graph_node_ids,
+        memory_context: None,
         investigation_checkpoint: document.investigation_checkpoint,
         scratch: document.scratch,
         invariants: document.invariants,
@@ -677,6 +739,56 @@ pub fn render_epiphany_coordinator_note(
             &format!("{reorient_result_status:?}"),
         )
         .replace("{coordinator_action}", &format!("{coordinator_action:?}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use codex_protocol::protocol::EpiphanyGraph;
+    use codex_protocol::protocol::EpiphanyGraphNode;
+    use codex_protocol::protocol::EpiphanyGraphs;
+
+    #[test]
+    fn role_launch_includes_typed_memory_context_from_accepted_graph() {
+        let state = EpiphanyThreadState {
+            objective: Some("Map the auth spine.".to_string()),
+            graphs: EpiphanyGraphs {
+                architecture: EpiphanyGraph {
+                    nodes: vec![EpiphanyGraphNode {
+                        id: "auth-spine".to_string(),
+                        title: "Auth spine".to_string(),
+                        purpose: "Codex remains responsible for OpenAI authentication.".to_string(),
+                        ..Default::default()
+                    }],
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let launch = build_epiphany_role_launch_request(
+            "thread-1",
+            ThreadEpiphanyRoleId::Modeling,
+            Some(0),
+            None,
+            &state,
+        )
+        .expect("role launch should build");
+
+        let EpiphanyWorkerLaunchDocument::Role(document) = launch.launch_document else {
+            panic!("expected role launch document");
+        };
+        let context = document
+            .memory_context
+            .expect("role launch should carry typed memory context");
+        assert!(
+            context
+                .nodes
+                .iter()
+                .any(|node| node.claim.contains("OpenAI authentication"))
+        );
+    }
 }
 
 pub fn unique_strings(values: impl IntoIterator<Item = String>) -> Vec<String> {

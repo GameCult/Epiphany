@@ -385,7 +385,10 @@ order before lexical fallback, and if Qdrant is missing, falls back to typed
 graph traversal with an explicit warning.
 
 Still open: bridge/runtime prompt integration should consume these typed context
-packets without serializing a second memory format.
+packets without serializing a second memory format. First landing: role worker
+launch documents now include optional typed `memoryContext` packets derived
+from the accepted graph through the memory graph substrate. The next cleanup is
+to remove the old full-graph prompt cargo once result contracts are ready.
 
 ### Phase 7: Sleep And Repo Refresh
 

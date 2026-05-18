@@ -894,6 +894,7 @@ mod tests {
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
+                        memory_context: None,
                         investigation_checkpoint: None,
                         scratch: None,
                         invariants: Vec::new(),
