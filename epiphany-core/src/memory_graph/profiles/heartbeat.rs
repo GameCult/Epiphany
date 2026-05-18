@@ -128,9 +128,21 @@ fn import_incubation(
             kind: EpiphanyMemoryNodeKind::IncubationThread,
             title: theme_id.clone(),
             claim: string_at(theme, "summary"),
-            question: string_at(theme, "latentQuestion"),
-            tension: string_at(theme, "holdingCloseBecause"),
-            action_implication: string_at(theme, "whyItPulls"),
+            question: string_at_any(
+                theme,
+                &["latentQuestion", "question"],
+                "What is this incubation theme trying to become?",
+            ),
+            tension: string_at_any(
+                theme,
+                &["holdingCloseBecause", "tension"],
+                "Heartbeat marked this theme but did not preserve a tension.",
+            ),
+            action_implication: string_at_any(
+                theme,
+                &["whyItPulls", "actionImplication"],
+                "Keep in incubation until sleep or review accounts for it.",
+            ),
             source_hashes: vec!["anchor:missing".to_string()],
             lifecycle: incubation_lifecycle(&status),
             salience: score_to_u32(number_at(theme, "priorityScore")),
@@ -323,6 +335,19 @@ fn string_at(value: &Value, key: &str) -> String {
         .to_string()
 }
 
+fn string_at_any(value: &Value, keys: &[&str], fallback: &str) -> String {
+    keys.iter()
+        .find_map(|key| {
+            let value = value.get(key).and_then(Value::as_str)?;
+            if value.trim().is_empty() {
+                None
+            } else {
+                Some(value.to_string())
+            }
+        })
+        .unwrap_or_else(|| fallback.to_string())
+}
+
 fn number_at(value: &Value, key: &str) -> f64 {
     value.get(key).and_then(Value::as_f64).unwrap_or_default()
 }
@@ -378,6 +403,10 @@ mod tests {
                     "status": "deepening",
                     "priorityScore": 0.72,
                     "maturation": 0.6
+                }, {
+                    "themeId": "theme-live-store-shape",
+                    "summary": "Live heartbeat stores may omit optional explanatory fields.",
+                    "status": "deepening"
                 }]
             })),
             thought_lanes: None,

@@ -345,6 +345,13 @@ pub fn load_agent_memory_entry_for_role(
     Ok(entry)
 }
 
+pub fn agent_memory_role_ids() -> Vec<&'static str> {
+    ROLE_TARGETS
+        .iter()
+        .map(|(role_id, _, _)| *role_id)
+        .collect()
+}
+
 pub fn review_agent_self_patch(
     role_id: &str,
     patch_value: &Value,

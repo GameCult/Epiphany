@@ -13,11 +13,16 @@ use epiphany_core::EpiphanyMemoryNode;
 use epiphany_core::EpiphanyMemoryNodeKind;
 use epiphany_core::EpiphanyMemoryProfile;
 use epiphany_core::EpiphanyMemorySummary;
+use epiphany_core::agent_memory_role_ids;
 use epiphany_core::compose_memory_graph_snapshots;
 use epiphany_core::derive_memory_graph_freshness;
+use epiphany_core::load_agent_memory_entry_for_role;
+use epiphany_core::load_heartbeat_cognition_entry;
 use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::memory_graph_domain_id;
 use epiphany_core::memory_graph_edge_id;
+use epiphany_core::memory_graph_from_agent_memories;
+use epiphany_core::memory_graph_from_heartbeat_cognition;
 use epiphany_core::memory_graph_node_id;
 use epiphany_core::plan_memory_graph_context_cut;
 use epiphany_core::validate_memory_graph_snapshot;
@@ -67,6 +72,11 @@ fn main() -> Result<()> {
         "compose" => {
             let compose = read_compose_args(args)?;
             let output = compose_memory_graph_store(compose)?;
+            print_json(&output)?;
+        }
+        "refresh" => {
+            let refresh = read_refresh_args(args)?;
+            let output = refresh_memory_graph_store(refresh)?;
             print_json(&output)?;
         }
         "smoke" => {
@@ -152,6 +162,15 @@ struct ComposeArgs {
     sources: Vec<PathBuf>,
 }
 
+struct RefreshArgs {
+    store: PathBuf,
+    graph_id: String,
+    sources: Vec<PathBuf>,
+    agent_store: Option<PathBuf>,
+    agent_roles: Vec<String>,
+    heartbeat_store: Option<PathBuf>,
+}
+
 fn read_compose_args(args: impl Iterator<Item = String>) -> Result<ComposeArgs> {
     let mut store = None;
     let mut graph_id = "epiphany-memory-graph".to_string();
@@ -218,6 +237,148 @@ fn compose_memory_graph_store(args: ComposeArgs) -> Result<serde_json::Value> {
     }))
 }
 
+fn read_refresh_args(args: impl Iterator<Item = String>) -> Result<RefreshArgs> {
+    let mut store = None;
+    let mut graph_id = "epiphany-memory-graph".to_string();
+    let mut sources = Vec::new();
+    let mut agent_store = None;
+    let mut agent_roles = Vec::new();
+    let mut heartbeat_store = None;
+    let mut args = args.peekable();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--store" => store = Some(PathBuf::from(next_value(&mut args, "--store")?)),
+            "--graph-id" => graph_id = next_value(&mut args, "--graph-id")?,
+            "--source" => sources.push(PathBuf::from(next_value(&mut args, "--source")?)),
+            "--agent-store" => {
+                agent_store = Some(PathBuf::from(next_value(&mut args, "--agent-store")?))
+            }
+            "--agent-role" => agent_roles.push(next_value(&mut args, "--agent-role")?),
+            "--heartbeat-store" => {
+                heartbeat_store = Some(PathBuf::from(next_value(&mut args, "--heartbeat-store")?))
+            }
+            _ => return Err(anyhow!("unexpected refresh argument {flag:?}")),
+        }
+    }
+    if sources.is_empty() && agent_store.is_none() && heartbeat_store.is_none() {
+        return Err(anyhow!(
+            "refresh requires --source, --agent-store, or --heartbeat-store"
+        ));
+    }
+    Ok(RefreshArgs {
+        store: store.ok_or_else(|| anyhow!("refresh requires --store <path>"))?,
+        graph_id,
+        sources,
+        agent_store,
+        agent_roles,
+        heartbeat_store,
+    })
+}
+
+fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
+    let mut snapshots = Vec::new();
+    let mut source_status = Vec::new();
+
+    for source in &args.sources {
+        let snapshot = load_memory_graph_snapshot(source)?
+            .ok_or_else(|| anyhow!("memory graph source {} is missing", source.display()))?;
+        source_status.push(snapshot_status("source_store", source, &snapshot));
+        snapshots.push(snapshot);
+    }
+
+    if let Some(agent_store) = &args.agent_store {
+        let roles = if args.agent_roles.is_empty() {
+            agent_memory_role_ids()
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        } else {
+            args.agent_roles.clone()
+        };
+        let mut entries = Vec::new();
+        for role in &roles {
+            let entry = load_agent_memory_entry_for_role(agent_store, role)?.ok_or_else(|| {
+                anyhow!(
+                    "agent memory store {} is missing role {role:?}",
+                    agent_store.display()
+                )
+            })?;
+            entries.push(entry);
+        }
+        let snapshot = memory_graph_from_agent_memories("agent-profile", &entries);
+        source_status.push(serde_json::json!({
+            "kind": "agent_store",
+            "source": agent_store,
+            "roles": roles,
+            "graphId": snapshot.graph_id,
+            "domains": snapshot.domains.len(),
+            "nodes": snapshot.nodes.len(),
+            "edges": snapshot.edges.len(),
+            "summaries": snapshot.summaries.len(),
+        }));
+        snapshots.push(snapshot);
+    }
+
+    if let Some(heartbeat_store) = &args.heartbeat_store {
+        let cognition = load_heartbeat_cognition_entry(heartbeat_store)?.ok_or_else(|| {
+            anyhow!(
+                "heartbeat store {} has no cognition entry",
+                heartbeat_store.display()
+            )
+        })?;
+        let snapshot = memory_graph_from_heartbeat_cognition("heartbeat-profile", &cognition);
+        source_status.push(serde_json::json!({
+            "kind": "heartbeat_store",
+            "source": heartbeat_store,
+            "graphId": snapshot.graph_id,
+            "domains": snapshot.domains.len(),
+            "nodes": snapshot.nodes.len(),
+            "edges": snapshot.edges.len(),
+            "summaries": snapshot.summaries.len(),
+        }));
+        snapshots.push(snapshot);
+    }
+
+    let snapshot = compose_memory_graph_snapshots(args.graph_id, snapshots).map_err(|errors| {
+        anyhow!(
+            "refreshed memory graph is invalid: {}",
+            errors
+                .iter()
+                .map(|error| format!("{}: {}", error.path, error.message))
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    })?;
+    write_memory_graph_snapshot(&args.store, &snapshot)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "store": args.store,
+        "graphId": snapshot.graph_id,
+        "sources": source_status,
+        "domains": snapshot.domains.len(),
+        "nodes": snapshot.nodes.len(),
+        "edges": snapshot.edges.len(),
+        "summaries": snapshot.summaries.len(),
+        "freshness": snapshot.freshness,
+    }))
+}
+
+fn snapshot_status(
+    kind: &str,
+    source: &PathBuf,
+    snapshot: &EpiphanyMemoryGraphSnapshot,
+) -> serde_json::Value {
+    serde_json::json!({
+        "kind": kind,
+        "source": source,
+        "graphId": snapshot.graph_id,
+        "domains": snapshot.domains.len(),
+        "nodes": snapshot.nodes.len(),
+        "edges": snapshot.edges.len(),
+        "summaries": snapshot.summaries.len(),
+    })
+}
+
 fn require_path_arg(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(require_string_arg(args, name)?))
 }
@@ -274,7 +435,7 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-memory-graph <status|validate|context|compose|smoke> --store <path> ..."
+        "usage: epiphany-memory-graph <status|validate|context|compose|refresh|smoke> --store <path> ..."
     );
 }
 
