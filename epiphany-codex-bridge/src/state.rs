@@ -59,6 +59,10 @@ pub fn thread_state_store_path(workspace_root: &Path) -> PathBuf {
     workspace_root.join("state").join("thread-state.msgpack")
 }
 
+pub fn memory_graph_store_path(workspace_root: &Path) -> PathBuf {
+    workspace_root.join("state").join("memory-graph.msgpack")
+}
+
 pub fn mirror_thread_state_to_workspace(
     workspace_root: &Path,
     thread_id: &str,

@@ -393,9 +393,13 @@ the accepted graph through the memory graph substrate and no longer carry full
 and application for those candidates: proposed domains/nodes/edges are checked
 against the typed graph before they can be applied with lifecycle receipts.
 `epiphany-memory-graph review-candidate` and `apply-candidate` expose that law
-for typed candidate files. The next cleanup is wiring bridge role acceptance to
-that path so Modeling stops using full graph replacement patches for ordinary
-graph growth.
+for typed candidate files. Bridge Modeling `roleAccept` now loads typed
+candidates from the runtime-spine result, bootstraps `state/memory-graph.msgpack`
+from accepted thread graphs when the store is missing, applies accepted
+candidates through the graph law, and rejects invalid candidates before role
+acceptance. The next cleanup is exposing memory patch reviews through the
+operator surface and cutting legacy full-graph replacement patches from the
+normal Modeling prompt/acceptance path.
 
 ### Phase 7: Sleep And Repo Refresh
 

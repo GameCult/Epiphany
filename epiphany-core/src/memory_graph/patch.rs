@@ -10,6 +10,31 @@ pub fn review_memory_patch_candidate(
     snapshot: &EpiphanyMemoryGraphSnapshot,
     candidate: &EpiphanyMemoryPatchCandidate,
 ) -> EpiphanyMemoryPatchReview {
+    let accepted_receipt_id = accepted_receipt_id(candidate);
+    if candidate_already_applied(snapshot, &accepted_receipt_id) {
+        return EpiphanyMemoryPatchReview {
+            candidate_id: candidate.id.clone(),
+            status: EpiphanyMemoryPatchReviewStatus::Accepted,
+            accepted_domain_ids: candidate
+                .proposed_domains
+                .iter()
+                .map(|domain| domain.id.clone())
+                .collect(),
+            accepted_node_ids: candidate
+                .proposed_nodes
+                .iter()
+                .map(|node| node.id.clone())
+                .collect(),
+            accepted_edge_ids: candidate
+                .proposed_edges
+                .iter()
+                .map(|edge| edge.id.clone())
+                .collect(),
+            errors: Vec::new(),
+            warnings: vec!["candidate was already applied".to_string()],
+        };
+    }
+
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
 
@@ -168,6 +193,9 @@ pub fn apply_memory_patch_candidate(
     if review.status != EpiphanyMemoryPatchReviewStatus::Accepted {
         return (snapshot.clone(), review);
     }
+    if candidate_already_applied(snapshot, &accepted_receipt_id(candidate)) {
+        return (snapshot.clone(), review);
+    }
 
     let mut accepted = snapshot.clone();
     accepted
@@ -182,7 +210,7 @@ pub fn apply_memory_patch_candidate(
     accepted
         .lifecycle_receipts
         .push(EpiphanyMemoryLifecycleReceipt {
-            id: format!("memreceipt-{}", candidate.id),
+            id: accepted_receipt_id(candidate),
             operation: "memoryPatchCandidate.accept".to_string(),
             status: "accepted".to_string(),
             node_ids: review.accepted_node_ids.clone(),
@@ -192,4 +220,16 @@ pub fn apply_memory_patch_candidate(
         });
 
     (accepted, review)
+}
+
+fn accepted_receipt_id(candidate: &EpiphanyMemoryPatchCandidate) -> String {
+    format!("memreceipt-{}", candidate.id)
+}
+
+fn candidate_already_applied(snapshot: &EpiphanyMemoryGraphSnapshot, receipt_id: &str) -> bool {
+    snapshot.lifecycle_receipts.iter().any(|receipt| {
+        receipt.id == receipt_id
+            && receipt.operation == "memoryPatchCandidate.accept"
+            && receipt.status == "accepted"
+    })
 }

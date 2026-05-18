@@ -19,8 +19,16 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyMemoryPatchReview;
+use epiphany_core::EpiphanyMemoryPatchReviewStatus;
 use epiphany_core::EpiphanyPromotionInput;
+use epiphany_core::apply_memory_patch_candidate;
 use epiphany_core::evaluate_promotion;
+use epiphany_core::load_memory_graph_snapshot;
+use epiphany_core::memory_graph_from_epiphany_graphs;
+use epiphany_core::runtime_role_worker_result;
+use epiphany_core::write_memory_graph_snapshot;
+use std::fs;
 
 use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::map_epiphany_jobs;
@@ -44,6 +52,7 @@ use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
 use crate::state::client_visible_live_thread_epiphany_state;
+use crate::state::memory_graph_store_path;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -69,6 +78,7 @@ pub struct EpiphanyRoleAcceptApplied {
     pub accepted_evidence_id: String,
     pub applied_patch: ThreadEpiphanyUpdatePatch,
     pub finding: ThreadEpiphanyRoleFinding,
+    pub memory_patch_reviews: Vec<EpiphanyMemoryPatchReview>,
 }
 
 #[derive(Debug, Clone)]
@@ -185,13 +195,22 @@ pub async fn apply_thread_epiphany_role_accept(
 
     let finding = load_completed_epiphany_role_finding(thread, &state, role_id, binding_id).await?;
     let accepted_prefix = epiphany_role_label(role_id);
+    let accepted_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    let memory_patch_reviews = apply_modeling_memory_patch_candidates(
+        thread,
+        role_id,
+        &state,
+        &finding,
+        accepted_at.clone(),
+    )
+    .await?;
     let acceptance_update = build_role_acceptance_update(
         role_id,
         binding_id,
         &finding,
         format!("ev-{accepted_prefix}-{}", Uuid::new_v4()),
         format!("obs-{accepted_prefix}-{}", Uuid::new_v4()),
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        accepted_at,
     )
     .map_err(CodexErr::InvalidRequest)?;
 
@@ -217,7 +236,84 @@ pub async fn apply_thread_epiphany_role_accept(
         accepted_evidence_id,
         applied_patch,
         finding,
+        memory_patch_reviews,
     })
+}
+
+async fn apply_modeling_memory_patch_candidates(
+    thread: &CodexThread,
+    role_id: ThreadEpiphanyRoleId,
+    state: &EpiphanyThreadState,
+    finding: &ThreadEpiphanyRoleFinding,
+    accepted_at: String,
+) -> Result<Vec<EpiphanyMemoryPatchReview>, CodexErr> {
+    if role_id != ThreadEpiphanyRoleId::Modeling {
+        return Ok(Vec::new());
+    }
+    let Some(runtime_job_id) = finding.runtime_job_id.as_deref() else {
+        return Ok(Vec::new());
+    };
+    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let Some(runtime_result) =
+        runtime_role_worker_result(runtime_store_path.as_path(), runtime_job_id).map_err(|err| {
+            CodexErr::InvalidRequest(format!(
+                "failed to read runtime role worker result for memory patch candidates: {err}"
+            ))
+        })?
+    else {
+        return Ok(Vec::new());
+    };
+    let candidates = runtime_result.memory_patch_candidates().map_err(|err| {
+        CodexErr::InvalidRequest(format!(
+            "failed to decode memory patch candidates from runtime role result: {err}"
+        ))
+    })?;
+    if candidates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let config = thread.config_snapshot().await;
+    let store_path = memory_graph_store_path(config.cwd.as_path());
+    let mut snapshot = load_memory_graph_snapshot(&store_path)
+        .map_err(|err| {
+            CodexErr::InvalidRequest(format!(
+                "failed to load memory graph store {}: {err}",
+                store_path.display()
+            ))
+        })?
+        .unwrap_or_else(|| memory_graph_from_epiphany_graphs("epiphany-memory-graph", &state.graphs));
+
+    let mut reviews = Vec::new();
+    for candidate in &candidates {
+        let (next_snapshot, review) =
+            apply_memory_patch_candidate(&snapshot, candidate, Some(accepted_at.clone()));
+        if review.status != EpiphanyMemoryPatchReviewStatus::Accepted {
+            return Err(CodexErr::InvalidRequest(format!(
+                "memory patch candidate {:?} was rejected: {}",
+                candidate.id,
+                review.errors.join("; ")
+            )));
+        }
+        snapshot = next_snapshot;
+        reviews.push(review);
+    }
+
+    if let Some(parent) = store_path.parent() {
+        fs::create_dir_all(parent).map_err(|err| {
+            CodexErr::InvalidRequest(format!(
+                "failed to create memory graph store directory {}: {err}",
+                parent.display()
+            ))
+        })?;
+    }
+    write_memory_graph_snapshot(&store_path, &snapshot).map_err(|err| {
+        CodexErr::InvalidRequest(format!(
+            "failed to write memory graph store {}: {err}",
+            store_path.display()
+        ))
+    })?;
+
+    Ok(reviews)
 }
 
 pub async fn apply_thread_epiphany_reorient_accept(

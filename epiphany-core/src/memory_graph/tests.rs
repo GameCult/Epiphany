@@ -499,6 +499,57 @@ fn memory_patch_candidate_review_rejects_duplicate_or_orphan_growth() {
 }
 
 #[test]
+fn memory_patch_candidate_apply_is_idempotent_after_receipt() {
+    let snapshot = fixture_snapshot();
+    let domain_id = snapshot.domains[0].id.clone();
+    let node_id = memory_graph_node_id(
+        &domain_id,
+        "module",
+        "src/runtime_spine.rs",
+        Some("idempotent"),
+    );
+    let candidate = EpiphanyMemoryPatchCandidate {
+        id: "candidate-idempotent".to_string(),
+        profile: EpiphanyMemoryProfile::RepoArchitecture,
+        status: "proposed".to_string(),
+        proposed_nodes: vec![EpiphanyMemoryNode {
+            id: node_id,
+            domain_id,
+            profile: EpiphanyMemoryProfile::RepoArchitecture,
+            kind: EpiphanyMemoryNodeKind::RuntimeContract,
+            title: "Idempotent candidate".to_string(),
+            claim: "Accepted candidates can be retried without duplicate rejection.".to_string(),
+            question: "Did the previous graph write complete?".to_string(),
+            tension: String::new(),
+            action_implication: "Treat receipt-backed retries as accepted.".to_string(),
+            source_hashes: vec!["anchor:missing".to_string()],
+            lifecycle: EpiphanyMemoryLifecycle::Proposed,
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let (accepted, first_review) = apply_memory_patch_candidate(&snapshot, &candidate, None);
+    let (retried, second_review) = apply_memory_patch_candidate(&accepted, &candidate, None);
+
+    assert_eq!(
+        first_review.status,
+        EpiphanyMemoryPatchReviewStatus::Accepted
+    );
+    assert_eq!(
+        second_review.status,
+        EpiphanyMemoryPatchReviewStatus::Accepted
+    );
+    assert_eq!(retried, accepted);
+    assert!(
+        second_review
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("already applied"))
+    );
+}
+
+#[test]
 fn memory_patch_candidate_deserializes_camel_case_edge_json() {
     let candidate: EpiphanyMemoryPatchCandidate = serde_json::from_str(
         r#"{
