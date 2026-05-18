@@ -145,6 +145,28 @@
       "path": "epiphany.state-ledger.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.thread-state.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.thread_state.v0",
+      "documentType": "epiphany.thread_state",
+      "title": "Epiphany Thread State",
+      "path": "epiphany.thread-state.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.memory-graph.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.memory_graph.v0",
+      "documentType": "epiphany.memory_graph",
+      "title": "Epiphany Memory Graph",
+      "path": "epiphany.memory-graph.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.scene.schema.json",
       "kind": "document_payload",
       "wireContracts": [

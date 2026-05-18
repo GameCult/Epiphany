@@ -2,8 +2,12 @@ use crate::EpiphanyWorkerLaunchDocument;
 use crate::agent_memory::AGENT_MEMORY_TYPE;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
+use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
+use crate::memory_graph::MEMORY_GRAPH_TYPE;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
+use crate::thread_state_store::THREAD_STATE_SCHEMA_VERSION;
+use crate::thread_state_store::THREAD_STATE_TYPE;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -1515,6 +1519,28 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "The ledger is inspected as durable memory; writes are mediated by role-specific state flows.",
             ],
         ),
+        mutation_contract(
+            THREAD_STATE_TYPE,
+            THREAD_STATE_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "The mirrored thread state is the typed repo/control-plane state source; Codex rollout is a compatibility source, not the network contract.",
+            ],
+        ),
+        mutation_contract(
+            MEMORY_GRAPH_TYPE,
+            MEMORY_GRAPH_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "The unified memory graph is typed durable state; Qdrant embeddings are rebuildable cache, not canonical memory.",
+            ],
+        ),
         read_only_surface_contract(
             SURFACE_SCENE_TYPE,
             SCENE_SURFACE_SCHEMA_VERSION,
@@ -2192,6 +2218,22 @@ mod tests {
                             .iter()
                             .any(|item| item == OPENAI_MODEL_RECEIPT_TYPE))
                 );
+                let memory_graph_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == MEMORY_GRAPH_TYPE)
+                    .expect("memory graph should advertise a read-only contract");
+                assert_eq!(
+                    memory_graph_contract.authority,
+                    CultNetMutationAuthority::ReadOnly
+                );
+                let thread_state_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == THREAD_STATE_TYPE)
+                    .expect("thread state should advertise a read-only contract");
+                assert_eq!(
+                    thread_state_contract.authority,
+                    CultNetMutationAuthority::ReadOnly
+                );
             }
             other => panic!("expected hello, got {other:?}"),
         }
@@ -2229,6 +2271,14 @@ mod tests {
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some(OPENAI_MODEL_RECEIPT_TYPE)
                 && schema.schema_version.as_deref() == Some(OPENAI_MODEL_RECEIPT_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(MEMORY_GRAPH_TYPE)
+                && schema.schema_version.as_deref() == Some(MEMORY_GRAPH_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(THREAD_STATE_TYPE)
+                && schema.schema_version.as_deref() == Some(THREAD_STATE_SCHEMA_VERSION)
         }));
         Ok(())
     }
