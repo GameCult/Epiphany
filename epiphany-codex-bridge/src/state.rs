@@ -66,6 +66,16 @@ pub fn memory_graph_store_path(workspace_root: &Path) -> PathBuf {
     workspace_root.join("state").join("memory-graph.msgpack")
 }
 
+pub async fn runtime_spine_store_path(thread: &CodexThread) -> PathBuf {
+    thread
+        .config_snapshot()
+        .await
+        .cwd
+        .join("state")
+        .join("runtime-spine.msgpack")
+        .to_path_buf()
+}
+
 pub async fn load_thread_memory_graph_snapshot(
     thread: &CodexThread,
 ) -> Result<Option<EpiphanyMemoryGraphSnapshot>, CodexErr> {

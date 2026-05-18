@@ -6,6 +6,7 @@ use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_core::CodexThread;
 use codex_core::SteerInputError;
 use codex_protocol::ThreadId;
+use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use codex_protocol::user_input::UserInput as CoreInputItem;
@@ -14,11 +15,10 @@ use epiphany_codex_bridge::coordinator::EpiphanyCoordinatorAutomationInput;
 use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
-use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
+use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
-use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
 use tokio::sync::Mutex;
 use tracing::warn;
 
@@ -72,8 +72,15 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
             let Some(launch_request) = verdict.launch_request else {
                 return;
             };
-            let launched = match thread.epiphany_launch_job(launch_request).await {
-                Ok(launched) => launched,
+            let applied = match launch_thread_epiphany_job(
+                thread.as_ref(),
+                launch_request,
+                CoreEpiphanyJobKind::Specialist,
+                "missing coordinator-launched reorient projection",
+            )
+            .await
+            {
+                Ok(applied) => applied,
                 Err(err) => {
                     warn!(
                         "failed to launch Epiphany coordinator reorientation worker for {thread_id}: {err}"
@@ -81,17 +88,14 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
                     return;
                 }
             };
-            let epiphany_state =
-                client_visible_live_thread_epiphany_state(thread.as_ref(), launched.epiphany_state)
-                    .await;
             outgoing
                 .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
                     ThreadEpiphanyStateUpdatedNotification {
                         thread_id: thread_id_text,
                         source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                        revision: epiphany_state.revision,
-                        changed_fields: epiphany_job_launch_changed_fields(),
-                        epiphany_state,
+                        revision: applied.revision,
+                        changed_fields: applied.changed_fields,
+                        epiphany_state: applied.epiphany_state,
                     },
                 ))
                 .await;
