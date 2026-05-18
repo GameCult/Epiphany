@@ -41,11 +41,11 @@ pub struct EpiphanyAgentMemoryEntry {
     #[cultcache(key = 3)]
     pub agent: GhostlightAgent,
     #[cultcache(key = 4, default)]
-    pub relationships: Vec<Value>,
+    pub relationships: Vec<GhostlightRelationship>,
     #[cultcache(key = 5, default)]
-    pub events: Vec<Value>,
+    pub events: Vec<GhostlightEvent>,
     #[cultcache(key = 6, default)]
-    pub scenes: Vec<Value>,
+    pub scenes: Vec<GhostlightScene>,
     #[cultcache(key = 7, default)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -74,7 +74,7 @@ pub struct GhostlightAgent {
     pub canonical_state: GhostlightCanonicalState,
     pub goals: Vec<GhostlightGoal>,
     pub memories: GhostlightMemories,
-    pub perceived_state_overlays: Vec<Value>,
+    pub perceived_state_overlays: Vec<GhostlightPerceivedStateOverlay>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -160,17 +160,83 @@ pub struct GhostlightMemory {
     pub extra: BTreeMap<String, Value>,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightRelationship {
+    #[serde(default)]
+    pub relationship_id: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub stance: String,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightEvent {
+    #[serde(default)]
+    pub event_id: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub occurred_at: String,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightScene {
+    #[serde(default)]
+    pub scene_id: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightPerceivedStateOverlay {
+    #[serde(default)]
+    pub overlay_id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(flatten)]
+    pub extra: BTreeMap<String, Value>,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 struct AgentMemoryProjection {
     pub schema_version: String,
     pub world: GhostlightWorld,
     pub agents: Vec<GhostlightAgent>,
     #[serde(default)]
-    pub relationships: Vec<Value>,
+    pub relationships: Vec<GhostlightRelationship>,
     #[serde(default)]
-    pub events: Vec<Value>,
+    pub events: Vec<GhostlightEvent>,
     #[serde(default)]
-    pub scenes: Vec<Value>,
+    pub scenes: Vec<GhostlightScene>,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
 }

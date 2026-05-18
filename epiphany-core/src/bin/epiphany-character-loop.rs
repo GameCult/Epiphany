@@ -557,13 +557,12 @@ fn strongest_overlay_pressure(
         .iter()
         .map(|overlay| {
             let mut tokens = BTreeSet::new();
-            collect_json_tokens(overlay, &mut tokens);
+            collect_typed_tokens(overlay, &mut tokens);
             let overlap = token_overlap(&tokens, thought_tokens);
-            let summary = overlay
-                .get("summary")
-                .and_then(Value::as_str)
-                .or_else(|| overlay.get("label").and_then(Value::as_str))
-                .unwrap_or("Perceived overlay relevance");
+            let summary = nonempty_or(
+                &overlay.summary,
+                nonempty_str_or(&overlay.label, "Perceived overlay relevance"),
+            );
             (overlap, summary.to_string())
         })
         .max_by(|left, right| left.0.total_cmp(&right.0))
@@ -590,6 +589,12 @@ fn stimulus_token_set(
     tokens
 }
 
+fn collect_typed_tokens<T: serde::Serialize>(value: &T, tokens: &mut BTreeSet<String>) {
+    if let Ok(value) = serde_json::to_value(value) {
+        collect_json_tokens(&value, tokens);
+    }
+}
+
 fn collect_json_tokens(value: &Value, tokens: &mut BTreeSet<String>) {
     match value {
         Value::String(text) => tokens.extend(summary_tokens(text)),
@@ -605,6 +610,18 @@ fn collect_json_tokens(value: &Value, tokens: &mut BTreeSet<String>) {
             }
         }
         _ => {}
+    }
+}
+
+fn nonempty_or(value: &str, fallback: &str) -> String {
+    nonempty_str_or(value, fallback).to_string()
+}
+
+fn nonempty_str_or<'a>(value: &'a str, fallback: &'a str) -> &'a str {
+    if value.trim().is_empty() {
+        fallback
+    } else {
+        value
     }
 }
 
