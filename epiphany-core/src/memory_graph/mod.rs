@@ -4,6 +4,7 @@ pub mod embedding;
 pub mod freshness;
 pub mod ids;
 pub mod profiles;
+pub mod qdrant;
 pub mod store;
 pub mod validation;
 
@@ -38,6 +39,9 @@ pub use ids::memory_graph_node_id;
 pub use profiles::memory_graph_from_agent_memories;
 pub use profiles::memory_graph_from_epiphany_graphs;
 pub use profiles::memory_graph_from_heartbeat_cognition;
+pub use qdrant::EpiphanyMemoryGraphEmbeddingCacheReport;
+pub use qdrant::EpiphanyMemoryGraphEmbeddingCacheRequest;
+pub use qdrant::rebuild_memory_graph_embedding_cache;
 pub use store::EpiphanyMemoryGraphEntry;
 pub use store::MEMORY_GRAPH_KEY;
 pub use store::MEMORY_GRAPH_SCHEMA_VERSION;

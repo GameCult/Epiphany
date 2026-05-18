@@ -7,6 +7,7 @@ use epiphany_core::EpiphanyMemoryDomain;
 use epiphany_core::EpiphanyMemoryEdge;
 use epiphany_core::EpiphanyMemoryEdgeKind;
 use epiphany_core::EpiphanyMemoryFreshnessStatus;
+use epiphany_core::EpiphanyMemoryGraphEmbeddingCacheRequest;
 use epiphany_core::EpiphanyMemoryGraphSnapshot;
 use epiphany_core::EpiphanyMemoryLifecycle;
 use epiphany_core::EpiphanyMemoryNode;
@@ -29,6 +30,7 @@ use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::memory_graph_from_heartbeat_cognition;
 use epiphany_core::memory_graph_node_id;
 use epiphany_core::plan_memory_graph_context_cut;
+use epiphany_core::rebuild_memory_graph_embedding_cache;
 use epiphany_core::validate_memory_graph_snapshot;
 use epiphany_core::write_memory_graph_snapshot;
 use std::env;
@@ -86,6 +88,11 @@ fn main() -> Result<()> {
         "manifest" => {
             let manifest = read_manifest_args(args)?;
             let output = write_memory_graph_embedding_manifest(manifest)?;
+            print_json(&output)?;
+        }
+        "index" => {
+            let index = read_index_args(args)?;
+            let output = rebuild_memory_graph_qdrant_cache(index)?;
             print_json(&output)?;
         }
         "smoke" => {
@@ -186,6 +193,12 @@ struct ManifestArgs {
     collection_name: String,
     embedding_model: String,
     vector_dimensions: Option<u32>,
+}
+
+struct IndexArgs {
+    store: PathBuf,
+    collection_name: Option<String>,
+    embedding_model: Option<String>,
 }
 
 fn read_compose_args(args: impl Iterator<Item = String>) -> Result<ComposeArgs> {
@@ -336,6 +349,26 @@ fn read_manifest_args(args: impl Iterator<Item = String>) -> Result<ManifestArgs
     })
 }
 
+fn read_index_args(args: impl Iterator<Item = String>) -> Result<IndexArgs> {
+    let mut store = None;
+    let mut collection_name = None;
+    let mut embedding_model = None;
+    let mut args = args.peekable();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--store" => store = Some(PathBuf::from(next_value(&mut args, "--store")?)),
+            "--collection" => collection_name = Some(next_value(&mut args, "--collection")?),
+            "--model" => embedding_model = Some(next_value(&mut args, "--model")?),
+            _ => return Err(anyhow!("unexpected index argument {flag:?}")),
+        }
+    }
+    Ok(IndexArgs {
+        store: store.ok_or_else(|| anyhow!("index requires --store <path>"))?,
+        collection_name,
+        embedding_model,
+    })
+}
+
 fn refresh_memory_graph_store(args: RefreshArgs) -> Result<serde_json::Value> {
     let mut snapshots = Vec::new();
     let mut source_status = Vec::new();
@@ -466,6 +499,25 @@ fn write_memory_graph_embedding_manifest(args: ManifestArgs) -> Result<serde_jso
     }))
 }
 
+fn rebuild_memory_graph_qdrant_cache(args: IndexArgs) -> Result<serde_json::Value> {
+    let mut snapshot = load_memory_graph_snapshot(&args.store)?
+        .ok_or_else(|| anyhow!("memory graph store {} is missing", args.store.display()))?;
+    let report = rebuild_memory_graph_embedding_cache(
+        &mut snapshot,
+        EpiphanyMemoryGraphEmbeddingCacheRequest {
+            collection_name: args.collection_name,
+            embedding_model: args.embedding_model,
+        },
+    )?;
+    write_memory_graph_snapshot(&args.store, &snapshot)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "store": args.store,
+        "graphId": snapshot.graph_id,
+        "cache": report,
+    }))
+}
+
 fn snapshot_status(
     kind: &str,
     source: &PathBuf,
@@ -538,7 +590,7 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-memory-graph <status|validate|context|compose|refresh|manifest|smoke> --store <path> ..."
+        "usage: epiphany-memory-graph <status|validate|context|compose|refresh|manifest|index|smoke> --store <path> ..."
     );
 }
 

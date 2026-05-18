@@ -374,8 +374,14 @@ Commands should query memory graph status and context packets without Qdrant.
 
 Embed shared graph nodes, edges, and summaries.
 
-Qdrant candidate ranking feeds context-cut planning but never emits canonical
-memory payloads.
+Current landing: `epiphany-core::semantic_cache` owns the shared
+Qdrant/Ollama transport cache used by both workspace retrieval and memory graph
+indexing. `epiphany-memory-graph index` rebuilds a Qdrant collection from typed
+memory graph embedding documents and writes only the resulting
+`EpiphanyMemoryEmbeddingManifest` back to the typed graph store.
+
+Still open: Qdrant candidate ranking should feed context-cut planning but never
+emit canonical memory payloads.
 
 ### Phase 7: Sleep And Repo Refresh
 
