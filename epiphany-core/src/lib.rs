@@ -104,6 +104,7 @@ pub use memory_graph::memory_graph_domain_id;
 pub use memory_graph::memory_graph_edge_id;
 pub use memory_graph::memory_graph_from_agent_memories;
 pub use memory_graph::memory_graph_from_epiphany_graphs;
+pub use memory_graph::memory_graph_from_heartbeat_cognition;
 pub use memory_graph::memory_graph_node_id;
 pub use memory_graph::plan_memory_graph_context_cut;
 pub use memory_graph::validate_memory_graph_entry;
