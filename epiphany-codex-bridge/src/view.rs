@@ -556,8 +556,12 @@ pub fn map_epiphany_distill_response(
 
 pub fn map_epiphany_propose_response(
     state: EpiphanyThreadState,
+    memory_graph_snapshot: Option<&EpiphanyMemoryGraphSnapshot>,
     observation_ids: Vec<String>,
 ) -> std::result::Result<ThreadEpiphanyProposeResponse, String> {
+    let memory_backed_state =
+        thread_state_with_legacy_graph_projection(Some(&state), memory_graph_snapshot);
+    let state = memory_backed_state.unwrap_or(state);
     let expected_revision = state.revision;
     let proposal = propose_map_update(EpiphanyMapProposalInput {
         state,

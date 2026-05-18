@@ -576,6 +576,13 @@ impl CodexMessageProcessor {
             }
         };
 
+        let memory_graph_snapshot = match load_thread_memory_graph_snapshot(Some(&thread)).await {
+            Ok(snapshot) => snapshot,
+            Err(message) => {
+                self.send_internal_error(request_id, message).await;
+                return;
+            }
+        };
         let state = match thread.epiphany_state().await {
             Some(state) => state,
             None => {
@@ -587,7 +594,11 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let response = match map_epiphany_propose_response(state, params.observation_ids) {
+        let response = match map_epiphany_propose_response(
+            state,
+            memory_graph_snapshot.as_ref(),
+            params.observation_ids,
+        ) {
             Ok(response) => response,
             Err(err) => {
                 self.send_invalid_request_error(
