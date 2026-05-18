@@ -208,6 +208,7 @@ impl CodexMessageProcessor {
                     accepted_evidence_id: applied.accepted_evidence_id,
                     applied_patch: applied.applied_patch,
                     finding: applied.finding,
+                    memory_patch_reviews: applied.memory_patch_reviews,
                 },
             )
             .await;

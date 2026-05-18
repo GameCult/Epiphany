@@ -1908,6 +1908,7 @@ mod tests {
                 accepted_evidence_id: "ev-modeling-1".to_string(),
                 applied_patch: patch,
                 finding,
+                memory_patch_reviews: Vec::new(),
             },
         };
 

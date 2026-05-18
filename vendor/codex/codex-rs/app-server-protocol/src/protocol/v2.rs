@@ -72,6 +72,7 @@ use codex_protocol::protocol::EpiphanyInvestigationCheckpoint as CoreEpiphanyInv
 use codex_protocol::protocol::EpiphanyInvestigationDisposition as CoreEpiphanyInvestigationDisposition;
 use codex_protocol::protocol::EpiphanyJobBinding as CoreEpiphanyJobBinding;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
+use codex_protocol::protocol::EpiphanyMemoryPatchReview as CoreEpiphanyMemoryPatchReview;
 use codex_protocol::protocol::EpiphanyModeState as CoreEpiphanyModeState;
 use codex_protocol::protocol::EpiphanyObservation as CoreEpiphanyObservation;
 use codex_protocol::protocol::EpiphanyPlanningState as CoreEpiphanyPlanningState;
@@ -3989,6 +3990,9 @@ pub struct ThreadEpiphanyRoleAcceptResponse {
     pub accepted_evidence_id: String,
     pub applied_patch: ThreadEpiphanyUpdatePatch,
     pub finding: ThreadEpiphanyRoleFinding,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(type = "Array<CoreEpiphanyMemoryPatchReview>")]
+    pub memory_patch_reviews: Vec<CoreEpiphanyMemoryPatchReview>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]

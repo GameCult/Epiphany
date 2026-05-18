@@ -397,9 +397,10 @@ for typed candidate files. Bridge Modeling `roleAccept` now loads typed
 candidates from the runtime-spine result, bootstraps `state/memory-graph.msgpack`
 from accepted thread graphs when the store is missing, applies accepted
 candidates through the graph law, and rejects invalid candidates before role
-acceptance. The next cleanup is exposing memory patch reviews through the
-operator surface and cutting legacy full-graph replacement patches from the
-normal Modeling prompt/acceptance path.
+acceptance. `thread/epiphany/roleAccept` responses now expose typed
+`memoryPatchReviews` at the JSON edge so operators can see exactly which graph
+growth was accepted or rejected. The next cleanup is cutting legacy full-graph
+replacement patches from the normal Modeling prompt/acceptance path.
 
 ### Phase 7: Sleep And Repo Refresh
 
