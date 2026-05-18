@@ -5,7 +5,6 @@ use epiphany_state_model::EpiphanyChurnState;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyGraphCheckpoint;
 use epiphany_state_model::EpiphanyGraphFrontier;
-use epiphany_state_model::EpiphanyGraphs;
 use epiphany_state_model::EpiphanyInvariant;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyJobBinding;
@@ -26,7 +25,6 @@ pub struct EpiphanyStateUpdate {
     pub active_subgoal_id: Option<String>,
     pub subgoals: Option<Vec<EpiphanySubgoal>>,
     pub invariants: Option<Vec<EpiphanyInvariant>>,
-    pub graphs: Option<EpiphanyGraphs>,
     pub graph_frontier: Option<EpiphanyGraphFrontier>,
     pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
     pub scratch: Option<EpiphanyScratchPad>,
@@ -47,7 +45,6 @@ impl EpiphanyStateUpdate {
             && self.active_subgoal_id.is_none()
             && self.subgoals.is_none()
             && self.invariants.is_none()
-            && self.graphs.is_none()
             && self.graph_frontier.is_none()
             && self.graph_checkpoint.is_none()
             && self.scratch.is_none()
@@ -173,13 +170,6 @@ pub fn epiphany_state_update_validation_errors(
     if let Some(planning) = update.planning.as_ref() {
         errors.extend(validate_epiphany_planning_state(planning));
     }
-    if update.graphs.is_some() {
-        errors.push(
-            "patch.graphs is no longer accepted; graph growth belongs in typed memoryPatchCandidates"
-                .to_string(),
-        );
-    }
-
     errors.extend(epiphany_state_replacement_validation_errors(state, update));
     errors
 }
@@ -240,6 +230,7 @@ mod tests {
     use epiphany_state_model::EpiphanyBacklogItem;
     use epiphany_state_model::EpiphanyGraph;
     use epiphany_state_model::EpiphanyGraphNode;
+    use epiphany_state_model::EpiphanyGraphs;
     use epiphany_state_model::EpiphanyJobKind;
     use epiphany_state_model::EpiphanyObjectiveDraft;
     use epiphany_state_model::EpiphanyPlanningCapture;
@@ -670,17 +661,6 @@ mod tests {
             },
             ..Default::default()
         };
-        let graph_update = EpiphanyStateUpdate {
-            graphs: Some(EpiphanyGraphs::default()),
-            ..Default::default()
-        };
-        let errors = epiphany_state_update_validation_errors(&state, &graph_update);
-        assert!(
-            errors
-                .iter()
-                .any(|error| error.contains("patch.graphs is no longer accepted"))
-        );
-
         let frontier_update = EpiphanyStateUpdate {
             graph_frontier: Some(EpiphanyGraphFrontier {
                 active_node_ids: vec!["missing".to_string()],
@@ -993,9 +973,8 @@ fn epiphany_state_replacement_validation_errors(
     update: &EpiphanyStateUpdate,
 ) -> Vec<String> {
     let validates_subgoal_target = update.subgoals.is_some() || update.active_subgoal_id.is_some();
-    let validates_graph_target = update.graphs.is_some()
-        || update.graph_frontier.is_some()
-        || update.graph_checkpoint.is_some();
+    let validates_graph_target =
+        update.graph_frontier.is_some() || update.graph_checkpoint.is_some();
     let mut known_evidence_ids: HashSet<&str> = state
         .recent_evidence
         .iter()
@@ -1019,7 +998,7 @@ fn epiphany_state_replacement_validation_errors(
         },
         invariants: update.invariants.as_deref(),
         graphs: if validates_graph_target {
-            update.graphs.as_ref().or(Some(&state.graphs))
+            Some(&state.graphs)
         } else {
             None
         },

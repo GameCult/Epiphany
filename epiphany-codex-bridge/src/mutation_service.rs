@@ -150,7 +150,6 @@ pub async fn apply_thread_epiphany_promote(
         active_subgoal_id: patch.active_subgoal_id.clone(),
         subgoals: patch.subgoals.clone(),
         invariants: patch.invariants.clone(),
-        graphs: None,
         graph_frontier: patch.graph_frontier.clone(),
         graph_checkpoint: patch.graph_checkpoint.clone(),
         investigation_checkpoint: patch.investigation_checkpoint.clone(),

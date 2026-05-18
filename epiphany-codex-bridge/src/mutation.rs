@@ -84,7 +84,6 @@ pub fn state_update_from_thread_patch(
         active_subgoal_id: patch.active_subgoal_id,
         subgoals: patch.subgoals,
         invariants: patch.invariants,
-        graphs: None,
         graph_frontier: patch.graph_frontier,
         graph_checkpoint: patch.graph_checkpoint,
         scratch: patch.scratch,

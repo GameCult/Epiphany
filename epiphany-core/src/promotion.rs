@@ -16,7 +16,6 @@ pub struct EpiphanyPromotionInput {
     pub active_subgoal_id: Option<String>,
     pub subgoals: Option<Vec<EpiphanySubgoal>>,
     pub invariants: Option<Vec<EpiphanyInvariant>>,
-    pub graphs: Option<EpiphanyGraphs>,
     pub graph_frontier: Option<EpiphanyGraphFrontier>,
     pub graph_checkpoint: Option<EpiphanyGraphCheckpoint>,
     pub investigation_checkpoint: Option<EpiphanyInvestigationCheckpoint>,
@@ -72,13 +71,6 @@ pub fn evaluate_promotion(input: EpiphanyPromotionInput) -> EpiphanyPromotionDec
             );
         }
     }
-    if input.graphs.is_some() {
-        reasons.push(
-            "patch.graphs is no longer accepted; graph growth belongs in typed memoryPatchCandidates"
-                .to_string(),
-        );
-    }
-
     validate_evidence_record(&input.verifier_evidence, "verifierEvidence", &mut reasons);
     if !is_accepting_status(&input.verifier_evidence.status) {
         reasons.push(format!(
@@ -612,7 +604,6 @@ fn is_strong_verifier_kind(kind: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use epiphany_state_model::EpiphanyGraphEdge;
     use epiphany_state_model::EpiphanyGraphNode;
 
     fn verifier(status: &str) -> EpiphanyEvidenceRecord {
@@ -657,7 +648,6 @@ mod tests {
             active_subgoal_id: None,
             subgoals: None,
             invariants: None,
-            graphs: None,
             graph_frontier: None,
             graph_checkpoint: None,
             investigation_checkpoint: None,
@@ -701,7 +691,6 @@ mod tests {
             active_subgoal_id: None,
             subgoals: None,
             invariants: None,
-            graphs: None,
             graph_frontier: None,
             graph_checkpoint: None,
             investigation_checkpoint: None,
@@ -744,39 +733,6 @@ mod tests {
                 .reasons
                 .iter()
                 .any(|reason| reason.contains("state replacement promotions"))
-        );
-    }
-
-    #[test]
-    fn evaluate_promotion_rejects_graph_replacement() {
-        let decision = evaluate_promotion(EpiphanyPromotionInput {
-            graphs: Some(EpiphanyGraphs {
-                architecture: EpiphanyGraph {
-                    nodes: vec![EpiphanyGraphNode {
-                        id: "state".to_string(),
-                        title: "State".to_string(),
-                        purpose: "Carry the explicit map".to_string(),
-                        ..Default::default()
-                    }],
-                    edges: vec![EpiphanyGraphEdge {
-                        source_id: "state".to_string(),
-                        target_id: "missing".to_string(),
-                        kind: "feeds".to_string(),
-                        id: Some("edge-1".to_string()),
-                        ..Default::default()
-                    }],
-                },
-                ..Default::default()
-            }),
-            ..promotion_input(true, vec![observation()], vec![evidence()], "ok")
-        });
-
-        assert!(!decision.accepted);
-        assert!(
-            decision
-                .reasons
-                .iter()
-                .any(|reason| reason.contains("patch.graphs is no longer accepted"))
         );
     }
 
@@ -852,18 +808,6 @@ mod tests {
     #[test]
     fn evaluate_promotion_accepts_verified_map_and_churn_replacement() {
         let decision = evaluate_promotion(EpiphanyPromotionInput {
-            graphs: Some(EpiphanyGraphs {
-                architecture: EpiphanyGraph {
-                    nodes: vec![EpiphanyGraphNode {
-                        id: "state".to_string(),
-                        title: "State".to_string(),
-                        purpose: "Carry the explicit map".to_string(),
-                        ..Default::default()
-                    }],
-                    edges: Vec::new(),
-                },
-                ..Default::default()
-            }),
             graph_frontier: Some(EpiphanyGraphFrontier {
                 active_node_ids: vec!["state".to_string()],
                 ..Default::default()
