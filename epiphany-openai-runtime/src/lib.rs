@@ -541,7 +541,7 @@ fn worker_instructions(
 fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
     match document {
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Modeling workers should put proposed graph/memory changes in memoryPatchCandidates instead of relying on prompt-local full graph rewrites. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, artifactRefs, and memoryPatchCandidates when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Modeling workers must put proposed graph/memory changes in memoryPatchCandidates, never statePatch.graphs. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, artifactRefs, and memoryPatchCandidates when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -952,7 +952,7 @@ mod tests {
             &launch_request,
             &model_request.request_id,
             &openai_summary,
-            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"statePatch":{"objective":"Keep the machine mapped."},"selfPatch":{"reason":"typed nested document"},"memoryPatchCandidates":[{"id":"mempatch-auth-spine","profile":"repo_architecture","status":"proposed","proposedNodes":[{"id":"memnode-auth-spine","domainId":"memdom-repo","profile":"repo_architecture","kind":"module","title":"Auth spine","claim":"Codex remains responsible for OpenAI authentication.","question":"","tension":"","actionImplication":"","lifecycle":"proposed"}],"reasons":["Modeling proposes typed graph growth without full graph cargo."]}]} "#,
+            r#"{"roleId":"modeling","verdict":"checkpoint-ready","summary":"Mapped.","nextSafeMove":"Review the patch.","filesInspected":["src/lib.rs"],"evidenceIds":["ev-1"],"artifactRefs":["artifact:model"],"statePatch":{"scratch":{"summary":"Keep the machine mapped."}},"selfPatch":{"reason":"typed nested document"},"memoryPatchCandidates":[{"id":"mempatch-auth-spine","profile":"repo_architecture","status":"proposed","proposedNodes":[{"id":"memnode-auth-spine","domainId":"memdom-repo","profile":"repo_architecture","kind":"module","title":"Auth spine","claim":"Codex remains responsible for OpenAI authentication.","question":"","tension":"","actionImplication":"","lifecycle":"proposed"}],"reasons":["Modeling proposes typed graph growth without full graph cargo."]}]} "#,
         )?;
 
         assert_eq!(result.job_id, "worker-job-1");
@@ -965,8 +965,14 @@ mod tests {
         assert_eq!(typed_result.verdict, "checkpoint-ready");
         assert_eq!(typed_result.files_inspected, vec!["src/lib.rs".to_string()]);
         assert_eq!(typed_result.artifact_refs, result.artifact_refs);
+        assert!(typed_result.item_error.is_none());
         assert_eq!(
-            typed_result.state_patch()?.expect("state patch").objective,
+            typed_result
+                .state_patch()?
+                .expect("state patch")
+                .scratch
+                .expect("scratch patch")
+                .summary,
             Some("Keep the machine mapped.".to_string())
         );
         assert_eq!(
