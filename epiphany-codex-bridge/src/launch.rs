@@ -241,9 +241,8 @@ pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serd
                 "statePatch".to_string(),
                 serde_json::json!({
                     "type": "object",
-                    "description": "Required reviewable thread/epiphany/update patch for modeling. Use only graphs, graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence. The patch must include at least one durable modeling field, not observations/evidence alone.",
+                    "description": "Required reviewable thread/epiphany/update patch for modeling. Use only graphFrontier, graphCheckpoint, scratch, investigationCheckpoint, observations, and evidence. Graph growth belongs in memoryPatchCandidates, not statePatch.graphs. The patch must include at least one durable modeling field, not observations/evidence alone.",
                     "anyOf": [
-                        {"required": ["graphs"]},
                         {"required": ["graphFrontier"]},
                         {"required": ["graphCheckpoint"]},
                         {"required": ["scratch"]},
@@ -262,6 +261,18 @@ pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serd
                         }
                     },
                     "additionalProperties": true
+                }),
+            );
+            map.insert(
+                "memoryPatchCandidates".to_string(),
+                serde_json::json!({
+                    "type": "array",
+                    "description": "Optional typed EpiphanyMemoryPatchCandidate records for graph or memory growth. Proposed domains, nodes, and edges are reviewed against the memory graph during roleAccept.",
+                    "items": {
+                        "type": "object",
+                        "required": ["id", "profile", "status"],
+                        "additionalProperties": true
+                    }
                 }),
             );
         }

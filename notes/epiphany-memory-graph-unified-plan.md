@@ -403,8 +403,9 @@ growth was accepted or rejected. `thread/epiphany/roleResult` findings also
 expose typed `memoryPatchCandidates`, so the operator can inspect proposed graph
 growth before acceptance. Legacy Modeling `statePatch.graphs` is now rejected by
 policy and the specialist prompt routes graph growth through
-`memoryPatchCandidates`; graph replacement remains only a non-normal legacy
-surface outside Modeling acceptance. The next cleanup is removing remaining
+`memoryPatchCandidates`; the Modeling output schema also no longer advertises
+`statePatch.graphs`; graph replacement remains only a non-normal legacy surface
+outside Modeling acceptance. The next cleanup is removing remaining
 operator/UI assumptions that graph growth comes from thread-state graph
 replacement instead of the unified memory graph.
 
