@@ -1,4 +1,5 @@
 use super::EpiphanyHeartbeatStateEntry;
+use super::HeartbeatAdaptivePacingSignals;
 use super::HeartbeatParticipant;
 use super::HeartbeatPumpOptions;
 use super::round3;
@@ -12,7 +13,7 @@ pub(super) struct AdaptiveSwarmPacing {
     pub(super) target_concurrency: usize,
     pub(super) running_turns: usize,
     pub(super) active_participants: usize,
-    pub(super) signals: Value,
+    pub(super) signals: HeartbeatAdaptivePacingSignals,
 }
 
 pub(super) fn adaptive_swarm_pacing(
@@ -74,17 +75,17 @@ pub(super) fn adaptive_swarm_pacing(
         target_concurrency,
         running_turns,
         active_participants,
-        signals: serde_json::json!({
-            "externalUrgency": round3(external_urgency),
-            "maxAnxiety": round3(mood_signals.max_anxiety),
-            "averageAnxiety": round3(mood_signals.average_anxiety),
-            "maxUrgency": round3(mood_signals.max_urgency),
-            "maxArousal": round3(mood_signals.max_arousal),
-            "maxThoughtPressure": round3(mood_signals.max_thought_pressure),
-            "maxReactionIntensity": round3(mood_signals.max_reaction_intensity),
-            "pendingPressure": round3(pending_pressure),
-            "contract": "Anxiety-like state raises tempo and concurrency; calm state lets the swarm sleep slow.",
-        }),
+        signals: HeartbeatAdaptivePacingSignals {
+            external_urgency: round3(external_urgency),
+            max_anxiety: round3(mood_signals.max_anxiety),
+            average_anxiety: round3(mood_signals.average_anxiety),
+            max_urgency: round3(mood_signals.max_urgency),
+            max_arousal: round3(mood_signals.max_arousal),
+            max_thought_pressure: round3(mood_signals.max_thought_pressure),
+            max_reaction_intensity: round3(mood_signals.max_reaction_intensity),
+            pending_pressure: round3(pending_pressure),
+            contract: "Anxiety-like state raises tempo and concurrency; calm state lets the swarm sleep slow.".to_string(),
+        },
     }
 }
 
@@ -177,16 +178,14 @@ mod tests {
     #[test]
     fn running_turn_count_reads_only_running_pending_turns() {
         let mut state = default_heartbeat_state(1.0);
-        state.participants[0].pending_turn =
-            Some(crate::heartbeat_state::HeartbeatPendingTurn {
-                status: "running".to_string(),
-                ..Default::default()
-            });
-        state.participants[1].pending_turn =
-            Some(crate::heartbeat_state::HeartbeatPendingTurn {
-                status: "completed".to_string(),
-                ..Default::default()
-            });
+        state.participants[0].pending_turn = Some(crate::heartbeat_state::HeartbeatPendingTurn {
+            status: "running".to_string(),
+            ..Default::default()
+        });
+        state.participants[1].pending_turn = Some(crate::heartbeat_state::HeartbeatPendingTurn {
+            status: "completed".to_string(),
+            ..Default::default()
+        });
 
         assert_eq!(running_turn_count(&state), 1);
     }

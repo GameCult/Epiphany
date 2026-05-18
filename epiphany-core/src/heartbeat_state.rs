@@ -14,8 +14,21 @@ mod heartbeat_projection;
 mod heartbeat_roles;
 mod heartbeat_store;
 pub use heartbeat_documents::*;
+use heartbeat_pacing::adaptive_swarm_pacing;
+use heartbeat_pacing::effective_cooldown_multiplier;
+use heartbeat_pacing::mood_cooldown_multiplier;
+use heartbeat_pacing::personality_cooldown_multiplier;
+use heartbeat_pacing::running_turn_count;
 pub use heartbeat_projection::heartbeat_status_projection;
+use heartbeat_projection::history_event_json;
+use heartbeat_projection::pending_turn_json;
+use heartbeat_projection::schedule_participant_json;
+use heartbeat_projection::selection_policy_json;
+use heartbeat_roles::ROLE_ORDER;
+use heartbeat_roles::agent_id_for_role;
 pub use heartbeat_roles::default_heartbeat_state;
+use heartbeat_roles::default_participant;
+use heartbeat_roles::display_name_for_role;
 pub use heartbeat_roles::ghostlight_scene_heartbeat_state;
 pub use heartbeat_roles::initialize_ghostlight_scene_heartbeat_store;
 pub use heartbeat_roles::initialize_heartbeat_store;
@@ -26,19 +39,6 @@ pub use heartbeat_store::validate_heartbeat_cognition;
 pub use heartbeat_store::validate_heartbeat_state;
 pub use heartbeat_store::write_heartbeat_cognition_entry;
 pub use heartbeat_store::write_heartbeat_state_entry;
-use heartbeat_projection::history_event_json;
-use heartbeat_projection::pending_turn_json;
-use heartbeat_projection::schedule_participant_json;
-use heartbeat_projection::selection_policy_json;
-use heartbeat_pacing::adaptive_swarm_pacing;
-use heartbeat_pacing::effective_cooldown_multiplier;
-use heartbeat_pacing::mood_cooldown_multiplier;
-use heartbeat_pacing::personality_cooldown_multiplier;
-use heartbeat_pacing::running_turn_count;
-use heartbeat_roles::ROLE_ORDER;
-use heartbeat_roles::agent_id_for_role;
-use heartbeat_roles::default_participant;
-use heartbeat_roles::display_name_for_role;
 
 pub(super) const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
 pub(super) const HEARTBEAT_ARENA_SCENE: &str = "scene";
@@ -73,8 +73,12 @@ pub fn run_void_routine_store(
     apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     let resonance = build_memory_resonance(&memory_records);
     let incubation = build_incubation(
-        &previous_cognition.as_ref().and_then(|entry| entry.incubation.clone()),
-        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.incubation.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.bridge.clone()),
         &previous_cognition
             .as_ref()
             .and_then(|entry| entry.candidate_interventions.clone()),
@@ -83,7 +87,9 @@ pub fn run_void_routine_store(
     );
     let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
     let bridge = build_thought_bridge(
-        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.bridge.clone()),
         &thought_lanes,
         &resonance,
         &incubation,
@@ -231,19 +237,16 @@ pub fn pump_heartbeat_store(
 
     let pacing = adaptive_swarm_pacing(&state, &options);
     state.target_heartbeat_rate = pacing.effective_heartbeat_rate;
-    state.extra.insert(
-        "adaptivePacing".to_string(),
-        serde_json::json!({
-            "schema_version": "epiphany.adaptive_heartbeat_pacing.v0",
-            "contract": "Swarm pressure controls both heartbeat tempo and concurrency. Relaxed systems sleep slow; urgent systems fill more lanes without re-waking unfinished turns.",
-            "pressure": pacing.pressure,
-            "effectiveHeartbeatRate": pacing.effective_heartbeat_rate,
-            "targetConcurrency": pacing.target_concurrency,
-            "runningTurns": pacing.running_turns,
-            "activeParticipants": pacing.active_participants,
-            "signals": pacing.signals,
-        }),
-    );
+    state.adaptive_pacing = Some(HeartbeatAdaptivePacing {
+        schema_version: "epiphany.adaptive_heartbeat_pacing.v0".to_string(),
+        contract: "Swarm pressure controls both heartbeat tempo and concurrency. Relaxed systems sleep slow; urgent systems fill more lanes without re-waking unfinished turns.".to_string(),
+        pressure: pacing.pressure,
+        effective_heartbeat_rate: pacing.effective_heartbeat_rate,
+        target_concurrency: pacing.target_concurrency,
+        running_turns: pacing.running_turns,
+        active_participants: pacing.active_participants,
+        signals: pacing.signals.clone(),
+    });
 
     let artifact_dir = artifact_dir.as_ref();
     fs::create_dir_all(artifact_dir)

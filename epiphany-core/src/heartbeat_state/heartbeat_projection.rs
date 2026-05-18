@@ -58,6 +58,11 @@ pub fn heartbeat_status_projection(
         .rev()
         .map(history_event_json)
         .collect();
+    let adaptive_pacing = state
+        .adaptive_pacing
+        .as_ref()
+        .and_then(|pacing| serde_json::to_value(pacing).ok())
+        .or_else(|| state.extra.get("adaptivePacing").cloned());
     Ok(serde_json::json!({
         "schema_version": HEARTBEAT_STATUS_SCHEMA_VERSION,
         "ok": true,
@@ -81,7 +86,7 @@ pub fn heartbeat_status_projection(
         "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.clone()),
         "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.clone()),
         "reactions": cognition.as_ref().and_then(|entry| entry.reactions.clone()),
-        "adaptivePacing": state.extra.get("adaptivePacing"),
+        "adaptivePacing": adaptive_pacing,
         "availableActions": ["init", "tick", "pump", "complete", "status", "routine"],
     }))
 }
@@ -94,7 +99,10 @@ fn latest_json_artifacts(artifact_dir: impl AsRef<Path>, limit: usize) -> Vec<Va
     let mut paths: Vec<_> = read_dir
         .filter_map(Result::ok)
         .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "json"))
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
         .filter_map(|path| {
             let modified = path.metadata().and_then(|meta| meta.modified()).ok()?;
             Some((path, modified))
@@ -121,7 +129,8 @@ fn latest_json_artifacts(artifact_dir: impl AsRef<Path>, limit: usize) -> Vec<Va
 }
 
 fn artifact_summary(payload: &Value) -> Value {
-    if payload.get("schema_version") == Some(&Value::String(VOID_ROUTINE_SCHEMA_VERSION.to_string()))
+    if payload.get("schema_version")
+        == Some(&Value::String(VOID_ROUTINE_SCHEMA_VERSION.to_string()))
     {
         return serde_json::json!({
             "runId": payload.get("runId"),

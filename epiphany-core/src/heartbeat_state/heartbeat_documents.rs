@@ -34,6 +34,8 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub participants: Vec<HeartbeatParticipant>,
     #[cultcache(key = 6)]
     pub history: Vec<HeartbeatHistoryEvent>,
+    #[cultcache(key = 7, default)]
+    pub adaptive_pacing: Option<HeartbeatAdaptivePacing>,
     #[cultcache(key = 15, default)]
     pub extra: BTreeMap<String, Value>,
 }
@@ -133,6 +135,34 @@ pub struct HeartbeatPacingPolicy {
     pub minimum_effective_rate: f64,
     #[serde(flatten)]
     pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatAdaptivePacing {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub contract: String,
+    pub pressure: f64,
+    pub effective_heartbeat_rate: f64,
+    pub target_concurrency: usize,
+    pub running_turns: usize,
+    pub active_participants: usize,
+    pub signals: HeartbeatAdaptivePacingSignals,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatAdaptivePacingSignals {
+    pub external_urgency: f64,
+    pub max_anxiety: f64,
+    pub average_anxiety: f64,
+    pub max_urgency: f64,
+    pub max_arousal: f64,
+    pub max_thought_pressure: f64,
+    pub max_reaction_intensity: f64,
+    pub pending_pressure: f64,
+    pub contract: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
