@@ -418,9 +418,11 @@ frontier updates are withheld when the proposal depends on unapplied memory
 growth. Generic `thread/epiphany/update` and `thread/epiphany/promote` bridge
 mutation paths now reject `patch.graphs`; graph replacement fields remain only
 as compatibility/deserialization reliquary, not live mutation authority.
-`thread/epiphany/context` and `thread/epiphany/graphQuery` now prefer
+`thread/epiphany/view`, `thread/epiphany/freshness`,
+`thread/epiphany/context`, and `thread/epiphany/graphQuery` now prefer
 `state/memory-graph.msgpack` for loaded threads and project the typed repo
-memory graph back into legacy graph response shapes only at the bridge edge.
+memory graph back into legacy graph-shaped response lenses only at the bridge
+edge.
 
 ### Phase 7: Sleep And Repo Refresh
 

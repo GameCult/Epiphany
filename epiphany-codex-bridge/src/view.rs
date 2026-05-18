@@ -75,6 +75,7 @@ pub struct EpiphanyFreshnessResponseInput<'a> {
     pub thread_id: String,
     pub loaded: bool,
     pub state: Option<&'a EpiphanyThreadState>,
+    pub memory_graph_snapshot: Option<&'a EpiphanyMemoryGraphSnapshot>,
     pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
 }
@@ -82,8 +83,11 @@ pub struct EpiphanyFreshnessResponseInput<'a> {
 pub fn map_epiphany_freshness_response(
     input: EpiphanyFreshnessResponseInput<'_>,
 ) -> ThreadEpiphanyFreshnessResponse {
+    let memory_backed_state =
+        memory_backed_thread_state(input.state, input.memory_graph_snapshot);
+    let state = memory_backed_state.as_ref().or(input.state);
     let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
-        input.state,
+        state,
         input.retrieval_override,
         input.watcher_snapshot,
     );
@@ -169,6 +173,7 @@ pub struct EpiphanyViewResponseInput<'a> {
     pub lenses: Vec<ThreadEpiphanyViewLens>,
     pub loaded: bool,
     pub state: Option<&'a EpiphanyThreadState>,
+    pub memory_graph_snapshot: Option<&'a EpiphanyMemoryGraphSnapshot>,
     pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
     pub token_usage_info: Option<&'a CoreTokenUsageInfo>,
@@ -183,11 +188,14 @@ pub async fn map_epiphany_view_response(
         lenses,
         loaded,
         state,
+        memory_graph_snapshot,
         retrieval_override,
         watcher_snapshot,
         token_usage_info,
         runtime_store_path,
     } = input;
+    let memory_backed_state = memory_backed_thread_state(state, memory_graph_snapshot);
+    let state = memory_backed_state.as_ref().or(state);
 
     let needs_jobs = epiphany_view_needs_jobs(&lenses);
     let needs_reorientation_inputs = epiphany_view_needs_reorientation_inputs(&lenses);
