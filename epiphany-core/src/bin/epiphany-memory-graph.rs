@@ -13,6 +13,7 @@ use epiphany_core::EpiphanyMemoryNode;
 use epiphany_core::EpiphanyMemoryNodeKind;
 use epiphany_core::EpiphanyMemoryProfile;
 use epiphany_core::EpiphanyMemorySummary;
+use epiphany_core::compose_memory_graph_snapshots;
 use epiphany_core::derive_memory_graph_freshness;
 use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::memory_graph_domain_id;
@@ -62,6 +63,11 @@ fn main() -> Result<()> {
                 .ok_or_else(|| anyhow!("memory graph store {} is missing", store.display()))?;
             let packet = plan_memory_graph_context_cut(&snapshot, &query);
             print_json(&packet)?;
+        }
+        "compose" => {
+            let compose = read_compose_args(args)?;
+            let output = compose_memory_graph_store(compose)?;
+            print_json(&output)?;
         }
         "smoke" => {
             let store = optional_path_arg(&mut args, "--store")?
@@ -140,6 +146,78 @@ fn read_context_query(args: impl Iterator<Item = String>) -> Result<EpiphanyMemo
     Ok(query)
 }
 
+struct ComposeArgs {
+    store: PathBuf,
+    graph_id: String,
+    sources: Vec<PathBuf>,
+}
+
+fn read_compose_args(args: impl Iterator<Item = String>) -> Result<ComposeArgs> {
+    let mut store = None;
+    let mut graph_id = "epiphany-memory-graph".to_string();
+    let mut sources = Vec::new();
+    let mut args = args.peekable();
+    while let Some(flag) = args.next() {
+        match flag.as_str() {
+            "--store" => store = Some(PathBuf::from(next_value(&mut args, "--store")?)),
+            "--graph-id" => graph_id = next_value(&mut args, "--graph-id")?,
+            "--source" => sources.push(PathBuf::from(next_value(&mut args, "--source")?)),
+            _ => return Err(anyhow!("unexpected compose argument {flag:?}")),
+        }
+    }
+    if sources.is_empty() {
+        return Err(anyhow!(
+            "compose requires at least one --source memory graph store"
+        ));
+    }
+    Ok(ComposeArgs {
+        store: store.ok_or_else(|| anyhow!("compose requires --store <path>"))?,
+        graph_id,
+        sources,
+    })
+}
+
+fn compose_memory_graph_store(args: ComposeArgs) -> Result<serde_json::Value> {
+    let mut snapshots = Vec::new();
+    let mut source_status = Vec::new();
+    for source in &args.sources {
+        let snapshot = load_memory_graph_snapshot(source)?
+            .ok_or_else(|| anyhow!("memory graph source {} is missing", source.display()))?;
+        source_status.push(serde_json::json!({
+            "source": source,
+            "graphId": snapshot.graph_id,
+            "domains": snapshot.domains.len(),
+            "nodes": snapshot.nodes.len(),
+            "edges": snapshot.edges.len(),
+            "summaries": snapshot.summaries.len(),
+        }));
+        snapshots.push(snapshot);
+    }
+
+    let snapshot = compose_memory_graph_snapshots(args.graph_id, snapshots).map_err(|errors| {
+        anyhow!(
+            "composed memory graph is invalid: {}",
+            errors
+                .iter()
+                .map(|error| format!("{}: {}", error.path, error.message))
+                .collect::<Vec<_>>()
+                .join("; ")
+        )
+    })?;
+    write_memory_graph_snapshot(&args.store, &snapshot)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "store": args.store,
+        "graphId": snapshot.graph_id,
+        "sources": source_status,
+        "domains": snapshot.domains.len(),
+        "nodes": snapshot.nodes.len(),
+        "edges": snapshot.edges.len(),
+        "summaries": snapshot.summaries.len(),
+        "freshness": snapshot.freshness,
+    }))
+}
+
 fn require_path_arg(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(require_string_arg(args, name)?))
 }
@@ -195,7 +273,9 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 }
 
 fn print_usage() {
-    eprintln!("usage: epiphany-memory-graph <status|validate|context|smoke> --store <path> ...");
+    eprintln!(
+        "usage: epiphany-memory-graph <status|validate|context|compose|smoke> --store <path> ..."
+    );
 }
 
 fn scoped_temp_store(prefix: &str) -> PathBuf {
