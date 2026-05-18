@@ -173,6 +173,12 @@ pub fn epiphany_state_update_validation_errors(
     if let Some(planning) = update.planning.as_ref() {
         errors.extend(validate_epiphany_planning_state(planning));
     }
+    if update.graphs.is_some() {
+        errors.push(
+            "patch.graphs is no longer accepted; graph growth belongs in typed memoryPatchCandidates"
+                .to_string(),
+        );
+    }
 
     errors.extend(epiphany_state_replacement_validation_errors(state, update));
     errors
@@ -194,9 +200,6 @@ pub fn apply_epiphany_state_update(
     }
     if let Some(invariants) = update.invariants {
         state.invariants = invariants;
-    }
-    if let Some(graphs) = update.graphs {
-        state.graphs = graphs;
     }
     if let Some(graph_frontier) = update.graph_frontier {
         state.graph_frontier = Some(graph_frontier);
@@ -667,6 +670,17 @@ mod tests {
             },
             ..Default::default()
         };
+        let graph_update = EpiphanyStateUpdate {
+            graphs: Some(EpiphanyGraphs::default()),
+            ..Default::default()
+        };
+        let errors = epiphany_state_update_validation_errors(&state, &graph_update);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("patch.graphs is no longer accepted"))
+        );
+
         let frontier_update = EpiphanyStateUpdate {
             graph_frontier: Some(EpiphanyGraphFrontier {
                 active_node_ids: vec!["missing".to_string()],
