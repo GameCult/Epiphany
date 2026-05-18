@@ -207,10 +207,7 @@ fn import_bridge_pressure(
     let Some(bridge) = cognition.bridge.as_ref() else {
         return;
     };
-    let decision = bridge
-        .pointer("/decision/speakDecision")
-        .and_then(Value::as_str)
-        .unwrap_or("silence");
+    let decision = bridge.decision.speak_decision.as_str();
     if decision == "silence" {
         return;
     }
@@ -219,10 +216,11 @@ fn import_bridge_pressure(
         EpiphanyMemoryProfile::AgencyPressure,
         "heartbeat bridge pressure",
     );
-    let reason = bridge
-        .pointer("/decision/reason")
-        .and_then(Value::as_str)
-        .unwrap_or("Bridge pressure has no explicit reason.");
+    let reason = if bridge.decision.reason.trim().is_empty() {
+        "Bridge pressure has no explicit reason."
+    } else {
+        bridge.decision.reason.as_str()
+    };
     let node = EpiphanyMemoryNode {
         id: memory_graph_node_id(&domain_id, "bridge-pressure", decision, None),
         domain_id: domain_id.clone(),
@@ -359,8 +357,10 @@ fn incubation_lifecycle(status: &str) -> EpiphanyMemoryLifecycle {
 mod tests {
     use super::*;
     use crate::heartbeat_state::HEARTBEAT_COGNITION_SCHEMA_VERSION;
+    use crate::heartbeat_state::HeartbeatBridgeDecision;
     use crate::heartbeat_state::HeartbeatCandidateIntervention;
     use crate::heartbeat_state::HeartbeatCandidateInterventions;
+    use crate::heartbeat_state::HeartbeatCognitionBridge;
     use crate::heartbeat_state::HeartbeatMemoryResonance;
     use crate::heartbeat_state::HeartbeatMemoryResonancePair;
     use crate::memory_graph::validate_memory_graph_snapshot;
@@ -403,12 +403,14 @@ mod tests {
                 }]
             })),
             thought_lanes: None,
-            bridge: Some(serde_json::json!({
-                "decision": {
-                    "speakDecision": "hold",
-                    "reason": "The thought is live but not ready for speech."
-                }
-            })),
+            bridge: Some(HeartbeatCognitionBridge {
+                decision: HeartbeatBridgeDecision {
+                    speak_decision: "hold".to_string(),
+                    reason: "The thought is live but not ready for speech.".to_string(),
+                    ..Default::default()
+                },
+                ..Default::default()
+            }),
             candidate_interventions: Some(HeartbeatCandidateInterventions {
                 schema_version: "epiphany.candidate_interventions.v0".to_string(),
                 updated_at: "2026-05-18T00:00:00Z".to_string(),

@@ -135,7 +135,9 @@ fn legacy_heartbeat_cognition_entry(
             .and_then(|value| serde_json::from_value(value).ok()),
         incubation: legacy.incubation,
         thought_lanes: legacy.thought_lanes,
-        bridge: legacy.bridge,
+        bridge: legacy
+            .bridge
+            .and_then(|value| serde_json::from_value(value).ok()),
         candidate_interventions: legacy
             .candidate_interventions
             .and_then(|value| serde_json::from_value(value).ok()),

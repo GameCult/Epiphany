@@ -82,7 +82,7 @@ pub fn heartbeat_status_projection(
         "memoryResonance": cognition.as_ref().and_then(|entry| entry.memory_resonance.as_ref()).and_then(typed_json),
         "incubation": cognition.as_ref().and_then(|entry| entry.incubation.clone()),
         "thoughtLanes": cognition.as_ref().and_then(|entry| entry.thought_lanes.clone()),
-        "bridge": cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        "bridge": cognition.as_ref().and_then(|entry| entry.bridge.as_ref()).and_then(typed_json),
         "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.as_ref()).and_then(typed_json),
         "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.as_ref()).and_then(typed_json),
         "reactions": cognition.as_ref().and_then(|entry| entry.reactions.as_ref()).and_then(typed_json),

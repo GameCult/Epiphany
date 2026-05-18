@@ -96,10 +96,16 @@ pub fn run_void_routine_store(
         &resonance_view,
         &incubation,
     );
-    let candidate_interventions = build_candidate_interventions(&bridge, &incubation);
-    let appraisals =
-        build_agent_appraisals(&appraisal_profiles, &thought_lanes, &incubation, &bridge);
-    let reactions = build_agent_reactions(&appraisals, &bridge);
+    let bridge_view =
+        serde_json::to_value(&bridge).context("failed to project typed heartbeat bridge")?;
+    let candidate_interventions = build_candidate_interventions(&bridge_view, &incubation);
+    let appraisals = build_agent_appraisals(
+        &appraisal_profiles,
+        &thought_lanes,
+        &incubation,
+        &bridge_view,
+    );
+    let reactions = build_agent_reactions(&appraisals, &bridge_view);
     apply_mood_timing_from_appraisals(&mut state, &appraisals);
     let sleep_cycle = update_sleep_cycle(
         previous_cognition
@@ -1355,7 +1361,7 @@ fn build_memory_resonance(records: &[RoleMemoryRecord]) -> HeartbeatMemoryResona
 
 fn build_incubation(
     previous: &Option<Value>,
-    bridge: &Option<Value>,
+    bridge: &Option<HeartbeatCognitionBridge>,
     candidate_interventions: &Option<HeartbeatCandidateInterventions>,
     resonance: &HeartbeatMemoryResonance,
     records: &[RoleMemoryRecord],
@@ -1673,11 +1679,11 @@ fn build_thought_lanes(
 }
 
 fn build_thought_bridge(
-    previous: &Option<Value>,
+    previous: &Option<HeartbeatCognitionBridge>,
     thought_lanes: &Value,
     resonance: &Value,
     incubation: &Value,
-) -> Value {
+) -> HeartbeatCognitionBridge {
     let analytic_count = thought_lanes
         .pointer("/analytic/activeThreads")
         .and_then(Value::as_array)
@@ -1745,42 +1751,42 @@ fn build_thought_bridge(
     };
     let mut syntheses = previous
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            previous
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
-        .cloned()
+        .map(|value| value.recent_syntheses.clone())
         .unwrap_or_default();
-    syntheses.push(serde_json::json!({
-        "timestamp": now_iso(),
-        "summary": if let Some(theme) = &strongest_theme {
+    syntheses.push(HeartbeatBridgeSynthesis {
+        timestamp: now_iso(),
+        summary: if let Some(theme) = &strongest_theme {
             bridge_summary(theme, speak_decision)
         } else {
             "No strong convergence yet; hold the lanes open without forcing speech.".to_string()
         },
-        "dominantTopics": strongest_theme
+        dominant_topics: strongest_theme
             .as_ref()
             .and_then(|theme| theme.get("themeId"))
-            .cloned()
-            .map(|topic| vec![topic])
+            .and_then(Value::as_str)
+            .map(|topic| vec![topic.to_string()])
             .unwrap_or_default(),
-        "laneBalance": lane_balance,
-        "speakDecision": speak_decision,
-        "themeStatus": strongest_status,
-        "noveltyToSelf": round3(strongest_novelty_to_self),
-        "noveltyToRoom": round3(strongest_novelty_to_room),
-        "saturationScore": round3(strongest_saturation),
-        "saturationNote": synthesis_saturation_note(strongest_status, strongest_saturation, strongest_novelty_to_self),
-    }));
+        lane_balance: lane_balance.to_string(),
+        speak_decision: speak_decision.to_string(),
+        theme_status: strongest_status.to_string(),
+        novelty_to_self: round3(strongest_novelty_to_self),
+        novelty_to_room: round3(strongest_novelty_to_room),
+        saturation_score: round3(strongest_saturation),
+        saturation_note: synthesis_saturation_note(
+            strongest_status,
+            strongest_saturation,
+            strongest_novelty_to_self,
+        )
+        .unwrap_or_default()
+        .to_string(),
+    });
     syntheses.reverse();
     syntheses.truncate(8);
     syntheses.reverse();
     let source_coverage = incubation
         .get("sourceCoverage")
         .cloned()
+        .and_then(|value| serde_json::from_value(value).ok())
         .unwrap_or_else(empty_source_coverage);
     let topic_saturation = topic_saturation_from_syntheses_and_themes(
         &syntheses,
@@ -1799,31 +1805,32 @@ fn build_thought_bridge(
             .unwrap_or(&[]),
     );
 
-    serde_json::json!({
-        "schema_version": "epiphany.cognition_bridge.v0",
-        "updatedAt": now_iso(),
-        "recentSyntheses": syntheses,
-        "sourceCoverage": source_coverage,
-        "topicSaturation": topic_saturation,
-        "refractoryTopics": refractory_topics,
-        "unresolvedTensions": [{
-            "topic": "thought authority boundary",
-            "summary": "Cognition lanes may shape attention and drafts, but only reviewed Epiphany state surfaces change project truth.",
-            "openedAt": now_iso(),
+    HeartbeatCognitionBridge {
+        schema_version: "epiphany.cognition_bridge.v0".to_string(),
+        updated_at: now_iso(),
+        recent_syntheses: syntheses,
+        source_coverage,
+        topic_saturation,
+        refractory_topics,
+        unresolved_tensions: vec![HeartbeatUnresolvedTension {
+            topic: "thought authority boundary".to_string(),
+            summary: "Cognition lanes may shape attention and drafts, but only reviewed Epiphany state surfaces change project truth.".to_string(),
+            opened_at: now_iso(),
         }],
-        "decision": {
-            "laneBalance": lane_balance,
-            "speakDecision": speak_decision,
-            "reason": bridge_decision_reason(
+        decision: HeartbeatBridgeDecision {
+            lane_balance: lane_balance.to_string(),
+            speak_decision: speak_decision.to_string(),
+            reason: bridge_decision_reason(
                 strongest_status,
                 strongest_novelty_to_self,
                 strongest_novelty_to_room,
                 strongest_saturation,
                 strongest_refractory,
                 speak_decision,
-            ),
+            )
+            .to_string(),
         },
-    })
+    }
 }
 
 fn build_candidate_interventions(
@@ -2161,17 +2168,14 @@ fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
     }
 }
 
-fn topic_saturation_from_syntheses_and_themes(syntheses: &[Value], themes: &[Value]) -> Vec<Value> {
+fn topic_saturation_from_syntheses_and_themes(
+    syntheses: &[HeartbeatBridgeSynthesis],
+    themes: &[Value],
+) -> Vec<HeartbeatTopicSaturation> {
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for synthesis in syntheses {
-        for topic in synthesis
-            .get("dominantTopics")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-        {
-            *counts.entry(topic.to_string()).or_default() += 1;
+        for topic in &synthesis.dominant_topics {
+            *counts.entry(topic.clone()).or_default() += 1;
         }
     }
     for theme in themes {
@@ -2190,34 +2194,33 @@ fn topic_saturation_from_syntheses_and_themes(syntheses: &[Value], themes: &[Val
     counts
         .into_iter()
         .filter(|(_, count)| *count > 1)
-        .map(|(topic, count)| {
-            serde_json::json!({
-                "topic": topic,
-                "dominance": round3((count as f64 / syntheses.len().max(1) as f64).min(1.0)),
-                "recentMentions": count,
-                "coolingAdvice": "Require fresh evidence or a new angle before surfacing this topic again.",
-            })
+        .map(|(topic, count)| HeartbeatTopicSaturation {
+            topic,
+            dominance: round3((count as f64 / syntheses.len().max(1) as f64).min(1.0)),
+            recent_mentions: count,
+            cooling_advice:
+                "Require fresh evidence or a new angle before surfacing this topic again."
+                    .to_string(),
         })
         .collect()
 }
 
-fn refractory_topics_from_themes(previous_bridge: &Option<Value>, themes: &[Value]) -> Vec<Value> {
+fn refractory_topics_from_themes(
+    previous_bridge: &Option<HeartbeatCognitionBridge>,
+    themes: &[Value],
+) -> Vec<HeartbeatRefractoryTopic> {
     let previous_topics = previous_bridge
         .as_ref()
-        .and_then(|value| value.get("refractoryTopics"))
-        .or_else(|| {
-            previous_bridge
-                .as_ref()
-                .and_then(|value| value.get("refractory_topics"))
-        })
-        .and_then(Value::as_array)
-        .cloned()
+        .map(|value| value.refractory_topics.clone())
         .unwrap_or_default();
     let now = chrono::Utc::now();
     themes
         .iter()
         .filter_map(|theme| {
-            let status = theme.get("status").and_then(Value::as_str).unwrap_or("incubating");
+            let status = theme
+                .get("status")
+                .and_then(Value::as_str)
+                .unwrap_or("incubating");
             let saturation = theme
                 .get("saturationScore")
                 .and_then(Value::as_f64)
@@ -2231,16 +2234,8 @@ fn refractory_topics_from_themes(previous_bridge: &Option<Value>, themes: &[Valu
                 .unwrap_or("unnamed-theme");
             let previous_penalty = previous_topics
                 .iter()
-                .find(|entry| {
-                    theme_similarity(
-                        topic,
-                        "",
-                        entry.get("topic").and_then(Value::as_str).unwrap_or(""),
-                        "",
-                    ) >= 0.48
-                })
-                .and_then(|entry| entry.get("penalty"))
-                .and_then(Value::as_f64)
+                .find(|entry| theme_similarity(topic, "", &entry.topic, "") >= 0.48)
+                .map(|entry| entry.penalty)
                 .unwrap_or(0.18);
             let penalty = round3(
                 theme
@@ -2256,13 +2251,15 @@ fn refractory_topics_from_themes(previous_bridge: &Option<Value>, themes: &[Valu
             } else {
                 2
             };
-            Some(serde_json::json!({
-                "topic": topic,
-                "penalty": penalty,
-                "coolsUntil": (now + Duration::hours(hours)).to_rfc3339_opts(chrono::SecondsFormat::Secs, false).replace('Z', "+00:00"),
-                "reason": build_refractory_reason(theme),
-                "lastTriggeredAt": now_iso(),
-            }))
+            Some(HeartbeatRefractoryTopic {
+                topic: topic.to_string(),
+                penalty,
+                cools_until: (now + Duration::hours(hours))
+                    .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
+                    .replace('Z', "+00:00"),
+                reason: build_refractory_reason(theme),
+                last_triggered_at: now_iso(),
+            })
         })
         .take(6)
         .collect()
@@ -2289,13 +2286,13 @@ fn build_source_coverage(records: &[RoleMemoryRecord]) -> Value {
     })
 }
 
-fn empty_source_coverage() -> Value {
-    serde_json::json!({
-        "schema_version": "epiphany.source_coverage.v0",
-        "updatedAt": now_iso(),
-        "roles": [],
-        "memoryKinds": [],
-    })
+fn empty_source_coverage() -> HeartbeatSourceCoverage {
+    HeartbeatSourceCoverage {
+        schema_version: "epiphany.source_coverage.v0".to_string(),
+        updated_at: now_iso(),
+        roles: Vec::new(),
+        memory_kinds: Vec::new(),
+    }
 }
 
 fn unique_strings_from_value(value: Option<&Value>) -> Vec<String> {
@@ -2337,7 +2334,7 @@ fn novelty_to_self(
     summary: &str,
     source_memory_ids: &[String],
     previous_themes: &[Value],
-    bridge: &Option<Value>,
+    bridge: &Option<HeartbeatCognitionBridge>,
 ) -> f64 {
     let mut strongest_match = 0.0_f64;
     for theme in previous_themes {
@@ -2356,33 +2353,15 @@ fn novelty_to_self(
     }
     for synthesis in bridge
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.recent_syntheses.iter())
         .take(6)
     {
         strongest_match = strongest_match.max(theme_similarity(
             theme_id,
             summary,
-            synthesis
-                .get("dominantTopics")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(" / ")
-                .as_str(),
-            synthesis
-                .get("summary")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            synthesis.dominant_topics.join(" / ").as_str(),
+            &synthesis.summary,
         ));
     }
     (1.0 - strongest_match).clamp(0.0, 1.0)
@@ -2392,7 +2371,7 @@ fn novelty_to_room(
     theme_id: &str,
     summary: &str,
     previous_candidate_interventions: &Option<HeartbeatCandidateInterventions>,
-    bridge: &Option<Value>,
+    bridge: &Option<HeartbeatCognitionBridge>,
 ) -> f64 {
     let mut score = 0.64_f64;
     for intervention in previous_candidate_interventions
@@ -2413,33 +2392,15 @@ fn novelty_to_room(
     }
     for synthesis in bridge
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.recent_syntheses.iter())
         .take(6)
     {
         let similarity = theme_similarity(
             theme_id,
             summary,
-            synthesis
-                .get("dominantTopics")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(" / ")
-                .as_str(),
-            synthesis
-                .get("summary")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            synthesis.dominant_topics.join(" / ").as_str(),
+            &synthesis.summary,
         );
         if similarity >= 0.42 {
             score = score.min(0.44);
@@ -2459,7 +2420,7 @@ fn saturation_metrics(
     summary: &str,
     source_memory_ids: &[String],
     previous_themes: &[Value],
-    bridge: &Option<Value>,
+    bridge: &Option<HeartbeatCognitionBridge>,
     support_count: usize,
 ) -> SaturationMetrics {
     let mut recent_match_count = 0_usize;
@@ -2480,33 +2441,15 @@ fn saturation_metrics(
     }
     for synthesis in bridge
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.recent_syntheses.iter())
         .take(5)
     {
         let similarity = theme_similarity(
             theme_id,
             summary,
-            synthesis
-                .get("dominantTopics")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(" / ")
-                .as_str(),
-            synthesis
-                .get("summary")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            synthesis.dominant_topics.join(" / ").as_str(),
+            &synthesis.summary,
         );
         if similarity >= 0.42 {
             recent_match_count += 1;
@@ -2514,28 +2457,11 @@ fn saturation_metrics(
     }
     let existing_topic_saturation = bridge
         .as_ref()
-        .and_then(|value| value.get("topicSaturation"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("topic_saturation"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.topic_saturation.iter())
         .filter_map(|entry| {
-            let similarity = theme_similarity(
-                theme_id,
-                summary,
-                entry.get("topic").and_then(Value::as_str).unwrap_or(""),
-                "",
-            );
-            (similarity >= 0.42).then(|| {
-                entry
-                    .get("dominance")
-                    .and_then(Value::as_f64)
-                    .unwrap_or(0.0)
-            })
+            let similarity = theme_similarity(theme_id, summary, &entry.topic, "");
+            (similarity >= 0.42).then_some(entry.dominance)
         })
         .fold(0.0_f64, f64::max);
     SaturationMetrics {
@@ -2547,38 +2473,27 @@ fn saturation_metrics(
     }
 }
 
-fn refractory_penalty(theme_id: &str, summary: &str, bridge: &Option<Value>) -> f64 {
+fn refractory_penalty(
+    theme_id: &str,
+    summary: &str,
+    bridge: &Option<HeartbeatCognitionBridge>,
+) -> f64 {
     let mut penalty = 0.0_f64;
     let now = chrono::Utc::now();
     for topic in bridge
         .as_ref()
-        .and_then(|value| value.get("refractoryTopics"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("refractory_topics"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.refractory_topics.iter())
     {
-        let cools_until = topic
-            .get("coolsUntil")
-            .and_then(Value::as_str)
-            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        let cools_until = chrono::DateTime::parse_from_rfc3339(&topic.cools_until)
+            .ok()
             .map(|value| value.with_timezone(&chrono::Utc));
         if cools_until.is_some_and(|deadline| deadline < now) {
             continue;
         }
-        let similarity = theme_similarity(
-            theme_id,
-            summary,
-            topic.get("topic").and_then(Value::as_str).unwrap_or(""),
-            topic.get("reason").and_then(Value::as_str).unwrap_or(""),
-        );
+        let similarity = theme_similarity(theme_id, summary, &topic.topic, &topic.reason);
         if similarity >= 0.48 {
-            penalty = penalty
-                .max(topic.get("penalty").and_then(Value::as_f64).unwrap_or(0.18) * similarity);
+            penalty = penalty.max(topic.penalty * similarity);
         }
     }
     penalty.clamp(0.0, 0.45)

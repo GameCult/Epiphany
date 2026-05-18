@@ -65,7 +65,7 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     #[cultcache(key = 8, default)]
     pub thought_lanes: Option<Value>,
     #[cultcache(key = 9, default)]
-    pub bridge: Option<Value>,
+    pub bridge: Option<HeartbeatCognitionBridge>,
     #[cultcache(key = 10, default)]
     pub candidate_interventions: Option<HeartbeatCandidateInterventions>,
     #[cultcache(key = 11, default)]
@@ -164,6 +164,94 @@ pub struct HeartbeatSleepCycle {
     pub dream_count_in_current_nap: u64,
     pub active_dream_themes: Vec<String>,
     pub last_distillation_summary: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatCognitionBridge {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub recent_syntheses: Vec<HeartbeatBridgeSynthesis>,
+    pub source_coverage: HeartbeatSourceCoverage,
+    pub topic_saturation: Vec<HeartbeatTopicSaturation>,
+    pub refractory_topics: Vec<HeartbeatRefractoryTopic>,
+    pub unresolved_tensions: Vec<HeartbeatUnresolvedTension>,
+    pub decision: HeartbeatBridgeDecision,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatBridgeSynthesis {
+    pub timestamp: String,
+    pub summary: String,
+    pub dominant_topics: Vec<String>,
+    pub lane_balance: String,
+    pub speak_decision: String,
+    pub theme_status: String,
+    pub novelty_to_self: f64,
+    pub novelty_to_room: f64,
+    pub saturation_score: f64,
+    pub saturation_note: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatSourceCoverage {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub roles: Vec<HeartbeatSourceRoleCount>,
+    pub memory_kinds: Vec<HeartbeatMemoryKindCount>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatSourceRoleCount {
+    pub role_id: String,
+    pub count: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatMemoryKindCount {
+    pub kind: String,
+    pub count: usize,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatTopicSaturation {
+    pub topic: String,
+    pub dominance: f64,
+    pub recent_mentions: usize,
+    pub cooling_advice: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatRefractoryTopic {
+    pub topic: String,
+    pub penalty: f64,
+    pub cools_until: String,
+    pub reason: String,
+    pub last_triggered_at: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatUnresolvedTension {
+    pub topic: String,
+    pub summary: String,
+    pub opened_at: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatBridgeDecision {
+    pub lane_balance: String,
+    pub speak_decision: String,
+    pub reason: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
