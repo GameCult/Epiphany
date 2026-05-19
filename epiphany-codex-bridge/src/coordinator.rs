@@ -68,7 +68,7 @@ use crate::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
 use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
-use crate::reorient::map_epiphany_freshness;
+use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_role_result_snapshot;
@@ -404,15 +404,20 @@ pub struct EpiphanyCoordinatorAutomationVerdict {
 pub async fn select_epiphany_coordinator_automation(
     input: EpiphanyCoordinatorAutomationInput<'_>,
 ) -> EpiphanyCoordinatorAutomationVerdict {
-    let (_state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+    let core_freshness = derive_epiphany_freshness_view(
         Some(input.state),
         Some(input.retrieval_override),
         Some(input.watcher_snapshot),
     );
     let core_pressure = derive_epiphany_pressure(input.token_usage_info);
     let pressure = map_epiphany_pressure(input.token_usage_info);
-    let (state_status, reorient_decision) =
-        map_epiphany_reorient(Some(input.state), &core_pressure, &retrieval, &graph, &watcher);
+    let (state_status, reorient_decision) = map_epiphany_reorient(
+        Some(input.state),
+        &core_pressure,
+        &core_freshness.retrieval,
+        &core_freshness.graph,
+        &core_freshness.watcher,
+    );
     if state_status != ThreadEpiphanyReorientStateStatus::Ready {
         return EpiphanyCoordinatorAutomationVerdict {
             action: EpiphanyCoordinatorAutomationAction::None,

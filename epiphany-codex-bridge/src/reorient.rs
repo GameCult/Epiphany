@@ -165,9 +165,9 @@ fn map_core_epiphany_invalidation_input(
 pub fn map_epiphany_reorient(
     state: Option<&EpiphanyThreadState>,
     pressure: &EpiphanyPressure,
-    retrieval: &ThreadEpiphanyRetrievalFreshness,
-    graph: &ThreadEpiphanyGraphFreshness,
-    watcher: &ThreadEpiphanyInvalidationInput,
+    retrieval: &CoreEpiphanyRetrievalFreshness,
+    graph: &CoreEpiphanyGraphFreshness,
+    watcher: &CoreEpiphanyInvalidationInput,
 ) -> (
     ThreadEpiphanyReorientStateStatus,
     ThreadEpiphanyReorientDecision,
@@ -205,40 +205,40 @@ fn map_core_reorient_pressure_level(
 }
 
 fn map_core_reorient_retrieval_status(
-    status: ThreadEpiphanyRetrievalFreshnessStatus,
+    status: CoreEpiphanyRetrievalFreshnessStatus,
 ) -> CoreEpiphanyReorientFreshnessStatus {
     match status {
-        ThreadEpiphanyRetrievalFreshnessStatus::Missing
-        | ThreadEpiphanyRetrievalFreshnessStatus::Unavailable => {
+        CoreEpiphanyRetrievalFreshnessStatus::Missing
+        | CoreEpiphanyRetrievalFreshnessStatus::Unavailable => {
             CoreEpiphanyReorientFreshnessStatus::Unknown
         }
-        ThreadEpiphanyRetrievalFreshnessStatus::Ready => CoreEpiphanyReorientFreshnessStatus::Clean,
-        ThreadEpiphanyRetrievalFreshnessStatus::Stale => CoreEpiphanyReorientFreshnessStatus::Stale,
-        ThreadEpiphanyRetrievalFreshnessStatus::Indexing => {
+        CoreEpiphanyRetrievalFreshnessStatus::Ready => CoreEpiphanyReorientFreshnessStatus::Clean,
+        CoreEpiphanyRetrievalFreshnessStatus::Stale => CoreEpiphanyReorientFreshnessStatus::Stale,
+        CoreEpiphanyRetrievalFreshnessStatus::Indexing => {
             CoreEpiphanyReorientFreshnessStatus::Dirty
         }
     }
 }
 
 fn map_core_reorient_graph_status(
-    status: ThreadEpiphanyGraphFreshnessStatus,
+    status: CoreEpiphanyGraphFreshnessStatus,
 ) -> CoreEpiphanyReorientFreshnessStatus {
     match status {
-        ThreadEpiphanyGraphFreshnessStatus::Missing => CoreEpiphanyReorientFreshnessStatus::Unknown,
-        ThreadEpiphanyGraphFreshnessStatus::Ready => CoreEpiphanyReorientFreshnessStatus::Clean,
-        ThreadEpiphanyGraphFreshnessStatus::Stale => CoreEpiphanyReorientFreshnessStatus::Stale,
+        CoreEpiphanyGraphFreshnessStatus::Missing => CoreEpiphanyReorientFreshnessStatus::Unknown,
+        CoreEpiphanyGraphFreshnessStatus::Ready => CoreEpiphanyReorientFreshnessStatus::Clean,
+        CoreEpiphanyGraphFreshnessStatus::Stale => CoreEpiphanyReorientFreshnessStatus::Stale,
     }
 }
 
 fn map_core_reorient_watcher_status(
-    status: ThreadEpiphanyInvalidationStatus,
+    status: CoreEpiphanyInvalidationStatus,
 ) -> CoreEpiphanyReorientFreshnessStatus {
     match status {
-        ThreadEpiphanyInvalidationStatus::Unavailable => {
+        CoreEpiphanyInvalidationStatus::Unavailable => {
             CoreEpiphanyReorientFreshnessStatus::Unknown
         }
-        ThreadEpiphanyInvalidationStatus::Clean => CoreEpiphanyReorientFreshnessStatus::Clean,
-        ThreadEpiphanyInvalidationStatus::Changed => CoreEpiphanyReorientFreshnessStatus::Changed,
+        CoreEpiphanyInvalidationStatus::Clean => CoreEpiphanyReorientFreshnessStatus::Clean,
+        CoreEpiphanyInvalidationStatus::Changed => CoreEpiphanyReorientFreshnessStatus::Changed,
     }
 }
 

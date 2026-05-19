@@ -52,7 +52,7 @@ use crate::mutation::state_update_from_thread_patch;
 use crate::mutation::thread_epiphany_patch_has_state_replacements;
 use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
-use crate::reorient::map_epiphany_freshness;
+use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
@@ -580,11 +580,16 @@ pub async fn launch_thread_epiphany_reorient(
     watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'_>>,
     token_usage_info: Option<&EpiphanyTokenUsageSnapshot>,
 ) -> BridgeResult<EpiphanyReorientLaunchApplied> {
-    let (state_revision, retrieval, graph, watcher) =
-        map_epiphany_freshness(state, retrieval_override, watcher_snapshot);
+    let freshness = derive_epiphany_freshness_view(state, retrieval_override, watcher_snapshot);
+    let state_revision = freshness.state_revision;
     let pressure = derive_epiphany_pressure(token_usage_info);
-    let (state_status, decision) =
-        map_epiphany_reorient(state, &pressure, &retrieval, &graph, &watcher);
+    let (state_status, decision) = map_epiphany_reorient(
+        state,
+        &pressure,
+        &freshness.retrieval,
+        &freshness.graph,
+        &freshness.watcher,
+    );
 
     let state = state.ok_or_else(|| {
         EpiphanyBridgeError::InvalidRequest(format!(
