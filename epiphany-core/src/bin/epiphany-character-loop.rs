@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use chrono::SecondsFormat;
 use epiphany_core::EpiphanyAgentMemoryEntry;
 use epiphany_core::GhostlightMemory;
+use epiphany_core::GhostlightPerceivedStateOverlay;
 use epiphany_core::GhostlightTraitVector;
 use epiphany_core::dossier_profile_for_role;
 use epiphany_core::load_agent_memory_entry_for_role;
@@ -175,7 +176,7 @@ fn character_turn_packet(
             "semanticMemories": entry.agent.memories.semantic.iter().map(memory_projection).collect::<Vec<_>>(),
             "episodicMemories": entry.agent.memories.episodic.iter().map(memory_projection).collect::<Vec<_>>(),
             "relationshipMemories": entry.agent.memories.relationship_summaries.iter().map(memory_projection).collect::<Vec<_>>(),
-            "perceivedStateOverlays": entry.agent.perceived_state_overlays.iter().take(6).cloned().collect::<Vec<_>>(),
+            "perceivedStateOverlays": entry.agent.perceived_state_overlays.iter().take(6).map(perceived_overlay_projection).collect::<Vec<_>>(),
             "privateNoteCount": entry.agent.identity.private_notes.len(),
         },
         "projectionSeed": projection_seed,
@@ -556,15 +557,10 @@ fn strongest_overlay_pressure(
         .perceived_state_overlays
         .iter()
         .map(|overlay| {
-            let mut tokens = BTreeSet::new();
-            collect_json_tokens(overlay, &mut tokens);
+            let tokens = overlay_tokens(overlay);
             let overlap = token_overlap(&tokens, thought_tokens);
-            let summary = overlay
-                .get("summary")
-                .and_then(Value::as_str)
-                .or_else(|| overlay.get("label").and_then(Value::as_str))
-                .unwrap_or("Perceived overlay relevance");
-            (overlap, summary.to_string())
+            let summary = overlay_summary(overlay);
+            (overlap, summary)
         })
         .max_by(|left, right| left.0.total_cmp(&right.0))
         .map(|(strength, summary)| (round3(strength.clamp(0.0, 1.0)), summary))
@@ -590,21 +586,37 @@ fn stimulus_token_set(
     tokens
 }
 
-fn collect_json_tokens(value: &Value, tokens: &mut BTreeSet<String>) {
-    match value {
-        Value::String(text) => tokens.extend(summary_tokens(text)),
-        Value::Array(items) => {
-            for item in items {
-                collect_json_tokens(item, tokens);
-            }
-        }
-        Value::Object(object) => {
-            for (key, value) in object {
-                tokens.extend(summary_tokens(key));
-                collect_json_tokens(value, tokens);
-            }
-        }
-        _ => {}
+fn perceived_overlay_projection(overlay: &GhostlightPerceivedStateOverlay) -> Value {
+    serde_json::json!({
+        "overlayId": overlay.overlay_id,
+        "label": overlay.label,
+        "summary": overlay.summary,
+        "source": overlay.source,
+        "salience": overlay.salience,
+        "confidence": overlay.confidence,
+        "linkedMemoryIds": overlay.linked_memory_ids,
+    })
+}
+
+fn overlay_tokens(overlay: &GhostlightPerceivedStateOverlay) -> BTreeSet<String> {
+    let mut tokens = BTreeSet::new();
+    tokens.extend(summary_tokens(&overlay.overlay_id));
+    tokens.extend(summary_tokens(&overlay.label));
+    tokens.extend(summary_tokens(&overlay.summary));
+    tokens.extend(summary_tokens(&overlay.source));
+    for memory_id in &overlay.linked_memory_ids {
+        tokens.extend(summary_tokens(memory_id));
+    }
+    tokens
+}
+
+fn overlay_summary(overlay: &GhostlightPerceivedStateOverlay) -> String {
+    if !overlay.summary.trim().is_empty() {
+        overlay.summary.clone()
+    } else if !overlay.label.trim().is_empty() {
+        overlay.label.clone()
+    } else {
+        "Perceived overlay relevance".to_string()
     }
 }
 
