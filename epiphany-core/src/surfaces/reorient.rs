@@ -1,29 +1,35 @@
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyInvestigationDisposition;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyReorientAction {
     Resume,
     Regather,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyReorientStateStatus {
     Missing,
     Ready,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyReorientCheckpointStatus {
     Missing,
     ResumeReady,
     RegatherRequired,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyReorientReason {
     MissingState,
     MissingCheckpoint,
@@ -35,7 +41,8 @@ pub enum EpiphanyReorientReason {
     UnanchoredCheckpointWhileStateStale,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyReorientPressureLevel {
     Unknown,
     Low,
@@ -44,7 +51,8 @@ pub enum EpiphanyReorientPressureLevel {
     Critical,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyReorientFreshnessStatus {
     Unknown,
     Clean,
@@ -69,18 +77,24 @@ pub struct EpiphanyReorientInput<'a> {
     pub watched_root: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyReorientDecision {
     pub action: EpiphanyReorientAction,
     pub checkpoint_status: EpiphanyReorientCheckpointStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checkpoint_id: Option<String>,
     pub pressure_level: EpiphanyReorientPressureLevel,
     pub retrieval_status: EpiphanyReorientFreshnessStatus,
     pub graph_status: EpiphanyReorientFreshnessStatus,
     pub watcher_status: EpiphanyReorientFreshnessStatus,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub reasons: Vec<EpiphanyReorientReason>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checkpoint_dirty_paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checkpoint_changed_paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub active_frontier_node_ids: Vec<String>,
     pub next_action: String,
     pub note: String,
