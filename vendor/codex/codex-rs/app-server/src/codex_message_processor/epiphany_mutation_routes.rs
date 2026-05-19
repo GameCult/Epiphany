@@ -3,6 +3,9 @@ use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_codex_bridge::cultnet::EpiphanyJobKind;
+use epiphany_codex_bridge::cultnet::EpiphanyJobStatus;
+use epiphany_codex_bridge::cultnet::EpiphanyJobView;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -134,7 +137,11 @@ impl CodexMessageProcessor {
                     revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: thread_epiphany_job_from_surface(
+                        applied.job,
+                        Some(applied.launcher_job_id),
+                        Some(applied.backend_job_id),
+                    ),
                 },
             )
             .await;
@@ -304,7 +311,11 @@ impl CodexMessageProcessor {
                     revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: thread_epiphany_job_from_surface(
+                        applied.job,
+                        Some(applied.launcher_job_id),
+                        Some(applied.backend_job_id),
+                    ),
                 },
             )
             .await;
@@ -622,7 +633,11 @@ impl CodexMessageProcessor {
                     revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: thread_epiphany_job_from_surface(
+                        applied.job,
+                        Some(applied.launcher_job_id),
+                        Some(applied.backend_job_id),
+                    ),
                 },
             )
             .await;
@@ -687,7 +702,7 @@ impl CodexMessageProcessor {
                     revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: thread_epiphany_job_from_surface(applied.job, None, None),
                 },
             )
             .await;
@@ -698,6 +713,46 @@ impl CodexMessageProcessor {
             epiphany_state,
         )
         .await;
+    }
+}
+
+fn thread_epiphany_job_from_surface(
+    job: EpiphanyJobView,
+    launcher_job_id: Option<String>,
+    backend_job_id_override: Option<String>,
+) -> ThreadEpiphanyJob {
+    ThreadEpiphanyJob {
+        id: job.id,
+        kind: match job.kind {
+            EpiphanyJobKind::Indexing => ThreadEpiphanyJobKind::Indexing,
+            EpiphanyJobKind::Remap => ThreadEpiphanyJobKind::Remap,
+            EpiphanyJobKind::Verification => ThreadEpiphanyJobKind::Verification,
+            EpiphanyJobKind::Specialist => ThreadEpiphanyJobKind::Specialist,
+        },
+        scope: job.scope,
+        owner_role: job.owner_role,
+        launcher_job_id,
+        authority_scope: job.authority_scope,
+        backend_job_id: backend_job_id_override.or(job.runtime_job_id),
+        status: match job.status {
+            EpiphanyJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,
+            EpiphanyJobStatus::Needed => ThreadEpiphanyJobStatus::Needed,
+            EpiphanyJobStatus::Pending => ThreadEpiphanyJobStatus::Pending,
+            EpiphanyJobStatus::Running => ThreadEpiphanyJobStatus::Running,
+            EpiphanyJobStatus::Completed => ThreadEpiphanyJobStatus::Completed,
+            EpiphanyJobStatus::Failed => ThreadEpiphanyJobStatus::Failed,
+            EpiphanyJobStatus::Cancelled => ThreadEpiphanyJobStatus::Cancelled,
+            EpiphanyJobStatus::Blocked => ThreadEpiphanyJobStatus::Blocked,
+            EpiphanyJobStatus::Unavailable => ThreadEpiphanyJobStatus::Unavailable,
+        },
+        items_processed: job.items_processed,
+        items_total: job.items_total,
+        progress_note: job.progress_note,
+        last_checkpoint_at_unix_seconds: job.last_checkpoint_at_unix_seconds,
+        blocking_reason: job.blocking_reason,
+        active_thread_ids: job.active_thread_ids,
+        linked_subgoal_ids: job.linked_subgoal_ids,
+        linked_graph_node_ids: job.linked_graph_node_ids,
     }
 }
 

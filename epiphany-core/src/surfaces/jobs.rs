@@ -4,8 +4,11 @@ use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyRetrievalStatus;
 use epiphany_state_model::EpiphanyRuntimeLink;
 use epiphany_state_model::EpiphanyThreadState;
+use serde::Deserialize;
+use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyJobStatus {
     Idle,
     Needed,
@@ -18,22 +21,33 @@ pub enum EpiphanyJobStatus {
     Unavailable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyJobView {
     pub id: String,
     pub kind: EpiphanyJobKind,
     pub scope: String,
     pub owner_role: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub authority_scope: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_job_id: Option<String>,
     pub status: EpiphanyJobStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub items_processed: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub items_total: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub progress_note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_checkpoint_at_unix_seconds: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub blocking_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub active_thread_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub linked_subgoal_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub linked_graph_node_ids: Vec<String>,
 }
 

@@ -9,14 +9,21 @@ use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
-pub fn map_epiphany_jobs(
+pub fn derive_epiphany_jobs(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
-) -> Vec<ThreadEpiphanyJob> {
+) -> Vec<EpiphanyJobView> {
     derive_jobs(EpiphanyJobsInput {
         state,
         retrieval_override,
     })
+}
+
+pub fn map_epiphany_jobs(
+    state: Option<&EpiphanyThreadState>,
+    retrieval_override: Option<&EpiphanyRetrievalState>,
+) -> Vec<ThreadEpiphanyJob> {
+    derive_epiphany_jobs(state, retrieval_override)
     .into_iter()
     .map(map_core_epiphany_job_view)
     .collect()
@@ -55,23 +62,21 @@ pub fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJo
 pub fn map_launched_epiphany_job(
     state: &EpiphanyThreadState,
     binding_id: &str,
-    launcher_job_id: &str,
     backend_job_id: &str,
     fallback_kind: CoreEpiphanyJobKind,
     fallback_scope: &str,
-) -> ThreadEpiphanyJob {
-    map_epiphany_jobs(Some(state), None)
+) -> EpiphanyJobView {
+    derive_epiphany_jobs(Some(state), None)
         .into_iter()
         .find(|job| job.id == binding_id)
-        .unwrap_or_else(|| ThreadEpiphanyJob {
+        .unwrap_or_else(|| EpiphanyJobView {
             id: binding_id.to_string(),
-            kind: map_core_epiphany_job_kind(fallback_kind),
+            kind: fallback_kind,
             scope: fallback_scope.to_string(),
             owner_role: "epiphany-harness".to_string(),
-            launcher_job_id: Some(launcher_job_id.to_string()),
             authority_scope: None,
-            backend_job_id: Some(backend_job_id.to_string()),
-            status: ThreadEpiphanyJobStatus::Pending,
+            runtime_job_id: Some(backend_job_id.to_string()),
+            status: CoreEpiphanyJobStatus::Pending,
             items_processed: None,
             items_total: None,
             progress_note: None,
@@ -86,14 +91,14 @@ pub fn map_launched_epiphany_job(
 pub fn map_interrupted_epiphany_job(
     state: &EpiphanyThreadState,
     binding_id: &str,
-) -> ThreadEpiphanyJob {
-    map_epiphany_jobs(Some(state), None)
+) -> EpiphanyJobView {
+    derive_epiphany_jobs(Some(state), None)
         .into_iter()
         .find(|job| job.id == binding_id)
         .unwrap_or_else(|| {
             epiphany_blocked_state_job(
                 binding_id,
-                ThreadEpiphanyJobKind::Specialist,
+                CoreEpiphanyJobKind::Specialist,
                 "role-scoped specialist work",
                 "Interrupted job binding was not reflected in Epiphany state.",
             )
@@ -116,19 +121,18 @@ fn map_core_epiphany_job_status(status: CoreEpiphanyJobStatus) -> ThreadEpiphany
 
 pub fn epiphany_blocked_state_job(
     id: &str,
-    kind: ThreadEpiphanyJobKind,
+    kind: CoreEpiphanyJobKind,
     scope: &str,
     blocking_reason: &str,
-) -> ThreadEpiphanyJob {
-    ThreadEpiphanyJob {
+) -> EpiphanyJobView {
+    EpiphanyJobView {
         id: id.to_string(),
         kind,
         scope: scope.to_string(),
         owner_role: "epiphany-harness".to_string(),
-        launcher_job_id: None,
         authority_scope: None,
-        backend_job_id: None,
-        status: ThreadEpiphanyJobStatus::Blocked,
+        runtime_job_id: None,
+        status: CoreEpiphanyJobStatus::Blocked,
         items_processed: None,
         items_total: None,
         progress_note: None,

@@ -3,8 +3,6 @@ use chrono::Utc;
 use std::path::Path;
 use std::path::PathBuf;
 
-use codex_app_server_protocol::ThreadEpiphanyJob;
-use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
@@ -17,6 +15,7 @@ use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyJobLaunchResult;
+use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyPromotionInput;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
@@ -37,7 +36,7 @@ use epiphany_state_model::EpiphanyThreadState;
 use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
 use crate::jobs::epiphany_blocked_state_job;
-use crate::jobs::map_epiphany_jobs;
+use crate::jobs::derive_epiphany_jobs;
 use crate::jobs::map_interrupted_epiphany_job;
 use crate::jobs::map_launched_epiphany_job;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -112,10 +111,12 @@ pub struct EpiphanyReorientAcceptApplied {
 
 #[derive(Debug, Clone)]
 pub struct EpiphanyJobLaunchApplied {
+    pub launcher_job_id: String,
+    pub backend_job_id: String,
     pub revision: u64,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
-    pub job: ThreadEpiphanyJob,
+    pub job: EpiphanyJobView,
 }
 
 #[derive(Debug, Clone)]
@@ -125,11 +126,13 @@ pub struct EpiphanyJobInterruptApplied {
     pub revision: u64,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
-    pub job: ThreadEpiphanyJob,
+    pub job: EpiphanyJobView,
 }
 
 #[derive(Debug, Clone)]
 pub struct EpiphanyReorientLaunchApplied {
+    pub launcher_job_id: String,
+    pub backend_job_id: String,
     pub source: ThreadEpiphanyReorientSource,
     pub state_status: ThreadEpiphanyReorientStateStatus,
     pub state_revision: Option<u64>,
@@ -137,7 +140,7 @@ pub struct EpiphanyReorientLaunchApplied {
     pub revision: u64,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
-    pub job: ThreadEpiphanyJob,
+    pub job: EpiphanyJobView,
 }
 
 pub async fn apply_epiphany_state_update_to_thread(
@@ -522,12 +525,13 @@ pub async fn launch_thread_epiphany_job(
     let job = map_launched_epiphany_job(
         &epiphany_state,
         launched.binding_id.as_str(),
-        launched.launcher_job_id.as_str(),
         launched.backend_job_id.as_str(),
         kind,
         missing_projection_reason,
     );
     Ok(EpiphanyJobLaunchApplied {
+        launcher_job_id: launched.launcher_job_id,
+        backend_job_id: launched.backend_job_id,
         revision: epiphany_state.revision,
         changed_fields,
         epiphany_state,
@@ -608,19 +612,21 @@ pub async fn launch_thread_epiphany_reorient(
     let epiphany_state = thread
         .client_visible_epiphany_state(launched.epiphany_state)
         .await;
-    let job = map_epiphany_jobs(Some(&epiphany_state), None)
+    let job = derive_epiphany_jobs(Some(&epiphany_state), None)
         .into_iter()
         .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
         .unwrap_or_else(|| {
             epiphany_blocked_state_job(
                 EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
-                ThreadEpiphanyJobKind::Specialist,
+                CoreEpiphanyJobKind::Specialist,
                 "reorient-guided checkpoint regather",
                 "Launched reorientation worker was not reflected in Epiphany state.",
             )
         });
 
     Ok(EpiphanyReorientLaunchApplied {
+        launcher_job_id: launched.launcher_job_id,
+        backend_job_id: launched.backend_job_id,
         source: ThreadEpiphanyReorientSource::Live,
         state_status,
         state_revision,

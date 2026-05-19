@@ -3,7 +3,10 @@ use epiphany_core::EpiphanyInvalidationInput;
 use epiphany_core::EpiphanyRetrievalFreshness;
 pub use epiphany_core::EpiphanyGraphFreshnessStatus;
 pub use epiphany_core::EpiphanyInvalidationStatus;
+pub use epiphany_core::EpiphanyJobStatus;
+pub use epiphany_core::EpiphanyJobView;
 pub use epiphany_core::EpiphanyRetrievalFreshnessStatus;
+pub use epiphany_state_model::EpiphanyJobKind;
 use serde::Deserialize;
 use serde::Serialize;
 
