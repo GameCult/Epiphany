@@ -125,7 +125,7 @@ fn legacy_heartbeat_cognition_entry(
         latest_run_id,
         latest_artifact_ref: None,
         source,
-        sleep_cycle: legacy.sleep_cycle,
+        sleep_cycle: decode_legacy_document(legacy.sleep_cycle)?,
         memory_resonance: decode_legacy_document(legacy.memory_resonance)?,
         incubation: legacy.incubation,
         thought_lanes: legacy.thought_lanes,

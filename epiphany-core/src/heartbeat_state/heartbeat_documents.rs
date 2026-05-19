@@ -59,7 +59,7 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     #[cultcache(key = 4, default)]
     pub source: Option<String>,
     #[cultcache(key = 5, default)]
-    pub sleep_cycle: Option<Value>,
+    pub sleep_cycle: Option<HeartbeatSleepCycle>,
     #[cultcache(key = 6, default)]
     pub memory_resonance: Option<HeartbeatMemoryResonance>,
     #[cultcache(key = 7, default)]
@@ -196,6 +196,27 @@ pub struct HeartbeatMemoryResonancePair {
     pub source_roles: Vec<String>,
     pub source_kinds: Vec<String>,
     pub evidence_refs: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatSleepCycle {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub enabled: bool,
+    pub cycle_hours: i64,
+    pub nap_duration_minutes: i64,
+    pub phase_offset_minutes_local: i64,
+    pub reply_mode: String,
+    pub is_napping: bool,
+    pub current_nap_started_at: Option<String>,
+    pub current_nap_ends_at: Option<String>,
+    pub next_nap_starts_at: String,
+    pub last_dream_at: Option<String>,
+    pub dream_count_in_current_nap: u64,
+    pub active_dream_themes: Vec<String>,
+    pub last_distillation_summary: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
