@@ -21,6 +21,7 @@ use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureLevel;
 use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientCheckpointStatus as CoreEpiphanyReorientCheckpointStatus;
+use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
 use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshnessStatus;
 use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
@@ -172,7 +173,25 @@ pub fn map_epiphany_reorient(
     ThreadEpiphanyReorientStateStatus,
     ThreadEpiphanyReorientDecision,
 ) {
-    let (state_status, decision) = recommend_reorientation(EpiphanyReorientInput {
+    let (state_status, decision) =
+        derive_epiphany_reorient(state, pressure, retrieval, graph, watcher);
+    (
+        map_protocol_reorient_state_status(state_status),
+        map_protocol_reorient_decision(decision),
+    )
+}
+
+pub fn derive_epiphany_reorient(
+    state: Option<&EpiphanyThreadState>,
+    pressure: &EpiphanyPressure,
+    retrieval: &CoreEpiphanyRetrievalFreshness,
+    graph: &CoreEpiphanyGraphFreshness,
+    watcher: &CoreEpiphanyInvalidationInput,
+) -> (
+    CoreEpiphanyReorientStateStatus,
+    CoreEpiphanyReorientDecision,
+) {
+    recommend_reorientation(EpiphanyReorientInput {
         checkpoint: state.and_then(|state| state.investigation_checkpoint.as_ref()),
         state_present: state.is_some(),
         pressure_level: map_core_reorient_pressure_level(pressure.level),
@@ -185,11 +204,7 @@ pub fn map_epiphany_reorient(
         watcher_graph_node_ids: watcher.graph_node_ids.clone(),
         active_frontier_node_ids: watcher.active_frontier_node_ids.clone(),
         watched_root: watcher.watched_root.clone(),
-    });
-    (
-        map_protocol_reorient_state_status(state_status),
-        map_protocol_reorient_decision(decision),
-    )
+    })
 }
 
 fn map_core_reorient_pressure_level(

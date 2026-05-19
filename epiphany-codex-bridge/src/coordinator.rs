@@ -69,6 +69,7 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
+use crate::reorient::derive_epiphany_reorient;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_role_result_snapshot;
@@ -418,6 +419,13 @@ pub async fn select_epiphany_coordinator_automation(
         &core_freshness.graph,
         &core_freshness.watcher,
     );
+    let (_core_state_status, core_reorient_decision) = derive_epiphany_reorient(
+        Some(input.state),
+        &core_pressure,
+        &core_freshness.retrieval,
+        &core_freshness.graph,
+        &core_freshness.watcher,
+    );
     if state_status != ThreadEpiphanyReorientStateStatus::Ready {
         return EpiphanyCoordinatorAutomationVerdict {
             action: EpiphanyCoordinatorAutomationAction::None,
@@ -488,7 +496,7 @@ pub async fn select_epiphany_coordinator_automation(
                     None,
                     input.state,
                     checkpoint,
-                    &reorient_decision,
+                    &core_reorient_decision,
                 )
             }),
         EpiphanyCoordinatorAutomationAction::None

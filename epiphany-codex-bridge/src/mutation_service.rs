@@ -53,6 +53,7 @@ use crate::mutation::thread_epiphany_patch_has_state_replacements;
 use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
+use crate::reorient::derive_epiphany_reorient;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
@@ -590,6 +591,13 @@ pub async fn launch_thread_epiphany_reorient(
         &freshness.graph,
         &freshness.watcher,
     );
+    let (_core_state_status, launch_decision) = derive_epiphany_reorient(
+        state,
+        &pressure,
+        &freshness.retrieval,
+        &freshness.graph,
+        &freshness.watcher,
+    );
 
     let state = state.ok_or_else(|| {
         EpiphanyBridgeError::InvalidRequest(format!(
@@ -610,7 +618,7 @@ pub async fn launch_thread_epiphany_reorient(
         max_runtime_seconds,
         state,
         checkpoint,
-        &decision,
+        &launch_decision,
     );
     let changed_fields = epiphany_job_launch_changed_fields();
     let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;

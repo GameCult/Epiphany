@@ -1,18 +1,17 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
-use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
-use codex_app_server_protocol::ThreadEpiphanyReorientAction;
-use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
-use codex_app_server_protocol::ThreadEpiphanyReorientReason;
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
-use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
 use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
+use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
+use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshnessStatus;
+use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
+use epiphany_core::EpiphanyReorientReason as CoreEpiphanyReorientReason;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
@@ -480,7 +479,7 @@ pub fn build_epiphany_reorient_launch_request(
     max_runtime_seconds: Option<u64>,
     state: &EpiphanyThreadState,
     checkpoint: &EpiphanyInvestigationCheckpoint,
-    decision: &ThreadEpiphanyReorientDecision,
+    decision: &CoreEpiphanyReorientDecision,
 ) -> EpiphanyJobLaunchRequest {
     let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
     let linked_graph_node_ids = unique_strings(
@@ -493,12 +492,12 @@ pub fn build_epiphany_reorient_launch_request(
         .clone()
         .unwrap_or_else(|| decision.next_action.clone());
     let authority_scope = match decision.action {
-        ThreadEpiphanyReorientAction::Resume => "epiphany.reorient.resume",
-        ThreadEpiphanyReorientAction::Regather => "epiphany.reorient.regather",
+        CoreEpiphanyReorientAction::Resume => "epiphany.reorient.resume",
+        CoreEpiphanyReorientAction::Regather => "epiphany.reorient.regather",
     };
     let scope = match decision.action {
-        ThreadEpiphanyReorientAction::Resume => "reorient-guided checkpoint resume",
-        ThreadEpiphanyReorientAction::Regather => "reorient-guided checkpoint regather",
+        CoreEpiphanyReorientAction::Resume => "reorient-guided checkpoint resume",
+        CoreEpiphanyReorientAction::Regather => "reorient-guided checkpoint regather",
     };
     let instruction = build_epiphany_reorient_launch_instruction(decision.action);
     let launch_document =
@@ -521,11 +520,10 @@ pub fn build_epiphany_reorient_launch_request(
                 .map(|reason| reorient_reason_label(*reason).to_string())
                 .collect(),
             decision_note: decision.note.clone(),
-            pressure_level: pressure_level_label(decision.pressure_level).to_string(),
-            retrieval_status: retrieval_freshness_status_label(decision.retrieval_status)
-                .to_string(),
-            graph_status: graph_freshness_status_label(decision.graph_status).to_string(),
-            watcher_status: invalidation_status_label(decision.watcher_status).to_string(),
+            pressure_level: reorient_pressure_level_label(decision.pressure_level).to_string(),
+            retrieval_status: reorient_freshness_status_label(decision.retrieval_status).to_string(),
+            graph_status: reorient_freshness_status_label(decision.graph_status).to_string(),
+            watcher_status: reorient_freshness_status_label(decision.watcher_status).to_string(),
             checkpoint_dirty_paths: decision
                 .checkpoint_dirty_paths
                 .iter()
@@ -566,11 +564,11 @@ pub fn build_epiphany_reorient_launch_request(
     }
 }
 
-pub fn build_epiphany_reorient_launch_instruction(action: ThreadEpiphanyReorientAction) -> String {
+pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAction) -> String {
     let prompts = &epiphany_specialist_prompt_config().reorientation;
     let body = match action {
-        ThreadEpiphanyReorientAction::Resume => prompts.resume.as_str(),
-        ThreadEpiphanyReorientAction::Regather => prompts.regather.as_str(),
+        CoreEpiphanyReorientAction::Resume => prompts.resume.as_str(),
+        CoreEpiphanyReorientAction::Regather => prompts.regather.as_str(),
     };
     epiphany_agent_prompt_with_memory(body)
 }
@@ -741,10 +739,10 @@ fn path_to_display_string(path: impl AsRef<Path>) -> String {
     path.as_ref().to_string_lossy().to_string()
 }
 
-fn reorient_action_label(action: ThreadEpiphanyReorientAction) -> &'static str {
+fn reorient_action_label(action: CoreEpiphanyReorientAction) -> &'static str {
     match action {
-        ThreadEpiphanyReorientAction::Resume => "resume",
-        ThreadEpiphanyReorientAction::Regather => "regather",
+        CoreEpiphanyReorientAction::Resume => "resume",
+        CoreEpiphanyReorientAction::Regather => "regather",
     }
 }
 
@@ -755,18 +753,38 @@ fn investigation_disposition_label(disposition: EpiphanyInvestigationDisposition
     }
 }
 
-fn reorient_reason_label(reason: ThreadEpiphanyReorientReason) -> &'static str {
+fn reorient_reason_label(reason: CoreEpiphanyReorientReason) -> &'static str {
     match reason {
-        ThreadEpiphanyReorientReason::MissingState => "missingState",
-        ThreadEpiphanyReorientReason::MissingCheckpoint => "missingCheckpoint",
-        ThreadEpiphanyReorientReason::CheckpointRequestedRegather => "checkpointRequestedRegather",
-        ThreadEpiphanyReorientReason::CheckpointPathsDirty => "checkpointPathsDirty",
-        ThreadEpiphanyReorientReason::CheckpointPathsChanged => "checkpointPathsChanged",
-        ThreadEpiphanyReorientReason::FrontierChanged => "frontierChanged",
-        ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
+        CoreEpiphanyReorientReason::MissingState => "missingState",
+        CoreEpiphanyReorientReason::MissingCheckpoint => "missingCheckpoint",
+        CoreEpiphanyReorientReason::CheckpointRequestedRegather => "checkpointRequestedRegather",
+        CoreEpiphanyReorientReason::CheckpointPathsDirty => "checkpointPathsDirty",
+        CoreEpiphanyReorientReason::CheckpointPathsChanged => "checkpointPathsChanged",
+        CoreEpiphanyReorientReason::FrontierChanged => "frontierChanged",
+        CoreEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
             "unanchoredCheckpointWhileStateStale"
         }
-        ThreadEpiphanyReorientReason::CheckpointReady => "checkpointReady",
+        CoreEpiphanyReorientReason::CheckpointReady => "checkpointReady",
+    }
+}
+
+fn reorient_pressure_level_label(level: CoreEpiphanyReorientPressureLevel) -> &'static str {
+    match level {
+        CoreEpiphanyReorientPressureLevel::Unknown => "unknown",
+        CoreEpiphanyReorientPressureLevel::Low => "low",
+        CoreEpiphanyReorientPressureLevel::Medium => "medium",
+        CoreEpiphanyReorientPressureLevel::High => "high",
+        CoreEpiphanyReorientPressureLevel::Critical => "critical",
+    }
+}
+
+fn reorient_freshness_status_label(status: CoreEpiphanyReorientFreshnessStatus) -> &'static str {
+    match status {
+        CoreEpiphanyReorientFreshnessStatus::Unknown => "unknown",
+        CoreEpiphanyReorientFreshnessStatus::Clean => "clean",
+        CoreEpiphanyReorientFreshnessStatus::Dirty => "dirty",
+        CoreEpiphanyReorientFreshnessStatus::Stale => "stale",
+        CoreEpiphanyReorientFreshnessStatus::Changed => "changed",
     }
 }
 
@@ -777,33 +795,5 @@ pub fn pressure_level_label(level: ThreadEpiphanyPressureLevel) -> &'static str 
         ThreadEpiphanyPressureLevel::Elevated => "elevated",
         ThreadEpiphanyPressureLevel::High => "high",
         ThreadEpiphanyPressureLevel::Critical => "critical",
-    }
-}
-
-fn retrieval_freshness_status_label(
-    status: ThreadEpiphanyRetrievalFreshnessStatus,
-) -> &'static str {
-    match status {
-        ThreadEpiphanyRetrievalFreshnessStatus::Missing => "missing",
-        ThreadEpiphanyRetrievalFreshnessStatus::Ready => "ready",
-        ThreadEpiphanyRetrievalFreshnessStatus::Stale => "stale",
-        ThreadEpiphanyRetrievalFreshnessStatus::Indexing => "indexing",
-        ThreadEpiphanyRetrievalFreshnessStatus::Unavailable => "unavailable",
-    }
-}
-
-fn graph_freshness_status_label(status: ThreadEpiphanyGraphFreshnessStatus) -> &'static str {
-    match status {
-        ThreadEpiphanyGraphFreshnessStatus::Missing => "missing",
-        ThreadEpiphanyGraphFreshnessStatus::Ready => "ready",
-        ThreadEpiphanyGraphFreshnessStatus::Stale => "stale",
-    }
-}
-
-fn invalidation_status_label(status: ThreadEpiphanyInvalidationStatus) -> &'static str {
-    match status {
-        ThreadEpiphanyInvalidationStatus::Unavailable => "unavailable",
-        ThreadEpiphanyInvalidationStatus::Clean => "clean",
-        ThreadEpiphanyInvalidationStatus::Changed => "changed",
     }
 }
