@@ -1,6 +1,7 @@
 use chrono::SecondsFormat;
 use chrono::Utc;
 use std::path::Path;
+use std::path::PathBuf;
 
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
@@ -12,7 +13,6 @@ use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
-use codex_core::CodexThread;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyEvidenceRecord;
 use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
@@ -56,9 +56,22 @@ use crate::reorient::map_epiphany_freshness;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
-use crate::state::client_visible_epiphany_state_for_paths;
-use crate::state::thread_state_mirror_id_from_rollout_path;
 use uuid::Uuid;
+
+#[allow(async_fn_in_trait)]
+pub trait EpiphanyMutationHost {
+    async fn epiphany_state(&self) -> Option<EpiphanyThreadState>;
+    async fn epiphany_reference_turn_id(&self) -> Option<String>;
+    async fn epiphany_persist_state(
+        &self,
+        next_state: EpiphanyThreadState,
+    ) -> Result<EpiphanyThreadState, CodexErr>;
+    async fn epiphany_runtime_spine_store_path(&self) -> PathBuf;
+    async fn client_visible_epiphany_state(
+        &self,
+        fallback: EpiphanyThreadState,
+    ) -> EpiphanyThreadState;
+}
 
 #[derive(Debug, Clone)]
 pub struct EpiphanyThreadUpdateApplied {
@@ -127,7 +140,7 @@ pub struct EpiphanyReorientLaunchApplied {
 }
 
 pub async fn apply_epiphany_state_update_to_thread(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     update: EpiphanyStateUpdate,
 ) -> Result<EpiphanyThreadState, CodexErr> {
     let current_state = thread.epiphany_state().await.unwrap_or_default();
@@ -171,7 +184,7 @@ pub fn apply_epiphany_state_update_to_state(
 }
 
 pub async fn launch_epiphany_job_on_thread(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     request: EpiphanyJobLaunchRequest,
 ) -> Result<EpiphanyJobLaunchResult, CodexErr> {
     let current_state = thread.epiphany_state().await.unwrap_or_default();
@@ -244,7 +257,7 @@ pub async fn launch_epiphany_job_on_thread(
 }
 
 pub async fn interrupt_epiphany_job_on_thread(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     request: EpiphanyJobInterruptRequest,
 ) -> Result<EpiphanyJobInterruptResult, CodexErr> {
     if request.binding_id.trim().is_empty() {
@@ -293,14 +306,14 @@ pub async fn interrupt_epiphany_job_on_thread(
 }
 
 pub async fn apply_thread_epiphany_update(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     expected_revision: Option<u64>,
     patch: ThreadEpiphanyUpdatePatch,
 ) -> Result<EpiphanyThreadUpdateApplied, CodexErr> {
     let changed_fields = epiphany_update_patch_changed_fields(&patch);
     let update = state_update_from_thread_patch(expected_revision, patch);
     let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
-    let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
+    let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
     Ok(EpiphanyThreadUpdateApplied {
         revision: epiphany_state.revision,
         changed_fields,
@@ -309,7 +322,7 @@ pub async fn apply_thread_epiphany_update(
 }
 
 pub async fn apply_thread_epiphany_promote(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     expected_revision: Option<u64>,
     patch: ThreadEpiphanyUpdatePatch,
     verifier_evidence: EpiphanyEvidenceRecord,
@@ -339,7 +352,7 @@ pub async fn apply_thread_epiphany_promote(
     patch.evidence.push(verifier_evidence);
     let update = state_update_from_thread_patch(expected_revision, patch);
     let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
-    let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
+    let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
     Ok(EpiphanyThreadPromoteApplied::Accepted(
         EpiphanyThreadUpdateApplied {
             revision: epiphany_state.revision,
@@ -350,7 +363,7 @@ pub async fn apply_thread_epiphany_promote(
 }
 
 pub async fn apply_thread_epiphany_role_accept(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     role_id: ThreadEpiphanyRoleId,
     expected_revision: Option<u64>,
     binding_id: &str,
@@ -391,7 +404,7 @@ pub async fn apply_thread_epiphany_role_accept(
         state_update_from_thread_patch(expected_revision, acceptance_update.patch),
     )
     .await?;
-    let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
+    let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
 
     Ok(EpiphanyRoleAcceptApplied {
         revision: epiphany_state.revision,
@@ -406,7 +419,7 @@ pub async fn apply_thread_epiphany_role_accept(
 }
 
 pub async fn apply_thread_epiphany_reorient_accept(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     expected_revision: Option<u64>,
     binding_id: &str,
     update_scratch: bool,
@@ -451,7 +464,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
     let changed_fields = acceptance_update.changed_fields.clone();
     let epiphany_state =
         apply_epiphany_state_update_to_thread(thread, acceptance_update.state_update).await?;
-    let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
+    let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
 
     Ok(EpiphanyReorientAcceptApplied {
         revision: epiphany_state.revision,
@@ -465,7 +478,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
 }
 
 pub async fn launch_thread_epiphany_role(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     thread_id: &str,
     role_id: ThreadEpiphanyRoleId,
     expected_revision: Option<u64>,
@@ -495,15 +508,16 @@ pub async fn launch_thread_epiphany_role(
 }
 
 pub async fn launch_thread_epiphany_job(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     launch_request: EpiphanyJobLaunchRequest,
     kind: CoreEpiphanyJobKind,
     missing_projection_reason: &str,
 ) -> Result<EpiphanyJobLaunchApplied, CodexErr> {
     let changed_fields = epiphany_job_launch_changed_fields();
     let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;
-    let epiphany_state =
-        client_visible_live_thread_epiphany_state(thread, launched.epiphany_state).await;
+    let epiphany_state = thread
+        .client_visible_epiphany_state(launched.epiphany_state)
+        .await;
     let job = map_launched_epiphany_job(
         &epiphany_state,
         launched.binding_id.as_str(),
@@ -521,7 +535,7 @@ pub async fn launch_thread_epiphany_job(
 }
 
 pub async fn interrupt_thread_epiphany_job(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     expected_revision: Option<u64>,
     binding_id: &str,
     reason: Option<String>,
@@ -536,8 +550,9 @@ pub async fn interrupt_thread_epiphany_job(
         },
     )
     .await?;
-    let epiphany_state =
-        client_visible_live_thread_epiphany_state(thread, interrupted.epiphany_state).await;
+    let epiphany_state = thread
+        .client_visible_epiphany_state(interrupted.epiphany_state)
+        .await;
     let job = map_interrupted_epiphany_job(&epiphany_state, binding_id);
 
     Ok(EpiphanyJobInterruptApplied {
@@ -551,7 +566,7 @@ pub async fn interrupt_thread_epiphany_job(
 }
 
 pub async fn launch_thread_epiphany_reorient(
-    thread: &CodexThread,
+    thread: &impl EpiphanyMutationHost,
     thread_id: &str,
     expected_revision: Option<u64>,
     max_runtime_seconds: Option<u64>,
@@ -589,8 +604,9 @@ pub async fn launch_thread_epiphany_reorient(
     );
     let changed_fields = epiphany_job_launch_changed_fields();
     let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;
-    let epiphany_state =
-        client_visible_live_thread_epiphany_state(thread, launched.epiphany_state).await;
+    let epiphany_state = thread
+        .client_visible_epiphany_state(launched.epiphany_state)
+        .await;
     let job = map_epiphany_jobs(Some(&epiphany_state), None)
         .into_iter()
         .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
@@ -666,21 +682,4 @@ fn validate_expected_revision(
         )));
     }
     Ok(())
-}
-
-async fn client_visible_live_thread_epiphany_state(
-    thread: &CodexThread,
-    fallback: EpiphanyThreadState,
-) -> EpiphanyThreadState {
-    let config = thread.config_snapshot().await;
-    let codex_home = thread.codex_home().await;
-    let rollout_path = thread.rollout_path();
-    let mirror_thread_id = thread_state_mirror_id_from_rollout_path(rollout_path.as_deref());
-    client_visible_epiphany_state_for_paths(
-        fallback,
-        config.cwd.as_path(),
-        codex_home,
-        Some(mirror_thread_id.as_str()),
-    )
-    .await
 }

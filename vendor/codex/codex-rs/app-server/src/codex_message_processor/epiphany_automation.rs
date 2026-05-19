@@ -23,6 +23,7 @@ use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use tokio::sync::Mutex;
 use tracing::warn;
 
+use super::epiphany_thread_host::EpiphanyCodexThreadHost;
 use super::epiphany_thread_host::client_visible_live_thread_epiphany_state;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::thread_state::ThreadState;
@@ -76,9 +77,8 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
             let Some(launch_request) = verdict.launch_request else {
                 return;
             };
-            let launched = match launch_epiphany_job_on_thread(thread.as_ref(), launch_request)
-                .await
-            {
+            let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+            let launched = match launch_epiphany_job_on_thread(&host, launch_request).await {
                 Ok(launched) => launched,
                 Err(err) => {
                     warn!(

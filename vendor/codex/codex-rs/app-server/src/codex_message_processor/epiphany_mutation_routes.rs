@@ -25,6 +25,7 @@ use std::sync::Arc;
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
+use super::epiphany_thread_host::EpiphanyCodexThreadHost;
 
 impl CodexMessageProcessor {
     async fn load_epiphany_thread(
@@ -96,8 +97,9 @@ impl CodexMessageProcessor {
                 Some(thread) => thread,
                 None => return,
             };
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match launch_thread_epiphany_role(
-            loaded_thread.as_ref(),
+            &host,
             &thread_id,
             role_id,
             expected_revision,
@@ -170,28 +172,25 @@ impl CodexMessageProcessor {
                 Some(thread) => thread,
                 None => return,
             };
-        let applied = match apply_thread_epiphany_role_accept(
-            loaded_thread.as_ref(),
-            role_id,
-            expected_revision,
-            &binding_id,
-        )
-        .await
-        {
-            Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to apply Epiphany role finding: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
+        let applied =
+            match apply_thread_epiphany_role_accept(&host, role_id, expected_revision, &binding_id)
+                .await
+            {
+                Ok(applied) => applied,
+                Err(CodexErr::InvalidRequest(message)) => {
+                    self.send_invalid_request_error(request_id, message).await;
+                    return;
+                }
+                Err(err) => {
+                    self.send_internal_error(
+                        request_id,
+                        format!("failed to apply Epiphany role finding: {err}"),
+                    )
+                    .await;
+                    return;
+                }
+            };
         let changed_fields = applied.changed_fields;
         let epiphany_state = applied.epiphany_state;
 
@@ -259,8 +258,9 @@ impl CodexMessageProcessor {
             .snapshot(&thread_id)
             .await;
         let token_usage_info = loaded_thread.token_usage_info().await;
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match launch_thread_epiphany_reorient(
-            loaded_thread.as_ref(),
+            &host,
             &thread_id,
             expected_revision,
             max_runtime_seconds,
@@ -334,8 +334,9 @@ impl CodexMessageProcessor {
                 Some(thread) => thread,
                 None => return,
             };
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match apply_thread_epiphany_reorient_accept(
-            loaded_thread.as_ref(),
+            &host,
             expected_revision,
             binding_id.as_str(),
             update_scratch,
@@ -439,28 +440,25 @@ impl CodexMessageProcessor {
             None => return,
         };
 
-        let applied = match apply_thread_epiphany_promote(
-            thread.as_ref(),
-            expected_revision,
-            patch,
-            verifier_evidence,
-        )
-        .await
-        {
-            Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to promote Epiphany state update: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+        let applied =
+            match apply_thread_epiphany_promote(&host, expected_revision, patch, verifier_evidence)
+                .await
+            {
+                Ok(applied) => applied,
+                Err(CodexErr::InvalidRequest(message)) => {
+                    self.send_invalid_request_error(request_id, message).await;
+                    return;
+                }
+                Err(err) => {
+                    self.send_internal_error(
+                        request_id,
+                        format!("failed to promote Epiphany state update: {err}"),
+                    )
+                    .await;
+                    return;
+                }
+            };
 
         let applied = match applied {
             EpiphanyThreadPromoteApplied::Accepted(applied) => applied,
@@ -516,22 +514,22 @@ impl CodexMessageProcessor {
             None => return,
         };
 
-        let applied =
-            match apply_thread_epiphany_update(thread.as_ref(), expected_revision, patch).await {
-                Ok(applied) => applied,
-                Err(CodexErr::InvalidRequest(message)) => {
-                    self.send_invalid_request_error(request_id, message).await;
-                    return;
-                }
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!("failed to update Epiphany state for {thread_uuid}: {err}"),
-                    )
-                    .await;
-                    return;
-                }
-            };
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+        let applied = match apply_thread_epiphany_update(&host, expected_revision, patch).await {
+            Ok(applied) => applied,
+            Err(CodexErr::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to update Epiphany state for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
         let changed_fields = applied.changed_fields;
         let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyUpdateResponse {
@@ -576,8 +574,9 @@ impl CodexMessageProcessor {
             None => return,
         };
 
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
         let applied = match launch_thread_epiphany_job(
-            thread.as_ref(),
+            &host,
             build_epiphany_job_launch_request(
                 expected_revision,
                 binding_id.clone(),
@@ -651,8 +650,9 @@ impl CodexMessageProcessor {
             None => return,
         };
 
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
         let applied = match interrupt_thread_epiphany_job(
-            thread.as_ref(),
+            &host,
             expected_revision,
             &binding_id,
             reason,
