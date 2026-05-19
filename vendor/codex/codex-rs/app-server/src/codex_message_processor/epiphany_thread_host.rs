@@ -6,7 +6,9 @@ use codex_core::latest_epiphany_state_from_rollout_items;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
+use codex_protocol::protocol::TokenUsageInfo;
 use epiphany_codex_bridge::mutation_service::EpiphanyMutationHost;
+use epiphany_codex_bridge::pressure::EpiphanyTokenUsageSnapshot;
 use epiphany_codex_bridge::state::client_visible_epiphany_state_for_paths;
 use epiphany_codex_bridge::state::thread_state_mirror_id_from_rollout_path;
 
@@ -90,4 +92,15 @@ pub(super) async fn client_visible_live_thread_epiphany_state(
     fallback: EpiphanyThreadState,
 ) -> EpiphanyThreadState {
     live_thread_epiphany_state(thread).await.unwrap_or(fallback)
+}
+
+pub(super) fn epiphany_token_usage_snapshot(
+    info: Option<&TokenUsageInfo>,
+) -> Option<EpiphanyTokenUsageSnapshot> {
+    info.map(|info| EpiphanyTokenUsageSnapshot {
+        total_tokens: info.total_token_usage.total_tokens,
+        last_turn_tokens: info.last_token_usage.total_tokens,
+        model_context_window: info.model_context_window,
+        model_auto_compact_token_limit: info.model_auto_compact_token_limit,
+    })
 }

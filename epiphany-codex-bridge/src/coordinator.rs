@@ -19,7 +19,6 @@ use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
 use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanySceneAction;
 use codex_app_server_protocol::ThreadEpiphanyViewCoordinator;
-use codex_protocol::protocol::TokenUsageInfo;
 use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use epiphany_core::EpiphanyCoordinatorAutomationAction as CoreEpiphanyCoordinatorAutomationAction;
 use epiphany_core::EpiphanyCoordinatorCrrcRecommendation;
@@ -45,6 +44,7 @@ use epiphany_core::EpiphanyRoleBoardJob;
 use epiphany_core::EpiphanyRoleBoardJobStatus;
 use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleBoardPlanningSummary;
+use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::coordinator_automation_action;
 use epiphany_core::derive_role_board;
 use epiphany_core::recommend_coordinator_action;
@@ -390,7 +390,7 @@ pub struct EpiphanyCoordinatorAutomationInput<'a> {
     pub state: &'a EpiphanyThreadState,
     pub retrieval_override: &'a EpiphanyRetrievalState,
     pub watcher_snapshot: EpiphanyFreshnessWatcherSnapshot<'a>,
-    pub token_usage_info: Option<&'a TokenUsageInfo>,
+    pub token_usage_info: Option<&'a EpiphanyTokenUsageSnapshot>,
     pub runtime_store_path: &'a Path,
     pub force_checkpoint_compaction: bool,
 }

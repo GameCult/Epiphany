@@ -30,6 +30,7 @@ use epiphany_codex_bridge::view::map_epiphany_view_response;
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
+use super::epiphany_thread_host::epiphany_token_usage_snapshot;
 use super::latest_token_usage_info_from_rollout_path;
 
 impl CodexMessageProcessor {
@@ -124,6 +125,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
+        let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
         let response = map_epiphany_view_response(EpiphanyViewResponseInput {
             thread_id: thread_id.clone(),
             lenses,
@@ -133,7 +135,7 @@ impl CodexMessageProcessor {
             watcher_snapshot: watcher_snapshot
                 .as_ref()
                 .map(epiphany_freshness_watcher_snapshot),
-            token_usage_info: token_usage_info.as_ref(),
+            token_usage_info: token_usage_snapshot.as_ref(),
             runtime_store_path: runtime_store_path.as_deref(),
         })
         .await;

@@ -1,10 +1,10 @@
 use std::path::Path;
 
 use codex_app_server_protocol::*;
-use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyMapProposalInput;
 use epiphany_core::EpiphanySceneInput;
+use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::derive_scene;
 use epiphany_core::distill_observation;
 use epiphany_core::propose_map_update;
@@ -152,7 +152,7 @@ pub struct EpiphanyViewResponseInput<'a> {
     pub state: Option<&'a EpiphanyThreadState>,
     pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
-    pub token_usage_info: Option<&'a CoreTokenUsageInfo>,
+    pub token_usage_info: Option<&'a EpiphanyTokenUsageSnapshot>,
     pub runtime_store_path: Option<&'a Path>,
 }
 

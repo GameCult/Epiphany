@@ -25,6 +25,7 @@ use tracing::warn;
 
 use super::epiphany_thread_host::EpiphanyCodexThreadHost;
 use super::epiphany_thread_host::client_visible_live_thread_epiphany_state;
+use super::epiphany_thread_host::epiphany_token_usage_snapshot;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::thread_state::ThreadState;
 
@@ -51,6 +52,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         .snapshot(&thread_id_text)
         .await;
     let token_usage_info = thread.token_usage_info().await;
+    let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
     let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
 
     let verdict = select_epiphany_coordinator_automation(EpiphanyCoordinatorAutomationInput {
@@ -58,7 +60,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         state: &state,
         retrieval_override: &retrieval_override,
         watcher_snapshot: epiphany_freshness_watcher_snapshot(&watcher_snapshot),
-        token_usage_info: token_usage_info.as_ref(),
+        token_usage_info: token_usage_snapshot.as_ref(),
         runtime_store_path: runtime_store_path.as_path(),
         force_checkpoint_compaction,
     })
@@ -112,7 +114,8 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
     token_usage_info: Option<CoreTokenUsageInfo>,
     thread_state: &Arc<Mutex<ThreadState>>,
 ) {
-    let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+    let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
+    let pressure = map_epiphany_pressure(token_usage_snapshot.as_ref());
     if !should_run_epiphany_pre_compaction_checkpoint_intervention(&pressure) {
         return;
     }

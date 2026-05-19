@@ -26,6 +26,7 @@ use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
 use super::epiphany_thread_host::EpiphanyCodexThreadHost;
+use super::epiphany_thread_host::epiphany_token_usage_snapshot;
 
 impl CodexMessageProcessor {
     async fn load_epiphany_thread(
@@ -259,6 +260,7 @@ impl CodexMessageProcessor {
             .await;
         let token_usage_info = loaded_thread.token_usage_info().await;
         let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
+        let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
         let applied = match launch_thread_epiphany_reorient(
             &host,
             &thread_id,
@@ -267,7 +269,7 @@ impl CodexMessageProcessor {
             thread.epiphany_state.as_ref(),
             Some(&retrieval_override),
             Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
-            token_usage_info.as_ref(),
+            token_usage_snapshot.as_ref(),
         )
         .await
         {

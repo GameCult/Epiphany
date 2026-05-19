@@ -14,13 +14,13 @@ use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_protocol::error::CodexErr;
-use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyJobLaunchResult;
 use epiphany_core::EpiphanyPromotionInput;
 use epiphany_core::EpiphanyStateUpdate;
+use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::apply_epiphany_state_update;
@@ -573,7 +573,7 @@ pub async fn launch_thread_epiphany_reorient(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
     watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'_>>,
-    token_usage_info: Option<&CoreTokenUsageInfo>,
+    token_usage_info: Option<&EpiphanyTokenUsageSnapshot>,
 ) -> Result<EpiphanyReorientLaunchApplied, CodexErr> {
     let (state_revision, retrieval, graph, watcher) =
         map_epiphany_freshness(state, retrieval_override, watcher_snapshot);
