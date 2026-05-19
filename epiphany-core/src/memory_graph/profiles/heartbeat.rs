@@ -1,5 +1,9 @@
 use crate::heartbeat_state::EpiphanyHeartbeatCognitionEntry;
 #[cfg(test)]
+use crate::heartbeat_state::HeartbeatCandidateIntervention;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatCandidateInterventions;
+#[cfg(test)]
 use crate::heartbeat_state::HeartbeatMemoryResonance;
 #[cfg(test)]
 use crate::heartbeat_state::HeartbeatMemoryResonancePair;
@@ -166,24 +170,21 @@ fn import_candidate_interventions(
     let Some(candidates) = cognition.candidate_interventions.as_ref() else {
         return;
     };
-    let Some(items) = candidates.get("items").and_then(Value::as_array) else {
-        return;
-    };
     let domain_id = push_domain(
         domains,
         EpiphanyMemoryProfile::CandidateIntervention,
         "heartbeat candidate interventions",
     );
     let before = nodes.len();
-    for item in items.iter().take(8) {
-        let intervention_id = string_at(item, "interventionId");
+    for item in candidates.items.iter().take(8) {
+        let intervention_id = item.intervention_id.clone();
         nodes.push(EpiphanyMemoryNode {
             id: memory_graph_node_id(&domain_id, "candidate", &intervention_id, None),
             domain_id: domain_id.clone(),
             profile: EpiphanyMemoryProfile::CandidateIntervention,
             kind: EpiphanyMemoryNodeKind::CandidateIntervention,
-            title: string_at(item, "summary"),
-            claim: string_at(item, "draft"),
+            title: item.summary.clone(),
+            claim: item.draft.clone(),
             question: "Should this candidate intervention be spoken, deferred, or retired?"
                 .to_string(),
             tension: "Candidate speech is not authority and still requires review.".to_string(),
@@ -191,7 +192,7 @@ fn import_candidate_interventions(
                 .to_string(),
             source_hashes: vec!["anchor:missing".to_string()],
             lifecycle: EpiphanyMemoryLifecycle::Queued,
-            salience: score_to_u32(number_at(item, "noveltyToRoom")),
+            salience: score_to_u32(item.novelty_to_room),
             confidence: 55,
             ..Default::default()
         });
@@ -423,14 +424,21 @@ mod tests {
                     "reason": "The thought is live but not ready for speech."
                 }
             })),
-            candidate_interventions: Some(serde_json::json!({
-                "items": [{
-                    "interventionId": "candidate-theme-body-soul",
-                    "summary": "Possible note",
-                    "draft": "Evidence boundaries are lighting up.",
-                    "noveltyToRoom": 0.7
-                }]
-            })),
+            candidate_interventions: Some(HeartbeatCandidateInterventions {
+                schema_version: "epiphany.candidate_interventions.v0".to_string(),
+                updated_at: "2026-05-18T00:00:00Z".to_string(),
+                items: vec![HeartbeatCandidateIntervention {
+                    intervention_id: "candidate-theme-body-soul".to_string(),
+                    summary: "Possible note".to_string(),
+                    draft: "Evidence boundaries are lighting up.".to_string(),
+                    decision: "draft".to_string(),
+                    requires_face: true,
+                    requires_review: true,
+                    novelty_to_room: 0.7,
+                    saturation_score: 0.1,
+                    created_at: "2026-05-18T00:00:00Z".to_string(),
+                }],
+            }),
             appraisals: None,
             reactions: None,
         };

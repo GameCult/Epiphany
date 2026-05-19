@@ -69,7 +69,7 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     #[cultcache(key = 9, default)]
     pub bridge: Option<Value>,
     #[cultcache(key = 10, default)]
-    pub candidate_interventions: Option<Value>,
+    pub candidate_interventions: Option<HeartbeatCandidateInterventions>,
     #[cultcache(key = 11, default)]
     pub appraisals: Option<HeartbeatAgentThoughtAppraisals>,
     #[cultcache(key = 12, default)]
@@ -332,6 +332,31 @@ pub struct HeartbeatAgentReaction {
     pub bridge_decision: String,
     pub surface: String,
     pub recommended_use: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatCandidateInterventions {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub items: Vec<HeartbeatCandidateIntervention>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatCandidateIntervention {
+    pub intervention_id: String,
+    pub summary: String,
+    pub draft: String,
+    pub decision: String,
+    pub requires_face: bool,
+    pub requires_review: bool,
+    pub novelty_to_room: f64,
+    pub saturation_score: f64,
+    pub created_at: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -126,7 +126,7 @@ pub fn run_void_routine_store(
         "incubation": incubation,
         "thoughtLanes": thought_lanes,
         "bridge": bridge,
-        "candidateInterventions": candidate_interventions,
+        "candidateInterventions": &candidate_interventions,
         "appraisals": &appraisals,
         "reactions": &reactions,
         "reviewNotes": [
@@ -1451,7 +1451,7 @@ fn build_memory_resonance(records: &[RoleMemoryRecord]) -> HeartbeatMemoryResona
 fn build_incubation(
     previous: &Option<Value>,
     bridge: &Option<Value>,
-    candidate_interventions: &Option<Value>,
+    candidate_interventions: &Option<HeartbeatCandidateInterventions>,
     resonance: &HeartbeatMemoryResonance,
     records: &[RoleMemoryRecord],
 ) -> Value {
@@ -1915,7 +1915,10 @@ fn build_thought_bridge(
     })
 }
 
-fn build_candidate_interventions(bridge: &Value, incubation: &Value) -> Value {
+fn build_candidate_interventions(
+    bridge: &Value,
+    incubation: &Value,
+) -> HeartbeatCandidateInterventions {
     let decision = bridge
         .pointer("/decision/speakDecision")
         .and_then(Value::as_str)
@@ -1932,27 +1935,37 @@ fn build_candidate_interventions(bridge: &Value, incubation: &Value) -> Value {
     let items = if decision == "draft" && strongest_status == "ripe" {
         strongest_theme
             .map(|theme| {
-                vec![serde_json::json!({
-                    "interventionId": format!("candidate-{}", theme.get("themeId").and_then(Value::as_str).unwrap_or("theme")),
-                    "summary": "Possible Aquarium-facing thought-weather note",
-                    "draft": format!("I keep seeing {} rhyme across the swarm; this one finally has enough blood to inspect in the open.", theme.get("themeId").and_then(Value::as_str).unwrap_or("an unnamed seam")),
-                    "decision": decision,
-                    "requiresFace": true,
-                    "requiresReview": true,
-                    "noveltyToRoom": theme.get("noveltyToRoom").cloned().unwrap_or(Value::Null),
-                    "saturationScore": theme.get("saturationScore").cloned().unwrap_or(Value::Null),
-                    "createdAt": now_iso(),
-                })]
+                let theme_id = theme
+                    .get("themeId")
+                    .and_then(Value::as_str)
+                    .unwrap_or("theme");
+                vec![HeartbeatCandidateIntervention {
+                    intervention_id: format!("candidate-{theme_id}"),
+                    summary: "Possible Aquarium-facing thought-weather note".to_string(),
+                    draft: format!("I keep seeing {} rhyme across the swarm; this one finally has enough blood to inspect in the open.", theme_id),
+                    decision: decision.to_string(),
+                    requires_face: true,
+                    requires_review: true,
+                    novelty_to_room: theme
+                        .get("noveltyToRoom")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0),
+                    saturation_score: theme
+                        .get("saturationScore")
+                        .and_then(Value::as_f64)
+                        .unwrap_or(0.0),
+                    created_at: now_iso(),
+                }]
             })
             .unwrap_or_default()
     } else {
         Vec::new()
     };
-    serde_json::json!({
-        "schema_version": "epiphany.candidate_interventions.v0",
-        "updatedAt": now_iso(),
-        "items": items,
-    })
+    HeartbeatCandidateInterventions {
+        schema_version: "epiphany.candidate_interventions.v0".to_string(),
+        updated_at: now_iso(),
+        items,
+    }
 }
 
 fn build_agent_appraisals(
@@ -2467,29 +2480,21 @@ fn novelty_to_self(
 fn novelty_to_room(
     theme_id: &str,
     summary: &str,
-    previous_candidate_interventions: &Option<Value>,
+    previous_candidate_interventions: &Option<HeartbeatCandidateInterventions>,
     bridge: &Option<Value>,
 ) -> f64 {
     let mut score = 0.64_f64;
     for intervention in previous_candidate_interventions
         .as_ref()
-        .and_then(|value| value.get("items"))
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.items.iter())
         .take(8)
     {
         let similarity = theme_similarity(
             theme_id,
             summary,
-            intervention
-                .get("interventionId")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
-            intervention
-                .get("draft")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            &intervention.intervention_id,
+            &intervention.draft,
         );
         if similarity >= 0.42 {
             return 0.22;
