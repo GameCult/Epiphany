@@ -127,8 +127,8 @@ pub fn run_void_routine_store(
         "thoughtLanes": thought_lanes,
         "bridge": bridge,
         "candidateInterventions": candidate_interventions,
-        "appraisals": appraisals,
-        "reactions": reactions,
+        "appraisals": &appraisals,
+        "reactions": &reactions,
         "reviewNotes": [
             "Void is reference material, not a runtime dependency.",
             "The routine mutates only typed heartbeat physiology fields; project truth and role memory mutation stay on their dedicated reviewed surfaces.",
@@ -1355,47 +1355,28 @@ fn trait_match_score(traits: &[PersonalityTraitProjection], needles: &[&str]) ->
     }
 }
 
-fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, appraisals: &Value) {
-    let Some(items) = appraisals
-        .get("participantAppraisals")
-        .and_then(Value::as_array)
-    else {
-        return;
-    };
+fn apply_mood_timing_from_appraisals(
+    state: &mut EpiphanyHeartbeatStateEntry,
+    appraisals: &HeartbeatAgentThoughtAppraisals,
+) {
     for participant in &mut state.participants {
-        let Some(appraisal) = items
+        let Some(appraisal) = appraisals
+            .participant_appraisals
             .iter()
-            .find(|item| item.get("roleId").and_then(Value::as_str) == Some(&participant.role_id))
+            .find(|item| item.role_id == participant.role_id)
         else {
             continue;
         };
-        let emotional = appraisal
-            .get("emotionalAppraisal")
-            .and_then(Value::as_object);
-        let urgency = emotional
-            .and_then(|value| value.get("urgency"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
+        let urgency = appraisal.emotional_appraisal.urgency.clamp(0.0, 1.0);
+        let arousal = appraisal.emotional_appraisal.arousal.clamp(0.0, 1.0);
+        let thought_pressure = appraisal
+            .emotional_appraisal
+            .thought_pressure
             .clamp(0.0, 1.0);
-        let arousal = emotional
-            .and_then(|value| value.get("arousal"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
-            .clamp(0.0, 1.0);
-        let thought_pressure = emotional
-            .and_then(|value| value.get("thoughtPressure"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
-            .clamp(0.0, 1.0);
-        let guardedness = emotional
-            .and_then(|value| value.get("guardedness"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
-            .clamp(0.0, 1.0);
+        let guardedness = appraisal.emotional_appraisal.guardedness.clamp(0.0, 1.0);
         let reaction_intensity = appraisal
-            .pointer("/candidateImplications/reactionIntensity")
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
+            .candidate_implications
+            .reaction_intensity
             .clamp(0.0, 1.0);
         let anxiety = (urgency * 0.32
             + arousal * 0.22
@@ -1408,10 +1389,7 @@ fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, ap
         participant.mood_cooldown_multiplier = round3(multiplier);
         participant.mood_timing = Some(HeartbeatMoodTiming {
             schema_version: "epiphany.mood_timing.v0".to_string(),
-            source: appraisal
-                .get("appraisalId")
-                .and_then(Value::as_str)
-                .map(str::to_string),
+            source: Some(appraisal.appraisal_id.clone()),
             cooldown_multiplier: round3(multiplier),
             anxiety: round3(anxiety),
             urgency: round3(urgency),
@@ -1982,7 +1960,7 @@ fn build_agent_appraisals(
     thought_lanes: &Value,
     incubation: &Value,
     bridge: &Value,
-) -> Value {
+) -> HeartbeatAgentThoughtAppraisals {
     let thought_tokens = cognition_tokens(thought_lanes, incubation, bridge);
     let thought_pressure = thought_pressure(thought_lanes, incubation);
     let bridge_decision = bridge
@@ -2002,7 +1980,7 @@ fn build_agent_appraisals(
             let projection = personality_projection(profile, &thought_tokens);
             let alignment = projection
                 .iter()
-                .filter_map(|item| item.get("projection").and_then(Value::as_f64))
+                .map(|item| item.projection)
                 .next()
                 .unwrap_or(profile.reactivity);
             let arousal = round3(
@@ -2020,111 +1998,99 @@ fn build_agent_appraisals(
             let urgency = round3((arousal * 0.65 + guardedness * 0.25 + thought_pressure * 0.1).clamp(0.0, 1.0));
             let valence = round3((0.55 + curiosity * 0.2 - guardedness * 0.18).clamp(0.0, 1.0));
             let label = interpretation_label(bridge_decision, arousal, guardedness, curiosity);
-            serde_json::json!({
-                "schema_version": "epiphany.agent_thought_appraisal.v0",
-                "appraisalId": format!("appraisal-{}-{}", profile.role_id, stable_theme_suffix(focus)),
-                "reviewStatus": "generated_unreviewed",
-                "participantAgentId": profile.agent_id,
-                "roleId": profile.role_id,
-                "currentCharacterStateRef": format!("state/agents.msgpack#{}", profile.role_id),
-                "thoughtClusterRef": focus,
-                "participantLocalContext": {
-                    "displayName": profile.display_name,
-                    "values": profile.values,
-                    "reactivity": profile.reactivity,
-                    "plasticity": profile.plasticity,
-                    "expressiveness": profile.expressiveness,
-                    "guardedness": profile.guardedness,
+            HeartbeatAgentThoughtAppraisal {
+                schema_version: "epiphany.agent_thought_appraisal.v0".to_string(),
+                appraisal_id: format!("appraisal-{}-{}", profile.role_id, stable_theme_suffix(focus)),
+                review_status: "generated_unreviewed".to_string(),
+                participant_agent_id: profile.agent_id.clone(),
+                role_id: profile.role_id.clone(),
+                current_character_state_ref: format!("state/agents.msgpack#{}", profile.role_id),
+                thought_cluster_ref: focus.to_string(),
+                participant_local_context: HeartbeatParticipantLocalContext {
+                    display_name: profile.display_name.clone(),
+                    values: profile.values.clone(),
+                    reactivity: profile.reactivity,
+                    plasticity: profile.plasticity,
+                    expressiveness: profile.expressiveness,
+                    guardedness: profile.guardedness,
                 },
-                "observableThoughtSummary": strongest_thought_summary(thought_lanes, incubation),
-                "personalityProjection": projection,
-                "interpretation": format!("{} appraises {} through its current personality vector; reaction should follow this appraisal rather than a global mood knob.", profile.display_name, focus),
-                "emotionalAppraisal": {
-                    "valence": valence,
-                    "arousal": arousal,
-                    "urgency": urgency,
-                    "curiosity": curiosity,
-                    "guardedness": guardedness,
-                    "thoughtPressure": round3(thought_pressure),
+                observable_thought_summary: strongest_thought_summary(thought_lanes, incubation),
+                personality_projection: projection,
+                interpretation: format!("{} appraises {} through its current personality vector; reaction should follow this appraisal rather than a global mood knob.", profile.display_name, focus),
+                emotional_appraisal: HeartbeatEmotionalAppraisal {
+                    valence,
+                    arousal,
+                    urgency,
+                    curiosity,
+                    guardedness,
+                    thought_pressure: round3(thought_pressure),
                 },
-                "interpretationLabel": label,
-                "confidenceNotes": "Deterministic first-pass appraisal from typed role personality vectors and clustered thought state; useful as reaction guidance, not reviewed truth.",
-                "candidateImplications": {
-                    "reactionMode": reaction_mode(&label, bridge_decision),
-                    "reactionIntensity": round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
-                    "shouldSpeak": bridge_decision == "draft" && profile.role_id == "face" && guardedness < 0.75,
-                    "shouldIncubate": bridge_decision != "silence" && guardedness >= 0.55,
+                interpretation_label: label.to_string(),
+                confidence_notes: "Deterministic first-pass appraisal from typed role personality vectors and clustered thought state; useful as reaction guidance, not reviewed truth.".to_string(),
+                candidate_implications: HeartbeatCandidateImplications {
+                    reaction_mode: reaction_mode(&label, bridge_decision).to_string(),
+                    reaction_intensity: round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
+                    should_speak: bridge_decision == "draft" && profile.role_id == "face" && guardedness < 0.75,
+                    should_incubate: bridge_decision != "silence" && guardedness >= 0.55,
                 },
-                "review": {
-                    "acceptedForMutation": false,
-                    "rationale": "Appraisal may steer reaction and display; state mutation still requires the explicit selfPatch or project-state review path.",
+                review: HeartbeatAppraisalReview {
+                    accepted_for_mutation: false,
+                    rationale: "Appraisal may steer reaction and display; state mutation still requires the explicit selfPatch or project-state review path.".to_string(),
                 },
-            })
+            }
         })
         .collect::<Vec<_>>();
-    serde_json::json!({
-        "schema_version": "epiphany.agent_thought_appraisals.v0",
-        "updatedAt": now_iso(),
-        "thoughtClusterRef": focus,
-        "participantAppraisals": appraisals,
-    })
+    HeartbeatAgentThoughtAppraisals {
+        schema_version: "epiphany.agent_thought_appraisals.v0".to_string(),
+        updated_at: now_iso(),
+        thought_cluster_ref: focus.to_string(),
+        participant_appraisals: appraisals,
+    }
 }
 
-fn build_agent_reactions(appraisals: &Value, bridge: &Value) -> Value {
+fn build_agent_reactions(
+    appraisals: &HeartbeatAgentThoughtAppraisals,
+    bridge: &Value,
+) -> HeartbeatAgentReactions {
     let bridge_decision = bridge
         .pointer("/decision/speakDecision")
         .and_then(Value::as_str)
         .unwrap_or("silence");
     let reactions = appraisals
-        .get("participantAppraisals")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+        .participant_appraisals
+        .iter()
         .map(|appraisal| {
-            let role_id = appraisal
-                .get("roleId")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown");
-            let arousal = appraisal
-                .pointer("/emotionalAppraisal/arousal")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            let guardedness = appraisal
-                .pointer("/emotionalAppraisal/guardedness")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            let curiosity = appraisal
-                .pointer("/emotionalAppraisal/curiosity")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            let mode = appraisal
-                .pointer("/candidateImplications/reactionMode")
-                .and_then(Value::as_str)
-                .unwrap_or("hold");
-            let intensity = appraisal
-                .pointer("/candidateImplications/reactionIntensity")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            serde_json::json!({
-                "reactionId": format!("reaction-{}-{}", role_id, now_stamp()),
-                "roleId": role_id,
-                "participantAgentId": appraisal.get("participantAgentId"),
-                "appraisalId": appraisal.get("appraisalId"),
-                "mode": mode,
-                "moodLabel": mood_label(arousal, guardedness, curiosity),
-                "intensity": round3(intensity),
-                "bridgeDecision": bridge_decision,
-                "surface": if role_id == "face" { "aquarium" } else { "internal" },
-                "recommendedUse": reaction_recommended_use(role_id, mode),
-            })
+            let role_id = appraisal.role_id.as_str();
+            let arousal = appraisal.emotional_appraisal.arousal;
+            let guardedness = appraisal.emotional_appraisal.guardedness;
+            let curiosity = appraisal.emotional_appraisal.curiosity;
+            let mode = appraisal.candidate_implications.reaction_mode.as_str();
+            let intensity = appraisal.candidate_implications.reaction_intensity;
+            HeartbeatAgentReaction {
+                reaction_id: format!("reaction-{}-{}", role_id, now_stamp()),
+                role_id: role_id.to_string(),
+                participant_agent_id: appraisal.participant_agent_id.clone(),
+                appraisal_id: appraisal.appraisal_id.clone(),
+                mode: mode.to_string(),
+                mood_label: mood_label(arousal, guardedness, curiosity).to_string(),
+                intensity: round3(intensity),
+                bridge_decision: bridge_decision.to_string(),
+                surface: if role_id == "face" {
+                    "aquarium"
+                } else {
+                    "internal"
+                }
+                .to_string(),
+                recommended_use: reaction_recommended_use(role_id, mode).to_string(),
+            }
         })
         .collect::<Vec<_>>();
-    serde_json::json!({
-        "schema_version": "epiphany.agent_reactions.v0",
-        "updatedAt": now_iso(),
-        "reactions": reactions,
-        "contract": "Reaction is appraisal output. It may pace, color, draft, or display behavior; it does not mutate state without review.",
-    })
+    HeartbeatAgentReactions {
+        schema_version: "epiphany.agent_reactions.v0".to_string(),
+        updated_at: now_iso(),
+        reactions,
+        contract: "Reaction is appraisal output. It may pace, color, draft, or display behavior; it does not mutate state without review.".to_string(),
+    }
 }
 
 fn cognition_tokens(thought_lanes: &Value, incubation: &Value, bridge: &Value) -> BTreeSet<String> {
@@ -2174,7 +2140,7 @@ fn max_number_at(value: &Value, pointer: &str, key: &str) -> f64 {
 fn personality_projection(
     profile: &RoleAppraisalProfile,
     thought_tokens: &BTreeSet<String>,
-) -> Vec<Value> {
+) -> Vec<HeartbeatPersonalityProjection> {
     let mut scored = profile
         .traits
         .iter()
@@ -2182,22 +2148,17 @@ fn personality_projection(
             let trait_tokens = summary_tokens(&format!("{} {}", item.group, item.name));
             let overlap = token_overlap(&trait_tokens, thought_tokens);
             let projection = round3((item.weight * (0.55 + overlap * 1.8)).clamp(0.0, 1.0));
-            serde_json::json!({
-                "group": item.group,
-                "name": item.name,
-                "activation": round3(item.activation),
-                "plasticity": round3(item.plasticity),
-                "tokenOverlap": round3(overlap),
-                "projection": projection,
-            })
+            HeartbeatPersonalityProjection {
+                group: item.group.clone(),
+                name: item.name.clone(),
+                activation: round3(item.activation),
+                plasticity: round3(item.plasticity),
+                token_overlap: round3(overlap),
+                projection,
+            }
         })
         .collect::<Vec<_>>();
-    scored.sort_by(|left, right| {
-        right["projection"]
-            .as_f64()
-            .unwrap_or_default()
-            .total_cmp(&left["projection"].as_f64().unwrap_or_default())
-    });
+    scored.sort_by(|left, right| right.projection.total_cmp(&left.projection));
     scored.truncate(6);
     scored
 }

@@ -71,9 +71,9 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     #[cultcache(key = 10, default)]
     pub candidate_interventions: Option<Value>,
     #[cultcache(key = 11, default)]
-    pub appraisals: Option<Value>,
+    pub appraisals: Option<HeartbeatAgentThoughtAppraisals>,
     #[cultcache(key = 12, default)]
-    pub reactions: Option<Value>,
+    pub reactions: Option<HeartbeatAgentReactions>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -217,6 +217,121 @@ pub struct HeartbeatSleepCycle {
     pub dream_count_in_current_nap: u64,
     pub active_dream_themes: Vec<String>,
     pub last_distillation_summary: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatAgentThoughtAppraisals {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub thought_cluster_ref: String,
+    pub participant_appraisals: Vec<HeartbeatAgentThoughtAppraisal>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatAgentThoughtAppraisal {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub appraisal_id: String,
+    pub review_status: String,
+    pub participant_agent_id: String,
+    pub role_id: String,
+    pub current_character_state_ref: String,
+    pub thought_cluster_ref: String,
+    pub participant_local_context: HeartbeatParticipantLocalContext,
+    pub observable_thought_summary: String,
+    pub personality_projection: Vec<HeartbeatPersonalityProjection>,
+    pub interpretation: String,
+    pub emotional_appraisal: HeartbeatEmotionalAppraisal,
+    pub interpretation_label: String,
+    pub confidence_notes: String,
+    pub candidate_implications: HeartbeatCandidateImplications,
+    pub review: HeartbeatAppraisalReview,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatParticipantLocalContext {
+    pub display_name: String,
+    pub values: Vec<String>,
+    pub reactivity: f64,
+    pub plasticity: f64,
+    pub expressiveness: f64,
+    pub guardedness: f64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatPersonalityProjection {
+    pub group: String,
+    pub name: String,
+    pub activation: f64,
+    pub plasticity: f64,
+    pub token_overlap: f64,
+    pub projection: f64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatEmotionalAppraisal {
+    pub valence: f64,
+    pub arousal: f64,
+    pub urgency: f64,
+    pub curiosity: f64,
+    pub guardedness: f64,
+    pub thought_pressure: f64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatCandidateImplications {
+    pub reaction_mode: String,
+    pub reaction_intensity: f64,
+    pub should_speak: bool,
+    pub should_incubate: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatAppraisalReview {
+    pub accepted_for_mutation: bool,
+    pub rationale: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatAgentReactions {
+    #[serde(rename = "schema_version")]
+    pub schema_version: String,
+    pub updated_at: String,
+    pub reactions: Vec<HeartbeatAgentReaction>,
+    pub contract: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+pub struct HeartbeatAgentReaction {
+    pub reaction_id: String,
+    pub role_id: String,
+    pub participant_agent_id: String,
+    pub appraisal_id: String,
+    pub mode: String,
+    pub mood_label: String,
+    pub intensity: f64,
+    pub bridge_decision: String,
+    pub surface: String,
+    pub recommended_use: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

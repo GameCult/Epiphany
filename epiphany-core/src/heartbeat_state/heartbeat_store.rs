@@ -131,8 +131,8 @@ fn legacy_heartbeat_cognition_entry(
         thought_lanes: legacy.thought_lanes,
         bridge: legacy.bridge,
         candidate_interventions: legacy.candidate_interventions,
-        appraisals: legacy.appraisals,
-        reactions: legacy.reactions,
+        appraisals: decode_legacy_document(legacy.appraisals)?,
+        reactions: decode_legacy_document(legacy.reactions)?,
     }))
 }
 
