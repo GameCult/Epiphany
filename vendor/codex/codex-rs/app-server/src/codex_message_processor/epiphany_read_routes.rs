@@ -2,6 +2,11 @@ use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
+use epiphany_codex_bridge::cultnet::EpiphanyFreshnessSurface;
+use epiphany_codex_bridge::cultnet::EpiphanyGraphFreshnessStatus;
+use epiphany_codex_bridge::cultnet::EpiphanyInvalidationStatus;
+use epiphany_codex_bridge::cultnet::EpiphanyRetrievalFreshnessStatus;
+use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
@@ -20,7 +25,7 @@ use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::view::map_epiphany_context_response;
 use epiphany_codex_bridge::view::map_epiphany_distill_response;
-use epiphany_codex_bridge::view::map_epiphany_freshness_response;
+use epiphany_codex_bridge::view::derive_epiphany_freshness_surface;
 use epiphany_codex_bridge::view::map_epiphany_graph_query_response;
 use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
@@ -261,7 +266,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let response = map_epiphany_freshness_response(EpiphanyFreshnessResponseInput {
+        let surface = derive_epiphany_freshness_surface(EpiphanyFreshnessResponseInput {
             thread_id,
             loaded: loaded_thread.is_some(),
             state: thread.epiphany_state.as_ref(),
@@ -270,6 +275,7 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .map(epiphany_freshness_watcher_snapshot),
         });
+        let response = thread_epiphany_freshness_response_from_surface(surface);
         self.outgoing.send_response(request_id, response).await;
     }
 
@@ -566,6 +572,84 @@ impl CodexMessageProcessor {
         };
 
         self.outgoing.send_response(request_id, response).await;
+    }
+}
+
+fn thread_epiphany_freshness_response_from_surface(
+    surface: EpiphanyFreshnessSurface,
+) -> ThreadEpiphanyFreshnessResponse {
+    ThreadEpiphanyFreshnessResponse {
+        thread_id: surface.thread_id,
+        source: match surface.source {
+            EpiphanySurfaceSource::Stored => ThreadEpiphanyFreshnessSource::Stored,
+            EpiphanySurfaceSource::Live => ThreadEpiphanyFreshnessSource::Live,
+        },
+        state_revision: surface.state_revision,
+        retrieval: ThreadEpiphanyRetrievalFreshness {
+            status: match surface.retrieval.status {
+                EpiphanyRetrievalFreshnessStatus::Missing => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Missing
+                }
+                EpiphanyRetrievalFreshnessStatus::Ready => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Ready
+                }
+                EpiphanyRetrievalFreshnessStatus::Stale => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Stale
+                }
+                EpiphanyRetrievalFreshnessStatus::Indexing => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Indexing
+                }
+                EpiphanyRetrievalFreshnessStatus::Unavailable => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Unavailable
+                }
+            },
+            semantic_available: surface.retrieval.semantic_available,
+            last_indexed_at_unix_seconds: surface.retrieval.last_indexed_at_unix_seconds,
+            indexed_file_count: surface.retrieval.indexed_file_count,
+            indexed_chunk_count: surface.retrieval.indexed_chunk_count,
+            dirty_paths: surface.retrieval.dirty_paths,
+            note: surface.retrieval.note,
+        },
+        graph: ThreadEpiphanyGraphFreshness {
+            status: match surface.graph.status {
+                EpiphanyGraphFreshnessStatus::Missing => {
+                    ThreadEpiphanyGraphFreshnessStatus::Missing
+                }
+                EpiphanyGraphFreshnessStatus::Ready => {
+                    ThreadEpiphanyGraphFreshnessStatus::Ready
+                }
+                EpiphanyGraphFreshnessStatus::Stale => {
+                    ThreadEpiphanyGraphFreshnessStatus::Stale
+                }
+            },
+            graph_freshness: surface.graph.graph_freshness,
+            checkpoint_id: surface.graph.checkpoint_id,
+            dirty_path_count: surface.graph.dirty_path_count,
+            dirty_paths: surface.graph.dirty_paths,
+            open_question_count: surface.graph.open_question_count,
+            open_gap_count: surface.graph.open_gap_count,
+            note: surface.graph.note,
+        },
+        watcher: ThreadEpiphanyInvalidationInput {
+            status: match surface.watcher.status {
+                EpiphanyInvalidationStatus::Unavailable => {
+                    ThreadEpiphanyInvalidationStatus::Unavailable
+                }
+                EpiphanyInvalidationStatus::Clean => {
+                    ThreadEpiphanyInvalidationStatus::Clean
+                }
+                EpiphanyInvalidationStatus::Changed => {
+                    ThreadEpiphanyInvalidationStatus::Changed
+                }
+            },
+            watched_root: surface.watcher.watched_root,
+            observed_at_unix_seconds: surface.watcher.observed_at_unix_seconds,
+            changed_path_count: surface.watcher.changed_path_count,
+            changed_paths: surface.watcher.changed_paths,
+            graph_node_ids: surface.watcher.graph_node_ids,
+            active_frontier_node_ids: surface.watcher.active_frontier_node_ids,
+            note: surface.watcher.note,
+        },
     }
 }
 

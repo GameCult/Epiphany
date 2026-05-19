@@ -20,10 +20,13 @@ use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
 use crate::coordinator::render_epiphany_roles_note;
+use crate::cultnet::EpiphanyFreshnessSurface;
+use crate::cultnet::EpiphanySurfaceSource;
 use crate::jobs::map_epiphany_jobs;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
+use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::map_epiphany_freshness;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
@@ -77,25 +80,25 @@ pub struct EpiphanyFreshnessResponseInput<'a> {
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
 }
 
-pub fn map_epiphany_freshness_response(
+pub fn derive_epiphany_freshness_surface(
     input: EpiphanyFreshnessResponseInput<'_>,
-) -> ThreadEpiphanyFreshnessResponse {
-    let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+) -> EpiphanyFreshnessSurface {
+    let freshness = derive_epiphany_freshness_view(
         input.state,
         input.retrieval_override,
         input.watcher_snapshot,
     );
-    ThreadEpiphanyFreshnessResponse {
+    EpiphanyFreshnessSurface {
         thread_id: input.thread_id,
         source: if input.loaded {
-            ThreadEpiphanyFreshnessSource::Live
+            EpiphanySurfaceSource::Live
         } else {
-            ThreadEpiphanyFreshnessSource::Stored
+            EpiphanySurfaceSource::Stored
         },
-        state_revision,
-        retrieval,
-        graph,
-        watcher,
+        state_revision: freshness.state_revision,
+        retrieval: freshness.retrieval,
+        graph: freshness.graph,
+        watcher: freshness.watcher,
     }
 }
 

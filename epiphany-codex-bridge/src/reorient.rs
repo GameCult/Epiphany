@@ -51,18 +51,26 @@ pub fn map_epiphany_freshness(
     ThreadEpiphanyGraphFreshness,
     ThreadEpiphanyInvalidationInput,
 ) {
+    let freshness = derive_epiphany_freshness_view(state, retrieval_override, watcher_snapshot);
+    map_core_epiphany_freshness(freshness)
+}
+
+pub fn derive_epiphany_freshness_view(
+    state: Option<&EpiphanyThreadState>,
+    retrieval_override: Option<&EpiphanyRetrievalState>,
+    watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'_>>,
+) -> EpiphanyFreshnessView {
     let watcher = watcher_snapshot.map(|snapshot| EpiphanyFreshnessWatcherInput {
         available: snapshot.available,
         workspace_root: snapshot.workspace_root,
         observed_at_unix_seconds: snapshot.observed_at_unix_seconds,
         changed_paths: snapshot.changed_paths,
     });
-    let freshness = derive_freshness(EpiphanyFreshnessInput {
+    derive_freshness(EpiphanyFreshnessInput {
         state,
         retrieval_override,
         watcher,
-    });
-    map_core_epiphany_freshness(freshness)
+    })
 }
 
 fn map_core_epiphany_freshness(

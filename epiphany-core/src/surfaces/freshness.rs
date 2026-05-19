@@ -1,11 +1,14 @@
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyRetrievalStatus;
 use epiphany_state_model::EpiphanyThreadState;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyRetrievalFreshnessStatus {
     Missing,
     Ready,
@@ -14,51 +17,69 @@ pub enum EpiphanyRetrievalFreshnessStatus {
     Unavailable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRetrievalFreshness {
     pub status: EpiphanyRetrievalFreshnessStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub semantic_available: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_indexed_at_unix_seconds: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indexed_file_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub indexed_chunk_count: Option<u32>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dirty_paths: Vec<PathBuf>,
     pub note: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyGraphFreshnessStatus {
     Missing,
     Ready,
     Stale,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyGraphFreshness {
     pub status: EpiphanyGraphFreshnessStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub graph_freshness: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checkpoint_id: Option<String>,
     pub dirty_path_count: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub dirty_paths: Vec<PathBuf>,
     pub open_question_count: u32,
     pub open_gap_count: u32,
     pub note: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyInvalidationStatus {
     Unavailable,
     Clean,
     Changed,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyInvalidationInput {
     pub status: EpiphanyInvalidationStatus,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub watched_root: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub observed_at_unix_seconds: Option<i64>,
     pub changed_path_count: u32,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub changed_paths: Vec<PathBuf>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub graph_node_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub active_frontier_node_ids: Vec<String>,
     pub note: String,
 }
@@ -78,8 +99,10 @@ pub struct EpiphanyFreshnessInput<'a> {
     pub watcher: Option<EpiphanyFreshnessWatcherInput<'a>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyFreshnessView {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub state_revision: Option<u64>,
     pub retrieval: EpiphanyRetrievalFreshness,
     pub graph: EpiphanyGraphFreshness,
