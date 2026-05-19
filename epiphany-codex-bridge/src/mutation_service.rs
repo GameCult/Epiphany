@@ -56,7 +56,8 @@ use crate::reorient::map_epiphany_freshness;
 use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
-use crate::state::client_visible_live_thread_epiphany_state;
+use crate::state::client_visible_epiphany_state_for_paths;
+use crate::state::thread_state_mirror_id_from_rollout_path;
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -654,4 +655,21 @@ fn validate_expected_revision(
         )));
     }
     Ok(())
+}
+
+async fn client_visible_live_thread_epiphany_state(
+    thread: &CodexThread,
+    fallback: EpiphanyThreadState,
+) -> EpiphanyThreadState {
+    let config = thread.config_snapshot().await;
+    let codex_home = thread.codex_home().await;
+    let rollout_path = thread.rollout_path();
+    let mirror_thread_id = thread_state_mirror_id_from_rollout_path(rollout_path.as_deref());
+    client_visible_epiphany_state_for_paths(
+        fallback,
+        config.cwd.as_path(),
+        codex_home,
+        Some(mirror_thread_id.as_str()),
+    )
+    .await
 }

@@ -2,60 +2,29 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use codex_core::CodexThread;
-use codex_core::RolloutRecorder;
-use codex_core::latest_epiphany_state_from_rollout_items;
 use codex_protocol::protocol::EpiphanyThreadState;
-use codex_protocol::protocol::InitialHistory;
 use epiphany_core::write_thread_state;
 use tracing::warn;
 
 use crate::retrieve::epiphany_retrieval_state_for_paths;
 
-pub async fn load_epiphany_state_from_rollout_path(
-    rollout_path: &Path,
-) -> std::result::Result<Option<EpiphanyThreadState>, String> {
-    let items = match RolloutRecorder::get_rollout_history(rollout_path)
-        .await
-        .map_err(|err| {
-            format!(
-                "failed to load rollout `{}` for Epiphany state: {err}",
-                rollout_path.display()
-            )
-        })? {
-        InitialHistory::New | InitialHistory::Cleared => Vec::new(),
-        InitialHistory::Forked(items) => items,
-        InitialHistory::Resumed(resumed) => resumed.history,
-    };
-    Ok(latest_epiphany_state_from_rollout_items(&items))
-}
-
-pub async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<EpiphanyThreadState> {
-    let mut epiphany_state = thread.epiphany_state().await;
-    if let Some(state) = epiphany_state.as_mut()
-        && state.retrieval.is_none()
-    {
-        let config = thread.config_snapshot().await;
-        let codex_home = thread.codex_home().await;
-        state.retrieval =
-            Some(epiphany_retrieval_state_for_paths(config.cwd.to_path_buf(), codex_home).await);
-    }
-    if let Some(state) = epiphany_state.as_ref() {
-        let config = thread.config_snapshot().await;
-        let thread_id = thread_state_mirror_id(thread);
-        if let Err(err) = mirror_thread_state_to_workspace(config.cwd.as_path(), &thread_id, state)
-        {
-            warn!("failed to mirror Epiphany thread state into native store: {err}");
-        }
-    }
-    epiphany_state
-}
-
-pub async fn client_visible_live_thread_epiphany_state(
-    thread: &CodexThread,
-    fallback: EpiphanyThreadState,
+pub async fn client_visible_epiphany_state_for_paths(
+    mut state: EpiphanyThreadState,
+    workspace_root: &Path,
+    codex_home: PathBuf,
+    mirror_thread_id: Option<&str>,
 ) -> EpiphanyThreadState {
-    live_thread_epiphany_state(thread).await.unwrap_or(fallback)
+    if state.retrieval.is_none() {
+        state.retrieval = Some(
+            epiphany_retrieval_state_for_paths(workspace_root.to_path_buf(), codex_home).await,
+        );
+    }
+    if let Some(thread_id) = mirror_thread_id
+        && let Err(err) = mirror_thread_state_to_workspace(workspace_root, thread_id, &state)
+    {
+        warn!("failed to mirror Epiphany thread state into native store: {err}");
+    }
+    state
 }
 
 pub fn thread_state_store_path(workspace_root: &Path) -> PathBuf {
@@ -75,13 +44,10 @@ pub fn mirror_thread_state_to_workspace(
     Ok(store_path)
 }
 
-fn thread_state_mirror_id(thread: &CodexThread) -> String {
-    thread
-        .rollout_path()
-        .and_then(|path| {
-            path.file_stem()
-                .and_then(|stem| stem.to_str())
-                .map(str::to_string)
-        })
+pub fn thread_state_mirror_id_from_rollout_path(rollout_path: Option<&Path>) -> String {
+    rollout_path
+        .and_then(|path| path.file_stem())
+        .and_then(|stem| stem.to_str())
+        .map(str::to_string)
         .unwrap_or_else(|| "live-thread".to_string())
 }
