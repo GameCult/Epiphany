@@ -228,21 +228,22 @@ pub async fn map_epiphany_view_response(
     let reorient_finding_accepted = reorient_finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
     });
-    let recommendation =
-        if let (Some(pressure), Some(decision)) = (pressure.as_ref(), reorient_decision.as_ref()) {
-            Some(map_epiphany_crrc_recommendation(
-                loaded,
-                reorient_state_status,
-                pressure,
-                decision,
-                reorient_result_status,
-                checkpoint_present,
-                reorient_finding.is_some(),
-                reorient_finding_accepted,
-            ))
-        } else {
-            None
-        };
+    let recommendation = if let (Some(core_pressure), Some(decision)) =
+        (core_pressure.as_ref(), reorient_decision.as_ref())
+    {
+        Some(map_epiphany_crrc_recommendation(
+            loaded,
+            reorient_state_status,
+            core_pressure,
+            decision,
+            reorient_result_status,
+            checkpoint_present,
+            reorient_finding.is_some(),
+            reorient_finding_accepted,
+        ))
+    } else {
+        None
+    };
     let roles = if let (Some(pressure), Some(decision), Some(recommendation)) = (
         pressure.as_ref(),
         reorient_decision.as_ref(),
@@ -261,14 +262,16 @@ pub async fn map_epiphany_view_response(
         None
     };
     let coordinator_response = if lenses.contains(&ThreadEpiphanyViewLens::Coordinator) {
-        if let (Some(pressure), Some(recommendation), Some(roles)) =
-            (pressure.as_ref(), recommendation.as_ref(), roles.clone())
-        {
+        if let (Some(core_pressure), Some(recommendation), Some(roles)) = (
+            core_pressure.as_ref(),
+            recommendation.as_ref(),
+            roles.clone(),
+        ) {
             let status = derive_epiphany_coordinator_status(
                 state,
                 runtime_store_path,
                 reorient_state_status,
-                pressure,
+                core_pressure,
                 recommendation,
                 roles,
                 reorient_decision.as_ref(),

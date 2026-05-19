@@ -1,8 +1,11 @@
 use super::EpiphanyCrrcAction;
 use super::EpiphanyCrrcSceneAction;
 use super::EpiphanyCrrcStateStatus;
+use serde::Deserialize;
+use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorRoleId {
     Implementation,
     Imagination,
@@ -11,7 +14,8 @@ pub enum EpiphanyCoordinatorRoleId {
     Reorientation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorRoleStatus {
     Ready,
     Needed,
@@ -23,7 +27,8 @@ pub enum EpiphanyCoordinatorRoleStatus {
     Completed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorRoleResultStatus {
     MissingState,
     MissingBinding,
@@ -36,7 +41,8 @@ pub enum EpiphanyCoordinatorRoleResultStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorAction {
     PrepareCheckpoint,
     CompactRehydrateReorient,
@@ -51,7 +57,8 @@ pub enum EpiphanyCoordinatorAction {
     ContinueImplementation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorSceneAction {
     Update,
     Reorient,
@@ -62,26 +69,30 @@ pub enum EpiphanyCoordinatorSceneAction {
     RoleResult,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCoordinatorAutomationAction {
     None,
     CompactRehydrateReorient,
     LaunchReorientWorker,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyCoordinatorCrrcRecommendation {
     pub action: EpiphanyCrrcAction,
     pub recommended_scene_action: Option<EpiphanyCoordinatorSceneAction>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyCoordinatorSignals {
     pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyCoordinatorRoleLane {
     pub id: EpiphanyCoordinatorRoleId,
     pub status: EpiphanyCoordinatorRoleStatus,
@@ -107,7 +118,8 @@ pub struct EpiphanyCoordinatorInput {
     pub reorient_finding_accepted: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyCoordinatorDecision {
     pub action: EpiphanyCoordinatorAction,
     pub target_role: Option<EpiphanyCoordinatorRoleId>,
