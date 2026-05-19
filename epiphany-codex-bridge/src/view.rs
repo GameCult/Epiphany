@@ -19,6 +19,8 @@ use crate::coordinator::epiphany_reorient_finding_already_accepted;
 use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
+use crate::coordinator::map_protocol_crrc_action;
+use crate::coordinator::map_protocol_crrc_recommendation;
 use crate::coordinator::render_epiphany_roles_note;
 use crate::cultnet::EpiphanyFreshnessSurface;
 use crate::cultnet::EpiphanySurfaceSource;
@@ -320,7 +322,7 @@ pub async fn map_epiphany_view_response(
                     reorient_state_status,
                     recommendation
                         .as_ref()
-                        .map(|recommendation| recommendation.action)
+                        .map(|recommendation| map_protocol_crrc_action(recommendation.action))
                         .unwrap_or(ThreadEpiphanyCrrcAction::Continue),
                 ),
                 roles,
@@ -369,6 +371,8 @@ pub async fn map_epiphany_view_response(
                 let pressure = pressure.clone()?;
                 let decision = reorient_decision.clone()?;
                 let recommendation = recommendation.clone()?;
+                let protocol_recommendation =
+                    map_protocol_crrc_recommendation(recommendation.clone());
                 let available_actions = derive_scene(EpiphanySceneInput {
                     state,
                     loaded,
@@ -393,7 +397,7 @@ pub async fn map_epiphany_view_response(
                     state_revision,
                     pressure,
                     decision,
-                    recommendation,
+                    recommendation: protocol_recommendation,
                     reorient_binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
                     reorient_result_status,
                     reorient_job: reorient_job.clone(),

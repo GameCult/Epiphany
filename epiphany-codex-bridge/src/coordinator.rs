@@ -87,8 +87,8 @@ pub fn map_epiphany_crrc_recommendation(
     checkpoint_present: bool,
     finding_present: bool,
     finding_accepted: bool,
-) -> ThreadEpiphanyCrrcRecommendation {
-    map_core_crrc_recommendation(recommend_crrc_action(EpiphanyCrrcInput {
+) -> CoreEpiphanyCrrcRecommendation {
+    recommend_crrc_action(EpiphanyCrrcInput {
         loaded,
         state_status: map_core_crrc_state_status(state_status),
         should_prepare_compaction: pressure.should_prepare_compaction,
@@ -97,7 +97,7 @@ pub fn map_epiphany_crrc_recommendation(
         checkpoint_present,
         finding_present,
         finding_accepted,
-    }))
+    })
 }
 
 fn map_core_crrc_state_status(
@@ -158,7 +158,7 @@ fn map_protocol_coordinator_source_signals(
         pressure_level: map_protocol_pressure_level(signals.pressure_level),
         should_prepare_compaction: signals.should_prepare_compaction,
         reorient_action: map_protocol_reorient_action(signals.reorient_action),
-        crrc_action: map_core_crrc_action(signals.crrc_action),
+        crrc_action: map_protocol_crrc_action(signals.crrc_action),
         modeling_result_status: map_protocol_coordinator_role_result_status(
             signals.modeling_result_status,
         ),
@@ -224,7 +224,7 @@ fn map_protocol_crrc_result_status(
     }
 }
 
-fn map_core_crrc_action(action: CoreEpiphanyCrrcAction) -> ThreadEpiphanyCrrcAction {
+pub fn map_protocol_crrc_action(action: CoreEpiphanyCrrcAction) -> ThreadEpiphanyCrrcAction {
     match action {
         CoreEpiphanyCrrcAction::Continue => ThreadEpiphanyCrrcAction::Continue,
         CoreEpiphanyCrrcAction::PrepareCheckpoint => ThreadEpiphanyCrrcAction::PrepareCheckpoint,
@@ -254,11 +254,11 @@ fn map_core_crrc_scene_action(action: CoreEpiphanyCrrcSceneAction) -> ThreadEpip
     }
 }
 
-fn map_core_crrc_recommendation(
+pub fn map_protocol_crrc_recommendation(
     recommendation: CoreEpiphanyCrrcRecommendation,
 ) -> ThreadEpiphanyCrrcRecommendation {
     ThreadEpiphanyCrrcRecommendation {
-        action: map_core_crrc_action(recommendation.action),
+        action: map_protocol_crrc_action(recommendation.action),
         recommended_scene_action: recommendation
             .recommended_scene_action
             .map(map_core_crrc_scene_action),
@@ -293,7 +293,7 @@ pub async fn derive_epiphany_coordinator_status(
     runtime_store_path: Option<&Path>,
     state_status: ThreadEpiphanyReorientStateStatus,
     pressure: &epiphany_core::EpiphanyPressure,
-    recommendation: &ThreadEpiphanyCrrcRecommendation,
+    recommendation: &CoreEpiphanyCrrcRecommendation,
     roles: Vec<ThreadEpiphanyRoleLane>,
     reorient_decision: Option<&ThreadEpiphanyReorientDecision>,
     reorient_result_status: ThreadEpiphanyReorientResultStatus,
@@ -378,7 +378,7 @@ pub async fn derive_epiphany_coordinator_status(
             .map(|decision| decision.action)
             .map(map_core_reorient_action_from_protocol)
             .unwrap_or(CoreEpiphanyReorientAction::Resume),
-        crrc_action: map_core_crrc_action_from_protocol(recommendation.action),
+        crrc_action: recommendation.action,
         modeling_result_status: map_core_coordinator_role_result_status(modeling_result_status),
         verification_result_status: map_core_coordinator_role_result_status(
             verification_result_status,
@@ -404,7 +404,7 @@ pub async fn derive_epiphany_coordinator_status(
         reorient_finding_accepted,
     );
     let note = render_epiphany_coordinator_note(
-        recommendation.action,
+        map_protocol_crrc_action(recommendation.action),
         map_protocol_pressure_level(pressure.level),
         modeling_result_status,
         verification_result_status,
@@ -615,7 +615,7 @@ pub fn map_epiphany_coordinator(
     state_status: ThreadEpiphanyReorientStateStatus,
     checkpoint_present: bool,
     pressure: &epiphany_core::EpiphanyPressure,
-    recommendation: &ThreadEpiphanyCrrcRecommendation,
+    recommendation: &CoreEpiphanyCrrcRecommendation,
     roles: &[ThreadEpiphanyRoleLane],
     signals: &EpiphanyCoordinatorSourceSignals,
     modeling_result_accepted: bool,
@@ -633,7 +633,12 @@ pub fn map_epiphany_coordinator(
         state_status: map_core_crrc_state_status(state_status),
         checkpoint_present,
         should_prepare_compaction: pressure.should_prepare_compaction,
-        recommendation: map_core_coordinator_crrc_recommendation(recommendation),
+        recommendation: EpiphanyCoordinatorCrrcRecommendation {
+            action: recommendation.action,
+            recommended_scene_action: recommendation
+                .recommended_scene_action
+                .map(epiphany_core::crrc_scene_action_to_coordinator_scene_action),
+        },
         roles: roles.iter().map(map_core_coordinator_role_lane).collect(),
         signals: EpiphanyCoordinatorSignals {
             modeling_result_status: signals.modeling_result_status,
@@ -650,17 +655,6 @@ pub fn map_epiphany_coordinator(
         verification_result_needs_evidence,
         reorient_finding_accepted,
     })
-}
-
-fn map_core_coordinator_crrc_recommendation(
-    recommendation: &ThreadEpiphanyCrrcRecommendation,
-) -> EpiphanyCoordinatorCrrcRecommendation {
-    EpiphanyCoordinatorCrrcRecommendation {
-        action: map_core_crrc_action_from_protocol(recommendation.action),
-        recommended_scene_action: recommendation
-            .recommended_scene_action
-            .map(map_core_coordinator_scene_action_from_protocol),
-    }
 }
 
 fn map_core_crrc_action_from_protocol(action: ThreadEpiphanyCrrcAction) -> CoreEpiphanyCrrcAction {
@@ -1094,7 +1088,7 @@ pub fn map_epiphany_roles(
     jobs: &[ThreadEpiphanyJob],
     decision: &ThreadEpiphanyReorientDecision,
     pressure: &ThreadEpiphanyPressure,
-    recommendation: &ThreadEpiphanyCrrcRecommendation,
+    recommendation: &CoreEpiphanyCrrcRecommendation,
     result_status: ThreadEpiphanyReorientResultStatus,
     reorient_job: Option<&ThreadEpiphanyJob>,
 ) -> Vec<ThreadEpiphanyRoleLane> {
@@ -1130,10 +1124,10 @@ pub fn map_epiphany_roles(
         }),
         reorient_next_action: decision.next_action.clone(),
         jobs: source_jobs.iter().map(map_core_role_board_job).collect(),
-        crrc_action: map_core_crrc_action_from_protocol(recommendation.action),
+        crrc_action: recommendation.action,
         crrc_recommended_scene_action: recommendation
             .recommended_scene_action
-            .map(map_core_coordinator_scene_action_from_protocol),
+            .map(epiphany_core::crrc_scene_action_to_coordinator_scene_action),
         crrc_reason: recommendation.reason.clone(),
         reorient_decision_action: format!("{:?}", decision.action),
         pressure_level: format!("{:?}", pressure.level),
