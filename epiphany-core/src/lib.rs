@@ -66,6 +66,7 @@ pub use heartbeat_state::HEARTBEAT_COGNITION_TYPE;
 pub use heartbeat_state::HEARTBEAT_STATE_KEY;
 pub use heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 pub use heartbeat_state::HEARTBEAT_STATE_TYPE;
+pub use heartbeat_state::HeartbeatBirthPersonalitySeed;
 pub use heartbeat_state::HeartbeatCompleteOptions;
 pub use heartbeat_state::HeartbeatHeatUpdateOptions;
 pub use heartbeat_state::HeartbeatHistoryEvent;

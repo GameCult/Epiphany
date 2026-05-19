@@ -5,13 +5,13 @@ use super::HEARTBEAT_ARENA_SCENE;
 use super::HEARTBEAT_STATE_SCHEMA_VERSION;
 use super::HeartbeatPacingPolicy;
 use super::HeartbeatParticipant;
+use super::HeartbeatProtocol;
 use super::HeartbeatSelectionPolicy;
 use super::PARTICIPANT_KIND_AGENT;
 use super::PARTICIPANT_KIND_CHARACTER;
 use super::write_heartbeat_state_entry;
 use anyhow::Result;
 use anyhow::anyhow;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 pub(super) const ROLE_ORDER: &[&str] = &[
@@ -40,7 +40,6 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
                 "initiative_speed_desc".to_string(),
                 "stable_actor_id_asc".to_string(),
             ],
-            extra: BTreeMap::new(),
         },
         pacing_policy: HeartbeatPacingPolicy {
             cooldown_starts_after_turn_completion: true,
@@ -48,7 +47,6 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
             idle_base_recovery: 2.0,
             sleep_heartbeat_rate_multiplier: 0.05,
             minimum_effective_rate: 0.001,
-            extra: BTreeMap::new(),
         },
         participants: ROLE_ORDER
             .iter()
@@ -56,7 +54,8 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
             .collect(),
         history: Vec::new(),
         initiative_heat: Default::default(),
-        extra: BTreeMap::new(),
+        protocol: None,
+        adaptive_pacing: None,
     }
 }
 
@@ -83,15 +82,12 @@ pub fn ghostlight_scene_heartbeat_state(
         .into_iter()
         .map(|seed| ghostlight_scene_participant(&scene_id, seed))
         .collect();
-    state.extra.insert(
-        "protocol".to_string(),
-        serde_json::json!({
-            "domain": "ghostlight",
-            "sceneId": scene_id,
-            "arena": HEARTBEAT_ARENA_SCENE,
-            "contract": "Characters and maintenance organs use one initiative timing law; scene participants receive only projected local context.",
-        }),
-    );
+    state.protocol = Some(HeartbeatProtocol {
+        domain: "ghostlight".to_string(),
+        scene_id: Some(scene_id),
+        arena: HEARTBEAT_ARENA_SCENE.to_string(),
+        contract: "Characters and maintenance organs use one initiative timing law; scene participants receive only projected local context.".to_string(),
+    });
     super::validate_heartbeat_state(&state)?;
     Ok(state)
 }
@@ -127,7 +123,15 @@ pub(super) fn default_participant(role_id: &str) -> HeartbeatParticipant {
         last_woke_at: None,
         last_finished_at: None,
         pending_turn: None,
-        extra: BTreeMap::new(),
+        scene_id: None,
+        groups: Vec::new(),
+        personality_cooldown_multiplier: 1.0,
+        mood_cooldown_multiplier: 1.0,
+        initiative_heat_multiplier: 1.0,
+        initiative_heat: None,
+        personality_timing: None,
+        mood_timing: None,
+        birth_personality_seed: None,
     }
 }
 
@@ -136,8 +140,6 @@ fn ghostlight_scene_participant(
     seed: GhostlightSceneParticipantSeed,
 ) -> HeartbeatParticipant {
     let role_id = ghostlight_role_id(seed.agent_id.as_str());
-    let mut extra = BTreeMap::new();
-    extra.insert("sceneId".to_string(), serde_json::json!(scene_id));
     HeartbeatParticipant {
         agent_id: seed.agent_id,
         role_id,
@@ -155,7 +157,15 @@ fn ghostlight_scene_participant(
         last_woke_at: None,
         last_finished_at: None,
         pending_turn: None,
-        extra,
+        scene_id: Some(scene_id.to_string()),
+        groups: Vec::new(),
+        personality_cooldown_multiplier: 1.0,
+        mood_cooldown_multiplier: 1.0,
+        initiative_heat_multiplier: 1.0,
+        initiative_heat: None,
+        personality_timing: None,
+        mood_timing: None,
+        birth_personality_seed: None,
     }
 }
 
@@ -323,12 +333,12 @@ mod tests {
         assert_eq!(participant.role_id, "ghostlight.character.ariadne-prime");
         assert_eq!(participant.arena, HEARTBEAT_ARENA_SCENE);
         assert_eq!(participant.participant_kind, PARTICIPANT_KIND_CHARACTER);
+        assert_eq!(participant.scene_id.as_deref(), Some("room"));
         assert_eq!(
             state
-                .extra
-                .get("protocol")
-                .and_then(|value| value.get("domain"))
-                .and_then(|value| value.as_str()),
+                .protocol
+                .as_ref()
+                .map(|protocol| protocol.domain.as_str()),
             Some("ghostlight")
         );
         Ok(())

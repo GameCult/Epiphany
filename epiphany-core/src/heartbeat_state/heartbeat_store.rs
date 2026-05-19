@@ -17,7 +17,6 @@ use anyhow::anyhow;
 use cultcache_rs::CultCache;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
@@ -65,10 +64,9 @@ pub fn load_heartbeat_cognition_entry(
         return Ok(Some(cognition));
     }
     let legacy_cache = legacy_heartbeat_state_cache(store_path)?;
-    let Some(legacy) =
-        legacy_cache.get::<LegacyHeartbeatStateWithCognition>(HEARTBEAT_STATE_KEY)?
-    else {
-        return Ok(None);
+    let legacy = match legacy_cache.get::<LegacyHeartbeatStateWithCognition>(HEARTBEAT_STATE_KEY) {
+        Ok(Some(legacy)) => legacy,
+        Ok(None) | Err(_) => return Ok(None),
     };
     legacy_heartbeat_cognition_entry(legacy)
 }
@@ -135,7 +133,6 @@ fn legacy_heartbeat_cognition_entry(
         candidate_interventions: legacy.candidate_interventions,
         appraisals: legacy.appraisals,
         reactions: legacy.reactions,
-        extra: BTreeMap::new(),
     }))
 }
 
@@ -250,7 +247,6 @@ mod tests {
             candidate_interventions: None,
             appraisals: None,
             reactions: None,
-            extra: BTreeMap::new(),
         };
 
         write_heartbeat_cognition_entry(&store_path, &cognition)?;

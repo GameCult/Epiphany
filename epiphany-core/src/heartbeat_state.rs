@@ -155,7 +155,6 @@ pub fn run_void_routine_store(
             candidate_interventions: Some(candidate_interventions),
             appraisals: Some(appraisals),
             reactions: Some(reactions),
-            extra: BTreeMap::new(),
         },
     )?;
     write_heartbeat_state_entry(store_path, &state)?;
@@ -241,19 +240,16 @@ pub fn pump_heartbeat_store(
 
     let pacing = adaptive_swarm_pacing(&state, &options);
     state.target_heartbeat_rate = pacing.effective_heartbeat_rate;
-    state.extra.insert(
-        "adaptivePacing".to_string(),
-        serde_json::json!({
-            "schema_version": "epiphany.adaptive_heartbeat_pacing.v0",
-            "contract": "Swarm pressure controls both heartbeat tempo and concurrency. Relaxed systems sleep slow; urgent systems fill more lanes without re-waking unfinished turns.",
-            "pressure": pacing.pressure,
-            "effectiveHeartbeatRate": pacing.effective_heartbeat_rate,
-            "targetConcurrency": pacing.target_concurrency,
-            "runningTurns": pacing.running_turns,
-            "activeParticipants": pacing.active_participants,
-            "signals": pacing.signals,
-        }),
-    );
+    state.adaptive_pacing = Some(HeartbeatAdaptivePacing {
+        schema_version: "epiphany.adaptive_heartbeat_pacing.v0".to_string(),
+        contract: "Swarm pressure controls both heartbeat tempo and concurrency. Relaxed systems sleep slow; urgent systems fill more lanes without re-waking unfinished turns.".to_string(),
+        pressure: pacing.pressure,
+        effective_heartbeat_rate: pacing.effective_heartbeat_rate,
+        target_concurrency: pacing.target_concurrency,
+        running_turns: pacing.running_turns,
+        active_participants: pacing.active_participants,
+        signals: pacing.signals.clone(),
+    });
 
     let artifact_dir = artifact_dir.as_ref();
     fs::create_dir_all(artifact_dir)
@@ -393,7 +389,6 @@ pub fn update_heartbeat_heat_store(
             expires_at_scene_clock: options
                 .expires_after_scene_clock
                 .map(|delta| round6(state.scene_clock + delta.max(0.0))),
-            extra: BTreeMap::new(),
         };
         state
             .initiative_heat
@@ -484,7 +479,6 @@ pub fn complete_heartbeat_store(
         next_ready_at: Some(participant.next_ready_at),
         turn_status: Some("completed".to_string()),
         cooldown_started_after_completion: Some(true),
-        extra: BTreeMap::new(),
     };
     state.history.push(event.clone());
     trim_history(&mut state);
@@ -547,34 +541,16 @@ fn tick_once(
         completed_at: None,
         completed_scene_clock: None,
         next_ready_at: None,
-        extra: BTreeMap::new(),
-    };
-    let mut pending = pending;
-    pending.extra.insert(
-        "personalityCooldownMultiplier".to_string(),
-        serde_json::json!(personality_cooldown_multiplier(&selected)),
-    );
-    pending.extra.insert(
-        "moodCooldownMultiplier".to_string(),
-        serde_json::json!(mood_cooldown_multiplier(&selected)),
-    );
-    pending.extra.insert(
-        "effectiveCooldownMultiplier".to_string(),
-        serde_json::json!(effective_cooldown_multiplier(&selected)),
-    );
-    pending.extra.insert(
-        "initiativeHeatMultiplier".to_string(),
-        serde_json::json!(initiative_heat_multiplier(&selected)),
-    );
-    pending
-        .extra
-        .insert("initiativeFrozen".to_string(), serde_json::json!(true));
-    pending.extra.insert(
-        "initiativeFreezeReason".to_string(),
-        serde_json::json!(
+        personality_cooldown_multiplier: personality_cooldown_multiplier(&selected),
+        mood_cooldown_multiplier: mood_cooldown_multiplier(&selected),
+        initiative_heat_multiplier: initiative_heat_multiplier(&selected),
+        effective_cooldown_multiplier: effective_cooldown_multiplier(&selected),
+        initiative_frozen: true,
+        initiative_freeze_reason: Some(
             "Participant has an active heartbeat turn; initiative cannot queue it again until the turn completes."
+                .to_string(),
         ),
-    );
+    };
     state.participants[selected_index].pending_turn = Some(pending.clone());
     state.participants[selected_index].last_action_id = Some(action.action_id.clone());
     state.participants[selected_index].last_woke_at = Some(now_iso());
@@ -607,7 +583,6 @@ fn tick_once(
             "completed".to_string()
         }),
         cooldown_started_after_completion: Some(true),
-        extra: BTreeMap::new(),
     };
     state.history.push(event.clone());
     trim_history(state);
@@ -915,12 +890,9 @@ fn patch_missing_participants(state: &mut EpiphanyHeartbeatStateEntry) {
 
 fn is_ghostlight_scene_state(state: &EpiphanyHeartbeatStateEntry) -> bool {
     state
-        .extra
-        .get("protocol")
-        .and_then(Value::as_object)
-        .and_then(|protocol| protocol.get("domain"))
-        .and_then(Value::as_str)
-        == Some("ghostlight")
+        .protocol
+        .as_ref()
+        .is_some_and(|protocol| protocol.domain == "ghostlight")
 }
 
 fn participant_index_by_role(state: &EpiphanyHeartbeatStateEntry, role_id: &str) -> Result<usize> {
@@ -1255,24 +1227,18 @@ fn apply_personality_timing_profiles(
             continue;
         };
         let timing = personality_timing_for_profile(profile);
-        participant.extra.insert(
-            "personalityCooldownMultiplier".to_string(),
-            serde_json::json!(timing.cooldown_multiplier),
-        );
-        participant.extra.insert(
-            "personalityTiming".to_string(),
-            serde_json::json!({
-                "schema_version": "epiphany.personality_timing.v0",
-                "source": "state/agents.msgpack",
-                "cooldownMultiplier": timing.cooldown_multiplier,
-                "workDrive": timing.work_drive,
-                "handsiness": timing.handsiness,
-                "caution": timing.caution,
-                "ruminationBias": timing.rumination_bias,
-                "basis": timing.basis,
-                "contract": "Cooldown is personality-shaped. Lower multipliers recover faster; higher multipliers yield the floor to other lanes."
-            }),
-        );
+        participant.personality_cooldown_multiplier = timing.cooldown_multiplier;
+        participant.personality_timing = Some(HeartbeatPersonalityTiming {
+            schema_version: "epiphany.personality_timing.v0".to_string(),
+            source: "state/agents.msgpack".to_string(),
+            cooldown_multiplier: timing.cooldown_multiplier,
+            work_drive: timing.work_drive,
+            handsiness: timing.handsiness,
+            caution: timing.caution,
+            rumination_bias: timing.rumination_bias,
+            basis: timing.basis,
+            contract: "Cooldown is personality-shaped. Lower multipliers recover faster; higher multipliers yield the floor to other lanes.".to_string(),
+        });
     }
 }
 
@@ -1439,25 +1405,22 @@ fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, ap
             .clamp(0.0, 1.0);
         let multiplier =
             (1.10 - urgency * 0.24 - anxiety * 0.38 - reaction_intensity * 0.12).clamp(0.55, 1.25);
-        participant.extra.insert(
-            "moodCooldownMultiplier".to_string(),
-            serde_json::json!(round3(multiplier)),
-        );
-        participant.extra.insert(
-            "moodTiming".to_string(),
-            serde_json::json!({
-                "schema_version": "epiphany.mood_timing.v0",
-                "source": appraisal.get("appraisalId"),
-                "cooldownMultiplier": round3(multiplier),
-                "anxiety": round3(anxiety),
-                "urgency": round3(urgency),
-                "arousal": round3(arousal),
-                "thoughtPressure": round3(thought_pressure),
-                "guardedness": round3(guardedness),
-                "reactionIntensity": round3(reaction_intensity),
-                "contract": "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner."
-            }),
-        );
+        participant.mood_cooldown_multiplier = round3(multiplier);
+        participant.mood_timing = Some(HeartbeatMoodTiming {
+            schema_version: "epiphany.mood_timing.v0".to_string(),
+            source: appraisal
+                .get("appraisalId")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            cooldown_multiplier: round3(multiplier),
+            anxiety: round3(anxiety),
+            urgency: round3(urgency),
+            arousal: round3(arousal),
+            thought_pressure: round3(thought_pressure),
+            guardedness: round3(guardedness),
+            reaction_intensity: round3(reaction_intensity),
+            contract: "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner.".to_string(),
+        });
     }
 }
 

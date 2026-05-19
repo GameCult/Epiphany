@@ -36,8 +36,10 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub history: Vec<HeartbeatHistoryEvent>,
     #[cultcache(key = 16, default)]
     pub initiative_heat: HeartbeatInitiativeHeatPolicy,
-    #[cultcache(key = 15, default)]
-    pub extra: BTreeMap<String, Value>,
+    #[cultcache(key = 17, default)]
+    pub protocol: Option<HeartbeatProtocol>,
+    #[cultcache(key = 18, default)]
+    pub adaptive_pacing: Option<HeartbeatAdaptivePacing>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -72,8 +74,6 @@ pub struct EpiphanyHeartbeatCognitionEntry {
     pub appraisals: Option<Value>,
     #[cultcache(key = 12, default)]
     pub reactions: Option<Value>,
-    #[cultcache(key = 13, default)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -122,8 +122,6 @@ pub struct HeartbeatSelectionPolicy {
     pub reaction_precedence: bool,
     pub minimum_speed: f64,
     pub tie_breakers: Vec<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -133,8 +131,40 @@ pub struct HeartbeatPacingPolicy {
     pub idle_base_recovery: f64,
     pub sleep_heartbeat_rate_multiplier: f64,
     pub minimum_effective_rate: f64,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatProtocol {
+    pub domain: String,
+    #[serde(default)]
+    pub scene_id: Option<String>,
+    pub arena: String,
+    pub contract: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatAdaptivePacing {
+    pub schema_version: String,
+    pub contract: String,
+    pub pressure: f64,
+    pub effective_heartbeat_rate: f64,
+    pub target_concurrency: usize,
+    pub running_turns: usize,
+    pub active_participants: usize,
+    pub signals: HeartbeatAdaptivePacingSignals,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatAdaptivePacingSignals {
+    pub external_urgency: f64,
+    pub max_anxiety: f64,
+    pub average_anxiety: f64,
+    pub max_urgency: f64,
+    pub max_arousal: f64,
+    pub max_thought_pressure: f64,
+    pub max_reaction_intensity: f64,
+    pub pending_pressure: f64,
+    pub contract: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -145,8 +175,6 @@ pub struct HeartbeatInitiativeHeatPolicy {
     pub global_multiplier: f64,
     #[serde(default)]
     pub multipliers: Vec<HeartbeatInitiativeMultiplier>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 impl Default for HeartbeatInitiativeHeatPolicy {
@@ -155,7 +183,6 @@ impl Default for HeartbeatInitiativeHeatPolicy {
             schema_version: default_heat_schema_version(),
             global_multiplier: default_heat_global_multiplier(),
             multipliers: Vec::new(),
-            extra: BTreeMap::new(),
         }
     }
 }
@@ -177,8 +204,6 @@ pub struct HeartbeatInitiativeMultiplier {
     pub updated_at: Option<String>,
     #[serde(default)]
     pub expires_at_scene_clock: Option<f64>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -201,8 +226,80 @@ pub struct HeartbeatParticipant {
     pub last_woke_at: Option<String>,
     pub last_finished_at: Option<String>,
     pub pending_turn: Option<HeartbeatPendingTurn>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
+    #[serde(default)]
+    pub scene_id: Option<String>,
+    #[serde(default)]
+    pub groups: Vec<String>,
+    #[serde(default = "default_heat_global_multiplier")]
+    pub personality_cooldown_multiplier: f64,
+    #[serde(default = "default_heat_global_multiplier")]
+    pub mood_cooldown_multiplier: f64,
+    #[serde(default = "default_heat_global_multiplier")]
+    pub initiative_heat_multiplier: f64,
+    #[serde(default)]
+    pub initiative_heat: Option<HeartbeatInitiativeHeatProjection>,
+    #[serde(default)]
+    pub personality_timing: Option<HeartbeatPersonalityTiming>,
+    #[serde(default)]
+    pub mood_timing: Option<HeartbeatMoodTiming>,
+    #[serde(default)]
+    pub birth_personality_seed: Option<HeartbeatBirthPersonalitySeed>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatInitiativeHeatProjection {
+    pub schema_version: String,
+    pub global_multiplier: f64,
+    pub effective_multiplier: f64,
+    pub basis: Vec<HeartbeatInitiativeHeatBasis>,
+    pub contract: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatInitiativeHeatBasis {
+    pub id: String,
+    pub scope: String,
+    pub selector: String,
+    pub multiplier: f64,
+    pub reason: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatPersonalityTiming {
+    pub schema_version: String,
+    pub source: String,
+    pub cooldown_multiplier: f64,
+    pub work_drive: f64,
+    pub handsiness: f64,
+    pub caution: f64,
+    pub rumination_bias: f64,
+    pub basis: Vec<String>,
+    pub contract: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatMoodTiming {
+    pub schema_version: String,
+    pub source: Option<String>,
+    pub cooldown_multiplier: f64,
+    pub anxiety: f64,
+    pub urgency: f64,
+    pub arousal: f64,
+    pub thought_pressure: f64,
+    pub guardedness: f64,
+    pub reaction_intensity: f64,
+    pub contract: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatBirthPersonalitySeed {
+    pub schema_version: String,
+    pub source: String,
+    pub projection_id: String,
+    pub repo_id: String,
+    pub heartbeat_deltas: BTreeMap<String, f64>,
+    pub default_mood_pressure: BTreeMap<String, f64>,
+    pub contract: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -233,8 +330,30 @@ pub struct HeartbeatPendingTurn {
     pub completed_scene_clock: Option<f64>,
     #[serde(rename = "nextReadyAt", default)]
     pub next_ready_at: Option<f64>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
+    #[serde(
+        rename = "personalityCooldownMultiplier",
+        default = "default_heat_global_multiplier"
+    )]
+    pub personality_cooldown_multiplier: f64,
+    #[serde(
+        rename = "moodCooldownMultiplier",
+        default = "default_heat_global_multiplier"
+    )]
+    pub mood_cooldown_multiplier: f64,
+    #[serde(
+        rename = "initiativeHeatMultiplier",
+        default = "default_heat_global_multiplier"
+    )]
+    pub initiative_heat_multiplier: f64,
+    #[serde(
+        rename = "effectiveCooldownMultiplier",
+        default = "default_heat_global_multiplier"
+    )]
+    pub effective_cooldown_multiplier: f64,
+    #[serde(rename = "initiativeFrozen", default)]
+    pub initiative_frozen: bool,
+    #[serde(rename = "initiativeFreezeReason", default)]
+    pub initiative_freeze_reason: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -270,8 +389,6 @@ pub struct HeartbeatHistoryEvent {
     pub turn_status: Option<String>,
     #[serde(rename = "cooldownStartedAfterCompletion", default)]
     pub cooldown_started_after_completion: Option<bool>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

@@ -98,7 +98,7 @@ pub fn heartbeat_status_projection(
         "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.clone()),
         "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.clone()),
         "reactions": cognition.as_ref().and_then(|entry| entry.reactions.clone()),
-        "adaptivePacing": state.extra.get("adaptivePacing"),
+        "adaptivePacing": state.adaptive_pacing.as_ref(),
         "availableActions": ["init", "tick", "pump", "heat", "complete", "status", "routine"],
     }))
 }
@@ -225,7 +225,7 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "personalityCooldownMultiplier": personality_cooldown_multiplier(participant),
         "moodCooldownMultiplier": mood_cooldown_multiplier(participant),
         "initiativeHeatMultiplier": initiative_heat_multiplier(participant),
-        "initiativeHeat": participant.extra.get("initiativeHeat"),
+        "initiativeHeat": participant.initiative_heat.as_ref(),
         "effectiveCooldownMultiplier": effective_cooldown_multiplier(participant),
         "initiativeFrozen": participant
             .pending_turn
@@ -234,9 +234,9 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "initiativeFreezeReason": participant
             .pending_turn
             .as_ref()
-            .and_then(|turn| turn.extra.get("initiativeFreezeReason")),
-        "personalityTiming": participant.extra.get("personalityTiming"),
-        "moodTiming": participant.extra.get("moodTiming"),
+            .and_then(|turn| turn.initiative_freeze_reason.as_ref()),
+        "personalityTiming": participant.personality_timing.as_ref(),
+        "moodTiming": participant.mood_timing.as_ref(),
         "nextReadyAt": participant.next_ready_at,
         "reactionBias": participant.reaction_bias,
         "interruptThreshold": participant.interrupt_threshold,
@@ -268,7 +268,7 @@ pub(super) fn schedule_participant_json(participant: &HeartbeatParticipant) -> V
         "initiative_freeze_reason": participant
             .pending_turn
             .as_ref()
-            .and_then(|turn| turn.extra.get("initiativeFreezeReason")),
+            .and_then(|turn| turn.initiative_freeze_reason.as_ref()),
         "next_ready_at": participant.next_ready_at,
         "reaction_bias": participant.reaction_bias,
         "interrupt_threshold": participant.interrupt_threshold,
@@ -299,12 +299,12 @@ pub(super) fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "startedAt": turn.started_at,
         "startedSceneClock": turn.started_scene_clock,
         "baseRecovery": turn.base_recovery,
-        "personalityCooldownMultiplier": turn.extra.get("personalityCooldownMultiplier"),
-        "moodCooldownMultiplier": turn.extra.get("moodCooldownMultiplier"),
-        "initiativeHeatMultiplier": turn.extra.get("initiativeHeatMultiplier"),
-        "effectiveCooldownMultiplier": turn.extra.get("effectiveCooldownMultiplier"),
-        "initiativeFrozen": turn.extra.get("initiativeFrozen"),
-        "initiativeFreezeReason": turn.extra.get("initiativeFreezeReason"),
+        "personalityCooldownMultiplier": turn.personality_cooldown_multiplier,
+        "moodCooldownMultiplier": turn.mood_cooldown_multiplier,
+        "initiativeHeatMultiplier": turn.initiative_heat_multiplier,
+        "effectiveCooldownMultiplier": turn.effective_cooldown_multiplier,
+        "initiativeFrozen": turn.initiative_frozen,
+        "initiativeFreezeReason": turn.initiative_freeze_reason.as_ref(),
         "recovery": turn.recovery,
         "cooldownPolicy": turn.cooldown_policy,
         "completedAt": turn.completed_at,

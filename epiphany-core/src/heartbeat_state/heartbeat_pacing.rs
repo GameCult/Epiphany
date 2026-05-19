@@ -1,10 +1,12 @@
 use super::EpiphanyHeartbeatStateEntry;
+use super::HeartbeatAdaptivePacingSignals;
+use super::HeartbeatInitiativeHeatBasis;
+use super::HeartbeatInitiativeHeatProjection;
 use super::HeartbeatInitiativeMultiplier;
 use super::HeartbeatParticipant;
 use super::HeartbeatPumpOptions;
 use super::round3;
 use super::round6;
-use serde_json::Value;
 
 #[derive(Clone, Debug)]
 pub(super) struct AdaptiveSwarmPacing {
@@ -13,7 +15,7 @@ pub(super) struct AdaptiveSwarmPacing {
     pub(super) target_concurrency: usize,
     pub(super) running_turns: usize,
     pub(super) active_participants: usize,
-    pub(super) signals: Value,
+    pub(super) signals: HeartbeatAdaptivePacingSignals,
 }
 
 pub(super) fn adaptive_swarm_pacing(
@@ -75,17 +77,17 @@ pub(super) fn adaptive_swarm_pacing(
         target_concurrency,
         running_turns,
         active_participants,
-        signals: serde_json::json!({
-            "externalUrgency": round3(external_urgency),
-            "maxAnxiety": round3(mood_signals.max_anxiety),
-            "averageAnxiety": round3(mood_signals.average_anxiety),
-            "maxUrgency": round3(mood_signals.max_urgency),
-            "maxArousal": round3(mood_signals.max_arousal),
-            "maxThoughtPressure": round3(mood_signals.max_thought_pressure),
-            "maxReactionIntensity": round3(mood_signals.max_reaction_intensity),
-            "pendingPressure": round3(pending_pressure),
-            "contract": "Anxiety-like state raises tempo and concurrency; calm state lets the swarm sleep slow.",
-        }),
+        signals: HeartbeatAdaptivePacingSignals {
+            external_urgency: round3(external_urgency),
+            max_anxiety: round3(mood_signals.max_anxiety),
+            average_anxiety: round3(mood_signals.average_anxiety),
+            max_urgency: round3(mood_signals.max_urgency),
+            max_arousal: round3(mood_signals.max_arousal),
+            max_thought_pressure: round3(mood_signals.max_thought_pressure),
+            max_reaction_intensity: round3(mood_signals.max_reaction_intensity),
+            pending_pressure: round3(pending_pressure),
+            contract: "Anxiety-like state raises tempo and concurrency; calm state lets the swarm sleep slow.".to_string(),
+        },
     }
 }
 
@@ -104,14 +106,14 @@ fn swarm_mood_signals(state: &EpiphanyHeartbeatStateEntry) -> SwarmMoodSignals {
     let mut anxiety_total = 0.0;
     let mut anxiety_count = 0_usize;
     for participant in &state.participants {
-        let Some(mood) = participant.extra.get("moodTiming") else {
+        let Some(mood) = participant.mood_timing.as_ref() else {
             continue;
         };
-        let anxiety = number_at(mood, "/anxiety");
-        let urgency = number_at(mood, "/urgency");
-        let arousal = number_at(mood, "/arousal");
-        let thought_pressure = number_at(mood, "/thoughtPressure");
-        let reaction_intensity = number_at(mood, "/reactionIntensity");
+        let anxiety = mood.anxiety;
+        let urgency = mood.urgency;
+        let arousal = mood.arousal;
+        let thought_pressure = mood.thought_pressure;
+        let reaction_intensity = mood.reaction_intensity;
         signals.max_anxiety = signals.max_anxiety.max(anxiety);
         signals.max_urgency = signals.max_urgency.max(urgency);
         signals.max_arousal = signals.max_arousal.max(arousal);
@@ -139,29 +141,12 @@ pub(super) fn running_turn_count(state: &EpiphanyHeartbeatStateEntry) -> usize {
         .count()
 }
 
-fn number_at(value: &Value, pointer: &str) -> f64 {
-    value
-        .pointer(pointer)
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0)
-}
-
 pub(super) fn personality_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
-    participant
-        .extra
-        .get("personalityCooldownMultiplier")
-        .and_then(Value::as_f64)
-        .unwrap_or(1.0)
-        .clamp(0.25, 3.0)
+    nonzero_multiplier(participant.personality_cooldown_multiplier).clamp(0.25, 3.0)
 }
 
 pub(super) fn mood_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
-    participant
-        .extra
-        .get("moodCooldownMultiplier")
-        .and_then(Value::as_f64)
-        .unwrap_or(1.0)
-        .clamp(0.25, 3.0)
+    nonzero_multiplier(participant.mood_cooldown_multiplier).clamp(0.25, 3.0)
 }
 
 pub(super) fn effective_cooldown_multiplier(participant: &HeartbeatParticipant) -> f64 {
@@ -173,12 +158,15 @@ pub(super) fn effective_cooldown_multiplier(participant: &HeartbeatParticipant) 
 }
 
 pub(super) fn initiative_heat_multiplier(participant: &HeartbeatParticipant) -> f64 {
-    participant
-        .extra
-        .get("initiativeHeatMultiplier")
-        .and_then(Value::as_f64)
-        .unwrap_or(1.0)
-        .clamp(0.05, 25.0)
+    nonzero_multiplier(participant.initiative_heat_multiplier).clamp(0.05, 25.0)
+}
+
+fn nonzero_multiplier(value: f64) -> f64 {
+    if value.is_finite() && value > 0.0 {
+        value
+    } else {
+        1.0
+    }
 }
 
 pub(super) fn apply_initiative_heat_policy(state: &mut EpiphanyHeartbeatStateEntry) {
@@ -196,35 +184,29 @@ pub(super) fn apply_initiative_heat_policy(state: &mut EpiphanyHeartbeatStateEnt
         .collect::<Vec<_>>();
     for participant in &mut state.participants {
         let mut heat = global;
-        let mut basis = Vec::<Value>::new();
+        let mut basis = Vec::<HeartbeatInitiativeHeatBasis>::new();
         for multiplier in &active_multipliers {
             if multiplier_matches_participant(multiplier, participant) {
                 let value = multiplier.multiplier.clamp(0.05, 25.0);
                 heat *= value;
-                basis.push(serde_json::json!({
-                    "id": multiplier.id,
-                    "scope": multiplier.scope,
-                    "selector": multiplier.selector,
-                    "multiplier": value,
-                    "reason": multiplier.reason,
-                }));
+                basis.push(HeartbeatInitiativeHeatBasis {
+                    id: multiplier.id.clone(),
+                    scope: multiplier.scope.clone(),
+                    selector: multiplier.selector.clone(),
+                    multiplier: value,
+                    reason: multiplier.reason.clone(),
+                });
             }
         }
         let heat = round3(heat.clamp(0.05, 25.0));
-        participant.extra.insert(
-            "initiativeHeatMultiplier".to_string(),
-            serde_json::json!(heat),
-        );
-        participant.extra.insert(
-            "initiativeHeat".to_string(),
-            serde_json::json!({
-                "schema_version": "epiphany.heartbeat_initiative_heat_projection.v0",
-                "globalMultiplier": global,
-                "effectiveMultiplier": heat,
-                "basis": basis,
-                "contract": "Initiative heat accelerates turn recovery. Proximity or agency pressure may raise heat, but the typed heat policy remains the authority."
-            }),
-        );
+        participant.initiative_heat_multiplier = heat;
+        participant.initiative_heat = Some(HeartbeatInitiativeHeatProjection {
+            schema_version: "epiphany.heartbeat_initiative_heat_projection.v0".to_string(),
+            global_multiplier: global,
+            effective_multiplier: heat,
+            basis,
+            contract: "Initiative heat accelerates turn recovery. Proximity or agency pressure may raise heat, but the typed heat policy remains the authority.".to_string(),
+        });
     }
 }
 
@@ -245,15 +227,9 @@ fn multiplier_matches_participant(
                 .iter()
                 .any(|constraint| eq_key(constraint, selector))
                 || participant
-                    .extra
-                    .get("groups")
-                    .and_then(Value::as_array)
-                    .is_some_and(|groups| {
-                        groups
-                            .iter()
-                            .filter_map(Value::as_str)
-                            .any(|group| eq_key(group, selector))
-                    })
+                    .groups
+                    .iter()
+                    .any(|group| eq_key(group, selector))
         }
         _ => false,
     }

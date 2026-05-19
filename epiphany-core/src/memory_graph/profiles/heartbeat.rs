@@ -426,7 +426,6 @@ mod tests {
             })),
             appraisals: None,
             reactions: None,
-            extra: Default::default(),
         };
 
         let snapshot = memory_graph_from_heartbeat_cognition("heartbeat-profile", &cognition);
