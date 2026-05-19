@@ -6,6 +6,13 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_codex_bridge::cultnet::EpiphanyJobKind;
 use epiphany_codex_bridge::cultnet::EpiphanyJobStatus;
 use epiphany_codex_bridge::cultnet::EpiphanyJobView;
+use epiphany_codex_bridge::cultnet::EpiphanyReorientAction;
+use epiphany_codex_bridge::cultnet::EpiphanyReorientCheckpointStatus;
+use epiphany_codex_bridge::cultnet::EpiphanyReorientDecision;
+use epiphany_codex_bridge::cultnet::EpiphanyReorientFreshnessStatus;
+use epiphany_codex_bridge::cultnet::EpiphanyReorientPressureLevel;
+use epiphany_codex_bridge::cultnet::EpiphanyReorientReason;
+use epiphany_codex_bridge::cultnet::EpiphanyReorientStateStatus;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -305,9 +312,9 @@ impl CodexMessageProcessor {
                 ThreadEpiphanyReorientLaunchResponse {
                     thread_id: thread_uuid.to_string(),
                     source: applied.source,
-                    state_status: applied.state_status,
+                    state_status: thread_epiphany_reorient_state_status(applied.state_status),
                     state_revision: applied.state_revision,
-                    decision: applied.decision,
+                    decision: thread_epiphany_reorient_decision(applied.decision),
                     revision: applied.revision,
                     changed_fields: changed_fields.clone(),
                     epiphany_state: epiphany_state.clone(),
@@ -753,6 +760,120 @@ fn thread_epiphany_job_from_surface(
         active_thread_ids: job.active_thread_ids,
         linked_subgoal_ids: job.linked_subgoal_ids,
         linked_graph_node_ids: job.linked_graph_node_ids,
+    }
+}
+
+fn thread_epiphany_reorient_state_status(
+    status: EpiphanyReorientStateStatus,
+) -> ThreadEpiphanyReorientStateStatus {
+    match status {
+        EpiphanyReorientStateStatus::Missing => ThreadEpiphanyReorientStateStatus::Missing,
+        EpiphanyReorientStateStatus::Ready => ThreadEpiphanyReorientStateStatus::Ready,
+    }
+}
+
+fn thread_epiphany_reorient_decision(
+    decision: EpiphanyReorientDecision,
+) -> ThreadEpiphanyReorientDecision {
+    ThreadEpiphanyReorientDecision {
+        action: match decision.action {
+            EpiphanyReorientAction::Resume => ThreadEpiphanyReorientAction::Resume,
+            EpiphanyReorientAction::Regather => ThreadEpiphanyReorientAction::Regather,
+        },
+        checkpoint_status: match decision.checkpoint_status {
+            EpiphanyReorientCheckpointStatus::Missing => {
+                ThreadEpiphanyReorientCheckpointStatus::Missing
+            }
+            EpiphanyReorientCheckpointStatus::ResumeReady => {
+                ThreadEpiphanyReorientCheckpointStatus::ResumeReady
+            }
+            EpiphanyReorientCheckpointStatus::RegatherRequired => {
+                ThreadEpiphanyReorientCheckpointStatus::RegatherRequired
+            }
+        },
+        checkpoint_id: decision.checkpoint_id,
+        pressure_level: match decision.pressure_level {
+            EpiphanyReorientPressureLevel::Unknown => ThreadEpiphanyPressureLevel::Unknown,
+            EpiphanyReorientPressureLevel::Low => ThreadEpiphanyPressureLevel::Low,
+            EpiphanyReorientPressureLevel::Medium => ThreadEpiphanyPressureLevel::Elevated,
+            EpiphanyReorientPressureLevel::High => ThreadEpiphanyPressureLevel::High,
+            EpiphanyReorientPressureLevel::Critical => ThreadEpiphanyPressureLevel::Critical,
+        },
+        retrieval_status: thread_epiphany_reorient_retrieval_status(decision.retrieval_status),
+        graph_status: thread_epiphany_reorient_graph_status(decision.graph_status),
+        watcher_status: thread_epiphany_reorient_watcher_status(decision.watcher_status),
+        reasons: decision
+            .reasons
+            .into_iter()
+            .map(thread_epiphany_reorient_reason)
+            .collect(),
+        checkpoint_dirty_paths: decision.checkpoint_dirty_paths,
+        checkpoint_changed_paths: decision.checkpoint_changed_paths,
+        active_frontier_node_ids: decision.active_frontier_node_ids,
+        next_action: decision.next_action,
+        note: decision.note,
+    }
+}
+
+fn thread_epiphany_reorient_retrieval_status(
+    status: EpiphanyReorientFreshnessStatus,
+) -> ThreadEpiphanyRetrievalFreshnessStatus {
+    match status {
+        EpiphanyReorientFreshnessStatus::Unknown => ThreadEpiphanyRetrievalFreshnessStatus::Missing,
+        EpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+        EpiphanyReorientFreshnessStatus::Dirty => ThreadEpiphanyRetrievalFreshnessStatus::Indexing,
+        EpiphanyReorientFreshnessStatus::Stale | EpiphanyReorientFreshnessStatus::Changed => {
+            ThreadEpiphanyRetrievalFreshnessStatus::Stale
+        }
+    }
+}
+
+fn thread_epiphany_reorient_graph_status(
+    status: EpiphanyReorientFreshnessStatus,
+) -> ThreadEpiphanyGraphFreshnessStatus {
+    match status {
+        EpiphanyReorientFreshnessStatus::Unknown => ThreadEpiphanyGraphFreshnessStatus::Missing,
+        EpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyGraphFreshnessStatus::Ready,
+        EpiphanyReorientFreshnessStatus::Dirty
+        | EpiphanyReorientFreshnessStatus::Stale
+        | EpiphanyReorientFreshnessStatus::Changed => ThreadEpiphanyGraphFreshnessStatus::Stale,
+    }
+}
+
+fn thread_epiphany_reorient_watcher_status(
+    status: EpiphanyReorientFreshnessStatus,
+) -> ThreadEpiphanyInvalidationStatus {
+    match status {
+        EpiphanyReorientFreshnessStatus::Unknown => ThreadEpiphanyInvalidationStatus::Unavailable,
+        EpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyInvalidationStatus::Clean,
+        EpiphanyReorientFreshnessStatus::Dirty
+        | EpiphanyReorientFreshnessStatus::Stale
+        | EpiphanyReorientFreshnessStatus::Changed => ThreadEpiphanyInvalidationStatus::Changed,
+    }
+}
+
+fn thread_epiphany_reorient_reason(
+    reason: EpiphanyReorientReason,
+) -> ThreadEpiphanyReorientReason {
+    match reason {
+        EpiphanyReorientReason::MissingState => ThreadEpiphanyReorientReason::MissingState,
+        EpiphanyReorientReason::MissingCheckpoint => {
+            ThreadEpiphanyReorientReason::MissingCheckpoint
+        }
+        EpiphanyReorientReason::CheckpointReady => ThreadEpiphanyReorientReason::CheckpointReady,
+        EpiphanyReorientReason::CheckpointRequestedRegather => {
+            ThreadEpiphanyReorientReason::CheckpointRequestedRegather
+        }
+        EpiphanyReorientReason::CheckpointPathsDirty => {
+            ThreadEpiphanyReorientReason::CheckpointPathsDirty
+        }
+        EpiphanyReorientReason::CheckpointPathsChanged => {
+            ThreadEpiphanyReorientReason::CheckpointPathsChanged
+        }
+        EpiphanyReorientReason::FrontierChanged => ThreadEpiphanyReorientReason::FrontierChanged,
+        EpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
+            ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale
+        }
     }
 }
 

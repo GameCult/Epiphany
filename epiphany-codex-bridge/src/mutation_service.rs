@@ -3,10 +3,8 @@ use chrono::Utc;
 use std::path::Path;
 use std::path::PathBuf;
 
-use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
-use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
@@ -17,6 +15,8 @@ use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyJobLaunchResult;
 use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyPromotionInput;
+use epiphany_core::EpiphanyReorientDecision;
+use epiphany_core::EpiphanyReorientStateStatus;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
@@ -54,7 +54,6 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_completed_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_epiphany_role_finding;
 use uuid::Uuid;
@@ -135,9 +134,9 @@ pub struct EpiphanyReorientLaunchApplied {
     pub launcher_job_id: String,
     pub backend_job_id: String,
     pub source: ThreadEpiphanyReorientSource,
-    pub state_status: ThreadEpiphanyReorientStateStatus,
+    pub state_status: EpiphanyReorientStateStatus,
     pub state_revision: Option<u64>,
-    pub decision: ThreadEpiphanyReorientDecision,
+    pub decision: EpiphanyReorientDecision,
     pub revision: u64,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
@@ -584,14 +583,7 @@ pub async fn launch_thread_epiphany_reorient(
     let freshness = derive_epiphany_freshness_view(state, retrieval_override, watcher_snapshot);
     let state_revision = freshness.state_revision;
     let pressure = derive_epiphany_pressure(token_usage_info);
-    let (state_status, decision) = map_epiphany_reorient(
-        state,
-        &pressure,
-        &freshness.retrieval,
-        &freshness.graph,
-        &freshness.watcher,
-    );
-    let (_core_state_status, launch_decision) = derive_epiphany_reorient(
+    let (state_status, decision) = derive_epiphany_reorient(
         state,
         &pressure,
         &freshness.retrieval,
@@ -618,7 +610,7 @@ pub async fn launch_thread_epiphany_reorient(
         max_runtime_seconds,
         state,
         checkpoint,
-        &launch_decision,
+        &decision,
     );
     let changed_fields = epiphany_job_launch_changed_fields();
     let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;
