@@ -2,6 +2,7 @@ use super::ContextualUserFragment;
 use codex_protocol::protocol::EPIPHANY_STATE_CLOSE_TAG;
 use codex_protocol::protocol::EPIPHANY_STATE_OPEN_TAG;
 use codex_protocol::protocol::EpiphanyThreadState;
+use codex_protocol::protocol::render_epiphany_state;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct EpiphanyStateInstructions {
@@ -11,7 +12,7 @@ pub(crate) struct EpiphanyStateInstructions {
 impl EpiphanyStateInstructions {
     pub(crate) fn from_state(state: &EpiphanyThreadState) -> Self {
         Self {
-            text: epiphany_core::render_epiphany_state(state),
+            text: render_epiphany_state(state),
         }
     }
 }

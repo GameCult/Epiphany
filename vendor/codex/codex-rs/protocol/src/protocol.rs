@@ -2983,6 +2983,7 @@ pub use epiphany_state_model::EpiphanyScratchPad;
 pub use epiphany_state_model::EpiphanyStateItem;
 pub use epiphany_state_model::EpiphanySubgoal;
 pub use epiphany_state_model::EpiphanyThreadState;
+pub use epiphany_state_model::render_epiphany_state;
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, TS)]
 pub struct CompactedItem {
