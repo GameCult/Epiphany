@@ -16,6 +16,7 @@ use crate::context::map_epiphany_graph_query;
 use crate::context::map_epiphany_planning;
 use crate::coordinator::derive_epiphany_coordinator_status;
 use crate::coordinator::epiphany_reorient_finding_already_accepted;
+use crate::coordinator::map_core_crrc_result_status;
 use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
@@ -30,7 +31,9 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
-use crate::reorient::map_epiphany_reorient;
+use crate::reorient::derive_epiphany_reorient;
+use crate::reorient::map_protocol_reorient_decision;
+use crate::reorient::map_protocol_reorient_state_status;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_role_result_snapshot;
 use crate::scene::map_core_epiphany_scene_action;
@@ -182,11 +185,11 @@ pub async fn map_epiphany_view_response(
     let pressure = needs_pressure.then(|| map_epiphany_pressure(token_usage_info));
     let core_freshness = needs_reorientation_inputs
         .then(|| derive_epiphany_freshness_view(state, retrieval_override, watcher_snapshot));
-    let (state_revision, reorient_state_status, reorient_decision) =
+    let (state_revision, core_reorient_state_status, core_reorient_decision) =
         if let (Some(freshness), Some(core_pressure)) =
             (core_freshness.as_ref(), core_pressure.as_ref())
         {
-            let (state_status, decision) = map_epiphany_reorient(
+            let (state_status, decision) = derive_epiphany_reorient(
                 state,
                 core_pressure,
                 &freshness.retrieval,
@@ -195,8 +198,16 @@ pub async fn map_epiphany_view_response(
             );
             (freshness.state_revision, state_status, Some(decision))
         } else {
-            (None, ThreadEpiphanyReorientStateStatus::Missing, None)
+            (
+                None,
+                epiphany_core::EpiphanyReorientStateStatus::Missing,
+                None,
+            )
         };
+    let reorient_state_status = map_protocol_reorient_state_status(core_reorient_state_status);
+    let reorient_decision = core_reorient_decision
+        .clone()
+        .map(map_protocol_reorient_decision);
     let jobs = if needs_jobs {
         map_epiphany_jobs(state, retrieval_override)
     } else {
@@ -230,15 +241,16 @@ pub async fn map_epiphany_view_response(
     let reorient_finding_accepted = reorient_finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
     });
+    let core_reorient_result_status = map_core_crrc_result_status(reorient_result_status);
     let recommendation = if let (Some(core_pressure), Some(decision)) =
-        (core_pressure.as_ref(), reorient_decision.as_ref())
+        (core_pressure.as_ref(), core_reorient_decision.as_ref())
     {
         Some(map_epiphany_crrc_recommendation(
             loaded,
-            reorient_state_status,
+            core_reorient_state_status,
             core_pressure,
             decision,
-            reorient_result_status,
+            core_reorient_result_status,
             checkpoint_present,
             reorient_finding.is_some(),
             reorient_finding_accepted,
@@ -248,7 +260,7 @@ pub async fn map_epiphany_view_response(
     };
     let roles = if let (Some(pressure), Some(decision), Some(recommendation)) = (
         pressure.as_ref(),
-        reorient_decision.as_ref(),
+        core_reorient_decision.as_ref(),
         recommendation.as_ref(),
     ) {
         Some(map_epiphany_roles(
@@ -257,7 +269,7 @@ pub async fn map_epiphany_view_response(
             decision,
             pressure,
             recommendation,
-            reorient_result_status,
+            core_reorient_result_status,
             reorient_job.as_ref(),
         ))
     } else {
@@ -273,11 +285,11 @@ pub async fn map_epiphany_view_response(
             let status = derive_epiphany_coordinator_status(
                 state,
                 runtime_store_path,
-                reorient_state_status,
+                core_reorient_state_status,
                 core_pressure,
                 recommendation,
                 roles.roles.clone(),
-                reorient_decision.as_ref(),
+                core_reorient_decision.as_ref(),
                 reorient_result_status,
                 reorient_finding.as_ref(),
                 checkpoint_present,

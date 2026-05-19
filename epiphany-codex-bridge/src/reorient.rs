@@ -163,24 +163,6 @@ fn map_core_epiphany_invalidation_input(
     }
 }
 
-pub fn map_epiphany_reorient(
-    state: Option<&EpiphanyThreadState>,
-    pressure: &EpiphanyPressure,
-    retrieval: &CoreEpiphanyRetrievalFreshness,
-    graph: &CoreEpiphanyGraphFreshness,
-    watcher: &CoreEpiphanyInvalidationInput,
-) -> (
-    ThreadEpiphanyReorientStateStatus,
-    ThreadEpiphanyReorientDecision,
-) {
-    let (state_status, decision) =
-        derive_epiphany_reorient(state, pressure, retrieval, graph, watcher);
-    (
-        map_protocol_reorient_state_status(state_status),
-        map_protocol_reorient_decision(decision),
-    )
-}
-
 pub fn derive_epiphany_reorient(
     state: Option<&EpiphanyThreadState>,
     pressure: &EpiphanyPressure,
@@ -249,15 +231,13 @@ fn map_core_reorient_watcher_status(
     status: CoreEpiphanyInvalidationStatus,
 ) -> CoreEpiphanyReorientFreshnessStatus {
     match status {
-        CoreEpiphanyInvalidationStatus::Unavailable => {
-            CoreEpiphanyReorientFreshnessStatus::Unknown
-        }
+        CoreEpiphanyInvalidationStatus::Unavailable => CoreEpiphanyReorientFreshnessStatus::Unknown,
         CoreEpiphanyInvalidationStatus::Clean => CoreEpiphanyReorientFreshnessStatus::Clean,
         CoreEpiphanyInvalidationStatus::Changed => CoreEpiphanyReorientFreshnessStatus::Changed,
     }
 }
 
-fn map_protocol_reorient_state_status(
+pub fn map_protocol_reorient_state_status(
     status: CoreEpiphanyReorientStateStatus,
 ) -> ThreadEpiphanyReorientStateStatus {
     match status {
@@ -266,7 +246,7 @@ fn map_protocol_reorient_state_status(
     }
 }
 
-fn map_protocol_reorient_decision(
+pub fn map_protocol_reorient_decision(
     decision: epiphany_core::EpiphanyReorientDecision,
 ) -> ThreadEpiphanyReorientDecision {
     ThreadEpiphanyReorientDecision {

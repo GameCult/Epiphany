@@ -7,7 +7,6 @@ use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
-use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
@@ -39,6 +38,8 @@ use epiphany_core::EpiphanyCrrcSceneAction as CoreEpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
 use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
+use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
+use epiphany_core::EpiphanyReorientStateStatus as CoreEpiphanyReorientStateStatus;
 use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
 use epiphany_core::EpiphanyRoleBoardInput;
 use epiphany_core::EpiphanyRoleBoardJob;
@@ -71,7 +72,6 @@ use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::reorient::map_epiphany_reorient;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_role_result_snapshot;
 
@@ -80,54 +80,45 @@ use std::path::Path;
 
 pub fn map_epiphany_crrc_recommendation(
     loaded: bool,
-    state_status: ThreadEpiphanyReorientStateStatus,
+    state_status: CoreEpiphanyReorientStateStatus,
     pressure: &epiphany_core::EpiphanyPressure,
-    decision: &ThreadEpiphanyReorientDecision,
-    result_status: ThreadEpiphanyReorientResultStatus,
+    decision: &CoreEpiphanyReorientDecision,
+    result_status: CoreEpiphanyCrrcResultStatus,
     checkpoint_present: bool,
     finding_present: bool,
     finding_accepted: bool,
 ) -> CoreEpiphanyCrrcRecommendation {
     recommend_crrc_action(EpiphanyCrrcInput {
         loaded,
-        state_status: map_core_crrc_state_status(state_status),
+        state_status: map_core_crrc_state_status_from_reorient(state_status),
         should_prepare_compaction: pressure.should_prepare_compaction,
         reorient_action: map_core_crrc_reorient_action(decision.action),
-        result_status: map_core_crrc_result_status(result_status),
+        result_status,
         checkpoint_present,
         finding_present,
         finding_accepted,
     })
 }
 
-fn map_core_crrc_state_status(
-    status: ThreadEpiphanyReorientStateStatus,
+fn map_core_crrc_state_status_from_reorient(
+    status: CoreEpiphanyReorientStateStatus,
 ) -> CoreEpiphanyCrrcStateStatus {
     match status {
-        ThreadEpiphanyReorientStateStatus::Missing => CoreEpiphanyCrrcStateStatus::Missing,
-        ThreadEpiphanyReorientStateStatus::Ready => CoreEpiphanyCrrcStateStatus::Ready,
+        CoreEpiphanyReorientStateStatus::Missing => CoreEpiphanyCrrcStateStatus::Missing,
+        CoreEpiphanyReorientStateStatus::Ready => CoreEpiphanyCrrcStateStatus::Ready,
     }
 }
 
 fn map_core_crrc_reorient_action(
-    action: ThreadEpiphanyReorientAction,
+    action: CoreEpiphanyReorientAction,
 ) -> CoreEpiphanyCrrcReorientAction {
     match action {
-        ThreadEpiphanyReorientAction::Resume => CoreEpiphanyCrrcReorientAction::Resume,
-        ThreadEpiphanyReorientAction::Regather => CoreEpiphanyCrrcReorientAction::Regather,
+        CoreEpiphanyReorientAction::Resume => CoreEpiphanyCrrcReorientAction::Resume,
+        CoreEpiphanyReorientAction::Regather => CoreEpiphanyCrrcReorientAction::Regather,
     }
 }
 
-fn map_core_reorient_action_from_protocol(
-    action: ThreadEpiphanyReorientAction,
-) -> CoreEpiphanyReorientAction {
-    match action {
-        ThreadEpiphanyReorientAction::Resume => CoreEpiphanyReorientAction::Resume,
-        ThreadEpiphanyReorientAction::Regather => CoreEpiphanyReorientAction::Regather,
-    }
-}
-
-fn map_core_crrc_result_status(
+pub fn map_core_crrc_result_status(
     status: ThreadEpiphanyReorientResultStatus,
 ) -> CoreEpiphanyCrrcResultStatus {
     match status {
@@ -291,11 +282,11 @@ pub struct EpiphanyCoordinatorStatus {
 pub async fn derive_epiphany_coordinator_status(
     state: Option<&EpiphanyThreadState>,
     runtime_store_path: Option<&Path>,
-    state_status: ThreadEpiphanyReorientStateStatus,
+    state_status: CoreEpiphanyReorientStateStatus,
     pressure: &epiphany_core::EpiphanyPressure,
     recommendation: &CoreEpiphanyCrrcRecommendation,
     roles: Vec<EpiphanyRoleBoardLane>,
-    reorient_decision: Option<&ThreadEpiphanyReorientDecision>,
+    reorient_decision: Option<&CoreEpiphanyReorientDecision>,
     reorient_result_status: ThreadEpiphanyReorientResultStatus,
     reorient_finding: Option<&ThreadEpiphanyReorientFinding>,
     checkpoint_present: bool,
@@ -376,7 +367,6 @@ pub async fn derive_epiphany_coordinator_status(
         should_prepare_compaction: pressure.should_prepare_compaction,
         reorient_action: reorient_decision
             .map(|decision| decision.action)
-            .map(map_core_reorient_action_from_protocol)
             .unwrap_or(CoreEpiphanyReorientAction::Resume),
         crrc_action: recommendation.action,
         modeling_result_status: map_core_coordinator_role_result_status(modeling_result_status),
@@ -506,21 +496,14 @@ pub async fn select_epiphany_coordinator_automation(
     );
     let core_pressure = derive_epiphany_pressure(input.token_usage_info);
     let pressure = map_epiphany_pressure(input.token_usage_info);
-    let (state_status, reorient_decision) = map_epiphany_reorient(
+    let (state_status, reorient_decision) = derive_epiphany_reorient(
         Some(input.state),
         &core_pressure,
         &core_freshness.retrieval,
         &core_freshness.graph,
         &core_freshness.watcher,
     );
-    let (_core_state_status, core_reorient_decision) = derive_epiphany_reorient(
-        Some(input.state),
-        &core_pressure,
-        &core_freshness.retrieval,
-        &core_freshness.graph,
-        &core_freshness.watcher,
-    );
-    if state_status != ThreadEpiphanyReorientStateStatus::Ready {
+    if state_status != CoreEpiphanyReorientStateStatus::Ready {
         return EpiphanyCoordinatorAutomationVerdict {
             action: EpiphanyCoordinatorAutomationAction::None,
             launch_request: None,
@@ -538,6 +521,7 @@ pub async fn select_epiphany_coordinator_automation(
         EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
     )
     .await;
+    let core_reorient_result_status = map_core_crrc_result_status(reorient_result_status);
     let reorient_finding_accepted = reorient_finding
         .as_ref()
         .is_some_and(|finding| epiphany_reorient_finding_already_accepted(input.state, finding));
@@ -546,7 +530,7 @@ pub async fn select_epiphany_coordinator_automation(
         state_status,
         &core_pressure,
         &reorient_decision,
-        reorient_result_status,
+        core_reorient_result_status,
         input.state.investigation_checkpoint.as_ref().is_some(),
         reorient_finding.is_some(),
         reorient_finding_accepted,
@@ -557,7 +541,7 @@ pub async fn select_epiphany_coordinator_automation(
         &reorient_decision,
         &pressure,
         &crrc_recommendation,
-        reorient_result_status,
+        core_reorient_result_status,
         reorient_job.as_ref(),
     );
     let coordinator = derive_epiphany_coordinator_status(
@@ -590,7 +574,7 @@ pub async fn select_epiphany_coordinator_automation(
                     None,
                     input.state,
                     checkpoint,
-                    &core_reorient_decision,
+                    &reorient_decision,
                 )
             }),
         EpiphanyCoordinatorAutomationAction::None
@@ -613,7 +597,7 @@ pub async fn select_epiphany_coordinator_automation(
 }
 
 pub fn map_epiphany_coordinator(
-    state_status: ThreadEpiphanyReorientStateStatus,
+    state_status: CoreEpiphanyReorientStateStatus,
     checkpoint_present: bool,
     pressure: &epiphany_core::EpiphanyPressure,
     recommendation: &CoreEpiphanyCrrcRecommendation,
@@ -631,7 +615,7 @@ pub fn map_epiphany_coordinator(
     reorient_finding_accepted: bool,
 ) -> EpiphanyCoordinatorDecision {
     recommend_coordinator_action(EpiphanyCoordinatorInput {
-        state_status: map_core_crrc_state_status(state_status),
+        state_status: map_core_crrc_state_status_from_reorient(state_status),
         checkpoint_present,
         should_prepare_compaction: pressure.should_prepare_compaction,
         recommendation: EpiphanyCoordinatorCrrcRecommendation {
@@ -1012,10 +996,10 @@ pub struct EpiphanyRoleBoardStatus {
 pub fn map_epiphany_roles(
     state: Option<&EpiphanyThreadState>,
     jobs: &[ThreadEpiphanyJob],
-    decision: &ThreadEpiphanyReorientDecision,
+    decision: &CoreEpiphanyReorientDecision,
     pressure: &ThreadEpiphanyPressure,
     recommendation: &CoreEpiphanyCrrcRecommendation,
-    result_status: ThreadEpiphanyReorientResultStatus,
+    result_status: CoreEpiphanyCrrcResultStatus,
     reorient_job: Option<&ThreadEpiphanyJob>,
 ) -> EpiphanyRoleBoardStatus {
     let planning = state.map(|state| &state.planning);
@@ -1057,7 +1041,7 @@ pub fn map_epiphany_roles(
         crrc_reason: recommendation.reason.clone(),
         reorient_decision_action: format!("{:?}", decision.action),
         pressure_level: format!("{:?}", pressure.level),
-        reorient_result_status: map_core_crrc_result_status(result_status),
+        reorient_result_status: result_status,
         reorient_job: reorient_job.map(map_core_role_board_job),
         imagination_binding_id: EPIPHANY_IMAGINATION_ROLE_BINDING_ID.to_string(),
         modeling_binding_id: EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
