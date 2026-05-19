@@ -1,22 +1,17 @@
-use codex_core::file_watcher::FileWatcher;
-use codex_core::file_watcher::FileWatcherSubscriber;
-use codex_core::file_watcher::ThrottledWatchReceiver;
-use codex_core::file_watcher::WatchPath;
-use codex_core::file_watcher::WatchRegistration;
 use codex_utils_absolute_path::AbsolutePathBuf;
+use notify::RecursiveMode;
+use notify::Watcher;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use tokio::sync::Mutex as AsyncMutex;
+use tokio::sync::mpsc;
 use tokio::sync::oneshot;
 use tracing::warn;
 
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
-
-const INVALIDATION_WATCH_DEBOUNCE: Duration = Duration::from_millis(200);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EpiphanyInvalidationSnapshot {
@@ -39,8 +34,6 @@ pub fn epiphany_freshness_watcher_snapshot(
 
 #[derive(Clone)]
 pub struct EpiphanyInvalidationManager {
-    available: bool,
-    file_watcher: Arc<FileWatcher>,
     state: Arc<AsyncMutex<HashMap<String, WatchEntry>>>,
 }
 
@@ -48,8 +41,7 @@ struct WatchEntry {
     workspace_root: AbsolutePathBuf,
     latest: Arc<AsyncMutex<LatestInvalidation>>,
     terminate_tx: oneshot::Sender<oneshot::Sender<()>>,
-    _subscriber: FileWatcherSubscriber,
-    _registration: WatchRegistration,
+    _watcher: notify::RecommendedWatcher,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -60,28 +52,12 @@ struct LatestInvalidation {
 
 impl EpiphanyInvalidationManager {
     pub fn new() -> Self {
-        match FileWatcher::new() {
-            Ok(file_watcher) => Self {
-                available: true,
-                file_watcher: Arc::new(file_watcher),
-                state: Arc::new(AsyncMutex::new(HashMap::new())),
-            },
-            Err(err) => {
-                warn!("epiphany invalidation manager falling back to noop core watcher: {err}");
-                Self {
-                    available: false,
-                    file_watcher: Arc::new(FileWatcher::noop()),
-                    state: Arc::new(AsyncMutex::new(HashMap::new())),
-                }
-            }
+        Self {
+            state: Arc::new(AsyncMutex::new(HashMap::new())),
         }
     }
 
     pub async fn ensure_thread_watch(&self, thread_id: &str, workspace_root: &AbsolutePathBuf) {
-        if !self.available {
-            return;
-        }
-
         let existing_entry = {
             let mut state = self.state.lock().await;
             match state.get(thread_id) {
@@ -95,12 +71,30 @@ impl EpiphanyInvalidationManager {
             stop_watch_entry(entry).await;
         }
 
-        let (subscriber, rx) = self.file_watcher.add_subscriber();
-        let registration = subscriber.register_paths(vec![WatchPath {
-            path: workspace_root.to_path_buf(),
-            recursive: true,
-        }]);
         let latest = Arc::new(AsyncMutex::new(LatestInvalidation::default()));
+        let (event_tx, mut event_rx) = mpsc::unbounded_channel::<Vec<PathBuf>>();
+        let mut watcher =
+            match notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
+                match result {
+                    Ok(event) => {
+                        let _ = event_tx.send(event.paths);
+                    }
+                    Err(err) => warn!("epiphany invalidation watcher event failed: {err}"),
+                }
+            }) {
+                Ok(watcher) => watcher,
+                Err(err) => {
+                    warn!("epiphany invalidation manager could not create watcher: {err}");
+                    return;
+                }
+            };
+        if let Err(err) = watcher.watch(workspace_root.as_path(), RecursiveMode::Recursive) {
+            warn!(
+                "epiphany invalidation manager could not watch `{}`: {err}",
+                workspace_root.display()
+            );
+            return;
+        }
         let (terminate_tx, terminate_rx) = oneshot::channel();
         let workspace_root_path = workspace_root.to_path_buf();
 
@@ -108,25 +102,23 @@ impl EpiphanyInvalidationManager {
             workspace_root: workspace_root.clone(),
             latest: Arc::clone(&latest),
             terminate_tx,
-            _subscriber: subscriber,
-            _registration: registration,
+            _watcher: watcher,
         };
         self.state.lock().await.insert(thread_id.to_string(), entry);
 
         tokio::spawn(async move {
-            let mut rx = ThrottledWatchReceiver::new(rx, INVALIDATION_WATCH_DEBOUNCE);
             let mut terminate_rx = terminate_rx;
             let mut done_tx = None;
 
             loop {
-                let event = tokio::select! {
+                let paths = tokio::select! {
                     biased;
                     result = &mut terminate_rx => {
                         done_tx = result.ok();
                         break;
                     }
-                    event = rx.recv() => match event {
-                        Some(event) => event,
+                    paths = event_rx.recv() => match paths {
+                        Some(paths) => paths,
                         None => break,
                     },
                 };
@@ -135,7 +127,7 @@ impl EpiphanyInvalidationManager {
                 let mut latest = latest.lock().await;
                 latest.observed_at_unix_seconds = Some(observed_at_unix_seconds);
                 latest.changed_paths =
-                    normalize_changed_paths(event.paths, workspace_root_path.as_path());
+                    normalize_changed_paths(paths, workspace_root_path.as_path());
             }
 
             if let Some(done_tx) = done_tx {
@@ -145,15 +137,6 @@ impl EpiphanyInvalidationManager {
     }
 
     pub async fn snapshot(&self, thread_id: &str) -> EpiphanyInvalidationSnapshot {
-        if !self.available {
-            return EpiphanyInvalidationSnapshot {
-                available: false,
-                workspace_root: None,
-                observed_at_unix_seconds: None,
-                changed_paths: Vec::new(),
-            };
-        }
-
         let (workspace_root, latest) = {
             let state = self.state.lock().await;
             match state.get(thread_id) {
