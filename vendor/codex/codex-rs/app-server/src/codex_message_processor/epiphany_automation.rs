@@ -16,7 +16,7 @@ use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
 use epiphany_codex_bridge::mutation_service::launch_epiphany_job_on_thread;
-use epiphany_codex_bridge::pressure::map_epiphany_pressure;
+use epiphany_codex_bridge::pressure::derive_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -115,7 +115,7 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
     thread_state: &Arc<Mutex<ThreadState>>,
 ) {
     let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
-    let pressure = map_epiphany_pressure(token_usage_snapshot.as_ref());
+    let pressure = derive_epiphany_pressure(token_usage_snapshot.as_ref());
     if !should_run_epiphany_pre_compaction_checkpoint_intervention(&pressure) {
         return;
     }

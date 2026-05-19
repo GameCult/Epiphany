@@ -2,6 +2,9 @@ const EPIPHANY_PRESSURE_ELEVATED_PER_MILLE: u32 = 650;
 const EPIPHANY_PRESSURE_PREPARE_COMPACTION_PER_MILLE: u32 = 800;
 const EPIPHANY_PRESSURE_CRITICAL_PER_MILLE: u32 = 950;
 
+use serde::Deserialize;
+use serde::Serialize;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EpiphanyTokenUsageSnapshot {
     pub total_tokens: i64,
@@ -10,27 +13,35 @@ pub struct EpiphanyTokenUsageSnapshot {
     pub model_auto_compact_token_limit: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyPressure {
     pub status: EpiphanyPressureStatus,
     pub level: EpiphanyPressureLevel,
     pub basis: EpiphanyPressureBasis,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub used_tokens: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_context_window: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_auto_compact_token_limit: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remaining_tokens: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ratio_per_mille: Option<u32>,
     pub should_prepare_compaction: bool,
     pub note: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyPressureStatus {
     Unknown,
     Ready,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyPressureLevel {
     Unknown,
     Low,
@@ -39,7 +50,8 @@ pub enum EpiphanyPressureLevel {
     Critical,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyPressureBasis {
     Unknown,
     AutoCompactLimit,

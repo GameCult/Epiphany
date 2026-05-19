@@ -50,7 +50,7 @@ use crate::mutation::epiphany_promote_changed_fields;
 use crate::mutation::epiphany_update_patch_changed_fields;
 use crate::mutation::state_update_from_thread_patch;
 use crate::mutation::thread_epiphany_patch_has_state_replacements;
-use crate::pressure::map_epiphany_pressure;
+use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::map_epiphany_freshness;
 use crate::reorient::map_epiphany_reorient;
@@ -582,7 +582,7 @@ pub async fn launch_thread_epiphany_reorient(
 ) -> BridgeResult<EpiphanyReorientLaunchApplied> {
     let (state_revision, retrieval, graph, watcher) =
         map_epiphany_freshness(state, retrieval_override, watcher_snapshot);
-    let pressure = map_epiphany_pressure(token_usage_info);
+    let pressure = derive_epiphany_pressure(token_usage_info);
     let (state_status, decision) =
         map_epiphany_reorient(state, &pressure, &retrieval, &graph, &watcher);
 

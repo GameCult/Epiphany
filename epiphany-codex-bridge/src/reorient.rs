@@ -2,7 +2,6 @@ use codex_app_server_protocol::ThreadEpiphanyGraphFreshness;
 use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
-use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
@@ -18,6 +17,8 @@ use epiphany_core::EpiphanyGraphFreshness as CoreEpiphanyGraphFreshness;
 use epiphany_core::EpiphanyGraphFreshnessStatus as CoreEpiphanyGraphFreshnessStatus;
 use epiphany_core::EpiphanyInvalidationInput as CoreEpiphanyInvalidationInput;
 use epiphany_core::EpiphanyInvalidationStatus as CoreEpiphanyInvalidationStatus;
+use epiphany_core::EpiphanyPressure;
+use epiphany_core::EpiphanyPressureLevel;
 use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientCheckpointStatus as CoreEpiphanyReorientCheckpointStatus;
 use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshnessStatus;
@@ -163,7 +164,7 @@ fn map_core_epiphany_invalidation_input(
 
 pub fn map_epiphany_reorient(
     state: Option<&EpiphanyThreadState>,
-    pressure: &ThreadEpiphanyPressure,
+    pressure: &EpiphanyPressure,
     retrieval: &ThreadEpiphanyRetrievalFreshness,
     graph: &ThreadEpiphanyGraphFreshness,
     watcher: &ThreadEpiphanyInvalidationInput,
@@ -192,14 +193,14 @@ pub fn map_epiphany_reorient(
 }
 
 fn map_core_reorient_pressure_level(
-    level: ThreadEpiphanyPressureLevel,
+    level: EpiphanyPressureLevel,
 ) -> CoreEpiphanyReorientPressureLevel {
     match level {
-        ThreadEpiphanyPressureLevel::Unknown => CoreEpiphanyReorientPressureLevel::Unknown,
-        ThreadEpiphanyPressureLevel::Low => CoreEpiphanyReorientPressureLevel::Low,
-        ThreadEpiphanyPressureLevel::Elevated => CoreEpiphanyReorientPressureLevel::Medium,
-        ThreadEpiphanyPressureLevel::High => CoreEpiphanyReorientPressureLevel::High,
-        ThreadEpiphanyPressureLevel::Critical => CoreEpiphanyReorientPressureLevel::Critical,
+        EpiphanyPressureLevel::Unknown => CoreEpiphanyReorientPressureLevel::Unknown,
+        EpiphanyPressureLevel::Low => CoreEpiphanyReorientPressureLevel::Low,
+        EpiphanyPressureLevel::Elevated => CoreEpiphanyReorientPressureLevel::Medium,
+        EpiphanyPressureLevel::High => CoreEpiphanyReorientPressureLevel::High,
+        EpiphanyPressureLevel::Critical => CoreEpiphanyReorientPressureLevel::Critical,
     }
 }
 

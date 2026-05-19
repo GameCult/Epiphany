@@ -11,12 +11,17 @@ use epiphany_core::derive_pressure_view;
 
 use crate::launch::epiphany_agent_prompt_with_memory;
 use crate::launch::epiphany_specialist_prompt_config;
-use crate::launch::pressure_level_label;
+
+pub fn derive_epiphany_pressure(
+    snapshot: Option<&EpiphanyTokenUsageSnapshot>,
+) -> EpiphanyPressure {
+    derive_pressure_view(snapshot)
+}
 
 pub fn map_epiphany_pressure(
     snapshot: Option<&EpiphanyTokenUsageSnapshot>,
 ) -> ThreadEpiphanyPressure {
-    map_core_epiphany_pressure(derive_pressure_view(snapshot))
+    map_core_epiphany_pressure(derive_epiphany_pressure(snapshot))
 }
 
 fn map_core_epiphany_pressure(pressure: EpiphanyPressure) -> ThreadEpiphanyPressure {
@@ -52,13 +57,13 @@ fn map_core_epiphany_pressure(pressure: EpiphanyPressure) -> ThreadEpiphanyPress
 }
 
 pub fn should_run_epiphany_pre_compaction_checkpoint_intervention(
-    pressure: &ThreadEpiphanyPressure,
+    pressure: &EpiphanyPressure,
 ) -> bool {
-    pressure.status == ThreadEpiphanyPressureStatus::Ready && pressure.should_prepare_compaction
+    pressure.status == CoreEpiphanyPressureStatus::Ready && pressure.should_prepare_compaction
 }
 
 pub fn render_epiphany_pre_compaction_checkpoint_intervention(
-    pressure: &ThreadEpiphanyPressure,
+    pressure: &EpiphanyPressure,
 ) -> String {
     let usage = match (
         pressure.used_tokens,
@@ -80,6 +85,16 @@ pub fn render_epiphany_pre_compaction_checkpoint_intervention(
     );
     template
         .trim()
-        .replace("{pressure_level}", pressure_level_label(pressure.level))
+        .replace("{pressure_level}", core_pressure_level_label(pressure.level))
         .replace("{usage}", &usage)
+}
+
+fn core_pressure_level_label(level: CoreEpiphanyPressureLevel) -> &'static str {
+    match level {
+        CoreEpiphanyPressureLevel::Unknown => "unknown",
+        CoreEpiphanyPressureLevel::Low => "low",
+        CoreEpiphanyPressureLevel::Elevated => "elevated",
+        CoreEpiphanyPressureLevel::High => "high",
+        CoreEpiphanyPressureLevel::Critical => "critical",
+    }
 }

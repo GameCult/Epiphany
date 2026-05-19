@@ -24,6 +24,7 @@ use crate::cultnet::EpiphanyFreshnessSurface;
 use crate::cultnet::EpiphanySurfaceSource;
 use crate::jobs::map_epiphany_jobs;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
@@ -176,15 +177,16 @@ pub async fn map_epiphany_view_response(
     let needs_jobs = epiphany_view_needs_jobs(&lenses);
     let needs_reorientation_inputs = epiphany_view_needs_reorientation_inputs(&lenses);
     let needs_pressure = epiphany_view_needs_pressure(&lenses);
+    let core_pressure = needs_pressure.then(|| derive_epiphany_pressure(token_usage_info));
     let pressure = needs_pressure.then(|| map_epiphany_pressure(token_usage_info));
     let freshness = needs_reorientation_inputs
         .then(|| map_epiphany_freshness(state, retrieval_override, watcher_snapshot));
     let (state_revision, reorient_state_status, reorient_decision) =
-        if let (Some((state_revision, retrieval, graph, watcher)), Some(pressure)) =
-            (freshness.as_ref(), pressure.as_ref())
+        if let (Some((state_revision, retrieval, graph, watcher)), Some(core_pressure)) =
+            (freshness.as_ref(), core_pressure.as_ref())
         {
             let (state_status, decision) =
-                map_epiphany_reorient(state, pressure, retrieval, graph, watcher);
+                map_epiphany_reorient(state, core_pressure, retrieval, graph, watcher);
             (*state_revision, state_status, Some(decision))
         } else {
             (None, ThreadEpiphanyReorientStateStatus::Missing, None)

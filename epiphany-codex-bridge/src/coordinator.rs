@@ -65,6 +65,7 @@ use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::epiphany_role_label;
 use crate::launch::render_epiphany_coordinator_note;
 use crate::mutation::epiphany_modeling_finding_has_reviewable_state_patch;
+use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::map_epiphany_freshness;
@@ -408,9 +409,10 @@ pub async fn select_epiphany_coordinator_automation(
         Some(input.retrieval_override),
         Some(input.watcher_snapshot),
     );
+    let core_pressure = derive_epiphany_pressure(input.token_usage_info);
     let pressure = map_epiphany_pressure(input.token_usage_info);
     let (state_status, reorient_decision) =
-        map_epiphany_reorient(Some(input.state), &pressure, &retrieval, &graph, &watcher);
+        map_epiphany_reorient(Some(input.state), &core_pressure, &retrieval, &graph, &watcher);
     if state_status != ThreadEpiphanyReorientStateStatus::Ready {
         return EpiphanyCoordinatorAutomationVerdict {
             action: EpiphanyCoordinatorAutomationAction::None,
