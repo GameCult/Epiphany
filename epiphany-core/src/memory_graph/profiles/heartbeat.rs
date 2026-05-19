@@ -1,12 +1,26 @@
 use crate::heartbeat_state::EpiphanyHeartbeatCognitionEntry;
 #[cfg(test)]
+use crate::heartbeat_state::HeartbeatBridgeDecision;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatBridgeSynthesis;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatBridgeTension;
+#[cfg(test)]
 use crate::heartbeat_state::HeartbeatCandidateIntervention;
 #[cfg(test)]
 use crate::heartbeat_state::HeartbeatCandidateInterventions;
 #[cfg(test)]
+use crate::heartbeat_state::HeartbeatCognitionBridge;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatIncubation;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatIncubationTheme;
+#[cfg(test)]
 use crate::heartbeat_state::HeartbeatMemoryResonance;
 #[cfg(test)]
 use crate::heartbeat_state::HeartbeatMemoryResonancePair;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatSourceCoverage;
 use crate::memory_graph::EpiphanyMemoryDomain;
 use crate::memory_graph::EpiphanyMemoryGraphSnapshot;
 use crate::memory_graph::EpiphanyMemoryLifecycle;
@@ -16,7 +30,6 @@ use crate::memory_graph::EpiphanyMemoryProfile;
 use crate::memory_graph::EpiphanyMemorySummary;
 use crate::memory_graph::memory_graph_domain_id;
 use crate::memory_graph::memory_graph_node_id;
-use serde_json::Value;
 
 pub fn memory_graph_from_heartbeat_cognition(
     graph_id: impl Into<String>,
@@ -109,44 +122,41 @@ fn import_incubation(
     let Some(incubation) = cognition.incubation.as_ref() else {
         return;
     };
-    let Some(themes) = incubation.get("themes").and_then(Value::as_array) else {
-        return;
-    };
     let domain_id = push_domain(
         domains,
         EpiphanyMemoryProfile::Incubation,
         "heartbeat incubation",
     );
     let before = nodes.len();
-    for theme in themes.iter().take(12) {
-        let theme_id = string_at(theme, "themeId");
-        let status = string_at(theme, "status");
+    for theme in incubation.themes.iter().take(12) {
+        let theme_id = theme.theme_id.clone();
+        let status = theme.status.clone();
         nodes.push(EpiphanyMemoryNode {
             id: memory_graph_node_id(&domain_id, "incubation", &theme_id, None),
             domain_id: domain_id.clone(),
             profile: EpiphanyMemoryProfile::Incubation,
             kind: EpiphanyMemoryNodeKind::IncubationThread,
             title: theme_id.clone(),
-            claim: string_at(theme, "summary"),
-            question: string_at_any(
-                theme,
-                &["latentQuestion", "question"],
-                "What is this incubation theme trying to become?",
-            ),
-            tension: string_at_any(
-                theme,
-                &["holdingCloseBecause", "tension"],
-                "Heartbeat marked this theme but did not preserve a tension.",
-            ),
-            action_implication: string_at_any(
-                theme,
-                &["whyItPulls", "actionImplication"],
-                "Keep in incubation until sleep or review accounts for it.",
-            ),
+            claim: theme.summary.clone(),
+            question: if theme.latent_question.is_empty() {
+                "What is this incubation theme trying to become?".to_string()
+            } else {
+                theme.latent_question.clone()
+            },
+            tension: if theme.holding_close_because.is_empty() {
+                "Heartbeat marked this theme but did not preserve a tension.".to_string()
+            } else {
+                theme.holding_close_because.clone()
+            },
+            action_implication: if theme.why_it_pulls.is_empty() {
+                "Keep in incubation until sleep or review accounts for it.".to_string()
+            } else {
+                theme.why_it_pulls.clone()
+            },
             source_hashes: vec!["anchor:missing".to_string()],
             lifecycle: incubation_lifecycle(&status),
-            salience: score_to_u32(number_at(theme, "priorityScore")),
-            confidence: score_to_u32(number_at(theme, "maturation")),
+            salience: score_to_u32(theme.priority_score),
+            confidence: score_to_u32(theme.maturation),
             ..Default::default()
         });
     }
@@ -217,10 +227,7 @@ fn import_bridge_pressure(
     let Some(bridge) = cognition.bridge.as_ref() else {
         return;
     };
-    let decision = bridge
-        .pointer("/decision/speakDecision")
-        .and_then(Value::as_str)
-        .unwrap_or("silence");
+    let decision = bridge.decision.speak_decision.as_str();
     if decision == "silence" {
         return;
     }
@@ -229,10 +236,11 @@ fn import_bridge_pressure(
         EpiphanyMemoryProfile::AgencyPressure,
         "heartbeat bridge pressure",
     );
-    let reason = bridge
-        .pointer("/decision/reason")
-        .and_then(Value::as_str)
-        .unwrap_or("Bridge pressure has no explicit reason.");
+    let reason = if bridge.decision.reason.is_empty() {
+        "Bridge pressure has no explicit reason."
+    } else {
+        bridge.decision.reason.as_str()
+    };
     let node = EpiphanyMemoryNode {
         id: memory_graph_node_id(&domain_id, "bridge-pressure", decision, None),
         domain_id: domain_id.clone(),
@@ -324,31 +332,6 @@ fn push_summary(
     });
 }
 
-fn string_at(value: &Value, key: &str) -> String {
-    value
-        .get(key)
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .to_string()
-}
-
-fn string_at_any(value: &Value, keys: &[&str], fallback: &str) -> String {
-    keys.iter()
-        .find_map(|key| {
-            let value = value.get(key).and_then(Value::as_str)?;
-            if value.trim().is_empty() {
-                None
-            } else {
-                Some(value.to_string())
-            }
-        })
-        .unwrap_or_else(|| fallback.to_string())
-}
-
-fn number_at(value: &Value, key: &str) -> f64 {
-    value.get(key).and_then(Value::as_f64).unwrap_or_default()
-}
-
 fn score_to_u32(value: f64) -> u32 {
     if value.is_finite() {
         (value.clamp(0.0, 1.0) * 100.0).round() as u32
@@ -401,29 +384,52 @@ mod tests {
                     evidence_refs: vec!["mem-a".to_string(), "mem-b".to_string()],
                 }],
             }),
-            incubation: Some(serde_json::json!({
-                "themes": [{
-                    "themeId": "theme-body-soul",
-                    "summary": "Body and Soul keep touching evidence boundaries.",
-                    "latentQuestion": "Should this become doctrine?",
-                    "holdingCloseBecause": "It is live but not settled.",
-                    "whyItPulls": "It affects future review gates.",
-                    "status": "deepening",
-                    "priorityScore": 0.72,
-                    "maturation": 0.6
-                }, {
-                    "themeId": "theme-live-store-shape",
-                    "summary": "Live heartbeat stores may omit optional explanatory fields.",
-                    "status": "deepening"
-                }]
-            })),
+            incubation: Some(HeartbeatIncubation {
+                schema_version: "epiphany.incubation.v0".to_string(),
+                updated_at: "2026-05-18T00:00:00Z".to_string(),
+                source_coverage: HeartbeatSourceCoverage::default(),
+                last_incubation_summary: "Body/Soul evidence seam is live.".to_string(),
+                themes: vec![
+                    HeartbeatIncubationTheme {
+                        theme_id: "theme-body-soul".to_string(),
+                        summary: "Body and Soul keep touching evidence boundaries.".to_string(),
+                        latent_question: "Should this become doctrine?".to_string(),
+                        holding_close_because: "It is live but not settled.".to_string(),
+                        why_it_pulls: "It affects future review gates.".to_string(),
+                        status: "deepening".to_string(),
+                        priority_score: 0.72,
+                        maturation: 0.6,
+                        ..Default::default()
+                    },
+                    HeartbeatIncubationTheme {
+                        theme_id: "theme-live-store-shape".to_string(),
+                        summary: "Live heartbeat stores may omit optional explanatory fields."
+                            .to_string(),
+                        status: "deepening".to_string(),
+                        ..Default::default()
+                    },
+                ],
+            }),
             thought_lanes: None,
-            bridge: Some(serde_json::json!({
-                "decision": {
-                    "speakDecision": "hold",
-                    "reason": "The thought is live but not ready for speech."
-                }
-            })),
+            bridge: Some(HeartbeatCognitionBridge {
+                schema_version: "epiphany.cognition_bridge.v0".to_string(),
+                updated_at: "2026-05-18T00:00:00Z".to_string(),
+                decision: HeartbeatBridgeDecision {
+                    speak_decision: "hold".to_string(),
+                    reason: "The thought is live but not ready for speech.".to_string(),
+                    ..Default::default()
+                },
+                recent_syntheses: vec![HeartbeatBridgeSynthesis {
+                    summary: "The thought is live but not ready for speech.".to_string(),
+                    ..Default::default()
+                }],
+                unresolved_tensions: vec![HeartbeatBridgeTension {
+                    topic: "thought authority boundary".to_string(),
+                    summary: "Bridge pressure is not authority.".to_string(),
+                    opened_at: "2026-05-18T00:00:00Z".to_string(),
+                }],
+                ..Default::default()
+            }),
             candidate_interventions: Some(HeartbeatCandidateInterventions {
                 schema_version: "epiphany.candidate_interventions.v0".to_string(),
                 updated_at: "2026-05-18T00:00:00Z".to_string(),
