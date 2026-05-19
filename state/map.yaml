@@ -297,7 +297,11 @@ current_status:
     retrieval accepts workspace/Codex-home paths, invalidation uses Epiphany's
     own notify watcher, live rollout/thread reads moved into vendored
     app-server `epiphany_thread_host`, and mutation policy now depends on the
-    small `EpiphanyMutationHost` capability trait. `epiphany-codex-bridge`
-    source and manifest no longer name `codex-core` / `codex_core` /
-    `CodexThread`.
-  next_action: Continue Codex starvation and CultNet liberation from the new host wall. Audit remaining `epiphany-codex-bridge` dependencies on vendored protocol/app-server-protocol/OpenAI spine, then classify route-facing JSON-RPC response shaping, OpenAI/MCP protocol edges, and role-result/raw ingress compatibility. Keep JSON only at true wire/hostile-ingress/forensic boundaries; move Epiphany-owned runtime data into typed CultCache documents and CultNet contracts.
+    small `EpiphanyMutationHost` capability trait. Unused OpenAI bridge
+    reexports were cut; bridge durable-state imports now point at
+    `epiphany-state-model`; Codex token usage rollout replay moved back into
+    app-server; token telemetry crosses the wall as
+    `EpiphanyTokenUsageSnapshot`; and `CodexErr` was replaced with
+    `EpiphanyBridgeError`. `epiphany-codex-bridge` now depends on vendored
+    Codex only for app-server protocol DTOs and absolute path validation.
+  next_action: Continue Codex starvation and CultNet liberation from the new host wall. Audit whether `codex-app-server-protocol` DTO coupling should remain the legacy JSON-RPC edge or collapse into native CultNet/app-server boundary types; then classify OpenAI/MCP protocol edges and role-result/raw ingress compatibility. Keep JSON only at true wire/hostile-ingress/forensic boundaries; move Epiphany-owned runtime data into typed CultCache documents and CultNet contracts.
