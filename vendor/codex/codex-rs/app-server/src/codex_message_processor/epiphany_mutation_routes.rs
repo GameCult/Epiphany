@@ -5,8 +5,8 @@ use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::launch::map_core_worker_launch_document;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
@@ -19,7 +19,6 @@ use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
 use epiphany_codex_bridge::retrieve::index_thread_epiphany_retrieval;
 use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
-use epiphany_core::EpiphanyJobLaunchRequest;
 use std::sync::Arc;
 
 use super::CodexMessageProcessor;
@@ -570,12 +569,11 @@ impl CodexMessageProcessor {
             None => return,
         };
 
-        let launch_document = map_core_worker_launch_document(launch_document);
         let applied = match launch_thread_epiphany_job(
             thread.as_ref(),
-            EpiphanyJobLaunchRequest {
+            build_epiphany_job_launch_request(
                 expected_revision,
-                binding_id: binding_id.clone(),
+                binding_id.clone(),
                 kind,
                 scope,
                 owner_role,
@@ -586,7 +584,7 @@ impl CodexMessageProcessor {
                 launch_document,
                 output_contract_id,
                 max_runtime_seconds,
-            },
+            ),
             kind,
             "missing launched job projection",
         )

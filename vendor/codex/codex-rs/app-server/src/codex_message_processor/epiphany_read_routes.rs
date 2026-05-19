@@ -4,6 +4,7 @@ use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
+use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
 use epiphany_codex_bridge::retrieve::retrieve_thread_epiphany;
 use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
 use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
@@ -23,7 +24,6 @@ use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
-use epiphany_core::normalize_epiphany_retrieve_query;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -419,7 +419,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let query = match normalize_epiphany_retrieve_query(query, limit, path_prefixes) {
+        let query = match normalize_thread_epiphany_retrieve_query(query, limit, path_prefixes) {
             Ok(query) => query,
             Err(message) => {
                 self.send_invalid_request_error(request_id, message.to_string())

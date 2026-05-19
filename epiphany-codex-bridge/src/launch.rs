@@ -590,6 +590,36 @@ pub fn map_core_worker_launch_document(
     }
 }
 
+pub fn build_epiphany_job_launch_request(
+    expected_revision: Option<u64>,
+    binding_id: String,
+    kind: CoreEpiphanyJobKind,
+    scope: String,
+    owner_role: String,
+    authority_scope: String,
+    linked_subgoal_ids: Vec<String>,
+    linked_graph_node_ids: Vec<String>,
+    instruction: String,
+    launch_document: ThreadEpiphanyWorkerLaunchDocument,
+    output_contract_id: String,
+    max_runtime_seconds: Option<u64>,
+) -> EpiphanyJobLaunchRequest {
+    EpiphanyJobLaunchRequest {
+        expected_revision,
+        binding_id,
+        kind,
+        scope,
+        owner_role,
+        authority_scope,
+        linked_subgoal_ids,
+        linked_graph_node_ids,
+        instruction,
+        launch_document: map_core_worker_launch_document(launch_document),
+        output_contract_id,
+        max_runtime_seconds,
+    }
+}
+
 fn map_core_role_worker_launch_document(
     document: ThreadEpiphanyRoleWorkerLaunchDocument,
 ) -> EpiphanyRoleWorkerLaunchDocument {

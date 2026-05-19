@@ -659,9 +659,10 @@ The Codex-core re-export husks for `epiphany_distillation`, `epiphany_promotion`
 `epiphany_proposal`, and `epiphany_retrieval` have also been deleted. The
 `epiphany_rollout` husk is gone too; `codex-core::lib` keeps only the one
 host-boundary function that passes Codex's turn-boundary predicate into
-`epiphany-core`. `codex-core` no longer depends on `epiphany-core` at all:
-`CodexThread` exposes host persistence/path facts, while `epiphany-codex-bridge`
-calls native retrieval/indexing and state-update policy.
+`epiphany-core`. Vendored `codex-core` and `codex-app-server` no longer depend
+directly on `epiphany-core`: `CodexThread` exposes host persistence/path facts,
+while `epiphany-codex-bridge` calls native retrieval/indexing, state-update
+policy, and launch request construction.
 
 The runtime-spine job-opening mechanism for heartbeat/specialist launches has
 also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.
