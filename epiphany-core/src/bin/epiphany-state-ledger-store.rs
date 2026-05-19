@@ -6,7 +6,6 @@ use epiphany_core::add_state_branch;
 use epiphany_core::append_state_evidence;
 use epiphany_core::close_state_branch;
 use epiphany_core::state_ledger_status;
-use std::collections::BTreeMap;
 use std::env;
 use std::path::PathBuf;
 
@@ -29,7 +28,6 @@ fn main() -> Result<()> {
                 status: require_string_arg(&mut args, "--status")?,
                 note: require_string_arg(&mut args, "--note")?,
                 branch: optional_string_arg(&mut args, "--branch")?,
-                extra: BTreeMap::new(),
             };
             print_json(&append_state_evidence(store, record)?)?;
         }
@@ -44,7 +42,6 @@ fn main() -> Result<()> {
                 status: "active".to_string(),
                 artifacts,
                 notes: note.unwrap_or_default(),
-                extra: BTreeMap::new(),
             };
             print_json(&add_state_branch(store, branch)?)?;
         }
