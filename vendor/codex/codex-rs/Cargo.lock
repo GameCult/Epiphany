@@ -5087,8 +5087,6 @@ dependencies = [
  "codex-protocol",
  "codex-utils-absolute-path",
  "epiphany-core",
- "epiphany-openai-adapter",
- "epiphany-openai-codex-spine",
  "notify",
  "serde",
  "serde_json",
@@ -5126,29 +5124,6 @@ version = "0.1.0"
 dependencies = [
  "cultcache-rs",
  "serde",
-]
-
-[[package]]
-name = "epiphany-openai-auth-spine"
-version = "0.1.0"
-dependencies = [
- "codex-login",
- "serde_json",
-]
-
-[[package]]
-name = "epiphany-openai-codex-spine"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "codex-client",
- "epiphany-openai-adapter",
- "epiphany-openai-auth-spine",
- "futures",
- "http 1.4.0",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]
