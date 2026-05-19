@@ -281,7 +281,7 @@ pub struct EpiphanyCoordinatorSourceSignals {
 pub struct EpiphanyCoordinatorStatus {
     pub decision: EpiphanyCoordinatorDecision,
     pub source_signals: EpiphanyCoordinatorSourceSignals,
-    pub roles: Vec<ThreadEpiphanyRoleLane>,
+    pub roles: Vec<EpiphanyRoleBoardLane>,
     pub note: String,
     pub modeling_result_accepted: bool,
     pub verification_result_accepted: bool,
@@ -294,7 +294,7 @@ pub async fn derive_epiphany_coordinator_status(
     state_status: ThreadEpiphanyReorientStateStatus,
     pressure: &epiphany_core::EpiphanyPressure,
     recommendation: &CoreEpiphanyCrrcRecommendation,
-    roles: Vec<ThreadEpiphanyRoleLane>,
+    roles: Vec<EpiphanyRoleBoardLane>,
     reorient_decision: Option<&ThreadEpiphanyReorientDecision>,
     reorient_result_status: ThreadEpiphanyReorientResultStatus,
     reorient_finding: Option<&ThreadEpiphanyReorientFinding>,
@@ -429,6 +429,7 @@ pub fn map_epiphany_coordinator_view(
     state_status: ThreadEpiphanyReorientStateStatus,
     state_revision: Option<u64>,
     status: EpiphanyCoordinatorStatus,
+    roles: Vec<ThreadEpiphanyRoleLane>,
 ) -> ThreadEpiphanyViewCoordinator {
     ThreadEpiphanyViewCoordinator {
         thread_id,
@@ -452,7 +453,7 @@ pub fn map_epiphany_coordinator_view(
         can_auto_run: status.decision.can_auto_run,
         reason: status.decision.reason,
         source_signals: map_protocol_coordinator_source_signals(status.source_signals),
-        roles: status.roles,
+        roles,
         note: status.note,
     }
 }
@@ -565,7 +566,7 @@ pub async fn select_epiphany_coordinator_automation(
         state_status,
         &core_pressure,
         &crrc_recommendation,
-        roles,
+        roles.roles,
         Some(&reorient_decision),
         reorient_result_status,
         reorient_finding.as_ref(),
@@ -616,7 +617,7 @@ pub fn map_epiphany_coordinator(
     checkpoint_present: bool,
     pressure: &epiphany_core::EpiphanyPressure,
     recommendation: &CoreEpiphanyCrrcRecommendation,
-    roles: &[ThreadEpiphanyRoleLane],
+    roles: &[EpiphanyRoleBoardLane],
     signals: &EpiphanyCoordinatorSourceSignals,
     modeling_result_accepted: bool,
     modeling_result_reviewable: bool,
@@ -639,7 +640,10 @@ pub fn map_epiphany_coordinator(
                 .recommended_scene_action
                 .map(epiphany_core::crrc_scene_action_to_coordinator_scene_action),
         },
-        roles: roles.iter().map(map_core_coordinator_role_lane).collect(),
+        roles: roles
+            .iter()
+            .map(map_core_coordinator_role_lane_from_role_board)
+            .collect(),
         signals: EpiphanyCoordinatorSignals {
             modeling_result_status: signals.modeling_result_status,
             verification_result_status: signals.verification_result_status,
@@ -657,42 +661,12 @@ pub fn map_epiphany_coordinator(
     })
 }
 
-fn map_core_crrc_action_from_protocol(action: ThreadEpiphanyCrrcAction) -> CoreEpiphanyCrrcAction {
-    match action {
-        ThreadEpiphanyCrrcAction::Continue => CoreEpiphanyCrrcAction::Continue,
-        ThreadEpiphanyCrrcAction::PrepareCheckpoint => CoreEpiphanyCrrcAction::PrepareCheckpoint,
-        ThreadEpiphanyCrrcAction::LaunchReorientWorker => {
-            CoreEpiphanyCrrcAction::LaunchReorientWorker
-        }
-        ThreadEpiphanyCrrcAction::WaitForReorientWorker => {
-            CoreEpiphanyCrrcAction::WaitForReorientWorker
-        }
-        ThreadEpiphanyCrrcAction::ReviewReorientResult => {
-            CoreEpiphanyCrrcAction::ReviewReorientResult
-        }
-        ThreadEpiphanyCrrcAction::AcceptReorientResult => {
-            CoreEpiphanyCrrcAction::AcceptReorientResult
-        }
-        ThreadEpiphanyCrrcAction::RegatherManually => CoreEpiphanyCrrcAction::RegatherManually,
-    }
-}
-
-fn map_core_coordinator_role_lane(
-    role: &ThreadEpiphanyRoleLane,
+fn map_core_coordinator_role_lane_from_role_board(
+    role: &EpiphanyRoleBoardLane,
 ) -> CoreEpiphanyCoordinatorRoleLane {
     CoreEpiphanyCoordinatorRoleLane {
-        id: map_core_coordinator_role_id(role.id),
-        status: map_core_coordinator_role_status(role.status),
-    }
-}
-
-fn map_core_coordinator_role_id(role_id: ThreadEpiphanyRoleId) -> CoreEpiphanyCoordinatorRoleId {
-    match role_id {
-        ThreadEpiphanyRoleId::Implementation => CoreEpiphanyCoordinatorRoleId::Implementation,
-        ThreadEpiphanyRoleId::Imagination => CoreEpiphanyCoordinatorRoleId::Imagination,
-        ThreadEpiphanyRoleId::Modeling => CoreEpiphanyCoordinatorRoleId::Modeling,
-        ThreadEpiphanyRoleId::Verification => CoreEpiphanyCoordinatorRoleId::Verification,
-        ThreadEpiphanyRoleId::Reorientation => CoreEpiphanyCoordinatorRoleId::Reorientation,
+        id: role.id,
+        status: role.status,
     }
 }
 
@@ -705,21 +679,6 @@ fn map_protocol_coordinator_role_id(
         CoreEpiphanyCoordinatorRoleId::Modeling => ThreadEpiphanyRoleId::Modeling,
         CoreEpiphanyCoordinatorRoleId::Verification => ThreadEpiphanyRoleId::Verification,
         CoreEpiphanyCoordinatorRoleId::Reorientation => ThreadEpiphanyRoleId::Reorientation,
-    }
-}
-
-fn map_core_coordinator_role_status(
-    status: ThreadEpiphanyRoleStatus,
-) -> CoreEpiphanyCoordinatorRoleStatus {
-    match status {
-        ThreadEpiphanyRoleStatus::Ready => CoreEpiphanyCoordinatorRoleStatus::Ready,
-        ThreadEpiphanyRoleStatus::Needed => CoreEpiphanyCoordinatorRoleStatus::Needed,
-        ThreadEpiphanyRoleStatus::Running => CoreEpiphanyCoordinatorRoleStatus::Running,
-        ThreadEpiphanyRoleStatus::Waiting => CoreEpiphanyCoordinatorRoleStatus::Waiting,
-        ThreadEpiphanyRoleStatus::Review => CoreEpiphanyCoordinatorRoleStatus::Review,
-        ThreadEpiphanyRoleStatus::Blocked => CoreEpiphanyCoordinatorRoleStatus::Blocked,
-        ThreadEpiphanyRoleStatus::Unavailable => CoreEpiphanyCoordinatorRoleStatus::Unavailable,
-        ThreadEpiphanyRoleStatus::Completed => CoreEpiphanyCoordinatorRoleStatus::Completed,
     }
 }
 
@@ -775,45 +734,6 @@ fn map_protocol_coordinator_role_result_status(
         CoreEpiphanyCoordinatorRoleResultStatus::Failed => ThreadEpiphanyRoleResultStatus::Failed,
         CoreEpiphanyCoordinatorRoleResultStatus::Cancelled => {
             ThreadEpiphanyRoleResultStatus::Cancelled
-        }
-    }
-}
-
-fn map_core_coordinator_scene_action_from_protocol(
-    action: ThreadEpiphanySceneAction,
-) -> CoreEpiphanyCoordinatorSceneAction {
-    match action {
-        ThreadEpiphanySceneAction::Update => CoreEpiphanyCoordinatorSceneAction::Update,
-        ThreadEpiphanySceneAction::Reorient => CoreEpiphanyCoordinatorSceneAction::Reorient,
-        ThreadEpiphanySceneAction::ReorientLaunch => {
-            CoreEpiphanyCoordinatorSceneAction::ReorientLaunch
-        }
-        ThreadEpiphanySceneAction::ReorientResult => {
-            CoreEpiphanyCoordinatorSceneAction::ReorientResult
-        }
-        ThreadEpiphanySceneAction::ReorientAccept => {
-            CoreEpiphanyCoordinatorSceneAction::ReorientAccept
-        }
-        ThreadEpiphanySceneAction::RoleLaunch => CoreEpiphanyCoordinatorSceneAction::RoleLaunch,
-        ThreadEpiphanySceneAction::RoleResult => CoreEpiphanyCoordinatorSceneAction::RoleResult,
-        ThreadEpiphanySceneAction::Index
-        | ThreadEpiphanySceneAction::Retrieve
-        | ThreadEpiphanySceneAction::Distill
-        | ThreadEpiphanySceneAction::Context
-        | ThreadEpiphanySceneAction::Planning
-        | ThreadEpiphanySceneAction::GraphQuery
-        | ThreadEpiphanySceneAction::Jobs
-        | ThreadEpiphanySceneAction::Roles
-        | ThreadEpiphanySceneAction::Coordinator
-        | ThreadEpiphanySceneAction::RoleAccept
-        | ThreadEpiphanySceneAction::JobLaunch
-        | ThreadEpiphanySceneAction::JobInterrupt
-        | ThreadEpiphanySceneAction::Freshness
-        | ThreadEpiphanySceneAction::Pressure
-        | ThreadEpiphanySceneAction::Crrc
-        | ThreadEpiphanySceneAction::Propose
-        | ThreadEpiphanySceneAction::Promote => {
-            unreachable!("unsupported CRRC coordinator scene action: {action:?}")
         }
     }
 }
@@ -1083,6 +1003,12 @@ fn reorient_finding_runtime_result_id(finding: &ThreadEpiphanyReorientFinding) -
     finding.runtime_result_id.clone()
 }
 
+#[derive(Debug, Clone)]
+pub struct EpiphanyRoleBoardStatus {
+    pub roles: Vec<EpiphanyRoleBoardLane>,
+    source_jobs: Vec<ThreadEpiphanyJob>,
+}
+
 pub fn map_epiphany_roles(
     state: Option<&EpiphanyThreadState>,
     jobs: &[ThreadEpiphanyJob],
@@ -1091,7 +1017,7 @@ pub fn map_epiphany_roles(
     recommendation: &CoreEpiphanyCrrcRecommendation,
     result_status: ThreadEpiphanyReorientResultStatus,
     reorient_job: Option<&ThreadEpiphanyJob>,
-) -> Vec<ThreadEpiphanyRoleLane> {
+) -> EpiphanyRoleBoardStatus {
     let planning = state.map(|state| &state.planning);
     let checkpoint = state.and_then(|state| state.investigation_checkpoint.as_ref());
     let mut source_jobs = jobs.to_vec();
@@ -1102,7 +1028,7 @@ pub fn map_epiphany_roles(
     {
         source_jobs.push(job.clone());
     }
-    derive_role_board(EpiphanyRoleBoardInput {
+    let roles = derive_role_board(EpiphanyRoleBoardInput {
         state_present: state.is_some(),
         planning: EpiphanyRoleBoardPlanningSummary {
             capture_count: planning
@@ -1138,10 +1064,9 @@ pub fn map_epiphany_roles(
         verification_binding_id: EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
         reorient_owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
         imagination_owner_role: EPIPHANY_IMAGINATION_OWNER_ROLE.to_string(),
-    })
-    .into_iter()
-    .map(|lane| map_protocol_role_board_lane(lane, &source_jobs))
-    .collect()
+    });
+
+    EpiphanyRoleBoardStatus { roles, source_jobs }
 }
 
 fn map_core_role_board_job(job: &ThreadEpiphanyJob) -> EpiphanyRoleBoardJob {
@@ -1166,6 +1091,17 @@ fn map_core_role_board_job_status(status: ThreadEpiphanyJobStatus) -> EpiphanyRo
         ThreadEpiphanyJobStatus::Blocked => EpiphanyRoleBoardJobStatus::Blocked,
         ThreadEpiphanyJobStatus::Unavailable => EpiphanyRoleBoardJobStatus::Unavailable,
     }
+}
+
+pub fn map_protocol_role_board_lanes(
+    role_board: &EpiphanyRoleBoardStatus,
+) -> Vec<ThreadEpiphanyRoleLane> {
+    role_board
+        .roles
+        .iter()
+        .cloned()
+        .map(|lane| map_protocol_role_board_lane(lane, &role_board.source_jobs))
+        .collect()
 }
 
 fn map_protocol_role_board_lane(
@@ -1250,28 +1186,13 @@ fn map_protocol_coordinator_role_status(
 }
 
 pub fn render_epiphany_roles_note(
-    roles: &[ThreadEpiphanyRoleLane],
+    roles: &[EpiphanyRoleBoardLane],
     state_status: ThreadEpiphanyReorientStateStatus,
-    recommendation: ThreadEpiphanyCrrcAction,
+    recommendation: CoreEpiphanyCrrcAction,
 ) -> String {
-    let core_roles = roles
-        .iter()
-        .map(|role| EpiphanyRoleBoardLane {
-            id: map_core_coordinator_role_id(role.id),
-            title: role.title.clone(),
-            owner_role: role.owner_role.clone(),
-            status: map_core_coordinator_role_status(role.status),
-            note: role.note.clone(),
-            jobs: role.jobs.iter().map(map_core_role_board_job).collect(),
-            authority_scopes: role.authority_scopes.clone(),
-            recommended_action: role
-                .recommended_action
-                .map(map_core_coordinator_scene_action_from_protocol),
-        })
-        .collect::<Vec<_>>();
     render_role_board_note(
-        &core_roles,
+        roles,
         format!("{:?}", state_status).as_str(),
-        map_core_crrc_action_from_protocol(recommendation),
+        recommendation,
     )
 }

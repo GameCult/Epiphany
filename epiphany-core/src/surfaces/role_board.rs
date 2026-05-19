@@ -3,8 +3,10 @@ use super::EpiphanyCoordinatorRoleStatus;
 use super::EpiphanyCoordinatorSceneAction;
 use super::EpiphanyCrrcAction;
 use super::EpiphanyCrrcResultStatus;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyRoleBoardJobStatus {
     Idle,
     Needed,
@@ -17,7 +19,8 @@ pub enum EpiphanyRoleBoardJobStatus {
     Unavailable,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleBoardJob {
     pub id: String,
     pub owner_role: String,
@@ -26,7 +29,8 @@ pub struct EpiphanyRoleBoardJob {
     pub blocking_reason: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleBoardPlanningSummary {
     pub capture_count: usize,
     pub backlog_item_count: usize,
@@ -34,13 +38,15 @@ pub struct EpiphanyRoleBoardPlanningSummary {
     pub objective_draft_count: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleBoardCheckpointSummary {
     pub disposition: Option<String>,
     pub next_action: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleBoardInput {
     pub state_present: bool,
     pub planning: EpiphanyRoleBoardPlanningSummary,
@@ -61,7 +67,8 @@ pub struct EpiphanyRoleBoardInput {
     pub imagination_owner_role: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleBoardLane {
     pub id: EpiphanyCoordinatorRoleId,
     pub title: String,

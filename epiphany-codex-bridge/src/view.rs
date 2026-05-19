@@ -19,8 +19,8 @@ use crate::coordinator::epiphany_reorient_finding_already_accepted;
 use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
-use crate::coordinator::map_protocol_crrc_action;
 use crate::coordinator::map_protocol_crrc_recommendation;
+use crate::coordinator::map_protocol_role_board_lanes;
 use crate::coordinator::render_epiphany_roles_note;
 use crate::cultnet::EpiphanyFreshnessSurface;
 use crate::cultnet::EpiphanySurfaceSource;
@@ -269,13 +269,14 @@ pub async fn map_epiphany_view_response(
             recommendation.as_ref(),
             roles.clone(),
         ) {
+            let protocol_roles = map_protocol_role_board_lanes(&roles);
             let status = derive_epiphany_coordinator_status(
                 state,
                 runtime_store_path,
                 reorient_state_status,
                 core_pressure,
                 recommendation,
-                roles,
+                roles.roles.clone(),
                 reorient_decision.as_ref(),
                 reorient_result_status,
                 reorient_finding.as_ref(),
@@ -288,6 +289,7 @@ pub async fn map_epiphany_view_response(
                 reorient_state_status,
                 state_revision,
                 status,
+                protocol_roles,
             ))
         } else {
             None
@@ -307,7 +309,11 @@ pub async fn map_epiphany_view_response(
             Vec::new()
         },
         roles: lenses.contains(&ThreadEpiphanyViewLens::Roles).then(|| {
-            let roles = roles.clone().unwrap_or_default();
+            let role_board = roles.clone();
+            let protocol_roles = role_board
+                .as_ref()
+                .map(map_protocol_role_board_lanes)
+                .unwrap_or_default();
             ThreadEpiphanyViewRoles {
                 thread_id: thread_id.clone(),
                 source: if loaded {
@@ -318,14 +324,17 @@ pub async fn map_epiphany_view_response(
                 state_status: reorient_state_status,
                 state_revision,
                 note: render_epiphany_roles_note(
-                    &roles,
+                    role_board
+                        .as_ref()
+                        .map(|role_board| role_board.roles.as_slice())
+                        .unwrap_or(&[]),
                     reorient_state_status,
                     recommendation
                         .as_ref()
-                        .map(|recommendation| map_protocol_crrc_action(recommendation.action))
-                        .unwrap_or(ThreadEpiphanyCrrcAction::Continue),
+                        .map(|recommendation| recommendation.action)
+                        .unwrap_or(epiphany_core::EpiphanyCrrcAction::Continue),
                 ),
-                roles,
+                roles: protocol_roles,
             }
         }),
         planning: lenses.contains(&ThreadEpiphanyViewLens::Planning).then(|| {
