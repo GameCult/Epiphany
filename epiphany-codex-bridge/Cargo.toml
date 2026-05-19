@@ -16,6 +16,7 @@ codex-app-server-protocol = { path = "../vendor/codex/codex-rs/app-server-protoc
 codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
 codex-utils-absolute-path = { path = "../vendor/codex/codex-rs/utils/absolute-path" }
 epiphany-core = { path = "../epiphany-core" }
+epiphany-state-model = { path = "../epiphany-state-model" }
 notify = "8.2.0"
 serde_json = "1"
 serde = { version = "1", features = ["derive"] }

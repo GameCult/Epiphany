@@ -1,13 +1,13 @@
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
-use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
-use codex_protocol::protocol::EpiphanyRetrievalState;
-use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
 use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyJobsInput;
 use epiphany_core::derive_jobs;
+use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
+use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyThreadState;
 
 pub fn map_epiphany_jobs(
     state: Option<&EpiphanyThreadState>,

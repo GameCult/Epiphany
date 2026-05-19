@@ -7,10 +7,6 @@ use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
-use codex_protocol::protocol::EpiphanyCodeRef;
-use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-use codex_protocol::protocol::EpiphanyScratchPad;
 use epiphany_core::EpiphanyReorientAcceptanceFinding;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
@@ -19,6 +15,10 @@ use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::imagination_role_state_patch_policy_errors;
 use epiphany_core::modeling_role_state_patch_policy_errors;
+use epiphany_state_model::EpiphanyCodeRef;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyInvestigationDisposition;
+use epiphany_state_model::EpiphanyScratchPad;
 
 use crate::results::map_core_role_result_role_id;
 use crate::runtime_results::reorient_finding_runtime_job_id;
@@ -106,7 +106,7 @@ pub fn epiphany_state_updated_notification(
     source: ThreadEpiphanyStateUpdatedSource,
     revision: u64,
     changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
-    epiphany_state: codex_protocol::protocol::EpiphanyThreadState,
+    epiphany_state: epiphany_state_model::EpiphanyThreadState,
 ) -> ThreadEpiphanyStateUpdatedNotification {
     ThreadEpiphanyStateUpdatedNotification {
         thread_id,

@@ -5087,6 +5087,7 @@ dependencies = [
  "codex-protocol",
  "codex-utils-absolute-path",
  "epiphany-core",
+ "epiphany-state-model",
  "notify",
  "serde",
  "serde_json",

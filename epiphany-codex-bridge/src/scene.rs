@@ -10,7 +10,6 @@ use codex_app_server_protocol::ThreadEpiphanySceneSource;
 use codex_app_server_protocol::ThreadEpiphanySceneStateStatus;
 use codex_app_server_protocol::ThreadEpiphanySceneStatusCount;
 use codex_app_server_protocol::ThreadEpiphanySceneSubgoal;
-use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyScene as CoreEpiphanyScene;
 use epiphany_core::EpiphanySceneAction as CoreEpiphanySceneAction;
 use epiphany_core::EpiphanySceneChurn as CoreEpiphanySceneChurn;
@@ -25,6 +24,7 @@ use epiphany_core::EpiphanySceneStateStatus as CoreEpiphanySceneStateStatus;
 use epiphany_core::EpiphanySceneStatusCount as CoreEpiphanySceneStatusCount;
 use epiphany_core::EpiphanySceneSubgoal as CoreEpiphanySceneSubgoal;
 use epiphany_core::derive_scene;
+use epiphany_state_model::EpiphanyThreadState;
 
 pub fn map_epiphany_scene(
     state: Option<&EpiphanyThreadState>,

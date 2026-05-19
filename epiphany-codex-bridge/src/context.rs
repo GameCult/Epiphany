@@ -9,10 +9,6 @@ use codex_app_server_protocol::ThreadEpiphanyGraphQueryKind;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryMatched;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryMissing;
 use codex_app_server_protocol::ThreadEpiphanyPlanningSummary;
-use codex_protocol::protocol::EpiphanyGraphCheckpoint;
-use codex_protocol::protocol::EpiphanyGraphFrontier;
-use codex_protocol::protocol::EpiphanyPlanningState;
-use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyContext as CoreEpiphanyContext;
 use epiphany_core::EpiphanyContextMissing as CoreEpiphanyContextMissing;
 use epiphany_core::EpiphanyContextParams as CoreEpiphanyContextParams;
@@ -31,6 +27,10 @@ use epiphany_core::EpiphanyPlanningView;
 use epiphany_core::derive_context;
 use epiphany_core::derive_graph_query;
 use epiphany_core::derive_planning_view;
+use epiphany_state_model::EpiphanyGraphCheckpoint;
+use epiphany_state_model::EpiphanyGraphFrontier;
+use epiphany_state_model::EpiphanyPlanningState;
+use epiphany_state_model::EpiphanyThreadState;
 
 pub fn map_epiphany_context(
     state: Option<&EpiphanyThreadState>,

@@ -12,14 +12,14 @@ use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
-use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
-use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyInvestigationDisposition;
+use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
+use epiphany_state_model::EpiphanyThreadState;
 
 pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
 pub const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";

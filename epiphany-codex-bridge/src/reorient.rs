@@ -11,8 +11,6 @@ use codex_app_server_protocol::ThreadEpiphanyReorientReason;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
-use codex_protocol::protocol::EpiphanyRetrievalState;
-use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyFreshnessInput;
 use epiphany_core::EpiphanyFreshnessView;
 use epiphany_core::EpiphanyFreshnessWatcherInput;
@@ -31,6 +29,8 @@ use epiphany_core::EpiphanyRetrievalFreshness as CoreEpiphanyRetrievalFreshness;
 use epiphany_core::EpiphanyRetrievalFreshnessStatus as CoreEpiphanyRetrievalFreshnessStatus;
 use epiphany_core::derive_freshness;
 use epiphany_core::recommend_reorientation;
+use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyThreadState;
 use std::path::Path;
 use std::path::PathBuf;
 

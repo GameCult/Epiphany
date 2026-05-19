@@ -2,8 +2,8 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::write_thread_state;
+use epiphany_state_model::EpiphanyThreadState;
 use tracing::warn;
 
 use crate::retrieve::epiphany_retrieval_state_for_paths;

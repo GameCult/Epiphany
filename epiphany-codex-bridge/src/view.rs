@@ -1,8 +1,6 @@
 use std::path::Path;
 
 use codex_app_server_protocol::*;
-use codex_protocol::protocol::EpiphanyRetrievalState;
-use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyMapProposalInput;
@@ -10,6 +8,8 @@ use epiphany_core::EpiphanySceneInput;
 use epiphany_core::derive_scene;
 use epiphany_core::distill_observation;
 use epiphany_core::propose_map_update;
+use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyThreadState;
 
 use crate::context::map_epiphany_context;
 use crate::context::map_epiphany_graph_query;

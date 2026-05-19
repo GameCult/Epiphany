@@ -7,8 +7,6 @@ use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
-use codex_protocol::protocol::EpiphanyRuntimeLink;
-use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::interpret_runtime_reorient_worker_result;
@@ -16,6 +14,8 @@ use epiphany_core::interpret_runtime_role_worker_result;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_reorient_worker_result;
 use epiphany_core::runtime_role_worker_result;
+use epiphany_state_model::EpiphanyRuntimeLink;
+use epiphany_state_model::EpiphanyThreadState;
 
 use crate::results::map_core_role_result_role_id;
 use crate::results::map_protocol_reorient_finding;

@@ -4,7 +4,6 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
-use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use epiphany_core::EpiphanyRetrieveQuery;
 use epiphany_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
@@ -14,6 +13,7 @@ use epiphany_core::index_workspace;
 use epiphany_core::normalize_epiphany_retrieve_query;
 use epiphany_core::retrieval_state_for_workspace;
 use epiphany_core::retrieve_workspace;
+use epiphany_state_model::EpiphanyRetrievalState;
 use std::path::PathBuf;
 
 pub fn map_epiphany_retrieve_response(
