@@ -1,6 +1,7 @@
 pub mod checkpoint;
 pub mod context;
 pub mod coordinator;
+pub mod error;
 pub mod invalidation;
 pub mod jobs;
 pub mod launch;

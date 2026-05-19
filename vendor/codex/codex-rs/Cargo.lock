@@ -5084,7 +5084,6 @@ dependencies = [
  "anyhow",
  "chrono",
  "codex-app-server-protocol",
- "codex-protocol",
  "codex-utils-absolute-path",
  "epiphany-core",
  "epiphany-state-model",

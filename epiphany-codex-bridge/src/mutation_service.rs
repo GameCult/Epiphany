@@ -13,7 +13,6 @@ use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
-use codex_protocol::error::CodexErr;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
@@ -35,6 +34,8 @@ use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
+use crate::error::EpiphanyBridgeError;
+use crate::error::Result as BridgeResult;
 use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::map_epiphany_jobs;
 use crate::jobs::map_interrupted_epiphany_job;
@@ -65,7 +66,7 @@ pub trait EpiphanyMutationHost {
     async fn epiphany_persist_state(
         &self,
         next_state: EpiphanyThreadState,
-    ) -> Result<EpiphanyThreadState, CodexErr>;
+    ) -> BridgeResult<EpiphanyThreadState>;
     async fn epiphany_runtime_spine_store_path(&self) -> PathBuf;
     async fn client_visible_epiphany_state(
         &self,
@@ -142,7 +143,7 @@ pub struct EpiphanyReorientLaunchApplied {
 pub async fn apply_epiphany_state_update_to_thread(
     thread: &impl EpiphanyMutationHost,
     update: EpiphanyStateUpdate,
-) -> Result<EpiphanyThreadState, CodexErr> {
+) -> BridgeResult<EpiphanyThreadState> {
     let current_state = thread.epiphany_state().await.unwrap_or_default();
     let reference_turn_id = thread.epiphany_reference_turn_id().await;
     let next_state =
@@ -154,9 +155,9 @@ pub fn apply_epiphany_state_update_to_state(
     current_state: &EpiphanyThreadState,
     update: EpiphanyStateUpdate,
     reference_turn_id: Option<String>,
-) -> Result<EpiphanyThreadState, CodexErr> {
+) -> BridgeResult<EpiphanyThreadState> {
     if update.is_empty() {
-        return Err(CodexErr::InvalidRequest(
+        return Err(EpiphanyBridgeError::InvalidRequest(
             "epiphany update patch must contain at least one mutation".to_string(),
         ));
     }
@@ -165,7 +166,7 @@ pub fn apply_epiphany_state_update_to_state(
     if let Some(expected_revision) = update.expected_revision
         && next_state.revision != expected_revision
     {
-        return Err(CodexErr::InvalidRequest(format!(
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "epiphany state revision mismatch: expected {expected_revision}, found {}",
             next_state.revision
         )));
@@ -173,7 +174,7 @@ pub fn apply_epiphany_state_update_to_state(
 
     let validation_errors = epiphany_state_update_validation_errors(&next_state, &update);
     if !validation_errors.is_empty() {
-        return Err(CodexErr::InvalidRequest(format!(
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "invalid epiphany update patch: {}",
             validation_errors.join("; ")
         )));
@@ -186,7 +187,7 @@ pub fn apply_epiphany_state_update_to_state(
 pub async fn launch_epiphany_job_on_thread(
     thread: &impl EpiphanyMutationHost,
     request: EpiphanyJobLaunchRequest,
-) -> Result<EpiphanyJobLaunchResult, CodexErr> {
+) -> BridgeResult<EpiphanyJobLaunchResult> {
     let current_state = thread.epiphany_state().await.unwrap_or_default();
     validate_expected_revision(request.expected_revision, current_state.revision)?;
 
@@ -209,7 +210,7 @@ pub async fn launch_epiphany_job_on_thread(
             runtime_job_id: backend_job_id.clone(),
         },
     )
-    .map_err(|err| CodexErr::InvalidRequest(err.to_string()))?;
+    .map_err(|err| EpiphanyBridgeError::InvalidRequest(err.to_string()))?;
     let runtime_store = thread.epiphany_runtime_spine_store_path().await;
     open_epiphany_runtime_spine_job(
         runtime_store.as_path(),
@@ -231,7 +232,7 @@ pub async fn launch_epiphany_job_on_thread(
         },
     );
     if !validation_errors.is_empty() {
-        return Err(CodexErr::InvalidRequest(format!(
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "invalid Epiphany job launch patch: {}",
             validation_errors.join("; ")
         )));
@@ -259,9 +260,9 @@ pub async fn launch_epiphany_job_on_thread(
 pub async fn interrupt_epiphany_job_on_thread(
     thread: &impl EpiphanyMutationHost,
     request: EpiphanyJobInterruptRequest,
-) -> Result<EpiphanyJobInterruptResult, CodexErr> {
+) -> BridgeResult<EpiphanyJobInterruptResult> {
     if request.binding_id.trim().is_empty() {
-        return Err(CodexErr::InvalidRequest(
+        return Err(EpiphanyBridgeError::InvalidRequest(
             "epiphany job interrupt binding_id must be non-empty".to_string(),
         ));
     }
@@ -274,7 +275,7 @@ pub async fn interrupt_epiphany_job_on_thread(
         .iter()
         .position(|binding| binding.id == request.binding_id)
     else {
-        return Err(CodexErr::InvalidRequest(format!(
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "epiphany job binding {:?} was not found",
             request.binding_id
         )));
@@ -309,7 +310,7 @@ pub async fn apply_thread_epiphany_update(
     thread: &impl EpiphanyMutationHost,
     expected_revision: Option<u64>,
     patch: ThreadEpiphanyUpdatePatch,
-) -> Result<EpiphanyThreadUpdateApplied, CodexErr> {
+) -> BridgeResult<EpiphanyThreadUpdateApplied> {
     let changed_fields = epiphany_update_patch_changed_fields(&patch);
     let update = state_update_from_thread_patch(expected_revision, patch);
     let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
@@ -326,7 +327,7 @@ pub async fn apply_thread_epiphany_promote(
     expected_revision: Option<u64>,
     patch: ThreadEpiphanyUpdatePatch,
     verifier_evidence: EpiphanyEvidenceRecord,
-) -> Result<EpiphanyThreadPromoteApplied, CodexErr> {
+) -> BridgeResult<EpiphanyThreadPromoteApplied> {
     let decision = evaluate_promotion(EpiphanyPromotionInput {
         has_state_replacements: thread_epiphany_patch_has_state_replacements(&patch),
         active_subgoal_id: patch.active_subgoal_id.clone(),
@@ -367,9 +368,9 @@ pub async fn apply_thread_epiphany_role_accept(
     role_id: ThreadEpiphanyRoleId,
     expected_revision: Option<u64>,
     binding_id: &str,
-) -> Result<EpiphanyRoleAcceptApplied, CodexErr> {
+) -> BridgeResult<EpiphanyRoleAcceptApplied> {
     let state = thread.epiphany_state().await.ok_or_else(|| {
-        CodexErr::InvalidRequest(
+        EpiphanyBridgeError::InvalidRequest(
             "cannot accept an Epiphany role finding without authoritative Epiphany state"
                 .to_string(),
         )
@@ -392,7 +393,7 @@ pub async fn apply_thread_epiphany_role_accept(
         format!("obs-{accepted_prefix}-{}", Uuid::new_v4()),
         Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
     )
-    .map_err(CodexErr::InvalidRequest)?;
+    .map_err(EpiphanyBridgeError::InvalidRequest)?;
 
     let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
@@ -424,16 +425,16 @@ pub async fn apply_thread_epiphany_reorient_accept(
     binding_id: &str,
     update_scratch: bool,
     update_investigation_checkpoint: bool,
-) -> Result<EpiphanyReorientAcceptApplied, CodexErr> {
+) -> BridgeResult<EpiphanyReorientAcceptApplied> {
     let state = thread.epiphany_state().await.ok_or_else(|| {
-        CodexErr::InvalidRequest(
+        EpiphanyBridgeError::InvalidRequest(
             "cannot accept a reorientation finding without authoritative Epiphany state"
                 .to_string(),
         )
     })?;
     validate_expected_revision(expected_revision, state.revision)?;
     if update_investigation_checkpoint && state.investigation_checkpoint.is_none() {
-        return Err(CodexErr::InvalidRequest(
+        return Err(EpiphanyBridgeError::InvalidRequest(
             "cannot update investigation checkpoint because this thread has no durable checkpoint"
                 .to_string(),
         ));
@@ -456,7 +457,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
         update_investigation_checkpoint,
         state.investigation_checkpoint.clone(),
     )
-    .map_err(CodexErr::InvalidRequest)?;
+    .map_err(EpiphanyBridgeError::InvalidRequest)?;
 
     let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
@@ -483,9 +484,9 @@ pub async fn launch_thread_epiphany_role(
     role_id: ThreadEpiphanyRoleId,
     expected_revision: Option<u64>,
     max_runtime_seconds: Option<u64>,
-) -> Result<EpiphanyJobLaunchApplied, CodexErr> {
+) -> BridgeResult<EpiphanyJobLaunchApplied> {
     let state = thread.epiphany_state().await.ok_or_else(|| {
-        CodexErr::InvalidRequest(
+        EpiphanyBridgeError::InvalidRequest(
             "cannot launch an Epiphany role specialist without authoritative Epiphany state"
                 .to_string(),
         )
@@ -497,7 +498,7 @@ pub async fn launch_thread_epiphany_role(
         max_runtime_seconds,
         &state,
     )
-    .map_err(CodexErr::InvalidRequest)?;
+    .map_err(EpiphanyBridgeError::InvalidRequest)?;
     launch_thread_epiphany_job(
         thread,
         launch_request,
@@ -512,7 +513,7 @@ pub async fn launch_thread_epiphany_job(
     launch_request: EpiphanyJobLaunchRequest,
     kind: CoreEpiphanyJobKind,
     missing_projection_reason: &str,
-) -> Result<EpiphanyJobLaunchApplied, CodexErr> {
+) -> BridgeResult<EpiphanyJobLaunchApplied> {
     let changed_fields = epiphany_job_launch_changed_fields();
     let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;
     let epiphany_state = thread
@@ -539,7 +540,7 @@ pub async fn interrupt_thread_epiphany_job(
     expected_revision: Option<u64>,
     binding_id: &str,
     reason: Option<String>,
-) -> Result<EpiphanyJobInterruptApplied, CodexErr> {
+) -> BridgeResult<EpiphanyJobInterruptApplied> {
     let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
     let interrupted = interrupt_epiphany_job_on_thread(
         thread,
@@ -574,7 +575,7 @@ pub async fn launch_thread_epiphany_reorient(
     retrieval_override: Option<&EpiphanyRetrievalState>,
     watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'_>>,
     token_usage_info: Option<&EpiphanyTokenUsageSnapshot>,
-) -> Result<EpiphanyReorientLaunchApplied, CodexErr> {
+) -> BridgeResult<EpiphanyReorientLaunchApplied> {
     let (state_revision, retrieval, graph, watcher) =
         map_epiphany_freshness(state, retrieval_override, watcher_snapshot);
     let pressure = map_epiphany_pressure(token_usage_info);
@@ -582,13 +583,13 @@ pub async fn launch_thread_epiphany_reorient(
         map_epiphany_reorient(state, &pressure, &retrieval, &graph, &watcher);
 
     let state = state.ok_or_else(|| {
-        CodexErr::InvalidRequest(format!(
+        EpiphanyBridgeError::InvalidRequest(format!(
             "cannot launch a reorientation worker without authoritative Epiphany state: {}",
             decision.note
         ))
     })?;
     let checkpoint = state.investigation_checkpoint.as_ref().ok_or_else(|| {
-        CodexErr::InvalidRequest(format!(
+        EpiphanyBridgeError::InvalidRequest(format!(
             "cannot launch a reorientation worker without a durable investigation checkpoint: {}",
             decision.note
         ))
@@ -636,7 +637,7 @@ fn open_epiphany_runtime_spine_job(
     state: &EpiphanyThreadState,
     request: &EpiphanyJobLaunchRequest,
     backend_job_id: &str,
-) -> Result<(), CodexErr> {
+) -> BridgeResult<()> {
     let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
     open_runtime_spine_heartbeat_job(
         store_path,
@@ -661,7 +662,7 @@ fn open_epiphany_runtime_spine_job(
         },
     )
     .map_err(|err| {
-        CodexErr::Fatal(format!(
+        EpiphanyBridgeError::Fatal(format!(
             "failed to open Epiphany runtime spine job {:?} in {}: {err}",
             backend_job_id,
             store_path.display()
@@ -673,11 +674,11 @@ fn open_epiphany_runtime_spine_job(
 fn validate_expected_revision(
     expected_revision: Option<u64>,
     actual_revision: u64,
-) -> Result<(), CodexErr> {
+) -> BridgeResult<()> {
     if let Some(expected_revision) = expected_revision
         && actual_revision != expected_revision
     {
-        return Err(CodexErr::InvalidRequest(format!(
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "epiphany state revision mismatch: expected {expected_revision}, found {actual_revision}"
         )));
     }

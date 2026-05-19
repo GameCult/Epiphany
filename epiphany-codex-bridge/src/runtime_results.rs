@@ -5,8 +5,6 @@ use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
-use codex_protocol::error::CodexErr;
-use codex_protocol::error::Result as CodexResult;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::interpret_runtime_reorient_worker_result;
@@ -17,6 +15,8 @@ use epiphany_core::runtime_role_worker_result;
 use epiphany_state_model::EpiphanyRuntimeLink;
 use epiphany_state_model::EpiphanyThreadState;
 
+use crate::error::EpiphanyBridgeError;
+use crate::error::Result as BridgeResult;
 use crate::results::map_core_role_result_role_id;
 use crate::results::map_protocol_reorient_finding;
 use crate::results::map_protocol_role_finding;
@@ -273,7 +273,7 @@ pub fn load_completed_epiphany_role_finding(
     state: &EpiphanyThreadState,
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
-) -> CodexResult<ThreadEpiphanyRoleFinding> {
+) -> BridgeResult<ThreadEpiphanyRoleFinding> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
         let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
@@ -281,13 +281,13 @@ pub fn load_completed_epiphany_role_finding(
             role_id,
         );
         if status != ThreadEpiphanyRoleResultStatus::Completed {
-            return Err(CodexErr::InvalidRequest(format!(
+            return Err(EpiphanyBridgeError::InvalidRequest(format!(
                 "cannot accept role result while worker status is {:?}",
                 status
             )));
         }
         return finding.ok_or_else(|| {
-            CodexErr::InvalidRequest(
+            EpiphanyBridgeError::InvalidRequest(
                 "cannot accept completed role worker because no typed runtime-spine result was recorded"
                     .to_string(),
             )
@@ -299,13 +299,13 @@ pub fn load_completed_epiphany_role_finding(
         .iter()
         .any(|binding| binding.id == binding_id)
     {
-        return Err(CodexErr::InvalidRequest(format!(
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "epiphany role binding {:?} was not found",
             binding_id
         )));
     }
 
-    Err(CodexErr::InvalidRequest(
+    Err(EpiphanyBridgeError::InvalidRequest(
         "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
             .to_string(),
     ))
@@ -356,20 +356,20 @@ pub fn load_completed_epiphany_reorient_finding(
     runtime_store_path: Option<&Path>,
     state: &EpiphanyThreadState,
     binding_id: &str,
-) -> CodexResult<ThreadEpiphanyReorientFinding> {
+) -> BridgeResult<ThreadEpiphanyReorientFinding> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
         let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
             runtime_store_path,
         );
         if status != ThreadEpiphanyReorientResultStatus::Completed {
-            return Err(CodexErr::InvalidRequest(format!(
+            return Err(EpiphanyBridgeError::InvalidRequest(format!(
                 "cannot accept reorientation result while worker status is {:?}",
                 status
             )));
         }
         return finding.ok_or_else(|| {
-            CodexErr::InvalidRequest(
+            EpiphanyBridgeError::InvalidRequest(
                 "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
                     .to_string(),
             )
@@ -381,13 +381,13 @@ pub fn load_completed_epiphany_reorient_finding(
         .iter()
         .any(|binding| binding.id == binding_id)
     {
-        return Err(CodexErr::InvalidRequest(format!(
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "epiphany reorientation binding {:?} was not found",
             binding_id
         )));
     }
 
-    Err(CodexErr::InvalidRequest(
+    Err(EpiphanyBridgeError::InvalidRequest(
         "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
             .to_string(),
     ))

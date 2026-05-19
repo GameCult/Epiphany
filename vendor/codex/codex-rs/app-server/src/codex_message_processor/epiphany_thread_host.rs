@@ -3,10 +3,11 @@ use std::path::Path;
 use codex_core::CodexThread;
 use codex_core::RolloutRecorder;
 use codex_core::latest_epiphany_state_from_rollout_items;
-use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::InitialHistory;
 use codex_protocol::protocol::TokenUsageInfo;
+use epiphany_codex_bridge::error::EpiphanyBridgeError;
+use epiphany_codex_bridge::error::Result as BridgeResult;
 use epiphany_codex_bridge::mutation_service::EpiphanyMutationHost;
 use epiphany_codex_bridge::pressure::EpiphanyTokenUsageSnapshot;
 use epiphany_codex_bridge::state::client_visible_epiphany_state_for_paths;
@@ -34,8 +35,11 @@ impl EpiphanyMutationHost for EpiphanyCodexThreadHost<'_> {
     async fn epiphany_persist_state(
         &self,
         next_state: EpiphanyThreadState,
-    ) -> Result<EpiphanyThreadState, CodexErr> {
-        self.thread.epiphany_persist_state(next_state).await
+    ) -> BridgeResult<EpiphanyThreadState> {
+        self.thread
+            .epiphany_persist_state(next_state)
+            .await
+            .map_err(|err| EpiphanyBridgeError::Fatal(err.to_string()))
     }
 
     async fn epiphany_runtime_spine_store_path(&self) -> std::path::PathBuf {

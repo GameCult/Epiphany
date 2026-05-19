@@ -1,9 +1,9 @@
 use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
-use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
@@ -109,7 +109,7 @@ impl CodexMessageProcessor {
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -179,7 +179,7 @@ impl CodexMessageProcessor {
                 .await
             {
                 Ok(applied) => applied,
-                Err(CodexErr::InvalidRequest(message)) => {
+                Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                     self.send_invalid_request_error(request_id, message).await;
                     return;
                 }
@@ -274,7 +274,7 @@ impl CodexMessageProcessor {
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -347,7 +347,7 @@ impl CodexMessageProcessor {
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -448,7 +448,7 @@ impl CodexMessageProcessor {
                 .await
             {
                 Ok(applied) => applied,
-                Err(CodexErr::InvalidRequest(message)) => {
+                Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                     self.send_invalid_request_error(request_id, message).await;
                     return;
                 }
@@ -519,7 +519,7 @@ impl CodexMessageProcessor {
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
         let applied = match apply_thread_epiphany_update(&host, expected_revision, patch).await {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -599,7 +599,7 @@ impl CodexMessageProcessor {
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -662,7 +662,7 @@ impl CodexMessageProcessor {
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
