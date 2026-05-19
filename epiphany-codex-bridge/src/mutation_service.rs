@@ -130,13 +130,25 @@ pub async fn apply_epiphany_state_update_to_thread(
     thread: &CodexThread,
     update: EpiphanyStateUpdate,
 ) -> Result<EpiphanyThreadState, CodexErr> {
+    let current_state = thread.epiphany_state().await.unwrap_or_default();
+    let reference_turn_id = thread.epiphany_reference_turn_id().await;
+    let next_state =
+        apply_epiphany_state_update_to_state(&current_state, update, reference_turn_id)?;
+    thread.epiphany_persist_state(next_state).await
+}
+
+pub fn apply_epiphany_state_update_to_state(
+    current_state: &EpiphanyThreadState,
+    update: EpiphanyStateUpdate,
+    reference_turn_id: Option<String>,
+) -> Result<EpiphanyThreadState, CodexErr> {
     if update.is_empty() {
         return Err(CodexErr::InvalidRequest(
             "epiphany update patch must contain at least one mutation".to_string(),
         ));
     }
 
-    let mut next_state = thread.epiphany_state().await.unwrap_or_default();
+    let mut next_state = current_state.clone();
     if let Some(expected_revision) = update.expected_revision
         && next_state.revision != expected_revision
     {
@@ -154,9 +166,8 @@ pub async fn apply_epiphany_state_update_to_thread(
         )));
     }
 
-    let reference_turn_id = thread.epiphany_reference_turn_id().await;
     apply_epiphany_state_update(&mut next_state, update, reference_turn_id);
-    thread.epiphany_persist_state(next_state).await
+    Ok(next_state)
 }
 
 pub async fn launch_epiphany_job_on_thread(
