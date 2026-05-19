@@ -6,8 +6,16 @@ use epiphany_core::EpiphanyAgentMemoryEntry;
 use epiphany_core::GhostlightMemory;
 use epiphany_core::GhostlightPerceivedStateOverlay;
 use epiphany_core::GhostlightTraitVector;
+use epiphany_core::HeartbeatAgentReaction;
+use epiphany_core::HeartbeatAgentThoughtAppraisal;
+use epiphany_core::HeartbeatAppraisalReview;
+use epiphany_core::HeartbeatCandidateImplications;
+use epiphany_core::HeartbeatEmotionalAppraisal;
+use epiphany_core::HeartbeatParticipantLocalContext;
+use epiphany_core::HeartbeatPersonalityProjection;
 use epiphany_core::dossier_profile_for_role;
 use epiphany_core::load_agent_memory_entry_for_role;
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -262,6 +270,38 @@ struct TraitSignal {
     weight: f64,
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CharacterProjectionSeed {
+    #[serde(rename = "schema_version")]
+    schema_version: String,
+    participant_agent_id: String,
+    role_id: String,
+    thought_cluster_ref: String,
+    thought_tokens: Vec<String>,
+    dominant_trait_matches: Vec<HeartbeatPersonalityProjection>,
+    relationship_pressure: CharacterPressureSeed,
+    perceived_overlay_pressure: CharacterPressureSeed,
+    contract: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CharacterPressureSeed {
+    strength: f64,
+    summary: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CharacterReactionSeed {
+    #[serde(rename = "schema_version")]
+    schema_version: String,
+    #[serde(flatten)]
+    reaction: HeartbeatAgentReaction,
+    contract: String,
+}
+
 fn deterministic_projection_seed(
     entry: &EpiphanyAgentMemoryEntry,
     stimulus: &str,
@@ -269,7 +309,7 @@ fn deterministic_projection_seed(
     mode: &str,
     status: &str,
     mood: &str,
-) -> Value {
+) -> CharacterProjectionSeed {
     let thought_tokens = stimulus_token_set(stimulus, source, mode, status, mood);
     let traits = collect_trait_signals(entry);
     let mut scored = traits
@@ -278,53 +318,50 @@ fn deterministic_projection_seed(
             let trait_tokens = summary_tokens(&format!("{} {}", item.group, item.name));
             let overlap = token_overlap(&trait_tokens, &thought_tokens);
             let projection = round3((item.weight * (0.55 + overlap * 1.8)).clamp(0.0, 1.0));
-            serde_json::json!({
-                "group": item.group,
-                "name": item.name,
-                "activation": round3(item.activation),
-                "plasticity": round3(item.plasticity),
-                "tokenOverlap": round3(overlap),
-                "projection": projection,
-            })
+            HeartbeatPersonalityProjection {
+                group: item.group.to_string(),
+                name: item.name.clone(),
+                activation: round3(item.activation),
+                plasticity: round3(item.plasticity),
+                token_overlap: round3(overlap),
+                projection,
+            }
         })
         .collect::<Vec<_>>();
-    scored.sort_by(|left, right| {
-        right["projection"]
-            .as_f64()
-            .unwrap_or_default()
-            .total_cmp(&left["projection"].as_f64().unwrap_or_default())
-    });
+    scored.sort_by(|left, right| right.projection.total_cmp(&left.projection));
     scored.truncate(6);
 
     let (relationship_pressure, relationship_summary) =
         strongest_relationship_pressure(entry, &thought_tokens);
     let (overlay_pressure, overlay_summary) = strongest_overlay_pressure(entry, &thought_tokens);
 
-    serde_json::json!({
-        "schema_version": "epiphany.personality_projection.v0",
-        "participantAgentId": entry.agent.agent_id,
-        "roleId": entry.role_id,
-        "thoughtClusterRef": format!("{}#stimulus", source),
-        "thoughtTokens": thought_tokens.into_iter().collect::<Vec<_>>(),
-        "dominantTraitMatches": scored,
-        "relationshipPressure": {
-            "strength": round3(relationship_pressure),
-            "summary": relationship_summary,
+    CharacterProjectionSeed {
+        schema_version: "epiphany.personality_projection.v0".to_string(),
+        participant_agent_id: entry.agent.agent_id.clone(),
+        role_id: entry.role_id.clone(),
+        thought_cluster_ref: format!("{}#stimulus", source),
+        thought_tokens: thought_tokens.into_iter().collect::<Vec<_>>(),
+        dominant_trait_matches: scored,
+        relationship_pressure: CharacterPressureSeed {
+            strength: round3(relationship_pressure),
+            summary: relationship_summary,
         },
-        "perceivedOverlayPressure": {
-            "strength": round3(overlay_pressure),
-            "summary": overlay_summary,
+        perceived_overlay_pressure: CharacterPressureSeed {
+            strength: round3(overlay_pressure),
+            summary: overlay_summary,
         },
-        "contract": "Projection is participant-local and fallible. It is a seed for embodied response, not reviewed project truth.",
-    })
+        contract:
+            "Projection is participant-local and fallible. It is a seed for embodied response, not reviewed project truth."
+                .to_string(),
+    }
 }
 
 fn deterministic_appraisal_seed(
     entry: &EpiphanyAgentMemoryEntry,
-    projection_seed: &Value,
+    projection_seed: &CharacterProjectionSeed,
     stimulus: &str,
     source: &str,
-) -> Value {
+) -> HeartbeatAgentThoughtAppraisal {
     let traits = collect_trait_signals(entry);
     let reactivity = average(traits.iter().take(8).map(|item| item.activation)).unwrap_or(0.5);
     let plasticity = average(traits.iter().take(8).map(|item| item.plasticity)).unwrap_or(0.5);
@@ -352,17 +389,12 @@ fn deterministic_appraisal_seed(
     )
     .unwrap_or((1.0 - expressiveness * 0.45).clamp(0.0, 1.0));
     let alignment = projection_seed
-        .pointer("/dominantTraitMatches/0/projection")
-        .and_then(Value::as_f64)
+        .dominant_trait_matches
+        .first()
+        .map(|item| item.projection)
         .unwrap_or(reactivity);
-    let relationship_pressure = projection_seed
-        .pointer("/relationshipPressure/strength")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
-    let overlay_pressure = projection_seed
-        .pointer("/perceivedOverlayPressure/strength")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+    let relationship_pressure = projection_seed.relationship_pressure.strength;
+    let overlay_pressure = projection_seed.perceived_overlay_pressure.strength;
     let thought_pressure = (0.18
         + (summary_tokens(stimulus).len() as f64 / 18.0).min(0.42)
         + relationship_pressure * 0.22
@@ -383,18 +415,17 @@ fn deterministic_appraisal_seed(
         round3((arousal * 0.58 + guardedness * 0.22 + thought_pressure * 0.20).clamp(0.0, 1.0));
     let valence = round3((0.52 + curiosity * 0.22 - guardedness * 0.20).clamp(0.0, 1.0));
     let label = interpretation_label("draft", arousal, guardedness, curiosity);
-    serde_json::json!({
-        "schema_version": "epiphany.agent_thought_appraisal.v0",
-        "appraisalId": format!("face-appraisal-{}", short_id()),
-        "reviewStatus": "generated_unreviewed",
-        "participantAgentId": entry.agent.agent_id,
-        "roleId": entry.role_id,
-        "currentCharacterStateRef": format!("state/agents.msgpack#{}", entry.role_id),
-        "thoughtClusterRef": format!("{}#stimulus", source),
-        "observableThoughtSummary": stimulus,
-        "participantLocalContext": {
-            "displayName": entry.agent.identity.name,
-            "valueLabels": entry
+    HeartbeatAgentThoughtAppraisal {
+        schema_version: "epiphany.agent_thought_appraisal.v0".to_string(),
+        appraisal_id: format!("face-appraisal-{}", short_id()),
+        review_status: "generated_unreviewed".to_string(),
+        participant_agent_id: entry.agent.agent_id.clone(),
+        role_id: entry.role_id.clone(),
+        current_character_state_ref: format!("state/agents.msgpack#{}", entry.role_id),
+        thought_cluster_ref: format!("{}#stimulus", source),
+        participant_local_context: HeartbeatParticipantLocalContext {
+            display_name: entry.agent.identity.name.clone(),
+            values: entry
                 .agent
                 .canonical_state
                 .values
@@ -402,74 +433,74 @@ fn deterministic_appraisal_seed(
                 .take(5)
                 .map(|value| value.label.clone())
                 .collect::<Vec<_>>(),
-            "reactivity": round3(reactivity),
-            "plasticity": round3(plasticity),
-            "expressiveness": round3(expressiveness),
-            "guardedness": round3(guarded_baseline),
-            "relationshipMemoryCount": entry.agent.memories.relationship_summaries.len(),
-            "perceivedOverlayCount": entry.agent.perceived_state_overlays.len(),
+            reactivity: round3(reactivity),
+            plasticity: round3(plasticity),
+            expressiveness: round3(expressiveness),
+            guardedness: round3(guarded_baseline),
         },
-        "personalityProjection": projection_seed,
-        "interpretation": format!(
+        observable_thought_summary: stimulus.to_string(),
+        personality_projection: projection_seed.dominant_trait_matches.clone(),
+        interpretation: format!(
             "{} appraises the visible stimulus through its local personality, relationship memory, and perceived overlays; this is embodied response guidance, not omniscient truth.",
             entry.agent.identity.name
         ),
-        "emotionalAppraisal": {
-            "valence": valence,
-            "arousal": arousal,
-            "urgency": urgency,
-            "curiosity": curiosity,
-            "guardedness": guardedness,
-            "thoughtPressure": round3(thought_pressure),
+        emotional_appraisal: HeartbeatEmotionalAppraisal {
+            valence,
+            arousal,
+            urgency,
+            curiosity,
+            guardedness,
+            thought_pressure: round3(thought_pressure),
         },
-        "interpretationLabel": label,
-        "candidateImplications": {
-            "reactionMode": reaction_mode(&label, "draft"),
-            "reactionIntensity": round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
-            "shouldSpeak": entry.role_id == "face" && guardedness < 0.78,
-            "shouldIncubate": guardedness >= 0.55,
+        interpretation_label: label.clone(),
+        confidence_notes: "Deterministic Face-local appraisal rebuilt from the same Ghostlight-style personality projection logic used by heartbeat. Useful for reaction shape, still reviewable and fallible.".to_string(),
+        candidate_implications: HeartbeatCandidateImplications {
+            reaction_mode: reaction_mode(&label, "draft").to_string(),
+            reaction_intensity: round3(
+                (urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0),
+            ),
+            should_speak: entry.role_id == "face" && guardedness < 0.78,
+            should_incubate: guardedness >= 0.55,
         },
-        "confidenceNotes": "Deterministic Face-local appraisal rebuilt from the same Ghostlight-style personality projection logic used by heartbeat. Useful for reaction shape, still reviewable and fallible.",
-        "review": {
-            "acceptedForMutation": false,
-            "rationale": "Appraisal may steer expression and reaction; state mutation still requires explicit review.",
-        }
-    })
+        review: HeartbeatAppraisalReview {
+            accepted_for_mutation: false,
+            rationale:
+                "Appraisal may steer expression and reaction; state mutation still requires explicit review."
+                    .to_string(),
+        },
+    }
 }
 
-fn deterministic_reaction_seed(role_id: &str, appraisal_seed: &Value) -> Value {
-    let arousal = appraisal_seed
-        .pointer("/emotionalAppraisal/arousal")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
-    let guardedness = appraisal_seed
-        .pointer("/emotionalAppraisal/guardedness")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
-    let curiosity = appraisal_seed
-        .pointer("/emotionalAppraisal/curiosity")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
-    let mode = appraisal_seed
-        .pointer("/candidateImplications/reactionMode")
-        .and_then(Value::as_str)
-        .unwrap_or("incubate");
-    let intensity = appraisal_seed
-        .pointer("/candidateImplications/reactionIntensity")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
-    serde_json::json!({
-        "schema_version": "epiphany.agent_reaction.v0",
-        "reactionId": format!("reaction-{}-{}", role_id, short_id()),
-        "roleId": role_id,
-        "appraisalId": appraisal_seed.get("appraisalId"),
-        "mode": mode,
-        "moodLabel": mood_label(arousal, guardedness, curiosity),
-        "intensity": round3(intensity),
-        "surface": if role_id == "face" { "aquarium" } else { "internal" },
-        "recommendedUse": reaction_recommended_use(role_id, mode),
-        "contract": "Reaction is derived from local appraisal and may color speech or silence; it still does not mutate durable state by itself.",
-    })
+fn deterministic_reaction_seed(
+    role_id: &str,
+    appraisal_seed: &HeartbeatAgentThoughtAppraisal,
+) -> CharacterReactionSeed {
+    let arousal = appraisal_seed.emotional_appraisal.arousal;
+    let guardedness = appraisal_seed.emotional_appraisal.guardedness;
+    let curiosity = appraisal_seed.emotional_appraisal.curiosity;
+    let mode = appraisal_seed.candidate_implications.reaction_mode.as_str();
+    let intensity = appraisal_seed.candidate_implications.reaction_intensity;
+    CharacterReactionSeed {
+        schema_version: "epiphany.agent_reaction.v0".to_string(),
+        reaction: HeartbeatAgentReaction {
+            reaction_id: format!("reaction-{}-{}", role_id, short_id()),
+            role_id: role_id.to_string(),
+            participant_agent_id: appraisal_seed.participant_agent_id.clone(),
+            appraisal_id: appraisal_seed.appraisal_id.clone(),
+            mode: mode.to_string(),
+            mood_label: mood_label(arousal, guardedness, curiosity).to_string(),
+            intensity: round3(intensity),
+            bridge_decision: "draft".to_string(),
+            surface: if role_id == "face" {
+                "aquarium"
+            } else {
+                "internal"
+            }
+            .to_string(),
+            recommended_use: reaction_recommended_use(role_id, mode).to_string(),
+        },
+        contract: "Reaction is derived from local appraisal and may color speech or silence; it still does not mutate durable state by itself.".to_string(),
+    }
 }
 
 fn collect_trait_signals(entry: &EpiphanyAgentMemoryEntry) -> Vec<TraitSignal> {
