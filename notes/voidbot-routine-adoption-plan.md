@@ -13,6 +13,35 @@ cosplaying as a Discord moderator. The useful organs are:
 - semantic memory vectors in Qdrant with source hashes and compact dimensions
 - memory resonance, incubation queues, analytic/associative thought lanes, and a
   bridge that decides speech, draft, hold, or silence
+- repo identities with Face state, Discord roles, pending mentions, jurisdiction,
+  proposal authority, and a CTB/Final-Fantasy-style initiative scheduler
+
+## Project-Face Direction
+
+VoidBot is no longer only a moderator with retrieval. It now has the small
+working version of the Epiphany pitch: repos grow Faces.
+
+The live pattern is:
+
+- a repo identity has a Discord role and registered allowed channels
+- that identity has repo-local Face state, not just base Void personality
+- first contact can birth the Face through Epiphany repo terrain/personality
+  scouting and reviewable startup artifacts
+- role/display-name mentions become pending obligations, not direct hidden jobs
+- an initiative scheduler chooses which Face or system agent gets the next turn
+- heat can prioritize identities, repos, participant kinds, turns, channels, or
+  all participants
+- active turns freeze initiative until the owner-Codex job or moderation lock
+  completes
+- Faces may advocate for repo needs and propose changes, while implementation
+  authority still requires the configured human/review path
+
+Epiphany should absorb that as native product direction. The user should talk to
+projects: "Aqua, what does AquaSynth need?", "Nibu, what is wrong with this lore
+arc?", "Mimir, what seam is drifting?" The project should schedule modeling,
+research, verification, memory maintenance, or a Face response from its own
+typed state. The human should not have to deliver a complete implementation
+brief just to make the system start thinking.
 
 ## Target Shape
 
@@ -57,6 +86,12 @@ No lane may receive another heartbeat while `pending_turn.status == running`.
 The completion receipt is the only normal path that starts cooldown. This is the
 part that keeps the heart from turning into a tiny manager with a stopwatch and
 no shame.
+
+Repo Faces use the same law. A Face can be heated because a human mentioned it,
+a repo is hot, a stream is live, or a group needs attention; that heat changes
+opportunity, not authority. The Face still freezes while thinking, still returns
+through typed receipts, and still needs an explicit grant before crossing from
+proposal into canonical repo mutation.
 
 ## Persistence Contract
 

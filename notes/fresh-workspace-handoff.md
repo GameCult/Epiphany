@@ -1309,6 +1309,16 @@ native `epiphany-phase6-graph-query-smoke` / native `epiphany-phase6-planning-sm
 smokes are now guardrails, not the next organs. The architectural teardown says
 the next organ is control-plane purification.
 
+The public product direction is now explicit: Epiphany is project-native agency,
+not merely a better prompt wrapper. VoidBot's repo-Face pattern is the live
+small reference: Nibu/Aqua/Mimir have repo jurisdiction, Discord roles,
+repo-local Face state, pending mentions, proposal authority, heartbeat
+initiative, heat, and active-turn freeze. Epiphany should make this native and
+larger: users talk to projects and their Faces through Aquarium, Discord,
+voice/WebRTC, stream overlays, native CLIs, or other CultNet clients; the
+project schedules modeling, research, verification, rumination, and proposed
+actions without requiring the human to hand over a complete architecture brief.
+
 ## Not Yet
 
 - automatic watcher-driven semantic invalidation
