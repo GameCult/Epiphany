@@ -5,7 +5,6 @@ use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
-use codex_core::CodexThread;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result as CodexResult;
 use codex_protocol::protocol::EpiphanyRuntimeLink;
@@ -269,17 +268,16 @@ pub async fn load_epiphany_role_result_snapshot(
     )
 }
 
-pub async fn load_completed_epiphany_role_finding(
-    thread: &CodexThread,
+pub fn load_completed_epiphany_role_finding(
+    runtime_store_path: Option<&Path>,
     state: &EpiphanyThreadState,
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyRoleFinding> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
         let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
-            Some(runtime_store_path.as_path()),
+            runtime_store_path,
             role_id,
         );
         if status != ThreadEpiphanyRoleResultStatus::Completed {
@@ -354,16 +352,15 @@ pub async fn load_epiphany_reorient_result_snapshot(
     )
 }
 
-pub async fn load_completed_epiphany_reorient_finding(
-    thread: &CodexThread,
+pub fn load_completed_epiphany_reorient_finding(
+    runtime_store_path: Option<&Path>,
     state: &EpiphanyThreadState,
     binding_id: &str,
 ) -> CodexResult<ThreadEpiphanyReorientFinding> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
         let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
-            Some(runtime_store_path.as_path()),
+            runtime_store_path,
         );
         if status != ThreadEpiphanyReorientResultStatus::Completed {
             return Err(CodexErr::InvalidRequest(format!(

@@ -42,9 +42,7 @@ pub async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<Epiphany
         let thread_id = thread_state_mirror_id(thread);
         if let Err(err) = mirror_thread_state_to_workspace(config.cwd.as_path(), &thread_id, state)
         {
-            warn!(
-                "failed to mirror Epiphany thread state into native store: {err}"
-            );
+            warn!("failed to mirror Epiphany thread state into native store: {err}");
         }
     }
     epiphany_state

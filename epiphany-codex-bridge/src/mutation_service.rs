@@ -351,7 +351,13 @@ pub async fn apply_thread_epiphany_role_accept(
     })?;
     validate_expected_revision(expected_revision, state.revision)?;
 
-    let finding = load_completed_epiphany_role_finding(thread, &state, role_id, binding_id).await?;
+    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let finding = load_completed_epiphany_role_finding(
+        Some(runtime_store_path.as_path()),
+        &state,
+        role_id,
+        binding_id,
+    )?;
     let accepted_prefix = epiphany_role_label(role_id);
     let acceptance_update = build_role_acceptance_update(
         role_id,
@@ -370,10 +376,7 @@ pub async fn apply_thread_epiphany_role_accept(
     let applied_patch = acceptance_update.patch.clone();
     let epiphany_state = apply_epiphany_state_update_to_thread(
         thread,
-        state_update_from_thread_patch(
-            expected_revision,
-            acceptance_update.patch,
-        ),
+        state_update_from_thread_patch(expected_revision, acceptance_update.patch),
     )
     .await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
@@ -411,7 +414,12 @@ pub async fn apply_thread_epiphany_reorient_accept(
         ));
     }
 
-    let finding = load_completed_epiphany_reorient_finding(thread, &state, binding_id).await?;
+    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let finding = load_completed_epiphany_reorient_finding(
+        Some(runtime_store_path.as_path()),
+        &state,
+        binding_id,
+    )?;
     let acceptance_update = build_reorient_acceptance_update(
         expected_revision,
         binding_id,

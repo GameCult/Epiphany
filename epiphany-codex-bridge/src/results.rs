@@ -88,9 +88,7 @@ fn map_protocol_update_patch(patch: EpiphanyRoleStatePatchDocument) -> ThreadEpi
     }
 }
 
-pub fn map_core_role_result_role_id(
-    role_id: ThreadEpiphanyRoleId,
-) -> EpiphanyRoleResultRoleId {
+pub fn map_core_role_result_role_id(role_id: ThreadEpiphanyRoleId) -> EpiphanyRoleResultRoleId {
     match role_id {
         ThreadEpiphanyRoleId::Implementation => EpiphanyRoleResultRoleId::Implementation,
         ThreadEpiphanyRoleId::Imagination => EpiphanyRoleResultRoleId::Imagination,
