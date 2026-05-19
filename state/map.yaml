@@ -306,8 +306,12 @@ current_status:
     freshness now returns a serializable `EpiphanyFreshnessSurface`, job
     launch/interrupt bridge results carry typed `EpiphanyJobView` plus host-edge
     launcher metadata, and reorient/pre-compaction decisions consume typed
-    `EpiphanyPressure`. App-server still projects those typed surfaces into
-    `ThreadEpiphany*` responses at the legacy JSON-RPC edge. The bridge still
+    `EpiphanyPressure`. Reorient policy now consumes typed freshness directly,
+    reorient launch documents are built from typed core decisions, reorient
+    launch mutation results return typed decision/state-status values from the
+    bridge, and core reorient decisions are serializable CultNet-ready state.
+    App-server still projects those typed surfaces into `ThreadEpiphany*`
+    responses at the legacy JSON-RPC edge. The bridge still
     depends on vendored Codex for app-server protocol DTOs and absolute path
     validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize view/coordinator/reorient DTO coupling: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.
