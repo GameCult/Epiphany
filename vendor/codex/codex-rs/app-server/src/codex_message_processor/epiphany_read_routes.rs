@@ -1,12 +1,14 @@
 use codex_app_server_protocol::*;
+use codex_core::CodexThread;
 use codex_protocol::ThreadId;
+use codex_protocol::protocol::EpiphanyRetrievalState;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
+use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
 use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
-use epiphany_codex_bridge::retrieve::retrieve_thread_epiphany;
-use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
+use epiphany_codex_bridge::retrieve::retrieve_epiphany_for_paths;
 use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
@@ -440,20 +442,23 @@ impl CodexMessageProcessor {
             }
         };
 
-        let response = match retrieve_thread_epiphany(thread.as_ref(), query)
-            .await
-            .and_then(map_epiphany_retrieve_response)
-        {
-            Ok(response) => response,
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let config = thread.config_snapshot().await;
+        let codex_home = thread.codex_home().await;
+        let response =
+            match retrieve_epiphany_for_paths(config.cwd.to_path_buf(), codex_home, query)
+                .await
+                .and_then(map_epiphany_retrieve_response)
+            {
+                Ok(response) => response,
+                Err(err) => {
+                    self.send_internal_error(
+                        request_id,
+                        format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
+                    )
+                    .await;
+                    return;
+                }
+            };
 
         self.outgoing.send_response(request_id, response).await;
     }
@@ -560,4 +565,10 @@ impl CodexMessageProcessor {
 
         self.outgoing.send_response(request_id, response).await;
     }
+}
+
+async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRetrievalState {
+    let config = thread.config_snapshot().await;
+    let codex_home = thread.codex_home().await;
+    epiphany_retrieval_state_for_paths(config.cwd.to_path_buf(), codex_home).await
 }

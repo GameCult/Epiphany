@@ -4,7 +4,6 @@ use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveShardSummary;
-use codex_core::CodexThread;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use epiphany_core::EpiphanyRetrieveQuery;
@@ -31,13 +30,15 @@ pub fn map_epiphany_retrieve_response(
     })
 }
 
-pub async fn index_thread_epiphany_retrieval(
-    thread: &CodexThread,
+pub async fn index_epiphany_retrieval_for_paths(
+    workspace_root: PathBuf,
+    codex_home: PathBuf,
     force_full_rebuild: bool,
 ) -> anyhow::Result<ThreadEpiphanyIndexResponse> {
-    let index_summary = index_thread_epiphany_retrieval_state(thread, force_full_rebuild)
-        .await
-        .and_then(map_epiphany_retrieve_index_summary)?;
+    let index_summary =
+        index_epiphany_retrieval_state_for_paths(workspace_root, codex_home, force_full_rebuild)
+            .await
+            .and_then(map_epiphany_retrieve_index_summary)?;
     Ok(ThreadEpiphanyIndexResponse { index_summary })
 }
 
@@ -49,10 +50,10 @@ pub fn normalize_thread_epiphany_retrieve_query(
     normalize_epiphany_retrieve_query(query, limit, path_prefixes).map_err(str::to_string)
 }
 
-pub async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRetrievalState {
-    let config = thread.config_snapshot().await;
-    let workspace_root = config.cwd.to_path_buf();
-    let codex_home = thread.codex_home().await;
+pub async fn epiphany_retrieval_state_for_paths(
+    workspace_root: PathBuf,
+    codex_home: PathBuf,
+) -> EpiphanyRetrievalState {
     let fallback_workspace_root = workspace_root.clone();
     let fallback_codex_home = codex_home.clone();
     tokio::task::spawn_blocking(move || {
@@ -64,13 +65,11 @@ pub async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRe
     })
 }
 
-pub async fn index_thread_epiphany_retrieval_state(
-    thread: &CodexThread,
+pub async fn index_epiphany_retrieval_state_for_paths(
+    workspace_root: PathBuf,
+    codex_home: PathBuf,
     force_full_rebuild: bool,
 ) -> anyhow::Result<EpiphanyRetrievalState> {
-    let config = thread.config_snapshot().await;
-    let workspace_root = config.cwd.to_path_buf();
-    let codex_home = thread.codex_home().await;
     tokio::task::spawn_blocking(move || {
         index_workspace(&workspace_root, codex_home.as_path(), force_full_rebuild)
     })
@@ -78,13 +77,11 @@ pub async fn index_thread_epiphany_retrieval_state(
     .map_err(|err| anyhow::anyhow!("epiphany index worker failed: {err}"))?
 }
 
-pub async fn retrieve_thread_epiphany(
-    thread: &CodexThread,
+pub async fn retrieve_epiphany_for_paths(
+    workspace_root: PathBuf,
+    codex_home: PathBuf,
     query: EpiphanyRetrieveQuery,
 ) -> anyhow::Result<CoreEpiphanyRetrieveResponse> {
-    let config = thread.config_snapshot().await;
-    let workspace_root = config.cwd.to_path_buf();
-    let codex_home = thread.codex_home().await;
     tokio::task::spawn_blocking(move || {
         retrieve_workspace(&workspace_root, codex_home.as_path(), query)
     })

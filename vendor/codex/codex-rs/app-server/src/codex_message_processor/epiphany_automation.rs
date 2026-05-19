@@ -19,7 +19,7 @@ use epiphany_codex_bridge::mutation_service::launch_epiphany_job_on_thread;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
-use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
+use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -39,8 +39,10 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         return;
     };
 
-    let retrieval_override = thread_epiphany_retrieval_state(thread.as_ref()).await;
     let config_snapshot = thread.config_snapshot().await;
+    let codex_home = thread.codex_home().await;
+    let retrieval_override =
+        epiphany_retrieval_state_for_paths(config_snapshot.cwd.to_path_buf(), codex_home).await;
     epiphany_invalidation_manager
         .ensure_thread_watch(&thread_id_text, &config_snapshot.cwd)
         .await;

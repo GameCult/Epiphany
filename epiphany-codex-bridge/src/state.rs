@@ -10,7 +10,7 @@ use codex_protocol::protocol::InitialHistory;
 use epiphany_core::write_thread_state;
 use tracing::warn;
 
-use crate::retrieve::thread_epiphany_retrieval_state;
+use crate::retrieve::epiphany_retrieval_state_for_paths;
 
 pub async fn load_epiphany_state_from_rollout_path(
     rollout_path: &Path,
@@ -35,7 +35,10 @@ pub async fn live_thread_epiphany_state(thread: &CodexThread) -> Option<Epiphany
     if let Some(state) = epiphany_state.as_mut()
         && state.retrieval.is_none()
     {
-        state.retrieval = Some(thread_epiphany_retrieval_state(thread).await);
+        let config = thread.config_snapshot().await;
+        let codex_home = thread.codex_home().await;
+        state.retrieval =
+            Some(epiphany_retrieval_state_for_paths(config.cwd.to_path_buf(), codex_home).await);
     }
     if let Some(state) = epiphany_state.as_ref() {
         let config = thread.config_snapshot().await;

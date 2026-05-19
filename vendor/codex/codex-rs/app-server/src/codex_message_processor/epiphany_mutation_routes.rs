@@ -2,6 +2,7 @@ use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
+use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -17,8 +18,8 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
-use epiphany_codex_bridge::retrieve::index_thread_epiphany_retrieval;
-use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
+use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
+use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
 use std::sync::Arc;
 
 use super::CodexMessageProcessor;
@@ -398,8 +399,14 @@ impl CodexMessageProcessor {
             None => return,
         };
 
-        let response = match index_thread_epiphany_retrieval(thread.as_ref(), force_full_rebuild)
-            .await
+        let config = thread.config_snapshot().await;
+        let codex_home = thread.codex_home().await;
+        let response = match index_epiphany_retrieval_for_paths(
+            config.cwd.to_path_buf(),
+            codex_home,
+            force_full_rebuild,
+        )
+        .await
         {
             Ok(response) => response,
             Err(err) => {
@@ -690,4 +697,10 @@ impl CodexMessageProcessor {
         )
         .await;
     }
+}
+
+async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRetrievalState {
+    let config = thread.config_snapshot().await;
+    let codex_home = thread.codex_home().await;
+    epiphany_retrieval_state_for_paths(config.cwd.to_path_buf(), codex_home).await
 }
