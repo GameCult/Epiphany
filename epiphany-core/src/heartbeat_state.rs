@@ -122,7 +122,7 @@ pub fn run_void_routine_store(
         "agentStore": options.agent_store,
         "updatedAt": now_iso(),
         "sleepCycle": sleep_cycle,
-        "memoryResonance": resonance,
+        "memoryResonance": &resonance,
         "incubation": incubation,
         "thoughtLanes": thought_lanes,
         "bridge": bridge,
@@ -1424,7 +1424,7 @@ fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, ap
     }
 }
 
-fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
+fn build_memory_resonance(records: &[RoleMemoryRecord]) -> HeartbeatMemoryResonance {
     let mut pairs = Vec::new();
     for (left_index, left) in records.iter().enumerate() {
         for right in records.iter().skip(left_index + 1) {
@@ -1442,44 +1442,39 @@ fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
             if strength < 0.08 {
                 continue;
             }
-            pairs.push(serde_json::json!({
-                "leftRole": left.role_id,
-                "leftMemoryId": left.memory_id,
-                "leftMemoryKind": left.memory_kind,
-                "leftSummary": left.summary,
-                "rightRole": right.role_id,
-                "rightMemoryId": right.memory_id,
-                "rightMemoryKind": right.memory_kind,
-                "rightSummary": right.summary,
-                "strength": strength,
-                "sharedTokens": shared_tokens(&left.tokens, &right.tokens),
-                "sourceRoles": [left.role_id, right.role_id],
-                "sourceKinds": [left.memory_kind, right.memory_kind],
-                "evidenceRefs": [left.memory_id, right.memory_id],
-            }));
+            pairs.push(HeartbeatMemoryResonancePair {
+                left_role: left.role_id.clone(),
+                left_memory_id: left.memory_id.clone(),
+                left_memory_kind: left.memory_kind.clone(),
+                left_summary: left.summary.clone(),
+                right_role: right.role_id.clone(),
+                right_memory_id: right.memory_id.clone(),
+                right_memory_kind: right.memory_kind.clone(),
+                right_summary: right.summary.clone(),
+                strength,
+                shared_tokens: shared_tokens(&left.tokens, &right.tokens),
+                source_roles: vec![left.role_id.clone(), right.role_id.clone()],
+                source_kinds: vec![left.memory_kind.clone(), right.memory_kind.clone()],
+                evidence_refs: vec![left.memory_id.clone(), right.memory_id.clone()],
+            });
         }
     }
-    pairs.sort_by(|left, right| {
-        right["strength"]
-            .as_f64()
-            .unwrap_or_default()
-            .total_cmp(&left["strength"].as_f64().unwrap_or_default())
-    });
+    pairs.sort_by(|left, right| right.strength.total_cmp(&left.strength));
     pairs.truncate(8);
-    serde_json::json!({
-        "schema_version": "epiphany.memory_resonance.v0",
-        "updatedAt": now_iso(),
-        "source": "epiphany-native-void-routine",
-        "recordCount": records.len(),
-        "pairs": pairs,
-    })
+    HeartbeatMemoryResonance {
+        schema_version: "epiphany.memory_resonance.v0".to_string(),
+        updated_at: now_iso(),
+        source: "epiphany-native-void-routine".to_string(),
+        record_count: records.len(),
+        pairs,
+    }
 }
 
 fn build_incubation(
     previous: &Option<Value>,
     bridge: &Option<Value>,
     candidate_interventions: &Option<Value>,
-    resonance: &Value,
+    resonance: &HeartbeatMemoryResonance,
     records: &[RoleMemoryRecord],
 ) -> Value {
     let previous_themes = previous
@@ -1490,36 +1485,19 @@ fn build_incubation(
         .unwrap_or_default();
     let source_coverage = build_source_coverage(records);
     let mut themes = Vec::new();
-    for pair in resonance
-        .get("pairs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .take(6)
-    {
-        let left_role = pair
-            .get("leftRole")
-            .and_then(Value::as_str)
-            .unwrap_or("left");
-        let right_role = pair
-            .get("rightRole")
-            .and_then(Value::as_str)
-            .unwrap_or("right");
+    for pair in resonance.pairs.iter().take(6) {
+        let left_role = pair.left_role.as_str();
+        let right_role = pair.right_role.as_str();
         let tokens = pair
-            .get("sharedTokens")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .take(3)
-                    .collect::<Vec<_>>()
-                    .join("/")
-            })
-            .unwrap_or_default();
-        let source_roles = unique_strings_from_value(pair.get("sourceRoles"));
-        let source_kinds = unique_strings_from_value(pair.get("sourceKinds"));
-        let source_memory_ids = unique_strings_from_value(pair.get("evidenceRefs"));
+            .shared_tokens
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("/");
+        let source_roles = pair.source_roles.clone();
+        let source_kinds = pair.source_kinds.clone();
+        let source_memory_ids = pair.evidence_refs.clone();
         let summary = format!(
             "{} and {} keep touching {}; let the swarm decide whether that is signal, stale echo, or a branch worth following.",
             display_name_for_role(left_role),
@@ -1566,7 +1544,7 @@ fn build_incubation(
             .and_then(|theme| theme.get("maturation"))
             .and_then(Value::as_f64)
             .unwrap_or(0.32);
-        let strength = pair.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
+        let strength = pair.strength;
         let maturation = round3(
             (prior_maturation * 0.44
                 + strength * 0.24
@@ -1716,28 +1694,26 @@ fn build_incubation(
 }
 
 fn build_thought_lanes(
-    resonance: &Value,
+    resonance: &HeartbeatMemoryResonance,
     incubation: &Value,
     records: &[RoleMemoryRecord],
 ) -> Value {
     let analytic_threads = resonance
-        .get("pairs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+        .pairs
+        .iter()
         .take(4)
         .enumerate()
         .map(|(index, pair)| {
-            let left_role = pair.get("leftRole").and_then(Value::as_str).unwrap_or("left");
-            let right_role = pair.get("rightRole").and_then(Value::as_str).unwrap_or("right");
-            let strength = pair.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
+            let left_role = pair.left_role.as_str();
+            let right_role = pair.right_role.as_str();
+            let strength = pair.strength;
             serde_json::json!({
                 "threadId": format!("analytic-{left_role}-{right_role}-{index}"),
                 "topic": format!("{left_role}/{right_role} evidence seam"),
                 "claim": format!("{} and {} share a recurring memory edge; inspect whether this changes lane routing or evidence expectations.", display_name_for_role(left_role), display_name_for_role(right_role)),
                 "evidenceRefs": [
-                    pair.get("leftMemoryId").and_then(Value::as_str).unwrap_or_default(),
-                    pair.get("rightMemoryId").and_then(Value::as_str).unwrap_or_default()
+                    &pair.left_memory_id,
+                    &pair.right_memory_id,
                 ],
                 "salience": round3(strength),
                 "confidence": round3((0.55 + strength).min(0.95)),
@@ -1814,7 +1790,7 @@ fn build_thought_lanes(
 fn build_thought_bridge(
     previous: &Option<Value>,
     thought_lanes: &Value,
-    resonance: &Value,
+    resonance: &HeartbeatMemoryResonance,
     incubation: &Value,
 ) -> Value {
     let analytic_count = thought_lanes
@@ -1827,11 +1803,7 @@ fn build_thought_bridge(
         .and_then(Value::as_array)
         .map(Vec::len)
         .unwrap_or_default();
-    let resonance_count = resonance
-        .get("pairs")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or_default();
+    let resonance_count = resonance.pairs.len();
     let strongest_theme = incubation
         .get("themes")
         .and_then(Value::as_array)

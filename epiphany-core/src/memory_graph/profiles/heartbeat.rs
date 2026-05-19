@@ -1,4 +1,8 @@
 use crate::heartbeat_state::EpiphanyHeartbeatCognitionEntry;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatMemoryResonance;
+#[cfg(test)]
+use crate::heartbeat_state::HeartbeatMemoryResonancePair;
 use crate::memory_graph::EpiphanyMemoryDomain;
 use crate::memory_graph::EpiphanyMemoryGraphSnapshot;
 use crate::memory_graph::EpiphanyMemoryLifecycle;
@@ -49,26 +53,18 @@ fn import_resonance(
     let Some(resonance) = cognition.memory_resonance.as_ref() else {
         return;
     };
-    let Some(pairs) = resonance.get("pairs").and_then(Value::as_array) else {
-        return;
-    };
     let domain_id = push_domain(
         domains,
         EpiphanyMemoryProfile::ShortTerm,
         "heartbeat resonance",
     );
     let before = nodes.len();
-    for pair in pairs.iter().take(8) {
-        let left = string_at(pair, "leftSummary");
-        let right = string_at(pair, "rightSummary");
-        let left_role = string_at(pair, "leftRole");
-        let right_role = string_at(pair, "rightRole");
-        let id_seed = format!(
-            "{}:{}:{}",
-            left_role,
-            right_role,
-            string_at(pair, "leftMemoryId")
-        );
+    for pair in resonance.pairs.iter().take(8) {
+        let left = pair.left_summary.clone();
+        let right = pair.right_summary.clone();
+        let left_role = pair.left_role.clone();
+        let right_role = pair.right_role.clone();
+        let id_seed = format!("{}:{}:{}", left_role, right_role, pair.left_memory_id);
         nodes.push(EpiphanyMemoryNode {
             id: memory_graph_node_id(&domain_id, "resonance", id_seed, None),
             domain_id: domain_id.clone(),
@@ -84,7 +80,7 @@ fn import_resonance(
                     .to_string(),
             source_hashes: vec!["anchor:missing".to_string()],
             lifecycle: EpiphanyMemoryLifecycle::Active,
-            salience: score_to_u32(number_at(pair, "strength")),
+            salience: score_to_u32(pair.strength),
             confidence: 55,
             ..Default::default()
         });
@@ -383,16 +379,27 @@ mod tests {
             latest_artifact_ref: None,
             source: Some("unit-test".to_string()),
             sleep_cycle: None,
-            memory_resonance: Some(serde_json::json!({
-                "pairs": [{
-                    "leftRole": "body",
-                    "rightRole": "soul",
-                    "leftMemoryId": "mem-a",
-                    "leftSummary": "Architecture needs anchors.",
-                    "rightSummary": "Verification needs receipts.",
-                    "strength": 0.8
-                }]
-            })),
+            memory_resonance: Some(HeartbeatMemoryResonance {
+                schema_version: "epiphany.memory_resonance.v0".to_string(),
+                updated_at: "2026-05-18T00:00:00Z".to_string(),
+                source: "unit-test".to_string(),
+                record_count: 2,
+                pairs: vec![HeartbeatMemoryResonancePair {
+                    left_role: "body".to_string(),
+                    left_memory_id: "mem-a".to_string(),
+                    left_memory_kind: "note".to_string(),
+                    left_summary: "Architecture needs anchors.".to_string(),
+                    right_role: "soul".to_string(),
+                    right_memory_id: "mem-b".to_string(),
+                    right_memory_kind: "note".to_string(),
+                    right_summary: "Verification needs receipts.".to_string(),
+                    strength: 0.8,
+                    shared_tokens: vec!["evidence".to_string()],
+                    source_roles: vec!["body".to_string(), "soul".to_string()],
+                    source_kinds: vec!["note".to_string()],
+                    evidence_refs: vec!["mem-a".to_string(), "mem-b".to_string()],
+                }],
+            }),
             incubation: Some(serde_json::json!({
                 "themes": [{
                     "themeId": "theme-body-soul",

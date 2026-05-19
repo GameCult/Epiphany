@@ -126,7 +126,7 @@ fn legacy_heartbeat_cognition_entry(
         latest_artifact_ref: None,
         source,
         sleep_cycle: legacy.sleep_cycle,
-        memory_resonance: legacy.memory_resonance,
+        memory_resonance: decode_legacy_document(legacy.memory_resonance)?,
         incubation: legacy.incubation,
         thought_lanes: legacy.thought_lanes,
         bridge: legacy.bridge,
@@ -134,6 +134,16 @@ fn legacy_heartbeat_cognition_entry(
         appraisals: legacy.appraisals,
         reactions: legacy.reactions,
     }))
+}
+
+fn decode_legacy_document<T>(value: Option<Value>) -> Result<Option<T>>
+where
+    T: serde::de::DeserializeOwned,
+{
+    value
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(Into::into)
 }
 
 pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<()> {
