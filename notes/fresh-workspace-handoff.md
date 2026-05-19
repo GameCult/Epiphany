@@ -656,21 +656,19 @@ there is one runtime job for the worker, owned by runtime-spine, and the worker
 runner completes that job.
 
 The Codex-core re-export husks for `epiphany_distillation`, `epiphany_promotion`,
-`epiphany_proposal`, and `epiphany_retrieval` have also been deleted.
-`codex-core` now re-exports those native types/functions directly from
-`epiphany-core`, and `CodexThread` calls `epiphany_core::retrieve_workspace` /
-`index_workspace` / `retrieval_state_for_workspace` directly.
-The `epiphany_rollout` husk is gone too; `codex-core::lib` keeps only the
-one host-boundary function that passes Codex's turn-boundary predicate into
-`epiphany-core`.
+`epiphany_proposal`, and `epiphany_retrieval` have also been deleted. The
+`epiphany_rollout` husk is gone too; `codex-core::lib` keeps only the one
+host-boundary function that passes Codex's turn-boundary predicate into
+`epiphany-core`. `codex-core` no longer depends on `epiphany-core` at all:
+`CodexThread` exposes host persistence/path facts, while `epiphany-codex-bridge`
+calls native retrieval/indexing and state-update policy.
 
 The runtime-spine job-opening mechanism for heartbeat/specialist launches has
 also been pulled into `epiphany-core` as `open_runtime_spine_heartbeat_job`.
-Vendored `codex_core::CodexThread::epiphany_launch_job` still validates,
-persists, and updates Codex thread state, but it no longer owns the
-initialize-session-open-job sequence. That is a small cut, but a real ownership
-move: native runtime lifecycle belongs to the runtime spine, not the Codex
-thread wrapper.
+Launch/interrupt policy now lives in `epiphany-codex-bridge`; vendored
+`CodexThread` only persists the typed state snapshot and exposes the runtime
+store path. Native runtime lifecycle belongs to the runtime spine, not the
+Codex thread wrapper.
 
 That job-opening path now preserves the work order instead of shaving it into a
 generic job id. `epiphany-core::EpiphanyRuntimeWorkerLaunchRequest` is a

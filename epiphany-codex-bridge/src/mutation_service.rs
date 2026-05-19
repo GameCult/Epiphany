@@ -1,5 +1,7 @@
 use chrono::SecondsFormat;
 use chrono::Utc;
+use std::path::Path;
+
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
@@ -18,9 +20,20 @@ use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
 use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
 use epiphany_core::EpiphanyJobInterruptRequest;
+use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyJobLaunchResult;
 use epiphany_core::EpiphanyPromotionInput;
+use epiphany_core::EpiphanyStateUpdate;
+use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
+use epiphany_core::apply_epiphany_state_update;
+use epiphany_core::clear_epiphany_job_binding_backend;
+use epiphany_core::epiphany_state_update_validation_errors;
 use epiphany_core::evaluate_promotion;
+use epiphany_core::open_runtime_spine_heartbeat_job;
+use epiphany_core::plan_runtime_spine_heartbeat_launch;
+use epiphany_core::replace_or_append_epiphany_job_binding;
 
 use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::map_epiphany_jobs;
@@ -112,6 +125,161 @@ pub struct EpiphanyReorientLaunchApplied {
     pub job: ThreadEpiphanyJob,
 }
 
+pub async fn apply_epiphany_state_update_to_thread(
+    thread: &CodexThread,
+    update: EpiphanyStateUpdate,
+) -> Result<EpiphanyThreadState, CodexErr> {
+    if update.is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany update patch must contain at least one mutation".to_string(),
+        ));
+    }
+
+    let mut next_state = thread.epiphany_state().await.unwrap_or_default();
+    if let Some(expected_revision) = update.expected_revision
+        && next_state.revision != expected_revision
+    {
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany state revision mismatch: expected {expected_revision}, found {}",
+            next_state.revision
+        )));
+    }
+
+    let validation_errors = epiphany_state_update_validation_errors(&next_state, &update);
+    if !validation_errors.is_empty() {
+        return Err(CodexErr::InvalidRequest(format!(
+            "invalid epiphany update patch: {}",
+            validation_errors.join("; ")
+        )));
+    }
+
+    let reference_turn_id = thread.epiphany_reference_turn_id().await;
+    apply_epiphany_state_update(&mut next_state, update, reference_turn_id);
+    thread.epiphany_persist_state(next_state).await
+}
+
+pub async fn launch_epiphany_job_on_thread(
+    thread: &CodexThread,
+    request: EpiphanyJobLaunchRequest,
+) -> Result<EpiphanyJobLaunchResult, CodexErr> {
+    let current_state = thread.epiphany_state().await.unwrap_or_default();
+    validate_expected_revision(request.expected_revision, current_state.revision)?;
+
+    let launcher_job_id = format!("epiphany-heartbeat-launch-{}", Uuid::new_v4());
+    let backend_job_id = Uuid::new_v4().to_string();
+    let launch_plan = plan_runtime_spine_heartbeat_launch(
+        &current_state,
+        RuntimeSpineHeartbeatLaunchPlanOptions {
+            binding_id: request.binding_id.clone(),
+            kind: request.kind,
+            scope: request.scope.clone(),
+            owner_role: request.owner_role.clone(),
+            authority_scope: request.authority_scope.clone(),
+            linked_subgoal_ids: request.linked_subgoal_ids.clone(),
+            linked_graph_node_ids: request.linked_graph_node_ids.clone(),
+            instruction: request.instruction.clone(),
+            launch_document: request.launch_document.clone(),
+            output_contract_id: request.output_contract_id.clone(),
+            max_runtime_seconds: request.max_runtime_seconds,
+            runtime_job_id: backend_job_id.clone(),
+        },
+    )
+    .map_err(|err| CodexErr::InvalidRequest(err.to_string()))?;
+    let runtime_store = thread.epiphany_runtime_spine_store_path().await;
+    open_epiphany_runtime_spine_job(
+        runtime_store.as_path(),
+        &current_state,
+        &request,
+        backend_job_id.as_str(),
+    )?;
+    let next_job_bindings = replace_or_append_epiphany_job_binding(
+        current_state.job_bindings.clone(),
+        launch_plan.binding,
+    );
+
+    let validation_errors = epiphany_state_update_validation_errors(
+        &current_state,
+        &EpiphanyStateUpdate {
+            job_bindings: Some(next_job_bindings.clone()),
+            runtime_links: vec![launch_plan.runtime_link.clone()],
+            ..Default::default()
+        },
+    );
+    if !validation_errors.is_empty() {
+        return Err(CodexErr::InvalidRequest(format!(
+            "invalid Epiphany job launch patch: {}",
+            validation_errors.join("; ")
+        )));
+    }
+
+    let epiphany_state = apply_epiphany_state_update_to_thread(
+        thread,
+        EpiphanyStateUpdate {
+            expected_revision: request.expected_revision,
+            job_bindings: Some(next_job_bindings),
+            runtime_links: vec![launch_plan.runtime_link],
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    Ok(EpiphanyJobLaunchResult {
+        epiphany_state,
+        binding_id: request.binding_id,
+        launcher_job_id,
+        backend_job_id,
+    })
+}
+
+pub async fn interrupt_epiphany_job_on_thread(
+    thread: &CodexThread,
+    request: EpiphanyJobInterruptRequest,
+) -> Result<EpiphanyJobInterruptResult, CodexErr> {
+    if request.binding_id.trim().is_empty() {
+        return Err(CodexErr::InvalidRequest(
+            "epiphany job interrupt binding_id must be non-empty".to_string(),
+        ));
+    }
+
+    let current_state = thread.epiphany_state().await.unwrap_or_default();
+    validate_expected_revision(request.expected_revision, current_state.revision)?;
+
+    let Some(binding_index) = current_state
+        .job_bindings
+        .iter()
+        .position(|binding| binding.id == request.binding_id)
+    else {
+        return Err(CodexErr::InvalidRequest(format!(
+            "epiphany job binding {:?} was not found",
+            request.binding_id
+        )));
+    };
+    let interrupted_thread_ids = Vec::new();
+    let cancel_requested = false;
+
+    let next_job_bindings = clear_epiphany_job_binding_backend(
+        current_state.job_bindings.clone(),
+        binding_index,
+        "No active heartbeat turn is currently bound; launch explicitly to resume specialist work.",
+    );
+    let epiphany_state = apply_epiphany_state_update_to_thread(
+        thread,
+        EpiphanyStateUpdate {
+            expected_revision: request.expected_revision,
+            job_bindings: Some(next_job_bindings),
+            ..Default::default()
+        },
+    )
+    .await?;
+
+    Ok(EpiphanyJobInterruptResult {
+        epiphany_state,
+        binding_id: request.binding_id,
+        cancel_requested,
+        interrupted_thread_ids,
+    })
+}
+
 pub async fn apply_thread_epiphany_update(
     thread: &CodexThread,
     expected_revision: Option<u64>,
@@ -119,7 +287,7 @@ pub async fn apply_thread_epiphany_update(
 ) -> Result<EpiphanyThreadUpdateApplied, CodexErr> {
     let changed_fields = epiphany_update_patch_changed_fields(&patch);
     let update = state_update_from_thread_patch(expected_revision, patch);
-    let epiphany_state = thread.epiphany_update_state(update).await?;
+    let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
     Ok(EpiphanyThreadUpdateApplied {
         revision: epiphany_state.revision,
@@ -158,7 +326,7 @@ pub async fn apply_thread_epiphany_promote(
     let mut patch = patch;
     patch.evidence.push(verifier_evidence);
     let update = state_update_from_thread_patch(expected_revision, patch);
-    let epiphany_state = thread.epiphany_update_state(update).await?;
+    let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
     Ok(EpiphanyThreadPromoteApplied::Accepted(
         EpiphanyThreadUpdateApplied {
@@ -200,12 +368,14 @@ pub async fn apply_thread_epiphany_role_accept(
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
     let applied_patch = acceptance_update.patch.clone();
-    let epiphany_state = thread
-        .epiphany_update_state(state_update_from_thread_patch(
+    let epiphany_state = apply_epiphany_state_update_to_thread(
+        thread,
+        state_update_from_thread_patch(
             expected_revision,
             acceptance_update.patch,
-        ))
-        .await?;
+        ),
+    )
+    .await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
 
     Ok(EpiphanyRoleAcceptApplied {
@@ -259,9 +429,8 @@ pub async fn apply_thread_epiphany_reorient_accept(
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
-    let epiphany_state = thread
-        .epiphany_update_state(acceptance_update.state_update)
-        .await?;
+    let epiphany_state =
+        apply_epiphany_state_update_to_thread(thread, acceptance_update.state_update).await?;
     let epiphany_state = client_visible_live_thread_epiphany_state(thread, epiphany_state).await;
 
     Ok(EpiphanyReorientAcceptApplied {
@@ -312,7 +481,7 @@ pub async fn launch_thread_epiphany_job(
     missing_projection_reason: &str,
 ) -> Result<EpiphanyJobLaunchApplied, CodexErr> {
     let changed_fields = epiphany_job_launch_changed_fields();
-    let launched = thread.epiphany_launch_job(launch_request).await?;
+    let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;
     let epiphany_state =
         client_visible_live_thread_epiphany_state(thread, launched.epiphany_state).await;
     let job = map_launched_epiphany_job(
@@ -338,13 +507,15 @@ pub async fn interrupt_thread_epiphany_job(
     reason: Option<String>,
 ) -> Result<EpiphanyJobInterruptApplied, CodexErr> {
     let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
-    let interrupted = thread
-        .epiphany_interrupt_job(EpiphanyJobInterruptRequest {
+    let interrupted = interrupt_epiphany_job_on_thread(
+        thread,
+        EpiphanyJobInterruptRequest {
             expected_revision,
             binding_id: binding_id.to_string(),
             reason,
-        })
-        .await?;
+        },
+    )
+    .await?;
     let epiphany_state =
         client_visible_live_thread_epiphany_state(thread, interrupted.epiphany_state).await;
     let job = map_interrupted_epiphany_job(&epiphany_state, binding_id);
@@ -397,7 +568,7 @@ pub async fn launch_thread_epiphany_reorient(
         &decision,
     );
     let changed_fields = epiphany_job_launch_changed_fields();
-    let launched = thread.epiphany_launch_job(launch_request).await?;
+    let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;
     let epiphany_state =
         client_visible_live_thread_epiphany_state(thread, launched.epiphany_state).await;
     let job = map_epiphany_jobs(Some(&epiphany_state), None)
@@ -422,6 +593,45 @@ pub async fn launch_thread_epiphany_reorient(
         epiphany_state,
         job,
     })
+}
+
+fn open_epiphany_runtime_spine_job(
+    store_path: &Path,
+    state: &EpiphanyThreadState,
+    request: &EpiphanyJobLaunchRequest,
+    backend_job_id: &str,
+) -> Result<(), CodexErr> {
+    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    open_runtime_spine_heartbeat_job(
+        store_path,
+        RuntimeSpineHeartbeatJobOptions {
+            runtime_id: "epiphany-local".to_string(),
+            display_name: "Epiphany Local".to_string(),
+            session_id: "epiphany-main".to_string(),
+            objective: state
+                .objective
+                .clone()
+                .filter(|objective| !objective.trim().is_empty())
+                .unwrap_or_else(|| "Epiphany heartbeat activation".to_string()),
+            coordinator_note: "App-server launch opened this typed runtime session.".to_string(),
+            job_id: backend_job_id.to_string(),
+            role: request.owner_role.clone(),
+            binding_id: request.binding_id.clone(),
+            authority_scope: request.authority_scope.clone(),
+            instruction: request.instruction.clone(),
+            launch_document: request.launch_document.clone(),
+            output_contract_id: request.output_contract_id.clone(),
+            created_at: now,
+        },
+    )
+    .map_err(|err| {
+        CodexErr::Fatal(format!(
+            "failed to open Epiphany runtime spine job {:?} in {}: {err}",
+            backend_job_id,
+            store_path.display()
+        ))
+    })?;
+    Ok(())
 }
 
 fn validate_expected_revision(

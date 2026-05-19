@@ -2393,7 +2393,6 @@ dependencies = [
  "dirs",
  "dunce",
  "env-flags",
- "epiphany-core",
  "eventsource-stream",
  "futures",
  "http 1.4.0",

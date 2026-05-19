@@ -15,9 +15,11 @@ use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
+use epiphany_codex_bridge::mutation_service::launch_epiphany_job_on_thread;
 use epiphany_codex_bridge::pressure::map_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
+use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
 use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -37,7 +39,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         return;
     };
 
-    let retrieval_override = thread.epiphany_retrieval_state().await;
+    let retrieval_override = thread_epiphany_retrieval_state(thread.as_ref()).await;
     let config_snapshot = thread.config_snapshot().await;
     epiphany_invalidation_manager
         .ensure_thread_watch(&thread_id_text, &config_snapshot.cwd)
@@ -72,7 +74,9 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
             let Some(launch_request) = verdict.launch_request else {
                 return;
             };
-            let launched = match thread.epiphany_launch_job(launch_request).await {
+            let launched = match launch_epiphany_job_on_thread(thread.as_ref(), launch_request)
+                .await
+            {
                 Ok(launched) => launched,
                 Err(err) => {
                     warn!(

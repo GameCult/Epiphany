@@ -18,6 +18,7 @@ use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
 use epiphany_codex_bridge::retrieve::index_thread_epiphany_retrieval;
+use epiphany_codex_bridge::retrieve::thread_epiphany_retrieval_state;
 use epiphany_core::EpiphanyJobLaunchRequest;
 use std::sync::Arc;
 
@@ -248,7 +249,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let retrieval_override = loaded_thread.epiphany_retrieval_state().await;
+        let retrieval_override = thread_epiphany_retrieval_state(loaded_thread.as_ref()).await;
         let config_snapshot = loaded_thread.config_snapshot().await;
         self.epiphany_invalidation_manager
             .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
