@@ -72,6 +72,7 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
+use crate::reorient::map_protocol_reorient_state_status;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
 
@@ -402,10 +403,10 @@ pub async fn derive_epiphany_coordinator_status(
 pub fn map_epiphany_coordinator_view(
     thread_id: String,
     loaded: bool,
-    state_status: ThreadEpiphanyReorientStateStatus,
+    state_status: CoreEpiphanyReorientStateStatus,
     state_revision: Option<u64>,
     status: EpiphanyCoordinatorStatus,
-    roles: Vec<ThreadEpiphanyRoleLane>,
+    roles: EpiphanyRoleBoardStatus,
 ) -> ThreadEpiphanyViewCoordinator {
     ThreadEpiphanyViewCoordinator {
         thread_id,
@@ -414,7 +415,7 @@ pub fn map_epiphany_coordinator_view(
         } else {
             ThreadEpiphanyRolesSource::Stored
         },
-        state_status,
+        state_status: map_protocol_reorient_state_status(state_status),
         state_revision,
         action: map_protocol_coordinator_action(status.decision.action),
         target_role: status
@@ -429,7 +430,7 @@ pub fn map_epiphany_coordinator_view(
         can_auto_run: status.decision.can_auto_run,
         reason: status.decision.reason,
         source_signals: map_protocol_coordinator_source_signals(status.source_signals),
-        roles,
+        roles: map_protocol_role_board_lanes(&roles),
         note: status.note,
     }
 }

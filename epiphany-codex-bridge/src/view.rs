@@ -336,7 +336,6 @@ pub async fn map_epiphany_view_response(
             recommendation.as_ref(),
             roles.clone(),
         ) {
-            let protocol_roles = map_protocol_role_board_lanes(&roles);
             let status = derive_epiphany_coordinator_status(
                 state,
                 runtime_store_path,
@@ -353,10 +352,10 @@ pub async fn map_epiphany_view_response(
             Some(map_epiphany_coordinator_view(
                 thread_id.clone(),
                 loaded,
-                reorient_state_status,
+                core_reorient_state_status,
                 state_revision,
                 status,
-                protocol_roles,
+                roles,
             ))
         } else {
             None
