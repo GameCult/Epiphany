@@ -18,7 +18,8 @@ use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use crate::results::map_core_role_result_role_id;
 
 pub struct RoleAcceptanceUpdate {
-    pub patch: ThreadEpiphanyUpdatePatch,
+    pub state_update: EpiphanyStateUpdate,
+    pub applied_patch: ThreadEpiphanyUpdatePatch,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
@@ -94,6 +95,13 @@ pub fn state_update_from_thread_patch(
     expected_revision: Option<u64>,
     patch: ThreadEpiphanyUpdatePatch,
 ) -> EpiphanyStateUpdate {
+    state_update_from_core_patch(expected_revision, core_state_patch_from_protocol(&patch))
+}
+
+pub fn state_update_from_core_patch(
+    expected_revision: Option<u64>,
+    patch: EpiphanyRoleStatePatchDocument,
+) -> EpiphanyStateUpdate {
     EpiphanyStateUpdate {
         expected_revision,
         objective: patch.objective,
@@ -141,6 +149,7 @@ pub fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> V
 }
 
 pub fn build_role_acceptance_update(
+    expected_revision: Option<u64>,
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
     finding: &CoreEpiphanyRoleFinding,
@@ -209,11 +218,13 @@ pub fn build_role_acceptance_update(
     core_patch
         .acceptance_receipts
         .push(acceptance_bundle.receipt);
-    let patch = protocol_patch_from_core(core_patch);
-    let changed_fields = epiphany_update_patch_changed_fields(&patch);
+    let applied_patch = protocol_patch_from_core(core_patch.clone());
+    let changed_fields = epiphany_update_patch_changed_fields(&applied_patch);
+    let state_update = state_update_from_core_patch(expected_revision, core_patch);
 
     Ok(RoleAcceptanceUpdate {
-        patch,
+        state_update,
+        applied_patch,
         changed_fields,
         accepted_receipt_id,
         accepted_observation_id,

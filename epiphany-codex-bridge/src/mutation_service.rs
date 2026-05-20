@@ -391,6 +391,7 @@ pub async fn apply_thread_epiphany_role_accept(
     )?;
     let accepted_prefix = epiphany_role_label(role_id);
     let acceptance_update = build_role_acceptance_update(
+        expected_revision,
         role_id,
         binding_id,
         &finding,
@@ -404,12 +405,9 @@ pub async fn apply_thread_epiphany_role_accept(
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
-    let applied_patch = acceptance_update.patch.clone();
-    let epiphany_state = apply_epiphany_state_update_to_thread(
-        thread,
-        state_update_from_thread_patch(expected_revision, acceptance_update.patch),
-    )
-    .await?;
+    let applied_patch = acceptance_update.applied_patch.clone();
+    let epiphany_state =
+        apply_epiphany_state_update_to_thread(thread, acceptance_update.state_update).await?;
     let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
 
     Ok(EpiphanyRoleAcceptApplied {
