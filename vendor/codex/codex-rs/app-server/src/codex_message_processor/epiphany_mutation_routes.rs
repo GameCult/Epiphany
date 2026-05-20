@@ -14,6 +14,7 @@ use epiphany_codex_bridge::cultnet::EpiphanyReorientPressureLevel;
 use epiphany_codex_bridge::cultnet::EpiphanyReorientReason;
 use epiphany_codex_bridge::cultnet::EpiphanyReorientStateStatus;
 use epiphany_codex_bridge::cultnet::EpiphanyStateUpdatedField;
+use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -327,7 +328,7 @@ impl CodexMessageProcessor {
                 request_id,
                 ThreadEpiphanyReorientLaunchResponse {
                     thread_id: thread_uuid.to_string(),
-                    source: applied.source,
+                    source: thread_epiphany_reorient_source(applied.source),
                     state_status: thread_epiphany_reorient_state_status(applied.state_status),
                     state_revision: applied.state_revision,
                     decision: thread_epiphany_reorient_decision(applied.decision),
@@ -797,6 +798,13 @@ fn thread_epiphany_reorient_state_status(
     match status {
         EpiphanyReorientStateStatus::Missing => ThreadEpiphanyReorientStateStatus::Missing,
         EpiphanyReorientStateStatus::Ready => ThreadEpiphanyReorientStateStatus::Ready,
+    }
+}
+
+fn thread_epiphany_reorient_source(source: EpiphanySurfaceSource) -> ThreadEpiphanyReorientSource {
+    match source {
+        EpiphanySurfaceSource::Stored => ThreadEpiphanyReorientSource::Stored,
+        EpiphanySurfaceSource::Live => ThreadEpiphanyReorientSource::Live,
     }
 }
 

@@ -3,7 +3,6 @@ use chrono::Utc;
 use std::path::Path;
 use std::path::PathBuf;
 
-use codex_app_server_protocol::ThreadEpiphanyReorientSource;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
@@ -33,6 +32,7 @@ use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
+use crate::cultnet::EpiphanySurfaceSource;
 use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
 use crate::jobs::derive_epiphany_jobs;
@@ -132,7 +132,7 @@ pub struct EpiphanyJobInterruptApplied {
 pub struct EpiphanyReorientLaunchApplied {
     pub launcher_job_id: String,
     pub backend_job_id: String,
-    pub source: ThreadEpiphanyReorientSource,
+    pub source: EpiphanySurfaceSource,
     pub state_status: EpiphanyReorientStateStatus,
     pub state_revision: Option<u64>,
     pub decision: EpiphanyReorientDecision,
@@ -631,7 +631,7 @@ pub async fn launch_thread_epiphany_reorient(
     Ok(EpiphanyReorientLaunchApplied {
         launcher_job_id: launched.launcher_job_id,
         backend_job_id: launched.backend_job_id,
-        source: ThreadEpiphanyReorientSource::Live,
+        source: EpiphanySurfaceSource::Live,
         state_status,
         state_revision,
         decision,
