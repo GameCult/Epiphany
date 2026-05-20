@@ -90,13 +90,6 @@ pub fn protocol_patch_from_core(
     }
 }
 
-pub fn state_update_from_thread_patch(
-    expected_revision: Option<u64>,
-    patch: ThreadEpiphanyUpdatePatch,
-) -> EpiphanyStateUpdate {
-    state_update_from_core_patch(expected_revision, core_state_patch_from_protocol(&patch))
-}
-
 pub fn state_update_from_core_patch(
     expected_revision: Option<u64>,
     patch: EpiphanyRoleStatePatchDocument,
@@ -180,14 +173,6 @@ pub fn map_protocol_state_updated_field(
     }
 }
 
-pub fn imagination_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
-    imagination_role_state_patch_policy_errors(&core_state_patch_from_protocol(patch))
-}
-
-pub fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> Vec<String> {
-    modeling_role_state_patch_policy_errors(&core_state_patch_from_protocol(patch))
-}
-
 pub fn build_role_acceptance_update(
     expected_revision: Option<u64>,
     role_id: EpiphanyRoleResultRoleId,
@@ -229,8 +214,7 @@ pub fn build_role_acceptance_update(
         }
     };
 
-    let patch_for_projection = protocol_patch_from_core(core_patch.clone());
-    let projected_fields = epiphany_update_patch_changed_fields(&patch_for_projection)
+    let projected_fields = epiphany_update_patch_changed_fields(&core_patch)
         .into_iter()
         .map(|field| format!("{field:?}"))
         .collect();
@@ -259,8 +243,7 @@ pub fn build_role_acceptance_update(
         .acceptance_receipts
         .push(acceptance_bundle.receipt);
     let applied_patch = core_patch.clone();
-    let changed_fields =
-        epiphany_update_patch_changed_fields(&protocol_patch_from_core(applied_patch.clone()));
+    let changed_fields = epiphany_update_patch_changed_fields(&applied_patch);
     let state_update = state_update_from_core_patch(expected_revision, core_patch);
 
     Ok(RoleAcceptanceUpdate {
@@ -366,7 +349,7 @@ pub fn thread_epiphany_patch_has_state_replacements(
 }
 
 pub fn epiphany_update_patch_changed_fields(
-    patch: &ThreadEpiphanyUpdatePatch,
+    patch: &EpiphanyRoleStatePatchDocument,
 ) -> Vec<EpiphanyStateUpdatedField> {
     let mut fields = Vec::new();
     if patch.objective.is_some() {
@@ -426,7 +409,7 @@ pub fn epiphany_update_patch_changed_fields(
 pub fn epiphany_promote_changed_fields(
     patch: &EpiphanyRoleStatePatchDocument,
 ) -> Vec<EpiphanyStateUpdatedField> {
-    let mut fields = epiphany_update_patch_changed_fields(&protocol_patch_from_core(patch.clone()));
+    let mut fields = epiphany_update_patch_changed_fields(patch);
     if !fields.contains(&EpiphanyStateUpdatedField::Evidence) {
         fields.push(EpiphanyStateUpdatedField::Evidence);
     }

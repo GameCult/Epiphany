@@ -313,9 +313,7 @@ pub async fn apply_thread_epiphany_update(
     expected_revision: Option<u64>,
     patch: EpiphanyRoleStatePatchDocument,
 ) -> BridgeResult<EpiphanyThreadUpdateApplied> {
-    let changed_fields = epiphany_update_patch_changed_fields(
-        &crate::mutation::protocol_patch_from_core(patch.clone()),
-    );
+    let changed_fields = epiphany_update_patch_changed_fields(&patch);
     let update = crate::mutation::state_update_from_core_patch(expected_revision, patch);
     let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
     let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
