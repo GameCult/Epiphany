@@ -389,6 +389,9 @@ current_status:
     construction receives core `EpiphanyDistillInput`. Generic job launch
     document conversion moved to app-server too; bridge launch receives core
     `EpiphanyWorkerLaunchDocument` instead of protocol worker launch cargo.
+    Generic update/promote patch conversion moved to app-server as well; bridge
+    mutation receives core `EpiphanyRoleStatePatchDocument` and keeps only
+    legacy response patch projection.
     Reorient worker launch-request/document
     composition also moved behind a typed core seam
     (`EpiphanyReorientLaunchRequestInput` -> `EpiphanyJobLaunchRequest`);

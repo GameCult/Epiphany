@@ -42,30 +42,6 @@ pub fn parse_core_role_finding_state_patch(
         .ok_or_else(|| "completed role finding did not include a reviewable statePatch".to_string())
 }
 
-pub fn core_state_patch_from_protocol(
-    patch: &ThreadEpiphanyUpdatePatch,
-) -> EpiphanyRoleStatePatchDocument {
-    EpiphanyRoleStatePatchDocument {
-        objective: patch.objective.clone(),
-        active_subgoal_id: patch.active_subgoal_id.clone(),
-        subgoals: patch.subgoals.clone(),
-        invariants: patch.invariants.clone(),
-        graphs: patch.graphs.clone(),
-        graph_frontier: patch.graph_frontier.clone(),
-        graph_checkpoint: patch.graph_checkpoint.clone(),
-        scratch: patch.scratch.clone(),
-        investigation_checkpoint: patch.investigation_checkpoint.clone(),
-        job_bindings: patch.job_bindings.clone(),
-        acceptance_receipts: patch.acceptance_receipts.clone(),
-        runtime_links: patch.runtime_links.clone(),
-        observations: patch.observations.clone(),
-        evidence: patch.evidence.clone(),
-        churn: patch.churn.clone(),
-        mode: patch.mode.clone(),
-        planning: patch.planning.clone(),
-    }
-}
-
 pub fn protocol_patch_from_core(
     patch: EpiphanyRoleStatePatchDocument,
 ) -> ThreadEpiphanyUpdatePatch {

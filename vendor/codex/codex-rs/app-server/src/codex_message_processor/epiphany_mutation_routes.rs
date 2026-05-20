@@ -20,7 +20,6 @@ use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::mutation::core_state_patch_from_protocol;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation::map_protocol_state_updated_fields;
 use epiphany_codex_bridge::mutation::protocol_patch_from_core;
@@ -39,6 +38,7 @@ use epiphany_codex_bridge::results::map_protocol_role_finding;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
+use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use std::sync::Arc;
@@ -482,7 +482,7 @@ impl CodexMessageProcessor {
         };
 
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
-        let core_patch = core_state_patch_from_protocol(&patch);
+        let core_patch = thread_epiphany_update_patch_to_core(&patch);
         let applied = match apply_thread_epiphany_promote(
             &host,
             expected_revision,
@@ -562,7 +562,7 @@ impl CodexMessageProcessor {
         };
 
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
-        let core_patch = core_state_patch_from_protocol(&patch);
+        let core_patch = thread_epiphany_update_patch_to_core(&patch);
         let applied = match apply_thread_epiphany_update(&host, expected_revision, core_patch).await
         {
             Ok(applied) => applied,
@@ -808,6 +808,30 @@ fn thread_epiphany_worker_launch_document_to_core(
                 thread_epiphany_reorient_worker_launch_document_to_core(document),
             )
         }
+    }
+}
+
+fn thread_epiphany_update_patch_to_core(
+    patch: &ThreadEpiphanyUpdatePatch,
+) -> EpiphanyRoleStatePatchDocument {
+    EpiphanyRoleStatePatchDocument {
+        objective: patch.objective.clone(),
+        active_subgoal_id: patch.active_subgoal_id.clone(),
+        subgoals: patch.subgoals.clone(),
+        invariants: patch.invariants.clone(),
+        graphs: patch.graphs.clone(),
+        graph_frontier: patch.graph_frontier.clone(),
+        graph_checkpoint: patch.graph_checkpoint.clone(),
+        scratch: patch.scratch.clone(),
+        investigation_checkpoint: patch.investigation_checkpoint.clone(),
+        job_bindings: patch.job_bindings.clone(),
+        acceptance_receipts: patch.acceptance_receipts.clone(),
+        runtime_links: patch.runtime_links.clone(),
+        observations: patch.observations.clone(),
+        evidence: patch.evidence.clone(),
+        churn: patch.churn.clone(),
+        mode: patch.mode.clone(),
+        planning: patch.planning.clone(),
     }
 }
 
