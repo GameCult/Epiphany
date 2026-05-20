@@ -22,14 +22,21 @@ pub fn derive_epiphany_jobs(
 pub fn map_epiphany_jobs(
     state: Option<&EpiphanyThreadState>,
     retrieval_override: Option<&EpiphanyRetrievalState>,
-) -> Vec<ThreadEpiphanyJob> {
+) -> Vec<EpiphanyJobView> {
     derive_epiphany_jobs(state, retrieval_override)
-    .into_iter()
-    .map(map_core_epiphany_job_view)
-    .collect()
 }
 
-fn map_core_epiphany_job_view(job: EpiphanyJobView) -> ThreadEpiphanyJob {
+pub fn map_protocol_epiphany_jobs(
+    state: Option<&EpiphanyThreadState>,
+    retrieval_override: Option<&EpiphanyRetrievalState>,
+) -> Vec<ThreadEpiphanyJob> {
+    derive_epiphany_jobs(state, retrieval_override)
+        .into_iter()
+        .map(map_core_epiphany_job_view)
+        .collect()
+}
+
+pub fn map_core_epiphany_job_view(job: EpiphanyJobView) -> ThreadEpiphanyJob {
     ThreadEpiphanyJob {
         id: job.id,
         kind: map_core_epiphany_job_kind(job.kind),

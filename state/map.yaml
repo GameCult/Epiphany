@@ -328,7 +328,10 @@ current_status:
     wrappers themselves are gone. Role acceptance now produces a core
     `EpiphanyStateUpdate`; `ThreadEpiphanyUpdatePatch` is retained there only as
     legacy accept-response projection. Role-board derivation now consumes core
-    pressure directly instead of `ThreadEpiphanyPressure`. The bridge still
-    depends on vendored Codex for app-server protocol DTOs and absolute path
-    validation, so the purification is not done.
+    pressure directly instead of `ThreadEpiphanyPressure`. Job reflection now
+    stays core-shaped inside the bridge as `EpiphanyJobView`; role-board and
+    view assembly consume those typed job documents, and `ThreadEpiphanyJob` is
+    projected only at legacy response edges. The bridge still depends on
+    vendored Codex for app-server protocol DTOs and absolute path validation,
+    so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

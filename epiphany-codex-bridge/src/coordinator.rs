@@ -3,8 +3,6 @@ use codex_app_server_protocol::ThreadEpiphanyCoordinatorSignals;
 use codex_app_server_protocol::ThreadEpiphanyCrrcAction;
 use codex_app_server_protocol::ThreadEpiphanyCrrcRecommendation;
 use codex_app_server_protocol::ThreadEpiphanyJob;
-use codex_app_server_protocol::ThreadEpiphanyJobKind;
-use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
@@ -34,6 +32,8 @@ use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcSceneAction as CoreEpiphanyCrrcSceneAction;
 use epiphany_core::EpiphanyCrrcStateStatus as CoreEpiphanyCrrcStateStatus;
 use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
+use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
 use epiphany_core::EpiphanyReorientFindingInterpretation as CoreEpiphanyReorientFinding;
@@ -54,9 +54,11 @@ use epiphany_core::recommend_crrc_action;
 use epiphany_core::render_role_board_note;
 use epiphany_core::select_coordinator_automation_action;
 use epiphany_state_model::EpiphanyAcceptanceReceipt;
+use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
+use crate::jobs::map_core_epiphany_job_view;
 use crate::launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
 use crate::launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 use crate::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
@@ -997,17 +999,17 @@ fn reorient_finding_runtime_result_id(finding: &CoreEpiphanyReorientFinding) -> 
 #[derive(Debug, Clone)]
 pub struct EpiphanyRoleBoardStatus {
     pub roles: Vec<EpiphanyRoleBoardLane>,
-    source_jobs: Vec<ThreadEpiphanyJob>,
+    source_jobs: Vec<EpiphanyJobView>,
 }
 
 pub fn map_epiphany_roles(
     state: Option<&EpiphanyThreadState>,
-    jobs: &[ThreadEpiphanyJob],
+    jobs: &[EpiphanyJobView],
     decision: &CoreEpiphanyReorientDecision,
     pressure: &epiphany_core::EpiphanyPressure,
     recommendation: &CoreEpiphanyCrrcRecommendation,
     result_status: CoreEpiphanyCrrcResultStatus,
-    reorient_job: Option<&ThreadEpiphanyJob>,
+    reorient_job: Option<&EpiphanyJobView>,
 ) -> EpiphanyRoleBoardStatus {
     let planning = state.map(|state| &state.planning);
     let checkpoint = state.and_then(|state| state.investigation_checkpoint.as_ref());
@@ -1060,7 +1062,7 @@ pub fn map_epiphany_roles(
     EpiphanyRoleBoardStatus { roles, source_jobs }
 }
 
-fn map_core_role_board_job(job: &ThreadEpiphanyJob) -> EpiphanyRoleBoardJob {
+fn map_core_role_board_job(job: &EpiphanyJobView) -> EpiphanyRoleBoardJob {
     EpiphanyRoleBoardJob {
         id: job.id.clone(),
         owner_role: job.owner_role.clone(),
@@ -1070,17 +1072,17 @@ fn map_core_role_board_job(job: &ThreadEpiphanyJob) -> EpiphanyRoleBoardJob {
     }
 }
 
-fn map_core_role_board_job_status(status: ThreadEpiphanyJobStatus) -> EpiphanyRoleBoardJobStatus {
+fn map_core_role_board_job_status(status: CoreEpiphanyJobStatus) -> EpiphanyRoleBoardJobStatus {
     match status {
-        ThreadEpiphanyJobStatus::Idle => EpiphanyRoleBoardJobStatus::Idle,
-        ThreadEpiphanyJobStatus::Needed => EpiphanyRoleBoardJobStatus::Needed,
-        ThreadEpiphanyJobStatus::Pending => EpiphanyRoleBoardJobStatus::Pending,
-        ThreadEpiphanyJobStatus::Running => EpiphanyRoleBoardJobStatus::Running,
-        ThreadEpiphanyJobStatus::Completed => EpiphanyRoleBoardJobStatus::Completed,
-        ThreadEpiphanyJobStatus::Failed => EpiphanyRoleBoardJobStatus::Failed,
-        ThreadEpiphanyJobStatus::Cancelled => EpiphanyRoleBoardJobStatus::Cancelled,
-        ThreadEpiphanyJobStatus::Blocked => EpiphanyRoleBoardJobStatus::Blocked,
-        ThreadEpiphanyJobStatus::Unavailable => EpiphanyRoleBoardJobStatus::Unavailable,
+        CoreEpiphanyJobStatus::Idle => EpiphanyRoleBoardJobStatus::Idle,
+        CoreEpiphanyJobStatus::Needed => EpiphanyRoleBoardJobStatus::Needed,
+        CoreEpiphanyJobStatus::Pending => EpiphanyRoleBoardJobStatus::Pending,
+        CoreEpiphanyJobStatus::Running => EpiphanyRoleBoardJobStatus::Running,
+        CoreEpiphanyJobStatus::Completed => EpiphanyRoleBoardJobStatus::Completed,
+        CoreEpiphanyJobStatus::Failed => EpiphanyRoleBoardJobStatus::Failed,
+        CoreEpiphanyJobStatus::Cancelled => EpiphanyRoleBoardJobStatus::Cancelled,
+        CoreEpiphanyJobStatus::Blocked => EpiphanyRoleBoardJobStatus::Blocked,
+        CoreEpiphanyJobStatus::Unavailable => EpiphanyRoleBoardJobStatus::Unavailable,
     }
 }
 
@@ -1097,7 +1099,7 @@ pub fn map_protocol_role_board_lanes(
 
 fn map_protocol_role_board_lane(
     lane: EpiphanyRoleBoardLane,
-    source_jobs: &[ThreadEpiphanyJob],
+    source_jobs: &[EpiphanyJobView],
 ) -> ThreadEpiphanyRoleLane {
     ThreadEpiphanyRoleLane {
         id: map_protocol_coordinator_role_id(lane.id),
@@ -1119,45 +1121,47 @@ fn map_protocol_role_board_lane(
 
 fn map_protocol_role_board_job(
     job: &EpiphanyRoleBoardJob,
-    source_jobs: &[ThreadEpiphanyJob],
+    source_jobs: &[EpiphanyJobView],
 ) -> ThreadEpiphanyJob {
     source_jobs
         .iter()
         .find(|source_job| source_job.id == job.id && source_job.owner_role == job.owner_role)
         .cloned()
-        .unwrap_or_else(|| ThreadEpiphanyJob {
-            id: job.id.clone(),
-            kind: ThreadEpiphanyJobKind::Specialist,
-            scope: job.id.clone(),
-            owner_role: job.owner_role.clone(),
-            launcher_job_id: None,
-            authority_scope: None,
-            backend_job_id: None,
-            status: map_protocol_role_board_job_status(job.status),
-            items_processed: None,
-            items_total: None,
-            progress_note: job.progress_note.clone(),
-            last_checkpoint_at_unix_seconds: None,
-            blocking_reason: job.blocking_reason.clone(),
-            active_thread_ids: Vec::new(),
-            linked_subgoal_ids: Vec::new(),
-            linked_graph_node_ids: Vec::new(),
+        .map(map_core_epiphany_job_view)
+        .unwrap_or_else(|| {
+            map_core_epiphany_job_view(EpiphanyJobView {
+                id: job.id.clone(),
+                kind: CoreEpiphanyJobKind::Specialist,
+                scope: job.id.clone(),
+                owner_role: job.owner_role.clone(),
+                authority_scope: None,
+                runtime_job_id: None,
+                status: map_core_epiphany_job_status_from_role_board(job.status),
+                items_processed: None,
+                items_total: None,
+                progress_note: job.progress_note.clone(),
+                last_checkpoint_at_unix_seconds: None,
+                blocking_reason: job.blocking_reason.clone(),
+                active_thread_ids: Vec::new(),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+            })
         })
 }
 
-fn map_protocol_role_board_job_status(
+fn map_core_epiphany_job_status_from_role_board(
     status: EpiphanyRoleBoardJobStatus,
-) -> ThreadEpiphanyJobStatus {
+) -> CoreEpiphanyJobStatus {
     match status {
-        EpiphanyRoleBoardJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,
-        EpiphanyRoleBoardJobStatus::Needed => ThreadEpiphanyJobStatus::Needed,
-        EpiphanyRoleBoardJobStatus::Pending => ThreadEpiphanyJobStatus::Pending,
-        EpiphanyRoleBoardJobStatus::Running => ThreadEpiphanyJobStatus::Running,
-        EpiphanyRoleBoardJobStatus::Completed => ThreadEpiphanyJobStatus::Completed,
-        EpiphanyRoleBoardJobStatus::Failed => ThreadEpiphanyJobStatus::Failed,
-        EpiphanyRoleBoardJobStatus::Cancelled => ThreadEpiphanyJobStatus::Cancelled,
-        EpiphanyRoleBoardJobStatus::Blocked => ThreadEpiphanyJobStatus::Blocked,
-        EpiphanyRoleBoardJobStatus::Unavailable => ThreadEpiphanyJobStatus::Unavailable,
+        EpiphanyRoleBoardJobStatus::Idle => CoreEpiphanyJobStatus::Idle,
+        EpiphanyRoleBoardJobStatus::Needed => CoreEpiphanyJobStatus::Needed,
+        EpiphanyRoleBoardJobStatus::Pending => CoreEpiphanyJobStatus::Pending,
+        EpiphanyRoleBoardJobStatus::Running => CoreEpiphanyJobStatus::Running,
+        EpiphanyRoleBoardJobStatus::Completed => CoreEpiphanyJobStatus::Completed,
+        EpiphanyRoleBoardJobStatus::Failed => CoreEpiphanyJobStatus::Failed,
+        EpiphanyRoleBoardJobStatus::Cancelled => CoreEpiphanyJobStatus::Cancelled,
+        EpiphanyRoleBoardJobStatus::Blocked => CoreEpiphanyJobStatus::Blocked,
+        EpiphanyRoleBoardJobStatus::Unavailable => CoreEpiphanyJobStatus::Unavailable,
     }
 }
 
