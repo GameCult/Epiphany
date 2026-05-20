@@ -5,7 +5,6 @@ use codex_app_server_protocol::ThreadEpiphanyCrrcRecommendation;
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
-use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
@@ -67,7 +66,6 @@ use crate::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::render_epiphany_coordinator_note;
 use crate::pressure::derive_epiphany_pressure;
-use crate::pressure::map_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
@@ -504,7 +502,6 @@ pub async fn select_epiphany_coordinator_automation(
         Some(input.watcher_snapshot),
     );
     let core_pressure = derive_epiphany_pressure(input.token_usage_info);
-    let pressure = map_epiphany_pressure(input.token_usage_info);
     let (state_status, reorient_decision) = derive_epiphany_reorient(
         Some(input.state),
         &core_pressure,
@@ -548,7 +545,7 @@ pub async fn select_epiphany_coordinator_automation(
         Some(input.state),
         &jobs,
         &reorient_decision,
-        &pressure,
+        &core_pressure,
         &crrc_recommendation,
         reorient_result.status,
         reorient_job.as_ref(),
@@ -1007,7 +1004,7 @@ pub fn map_epiphany_roles(
     state: Option<&EpiphanyThreadState>,
     jobs: &[ThreadEpiphanyJob],
     decision: &CoreEpiphanyReorientDecision,
-    pressure: &ThreadEpiphanyPressure,
+    pressure: &epiphany_core::EpiphanyPressure,
     recommendation: &CoreEpiphanyCrrcRecommendation,
     result_status: CoreEpiphanyCrrcResultStatus,
     reorient_job: Option<&ThreadEpiphanyJob>,

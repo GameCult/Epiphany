@@ -264,8 +264,8 @@ pub async fn map_epiphany_view_response(
     } else {
         None
     };
-    let roles = if let (Some(pressure), Some(decision), Some(recommendation)) = (
-        pressure.as_ref(),
+    let roles = if let (Some(core_pressure), Some(decision), Some(recommendation)) = (
+        core_pressure.as_ref(),
         core_reorient_decision.as_ref(),
         recommendation.as_ref(),
     ) {
@@ -273,7 +273,7 @@ pub async fn map_epiphany_view_response(
             state,
             &jobs,
             decision,
-            pressure,
+            core_pressure,
             recommendation,
             reorient_result.status,
             reorient_job.as_ref(),
