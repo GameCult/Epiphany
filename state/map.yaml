@@ -445,8 +445,9 @@ current_status:
     validation.
     View response assembly no longer owns private lens/source/reorient-status
     projection helpers; those small enum conversions route through
-    `protocol_edge`, so `view.rs` does not grow a second protocol dialect while
-    the larger typed-view wall remains under judgment.
+    `protocol_edge`, and the Codex response assembler is now named
+    `view_protocol.rs` instead of pretending to be the native Epiphany view
+    model. The larger typed-view wall remains under judgment.
     The bridge still depends on vendored Codex for app-server protocol DTOs and
     absolute path validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal response/projection authority. Prioritize the next coordinator/view seam that still composes policy-shaped facts instead of merely loading host facts and projecting core surfaces; keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

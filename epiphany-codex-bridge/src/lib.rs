@@ -20,4 +20,4 @@ pub mod runtime_results;
 pub mod scene;
 pub mod scene_protocol;
 pub mod state;
-pub mod view;
+pub mod view_protocol;
