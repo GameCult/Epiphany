@@ -1,8 +1,6 @@
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
-use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
-use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
@@ -121,71 +119,6 @@ fn map_protocol_role_self_persistence_review(
     }
 }
 
-pub fn render_epiphany_role_result_note(
-    role_id: ThreadEpiphanyRoleId,
-    status: ThreadEpiphanyRoleResultStatus,
-    finding: Option<&ThreadEpiphanyRoleFinding>,
-    item_error: Option<&str>,
-) -> String {
-    match status {
-        ThreadEpiphanyRoleResultStatus::Completed => {
-            if let Some(finding) = finding {
-                let next = finding.next_safe_move.as_deref().unwrap_or("not supplied");
-                let self_note =
-                    render_epiphany_self_persistence_note(finding.self_persistence.as_ref())
-                        .map(|note| format!(" {note}"))
-                        .unwrap_or_default();
-                if let Some(item_error) = finding.item_error.as_deref().or(item_error) {
-                    format!(
-                        "{:?} role specialist completed, but the finding needs repair: {item_error}. Next safe move: {next}.{self_note}",
-                        role_id
-                    )
-                } else {
-                    format!(
-                        "{:?} role specialist completed. Next safe move: {next}.{self_note}",
-                        role_id
-                    )
-                }
-            } else {
-                format!(
-                    "{:?} role specialist completed, but no structured result was recorded.",
-                    role_id
-                )
-            }
-        }
-        ThreadEpiphanyRoleResultStatus::Failed => item_error
-            .map(|error| format!("{:?} role specialist failed: {error}", role_id))
-            .unwrap_or_else(|| format!("{:?} role specialist failed.", role_id)),
-        ThreadEpiphanyRoleResultStatus::Cancelled => {
-            format!(
-                "{:?} role specialist was cancelled before producing a result.",
-                role_id
-            )
-        }
-        ThreadEpiphanyRoleResultStatus::Running => {
-            format!("{:?} role specialist is still running.", role_id)
-        }
-        ThreadEpiphanyRoleResultStatus::Pending => {
-            format!(
-                "{:?} role specialist has not produced a result yet.",
-                role_id
-            )
-        }
-        ThreadEpiphanyRoleResultStatus::MissingState => {
-            "No authoritative Epiphany state exists for this thread.".to_string()
-        }
-        ThreadEpiphanyRoleResultStatus::MissingBinding => {
-            "No matching Epiphany role specialist binding exists.".to_string()
-        }
-        ThreadEpiphanyRoleResultStatus::BackendUnavailable => {
-            "The bound runtime backend is unavailable.".to_string()
-        }
-        ThreadEpiphanyRoleResultStatus::BackendMissing => {
-            "The bound runtime backend job or item is missing.".to_string()
-        }
-    }
-}
-
 pub fn render_core_role_result_note(
     role_id: EpiphanyRoleResultRoleId,
     status: CoreEpiphanyCoordinatorRoleResultStatus,
@@ -271,71 +204,6 @@ fn render_core_self_persistence_note(
                 review.reasons.join("; ")
             };
             Some(format!("Self persistence request was refused: {reasons}."))
-        }
-    }
-}
-
-fn render_epiphany_self_persistence_note(
-    review: Option<&ThreadEpiphanyRoleSelfPersistenceReview>,
-) -> Option<String> {
-    let review = review?;
-    match review.status {
-        ThreadEpiphanyRoleSelfPersistenceStatus::Missing => None,
-        ThreadEpiphanyRoleSelfPersistenceStatus::Accepted => Some(format!(
-            "Self persistence request is acceptable for {}.",
-            review
-                .target_agent_id
-                .as_deref()
-                .unwrap_or("the role memory file")
-        )),
-        ThreadEpiphanyRoleSelfPersistenceStatus::Rejected => {
-            let reasons = if review.reasons.is_empty() {
-                "no reason recorded".to_string()
-            } else {
-                review.reasons.join("; ")
-            };
-            Some(format!("Self persistence request was refused: {reasons}."))
-        }
-    }
-}
-
-pub fn render_epiphany_reorient_result_note(
-    status: ThreadEpiphanyReorientResultStatus,
-    finding: Option<&ThreadEpiphanyReorientFinding>,
-    item_error: Option<&str>,
-) -> String {
-    match status {
-        ThreadEpiphanyReorientResultStatus::Completed => {
-            if let Some(finding) = finding {
-                let next = finding.next_safe_move.as_deref().unwrap_or("not supplied");
-                format!("Reorientation worker completed. Next safe move: {next}")
-            } else {
-                "Reorientation worker completed, but no structured result was recorded.".to_string()
-            }
-        }
-        ThreadEpiphanyReorientResultStatus::Failed => item_error
-            .map(|error| format!("Reorientation worker failed: {error}"))
-            .unwrap_or_else(|| "Reorientation worker failed.".to_string()),
-        ThreadEpiphanyReorientResultStatus::Cancelled => {
-            "Reorientation worker was cancelled before producing a result.".to_string()
-        }
-        ThreadEpiphanyReorientResultStatus::Running => {
-            "Reorientation worker is still running.".to_string()
-        }
-        ThreadEpiphanyReorientResultStatus::Pending => {
-            "Reorientation worker has not produced a result yet.".to_string()
-        }
-        ThreadEpiphanyReorientResultStatus::MissingState => {
-            "No authoritative Epiphany state exists for this thread.".to_string()
-        }
-        ThreadEpiphanyReorientResultStatus::MissingBinding => {
-            "No matching Epiphany reorientation worker binding exists.".to_string()
-        }
-        ThreadEpiphanyReorientResultStatus::BackendUnavailable => {
-            "The bound runtime backend is unavailable.".to_string()
-        }
-        ThreadEpiphanyReorientResultStatus::BackendMissing => {
-            "The bound runtime backend job or item is missing.".to_string()
         }
     }
 }

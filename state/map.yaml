@@ -322,7 +322,8 @@ current_status:
     result rendering once acceptance and view response edges finish moving off
     protocol finding authority. Role/reorient acceptance now builds receipts
     and evidence from core typed findings, mapping to protocol findings only for
-    legacy accept response cargo. The bridge still
+    legacy accept response cargo. The duplicate protocol-shaped result helper
+    layer has been deleted. The bridge still
     depends on vendored Codex for app-server protocol DTOs and absolute path
     validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

@@ -27,24 +27,6 @@ use crate::results::map_protocol_role_finding;
 use crate::results::render_core_reorient_result_note;
 use crate::results::render_core_role_result_note;
 
-pub fn role_finding_runtime_result_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
-    finding.runtime_result_id.clone()
-}
-
-pub fn role_finding_runtime_job_id(finding: &ThreadEpiphanyRoleFinding) -> Option<String> {
-    finding.runtime_job_id.clone()
-}
-
-pub fn reorient_finding_runtime_result_id(
-    finding: &ThreadEpiphanyReorientFinding,
-) -> Option<String> {
-    finding.runtime_result_id.clone()
-}
-
-pub fn reorient_finding_runtime_job_id(finding: &ThreadEpiphanyReorientFinding) -> Option<String> {
-    finding.runtime_job_id.clone()
-}
-
 #[derive(Debug, Clone)]
 pub struct EpiphanyRoleResultSnapshot {
     pub status: CoreEpiphanyCoordinatorRoleResultStatus,
@@ -386,16 +368,6 @@ pub async fn load_core_epiphany_role_result_snapshot(
     }
 }
 
-pub fn load_completed_epiphany_role_finding(
-    runtime_store_path: Option<&Path>,
-    state: &EpiphanyThreadState,
-    role_id: ThreadEpiphanyRoleId,
-    binding_id: &str,
-) -> BridgeResult<ThreadEpiphanyRoleFinding> {
-    load_completed_core_epiphany_role_finding(runtime_store_path, state, role_id, binding_id)
-        .map(|finding| map_protocol_role_finding(role_id, finding))
-}
-
 pub fn load_completed_core_epiphany_role_finding(
     runtime_store_path: Option<&Path>,
     state: &EpiphanyThreadState,
@@ -492,15 +464,6 @@ pub async fn load_core_epiphany_reorient_result_snapshot(
         finding: None,
         note: "Reorientation binding has no runtime-spine job id; launch a runtime-linked reorient worker for typed results.".to_string(),
     }
-}
-
-pub fn load_completed_epiphany_reorient_finding(
-    runtime_store_path: Option<&Path>,
-    state: &EpiphanyThreadState,
-    binding_id: &str,
-) -> BridgeResult<ThreadEpiphanyReorientFinding> {
-    load_completed_core_epiphany_reorient_finding(runtime_store_path, state, binding_id)
-        .map(map_protocol_reorient_finding)
 }
 
 pub fn load_completed_core_epiphany_reorient_finding(
