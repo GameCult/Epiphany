@@ -34,8 +34,8 @@ use crate::cultnet::EpiphanySurfaceSource;
 use crate::jobs::map_epiphany_jobs;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use crate::pressure::derive_epiphany_pressure;
-use crate::pressure::map_epiphany_pressure;
 use crate::protocol_edge::protocol_job_from_surface;
+use crate::protocol_edge::protocol_pressure_from_core;
 use crate::protocol_edge::protocol_reorient_decision;
 use crate::protocol_edge::protocol_reorient_finding;
 use crate::protocol_edge::protocol_reorient_result_status;
@@ -169,7 +169,8 @@ pub async fn map_epiphany_view_response(
     let needs_reorientation_inputs = epiphany_view_needs_reorientation_inputs(&lenses);
     let needs_pressure = epiphany_view_needs_pressure(&lenses);
     let core_pressure = needs_pressure.then(|| derive_epiphany_pressure(token_usage_info));
-    let pressure = needs_pressure.then(|| map_epiphany_pressure(token_usage_info));
+    let pressure = needs_pressure
+        .then(|| protocol_pressure_from_core(derive_epiphany_pressure(token_usage_info)));
     let core_freshness = needs_reorientation_inputs
         .then(|| derive_epiphany_freshness_view(state, retrieval_override, watcher_snapshot));
     let (state_revision, core_reorient_state_status, core_reorient_decision) =

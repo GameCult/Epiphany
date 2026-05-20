@@ -1,4 +1,3 @@
-use codex_app_server_protocol::ThreadEpiphanyPressure;
 use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use epiphany_core::EpiphanyPressureStatus as CoreEpiphanyPressureStatus;
@@ -7,16 +6,9 @@ use epiphany_core::derive_pressure_view;
 
 use crate::launch::epiphany_agent_prompt_with_memory;
 use crate::launch::epiphany_specialist_prompt_config;
-use crate::protocol_edge::protocol_pressure_from_core;
 
 pub fn derive_epiphany_pressure(snapshot: Option<&EpiphanyTokenUsageSnapshot>) -> EpiphanyPressure {
     derive_pressure_view(snapshot)
-}
-
-pub fn map_epiphany_pressure(
-    snapshot: Option<&EpiphanyTokenUsageSnapshot>,
-) -> ThreadEpiphanyPressure {
-    protocol_pressure_from_core(derive_epiphany_pressure(snapshot))
 }
 
 pub fn should_run_epiphany_pre_compaction_checkpoint_intervention(
