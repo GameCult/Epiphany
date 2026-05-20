@@ -11,6 +11,7 @@ use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::derive_scene;
 use epiphany_core::distill_observation;
 use epiphany_core::propose_map_update;
+use epiphany_core::reorient_finding_already_accepted;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
@@ -18,7 +19,6 @@ use crate::context::map_epiphany_context;
 use crate::context::map_epiphany_graph_query;
 use crate::context::map_epiphany_planning;
 use crate::coordinator::derive_epiphany_coordinator_status;
-use crate::coordinator::epiphany_reorient_finding_already_accepted;
 use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
@@ -295,7 +295,7 @@ pub async fn map_epiphany_view_response(
         .and_then(|state| state.investigation_checkpoint.as_ref())
         .is_some();
     let reorient_finding_accepted = reorient_result.finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
+        state.is_some_and(|state| reorient_finding_already_accepted(state, finding))
     });
     let recommendation = if let (Some(core_pressure), Some(decision)) =
         (core_pressure.as_ref(), core_reorient_decision.as_ref())

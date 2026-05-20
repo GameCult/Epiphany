@@ -43,16 +43,15 @@ use epiphany_core::EpiphanyRoleBoardJob;
 use epiphany_core::EpiphanyRoleBoardJobStatus;
 use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleBoardPlanningSummary;
-use epiphany_core::EpiphanyRoleFindingInterpretation as CoreEpiphanyRoleFinding;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
+use epiphany_core::derive_coordinator_finding_signals;
 use epiphany_core::derive_coordinator_status;
 use epiphany_core::derive_role_board;
-use epiphany_core::modeling_role_state_patch_policy_errors;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::render_role_board_note;
+use epiphany_core::reorient_finding_already_accepted;
 use epiphany_core::select_coordinator_automation_action;
-use epiphany_state_model::EpiphanyAcceptanceReceipt;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
@@ -74,7 +73,6 @@ use crate::reorient::map_protocol_reorient_state_status;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
 
-use std::collections::HashSet;
 use std::path::Path;
 
 pub fn map_epiphany_crrc_recommendation(
@@ -263,18 +261,6 @@ pub async fn derive_epiphany_coordinator_status(
     } else {
         (CoreEpiphanyCoordinatorRoleResultStatus::MissingState, None)
     };
-    let modeling_result_accepted = modeling_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| {
-            epiphany_role_finding_already_accepted(
-                state,
-                CoreEpiphanyCoordinatorRoleId::Modeling,
-                finding,
-            )
-        })
-    });
-    let modeling_result_reviewable = modeling_finding
-        .as_ref()
-        .is_some_and(epiphany_modeling_finding_has_reviewable_state_patch);
     let (verification_result_status, verification_finding) = if let Some(state) = state {
         let snapshot = load_core_epiphany_role_result_snapshot(
             state,
@@ -287,53 +273,12 @@ pub async fn derive_epiphany_coordinator_status(
     } else {
         (CoreEpiphanyCoordinatorRoleResultStatus::MissingState, None)
     };
-    let verification_result_accepted = verification_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| {
-            epiphany_role_finding_already_accepted(
-                state,
-                CoreEpiphanyCoordinatorRoleId::Verification,
-                finding,
-            )
-        })
-    });
-    let verification_result_covers_current_modeling = state.is_none_or(|state| {
-        epiphany_verification_finding_covers_current_modeling(
-            state,
-            modeling_result_accepted,
-            modeling_finding.as_ref(),
-            verification_finding.as_ref(),
-        )
-    });
-    let modeling_result_accepted_after_verification = state.is_some_and(|state| {
-        role_finding_accepted_after(
-            state,
-            CoreEpiphanyCoordinatorRoleId::Modeling,
-            modeling_finding.as_ref(),
-            CoreEpiphanyCoordinatorRoleId::Verification,
-            verification_finding.as_ref(),
-        )
-    });
-    let implementation_evidence_after_verification = state.is_some_and(|state| {
-        implementation_evidence_after_role_finding(
-            state,
-            CoreEpiphanyCoordinatorRoleId::Verification,
-            verification_finding.as_ref(),
-        )
-    });
-    let verification_result_cites_implementation_evidence = state.is_some_and(|state| {
-        epiphany_role_finding_cites_implementation_evidence(state, verification_finding.as_ref())
-    });
-    let verification_result_allows_implementation = verification_result_accepted
-        && verification_finding
-            .as_ref()
-            .is_some_and(epiphany_verification_finding_allows_implementation);
-    let verification_result_needs_evidence = verification_result_accepted
-        && verification_finding
-            .as_ref()
-            .is_some_and(epiphany_verification_finding_needs_evidence);
-    let reorient_finding_accepted = reorient_finding.is_some_and(|finding| {
-        state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
-    });
+    let finding_signals = derive_coordinator_finding_signals(
+        state,
+        modeling_finding.as_ref(),
+        verification_finding.as_ref(),
+        reorient_finding,
+    );
     let core = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status: map_core_crrc_state_status_from_reorient(state_status),
         checkpoint_present,
@@ -346,16 +291,21 @@ pub async fn derive_epiphany_coordinator_status(
         modeling_result_status,
         verification_result_status,
         reorient_result_status,
-        modeling_result_accepted,
-        modeling_result_reviewable,
-        modeling_result_accepted_after_verification,
-        implementation_evidence_after_verification,
-        verification_result_cites_implementation_evidence,
-        verification_result_covers_current_modeling,
-        verification_result_accepted,
-        verification_result_allows_implementation,
-        verification_result_needs_evidence,
-        reorient_finding_accepted,
+        modeling_result_accepted: finding_signals.modeling_result_accepted,
+        modeling_result_reviewable: finding_signals.modeling_result_reviewable,
+        modeling_result_accepted_after_verification: finding_signals
+            .modeling_result_accepted_after_verification,
+        implementation_evidence_after_verification: finding_signals
+            .implementation_evidence_after_verification,
+        verification_result_cites_implementation_evidence: finding_signals
+            .verification_result_cites_implementation_evidence,
+        verification_result_covers_current_modeling: finding_signals
+            .verification_result_covers_current_modeling,
+        verification_result_accepted: finding_signals.verification_result_accepted,
+        verification_result_allows_implementation: finding_signals
+            .verification_result_allows_implementation,
+        verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
+        reorient_finding_accepted: finding_signals.reorient_finding_accepted,
     });
     let note = render_epiphany_coordinator_note(
         recommendation.action,
@@ -460,7 +410,7 @@ pub async fn select_epiphany_coordinator_automation(
     let reorient_finding_accepted = reorient_result
         .finding
         .as_ref()
-        .is_some_and(|finding| epiphany_reorient_finding_already_accepted(input.state, finding));
+        .is_some_and(|finding| reorient_finding_already_accepted(input.state, finding));
     let crrc_recommendation = map_epiphany_crrc_recommendation(
         true,
         state_status,
@@ -630,226 +580,6 @@ fn map_protocol_coordinator_action(
             ThreadEpiphanyCoordinatorAction::ContinueImplementation
         }
     }
-}
-
-pub fn epiphany_reorient_finding_already_accepted(
-    state: &EpiphanyThreadState,
-    finding: &CoreEpiphanyReorientFinding,
-) -> bool {
-    if let Some(result_id) = reorient_finding_runtime_result_id(finding)
-        && state.acceptance_receipts.iter().any(|receipt| {
-            receipt.result_id == result_id
-                && receipt.status == "accepted"
-                && receipt.surface == "reorientAccept"
-        })
-    {
-        return true;
-    }
-
-    false
-}
-
-fn epiphany_modeling_finding_has_reviewable_state_patch(finding: &CoreEpiphanyRoleFinding) -> bool {
-    finding
-        .state_patch
-        .as_ref()
-        .is_some_and(|patch| modeling_role_state_patch_policy_errors(patch).is_empty())
-}
-
-fn epiphany_role_finding_already_accepted(
-    state: &EpiphanyThreadState,
-    role_id: CoreEpiphanyCoordinatorRoleId,
-    finding: &CoreEpiphanyRoleFinding,
-) -> bool {
-    epiphany_role_finding_accepted_index(state, role_id, finding).is_some()
-}
-
-fn epiphany_role_finding_accepted_evidence_id(
-    state: &EpiphanyThreadState,
-    role_id: CoreEpiphanyCoordinatorRoleId,
-    finding: &CoreEpiphanyRoleFinding,
-) -> Option<String> {
-    epiphany_role_finding_acceptance_receipt(state, role_id, finding)
-        .and_then(|receipt| receipt.accepted_evidence_id.clone())
-}
-
-fn epiphany_verification_finding_covers_current_modeling(
-    state: &EpiphanyThreadState,
-    modeling_result_accepted: bool,
-    modeling_finding: Option<&CoreEpiphanyRoleFinding>,
-    verification_finding: Option<&CoreEpiphanyRoleFinding>,
-) -> bool {
-    if !modeling_result_accepted {
-        return true;
-    }
-    let Some(modeling_finding) = modeling_finding else {
-        return true;
-    };
-    let Some(verification_finding) = verification_finding else {
-        return false;
-    };
-
-    let mut modeling_evidence_ids: HashSet<String> =
-        modeling_finding.evidence_ids.iter().cloned().collect();
-    if let Some(accepted_id) = epiphany_role_finding_accepted_evidence_id(
-        state,
-        CoreEpiphanyCoordinatorRoleId::Modeling,
-        modeling_finding,
-    ) {
-        modeling_evidence_ids.insert(accepted_id);
-    }
-    if modeling_evidence_ids.is_empty() {
-        return true;
-    }
-    verification_finding
-        .evidence_ids
-        .iter()
-        .any(|id| modeling_evidence_ids.contains(id))
-}
-
-fn role_finding_accepted_after(
-    state: &EpiphanyThreadState,
-    later_role_id: CoreEpiphanyCoordinatorRoleId,
-    later: Option<&CoreEpiphanyRoleFinding>,
-    earlier_role_id: CoreEpiphanyCoordinatorRoleId,
-    earlier: Option<&CoreEpiphanyRoleFinding>,
-) -> bool {
-    let Some(later) = later else {
-        return false;
-    };
-    let Some(later_index) = epiphany_role_finding_accepted_order_index(state, later_role_id, later)
-    else {
-        return false;
-    };
-    let Some(earlier) = earlier else {
-        return true;
-    };
-    let Some(earlier_index) =
-        epiphany_role_finding_accepted_order_index(state, earlier_role_id, earlier)
-    else {
-        return true;
-    };
-    later_index < earlier_index
-}
-
-fn implementation_evidence_after_role_finding(
-    state: &EpiphanyThreadState,
-    role_id: CoreEpiphanyCoordinatorRoleId,
-    earlier: Option<&CoreEpiphanyRoleFinding>,
-) -> bool {
-    let earlier_index =
-        earlier.and_then(|finding| epiphany_role_finding_accepted_index(state, role_id, finding));
-    state
-        .recent_evidence
-        .iter()
-        .enumerate()
-        .find(|(index, evidence)| {
-            evidence.kind == "implementation-audit"
-                && earlier_index.is_none_or(|earlier_index| *index < earlier_index)
-        })
-        .is_some_and(|(_, evidence)| evidence.status == "ok")
-}
-
-fn epiphany_role_finding_cites_implementation_evidence(
-    state: &EpiphanyThreadState,
-    finding: Option<&CoreEpiphanyRoleFinding>,
-) -> bool {
-    let Some(finding) = finding else {
-        return false;
-    };
-    finding.evidence_ids.iter().any(|id| {
-        state.recent_evidence.iter().any(|evidence| {
-            evidence.id == *id && evidence.kind == "implementation-audit" && evidence.status == "ok"
-        })
-    })
-}
-
-fn epiphany_role_finding_accepted_index(
-    state: &EpiphanyThreadState,
-    role_id: CoreEpiphanyCoordinatorRoleId,
-    finding: &CoreEpiphanyRoleFinding,
-) -> Option<usize> {
-    if let Some(receipt) = epiphany_role_finding_acceptance_receipt(state, role_id, finding) {
-        return receipt
-            .accepted_evidence_id
-            .as_ref()
-            .and_then(|id| {
-                state
-                    .recent_evidence
-                    .iter()
-                    .position(|evidence| evidence.id == *id)
-            })
-            .or(Some(0));
-    }
-    None
-}
-
-fn epiphany_role_finding_accepted_order_index(
-    state: &EpiphanyThreadState,
-    role_id: CoreEpiphanyCoordinatorRoleId,
-    finding: &CoreEpiphanyRoleFinding,
-) -> Option<usize> {
-    epiphany_role_finding_acceptance_receipt_index(state, role_id, finding)
-}
-
-fn epiphany_role_finding_acceptance_receipt<'a>(
-    state: &'a EpiphanyThreadState,
-    role_id: CoreEpiphanyCoordinatorRoleId,
-    finding: &CoreEpiphanyRoleFinding,
-) -> Option<&'a EpiphanyAcceptanceReceipt> {
-    let result_id = role_finding_runtime_result_id(finding)?;
-    state.acceptance_receipts.iter().find(|receipt| {
-        receipt.result_id == result_id
-            && receipt.status == "accepted"
-            && receipt.surface == "roleAccept"
-            && receipt.role_id == core_epiphany_role_label(role_id)
-    })
-}
-
-fn epiphany_role_finding_acceptance_receipt_index(
-    state: &EpiphanyThreadState,
-    role_id: CoreEpiphanyCoordinatorRoleId,
-    finding: &CoreEpiphanyRoleFinding,
-) -> Option<usize> {
-    let result_id = role_finding_runtime_result_id(finding)?;
-    state.acceptance_receipts.iter().position(|receipt| {
-        receipt.result_id == result_id
-            && receipt.status == "accepted"
-            && receipt.surface == "roleAccept"
-            && receipt.role_id == core_epiphany_role_label(role_id)
-    })
-}
-
-fn core_epiphany_role_label(role_id: CoreEpiphanyCoordinatorRoleId) -> &'static str {
-    match role_id {
-        CoreEpiphanyCoordinatorRoleId::Implementation => "implementation",
-        CoreEpiphanyCoordinatorRoleId::Imagination => "imagination",
-        CoreEpiphanyCoordinatorRoleId::Modeling => "modeling",
-        CoreEpiphanyCoordinatorRoleId::Verification => "verification",
-        CoreEpiphanyCoordinatorRoleId::Reorientation => "reorientation",
-    }
-}
-
-fn epiphany_verification_finding_allows_implementation(finding: &CoreEpiphanyRoleFinding) -> bool {
-    finding
-        .verdict
-        .as_deref()
-        .is_some_and(|verdict| verdict.eq_ignore_ascii_case("pass"))
-}
-
-fn epiphany_verification_finding_needs_evidence(finding: &CoreEpiphanyRoleFinding) -> bool {
-    finding
-        .verdict
-        .as_deref()
-        .is_some_and(|verdict| verdict.eq_ignore_ascii_case("needs-evidence"))
-}
-
-fn role_finding_runtime_result_id(finding: &CoreEpiphanyRoleFinding) -> Option<String> {
-    finding.runtime_result_id.clone()
-}
-
-fn reorient_finding_runtime_result_id(finding: &CoreEpiphanyReorientFinding) -> Option<String> {
-    finding.runtime_result_id.clone()
 }
 
 #[derive(Debug, Clone)]
