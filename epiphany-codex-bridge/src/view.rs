@@ -42,10 +42,13 @@ use crate::protocol_edge::protocol_pressure_from_core;
 use crate::protocol_edge::protocol_reorient_decision;
 use crate::protocol_edge::protocol_reorient_finding;
 use crate::protocol_edge::protocol_reorient_result_status;
+use crate::protocol_edge::protocol_reorient_source;
 use crate::protocol_edge::protocol_reorient_state_status;
 use crate::protocol_edge::protocol_role_finding;
 use crate::protocol_edge::protocol_role_id_from_core;
 use crate::protocol_edge::protocol_role_result_status;
+use crate::protocol_edge::protocol_roles_source;
+use crate::protocol_edge::protocol_view_lens_from_core;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
@@ -54,19 +57,6 @@ use crate::runtime_results::load_core_epiphany_role_result_snapshot;
 use crate::scene::derive_epiphany_scene;
 use crate::scene_protocol::protocol_scene;
 use crate::scene_protocol::protocol_scene_action;
-
-fn map_protocol_epiphany_view_lens(lens: EpiphanyViewLens) -> ThreadEpiphanyViewLens {
-    match lens {
-        EpiphanyViewLens::Scene => ThreadEpiphanyViewLens::Scene,
-        EpiphanyViewLens::Jobs => ThreadEpiphanyViewLens::Jobs,
-        EpiphanyViewLens::Roles => ThreadEpiphanyViewLens::Roles,
-        EpiphanyViewLens::Planning => ThreadEpiphanyViewLens::Planning,
-        EpiphanyViewLens::Pressure => ThreadEpiphanyViewLens::Pressure,
-        EpiphanyViewLens::Reorient => ThreadEpiphanyViewLens::Reorient,
-        EpiphanyViewLens::Crrc => ThreadEpiphanyViewLens::Crrc,
-        EpiphanyViewLens::Coordinator => ThreadEpiphanyViewLens::Coordinator,
-    }
-}
 
 pub struct EpiphanyFreshnessResponseInput<'a> {
     pub thread_id: String,
@@ -436,7 +426,7 @@ pub async fn map_epiphany_view_response(
         coordinator: coordinator_response,
         lenses: lenses
             .into_iter()
-            .map(map_protocol_epiphany_view_lens)
+            .map(protocol_view_lens_from_core)
             .collect(),
     }
 }
@@ -462,13 +452,15 @@ pub async fn map_epiphany_role_result_response(
         runtime_store_path,
     } = input;
     let protocol_role_id = protocol_role_id_from_core(role_id);
-    let protocol_source = map_protocol_roles_source(source);
+    let protocol_source = protocol_roles_source(source);
     let Some(state) = state else {
         return ThreadEpiphanyRoleResultResponse {
             thread_id,
             role_id: protocol_role_id,
             source: protocol_source,
-            state_status: ThreadEpiphanyReorientStateStatus::Missing,
+            state_status: protocol_reorient_state_status(
+                epiphany_core::EpiphanyReorientStateStatus::Missing,
+            ),
             state_revision: None,
             binding_id,
             status: ThreadEpiphanyRoleResultStatus::MissingState,
@@ -490,7 +482,9 @@ pub async fn map_epiphany_role_result_response(
         thread_id,
         role_id: protocol_role_id,
         source: protocol_source,
-        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+        state_status: protocol_reorient_state_status(
+            epiphany_core::EpiphanyReorientStateStatus::Ready,
+        ),
         state_revision: Some(state.revision),
         binding_id,
         status: protocol_role_result_status(result.status),
@@ -520,12 +514,14 @@ pub async fn map_epiphany_reorient_result_response(
         state,
         runtime_store_path,
     } = input;
-    let protocol_source = map_protocol_reorient_result_source(source);
+    let protocol_source = protocol_reorient_source(source);
     let Some(state) = state else {
         return ThreadEpiphanyReorientResultResponse {
             thread_id,
             source: protocol_source,
-            state_status: ThreadEpiphanyReorientStateStatus::Missing,
+            state_status: protocol_reorient_state_status(
+                epiphany_core::EpiphanyReorientStateStatus::Missing,
+            ),
             state_revision: None,
             binding_id,
             status: ThreadEpiphanyReorientResultStatus::MissingState,
@@ -546,29 +542,15 @@ pub async fn map_epiphany_reorient_result_response(
     ThreadEpiphanyReorientResultResponse {
         thread_id,
         source: protocol_source,
-        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+        state_status: protocol_reorient_state_status(
+            epiphany_core::EpiphanyReorientStateStatus::Ready,
+        ),
         state_revision: Some(state.revision),
         binding_id,
         status: protocol_reorient_result_status(result.status),
         job,
         finding: result.finding.map(protocol_reorient_finding),
         note: result.note,
-    }
-}
-
-fn map_protocol_roles_source(source: EpiphanySurfaceSource) -> ThreadEpiphanyRolesSource {
-    match source {
-        EpiphanySurfaceSource::Live => ThreadEpiphanyRolesSource::Live,
-        EpiphanySurfaceSource::Stored => ThreadEpiphanyRolesSource::Stored,
-    }
-}
-
-fn map_protocol_reorient_result_source(
-    source: EpiphanySurfaceSource,
-) -> ThreadEpiphanyReorientSource {
-    match source {
-        EpiphanySurfaceSource::Live => ThreadEpiphanyReorientSource::Live,
-        EpiphanySurfaceSource::Stored => ThreadEpiphanyReorientSource::Stored,
     }
 }
 

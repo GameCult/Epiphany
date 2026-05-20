@@ -48,6 +48,7 @@ use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
+use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
@@ -89,6 +90,19 @@ pub fn default_core_epiphany_view_lenses() -> Vec<EpiphanyViewLens> {
 
 pub fn protocol_view_lenses_to_core(lenses: Vec<ThreadEpiphanyViewLens>) -> Vec<EpiphanyViewLens> {
     lenses.into_iter().map(protocol_view_lens_to_core).collect()
+}
+
+pub fn protocol_view_lens_from_core(lens: EpiphanyViewLens) -> ThreadEpiphanyViewLens {
+    match lens {
+        EpiphanyViewLens::Scene => ThreadEpiphanyViewLens::Scene,
+        EpiphanyViewLens::Jobs => ThreadEpiphanyViewLens::Jobs,
+        EpiphanyViewLens::Roles => ThreadEpiphanyViewLens::Roles,
+        EpiphanyViewLens::Planning => ThreadEpiphanyViewLens::Planning,
+        EpiphanyViewLens::Pressure => ThreadEpiphanyViewLens::Pressure,
+        EpiphanyViewLens::Reorient => ThreadEpiphanyViewLens::Reorient,
+        EpiphanyViewLens::Crrc => ThreadEpiphanyViewLens::Crrc,
+        EpiphanyViewLens::Coordinator => ThreadEpiphanyViewLens::Coordinator,
+    }
 }
 
 pub fn core_epiphany_view_needs_jobs(lenses: &[EpiphanyViewLens]) -> bool {
@@ -472,6 +486,13 @@ pub fn protocol_reorient_source(source: EpiphanySurfaceSource) -> ThreadEpiphany
     match source {
         EpiphanySurfaceSource::Stored => ThreadEpiphanyReorientSource::Stored,
         EpiphanySurfaceSource::Live => ThreadEpiphanyReorientSource::Live,
+    }
+}
+
+pub fn protocol_roles_source(source: EpiphanySurfaceSource) -> ThreadEpiphanyRolesSource {
+    match source {
+        EpiphanySurfaceSource::Stored => ThreadEpiphanyRolesSource::Stored,
+        EpiphanySurfaceSource::Live => ThreadEpiphanyRolesSource::Live,
     }
 }
 
