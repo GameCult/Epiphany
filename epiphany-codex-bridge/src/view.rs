@@ -16,7 +16,6 @@ use crate::context::map_epiphany_graph_query;
 use crate::context::map_epiphany_planning;
 use crate::coordinator::derive_epiphany_coordinator_status;
 use crate::coordinator::epiphany_reorient_finding_already_accepted;
-use crate::coordinator::map_core_crrc_result_status;
 use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
@@ -34,8 +33,11 @@ use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
 use crate::reorient::map_protocol_reorient_decision;
 use crate::reorient::map_protocol_reorient_state_status;
+use crate::results::map_protocol_reorient_finding;
+use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_epiphany_role_result_snapshot;
+use crate::runtime_results::map_protocol_reorient_result_status;
 use crate::scene::map_core_epiphany_scene_action;
 use crate::scene::map_epiphany_scene;
 
@@ -217,31 +219,35 @@ pub async fn map_epiphany_view_response(
         .iter()
         .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
         .cloned();
-    let (reorient_result_status, reorient_finding, reorient_result_note) = if runtime_store_path
-        .is_some()
+    let reorient_result = if runtime_store_path.is_some()
         || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
         || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
     {
-        load_epiphany_reorient_result_snapshot(
+        load_core_epiphany_reorient_result_snapshot(
             state,
             runtime_store_path,
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
         .await
     } else {
-        (
-            ThreadEpiphanyReorientResultStatus::MissingState,
-            None,
-            "Reorient result was not requested.".to_string(),
-        )
+        crate::runtime_results::EpiphanyReorientResultSnapshot {
+            status: epiphany_core::EpiphanyCrrcResultStatus::MissingState,
+            finding: None,
+            note: "Reorient result was not requested.".to_string(),
+        }
     };
+    let reorient_result_status = map_protocol_reorient_result_status(reorient_result.status);
+    let reorient_finding = reorient_result
+        .finding
+        .clone()
+        .map(map_protocol_reorient_finding);
+    let reorient_result_note = reorient_result.note.clone();
     let checkpoint_present = state
         .and_then(|state| state.investigation_checkpoint.as_ref())
         .is_some();
-    let reorient_finding_accepted = reorient_finding.as_ref().is_some_and(|finding| {
+    let reorient_finding_accepted = reorient_result.finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
     });
-    let core_reorient_result_status = map_core_crrc_result_status(reorient_result_status);
     let recommendation = if let (Some(core_pressure), Some(decision)) =
         (core_pressure.as_ref(), core_reorient_decision.as_ref())
     {
@@ -250,7 +256,7 @@ pub async fn map_epiphany_view_response(
             core_reorient_state_status,
             core_pressure,
             decision,
-            core_reorient_result_status,
+            reorient_result.status,
             checkpoint_present,
             reorient_finding.is_some(),
             reorient_finding_accepted,
@@ -269,7 +275,7 @@ pub async fn map_epiphany_view_response(
             decision,
             pressure,
             recommendation,
-            core_reorient_result_status,
+            reorient_result.status,
             reorient_job.as_ref(),
         ))
     } else {
@@ -291,7 +297,7 @@ pub async fn map_epiphany_view_response(
                 roles.roles.clone(),
                 core_reorient_decision.as_ref(),
                 reorient_result_status,
-                reorient_finding.as_ref(),
+                reorient_result.finding.as_ref(),
                 checkpoint_present,
             )
             .await;

@@ -342,8 +342,26 @@ pub async fn load_epiphany_role_result_snapshot(
     Option<ThreadEpiphanyRoleFinding>,
     String,
 ) {
+    let snapshot =
+        load_core_epiphany_role_result_snapshot(state, runtime_store_path, role_id, binding_id)
+            .await;
+    (
+        map_protocol_role_result_status(snapshot.status),
+        snapshot
+            .finding
+            .map(|finding| map_protocol_role_finding(role_id, finding)),
+        snapshot.note,
+    )
+}
+
+pub async fn load_core_epiphany_role_result_snapshot(
+    state: &EpiphanyThreadState,
+    runtime_store_path: Option<&Path>,
+    role_id: ThreadEpiphanyRoleId,
+    binding_id: &str,
+) -> EpiphanyRoleResultSnapshot {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        return load_epiphany_role_result_from_runtime_spine_job(
+        return load_core_epiphany_role_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
             runtime_store_path,
             role_id,
@@ -355,17 +373,17 @@ pub async fn load_epiphany_role_result_snapshot(
         .iter()
         .any(|binding| binding.id == binding_id)
     {
-        return (
-            ThreadEpiphanyRoleResultStatus::MissingBinding,
-            None,
-            "No matching Epiphany role specialist binding exists.".to_string(),
-        );
+        return EpiphanyRoleResultSnapshot {
+            status: CoreEpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            finding: None,
+            note: "No matching Epiphany role specialist binding exists.".to_string(),
+        };
     }
-    (
-        ThreadEpiphanyRoleResultStatus::BackendUnavailable,
-        None,
-        "Role binding has no runtime-spine job id; launch a runtime-linked role worker for typed results.".to_string(),
-    )
+    EpiphanyRoleResultSnapshot {
+        status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
+        finding: None,
+        note: "Role binding has no runtime-spine job id; launch a runtime-linked role worker for typed results.".to_string(),
+    }
 }
 
 pub fn load_completed_epiphany_role_finding(
@@ -420,15 +438,29 @@ pub async fn load_epiphany_reorient_result_snapshot(
     Option<ThreadEpiphanyReorientFinding>,
     String,
 ) {
+    let snapshot =
+        load_core_epiphany_reorient_result_snapshot(state, runtime_store_path, binding_id).await;
+    (
+        map_protocol_reorient_result_status(snapshot.status),
+        snapshot.finding.map(map_protocol_reorient_finding),
+        snapshot.note,
+    )
+}
+
+pub async fn load_core_epiphany_reorient_result_snapshot(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store_path: Option<&Path>,
+    binding_id: &str,
+) -> EpiphanyReorientResultSnapshot {
     let Some(state) = state else {
-        return (
-            ThreadEpiphanyReorientResultStatus::MissingState,
-            None,
-            "No authoritative Epiphany state exists for this thread.".to_string(),
-        );
+        return EpiphanyReorientResultSnapshot {
+            status: CoreEpiphanyCrrcResultStatus::MissingState,
+            finding: None,
+            note: "No authoritative Epiphany state exists for this thread.".to_string(),
+        };
     };
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        return load_epiphany_reorient_result_from_runtime_spine_job(
+        return load_core_epiphany_reorient_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
             runtime_store_path,
         );
@@ -439,17 +471,17 @@ pub async fn load_epiphany_reorient_result_snapshot(
         .iter()
         .any(|binding| binding.id == binding_id)
     {
-        return (
-            ThreadEpiphanyReorientResultStatus::MissingBinding,
-            None,
-            "No matching Epiphany reorientation worker binding exists.".to_string(),
-        );
+        return EpiphanyReorientResultSnapshot {
+            status: CoreEpiphanyCrrcResultStatus::MissingBinding,
+            finding: None,
+            note: "No matching Epiphany reorientation worker binding exists.".to_string(),
+        };
     }
-    (
-        ThreadEpiphanyReorientResultStatus::BackendUnavailable,
-        None,
-        "Reorientation binding has no runtime-spine job id; launch a runtime-linked reorient worker for typed results.".to_string(),
-    )
+    EpiphanyReorientResultSnapshot {
+        status: CoreEpiphanyCrrcResultStatus::BackendUnavailable,
+        finding: None,
+        note: "Reorientation binding has no runtime-spine job id; launch a runtime-linked reorient worker for typed results.".to_string(),
+    }
 }
 
 pub fn load_completed_epiphany_reorient_finding(
