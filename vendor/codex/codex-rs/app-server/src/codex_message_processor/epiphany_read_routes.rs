@@ -2,6 +2,8 @@ use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
+use epiphany_codex_bridge::context::map_core_epiphany_context_params;
+use epiphany_codex_bridge::context::map_core_epiphany_graph_query;
 use epiphany_codex_bridge::cultnet::EpiphanyFreshnessSurface;
 use epiphany_codex_bridge::cultnet::EpiphanyGraphFreshnessStatus;
 use epiphany_codex_bridge::cultnet::EpiphanyInvalidationStatus;
@@ -309,11 +311,12 @@ impl CodexMessageProcessor {
             }
         };
 
+        let core_params = map_core_epiphany_context_params(&params);
         let response = map_epiphany_context_response(
             thread_id,
             loaded,
             thread.epiphany_state.as_ref(),
-            &params,
+            &core_params,
         );
         self.outgoing.send_response(request_id, response).await;
     }
@@ -346,11 +349,12 @@ impl CodexMessageProcessor {
             }
         };
 
+        let core_query = map_core_epiphany_graph_query(&params.query);
         let response = map_epiphany_graph_query_response(
             thread_id,
             loaded,
             thread.epiphany_state.as_ref(),
-            &params.query,
+            &core_query,
         );
         self.outgoing.send_response(request_id, response).await;
     }
