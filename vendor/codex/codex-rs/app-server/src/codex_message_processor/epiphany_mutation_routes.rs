@@ -19,6 +19,7 @@ use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
+use epiphany_codex_bridge::mutation::protocol_patch_from_core;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
@@ -28,6 +29,8 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
+use epiphany_codex_bridge::results::map_protocol_reorient_finding;
+use epiphany_codex_bridge::results::map_protocol_role_finding;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
 use std::sync::Arc;
@@ -221,8 +224,8 @@ impl CodexMessageProcessor {
                     accepted_receipt_id: applied.accepted_receipt_id,
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,
-                    applied_patch: applied.applied_patch,
-                    finding: applied.finding,
+                    applied_patch: protocol_patch_from_core(applied.applied_patch),
+                    finding: map_protocol_role_finding(role_id, applied.finding),
                 },
             )
             .await;
@@ -392,7 +395,7 @@ impl CodexMessageProcessor {
                     accepted_receipt_id: applied.accepted_receipt_id,
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,
-                    finding: applied.finding,
+                    finding: map_protocol_reorient_finding(applied.finding),
                 },
             )
             .await;
@@ -852,9 +855,7 @@ fn thread_epiphany_reorient_watcher_status(
     }
 }
 
-fn thread_epiphany_reorient_reason(
-    reason: EpiphanyReorientReason,
-) -> ThreadEpiphanyReorientReason {
+fn thread_epiphany_reorient_reason(reason: EpiphanyReorientReason) -> ThreadEpiphanyReorientReason {
     match reason {
         EpiphanyReorientReason::MissingState => ThreadEpiphanyReorientReason::MissingState,
         EpiphanyReorientReason::MissingCheckpoint => {

@@ -3,9 +3,7 @@ use chrono::Utc;
 use std::path::Path;
 use std::path::PathBuf;
 
-use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
-use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
@@ -16,7 +14,10 @@ use epiphany_core::EpiphanyJobLaunchResult;
 use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyPromotionInput;
 use epiphany_core::EpiphanyReorientDecision;
+use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyReorientStateStatus;
+use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
@@ -54,8 +55,6 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::results::map_protocol_reorient_finding;
-use crate::results::map_protocol_role_finding;
 use crate::runtime_results::load_completed_core_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_core_epiphany_role_finding;
 use uuid::Uuid;
@@ -96,8 +95,8 @@ pub struct EpiphanyRoleAcceptApplied {
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
-    pub applied_patch: ThreadEpiphanyUpdatePatch,
-    pub finding: ThreadEpiphanyRoleFinding,
+    pub applied_patch: EpiphanyRoleStatePatchDocument,
+    pub finding: EpiphanyRoleFindingInterpretation,
 }
 
 #[derive(Debug, Clone)]
@@ -108,7 +107,7 @@ pub struct EpiphanyReorientAcceptApplied {
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
-    pub finding: ThreadEpiphanyReorientFinding,
+    pub finding: EpiphanyReorientFindingInterpretation,
 }
 
 #[derive(Debug, Clone)]
@@ -418,7 +417,7 @@ pub async fn apply_thread_epiphany_role_accept(
         accepted_observation_id,
         accepted_evidence_id,
         applied_patch,
-        finding: map_protocol_role_finding(role_id, finding),
+        finding,
     })
 }
 
@@ -477,7 +476,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
         accepted_receipt_id,
         accepted_observation_id,
         accepted_evidence_id,
-        finding: map_protocol_reorient_finding(finding),
+        finding,
     })
 }
 

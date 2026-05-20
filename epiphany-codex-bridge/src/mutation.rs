@@ -19,7 +19,7 @@ use crate::results::map_core_role_result_role_id;
 
 pub struct RoleAcceptanceUpdate {
     pub state_update: EpiphanyStateUpdate,
-    pub applied_patch: ThreadEpiphanyUpdatePatch,
+    pub applied_patch: EpiphanyRoleStatePatchDocument,
     pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
@@ -218,8 +218,9 @@ pub fn build_role_acceptance_update(
     core_patch
         .acceptance_receipts
         .push(acceptance_bundle.receipt);
-    let applied_patch = protocol_patch_from_core(core_patch.clone());
-    let changed_fields = epiphany_update_patch_changed_fields(&applied_patch);
+    let applied_patch = core_patch.clone();
+    let changed_fields =
+        epiphany_update_patch_changed_fields(&protocol_patch_from_core(applied_patch.clone()));
     let state_update = state_update_from_core_patch(expected_revision, core_patch);
 
     Ok(RoleAcceptanceUpdate {
