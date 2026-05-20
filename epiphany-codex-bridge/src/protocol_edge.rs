@@ -1,9 +1,42 @@
+use crate::cultnet::EpiphanyFreshnessSurface;
+use crate::cultnet::EpiphanyGraphFreshnessStatus;
+use crate::cultnet::EpiphanyInvalidationStatus;
+use crate::cultnet::EpiphanyJobKind;
+use crate::cultnet::EpiphanyJobStatus;
+use crate::cultnet::EpiphanyJobView;
+use crate::cultnet::EpiphanyReorientAction;
+use crate::cultnet::EpiphanyReorientCheckpointStatus;
+use crate::cultnet::EpiphanyReorientDecision;
+use crate::cultnet::EpiphanyReorientFreshnessStatus;
+use crate::cultnet::EpiphanyReorientPressureLevel;
+use crate::cultnet::EpiphanyReorientReason;
+use crate::cultnet::EpiphanyReorientStateStatus;
+use crate::cultnet::EpiphanyRetrievalFreshnessStatus;
+use crate::cultnet::EpiphanySurfaceSource;
 use codex_app_server_protocol::ThreadEpiphanyContextParams;
 use codex_app_server_protocol::ThreadEpiphanyDistillParams;
+use codex_app_server_protocol::ThreadEpiphanyFreshnessResponse;
+use codex_app_server_protocol::ThreadEpiphanyFreshnessSource;
+use codex_app_server_protocol::ThreadEpiphanyGraphFreshness;
+use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyGraphQuery;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryDirection;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryKind;
+use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
+use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
+use codex_app_server_protocol::ThreadEpiphanyJob;
+use codex_app_server_protocol::ThreadEpiphanyJobKind;
+use codex_app_server_protocol::ThreadEpiphanyJobStatus;
+use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
+use codex_app_server_protocol::ThreadEpiphanyReorientAction;
+use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
+use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
+use codex_app_server_protocol::ThreadEpiphanyReorientReason;
+use codex_app_server_protocol::ThreadEpiphanyReorientSource;
+use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
+use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
+use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyViewLens;
@@ -136,6 +169,175 @@ pub fn protocol_update_patch_to_core(
     }
 }
 
+pub fn protocol_freshness_response_from_surface(
+    surface: EpiphanyFreshnessSurface,
+) -> ThreadEpiphanyFreshnessResponse {
+    ThreadEpiphanyFreshnessResponse {
+        thread_id: surface.thread_id,
+        source: match surface.source {
+            EpiphanySurfaceSource::Stored => ThreadEpiphanyFreshnessSource::Stored,
+            EpiphanySurfaceSource::Live => ThreadEpiphanyFreshnessSource::Live,
+        },
+        state_revision: surface.state_revision,
+        retrieval: ThreadEpiphanyRetrievalFreshness {
+            status: match surface.retrieval.status {
+                EpiphanyRetrievalFreshnessStatus::Missing => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Missing
+                }
+                EpiphanyRetrievalFreshnessStatus::Ready => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Ready
+                }
+                EpiphanyRetrievalFreshnessStatus::Stale => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Stale
+                }
+                EpiphanyRetrievalFreshnessStatus::Indexing => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Indexing
+                }
+                EpiphanyRetrievalFreshnessStatus::Unavailable => {
+                    ThreadEpiphanyRetrievalFreshnessStatus::Unavailable
+                }
+            },
+            semantic_available: surface.retrieval.semantic_available,
+            last_indexed_at_unix_seconds: surface.retrieval.last_indexed_at_unix_seconds,
+            indexed_file_count: surface.retrieval.indexed_file_count,
+            indexed_chunk_count: surface.retrieval.indexed_chunk_count,
+            dirty_paths: surface.retrieval.dirty_paths,
+            note: surface.retrieval.note,
+        },
+        graph: ThreadEpiphanyGraphFreshness {
+            status: match surface.graph.status {
+                EpiphanyGraphFreshnessStatus::Missing => {
+                    ThreadEpiphanyGraphFreshnessStatus::Missing
+                }
+                EpiphanyGraphFreshnessStatus::Ready => ThreadEpiphanyGraphFreshnessStatus::Ready,
+                EpiphanyGraphFreshnessStatus::Stale => ThreadEpiphanyGraphFreshnessStatus::Stale,
+            },
+            graph_freshness: surface.graph.graph_freshness,
+            checkpoint_id: surface.graph.checkpoint_id,
+            dirty_path_count: surface.graph.dirty_path_count,
+            dirty_paths: surface.graph.dirty_paths,
+            open_question_count: surface.graph.open_question_count,
+            open_gap_count: surface.graph.open_gap_count,
+            note: surface.graph.note,
+        },
+        watcher: ThreadEpiphanyInvalidationInput {
+            status: match surface.watcher.status {
+                EpiphanyInvalidationStatus::Unavailable => {
+                    ThreadEpiphanyInvalidationStatus::Unavailable
+                }
+                EpiphanyInvalidationStatus::Clean => ThreadEpiphanyInvalidationStatus::Clean,
+                EpiphanyInvalidationStatus::Changed => ThreadEpiphanyInvalidationStatus::Changed,
+            },
+            watched_root: surface.watcher.watched_root,
+            observed_at_unix_seconds: surface.watcher.observed_at_unix_seconds,
+            changed_path_count: surface.watcher.changed_path_count,
+            changed_paths: surface.watcher.changed_paths,
+            graph_node_ids: surface.watcher.graph_node_ids,
+            active_frontier_node_ids: surface.watcher.active_frontier_node_ids,
+            note: surface.watcher.note,
+        },
+    }
+}
+
+pub fn protocol_job_from_surface(
+    job: EpiphanyJobView,
+    launcher_job_id: Option<String>,
+    backend_job_id_override: Option<String>,
+) -> ThreadEpiphanyJob {
+    ThreadEpiphanyJob {
+        id: job.id,
+        kind: match job.kind {
+            EpiphanyJobKind::Indexing => ThreadEpiphanyJobKind::Indexing,
+            EpiphanyJobKind::Remap => ThreadEpiphanyJobKind::Remap,
+            EpiphanyJobKind::Verification => ThreadEpiphanyJobKind::Verification,
+            EpiphanyJobKind::Specialist => ThreadEpiphanyJobKind::Specialist,
+        },
+        scope: job.scope,
+        owner_role: job.owner_role,
+        launcher_job_id,
+        authority_scope: job.authority_scope,
+        backend_job_id: backend_job_id_override.or(job.runtime_job_id),
+        status: match job.status {
+            EpiphanyJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,
+            EpiphanyJobStatus::Needed => ThreadEpiphanyJobStatus::Needed,
+            EpiphanyJobStatus::Pending => ThreadEpiphanyJobStatus::Pending,
+            EpiphanyJobStatus::Running => ThreadEpiphanyJobStatus::Running,
+            EpiphanyJobStatus::Completed => ThreadEpiphanyJobStatus::Completed,
+            EpiphanyJobStatus::Failed => ThreadEpiphanyJobStatus::Failed,
+            EpiphanyJobStatus::Cancelled => ThreadEpiphanyJobStatus::Cancelled,
+            EpiphanyJobStatus::Blocked => ThreadEpiphanyJobStatus::Blocked,
+            EpiphanyJobStatus::Unavailable => ThreadEpiphanyJobStatus::Unavailable,
+        },
+        items_processed: job.items_processed,
+        items_total: job.items_total,
+        progress_note: job.progress_note,
+        last_checkpoint_at_unix_seconds: job.last_checkpoint_at_unix_seconds,
+        blocking_reason: job.blocking_reason,
+        active_thread_ids: job.active_thread_ids,
+        linked_subgoal_ids: job.linked_subgoal_ids,
+        linked_graph_node_ids: job.linked_graph_node_ids,
+    }
+}
+
+pub fn protocol_reorient_state_status(
+    status: EpiphanyReorientStateStatus,
+) -> ThreadEpiphanyReorientStateStatus {
+    match status {
+        EpiphanyReorientStateStatus::Missing => ThreadEpiphanyReorientStateStatus::Missing,
+        EpiphanyReorientStateStatus::Ready => ThreadEpiphanyReorientStateStatus::Ready,
+    }
+}
+
+pub fn protocol_reorient_source(source: EpiphanySurfaceSource) -> ThreadEpiphanyReorientSource {
+    match source {
+        EpiphanySurfaceSource::Stored => ThreadEpiphanyReorientSource::Stored,
+        EpiphanySurfaceSource::Live => ThreadEpiphanyReorientSource::Live,
+    }
+}
+
+pub fn protocol_reorient_decision(
+    decision: EpiphanyReorientDecision,
+) -> ThreadEpiphanyReorientDecision {
+    ThreadEpiphanyReorientDecision {
+        action: match decision.action {
+            EpiphanyReorientAction::Resume => ThreadEpiphanyReorientAction::Resume,
+            EpiphanyReorientAction::Regather => ThreadEpiphanyReorientAction::Regather,
+        },
+        checkpoint_status: match decision.checkpoint_status {
+            EpiphanyReorientCheckpointStatus::Missing => {
+                ThreadEpiphanyReorientCheckpointStatus::Missing
+            }
+            EpiphanyReorientCheckpointStatus::ResumeReady => {
+                ThreadEpiphanyReorientCheckpointStatus::ResumeReady
+            }
+            EpiphanyReorientCheckpointStatus::RegatherRequired => {
+                ThreadEpiphanyReorientCheckpointStatus::RegatherRequired
+            }
+        },
+        checkpoint_id: decision.checkpoint_id,
+        pressure_level: match decision.pressure_level {
+            EpiphanyReorientPressureLevel::Unknown => ThreadEpiphanyPressureLevel::Unknown,
+            EpiphanyReorientPressureLevel::Low => ThreadEpiphanyPressureLevel::Low,
+            EpiphanyReorientPressureLevel::Medium => ThreadEpiphanyPressureLevel::Elevated,
+            EpiphanyReorientPressureLevel::High => ThreadEpiphanyPressureLevel::High,
+            EpiphanyReorientPressureLevel::Critical => ThreadEpiphanyPressureLevel::Critical,
+        },
+        retrieval_status: protocol_reorient_retrieval_status(decision.retrieval_status),
+        graph_status: protocol_reorient_graph_status(decision.graph_status),
+        watcher_status: protocol_reorient_watcher_status(decision.watcher_status),
+        reasons: decision
+            .reasons
+            .into_iter()
+            .map(protocol_reorient_reason)
+            .collect(),
+        checkpoint_dirty_paths: decision.checkpoint_dirty_paths,
+        checkpoint_changed_paths: decision.checkpoint_changed_paths,
+        active_frontier_node_ids: decision.active_frontier_node_ids,
+        next_action: decision.next_action,
+        note: decision.note,
+    }
+}
+
 fn protocol_view_lens_to_core(lens: ThreadEpiphanyViewLens) -> EpiphanyViewLens {
     match lens {
         ThreadEpiphanyViewLens::Scene => EpiphanyViewLens::Scene,
@@ -224,5 +426,65 @@ fn protocol_reorient_worker_launch_document_to_core(
         active_frontier_node_ids: document.active_frontier_node_ids,
         linked_subgoal_ids: document.linked_subgoal_ids,
         linked_graph_node_ids: document.linked_graph_node_ids,
+    }
+}
+
+fn protocol_reorient_retrieval_status(
+    status: EpiphanyReorientFreshnessStatus,
+) -> ThreadEpiphanyRetrievalFreshnessStatus {
+    match status {
+        EpiphanyReorientFreshnessStatus::Unknown => ThreadEpiphanyRetrievalFreshnessStatus::Missing,
+        EpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyRetrievalFreshnessStatus::Ready,
+        EpiphanyReorientFreshnessStatus::Dirty => ThreadEpiphanyRetrievalFreshnessStatus::Indexing,
+        EpiphanyReorientFreshnessStatus::Stale | EpiphanyReorientFreshnessStatus::Changed => {
+            ThreadEpiphanyRetrievalFreshnessStatus::Stale
+        }
+    }
+}
+
+fn protocol_reorient_graph_status(
+    status: EpiphanyReorientFreshnessStatus,
+) -> ThreadEpiphanyGraphFreshnessStatus {
+    match status {
+        EpiphanyReorientFreshnessStatus::Unknown => ThreadEpiphanyGraphFreshnessStatus::Missing,
+        EpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyGraphFreshnessStatus::Ready,
+        EpiphanyReorientFreshnessStatus::Dirty
+        | EpiphanyReorientFreshnessStatus::Stale
+        | EpiphanyReorientFreshnessStatus::Changed => ThreadEpiphanyGraphFreshnessStatus::Stale,
+    }
+}
+
+fn protocol_reorient_watcher_status(
+    status: EpiphanyReorientFreshnessStatus,
+) -> ThreadEpiphanyInvalidationStatus {
+    match status {
+        EpiphanyReorientFreshnessStatus::Unknown => ThreadEpiphanyInvalidationStatus::Unavailable,
+        EpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyInvalidationStatus::Clean,
+        EpiphanyReorientFreshnessStatus::Dirty
+        | EpiphanyReorientFreshnessStatus::Stale
+        | EpiphanyReorientFreshnessStatus::Changed => ThreadEpiphanyInvalidationStatus::Changed,
+    }
+}
+
+fn protocol_reorient_reason(reason: EpiphanyReorientReason) -> ThreadEpiphanyReorientReason {
+    match reason {
+        EpiphanyReorientReason::MissingState => ThreadEpiphanyReorientReason::MissingState,
+        EpiphanyReorientReason::MissingCheckpoint => {
+            ThreadEpiphanyReorientReason::MissingCheckpoint
+        }
+        EpiphanyReorientReason::CheckpointReady => ThreadEpiphanyReorientReason::CheckpointReady,
+        EpiphanyReorientReason::CheckpointRequestedRegather => {
+            ThreadEpiphanyReorientReason::CheckpointRequestedRegather
+        }
+        EpiphanyReorientReason::CheckpointPathsDirty => {
+            ThreadEpiphanyReorientReason::CheckpointPathsDirty
+        }
+        EpiphanyReorientReason::CheckpointPathsChanged => {
+            ThreadEpiphanyReorientReason::CheckpointPathsChanged
+        }
+        EpiphanyReorientReason::FrontierChanged => ThreadEpiphanyReorientReason::FrontierChanged,
+        EpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
+            ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale
+        }
     }
 }
