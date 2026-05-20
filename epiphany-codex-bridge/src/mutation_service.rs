@@ -35,8 +35,8 @@ use epiphany_state_model::EpiphanyThreadState;
 
 use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
-use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::derive_epiphany_jobs;
+use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::map_interrupted_epiphany_job;
 use crate::jobs::map_launched_epiphany_job;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -54,8 +54,10 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::runtime_results::load_completed_epiphany_reorient_finding;
-use crate::runtime_results::load_completed_epiphany_role_finding;
+use crate::results::map_protocol_reorient_finding;
+use crate::results::map_protocol_role_finding;
+use crate::runtime_results::load_completed_core_epiphany_reorient_finding;
+use crate::runtime_results::load_completed_core_epiphany_role_finding;
 use uuid::Uuid;
 
 #[allow(async_fn_in_trait)]
@@ -381,7 +383,7 @@ pub async fn apply_thread_epiphany_role_accept(
     validate_expected_revision(expected_revision, state.revision)?;
 
     let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
-    let finding = load_completed_epiphany_role_finding(
+    let finding = load_completed_core_epiphany_role_finding(
         Some(runtime_store_path.as_path()),
         &state,
         role_id,
@@ -418,7 +420,7 @@ pub async fn apply_thread_epiphany_role_accept(
         accepted_observation_id,
         accepted_evidence_id,
         applied_patch,
-        finding,
+        finding: map_protocol_role_finding(role_id, finding),
     })
 }
 
@@ -444,7 +446,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
     }
 
     let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
-    let finding = load_completed_epiphany_reorient_finding(
+    let finding = load_completed_core_epiphany_reorient_finding(
         Some(runtime_store_path.as_path()),
         &state,
         binding_id,
@@ -477,7 +479,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
         accepted_receipt_id,
         accepted_observation_id,
         accepted_evidence_id,
-        finding,
+        finding: map_protocol_reorient_finding(finding),
     })
 }
 

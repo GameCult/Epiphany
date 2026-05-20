@@ -8,7 +8,9 @@ use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use epiphany_core::EpiphanyReorientAcceptanceFinding;
+use epiphany_core::EpiphanyReorientFindingInterpretation as CoreEpiphanyReorientFinding;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
+use epiphany_core::EpiphanyRoleFindingInterpretation as CoreEpiphanyRoleFinding;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::build_reorient_acceptance_bundle;
@@ -21,10 +23,6 @@ use epiphany_state_model::EpiphanyInvestigationDisposition;
 use epiphany_state_model::EpiphanyScratchPad;
 
 use crate::results::map_core_role_result_role_id;
-use crate::runtime_results::reorient_finding_runtime_job_id;
-use crate::runtime_results::reorient_finding_runtime_result_id;
-use crate::runtime_results::role_finding_runtime_job_id;
-use crate::runtime_results::role_finding_runtime_result_id;
 
 pub struct RoleAcceptanceUpdate {
     pub patch: ThreadEpiphanyUpdatePatch,
@@ -45,6 +43,15 @@ pub struct ReorientAcceptanceUpdate {
 pub fn parse_role_finding_state_patch(
     finding: &ThreadEpiphanyRoleFinding,
 ) -> Result<ThreadEpiphanyUpdatePatch, String> {
+    finding
+        .state_patch
+        .clone()
+        .ok_or_else(|| "completed role finding did not include a reviewable statePatch".to_string())
+}
+
+pub fn parse_core_role_finding_state_patch(
+    finding: &CoreEpiphanyRoleFinding,
+) -> Result<EpiphanyRoleStatePatchDocument, String> {
     finding
         .state_patch
         .clone()
@@ -72,6 +79,30 @@ pub fn core_state_patch_from_protocol(
         churn: patch.churn.clone(),
         mode: patch.mode.clone(),
         planning: patch.planning.clone(),
+    }
+}
+
+pub fn protocol_patch_from_core(
+    patch: EpiphanyRoleStatePatchDocument,
+) -> ThreadEpiphanyUpdatePatch {
+    ThreadEpiphanyUpdatePatch {
+        objective: patch.objective,
+        active_subgoal_id: patch.active_subgoal_id,
+        subgoals: patch.subgoals,
+        invariants: patch.invariants,
+        graphs: patch.graphs,
+        graph_frontier: patch.graph_frontier,
+        graph_checkpoint: patch.graph_checkpoint,
+        scratch: patch.scratch,
+        investigation_checkpoint: patch.investigation_checkpoint,
+        job_bindings: patch.job_bindings,
+        acceptance_receipts: patch.acceptance_receipts,
+        runtime_links: patch.runtime_links,
+        observations: patch.observations,
+        evidence: patch.evidence,
+        churn: patch.churn,
+        mode: patch.mode,
+        planning: patch.planning,
     }
 }
 
@@ -148,15 +179,15 @@ pub fn epiphany_imagination_finding_has_reviewable_state_patch(
 pub fn build_role_acceptance_update(
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
-    finding: &ThreadEpiphanyRoleFinding,
+    finding: &CoreEpiphanyRoleFinding,
     accepted_evidence_id: String,
     accepted_observation_id: String,
     accepted_at: String,
 ) -> Result<RoleAcceptanceUpdate, String> {
-    let mut patch = match role_id {
+    let mut core_patch = match role_id {
         ThreadEpiphanyRoleId::Imagination => {
-            let patch = parse_role_finding_state_patch(finding)?;
-            let patch_errors = imagination_role_accept_patch_errors(&patch);
+            let patch = parse_core_role_finding_state_patch(finding)?;
+            let patch_errors = imagination_role_state_patch_policy_errors(&patch);
             if !patch_errors.is_empty() {
                 return Err(format!(
                     "imagination role state patch is not acceptable: {}",
@@ -166,8 +197,8 @@ pub fn build_role_acceptance_update(
             patch
         }
         ThreadEpiphanyRoleId::Modeling => {
-            let patch = parse_role_finding_state_patch(finding)?;
-            let patch_errors = modeling_role_accept_patch_errors(&patch);
+            let patch = parse_core_role_finding_state_patch(finding)?;
+            let patch_errors = modeling_role_state_patch_policy_errors(&patch);
             if !patch_errors.is_empty() {
                 return Err(format!(
                     "modeling role state patch is not acceptable: {}",
@@ -176,7 +207,7 @@ pub fn build_role_acceptance_update(
             }
             patch
         }
-        ThreadEpiphanyRoleId::Verification => ThreadEpiphanyUpdatePatch::default(),
+        ThreadEpiphanyRoleId::Verification => EpiphanyRoleStatePatchDocument::default(),
         ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
             return Err(format!(
                 "role {:?} cannot be accepted through roleAccept",
@@ -185,7 +216,8 @@ pub fn build_role_acceptance_update(
         }
     };
 
-    let projected_fields = epiphany_update_patch_changed_fields(&patch)
+    let patch_for_projection = protocol_patch_from_core(core_patch.clone());
+    let projected_fields = epiphany_update_patch_changed_fields(&patch_for_projection)
         .into_iter()
         .map(|field| format!("{field:?}"))
         .collect();
@@ -197,8 +229,8 @@ pub fn build_role_acceptance_update(
             summary: finding.summary.clone(),
             next_safe_move: finding.next_safe_move.clone(),
             files_inspected: finding.files_inspected.clone(),
-            runtime_result_id: role_finding_runtime_result_id(finding),
-            runtime_job_id: role_finding_runtime_job_id(finding),
+            runtime_result_id: finding.runtime_result_id.clone(),
+            runtime_job_id: finding.runtime_job_id.clone(),
             projected_fields,
         },
         accepted_evidence_id,
@@ -208,9 +240,12 @@ pub fn build_role_acceptance_update(
     let accepted_receipt_id = acceptance_bundle.accepted_receipt_id.clone();
     let accepted_observation_id = acceptance_bundle.accepted_observation_id.clone();
     let accepted_evidence_id = acceptance_bundle.accepted_evidence_id.clone();
-    patch.evidence.push(acceptance_bundle.evidence);
-    patch.observations.push(acceptance_bundle.observation);
-    patch.acceptance_receipts.push(acceptance_bundle.receipt);
+    core_patch.evidence.push(acceptance_bundle.evidence);
+    core_patch.observations.push(acceptance_bundle.observation);
+    core_patch
+        .acceptance_receipts
+        .push(acceptance_bundle.receipt);
+    let patch = protocol_patch_from_core(core_patch);
     let changed_fields = epiphany_update_patch_changed_fields(&patch);
 
     Ok(RoleAcceptanceUpdate {
@@ -225,7 +260,7 @@ pub fn build_role_acceptance_update(
 pub fn build_reorient_acceptance_update(
     expected_revision: Option<u64>,
     binding_id: &str,
-    finding: &ThreadEpiphanyReorientFinding,
+    finding: &CoreEpiphanyReorientFinding,
     accepted_evidence_id: String,
     accepted_observation_id: String,
     accepted_at: String,
@@ -241,8 +276,8 @@ pub fn build_reorient_acceptance_update(
             next_safe_move: finding.next_safe_move.clone(),
             checkpoint_still_valid: finding.checkpoint_still_valid,
             files_inspected: finding.files_inspected.clone(),
-            runtime_result_id: reorient_finding_runtime_result_id(finding),
-            runtime_job_id: reorient_finding_runtime_job_id(finding),
+            runtime_result_id: finding.runtime_result_id.clone(),
+            runtime_job_id: finding.runtime_job_id.clone(),
         },
         accepted_evidence_id,
         accepted_observation_id,

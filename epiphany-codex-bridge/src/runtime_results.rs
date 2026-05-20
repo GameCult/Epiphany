@@ -392,19 +392,29 @@ pub fn load_completed_epiphany_role_finding(
     role_id: ThreadEpiphanyRoleId,
     binding_id: &str,
 ) -> BridgeResult<ThreadEpiphanyRoleFinding> {
+    load_completed_core_epiphany_role_finding(runtime_store_path, state, role_id, binding_id)
+        .map(|finding| map_protocol_role_finding(role_id, finding))
+}
+
+pub fn load_completed_core_epiphany_role_finding(
+    runtime_store_path: Option<&Path>,
+    state: &EpiphanyThreadState,
+    role_id: ThreadEpiphanyRoleId,
+    binding_id: &str,
+) -> BridgeResult<EpiphanyRoleFindingInterpretation> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let (status, finding, _note) = load_epiphany_role_result_from_runtime_spine_job(
+        let snapshot = load_core_epiphany_role_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
             runtime_store_path,
             role_id,
         );
-        if status != ThreadEpiphanyRoleResultStatus::Completed {
+        if snapshot.status != CoreEpiphanyCoordinatorRoleResultStatus::Completed {
             return Err(EpiphanyBridgeError::InvalidRequest(format!(
                 "cannot accept role result while worker status is {:?}",
-                status
+                snapshot.status
             )));
         }
-        return finding.ok_or_else(|| {
+        return snapshot.finding.ok_or_else(|| {
             EpiphanyBridgeError::InvalidRequest(
                 "cannot accept completed role worker because no typed runtime-spine result was recorded"
                     .to_string(),
@@ -489,18 +499,27 @@ pub fn load_completed_epiphany_reorient_finding(
     state: &EpiphanyThreadState,
     binding_id: &str,
 ) -> BridgeResult<ThreadEpiphanyReorientFinding> {
+    load_completed_core_epiphany_reorient_finding(runtime_store_path, state, binding_id)
+        .map(map_protocol_reorient_finding)
+}
+
+pub fn load_completed_core_epiphany_reorient_finding(
+    runtime_store_path: Option<&Path>,
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+) -> BridgeResult<EpiphanyReorientFindingInterpretation> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
-        let (status, finding, _note) = load_epiphany_reorient_result_from_runtime_spine_job(
+        let snapshot = load_core_epiphany_reorient_result_from_runtime_spine_job(
             link.runtime_job_id.as_str(),
             runtime_store_path,
         );
-        if status != ThreadEpiphanyReorientResultStatus::Completed {
+        if snapshot.status != CoreEpiphanyCrrcResultStatus::Completed {
             return Err(EpiphanyBridgeError::InvalidRequest(format!(
                 "cannot accept reorientation result while worker status is {:?}",
-                status
+                snapshot.status
             )));
         }
-        return finding.ok_or_else(|| {
+        return snapshot.finding.ok_or_else(|| {
             EpiphanyBridgeError::InvalidRequest(
                 "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
                     .to_string(),
