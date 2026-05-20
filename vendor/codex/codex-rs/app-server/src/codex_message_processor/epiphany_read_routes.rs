@@ -18,9 +18,9 @@ use epiphany_codex_bridge::protocol_edge::protocol_graph_query_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
-use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
 use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
 use epiphany_codex_bridge::retrieve::retrieve_epiphany_for_paths;
+use epiphany_codex_bridge::retrieve_protocol::protocol_retrieve_response;
 use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
@@ -460,7 +460,7 @@ impl CodexMessageProcessor {
         let response =
             match retrieve_epiphany_for_paths(config.cwd.to_path_buf(), codex_home, query)
                 .await
-                .and_then(map_epiphany_retrieve_response)
+                .and_then(protocol_retrieve_response)
             {
                 Ok(response) => response,
                 Err(err) => {

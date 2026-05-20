@@ -32,6 +32,7 @@ use epiphany_codex_bridge::protocol_edge::protocol_update_patch_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_worker_launch_document_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
+use epiphany_codex_bridge::retrieve_protocol::protocol_index_response;
 use std::sync::Arc;
 
 use super::CodexMessageProcessor;
@@ -440,6 +441,7 @@ impl CodexMessageProcessor {
             force_full_rebuild,
         )
         .await
+        .and_then(protocol_index_response)
         {
             Ok(response) => response,
             Err(err) => {

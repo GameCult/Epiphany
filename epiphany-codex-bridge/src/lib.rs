@@ -15,6 +15,7 @@ pub mod protocol_edge;
 pub mod reorient;
 pub mod results;
 pub mod retrieve;
+pub mod retrieve_protocol;
 pub mod runtime_results;
 pub mod scene;
 pub mod scene_protocol;
