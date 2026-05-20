@@ -34,24 +34,27 @@ use epiphany_state_model::EpiphanyThreadState;
 
 pub fn map_epiphany_context(
     state: Option<&EpiphanyThreadState>,
-    params: &ThreadEpiphanyContextParams,
+    params: &CoreEpiphanyContextParams,
 ) -> (
     ThreadEpiphanyContextStateStatus,
     Option<u64>,
     ThreadEpiphanyContext,
     ThreadEpiphanyContextMissing,
 ) {
-    map_core_epiphany_context_view(derive_context(
-        state,
-        &CoreEpiphanyContextParams {
-            graph_node_ids: params.graph_node_ids.clone(),
-            graph_edge_ids: params.graph_edge_ids.clone(),
-            observation_ids: params.observation_ids.clone(),
-            evidence_ids: params.evidence_ids.clone(),
-            include_active_frontier: params.include_active_frontier,
-            include_linked_evidence: params.include_linked_evidence,
-        },
-    ))
+    map_core_epiphany_context_view(derive_context(state, params))
+}
+
+pub fn map_core_epiphany_context_params(
+    params: &ThreadEpiphanyContextParams,
+) -> CoreEpiphanyContextParams {
+    CoreEpiphanyContextParams {
+        graph_node_ids: params.graph_node_ids.clone(),
+        graph_edge_ids: params.graph_edge_ids.clone(),
+        observation_ids: params.observation_ids.clone(),
+        evidence_ids: params.evidence_ids.clone(),
+        include_active_frontier: params.include_active_frontier,
+        include_linked_evidence: params.include_linked_evidence,
+    }
 }
 
 fn map_core_epiphany_context_view(
@@ -161,7 +164,7 @@ fn map_core_epiphany_planning_summary(
 
 pub fn map_epiphany_graph_query(
     state: Option<&EpiphanyThreadState>,
-    query: &ThreadEpiphanyGraphQuery,
+    query: &CoreEpiphanyGraphQuery,
 ) -> (
     ThreadEpiphanyContextStateStatus,
     Option<u64>,
@@ -171,13 +174,10 @@ pub fn map_epiphany_graph_query(
     ThreadEpiphanyGraphQueryMatched,
     ThreadEpiphanyGraphQueryMissing,
 ) {
-    map_core_epiphany_graph_query_view(derive_graph_query(
-        state,
-        &map_core_epiphany_graph_query(query),
-    ))
+    map_core_epiphany_graph_query_view(derive_graph_query(state, query))
 }
 
-fn map_core_epiphany_graph_query(query: &ThreadEpiphanyGraphQuery) -> CoreEpiphanyGraphQuery {
+pub fn map_core_epiphany_graph_query(query: &ThreadEpiphanyGraphQuery) -> CoreEpiphanyGraphQuery {
     CoreEpiphanyGraphQuery {
         kind: map_core_epiphany_graph_query_kind(query.kind),
         node_ids: query.node_ids.clone(),

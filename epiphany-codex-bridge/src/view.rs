@@ -11,6 +11,8 @@ use epiphany_core::propose_map_update;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
+use crate::context::map_core_epiphany_context_params;
+use crate::context::map_core_epiphany_graph_query;
 use crate::context::map_epiphany_context;
 use crate::context::map_epiphany_graph_query;
 use crate::context::map_epiphany_planning;
@@ -116,7 +118,9 @@ pub fn map_epiphany_context_response(
     state: Option<&EpiphanyThreadState>,
     params: &ThreadEpiphanyContextParams,
 ) -> ThreadEpiphanyContextResponse {
-    let (state_status, state_revision, context, missing) = map_epiphany_context(state, params);
+    let core_params = map_core_epiphany_context_params(params);
+    let (state_status, state_revision, context, missing) =
+        map_epiphany_context(state, &core_params);
     ThreadEpiphanyContextResponse {
         thread_id,
         source: if loaded {
@@ -137,8 +141,9 @@ pub fn map_epiphany_graph_query_response(
     state: Option<&EpiphanyThreadState>,
     query: &ThreadEpiphanyGraphQuery,
 ) -> ThreadEpiphanyGraphQueryResponse {
+    let core_query = map_core_epiphany_graph_query(query);
     let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
-        map_epiphany_graph_query(state, query);
+        map_epiphany_graph_query(state, &core_query);
     ThreadEpiphanyGraphQueryResponse {
         thread_id,
         source: if loaded {
