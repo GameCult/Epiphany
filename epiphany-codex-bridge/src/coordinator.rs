@@ -118,30 +118,6 @@ fn map_core_crrc_reorient_action(
     }
 }
 
-pub fn map_core_crrc_result_status(
-    status: ThreadEpiphanyReorientResultStatus,
-) -> CoreEpiphanyCrrcResultStatus {
-    match status {
-        ThreadEpiphanyReorientResultStatus::MissingState => {
-            CoreEpiphanyCrrcResultStatus::MissingState
-        }
-        ThreadEpiphanyReorientResultStatus::MissingBinding => {
-            CoreEpiphanyCrrcResultStatus::MissingBinding
-        }
-        ThreadEpiphanyReorientResultStatus::BackendUnavailable => {
-            CoreEpiphanyCrrcResultStatus::BackendUnavailable
-        }
-        ThreadEpiphanyReorientResultStatus::BackendMissing => {
-            CoreEpiphanyCrrcResultStatus::BackendMissing
-        }
-        ThreadEpiphanyReorientResultStatus::Pending => CoreEpiphanyCrrcResultStatus::Pending,
-        ThreadEpiphanyReorientResultStatus::Running => CoreEpiphanyCrrcResultStatus::Running,
-        ThreadEpiphanyReorientResultStatus::Completed => CoreEpiphanyCrrcResultStatus::Completed,
-        ThreadEpiphanyReorientResultStatus::Failed => CoreEpiphanyCrrcResultStatus::Failed,
-        ThreadEpiphanyReorientResultStatus::Cancelled => CoreEpiphanyCrrcResultStatus::Cancelled,
-    }
-}
-
 fn map_protocol_coordinator_source_signals(
     signals: EpiphanyCoordinatorSourceSignals,
 ) -> ThreadEpiphanyCoordinatorSignals {
@@ -287,7 +263,7 @@ pub async fn derive_epiphany_coordinator_status(
     recommendation: &CoreEpiphanyCrrcRecommendation,
     roles: Vec<EpiphanyRoleBoardLane>,
     reorient_decision: Option<&CoreEpiphanyReorientDecision>,
-    reorient_result_status: ThreadEpiphanyReorientResultStatus,
+    reorient_result_status: CoreEpiphanyCrrcResultStatus,
     reorient_finding: Option<&CoreEpiphanyReorientFinding>,
     checkpoint_present: bool,
 ) -> EpiphanyCoordinatorStatus {
@@ -383,7 +359,7 @@ pub async fn derive_epiphany_coordinator_status(
         crrc_action: recommendation.action,
         modeling_result_status,
         verification_result_status,
-        reorient_result_status: map_core_crrc_result_status(reorient_result_status),
+        reorient_result_status,
     };
     let decision = map_epiphany_coordinator(
         state_status,
@@ -561,7 +537,7 @@ pub async fn select_epiphany_coordinator_automation(
         &crrc_recommendation,
         roles.roles,
         Some(&reorient_decision),
-        map_protocol_crrc_result_status(reorient_result.status),
+        reorient_result.status,
         reorient_result.finding.as_ref(),
         input.state.investigation_checkpoint.as_ref().is_some(),
     )

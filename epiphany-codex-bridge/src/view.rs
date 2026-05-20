@@ -345,7 +345,7 @@ pub async fn map_epiphany_view_response(
                 recommendation,
                 roles.roles.clone(),
                 core_reorient_decision.as_ref(),
-                reorient_result_status,
+                reorient_result.status,
                 reorient_result.finding.as_ref(),
                 checkpoint_present,
             )
