@@ -9,8 +9,6 @@ use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
-use epiphany_codex_bridge::mutation::map_protocol_state_updated_fields;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
@@ -28,6 +26,8 @@ use epiphany_codex_bridge::protocol_edge::protocol_reorient_source;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_state_status;
 use epiphany_codex_bridge::protocol_edge::protocol_role_finding;
 use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_state_updated_fields;
+use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
 use epiphany_codex_bridge::protocol_edge::protocol_update_patch_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_worker_launch_document_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -82,7 +82,7 @@ impl CodexMessageProcessor {
     ) {
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
+                protocol_state_updated_notification(
                     thread_uuid.to_string(),
                     source,
                     epiphany_state.revision,
@@ -136,7 +136,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -216,7 +216,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -314,7 +314,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -390,7 +390,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -516,7 +516,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyPromoteResponse {
             accepted: true,
@@ -571,7 +571,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyUpdateResponse {
             revision: applied.revision,
@@ -653,7 +653,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -721,7 +721,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing

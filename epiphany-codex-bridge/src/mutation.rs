@@ -1,6 +1,3 @@
-use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
-use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
-use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use epiphany_core::EpiphanyReorientAcceptanceFinding;
 use epiphany_core::EpiphanyReorientFindingInterpretation as CoreEpiphanyReorientFinding;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
@@ -64,63 +61,6 @@ pub fn state_update_from_core_patch(
         churn: patch.churn,
         mode: patch.mode,
         planning: patch.planning,
-    }
-}
-
-pub fn epiphany_state_updated_notification(
-    thread_id: String,
-    source: ThreadEpiphanyStateUpdatedSource,
-    revision: u64,
-    changed_fields: Vec<EpiphanyStateUpdatedField>,
-    epiphany_state: epiphany_state_model::EpiphanyThreadState,
-) -> ThreadEpiphanyStateUpdatedNotification {
-    ThreadEpiphanyStateUpdatedNotification {
-        thread_id,
-        source,
-        revision,
-        changed_fields: map_protocol_state_updated_fields(changed_fields),
-        epiphany_state,
-    }
-}
-
-pub fn map_protocol_state_updated_fields(
-    fields: Vec<EpiphanyStateUpdatedField>,
-) -> Vec<ThreadEpiphanyStateUpdatedField> {
-    fields
-        .into_iter()
-        .map(map_protocol_state_updated_field)
-        .collect()
-}
-
-pub fn map_protocol_state_updated_field(
-    field: EpiphanyStateUpdatedField,
-) -> ThreadEpiphanyStateUpdatedField {
-    match field {
-        EpiphanyStateUpdatedField::Objective => ThreadEpiphanyStateUpdatedField::Objective,
-        EpiphanyStateUpdatedField::ActiveSubgoalId => {
-            ThreadEpiphanyStateUpdatedField::ActiveSubgoalId
-        }
-        EpiphanyStateUpdatedField::Subgoals => ThreadEpiphanyStateUpdatedField::Subgoals,
-        EpiphanyStateUpdatedField::Invariants => ThreadEpiphanyStateUpdatedField::Invariants,
-        EpiphanyStateUpdatedField::Graphs => ThreadEpiphanyStateUpdatedField::Graphs,
-        EpiphanyStateUpdatedField::GraphFrontier => ThreadEpiphanyStateUpdatedField::GraphFrontier,
-        EpiphanyStateUpdatedField::GraphCheckpoint => {
-            ThreadEpiphanyStateUpdatedField::GraphCheckpoint
-        }
-        EpiphanyStateUpdatedField::Scratch => ThreadEpiphanyStateUpdatedField::Scratch,
-        EpiphanyStateUpdatedField::InvestigationCheckpoint => {
-            ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint
-        }
-        EpiphanyStateUpdatedField::JobBindings => ThreadEpiphanyStateUpdatedField::JobBindings,
-        EpiphanyStateUpdatedField::AcceptanceReceipts => {
-            ThreadEpiphanyStateUpdatedField::AcceptanceReceipts
-        }
-        EpiphanyStateUpdatedField::RuntimeLinks => ThreadEpiphanyStateUpdatedField::RuntimeLinks,
-        EpiphanyStateUpdatedField::Observations => ThreadEpiphanyStateUpdatedField::Observations,
-        EpiphanyStateUpdatedField::Evidence => ThreadEpiphanyStateUpdatedField::Evidence,
-        EpiphanyStateUpdatedField::Churn => ThreadEpiphanyStateUpdatedField::Churn,
-        EpiphanyStateUpdatedField::Mode => ThreadEpiphanyStateUpdatedField::Mode,
-        EpiphanyStateUpdatedField::Planning => ThreadEpiphanyStateUpdatedField::Planning,
     }
 }
 

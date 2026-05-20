@@ -418,6 +418,9 @@ current_status:
     `results.rs` renders typed result notes only, while `protocol_edge` owns
     role-id request conversion plus role/reorient finding and state-patch
     projection for Codex JSON-RPC responses.
+    State-updated notification projection also moved to `protocol_edge`:
+    `mutation.rs` now owns typed mutation and acceptance mechanics without
+    importing Codex app-server protocol DTOs.
     The bridge still depends on vendored Codex for app-server protocol DTOs and
     absolute path validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal response/projection authority. Prioritize the next coordinator/view seam that still composes policy-shaped facts instead of merely loading host facts and projecting core surfaces; keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

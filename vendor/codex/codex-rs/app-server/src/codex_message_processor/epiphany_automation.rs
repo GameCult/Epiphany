@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use codex_app_server_protocol::ServerNotification;
-use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_core::CodexThread;
 use codex_core::SteerInputError;
@@ -15,11 +14,11 @@ use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
-use epiphany_codex_bridge::mutation::map_protocol_state_updated_fields;
 use epiphany_codex_bridge::mutation_service::launch_epiphany_job_on_thread;
 use epiphany_codex_bridge::pressure::derive_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
+use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -95,15 +94,13 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
                     .await;
             outgoing
                 .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                    ThreadEpiphanyStateUpdatedNotification {
-                        thread_id: thread_id_text,
-                        source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                        revision: epiphany_state.revision,
-                        changed_fields: map_protocol_state_updated_fields(
-                            epiphany_job_launch_changed_fields(),
-                        ),
+                    protocol_state_updated_notification(
+                        thread_id_text,
+                        ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                        epiphany_state.revision,
+                        epiphany_job_launch_changed_fields(),
                         epiphany_state,
-                    },
+                    ),
                 ))
                 .await;
         }

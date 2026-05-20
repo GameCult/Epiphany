@@ -48,6 +48,9 @@ use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
+use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyViewLens;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
@@ -70,6 +73,7 @@ use epiphany_core::EpiphanyRoleSelfPersistenceReview;
 use epiphany_core::EpiphanyRoleSelfPersistenceStatus;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
+use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyViewLens;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::default_epiphany_view_lenses;
@@ -77,6 +81,7 @@ use epiphany_core::epiphany_view_needs_jobs;
 use epiphany_core::epiphany_view_needs_pressure;
 use epiphany_core::epiphany_view_needs_reorientation_inputs;
 use epiphany_core::epiphany_view_needs_runtime_store;
+use epiphany_state_model::EpiphanyThreadState;
 
 pub fn default_core_epiphany_view_lenses() -> Vec<EpiphanyViewLens> {
     default_epiphany_view_lenses()
@@ -284,6 +289,63 @@ pub fn protocol_role_finding(
             .map(protocol_self_persistence_review),
         job_error: finding.job_error,
         item_error: finding.item_error,
+    }
+}
+
+pub fn protocol_state_updated_notification(
+    thread_id: String,
+    source: ThreadEpiphanyStateUpdatedSource,
+    revision: u64,
+    changed_fields: Vec<EpiphanyStateUpdatedField>,
+    epiphany_state: EpiphanyThreadState,
+) -> ThreadEpiphanyStateUpdatedNotification {
+    ThreadEpiphanyStateUpdatedNotification {
+        thread_id,
+        source,
+        revision,
+        changed_fields: protocol_state_updated_fields(changed_fields),
+        epiphany_state,
+    }
+}
+
+pub fn protocol_state_updated_fields(
+    fields: Vec<EpiphanyStateUpdatedField>,
+) -> Vec<ThreadEpiphanyStateUpdatedField> {
+    fields
+        .into_iter()
+        .map(protocol_state_updated_field)
+        .collect()
+}
+
+pub fn protocol_state_updated_field(
+    field: EpiphanyStateUpdatedField,
+) -> ThreadEpiphanyStateUpdatedField {
+    match field {
+        EpiphanyStateUpdatedField::Objective => ThreadEpiphanyStateUpdatedField::Objective,
+        EpiphanyStateUpdatedField::ActiveSubgoalId => {
+            ThreadEpiphanyStateUpdatedField::ActiveSubgoalId
+        }
+        EpiphanyStateUpdatedField::Subgoals => ThreadEpiphanyStateUpdatedField::Subgoals,
+        EpiphanyStateUpdatedField::Invariants => ThreadEpiphanyStateUpdatedField::Invariants,
+        EpiphanyStateUpdatedField::Graphs => ThreadEpiphanyStateUpdatedField::Graphs,
+        EpiphanyStateUpdatedField::GraphFrontier => ThreadEpiphanyStateUpdatedField::GraphFrontier,
+        EpiphanyStateUpdatedField::GraphCheckpoint => {
+            ThreadEpiphanyStateUpdatedField::GraphCheckpoint
+        }
+        EpiphanyStateUpdatedField::Scratch => ThreadEpiphanyStateUpdatedField::Scratch,
+        EpiphanyStateUpdatedField::InvestigationCheckpoint => {
+            ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint
+        }
+        EpiphanyStateUpdatedField::JobBindings => ThreadEpiphanyStateUpdatedField::JobBindings,
+        EpiphanyStateUpdatedField::AcceptanceReceipts => {
+            ThreadEpiphanyStateUpdatedField::AcceptanceReceipts
+        }
+        EpiphanyStateUpdatedField::RuntimeLinks => ThreadEpiphanyStateUpdatedField::RuntimeLinks,
+        EpiphanyStateUpdatedField::Observations => ThreadEpiphanyStateUpdatedField::Observations,
+        EpiphanyStateUpdatedField::Evidence => ThreadEpiphanyStateUpdatedField::Evidence,
+        EpiphanyStateUpdatedField::Churn => ThreadEpiphanyStateUpdatedField::Churn,
+        EpiphanyStateUpdatedField::Mode => ThreadEpiphanyStateUpdatedField::Mode,
+        EpiphanyStateUpdatedField::Planning => ThreadEpiphanyStateUpdatedField::Planning,
     }
 }
 
