@@ -27,7 +27,10 @@ use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
+use codex_app_server_protocol::ThreadEpiphanyPressure;
+use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
+use codex_app_server_protocol::ThreadEpiphanyPressureStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
@@ -50,6 +53,10 @@ use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyGraphQuery;
 use epiphany_core::EpiphanyGraphQueryDirection;
 use epiphany_core::EpiphanyGraphQueryKind;
+use epiphany_core::EpiphanyPressure;
+use epiphany_core::EpiphanyPressureBasis;
+use epiphany_core::EpiphanyPressureLevel;
+use epiphany_core::EpiphanyPressureStatus;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
@@ -339,6 +346,42 @@ pub fn protocol_reorient_decision(
         active_frontier_node_ids: decision.active_frontier_node_ids,
         next_action: decision.next_action,
         note: decision.note,
+    }
+}
+
+pub fn protocol_pressure_from_core(pressure: EpiphanyPressure) -> ThreadEpiphanyPressure {
+    ThreadEpiphanyPressure {
+        status: match pressure.status {
+            EpiphanyPressureStatus::Unknown => ThreadEpiphanyPressureStatus::Unknown,
+            EpiphanyPressureStatus::Ready => ThreadEpiphanyPressureStatus::Ready,
+        },
+        level: protocol_pressure_level(pressure.level),
+        basis: match pressure.basis {
+            EpiphanyPressureBasis::Unknown => ThreadEpiphanyPressureBasis::Unknown,
+            EpiphanyPressureBasis::AutoCompactLimit => {
+                ThreadEpiphanyPressureBasis::AutoCompactLimit
+            }
+            EpiphanyPressureBasis::ModelContextWindow => {
+                ThreadEpiphanyPressureBasis::ModelContextWindow
+            }
+        },
+        used_tokens: pressure.used_tokens,
+        model_context_window: pressure.model_context_window,
+        model_auto_compact_token_limit: pressure.model_auto_compact_token_limit,
+        remaining_tokens: pressure.remaining_tokens,
+        ratio_per_mille: pressure.ratio_per_mille,
+        should_prepare_compaction: pressure.should_prepare_compaction,
+        note: pressure.note,
+    }
+}
+
+pub fn protocol_pressure_level(level: EpiphanyPressureLevel) -> ThreadEpiphanyPressureLevel {
+    match level {
+        EpiphanyPressureLevel::Unknown => ThreadEpiphanyPressureLevel::Unknown,
+        EpiphanyPressureLevel::Low => ThreadEpiphanyPressureLevel::Low,
+        EpiphanyPressureLevel::Elevated => ThreadEpiphanyPressureLevel::Elevated,
+        EpiphanyPressureLevel::High => ThreadEpiphanyPressureLevel::High,
+        EpiphanyPressureLevel::Critical => ThreadEpiphanyPressureLevel::Critical,
     }
 }
 

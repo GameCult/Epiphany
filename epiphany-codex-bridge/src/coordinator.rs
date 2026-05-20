@@ -64,6 +64,7 @@ use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::render_epiphany_coordinator_note;
 use crate::pressure::derive_epiphany_pressure;
 use crate::protocol_edge::protocol_job_from_surface;
+use crate::protocol_edge::protocol_pressure_level;
 use crate::protocol_edge::protocol_reorient_result_status;
 use crate::protocol_edge::protocol_role_result_status;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
@@ -119,35 +120,13 @@ fn map_protocol_coordinator_source_signals(
     signals: EpiphanyCoordinatorSourceSignals,
 ) -> ThreadEpiphanyCoordinatorSignals {
     ThreadEpiphanyCoordinatorSignals {
-        pressure_level: map_protocol_pressure_level(signals.pressure_level),
+        pressure_level: protocol_pressure_level(signals.pressure_level),
         should_prepare_compaction: signals.should_prepare_compaction,
         reorient_action: map_protocol_reorient_action(signals.reorient_action),
         crrc_action: map_protocol_crrc_action(signals.crrc_action),
         modeling_result_status: protocol_role_result_status(signals.modeling_result_status),
         verification_result_status: protocol_role_result_status(signals.verification_result_status),
         reorient_result_status: protocol_reorient_result_status(signals.reorient_result_status),
-    }
-}
-
-fn map_protocol_pressure_level(
-    level: epiphany_core::EpiphanyPressureLevel,
-) -> codex_app_server_protocol::ThreadEpiphanyPressureLevel {
-    match level {
-        epiphany_core::EpiphanyPressureLevel::Unknown => {
-            codex_app_server_protocol::ThreadEpiphanyPressureLevel::Unknown
-        }
-        epiphany_core::EpiphanyPressureLevel::Low => {
-            codex_app_server_protocol::ThreadEpiphanyPressureLevel::Low
-        }
-        epiphany_core::EpiphanyPressureLevel::Elevated => {
-            codex_app_server_protocol::ThreadEpiphanyPressureLevel::Elevated
-        }
-        epiphany_core::EpiphanyPressureLevel::High => {
-            codex_app_server_protocol::ThreadEpiphanyPressureLevel::High
-        }
-        epiphany_core::EpiphanyPressureLevel::Critical => {
-            codex_app_server_protocol::ThreadEpiphanyPressureLevel::Critical
-        }
     }
 }
 
