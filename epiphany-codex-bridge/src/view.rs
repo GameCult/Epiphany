@@ -51,8 +51,9 @@ use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
-use crate::scene::map_core_epiphany_scene_action;
-use crate::scene::map_epiphany_scene;
+use crate::scene::derive_epiphany_scene;
+use crate::scene_protocol::protocol_scene;
+use crate::scene_protocol::protocol_scene_action;
 
 fn map_protocol_epiphany_view_lens(lens: EpiphanyViewLens) -> ThreadEpiphanyViewLens {
     match lens {
@@ -307,9 +308,13 @@ pub async fn map_epiphany_view_response(
 
     ThreadEpiphanyViewResponse {
         thread_id: thread_id.clone(),
-        scene: lenses
-            .contains(&EpiphanyViewLens::Scene)
-            .then(|| map_epiphany_scene(state, loaded, EPIPHANY_REORIENT_LAUNCH_BINDING_ID)),
+        scene: lenses.contains(&EpiphanyViewLens::Scene).then(|| {
+            protocol_scene(derive_epiphany_scene(
+                state,
+                loaded,
+                EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+            ))
+        }),
         jobs: if lenses.contains(&EpiphanyViewLens::Jobs) {
             jobs.iter()
                 .cloned()
@@ -399,7 +404,7 @@ pub async fn map_epiphany_view_response(
                 })
                 .available_actions
                 .into_iter()
-                .map(map_core_epiphany_scene_action)
+                .map(protocol_scene_action)
                 .collect();
                 let note = format!(
                     "{} Result status: {:?}. {}",
