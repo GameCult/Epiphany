@@ -31,11 +31,11 @@ use crate::coordinator::map_protocol_role_board_lanes;
 use crate::coordinator::render_epiphany_roles_note;
 use crate::cultnet::EpiphanyFreshnessSurface;
 use crate::cultnet::EpiphanySurfaceSource;
-use crate::jobs::map_core_epiphany_job_view;
 use crate::jobs::map_epiphany_jobs;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
+use crate::protocol_edge::protocol_job_from_surface;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
@@ -307,7 +307,7 @@ pub async fn map_epiphany_view_response(
         jobs: if lenses.contains(&EpiphanyViewLens::Jobs) {
             jobs.iter()
                 .cloned()
-                .map(map_core_epiphany_job_view)
+                .map(|job| protocol_job_from_surface(job, None, None))
                 .collect()
         } else {
             Vec::new()
@@ -413,7 +413,9 @@ pub async fn map_epiphany_view_response(
                     recommendation: protocol_recommendation,
                     reorient_binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
                     reorient_result_status,
-                    reorient_job: reorient_job.clone().map(map_core_epiphany_job_view),
+                    reorient_job: reorient_job
+                        .clone()
+                        .map(|job| protocol_job_from_surface(job, None, None)),
                     reorient_finding: reorient_finding.clone(),
                     available_actions,
                     note,
@@ -468,7 +470,7 @@ pub async fn map_epiphany_role_result_response(
     let job = map_epiphany_jobs(Some(state), None)
         .into_iter()
         .find(|job| job.id == binding_id)
-        .map(map_core_epiphany_job_view);
+        .map(|job| protocol_job_from_surface(job, None, None));
     let result =
         load_core_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id)
             .await;
@@ -525,7 +527,7 @@ pub async fn map_epiphany_reorient_result_response(
     let job = map_epiphany_jobs(Some(state), None)
         .into_iter()
         .find(|job| job.id == binding_id)
-        .map(map_core_epiphany_job_view);
+        .map(|job| protocol_job_from_surface(job, None, None));
     let result =
         load_core_epiphany_reorient_result_snapshot(Some(state), runtime_store_path, &binding_id)
             .await;

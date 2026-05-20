@@ -56,7 +56,6 @@ use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
-use crate::jobs::map_core_epiphany_job_view;
 use crate::launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
 use crate::launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 use crate::launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
@@ -66,6 +65,7 @@ use crate::launch::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use crate::launch::build_epiphany_reorient_launch_request;
 use crate::launch::render_epiphany_coordinator_note;
 use crate::pressure::derive_epiphany_pressure;
+use crate::protocol_edge::protocol_job_from_surface;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
@@ -713,25 +713,29 @@ fn map_protocol_role_board_job(
         .iter()
         .find(|source_job| source_job.id == job.id && source_job.owner_role == job.owner_role)
         .cloned()
-        .map(map_core_epiphany_job_view)
+        .map(|job| protocol_job_from_surface(job, None, None))
         .unwrap_or_else(|| {
-            map_core_epiphany_job_view(EpiphanyJobView {
-                id: job.id.clone(),
-                kind: CoreEpiphanyJobKind::Specialist,
-                scope: job.id.clone(),
-                owner_role: job.owner_role.clone(),
-                authority_scope: None,
-                runtime_job_id: None,
-                status: map_core_epiphany_job_status_from_role_board(job.status),
-                items_processed: None,
-                items_total: None,
-                progress_note: job.progress_note.clone(),
-                last_checkpoint_at_unix_seconds: None,
-                blocking_reason: job.blocking_reason.clone(),
-                active_thread_ids: Vec::new(),
-                linked_subgoal_ids: Vec::new(),
-                linked_graph_node_ids: Vec::new(),
-            })
+            protocol_job_from_surface(
+                EpiphanyJobView {
+                    id: job.id.clone(),
+                    kind: CoreEpiphanyJobKind::Specialist,
+                    scope: job.id.clone(),
+                    owner_role: job.owner_role.clone(),
+                    authority_scope: None,
+                    runtime_job_id: None,
+                    status: map_core_epiphany_job_status_from_role_board(job.status),
+                    items_processed: None,
+                    items_total: None,
+                    progress_note: job.progress_note.clone(),
+                    last_checkpoint_at_unix_seconds: None,
+                    blocking_reason: job.blocking_reason.clone(),
+                    active_thread_ids: Vec::new(),
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                },
+                None,
+                None,
+            )
         })
 }
 

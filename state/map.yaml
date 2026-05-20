@@ -398,6 +398,10 @@ current_status:
     invokes Epiphany bridge services, and sends Codex JSON-RPC responses, while
     the bridge owns the enum/DTO conversion from typed Epiphany surfaces into
     `ThreadEpiphany*` edge payloads.
+    The duplicate job projection authority in `epiphany-codex-bridge::jobs`
+    has been collapsed too: `jobs.rs` derives typed `EpiphanyJobView` only,
+    and `protocol_edge::protocol_job_from_surface` is the single
+    `EpiphanyJobView` -> `ThreadEpiphanyJob` mapper.
     The bridge still depends on vendored Codex for app-server protocol DTOs and
     absolute path validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal response/projection authority. Prioritize the next coordinator/view seam that still composes policy-shaped facts instead of merely loading host facts and projecting core surfaces; keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

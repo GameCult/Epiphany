@@ -1,6 +1,3 @@
-use codex_app_server_protocol::ThreadEpiphanyJob;
-use codex_app_server_protocol::ThreadEpiphanyJobKind;
-use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use epiphany_core::EpiphanyJobStatus as CoreEpiphanyJobStatus;
 use epiphany_core::EpiphanyJobView;
 use epiphany_core::EpiphanyJobsInput;
@@ -24,46 +21,6 @@ pub fn map_epiphany_jobs(
     retrieval_override: Option<&EpiphanyRetrievalState>,
 ) -> Vec<EpiphanyJobView> {
     derive_epiphany_jobs(state, retrieval_override)
-}
-
-pub fn map_protocol_epiphany_jobs(
-    state: Option<&EpiphanyThreadState>,
-    retrieval_override: Option<&EpiphanyRetrievalState>,
-) -> Vec<ThreadEpiphanyJob> {
-    derive_epiphany_jobs(state, retrieval_override)
-        .into_iter()
-        .map(map_core_epiphany_job_view)
-        .collect()
-}
-
-pub fn map_core_epiphany_job_view(job: EpiphanyJobView) -> ThreadEpiphanyJob {
-    ThreadEpiphanyJob {
-        id: job.id,
-        kind: map_core_epiphany_job_kind(job.kind),
-        scope: job.scope,
-        owner_role: job.owner_role,
-        launcher_job_id: None,
-        authority_scope: job.authority_scope,
-        backend_job_id: job.runtime_job_id,
-        status: map_core_epiphany_job_status(job.status),
-        items_processed: job.items_processed,
-        items_total: job.items_total,
-        progress_note: job.progress_note,
-        last_checkpoint_at_unix_seconds: job.last_checkpoint_at_unix_seconds,
-        blocking_reason: job.blocking_reason,
-        active_thread_ids: job.active_thread_ids,
-        linked_subgoal_ids: job.linked_subgoal_ids,
-        linked_graph_node_ids: job.linked_graph_node_ids,
-    }
-}
-
-pub fn map_core_epiphany_job_kind(kind: CoreEpiphanyJobKind) -> ThreadEpiphanyJobKind {
-    match kind {
-        CoreEpiphanyJobKind::Indexing => ThreadEpiphanyJobKind::Indexing,
-        CoreEpiphanyJobKind::Remap => ThreadEpiphanyJobKind::Remap,
-        CoreEpiphanyJobKind::Verification => ThreadEpiphanyJobKind::Verification,
-        CoreEpiphanyJobKind::Specialist => ThreadEpiphanyJobKind::Specialist,
-    }
 }
 
 pub fn map_launched_epiphany_job(
@@ -110,20 +67,6 @@ pub fn map_interrupted_epiphany_job(
                 "Interrupted job binding was not reflected in Epiphany state.",
             )
         })
-}
-
-fn map_core_epiphany_job_status(status: CoreEpiphanyJobStatus) -> ThreadEpiphanyJobStatus {
-    match status {
-        CoreEpiphanyJobStatus::Idle => ThreadEpiphanyJobStatus::Idle,
-        CoreEpiphanyJobStatus::Needed => ThreadEpiphanyJobStatus::Needed,
-        CoreEpiphanyJobStatus::Pending => ThreadEpiphanyJobStatus::Pending,
-        CoreEpiphanyJobStatus::Running => ThreadEpiphanyJobStatus::Running,
-        CoreEpiphanyJobStatus::Completed => ThreadEpiphanyJobStatus::Completed,
-        CoreEpiphanyJobStatus::Failed => ThreadEpiphanyJobStatus::Failed,
-        CoreEpiphanyJobStatus::Cancelled => ThreadEpiphanyJobStatus::Cancelled,
-        CoreEpiphanyJobStatus::Blocked => ThreadEpiphanyJobStatus::Blocked,
-        CoreEpiphanyJobStatus::Unavailable => ThreadEpiphanyJobStatus::Unavailable,
-    }
 }
 
 pub fn epiphany_blocked_state_job(
