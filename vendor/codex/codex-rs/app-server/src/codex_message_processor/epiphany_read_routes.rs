@@ -2,8 +2,6 @@ use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
-use epiphany_codex_bridge::context::map_core_epiphany_context_params;
-use epiphany_codex_bridge::context::map_core_epiphany_graph_query;
 use epiphany_codex_bridge::cultnet::EpiphanyFreshnessSurface;
 use epiphany_codex_bridge::cultnet::EpiphanyGraphFreshnessStatus;
 use epiphany_codex_bridge::cultnet::EpiphanyInvalidationStatus;
@@ -31,6 +29,10 @@ use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
+use epiphany_core::EpiphanyContextParams;
+use epiphany_core::EpiphanyGraphQuery;
+use epiphany_core::EpiphanyGraphQueryDirection;
+use epiphany_core::EpiphanyGraphQueryKind;
 use epiphany_core::default_epiphany_view_lenses;
 use epiphany_core::epiphany_view_needs_jobs;
 use epiphany_core::epiphany_view_needs_pressure;
@@ -313,7 +315,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let core_params = map_core_epiphany_context_params(&params);
+        let core_params = thread_epiphany_context_params_to_core(&params);
         let response = map_epiphany_context_response(
             thread_id,
             loaded,
@@ -351,7 +353,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let core_query = map_core_epiphany_graph_query(&params.query);
+        let core_query = thread_epiphany_graph_query_to_core(&params.query);
         let response = map_epiphany_graph_query_response(
             thread_id,
             loaded,
@@ -581,6 +583,58 @@ impl CodexMessageProcessor {
         };
 
         self.outgoing.send_response(request_id, response).await;
+    }
+}
+
+fn thread_epiphany_context_params_to_core(
+    params: &ThreadEpiphanyContextParams,
+) -> EpiphanyContextParams {
+    EpiphanyContextParams {
+        graph_node_ids: params.graph_node_ids.clone(),
+        graph_edge_ids: params.graph_edge_ids.clone(),
+        observation_ids: params.observation_ids.clone(),
+        evidence_ids: params.evidence_ids.clone(),
+        include_active_frontier: params.include_active_frontier,
+        include_linked_evidence: params.include_linked_evidence,
+    }
+}
+
+fn thread_epiphany_graph_query_to_core(query: &ThreadEpiphanyGraphQuery) -> EpiphanyGraphQuery {
+    EpiphanyGraphQuery {
+        kind: thread_epiphany_graph_query_kind_to_core(query.kind),
+        node_ids: query.node_ids.clone(),
+        edge_ids: query.edge_ids.clone(),
+        paths: query.paths.clone(),
+        symbols: query.symbols.clone(),
+        edge_kinds: query.edge_kinds.clone(),
+        direction: query
+            .direction
+            .map(thread_epiphany_graph_query_direction_to_core),
+        depth: query.depth,
+        include_links: query.include_links,
+    }
+}
+
+fn thread_epiphany_graph_query_kind_to_core(
+    kind: ThreadEpiphanyGraphQueryKind,
+) -> EpiphanyGraphQueryKind {
+    match kind {
+        ThreadEpiphanyGraphQueryKind::Node => EpiphanyGraphQueryKind::Node,
+        ThreadEpiphanyGraphQueryKind::Path => EpiphanyGraphQueryKind::Path,
+        ThreadEpiphanyGraphQueryKind::FrontierNeighborhood => {
+            EpiphanyGraphQueryKind::FrontierNeighborhood
+        }
+        ThreadEpiphanyGraphQueryKind::Neighbors => EpiphanyGraphQueryKind::Neighbors,
+    }
+}
+
+fn thread_epiphany_graph_query_direction_to_core(
+    direction: ThreadEpiphanyGraphQueryDirection,
+) -> EpiphanyGraphQueryDirection {
+    match direction {
+        ThreadEpiphanyGraphQueryDirection::Incoming => EpiphanyGraphQueryDirection::Incoming,
+        ThreadEpiphanyGraphQueryDirection::Outgoing => EpiphanyGraphQueryDirection::Outgoing,
+        ThreadEpiphanyGraphQueryDirection::Both => EpiphanyGraphQueryDirection::Both,
     }
 }
 

@@ -1,11 +1,7 @@
 use codex_app_server_protocol::ThreadEpiphanyContext;
 use codex_app_server_protocol::ThreadEpiphanyContextMissing;
-use codex_app_server_protocol::ThreadEpiphanyContextParams;
 use codex_app_server_protocol::ThreadEpiphanyContextStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyGraphContext;
-use codex_app_server_protocol::ThreadEpiphanyGraphQuery;
-use codex_app_server_protocol::ThreadEpiphanyGraphQueryDirection;
-use codex_app_server_protocol::ThreadEpiphanyGraphQueryKind;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryMatched;
 use codex_app_server_protocol::ThreadEpiphanyGraphQueryMissing;
 use codex_app_server_protocol::ThreadEpiphanyPlanningSummary;
@@ -16,8 +12,6 @@ use epiphany_core::EpiphanyContextStateStatus as CoreEpiphanyContextStateStatus;
 use epiphany_core::EpiphanyContextView;
 use epiphany_core::EpiphanyGraphContext as CoreEpiphanyGraphContext;
 use epiphany_core::EpiphanyGraphQuery as CoreEpiphanyGraphQuery;
-use epiphany_core::EpiphanyGraphQueryDirection as CoreEpiphanyGraphQueryDirection;
-use epiphany_core::EpiphanyGraphQueryKind as CoreEpiphanyGraphQueryKind;
 use epiphany_core::EpiphanyGraphQueryMatched as CoreEpiphanyGraphQueryMatched;
 use epiphany_core::EpiphanyGraphQueryMissing as CoreEpiphanyGraphQueryMissing;
 use epiphany_core::EpiphanyGraphQueryView;
@@ -42,19 +36,6 @@ pub fn map_epiphany_context(
     ThreadEpiphanyContextMissing,
 ) {
     map_core_epiphany_context_view(derive_context(state, params))
-}
-
-pub fn map_core_epiphany_context_params(
-    params: &ThreadEpiphanyContextParams,
-) -> CoreEpiphanyContextParams {
-    CoreEpiphanyContextParams {
-        graph_node_ids: params.graph_node_ids.clone(),
-        graph_edge_ids: params.graph_edge_ids.clone(),
-        observation_ids: params.observation_ids.clone(),
-        evidence_ids: params.evidence_ids.clone(),
-        include_active_frontier: params.include_active_frontier,
-        include_linked_evidence: params.include_linked_evidence,
-    }
 }
 
 fn map_core_epiphany_context_view(
@@ -175,43 +156,6 @@ pub fn map_epiphany_graph_query(
     ThreadEpiphanyGraphQueryMissing,
 ) {
     map_core_epiphany_graph_query_view(derive_graph_query(state, query))
-}
-
-pub fn map_core_epiphany_graph_query(query: &ThreadEpiphanyGraphQuery) -> CoreEpiphanyGraphQuery {
-    CoreEpiphanyGraphQuery {
-        kind: map_core_epiphany_graph_query_kind(query.kind),
-        node_ids: query.node_ids.clone(),
-        edge_ids: query.edge_ids.clone(),
-        paths: query.paths.clone(),
-        symbols: query.symbols.clone(),
-        edge_kinds: query.edge_kinds.clone(),
-        direction: query.direction.map(map_core_epiphany_graph_query_direction),
-        depth: query.depth,
-        include_links: query.include_links,
-    }
-}
-
-fn map_core_epiphany_graph_query_kind(
-    kind: ThreadEpiphanyGraphQueryKind,
-) -> CoreEpiphanyGraphQueryKind {
-    match kind {
-        ThreadEpiphanyGraphQueryKind::Node => CoreEpiphanyGraphQueryKind::Node,
-        ThreadEpiphanyGraphQueryKind::Path => CoreEpiphanyGraphQueryKind::Path,
-        ThreadEpiphanyGraphQueryKind::FrontierNeighborhood => {
-            CoreEpiphanyGraphQueryKind::FrontierNeighborhood
-        }
-        ThreadEpiphanyGraphQueryKind::Neighbors => CoreEpiphanyGraphQueryKind::Neighbors,
-    }
-}
-
-fn map_core_epiphany_graph_query_direction(
-    direction: ThreadEpiphanyGraphQueryDirection,
-) -> CoreEpiphanyGraphQueryDirection {
-    match direction {
-        ThreadEpiphanyGraphQueryDirection::Incoming => CoreEpiphanyGraphQueryDirection::Incoming,
-        ThreadEpiphanyGraphQueryDirection::Outgoing => CoreEpiphanyGraphQueryDirection::Outgoing,
-        ThreadEpiphanyGraphQueryDirection::Both => CoreEpiphanyGraphQueryDirection::Both,
-    }
 }
 
 fn map_core_epiphany_graph_query_view(

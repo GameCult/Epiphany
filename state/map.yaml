@@ -381,7 +381,10 @@ current_status:
     sequencing facts are no longer bridge helper law. View lens selector
     semantics also moved into core: `EpiphanyViewLens`, default lens selection,
     and lens dependency planning now decide which host facts app-server/bridge
-    need to load before legacy response projection. Reorient worker launch-request/document
+    need to load before legacy response projection. Context and graph-query
+    request DTO conversion moved to the app-server JSON-RPC wall, so the bridge
+    receives core `EpiphanyContextParams` / `EpiphanyGraphQuery` documents
+    instead of owning request-side protocol mapping. Reorient worker launch-request/document
     composition also moved behind a typed core seam
     (`EpiphanyReorientLaunchRequestInput` -> `EpiphanyJobLaunchRequest`);
     bridge supplies only the prompt instruction and retained compatibility
