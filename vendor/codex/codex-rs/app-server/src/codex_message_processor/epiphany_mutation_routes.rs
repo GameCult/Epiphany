@@ -20,7 +20,6 @@ use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::launch::map_core_worker_launch_document;
 use epiphany_codex_bridge::mutation::core_state_patch_from_protocol;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation::map_protocol_state_updated_fields;
@@ -39,6 +38,9 @@ use epiphany_codex_bridge::results::map_protocol_reorient_finding;
 use epiphany_codex_bridge::results::map_protocol_role_finding;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
+use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
+use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
+use epiphany_core::EpiphanyWorkerLaunchDocument;
 use std::sync::Arc;
 
 use super::CodexMessageProcessor;
@@ -623,7 +625,7 @@ impl CodexMessageProcessor {
         };
 
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
-        let core_launch_document = map_core_worker_launch_document(launch_document);
+        let core_launch_document = thread_epiphany_worker_launch_document_to_core(launch_document);
         let applied = match launch_thread_epiphany_job(
             &host,
             build_epiphany_job_launch_request(
@@ -791,6 +793,78 @@ fn thread_epiphany_job_from_surface(
         active_thread_ids: job.active_thread_ids,
         linked_subgoal_ids: job.linked_subgoal_ids,
         linked_graph_node_ids: job.linked_graph_node_ids,
+    }
+}
+
+fn thread_epiphany_worker_launch_document_to_core(
+    document: ThreadEpiphanyWorkerLaunchDocument,
+) -> EpiphanyWorkerLaunchDocument {
+    match document {
+        ThreadEpiphanyWorkerLaunchDocument::Role(document) => EpiphanyWorkerLaunchDocument::Role(
+            thread_epiphany_role_worker_launch_document_to_core(document),
+        ),
+        ThreadEpiphanyWorkerLaunchDocument::Reorient(document) => {
+            EpiphanyWorkerLaunchDocument::Reorient(
+                thread_epiphany_reorient_worker_launch_document_to_core(document),
+            )
+        }
+    }
+}
+
+fn thread_epiphany_role_worker_launch_document_to_core(
+    document: ThreadEpiphanyRoleWorkerLaunchDocument,
+) -> EpiphanyRoleWorkerLaunchDocument {
+    EpiphanyRoleWorkerLaunchDocument {
+        thread_id: document.thread_id,
+        role_id: document.role_id,
+        state_revision: document.state_revision,
+        objective: document.objective,
+        active_subgoal_id: document.active_subgoal_id,
+        active_subgoals: document.active_subgoals,
+        active_graph_node_ids: document.active_graph_node_ids,
+        investigation_checkpoint: document.investigation_checkpoint,
+        scratch: document.scratch,
+        invariants: document.invariants,
+        graphs: document.graphs,
+        recent_evidence: document.recent_evidence,
+        recent_observations: document.recent_observations,
+        graph_frontier: document.graph_frontier,
+        graph_checkpoint: document.graph_checkpoint,
+        planning: document.planning,
+        churn: document.churn,
+    }
+}
+
+fn thread_epiphany_reorient_worker_launch_document_to_core(
+    document: ThreadEpiphanyReorientWorkerLaunchDocument,
+) -> EpiphanyReorientWorkerLaunchDocument {
+    EpiphanyReorientWorkerLaunchDocument {
+        thread_id: document.thread_id,
+        mode: document.mode,
+        checkpoint_id: document.checkpoint_id,
+        checkpoint_kind: document.checkpoint_kind,
+        checkpoint_disposition: document.checkpoint_disposition,
+        checkpoint_focus: document.checkpoint_focus,
+        checkpoint_summary: document.checkpoint_summary,
+        checkpoint_next_action: document.checkpoint_next_action,
+        checkpoint_open_questions: document.checkpoint_open_questions,
+        checkpoint_evidence_ids: document.checkpoint_evidence_ids,
+        checkpoint_code_refs: document.checkpoint_code_refs,
+        decision_reasons: document.decision_reasons,
+        decision_note: document.decision_note,
+        pressure_level: document.pressure_level,
+        retrieval_status: document.retrieval_status,
+        graph_status: document.graph_status,
+        watcher_status: document.watcher_status,
+        checkpoint_dirty_paths: document.checkpoint_dirty_paths,
+        checkpoint_changed_paths: document.checkpoint_changed_paths,
+        scratch: document.scratch,
+        graphs: document.graphs,
+        recent_evidence: document.recent_evidence,
+        recent_observations: document.recent_observations,
+        active_frontier_node_ids: document.active_frontier_node_ids,
+        linked_subgoal_ids: document.linked_subgoal_ids,
+        linked_graph_node_ids: document.linked_graph_node_ids,
     }
 }
 
