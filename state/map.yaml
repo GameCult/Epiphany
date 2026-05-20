@@ -315,7 +315,10 @@ current_status:
     recommendations, role-board lanes, and core role/reorient result
     interpretations now remain serializable typed surfaces; app-server still
     projects those typed surfaces into `ThreadEpiphany*` responses at the legacy
-    JSON-RPC edge. The bridge still
+    JSON-RPC edge. Runtime-result loading now has core typed snapshot APIs, with
+    protocol finding tuples retained only as legacy wrappers; delete the
+    duplicate protocol-shaped result rendering once coordinator and acceptance
+    consume the typed snapshots directly. The bridge still
     depends on vendored Codex for app-server protocol DTOs and absolute path
     validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.
