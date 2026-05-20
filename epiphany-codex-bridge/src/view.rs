@@ -37,14 +37,15 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::protocol_edge::protocol_job_from_surface;
 use crate::protocol_edge::protocol_reorient_decision;
+use crate::protocol_edge::protocol_reorient_finding;
 use crate::protocol_edge::protocol_reorient_result_status;
 use crate::protocol_edge::protocol_reorient_state_status;
+use crate::protocol_edge::protocol_role_finding;
+use crate::protocol_edge::protocol_role_id_from_core;
 use crate::protocol_edge::protocol_role_result_status;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::results::map_protocol_reorient_finding;
-use crate::results::map_protocol_role_result_role_id;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
 use crate::scene::map_core_epiphany_scene_action;
@@ -224,7 +225,7 @@ pub async fn map_epiphany_view_response(
     let reorient_finding = reorient_result
         .finding
         .clone()
-        .map(map_protocol_reorient_finding);
+        .map(protocol_reorient_finding);
     let reorient_result_note = reorient_result.note.clone();
     let checkpoint_present = state
         .and_then(|state| state.investigation_checkpoint.as_ref())
@@ -450,7 +451,7 @@ pub async fn map_epiphany_role_result_response(
         state,
         runtime_store_path,
     } = input;
-    let protocol_role_id = map_protocol_role_result_role_id(role_id);
+    let protocol_role_id = protocol_role_id_from_core(role_id);
     let protocol_source = map_protocol_roles_source(source);
     let Some(state) = state else {
         return ThreadEpiphanyRoleResultResponse {
@@ -486,7 +487,7 @@ pub async fn map_epiphany_role_result_response(
         job,
         finding: result
             .finding
-            .map(|finding| crate::results::map_protocol_role_finding(protocol_role_id, finding)),
+            .map(|finding| protocol_role_finding(protocol_role_id, finding)),
         note: result.note,
     }
 }
@@ -540,7 +541,7 @@ pub async fn map_epiphany_reorient_result_response(
         binding_id,
         status: protocol_reorient_result_status(result.status),
         job,
-        finding: result.finding.map(map_protocol_reorient_finding),
+        finding: result.finding.map(protocol_reorient_finding),
         note: result.note,
     }
 }

@@ -11,7 +11,6 @@ use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation::map_protocol_state_updated_fields;
-use epiphany_codex_bridge::mutation::protocol_patch_from_core;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
@@ -22,14 +21,15 @@ use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
 use epiphany_codex_bridge::protocol_edge::protocol_job_from_surface;
+use epiphany_codex_bridge::protocol_edge::protocol_patch_from_core;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_decision;
+use epiphany_codex_bridge::protocol_edge::protocol_reorient_finding;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_source;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_state_status;
+use epiphany_codex_bridge::protocol_edge::protocol_role_finding;
+use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_update_patch_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_worker_launch_document_to_core;
-use epiphany_codex_bridge::results::map_core_role_result_role_id;
-use epiphany_codex_bridge::results::map_protocol_reorient_finding;
-use epiphany_codex_bridge::results::map_protocol_role_finding;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
 use std::sync::Arc;
@@ -104,7 +104,7 @@ impl CodexMessageProcessor {
             expected_revision,
             max_runtime_seconds,
         } = params;
-        let core_role_id = map_core_role_result_role_id(role_id);
+        let core_role_id = protocol_role_id_to_core(role_id);
 
         let (thread_uuid, loaded_thread) =
             match self.load_epiphany_thread(&request_id, &thread_id).await {
@@ -176,7 +176,7 @@ impl CodexMessageProcessor {
             expected_revision,
             binding_id,
         } = params;
-        let core_role_id = map_core_role_result_role_id(role_id);
+        let core_role_id = protocol_role_id_to_core(role_id);
 
         let default_binding_id = match epiphany_role_binding_id(core_role_id) {
             Ok(binding_id) => binding_id,
@@ -232,7 +232,7 @@ impl CodexMessageProcessor {
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,
                     applied_patch: protocol_patch_from_core(applied.applied_patch),
-                    finding: map_protocol_role_finding(role_id, applied.finding),
+                    finding: protocol_role_finding(role_id, applied.finding),
                 },
             )
             .await;
@@ -404,7 +404,7 @@ impl CodexMessageProcessor {
                     accepted_receipt_id: applied.accepted_receipt_id,
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,
-                    finding: map_protocol_reorient_finding(applied.finding),
+                    finding: protocol_reorient_finding(applied.finding),
                 },
             )
             .await;

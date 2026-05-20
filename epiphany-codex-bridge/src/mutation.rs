@@ -1,7 +1,6 @@
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
-use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use epiphany_core::EpiphanyReorientAcceptanceFinding;
 use epiphany_core::EpiphanyReorientFindingInterpretation as CoreEpiphanyReorientFinding;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
@@ -40,30 +39,6 @@ pub fn parse_core_role_finding_state_patch(
         .state_patch
         .clone()
         .ok_or_else(|| "completed role finding did not include a reviewable statePatch".to_string())
-}
-
-pub fn protocol_patch_from_core(
-    patch: EpiphanyRoleStatePatchDocument,
-) -> ThreadEpiphanyUpdatePatch {
-    ThreadEpiphanyUpdatePatch {
-        objective: patch.objective,
-        active_subgoal_id: patch.active_subgoal_id,
-        subgoals: patch.subgoals,
-        invariants: patch.invariants,
-        graphs: patch.graphs,
-        graph_frontier: patch.graph_frontier,
-        graph_checkpoint: patch.graph_checkpoint,
-        scratch: patch.scratch,
-        investigation_checkpoint: patch.investigation_checkpoint,
-        job_bindings: patch.job_bindings,
-        acceptance_receipts: patch.acceptance_receipts,
-        runtime_links: patch.runtime_links,
-        observations: patch.observations,
-        evidence: patch.evidence,
-        churn: patch.churn,
-        mode: patch.mode,
-        planning: patch.planning,
-    }
 }
 
 pub fn state_update_from_core_patch(

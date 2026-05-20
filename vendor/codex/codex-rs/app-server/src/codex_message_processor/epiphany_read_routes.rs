@@ -15,8 +15,8 @@ use epiphany_codex_bridge::protocol_edge::protocol_context_params_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_distill_params_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_freshness_response_from_surface;
 use epiphany_codex_bridge::protocol_edge::protocol_graph_query_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
-use epiphany_codex_bridge::results::map_core_role_result_role_id;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
 use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
@@ -159,7 +159,7 @@ impl CodexMessageProcessor {
             role_id,
             binding_id,
         } = params;
-        let core_role_id = map_core_role_result_role_id(role_id);
+        let core_role_id = protocol_role_id_to_core(role_id);
 
         let binding_id = match binding_id {
             Some(binding_id) => binding_id,

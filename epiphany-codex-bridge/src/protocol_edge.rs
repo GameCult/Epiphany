@@ -34,6 +34,7 @@ use codex_app_server_protocol::ThreadEpiphanyPressureStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
+use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientReason;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
@@ -41,7 +42,11 @@ use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
+use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
+use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
+use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
+use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyViewLens;
@@ -57,7 +62,12 @@ use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel;
 use epiphany_core::EpiphanyPressureStatus;
+use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
+use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::EpiphanyRoleResultRoleId;
+use epiphany_core::EpiphanyRoleSelfPersistenceReview;
+use epiphany_core::EpiphanyRoleSelfPersistenceStatus;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyViewLens;
@@ -177,6 +187,103 @@ pub fn protocol_update_patch_to_core(
         churn: patch.churn.clone(),
         mode: patch.mode.clone(),
         planning: patch.planning.clone(),
+    }
+}
+
+pub fn protocol_patch_from_core(
+    patch: EpiphanyRoleStatePatchDocument,
+) -> ThreadEpiphanyUpdatePatch {
+    ThreadEpiphanyUpdatePatch {
+        objective: patch.objective,
+        active_subgoal_id: patch.active_subgoal_id,
+        subgoals: patch.subgoals,
+        invariants: patch.invariants,
+        graphs: patch.graphs,
+        graph_frontier: patch.graph_frontier,
+        graph_checkpoint: patch.graph_checkpoint,
+        scratch: patch.scratch,
+        investigation_checkpoint: patch.investigation_checkpoint,
+        job_bindings: patch.job_bindings,
+        acceptance_receipts: patch.acceptance_receipts,
+        runtime_links: patch.runtime_links,
+        observations: patch.observations,
+        evidence: patch.evidence,
+        churn: patch.churn,
+        mode: patch.mode,
+        planning: patch.planning,
+    }
+}
+
+pub fn protocol_role_id_to_core(role_id: ThreadEpiphanyRoleId) -> EpiphanyRoleResultRoleId {
+    match role_id {
+        ThreadEpiphanyRoleId::Implementation => EpiphanyRoleResultRoleId::Implementation,
+        ThreadEpiphanyRoleId::Imagination => EpiphanyRoleResultRoleId::Imagination,
+        ThreadEpiphanyRoleId::Modeling => EpiphanyRoleResultRoleId::Modeling,
+        ThreadEpiphanyRoleId::Verification => EpiphanyRoleResultRoleId::Verification,
+        ThreadEpiphanyRoleId::Reorientation => EpiphanyRoleResultRoleId::Reorientation,
+    }
+}
+
+pub fn protocol_role_id_from_core(role_id: EpiphanyRoleResultRoleId) -> ThreadEpiphanyRoleId {
+    match role_id {
+        EpiphanyRoleResultRoleId::Implementation => ThreadEpiphanyRoleId::Implementation,
+        EpiphanyRoleResultRoleId::Imagination => ThreadEpiphanyRoleId::Imagination,
+        EpiphanyRoleResultRoleId::Modeling => ThreadEpiphanyRoleId::Modeling,
+        EpiphanyRoleResultRoleId::Verification => ThreadEpiphanyRoleId::Verification,
+        EpiphanyRoleResultRoleId::Reorientation => ThreadEpiphanyRoleId::Reorientation,
+    }
+}
+
+pub fn protocol_reorient_finding(
+    finding: EpiphanyReorientFindingInterpretation,
+) -> ThreadEpiphanyReorientFinding {
+    ThreadEpiphanyReorientFinding {
+        mode: finding.mode,
+        summary: finding.summary,
+        next_safe_move: finding.next_safe_move,
+        checkpoint_still_valid: finding.checkpoint_still_valid,
+        files_inspected: finding.files_inspected,
+        frontier_node_ids: finding.frontier_node_ids,
+        evidence_ids: finding.evidence_ids,
+        artifact_refs: finding.artifact_refs,
+        runtime_result_id: finding.runtime_result_id,
+        runtime_job_id: finding.runtime_job_id,
+        job_error: finding.job_error,
+        item_error: finding.item_error,
+    }
+}
+
+pub fn protocol_role_finding(
+    role_id: ThreadEpiphanyRoleId,
+    finding: EpiphanyRoleFindingInterpretation,
+) -> ThreadEpiphanyRoleFinding {
+    let state_patch = finding.state_patch.map(protocol_patch_from_core);
+    ThreadEpiphanyRoleFinding {
+        role_id,
+        verdict: finding.verdict,
+        summary: finding.summary,
+        next_safe_move: finding.next_safe_move,
+        checkpoint_summary: finding.checkpoint_summary,
+        scratch_summary: finding.scratch_summary,
+        files_inspected: finding.files_inspected,
+        frontier_node_ids: finding.frontier_node_ids,
+        evidence_ids: finding.evidence_ids,
+        artifact_refs: finding.artifact_refs,
+        runtime_result_id: finding.runtime_result_id,
+        runtime_job_id: finding.runtime_job_id,
+        open_questions: finding.open_questions,
+        evidence_gaps: finding.evidence_gaps,
+        risks: finding.risks,
+        state_patch,
+        self_patch: finding.self_patch.map(|patch| {
+            serde_json::to_value(patch)
+                .expect("AgentSelfPatch is a serializable protocol projection")
+        }),
+        self_persistence: finding
+            .self_persistence
+            .map(protocol_self_persistence_review),
+        job_error: finding.job_error,
+        item_error: finding.item_error,
     }
 }
 
@@ -579,5 +686,26 @@ fn protocol_reorient_reason(reason: EpiphanyReorientReason) -> ThreadEpiphanyReo
         EpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
             ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale
         }
+    }
+}
+
+fn protocol_self_persistence_review(
+    review: EpiphanyRoleSelfPersistenceReview,
+) -> ThreadEpiphanyRoleSelfPersistenceReview {
+    ThreadEpiphanyRoleSelfPersistenceReview {
+        status: match review.status {
+            EpiphanyRoleSelfPersistenceStatus::Missing => {
+                ThreadEpiphanyRoleSelfPersistenceStatus::Missing
+            }
+            EpiphanyRoleSelfPersistenceStatus::Accepted => {
+                ThreadEpiphanyRoleSelfPersistenceStatus::Accepted
+            }
+            EpiphanyRoleSelfPersistenceStatus::Rejected => {
+                ThreadEpiphanyRoleSelfPersistenceStatus::Rejected
+            }
+        },
+        target_agent_id: review.target_agent_id,
+        target_path: review.target_path,
+        reasons: review.reasons,
     }
 }
