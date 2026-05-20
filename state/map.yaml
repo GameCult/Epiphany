@@ -381,17 +381,13 @@ current_status:
     sequencing facts are no longer bridge helper law. View lens selector
     semantics also moved into core: `EpiphanyViewLens`, default lens selection,
     and lens dependency planning now decide which host facts app-server/bridge
-    need to load before legacy response projection. Context and graph-query
-    request DTO conversion moved to the app-server JSON-RPC wall, so the bridge
-    receives core `EpiphanyContextParams` / `EpiphanyGraphQuery` documents
-    instead of owning request-side protocol mapping. Distill request DTO
-    conversion also moved to the app-server wall; bridge distill response
-    construction receives core `EpiphanyDistillInput`. Generic job launch
-    document conversion moved to app-server too; bridge launch receives core
-    `EpiphanyWorkerLaunchDocument` instead of protocol worker launch cargo.
-    Generic update/promote patch conversion moved to app-server as well; bridge
-    mutation receives core `EpiphanyRoleStatePatchDocument` and keeps only
-    legacy response patch projection.
+    need to load before Codex JSON-RPC response projection. The mistaken
+    vendored app-server ownership of Epiphany request mapping was corrected:
+    app-server now calls `epiphany-codex-bridge::protocol_edge`, while the
+    bridge-owned protocol edge converts Codex JSON-RPC request DTOs into core
+    `EpiphanyContextParams`, `EpiphanyGraphQuery`, `EpiphanyDistillInput`,
+    `EpiphanyWorkerLaunchDocument`, and `EpiphanyRoleStatePatchDocument`.
+    Vendored app-server no longer depends directly on `epiphany-core`.
     Reorient worker launch-request/document
     composition also moved behind a typed core seam
     (`EpiphanyReorientLaunchRequestInput` -> `EpiphanyJobLaunchRequest`);

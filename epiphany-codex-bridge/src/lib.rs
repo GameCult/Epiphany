@@ -9,6 +9,7 @@ pub mod launch;
 pub mod mutation;
 pub mod mutation_service;
 pub mod pressure;
+pub mod protocol_edge;
 pub mod reorient;
 pub mod results;
 pub mod retrieve;

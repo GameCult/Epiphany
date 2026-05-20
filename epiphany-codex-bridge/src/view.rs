@@ -50,26 +50,6 @@ use crate::runtime_results::map_protocol_role_result_status;
 use crate::scene::map_core_epiphany_scene_action;
 use crate::scene::map_epiphany_scene;
 
-pub fn map_core_epiphany_view_lenses(lenses: Vec<ThreadEpiphanyViewLens>) -> Vec<EpiphanyViewLens> {
-    lenses
-        .into_iter()
-        .map(map_core_epiphany_view_lens)
-        .collect()
-}
-
-fn map_core_epiphany_view_lens(lens: ThreadEpiphanyViewLens) -> EpiphanyViewLens {
-    match lens {
-        ThreadEpiphanyViewLens::Scene => EpiphanyViewLens::Scene,
-        ThreadEpiphanyViewLens::Jobs => EpiphanyViewLens::Jobs,
-        ThreadEpiphanyViewLens::Roles => EpiphanyViewLens::Roles,
-        ThreadEpiphanyViewLens::Planning => EpiphanyViewLens::Planning,
-        ThreadEpiphanyViewLens::Pressure => EpiphanyViewLens::Pressure,
-        ThreadEpiphanyViewLens::Reorient => EpiphanyViewLens::Reorient,
-        ThreadEpiphanyViewLens::Crrc => EpiphanyViewLens::Crrc,
-        ThreadEpiphanyViewLens::Coordinator => EpiphanyViewLens::Coordinator,
-    }
-}
-
 fn map_protocol_epiphany_view_lens(lens: EpiphanyViewLens) -> ThreadEpiphanyViewLens {
     match lens {
         EpiphanyViewLens::Scene => ThreadEpiphanyViewLens::Scene,
