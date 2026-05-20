@@ -371,7 +371,15 @@ current_status:
     result state instead of protocol `ThreadEpiphanyReorientResultStatus`.
     Coordinator view response assembly now receives core reorient state and
     role-board status, projecting `ThreadEpiphanyReorientStateStatus` /
-    `ThreadEpiphanyRoleLane` only while building the legacy response.
+    `ThreadEpiphanyRoleLane` only while building the legacy response. The next
+    rude cut landed: coordinator status derivation is a typed `epiphany-core`
+    seam (`EpiphanyCoordinatorStatusInput` -> `EpiphanyCoordinatorStatus`), so
+    bridge code gathers runtime/acceptance facts but no longer owns the
+    coordinator decision assembly. Reorient worker launch-request/document
+    composition also moved behind a typed core seam
+    (`EpiphanyReorientLaunchRequestInput` -> `EpiphanyJobLaunchRequest`);
+    bridge supplies only the prompt instruction and retained compatibility
+    binding/owner constants before performing host side effects.
     The bridge still depends on vendored Codex for app-server protocol DTOs and
     absolute path validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

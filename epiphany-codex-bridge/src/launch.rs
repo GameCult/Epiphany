@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::OnceLock;
 
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
@@ -12,15 +11,13 @@ use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
-use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshnessStatus;
-use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
-use epiphany_core::EpiphanyReorientReason as CoreEpiphanyReorientReason;
+use epiphany_core::EpiphanyReorientLaunchRequestInput;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::build_reorient_job_launch_request;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
-use epiphany_state_model::EpiphanyInvestigationDisposition;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyThreadState;
 
@@ -487,88 +484,18 @@ pub fn build_epiphany_reorient_launch_request(
     checkpoint: &EpiphanyInvestigationCheckpoint,
     decision: &CoreEpiphanyReorientDecision,
 ) -> EpiphanyJobLaunchRequest {
-    let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
-    let linked_graph_node_ids = unique_strings(
-        epiphany_active_graph_node_ids(Some(state))
-            .into_iter()
-            .chain(decision.active_frontier_node_ids.iter().cloned()),
-    );
-    let checkpoint_next_action = checkpoint
-        .next_action
-        .clone()
-        .unwrap_or_else(|| decision.next_action.clone());
-    let authority_scope = match decision.action {
-        CoreEpiphanyReorientAction::Resume => "epiphany.reorient.resume",
-        CoreEpiphanyReorientAction::Regather => "epiphany.reorient.regather",
-    };
-    let scope = match decision.action {
-        CoreEpiphanyReorientAction::Resume => "reorient-guided checkpoint resume",
-        CoreEpiphanyReorientAction::Regather => "reorient-guided checkpoint regather",
-    };
     let instruction = build_epiphany_reorient_launch_instruction(decision.action);
-    let launch_document =
-        EpiphanyWorkerLaunchDocument::Reorient(EpiphanyReorientWorkerLaunchDocument {
-            thread_id: thread_id.to_string(),
-            mode: reorient_action_label(decision.action).to_string(),
-            checkpoint_id: checkpoint.checkpoint_id.clone(),
-            checkpoint_kind: checkpoint.kind.clone(),
-            checkpoint_disposition: investigation_disposition_label(checkpoint.disposition)
-                .to_string(),
-            checkpoint_focus: Some(checkpoint.focus.clone()),
-            checkpoint_summary: checkpoint.summary.clone(),
-            checkpoint_next_action,
-            checkpoint_open_questions: checkpoint.open_questions.clone(),
-            checkpoint_evidence_ids: checkpoint.evidence_ids.clone(),
-            checkpoint_code_refs: checkpoint.code_refs.clone(),
-            decision_reasons: decision
-                .reasons
-                .iter()
-                .map(|reason| reorient_reason_label(*reason).to_string())
-                .collect(),
-            decision_note: decision.note.clone(),
-            pressure_level: reorient_pressure_level_label(decision.pressure_level).to_string(),
-            retrieval_status: reorient_freshness_status_label(decision.retrieval_status)
-                .to_string(),
-            graph_status: reorient_freshness_status_label(decision.graph_status).to_string(),
-            watcher_status: reorient_freshness_status_label(decision.watcher_status).to_string(),
-            checkpoint_dirty_paths: decision
-                .checkpoint_dirty_paths
-                .iter()
-                .map(path_to_display_string)
-                .collect(),
-            checkpoint_changed_paths: decision
-                .checkpoint_changed_paths
-                .iter()
-                .map(path_to_display_string)
-                .collect(),
-            scratch: state.scratch.clone(),
-            graphs: Some(state.graphs.clone()),
-            recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
-            recent_observations: state.observations.iter().take(8).cloned().collect(),
-            active_frontier_node_ids: decision.active_frontier_node_ids.clone(),
-            linked_subgoal_ids: linked_subgoal_ids.clone(),
-            linked_graph_node_ids: linked_graph_node_ids.clone(),
-        });
-    let output_contract_id = launch_document.output_contract_id().to_string();
-
-    EpiphanyJobLaunchRequest {
+    build_reorient_job_launch_request(EpiphanyReorientLaunchRequestInput {
+        thread_id,
         expected_revision,
-        binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
-        kind: CoreEpiphanyJobKind::Specialist,
-        scope: scope.to_string(),
-        owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
-        authority_scope: authority_scope.to_string(),
-        linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
-        linked_graph_node_ids: unique_strings(
-            epiphany_active_graph_node_ids(Some(state))
-                .into_iter()
-                .chain(decision.active_frontier_node_ids.iter().cloned()),
-        ),
-        instruction,
-        launch_document,
-        output_contract_id,
         max_runtime_seconds,
-    }
+        binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        owner_role: EPIPHANY_REORIENT_OWNER_ROLE,
+        instruction,
+        state,
+        checkpoint,
+        decision,
+    })
 }
 
 pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAction) -> String {
@@ -740,57 +667,4 @@ fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<St
         .and_then(|state| state.graph_frontier.as_ref())
         .map(|frontier| frontier.active_node_ids.clone())
         .unwrap_or_default()
-}
-
-fn path_to_display_string(path: impl AsRef<Path>) -> String {
-    path.as_ref().to_string_lossy().to_string()
-}
-
-fn reorient_action_label(action: CoreEpiphanyReorientAction) -> &'static str {
-    match action {
-        CoreEpiphanyReorientAction::Resume => "resume",
-        CoreEpiphanyReorientAction::Regather => "regather",
-    }
-}
-
-fn investigation_disposition_label(disposition: EpiphanyInvestigationDisposition) -> &'static str {
-    match disposition {
-        EpiphanyInvestigationDisposition::ResumeReady => "resume_ready",
-        EpiphanyInvestigationDisposition::RegatherRequired => "regather_required",
-    }
-}
-
-fn reorient_reason_label(reason: CoreEpiphanyReorientReason) -> &'static str {
-    match reason {
-        CoreEpiphanyReorientReason::MissingState => "missingState",
-        CoreEpiphanyReorientReason::MissingCheckpoint => "missingCheckpoint",
-        CoreEpiphanyReorientReason::CheckpointRequestedRegather => "checkpointRequestedRegather",
-        CoreEpiphanyReorientReason::CheckpointPathsDirty => "checkpointPathsDirty",
-        CoreEpiphanyReorientReason::CheckpointPathsChanged => "checkpointPathsChanged",
-        CoreEpiphanyReorientReason::FrontierChanged => "frontierChanged",
-        CoreEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
-            "unanchoredCheckpointWhileStateStale"
-        }
-        CoreEpiphanyReorientReason::CheckpointReady => "checkpointReady",
-    }
-}
-
-fn reorient_pressure_level_label(level: CoreEpiphanyReorientPressureLevel) -> &'static str {
-    match level {
-        CoreEpiphanyReorientPressureLevel::Unknown => "unknown",
-        CoreEpiphanyReorientPressureLevel::Low => "low",
-        CoreEpiphanyReorientPressureLevel::Medium => "medium",
-        CoreEpiphanyReorientPressureLevel::High => "high",
-        CoreEpiphanyReorientPressureLevel::Critical => "critical",
-    }
-}
-
-fn reorient_freshness_status_label(status: CoreEpiphanyReorientFreshnessStatus) -> &'static str {
-    match status {
-        CoreEpiphanyReorientFreshnessStatus::Unknown => "unknown",
-        CoreEpiphanyReorientFreshnessStatus::Clean => "clean",
-        CoreEpiphanyReorientFreshnessStatus::Dirty => "dirty",
-        CoreEpiphanyReorientFreshnessStatus::Stale => "stale",
-        CoreEpiphanyReorientFreshnessStatus::Changed => "changed",
-    }
 }

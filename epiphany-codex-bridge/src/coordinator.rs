@@ -15,15 +15,14 @@ use codex_app_server_protocol::ThreadEpiphanySceneAction;
 use codex_app_server_protocol::ThreadEpiphanyViewCoordinator;
 use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
 use epiphany_core::EpiphanyCoordinatorAutomationAction as CoreEpiphanyCoordinatorAutomationAction;
-use epiphany_core::EpiphanyCoordinatorCrrcRecommendation;
 use epiphany_core::EpiphanyCoordinatorDecision as CoreEpiphanyCoordinatorDecision;
-use epiphany_core::EpiphanyCoordinatorInput;
 use epiphany_core::EpiphanyCoordinatorRoleId as CoreEpiphanyCoordinatorRoleId;
-use epiphany_core::EpiphanyCoordinatorRoleLane as CoreEpiphanyCoordinatorRoleLane;
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
 use epiphany_core::EpiphanyCoordinatorRoleStatus as CoreEpiphanyCoordinatorRoleStatus;
 use epiphany_core::EpiphanyCoordinatorSceneAction as CoreEpiphanyCoordinatorSceneAction;
-use epiphany_core::EpiphanyCoordinatorSignals;
+use epiphany_core::EpiphanyCoordinatorSourceSignals;
+use epiphany_core::EpiphanyCoordinatorStatus as CoreEpiphanyCoordinatorStatus;
+use epiphany_core::EpiphanyCoordinatorStatusInput;
 use epiphany_core::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
 use epiphany_core::EpiphanyCrrcInput;
 use epiphany_core::EpiphanyCrrcRecommendation as CoreEpiphanyCrrcRecommendation;
@@ -47,10 +46,9 @@ use epiphany_core::EpiphanyRoleBoardPlanningSummary;
 use epiphany_core::EpiphanyRoleFindingInterpretation as CoreEpiphanyRoleFinding;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
-use epiphany_core::coordinator_automation_action;
+use epiphany_core::derive_coordinator_status;
 use epiphany_core::derive_role_board;
 use epiphany_core::modeling_role_state_patch_policy_errors;
-use epiphany_core::recommend_coordinator_action;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::render_role_board_note;
 use epiphany_core::select_coordinator_automation_action;
@@ -236,24 +234,9 @@ pub fn map_protocol_crrc_recommendation(
 
 pub type EpiphanyCoordinatorDecision = CoreEpiphanyCoordinatorDecision;
 
-pub struct EpiphanyCoordinatorSourceSignals {
-    pub pressure_level: epiphany_core::EpiphanyPressureLevel,
-    pub should_prepare_compaction: bool,
-    pub reorient_action: CoreEpiphanyReorientAction,
-    pub crrc_action: CoreEpiphanyCrrcAction,
-    pub modeling_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
-    pub verification_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
-    pub reorient_result_status: CoreEpiphanyCrrcResultStatus,
-}
-
 pub struct EpiphanyCoordinatorStatus {
-    pub decision: EpiphanyCoordinatorDecision,
-    pub source_signals: EpiphanyCoordinatorSourceSignals,
-    pub roles: Vec<EpiphanyRoleBoardLane>,
+    pub core: CoreEpiphanyCoordinatorStatus,
     pub note: String,
-    pub modeling_result_accepted: bool,
-    pub verification_result_accepted: bool,
-    pub reorient_finding_accepted: bool,
 }
 
 pub async fn derive_epiphany_coordinator_status(
@@ -351,24 +334,18 @@ pub async fn derive_epiphany_coordinator_status(
     let reorient_finding_accepted = reorient_finding.is_some_and(|finding| {
         state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
     });
-    let source_signals = EpiphanyCoordinatorSourceSignals {
-        pressure_level: pressure.level,
-        should_prepare_compaction: pressure.should_prepare_compaction,
+    let core = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
+        state_status: map_core_crrc_state_status_from_reorient(state_status),
+        checkpoint_present,
+        pressure: pressure.clone(),
+        recommendation: recommendation.clone(),
+        roles,
         reorient_action: reorient_decision
             .map(|decision| decision.action)
             .unwrap_or(CoreEpiphanyReorientAction::Resume),
-        crrc_action: recommendation.action,
         modeling_result_status,
         verification_result_status,
         reorient_result_status,
-    };
-    let decision = map_epiphany_coordinator(
-        state_status,
-        checkpoint_present,
-        pressure,
-        recommendation,
-        &roles,
-        &source_signals,
         modeling_result_accepted,
         modeling_result_reviewable,
         modeling_result_accepted_after_verification,
@@ -379,25 +356,17 @@ pub async fn derive_epiphany_coordinator_status(
         verification_result_allows_implementation,
         verification_result_needs_evidence,
         reorient_finding_accepted,
-    );
+    });
     let note = render_epiphany_coordinator_note(
         recommendation.action,
         pressure.level,
         modeling_result_status,
         verification_result_status,
-        source_signals.reorient_result_status,
-        decision.action,
+        core.source_signals.reorient_result_status,
+        core.decision.action,
     );
 
-    EpiphanyCoordinatorStatus {
-        decision,
-        source_signals,
-        roles,
-        note,
-        modeling_result_accepted,
-        verification_result_accepted,
-        reorient_finding_accepted,
-    }
+    EpiphanyCoordinatorStatus { core, note }
 }
 
 pub fn map_epiphany_coordinator_view(
@@ -417,46 +386,27 @@ pub fn map_epiphany_coordinator_view(
         },
         state_status: map_protocol_reorient_state_status(state_status),
         state_revision,
-        action: map_protocol_coordinator_action(status.decision.action),
+        action: map_protocol_coordinator_action(status.core.decision.action),
         target_role: status
+            .core
             .decision
             .target_role
             .map(map_protocol_coordinator_role_id),
         recommended_scene_action: status
+            .core
             .decision
             .recommended_scene_action
             .map(map_protocol_coordinator_scene_action),
-        requires_review: status.decision.requires_review,
-        can_auto_run: status.decision.can_auto_run,
-        reason: status.decision.reason,
-        source_signals: map_protocol_coordinator_source_signals(status.source_signals),
+        requires_review: status.core.decision.requires_review,
+        can_auto_run: status.core.decision.can_auto_run,
+        reason: status.core.decision.reason,
+        source_signals: map_protocol_coordinator_source_signals(status.core.source_signals),
         roles: map_protocol_role_board_lanes(&roles),
         note: status.note,
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EpiphanyCoordinatorAutomationAction {
-    None,
-    CompactRehydrateReorient,
-    LaunchReorientWorker,
-}
-
-pub fn map_epiphany_coordinator_automation_action(
-    decision: &EpiphanyCoordinatorDecision,
-) -> EpiphanyCoordinatorAutomationAction {
-    map_protocol_coordinator_automation_action(coordinator_automation_action(decision))
-}
-
-pub fn select_epiphany_coordinator_automation_action(
-    decision: &EpiphanyCoordinatorDecision,
-    force_checkpoint_compaction: bool,
-) -> EpiphanyCoordinatorAutomationAction {
-    map_protocol_coordinator_automation_action(select_coordinator_automation_action(
-        decision,
-        force_checkpoint_compaction,
-    ))
-}
+pub type EpiphanyCoordinatorAutomationAction = CoreEpiphanyCoordinatorAutomationAction;
 
 pub struct EpiphanyCoordinatorAutomationInput<'a> {
     pub thread_id: &'a str,
@@ -544,8 +494,8 @@ pub async fn select_epiphany_coordinator_automation(
     )
     .await;
 
-    let action = select_epiphany_coordinator_automation_action(
-        &coordinator.decision,
+    let action = select_coordinator_automation_action(
+        &coordinator.core.decision,
         input.force_checkpoint_compaction,
     );
     let launch_request = match action {
@@ -579,64 +529,6 @@ pub async fn select_epiphany_coordinator_automation(
     EpiphanyCoordinatorAutomationVerdict {
         action,
         launch_request,
-    }
-}
-
-pub fn map_epiphany_coordinator(
-    state_status: CoreEpiphanyReorientStateStatus,
-    checkpoint_present: bool,
-    pressure: &epiphany_core::EpiphanyPressure,
-    recommendation: &CoreEpiphanyCrrcRecommendation,
-    roles: &[EpiphanyRoleBoardLane],
-    signals: &EpiphanyCoordinatorSourceSignals,
-    modeling_result_accepted: bool,
-    modeling_result_reviewable: bool,
-    modeling_result_accepted_after_verification: bool,
-    implementation_evidence_after_verification: bool,
-    verification_result_cites_implementation_evidence: bool,
-    verification_result_covers_current_modeling: bool,
-    verification_result_accepted: bool,
-    verification_result_allows_implementation: bool,
-    verification_result_needs_evidence: bool,
-    reorient_finding_accepted: bool,
-) -> EpiphanyCoordinatorDecision {
-    recommend_coordinator_action(EpiphanyCoordinatorInput {
-        state_status: map_core_crrc_state_status_from_reorient(state_status),
-        checkpoint_present,
-        should_prepare_compaction: pressure.should_prepare_compaction,
-        recommendation: EpiphanyCoordinatorCrrcRecommendation {
-            action: recommendation.action,
-            recommended_scene_action: recommendation
-                .recommended_scene_action
-                .map(epiphany_core::crrc_scene_action_to_coordinator_scene_action),
-        },
-        roles: roles
-            .iter()
-            .map(map_core_coordinator_role_lane_from_role_board)
-            .collect(),
-        signals: EpiphanyCoordinatorSignals {
-            modeling_result_status: signals.modeling_result_status,
-            verification_result_status: signals.verification_result_status,
-        },
-        modeling_result_accepted,
-        modeling_result_reviewable,
-        modeling_result_accepted_after_verification,
-        implementation_evidence_after_verification,
-        verification_result_cites_implementation_evidence,
-        verification_result_covers_current_modeling,
-        verification_result_accepted,
-        verification_result_allows_implementation,
-        verification_result_needs_evidence,
-        reorient_finding_accepted,
-    })
-}
-
-fn map_core_coordinator_role_lane_from_role_board(
-    role: &EpiphanyRoleBoardLane,
-) -> CoreEpiphanyCoordinatorRoleLane {
-    CoreEpiphanyCoordinatorRoleLane {
-        id: role.id,
-        status: role.status,
     }
 }
 
@@ -736,20 +628,6 @@ fn map_protocol_coordinator_action(
         }
         CoreEpiphanyCoordinatorAction::ContinueImplementation => {
             ThreadEpiphanyCoordinatorAction::ContinueImplementation
-        }
-    }
-}
-
-fn map_protocol_coordinator_automation_action(
-    action: CoreEpiphanyCoordinatorAutomationAction,
-) -> EpiphanyCoordinatorAutomationAction {
-    match action {
-        CoreEpiphanyCoordinatorAutomationAction::None => EpiphanyCoordinatorAutomationAction::None,
-        CoreEpiphanyCoordinatorAutomationAction::CompactRehydrateReorient => {
-            EpiphanyCoordinatorAutomationAction::CompactRehydrateReorient
-        }
-        CoreEpiphanyCoordinatorAutomationAction::LaunchReorientWorker => {
-            EpiphanyCoordinatorAutomationAction::LaunchReorientWorker
         }
     }
 }

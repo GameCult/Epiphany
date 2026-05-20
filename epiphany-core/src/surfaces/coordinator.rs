@@ -1,6 +1,10 @@
 use super::EpiphanyCrrcAction;
 use super::EpiphanyCrrcSceneAction;
 use super::EpiphanyCrrcStateStatus;
+use super::EpiphanyPressure;
+use super::EpiphanyPressureLevel;
+use super::EpiphanyReorientAction;
+use super::EpiphanyRoleBoardLane;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -91,6 +95,18 @@ pub struct EpiphanyCoordinatorSignals {
     pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyCoordinatorSourceSignals {
+    pub pressure_level: EpiphanyPressureLevel,
+    pub should_prepare_compaction: bool,
+    pub reorient_action: EpiphanyReorientAction,
+    pub crrc_action: EpiphanyCrrcAction,
+    pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
+    pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
+    pub reorient_result_status: super::EpiphanyCrrcResultStatus,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyCoordinatorRoleLane {
@@ -129,6 +145,36 @@ pub struct EpiphanyCoordinatorDecision {
     pub reason: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyCoordinatorStatusInput {
+    pub state_status: EpiphanyCrrcStateStatus,
+    pub checkpoint_present: bool,
+    pub pressure: EpiphanyPressure,
+    pub recommendation: super::EpiphanyCrrcRecommendation,
+    pub roles: Vec<EpiphanyRoleBoardLane>,
+    pub reorient_action: EpiphanyReorientAction,
+    pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
+    pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
+    pub reorient_result_status: super::EpiphanyCrrcResultStatus,
+    pub modeling_result_accepted: bool,
+    pub modeling_result_reviewable: bool,
+    pub modeling_result_accepted_after_verification: bool,
+    pub implementation_evidence_after_verification: bool,
+    pub verification_result_cites_implementation_evidence: bool,
+    pub verification_result_covers_current_modeling: bool,
+    pub verification_result_accepted: bool,
+    pub verification_result_allows_implementation: bool,
+    pub verification_result_needs_evidence: bool,
+    pub reorient_finding_accepted: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyCoordinatorStatus {
+    pub decision: EpiphanyCoordinatorDecision,
+    pub source_signals: EpiphanyCoordinatorSourceSignals,
+    pub roles: Vec<EpiphanyRoleBoardLane>,
+}
+
 pub fn crrc_scene_action_to_coordinator_scene_action(
     action: EpiphanyCrrcSceneAction,
 ) -> EpiphanyCoordinatorSceneAction {
@@ -138,6 +184,70 @@ pub fn crrc_scene_action_to_coordinator_scene_action(
         EpiphanyCrrcSceneAction::ReorientLaunch => EpiphanyCoordinatorSceneAction::ReorientLaunch,
         EpiphanyCrrcSceneAction::ReorientResult => EpiphanyCoordinatorSceneAction::ReorientResult,
         EpiphanyCrrcSceneAction::ReorientAccept => EpiphanyCoordinatorSceneAction::ReorientAccept,
+    }
+}
+
+pub fn derive_coordinator_status(
+    input: EpiphanyCoordinatorStatusInput,
+) -> EpiphanyCoordinatorStatus {
+    let source_signals = EpiphanyCoordinatorSourceSignals {
+        pressure_level: input.pressure.level,
+        should_prepare_compaction: input.pressure.should_prepare_compaction,
+        reorient_action: input.reorient_action,
+        crrc_action: input.recommendation.action,
+        modeling_result_status: input.modeling_result_status,
+        verification_result_status: input.verification_result_status,
+        reorient_result_status: input.reorient_result_status,
+    };
+    let coordinator_roles = input
+        .roles
+        .iter()
+        .map(coordinator_role_lane_from_role_board)
+        .collect();
+    let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+        state_status: input.state_status,
+        checkpoint_present: input.checkpoint_present,
+        should_prepare_compaction: input.pressure.should_prepare_compaction,
+        recommendation: EpiphanyCoordinatorCrrcRecommendation {
+            action: input.recommendation.action,
+            recommended_scene_action: input
+                .recommendation
+                .recommended_scene_action
+                .map(crrc_scene_action_to_coordinator_scene_action),
+        },
+        roles: coordinator_roles,
+        signals: EpiphanyCoordinatorSignals {
+            modeling_result_status: input.modeling_result_status,
+            verification_result_status: input.verification_result_status,
+        },
+        modeling_result_accepted: input.modeling_result_accepted,
+        modeling_result_reviewable: input.modeling_result_reviewable,
+        modeling_result_accepted_after_verification: input
+            .modeling_result_accepted_after_verification,
+        implementation_evidence_after_verification: input
+            .implementation_evidence_after_verification,
+        verification_result_cites_implementation_evidence: input
+            .verification_result_cites_implementation_evidence,
+        verification_result_covers_current_modeling: input
+            .verification_result_covers_current_modeling,
+        verification_result_accepted: input.verification_result_accepted,
+        verification_result_allows_implementation: input.verification_result_allows_implementation,
+        verification_result_needs_evidence: input.verification_result_needs_evidence,
+        reorient_finding_accepted: input.reorient_finding_accepted,
+    });
+    EpiphanyCoordinatorStatus {
+        decision,
+        source_signals,
+        roles: input.roles,
+    }
+}
+
+fn coordinator_role_lane_from_role_board(
+    lane: &EpiphanyRoleBoardLane,
+) -> EpiphanyCoordinatorRoleLane {
+    EpiphanyCoordinatorRoleLane {
+        id: lane.id,
+        status: lane.status,
     }
 }
 
