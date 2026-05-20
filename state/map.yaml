@@ -324,7 +324,8 @@ current_status:
     and evidence from core typed findings, mapping to protocol findings only for
     legacy accept response cargo. The duplicate protocol-shaped result helper
     layer has been deleted, and result view responses now project directly from
-    typed runtime result snapshots instead of protocol tuple wrappers. The bridge still
+    typed runtime result snapshots instead of protocol tuple wrappers; the tuple
+    wrappers themselves are gone. The bridge still
     depends on vendored Codex for app-server protocol DTOs and absolute path
     validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.
