@@ -36,6 +36,8 @@ use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::protocol_edge::protocol_job_from_surface;
+use crate::protocol_edge::protocol_reorient_result_status;
+use crate::protocol_edge::protocol_role_result_status;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
@@ -45,8 +47,6 @@ use crate::results::map_protocol_reorient_finding;
 use crate::results::map_protocol_role_result_role_id;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
-use crate::runtime_results::map_protocol_reorient_result_status;
-use crate::runtime_results::map_protocol_role_result_status;
 use crate::scene::map_core_epiphany_scene_action;
 use crate::scene::map_epiphany_scene;
 
@@ -220,7 +220,7 @@ pub async fn map_epiphany_view_response(
             note: "Reorient result was not requested.".to_string(),
         }
     };
-    let reorient_result_status = map_protocol_reorient_result_status(reorient_result.status);
+    let reorient_result_status = protocol_reorient_result_status(reorient_result.status);
     let reorient_finding = reorient_result
         .finding
         .clone()
@@ -482,7 +482,7 @@ pub async fn map_epiphany_role_result_response(
         state_status: ThreadEpiphanyReorientStateStatus::Ready,
         state_revision: Some(state.revision),
         binding_id,
-        status: map_protocol_role_result_status(result.status),
+        status: protocol_role_result_status(result.status),
         job,
         finding: result
             .finding
@@ -538,7 +538,7 @@ pub async fn map_epiphany_reorient_result_response(
         state_status: ThreadEpiphanyReorientStateStatus::Ready,
         state_revision: Some(state.revision),
         binding_id,
-        status: map_protocol_reorient_result_status(result.status),
+        status: protocol_reorient_result_status(result.status),
         job,
         finding: result.finding.map(map_protocol_reorient_finding),
         note: result.note,

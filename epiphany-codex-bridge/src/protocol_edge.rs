@@ -32,16 +32,20 @@ use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
 use codex_app_server_protocol::ThreadEpiphanyReorientReason;
+use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
 use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
+use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyViewLens;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
 use epiphany_core::EpiphanyContextParams;
+use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
+use epiphany_core::EpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyGraphQuery;
 use epiphany_core::EpiphanyGraphQueryDirection;
@@ -335,6 +339,52 @@ pub fn protocol_reorient_decision(
         active_frontier_node_ids: decision.active_frontier_node_ids,
         next_action: decision.next_action,
         note: decision.note,
+    }
+}
+
+pub fn protocol_role_result_status(
+    status: EpiphanyCoordinatorRoleResultStatus,
+) -> ThreadEpiphanyRoleResultStatus {
+    match status {
+        EpiphanyCoordinatorRoleResultStatus::MissingState => {
+            ThreadEpiphanyRoleResultStatus::MissingState
+        }
+        EpiphanyCoordinatorRoleResultStatus::MissingBinding => {
+            ThreadEpiphanyRoleResultStatus::MissingBinding
+        }
+        EpiphanyCoordinatorRoleResultStatus::BackendUnavailable => {
+            ThreadEpiphanyRoleResultStatus::BackendUnavailable
+        }
+        EpiphanyCoordinatorRoleResultStatus::BackendMissing => {
+            ThreadEpiphanyRoleResultStatus::BackendMissing
+        }
+        EpiphanyCoordinatorRoleResultStatus::Pending => ThreadEpiphanyRoleResultStatus::Pending,
+        EpiphanyCoordinatorRoleResultStatus::Running => ThreadEpiphanyRoleResultStatus::Running,
+        EpiphanyCoordinatorRoleResultStatus::Completed => ThreadEpiphanyRoleResultStatus::Completed,
+        EpiphanyCoordinatorRoleResultStatus::Failed => ThreadEpiphanyRoleResultStatus::Failed,
+        EpiphanyCoordinatorRoleResultStatus::Cancelled => ThreadEpiphanyRoleResultStatus::Cancelled,
+    }
+}
+
+pub fn protocol_reorient_result_status(
+    status: EpiphanyCrrcResultStatus,
+) -> ThreadEpiphanyReorientResultStatus {
+    match status {
+        EpiphanyCrrcResultStatus::MissingState => ThreadEpiphanyReorientResultStatus::MissingState,
+        EpiphanyCrrcResultStatus::MissingBinding => {
+            ThreadEpiphanyReorientResultStatus::MissingBinding
+        }
+        EpiphanyCrrcResultStatus::BackendUnavailable => {
+            ThreadEpiphanyReorientResultStatus::BackendUnavailable
+        }
+        EpiphanyCrrcResultStatus::BackendMissing => {
+            ThreadEpiphanyReorientResultStatus::BackendMissing
+        }
+        EpiphanyCrrcResultStatus::Pending => ThreadEpiphanyReorientResultStatus::Pending,
+        EpiphanyCrrcResultStatus::Running => ThreadEpiphanyReorientResultStatus::Running,
+        EpiphanyCrrcResultStatus::Completed => ThreadEpiphanyReorientResultStatus::Completed,
+        EpiphanyCrrcResultStatus::Failed => ThreadEpiphanyReorientResultStatus::Failed,
+        EpiphanyCrrcResultStatus::Cancelled => ThreadEpiphanyReorientResultStatus::Cancelled,
     }
 }
 
