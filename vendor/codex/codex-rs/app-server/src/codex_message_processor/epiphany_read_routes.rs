@@ -196,9 +196,9 @@ impl CodexMessageProcessor {
             }
         };
         let source = if loaded_thread.is_some() {
-            ThreadEpiphanyRolesSource::Live
+            EpiphanySurfaceSource::Live
         } else {
-            ThreadEpiphanyRolesSource::Stored
+            EpiphanySurfaceSource::Stored
         };
 
         if let Err(message) = epiphany_role_binding_id(core_role_id) {
@@ -394,9 +394,9 @@ impl CodexMessageProcessor {
         };
 
         let source = if loaded_thread.is_some() {
-            ThreadEpiphanyReorientSource::Live
+            EpiphanySurfaceSource::Live
         } else {
-            ThreadEpiphanyReorientSource::Stored
+            EpiphanySurfaceSource::Stored
         };
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
             Some(loaded_thread.epiphany_runtime_spine_store_path().await)

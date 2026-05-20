@@ -450,7 +450,7 @@ pub async fn map_epiphany_view_response(
 pub struct EpiphanyRoleResultResponseInput<'a> {
     pub thread_id: String,
     pub role_id: EpiphanyRoleResultRoleId,
-    pub source: ThreadEpiphanyRolesSource,
+    pub source: EpiphanySurfaceSource,
     pub binding_id: String,
     pub state: Option<&'a EpiphanyThreadState>,
     pub runtime_store_path: Option<&'a Path>,
@@ -468,11 +468,12 @@ pub async fn map_epiphany_role_result_response(
         runtime_store_path,
     } = input;
     let protocol_role_id = map_protocol_role_result_role_id(role_id);
+    let protocol_source = map_protocol_roles_source(source);
     let Some(state) = state else {
         return ThreadEpiphanyRoleResultResponse {
             thread_id,
             role_id: protocol_role_id,
-            source,
+            source: protocol_source,
             state_status: ThreadEpiphanyReorientStateStatus::Missing,
             state_revision: None,
             binding_id,
@@ -494,7 +495,7 @@ pub async fn map_epiphany_role_result_response(
     ThreadEpiphanyRoleResultResponse {
         thread_id,
         role_id: protocol_role_id,
-        source,
+        source: protocol_source,
         state_status: ThreadEpiphanyReorientStateStatus::Ready,
         state_revision: Some(state.revision),
         binding_id,
@@ -509,7 +510,7 @@ pub async fn map_epiphany_role_result_response(
 
 pub struct EpiphanyReorientResultResponseInput<'a> {
     pub thread_id: String,
-    pub source: ThreadEpiphanyReorientSource,
+    pub source: EpiphanySurfaceSource,
     pub binding_id: String,
     pub state: Option<&'a EpiphanyThreadState>,
     pub runtime_store_path: Option<&'a Path>,
@@ -525,10 +526,11 @@ pub async fn map_epiphany_reorient_result_response(
         state,
         runtime_store_path,
     } = input;
+    let protocol_source = map_protocol_reorient_result_source(source);
     let Some(state) = state else {
         return ThreadEpiphanyReorientResultResponse {
             thread_id,
-            source,
+            source: protocol_source,
             state_status: ThreadEpiphanyReorientStateStatus::Missing,
             state_revision: None,
             binding_id,
@@ -549,7 +551,7 @@ pub async fn map_epiphany_reorient_result_response(
 
     ThreadEpiphanyReorientResultResponse {
         thread_id,
-        source,
+        source: protocol_source,
         state_status: ThreadEpiphanyReorientStateStatus::Ready,
         state_revision: Some(state.revision),
         binding_id,
@@ -557,6 +559,22 @@ pub async fn map_epiphany_reorient_result_response(
         job,
         finding: result.finding.map(map_protocol_reorient_finding),
         note: result.note,
+    }
+}
+
+fn map_protocol_roles_source(source: EpiphanySurfaceSource) -> ThreadEpiphanyRolesSource {
+    match source {
+        EpiphanySurfaceSource::Live => ThreadEpiphanyRolesSource::Live,
+        EpiphanySurfaceSource::Stored => ThreadEpiphanyRolesSource::Stored,
+    }
+}
+
+fn map_protocol_reorient_result_source(
+    source: EpiphanySurfaceSource,
+) -> ThreadEpiphanyReorientSource {
+    match source {
+        EpiphanySurfaceSource::Live => ThreadEpiphanyReorientSource::Live,
+        EpiphanySurfaceSource::Stored => ThreadEpiphanyReorientSource::Stored,
     }
 }
 
