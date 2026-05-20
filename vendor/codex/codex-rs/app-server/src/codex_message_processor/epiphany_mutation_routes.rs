@@ -32,6 +32,7 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
+use epiphany_codex_bridge::results::map_core_role_result_role_id;
 use epiphany_codex_bridge::results::map_protocol_reorient_finding;
 use epiphany_codex_bridge::results::map_protocol_role_finding;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -108,6 +109,7 @@ impl CodexMessageProcessor {
             expected_revision,
             max_runtime_seconds,
         } = params;
+        let core_role_id = map_core_role_result_role_id(role_id);
 
         let (thread_uuid, loaded_thread) =
             match self.load_epiphany_thread(&request_id, &thread_id).await {
@@ -118,7 +120,7 @@ impl CodexMessageProcessor {
         let applied = match launch_thread_epiphany_role(
             &host,
             &thread_id,
-            role_id,
+            core_role_id,
             expected_revision,
             max_runtime_seconds,
         )
@@ -179,8 +181,9 @@ impl CodexMessageProcessor {
             expected_revision,
             binding_id,
         } = params;
+        let core_role_id = map_core_role_result_role_id(role_id);
 
-        let default_binding_id = match epiphany_role_binding_id(role_id) {
+        let default_binding_id = match epiphany_role_binding_id(core_role_id) {
             Ok(binding_id) => binding_id,
             Err(message) => {
                 self.send_invalid_request_error(request_id, message).await;
@@ -195,24 +198,28 @@ impl CodexMessageProcessor {
                 None => return,
             };
         let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
-        let applied =
-            match apply_thread_epiphany_role_accept(&host, role_id, expected_revision, &binding_id)
-                .await
-            {
-                Ok(applied) => applied,
-                Err(EpiphanyBridgeError::InvalidRequest(message)) => {
-                    self.send_invalid_request_error(request_id, message).await;
-                    return;
-                }
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!("failed to apply Epiphany role finding: {err}"),
-                    )
-                    .await;
-                    return;
-                }
-            };
+        let applied = match apply_thread_epiphany_role_accept(
+            &host,
+            core_role_id,
+            expected_revision,
+            &binding_id,
+        )
+        .await
+        {
+            Ok(applied) => applied,
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to apply Epiphany role finding: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
         let changed_fields = applied.changed_fields;
         let protocol_changed_fields = map_protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;

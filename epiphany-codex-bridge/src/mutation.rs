@@ -1,4 +1,3 @@
-use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
@@ -7,6 +6,7 @@ use epiphany_core::EpiphanyReorientAcceptanceFinding;
 use epiphany_core::EpiphanyReorientFindingInterpretation as CoreEpiphanyReorientFinding;
 use epiphany_core::EpiphanyRoleAcceptanceFinding;
 use epiphany_core::EpiphanyRoleFindingInterpretation as CoreEpiphanyRoleFinding;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
@@ -15,8 +15,6 @@ use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::imagination_role_state_patch_policy_errors;
 use epiphany_core::modeling_role_state_patch_policy_errors;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
-
-use crate::results::map_core_role_result_role_id;
 
 pub struct RoleAcceptanceUpdate {
     pub state_update: EpiphanyStateUpdate,
@@ -192,7 +190,7 @@ pub fn modeling_role_accept_patch_errors(patch: &ThreadEpiphanyUpdatePatch) -> V
 
 pub fn build_role_acceptance_update(
     expected_revision: Option<u64>,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
     binding_id: &str,
     finding: &CoreEpiphanyRoleFinding,
     accepted_evidence_id: String,
@@ -200,7 +198,7 @@ pub fn build_role_acceptance_update(
     accepted_at: String,
 ) -> Result<RoleAcceptanceUpdate, String> {
     let mut core_patch = match role_id {
-        ThreadEpiphanyRoleId::Imagination => {
+        EpiphanyRoleResultRoleId::Imagination => {
             let patch = parse_core_role_finding_state_patch(finding)?;
             let patch_errors = imagination_role_state_patch_policy_errors(&patch);
             if !patch_errors.is_empty() {
@@ -211,7 +209,7 @@ pub fn build_role_acceptance_update(
             }
             patch
         }
-        ThreadEpiphanyRoleId::Modeling => {
+        EpiphanyRoleResultRoleId::Modeling => {
             let patch = parse_core_role_finding_state_patch(finding)?;
             let patch_errors = modeling_role_state_patch_policy_errors(&patch);
             if !patch_errors.is_empty() {
@@ -222,8 +220,8 @@ pub fn build_role_acceptance_update(
             }
             patch
         }
-        ThreadEpiphanyRoleId::Verification => EpiphanyRoleStatePatchDocument::default(),
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Verification => EpiphanyRoleStatePatchDocument::default(),
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             return Err(format!(
                 "role {:?} cannot be accepted through roleAccept",
                 role_id
@@ -239,7 +237,7 @@ pub fn build_role_acceptance_update(
     let acceptance_bundle = build_role_acceptance_bundle(
         binding_id,
         EpiphanyRoleAcceptanceFinding {
-            role_id: map_core_role_result_role_id(role_id),
+            role_id,
             verdict: finding.verdict.clone(),
             summary: finding.summary.clone(),
             next_safe_move: finding.next_safe_move.clone(),

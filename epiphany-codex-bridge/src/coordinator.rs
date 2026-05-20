@@ -45,6 +45,7 @@ use epiphany_core::EpiphanyRoleBoardJobStatus;
 use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleBoardPlanningSummary;
 use epiphany_core::EpiphanyRoleFindingInterpretation as CoreEpiphanyRoleFinding;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::coordinator_automation_action;
 use epiphany_core::derive_role_board;
@@ -294,7 +295,7 @@ pub async fn derive_epiphany_coordinator_status(
         let snapshot = load_core_epiphany_role_result_snapshot(
             state,
             runtime_store_path,
-            ThreadEpiphanyRoleId::Modeling,
+            EpiphanyRoleResultRoleId::Modeling,
             EPIPHANY_MODELING_ROLE_BINDING_ID,
         )
         .await;
@@ -318,7 +319,7 @@ pub async fn derive_epiphany_coordinator_status(
         let snapshot = load_core_epiphany_role_result_snapshot(
             state,
             runtime_store_path,
-            ThreadEpiphanyRoleId::Verification,
+            EpiphanyRoleResultRoleId::Verification,
             EPIPHANY_VERIFICATION_ROLE_BINDING_ID,
         )
         .await;

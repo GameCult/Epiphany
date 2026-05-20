@@ -1,12 +1,12 @@
 use std::path::Path;
 
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
-use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
 use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::interpret_runtime_reorient_worker_result;
@@ -19,7 +19,6 @@ use epiphany_state_model::EpiphanyThreadState;
 
 use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
-use crate::results::map_core_role_result_role_id;
 use crate::results::render_core_reorient_result_note;
 use crate::results::render_core_role_result_note;
 
@@ -40,9 +39,8 @@ pub struct EpiphanyReorientResultSnapshot {
 pub fn load_core_epiphany_role_result_from_runtime_spine_job(
     job_id: &str,
     runtime_store_path: Option<&Path>,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
 ) -> EpiphanyRoleResultSnapshot {
-    let core_role_id = map_core_role_result_role_id(role_id);
     let Some(runtime_store_path) = runtime_store_path else {
         return EpiphanyRoleResultSnapshot {
             status: CoreEpiphanyCoordinatorRoleResultStatus::Pending,
@@ -77,7 +75,7 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
     let status = map_runtime_role_result_status(&snapshot);
     let finding = if status == CoreEpiphanyCoordinatorRoleResultStatus::Completed {
         match runtime_role_worker_result(runtime_store_path, job_id) {
-            Ok(Some(result)) => Some(interpret_runtime_role_worker_result(core_role_id, &result)),
+            Ok(Some(result)) => Some(interpret_runtime_role_worker_result(role_id, &result)),
             Ok(None) => {
                 return EpiphanyRoleResultSnapshot {
                     status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
@@ -102,7 +100,7 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
     } else {
         None
     };
-    let note = render_core_role_result_note(core_role_id, status, finding.as_ref(), None);
+    let note = render_core_role_result_note(role_id, status, finding.as_ref(), None);
     EpiphanyRoleResultSnapshot {
         status,
         finding,
@@ -276,7 +274,7 @@ pub fn map_protocol_reorient_result_status(
 pub async fn load_core_epiphany_role_result_snapshot(
     state: &EpiphanyThreadState,
     runtime_store_path: Option<&Path>,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
     binding_id: &str,
 ) -> EpiphanyRoleResultSnapshot {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
@@ -308,7 +306,7 @@ pub async fn load_core_epiphany_role_result_snapshot(
 pub fn load_completed_core_epiphany_role_finding(
     runtime_store_path: Option<&Path>,
     state: &EpiphanyThreadState,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
     binding_id: &str,
 ) -> BridgeResult<EpiphanyRoleFindingInterpretation> {
     if let Some(link) = latest_epiphany_runtime_link_for_binding(state, binding_id) {
@@ -442,9 +440,9 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use codex_app_server_protocol::ThreadEpiphanyRoleId;
     use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
     use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
+    use epiphany_core::EpiphanyRoleResultRoleId;
     use epiphany_core::RuntimeSpineInitOptions;
     use epiphany_core::RuntimeSpineJobOptions;
     use epiphany_core::RuntimeSpineJobResultOptions;
@@ -466,7 +464,7 @@ mod tests {
         let result = load_core_epiphany_role_result_from_runtime_spine_job(
             "role-job",
             Some(store.as_path()),
-            ThreadEpiphanyRoleId::Modeling,
+            EpiphanyRoleResultRoleId::Modeling,
         );
 
         assert_eq!(

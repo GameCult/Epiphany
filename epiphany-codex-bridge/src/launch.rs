@@ -3,7 +3,6 @@ use std::sync::OnceLock;
 
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
-use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
 use epiphany_core::EpiphanyJobLaunchRequest;
@@ -13,6 +12,7 @@ use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshn
 use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
 use epiphany_core::EpiphanyReorientReason as CoreEpiphanyReorientReason;
 use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
@@ -29,59 +29,61 @@ pub const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
 pub const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 pub const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
-pub fn epiphany_role_binding_id(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
+pub fn epiphany_role_binding_id(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
-        ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
-        ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
-        ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
-        ThreadEpiphanyRoleId::Implementation => Err(
+        EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
+        EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
+        EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
+        EpiphanyRoleResultRoleId::Implementation => Err(
             "implementation is owned by the main coding agent; no role specialist launch template exists"
                 .to_string(),
         ),
-        ThreadEpiphanyRoleId::Reorientation => Err(
+        EpiphanyRoleResultRoleId::Reorientation => Err(
             "reorientation uses thread/epiphany/reorientLaunch and thread/epiphany/reorientResult"
                 .to_string(),
         ),
     }
 }
 
-pub fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
+pub fn epiphany_role_owner(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
-        ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
-        ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
-        ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             Err(epiphany_role_binding_id(role_id).unwrap_err())
         }
     }
 }
 
-pub fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
+pub fn epiphany_role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
     match role_id {
-        ThreadEpiphanyRoleId::Implementation => "implementation",
-        ThreadEpiphanyRoleId::Imagination => "imagination",
-        ThreadEpiphanyRoleId::Modeling => "modeling",
-        ThreadEpiphanyRoleId::Verification => "verification",
-        ThreadEpiphanyRoleId::Reorientation => "reorientation",
+        EpiphanyRoleResultRoleId::Implementation => "implementation",
+        EpiphanyRoleResultRoleId::Imagination => "imagination",
+        EpiphanyRoleResultRoleId::Modeling => "modeling",
+        EpiphanyRoleResultRoleId::Verification => "verification",
+        EpiphanyRoleResultRoleId::Reorientation => "reorientation",
     }
 }
 
-pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_json::Value {
+pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> serde_json::Value {
     let verdict_enum = match role_id {
-        ThreadEpiphanyRoleId::Imagination => {
+        EpiphanyRoleResultRoleId::Imagination => {
             vec!["draft-ready", "planning-update-needed", "blocked"]
         }
-        ThreadEpiphanyRoleId::Modeling => {
+        EpiphanyRoleResultRoleId::Modeling => {
             vec![
                 "checkpoint-ready",
                 "checkpoint-update-needed",
                 "regather-needed",
             ]
         }
-        ThreadEpiphanyRoleId::Verification => {
+        EpiphanyRoleResultRoleId::Verification => {
             vec!["pass", "needs-review", "needs-evidence", "fail"]
         }
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => vec![],
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
+            vec![]
+        }
     };
     let mut properties = serde_json::json!({
         "roleId": {
@@ -193,7 +195,7 @@ pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serd
         "nextSafeMove",
         "filesInspected",
     ];
-    if role_id == ThreadEpiphanyRoleId::Imagination {
+    if role_id == EpiphanyRoleResultRoleId::Imagination {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
                 "statePatch".to_string(),
@@ -230,7 +232,7 @@ pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serd
             );
         }
         required.push("statePatch");
-    } else if role_id == ThreadEpiphanyRoleId::Modeling {
+    } else if role_id == EpiphanyRoleResultRoleId::Modeling {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
                 "statePatch".to_string(),
@@ -389,7 +391,7 @@ pub fn epiphany_agent_prompt_with_memory(body: &str) -> String {
 
 pub fn build_epiphany_role_launch_request(
     thread_id: &str,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
     expected_revision: Option<u64>,
     max_runtime_seconds: Option<u64>,
     state: &EpiphanyThreadState,
@@ -399,22 +401,22 @@ pub fn build_epiphany_role_launch_request(
     let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
     let linked_graph_node_ids = epiphany_active_graph_node_ids(Some(state));
     let (scope, authority_scope, instruction) = match role_id {
-        ThreadEpiphanyRoleId::Imagination => (
+        EpiphanyRoleResultRoleId::Imagination => (
             "role-scoped planning synthesis",
             "epiphany.role.imagination",
             build_epiphany_role_launch_instruction(role_id),
         ),
-        ThreadEpiphanyRoleId::Modeling => (
+        EpiphanyRoleResultRoleId::Modeling => (
             "role-scoped modeling/checkpoint maintenance",
             "epiphany.role.modeling",
             build_epiphany_role_launch_instruction(role_id),
         ),
-        ThreadEpiphanyRoleId::Verification => (
+        EpiphanyRoleResultRoleId::Verification => (
             "role-scoped verification/review",
             "epiphany.role.verification",
             build_epiphany_role_launch_instruction(role_id),
         ),
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             return Err(epiphany_role_binding_id(role_id).unwrap_err());
         }
     };
@@ -460,13 +462,13 @@ pub fn build_epiphany_role_launch_request(
     })
 }
 
-fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> String {
+fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> String {
     let prompts = &epiphany_specialist_prompt_config().roles;
     let body = match role_id {
-        ThreadEpiphanyRoleId::Imagination => prompts.imagination.as_str(),
-        ThreadEpiphanyRoleId::Modeling => prompts.modeling.as_str(),
-        ThreadEpiphanyRoleId::Verification => prompts.verification.as_str(),
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Imagination => prompts.imagination.as_str(),
+        EpiphanyRoleResultRoleId::Modeling => prompts.modeling.as_str(),
+        EpiphanyRoleResultRoleId::Verification => prompts.verification.as_str(),
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             "Unsupported Epiphany role specialist template."
         }
     };
@@ -521,7 +523,8 @@ pub fn build_epiphany_reorient_launch_request(
                 .collect(),
             decision_note: decision.note.clone(),
             pressure_level: reorient_pressure_level_label(decision.pressure_level).to_string(),
-            retrieval_status: reorient_freshness_status_label(decision.retrieval_status).to_string(),
+            retrieval_status: reorient_freshness_status_label(decision.retrieval_status)
+                .to_string(),
             graph_status: reorient_freshness_status_label(decision.graph_status).to_string(),
             watcher_status: reorient_freshness_status_label(decision.watcher_status).to_string(),
             checkpoint_dirty_paths: decision

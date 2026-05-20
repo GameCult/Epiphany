@@ -342,7 +342,9 @@ current_status:
     Changed-field authority is now native `EpiphanyStateUpdatedField` in
     `epiphany-core`; app-server projects it into
     `ThreadEpiphanyStateUpdatedField` only for legacy responses and
-    notifications. The bridge still depends on vendored Codex for app-server
-    protocol DTOs and absolute path validation, so the purification is not
-    done.
+    notifications. Role launch, role accept, and role-result runtime lookup now
+    use core `EpiphanyRoleResultRoleId` internally; app-server maps
+    `ThreadEpiphanyRoleId` at the request/response edge. The bridge still
+    depends on vendored Codex for app-server protocol DTOs and absolute path
+    validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

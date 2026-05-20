@@ -10,6 +10,7 @@ use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
+use epiphany_codex_bridge::results::map_core_role_result_role_id;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
 use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
@@ -19,13 +20,13 @@ use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view::default_epiphany_view_lenses;
+use epiphany_codex_bridge::view::derive_epiphany_freshness_surface;
 use epiphany_codex_bridge::view::epiphany_view_needs_jobs;
 use epiphany_codex_bridge::view::epiphany_view_needs_pressure;
 use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::view::map_epiphany_context_response;
 use epiphany_codex_bridge::view::map_epiphany_distill_response;
-use epiphany_codex_bridge::view::derive_epiphany_freshness_surface;
 use epiphany_codex_bridge::view::map_epiphany_graph_query_response;
 use epiphany_codex_bridge::view::map_epiphany_propose_response;
 use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
@@ -157,10 +158,11 @@ impl CodexMessageProcessor {
             role_id,
             binding_id,
         } = params;
+        let core_role_id = map_core_role_result_role_id(role_id);
 
         let binding_id = match binding_id {
             Some(binding_id) => binding_id,
-            None => match epiphany_role_binding_id(role_id) {
+            None => match epiphany_role_binding_id(core_role_id) {
                 Ok(binding_id) => binding_id.to_string(),
                 Err(message) => {
                     self.send_invalid_request_error(request_id, message).await;
@@ -196,7 +198,7 @@ impl CodexMessageProcessor {
             ThreadEpiphanyRolesSource::Stored
         };
 
-        if let Err(message) = epiphany_role_binding_id(role_id) {
+        if let Err(message) = epiphany_role_binding_id(core_role_id) {
             self.send_invalid_request_error(request_id, message).await;
             return;
         }
@@ -615,12 +617,8 @@ fn thread_epiphany_freshness_response_from_surface(
                 EpiphanyGraphFreshnessStatus::Missing => {
                     ThreadEpiphanyGraphFreshnessStatus::Missing
                 }
-                EpiphanyGraphFreshnessStatus::Ready => {
-                    ThreadEpiphanyGraphFreshnessStatus::Ready
-                }
-                EpiphanyGraphFreshnessStatus::Stale => {
-                    ThreadEpiphanyGraphFreshnessStatus::Stale
-                }
+                EpiphanyGraphFreshnessStatus::Ready => ThreadEpiphanyGraphFreshnessStatus::Ready,
+                EpiphanyGraphFreshnessStatus::Stale => ThreadEpiphanyGraphFreshnessStatus::Stale,
             },
             graph_freshness: surface.graph.graph_freshness,
             checkpoint_id: surface.graph.checkpoint_id,
@@ -635,12 +633,8 @@ fn thread_epiphany_freshness_response_from_surface(
                 EpiphanyInvalidationStatus::Unavailable => {
                     ThreadEpiphanyInvalidationStatus::Unavailable
                 }
-                EpiphanyInvalidationStatus::Clean => {
-                    ThreadEpiphanyInvalidationStatus::Clean
-                }
-                EpiphanyInvalidationStatus::Changed => {
-                    ThreadEpiphanyInvalidationStatus::Changed
-                }
+                EpiphanyInvalidationStatus::Clean => ThreadEpiphanyInvalidationStatus::Clean,
+                EpiphanyInvalidationStatus::Changed => ThreadEpiphanyInvalidationStatus::Changed,
             },
             watched_root: surface.watcher.watched_root,
             observed_at_unix_seconds: surface.watcher.observed_at_unix_seconds,

@@ -98,6 +98,16 @@ pub fn map_core_role_result_role_id(role_id: ThreadEpiphanyRoleId) -> EpiphanyRo
     }
 }
 
+pub fn map_protocol_role_result_role_id(role_id: EpiphanyRoleResultRoleId) -> ThreadEpiphanyRoleId {
+    match role_id {
+        EpiphanyRoleResultRoleId::Implementation => ThreadEpiphanyRoleId::Implementation,
+        EpiphanyRoleResultRoleId::Imagination => ThreadEpiphanyRoleId::Imagination,
+        EpiphanyRoleResultRoleId::Modeling => ThreadEpiphanyRoleId::Modeling,
+        EpiphanyRoleResultRoleId::Verification => ThreadEpiphanyRoleId::Verification,
+        EpiphanyRoleResultRoleId::Reorientation => ThreadEpiphanyRoleId::Reorientation,
+    }
+}
+
 fn map_protocol_role_self_persistence_review(
     review: CoreEpiphanyRoleSelfPersistenceReview,
 ) -> ThreadEpiphanyRoleSelfPersistenceReview {

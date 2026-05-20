@@ -4,7 +4,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
-use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
@@ -15,6 +14,7 @@ use epiphany_core::EpiphanyReorientDecision;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyReorientStateStatus;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
@@ -369,7 +369,7 @@ pub async fn apply_thread_epiphany_promote(
 
 pub async fn apply_thread_epiphany_role_accept(
     thread: &impl EpiphanyMutationHost,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
     expected_revision: Option<u64>,
     binding_id: &str,
 ) -> BridgeResult<EpiphanyRoleAcceptApplied> {
@@ -483,7 +483,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
 pub async fn launch_thread_epiphany_role(
     thread: &impl EpiphanyMutationHost,
     thread_id: &str,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
     expected_revision: Option<u64>,
     max_runtime_seconds: Option<u64>,
 ) -> BridgeResult<EpiphanyJobLaunchApplied> {

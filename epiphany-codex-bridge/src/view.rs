@@ -36,6 +36,7 @@ use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
 use crate::reorient::map_protocol_reorient_decision;
 use crate::reorient::map_protocol_reorient_state_status;
+use crate::results::map_core_role_result_role_id;
 use crate::results::map_protocol_reorient_finding;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
@@ -487,9 +488,13 @@ pub async fn map_epiphany_role_result_response(
         .into_iter()
         .find(|job| job.id == binding_id)
         .map(map_core_epiphany_job_view);
-    let result =
-        load_core_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id)
-            .await;
+    let result = load_core_epiphany_role_result_snapshot(
+        state,
+        runtime_store_path,
+        map_core_role_result_role_id(role_id),
+        &binding_id,
+    )
+    .await;
 
     ThreadEpiphanyRoleResultResponse {
         thread_id,
