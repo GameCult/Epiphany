@@ -216,6 +216,7 @@ pub use state_ledger::close_state_branch;
 pub use state_ledger::load_state_ledger;
 pub use state_ledger::state_ledger_status;
 pub use state_update::EpiphanyStateUpdate;
+pub use state_update::EpiphanyStateUpdatedField;
 pub use state_update::apply_epiphany_state_update;
 pub use state_update::epiphany_state_update_validation_errors;
 pub use surfaces::EpiphanyAcceptanceBundle;

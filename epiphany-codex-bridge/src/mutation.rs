@@ -9,6 +9,7 @@ use epiphany_core::EpiphanyRoleAcceptanceFinding;
 use epiphany_core::EpiphanyRoleFindingInterpretation as CoreEpiphanyRoleFinding;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
+use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::imagination_role_state_patch_policy_errors;
@@ -20,7 +21,7 @@ use crate::results::map_core_role_result_role_id;
 pub struct RoleAcceptanceUpdate {
     pub state_update: EpiphanyStateUpdate,
     pub applied_patch: EpiphanyRoleStatePatchDocument,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
@@ -28,7 +29,7 @@ pub struct RoleAcceptanceUpdate {
 
 pub struct ReorientAcceptanceUpdate {
     pub state_update: EpiphanyStateUpdate,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
@@ -128,15 +129,56 @@ pub fn epiphany_state_updated_notification(
     thread_id: String,
     source: ThreadEpiphanyStateUpdatedSource,
     revision: u64,
-    changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    changed_fields: Vec<EpiphanyStateUpdatedField>,
     epiphany_state: epiphany_state_model::EpiphanyThreadState,
 ) -> ThreadEpiphanyStateUpdatedNotification {
     ThreadEpiphanyStateUpdatedNotification {
         thread_id,
         source,
         revision,
-        changed_fields,
+        changed_fields: map_protocol_state_updated_fields(changed_fields),
         epiphany_state,
+    }
+}
+
+pub fn map_protocol_state_updated_fields(
+    fields: Vec<EpiphanyStateUpdatedField>,
+) -> Vec<ThreadEpiphanyStateUpdatedField> {
+    fields
+        .into_iter()
+        .map(map_protocol_state_updated_field)
+        .collect()
+}
+
+pub fn map_protocol_state_updated_field(
+    field: EpiphanyStateUpdatedField,
+) -> ThreadEpiphanyStateUpdatedField {
+    match field {
+        EpiphanyStateUpdatedField::Objective => ThreadEpiphanyStateUpdatedField::Objective,
+        EpiphanyStateUpdatedField::ActiveSubgoalId => {
+            ThreadEpiphanyStateUpdatedField::ActiveSubgoalId
+        }
+        EpiphanyStateUpdatedField::Subgoals => ThreadEpiphanyStateUpdatedField::Subgoals,
+        EpiphanyStateUpdatedField::Invariants => ThreadEpiphanyStateUpdatedField::Invariants,
+        EpiphanyStateUpdatedField::Graphs => ThreadEpiphanyStateUpdatedField::Graphs,
+        EpiphanyStateUpdatedField::GraphFrontier => ThreadEpiphanyStateUpdatedField::GraphFrontier,
+        EpiphanyStateUpdatedField::GraphCheckpoint => {
+            ThreadEpiphanyStateUpdatedField::GraphCheckpoint
+        }
+        EpiphanyStateUpdatedField::Scratch => ThreadEpiphanyStateUpdatedField::Scratch,
+        EpiphanyStateUpdatedField::InvestigationCheckpoint => {
+            ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint
+        }
+        EpiphanyStateUpdatedField::JobBindings => ThreadEpiphanyStateUpdatedField::JobBindings,
+        EpiphanyStateUpdatedField::AcceptanceReceipts => {
+            ThreadEpiphanyStateUpdatedField::AcceptanceReceipts
+        }
+        EpiphanyStateUpdatedField::RuntimeLinks => ThreadEpiphanyStateUpdatedField::RuntimeLinks,
+        EpiphanyStateUpdatedField::Observations => ThreadEpiphanyStateUpdatedField::Observations,
+        EpiphanyStateUpdatedField::Evidence => ThreadEpiphanyStateUpdatedField::Evidence,
+        EpiphanyStateUpdatedField::Churn => ThreadEpiphanyStateUpdatedField::Churn,
+        EpiphanyStateUpdatedField::Mode => ThreadEpiphanyStateUpdatedField::Mode,
+        EpiphanyStateUpdatedField::Planning => ThreadEpiphanyStateUpdatedField::Planning,
     }
 }
 
@@ -270,15 +312,15 @@ pub fn build_reorient_acceptance_update(
     let investigation_checkpoint = acceptance_bundle.investigation_checkpoint;
 
     let mut changed_fields = vec![
-        ThreadEpiphanyStateUpdatedField::AcceptanceReceipts,
-        ThreadEpiphanyStateUpdatedField::Observations,
-        ThreadEpiphanyStateUpdatedField::Evidence,
+        EpiphanyStateUpdatedField::AcceptanceReceipts,
+        EpiphanyStateUpdatedField::Observations,
+        EpiphanyStateUpdatedField::Evidence,
     ];
     if scratch.is_some() {
-        changed_fields.push(ThreadEpiphanyStateUpdatedField::Scratch);
+        changed_fields.push(EpiphanyStateUpdatedField::Scratch);
     }
     if investigation_checkpoint.is_some() {
-        changed_fields.push(ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint);
+        changed_fields.push(EpiphanyStateUpdatedField::InvestigationCheckpoint);
     }
 
     Ok(ReorientAcceptanceUpdate {
@@ -298,10 +340,10 @@ pub fn build_reorient_acceptance_update(
     })
 }
 
-pub fn epiphany_job_launch_changed_fields() -> Vec<ThreadEpiphanyStateUpdatedField> {
+pub fn epiphany_job_launch_changed_fields() -> Vec<EpiphanyStateUpdatedField> {
     vec![
-        ThreadEpiphanyStateUpdatedField::JobBindings,
-        ThreadEpiphanyStateUpdatedField::RuntimeLinks,
+        EpiphanyStateUpdatedField::JobBindings,
+        EpiphanyStateUpdatedField::RuntimeLinks,
     ]
 }
 
@@ -327,68 +369,68 @@ pub fn thread_epiphany_patch_has_state_replacements(
 
 pub fn epiphany_update_patch_changed_fields(
     patch: &ThreadEpiphanyUpdatePatch,
-) -> Vec<ThreadEpiphanyStateUpdatedField> {
+) -> Vec<EpiphanyStateUpdatedField> {
     let mut fields = Vec::new();
     if patch.objective.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Objective);
+        fields.push(EpiphanyStateUpdatedField::Objective);
     }
     if patch.active_subgoal_id.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::ActiveSubgoalId);
+        fields.push(EpiphanyStateUpdatedField::ActiveSubgoalId);
     }
     if patch.subgoals.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Subgoals);
+        fields.push(EpiphanyStateUpdatedField::Subgoals);
     }
     if patch.invariants.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Invariants);
+        fields.push(EpiphanyStateUpdatedField::Invariants);
     }
     if patch.graphs.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Graphs);
+        fields.push(EpiphanyStateUpdatedField::Graphs);
     }
     if patch.graph_frontier.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::GraphFrontier);
+        fields.push(EpiphanyStateUpdatedField::GraphFrontier);
     }
     if patch.graph_checkpoint.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::GraphCheckpoint);
+        fields.push(EpiphanyStateUpdatedField::GraphCheckpoint);
     }
     if patch.scratch.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Scratch);
+        fields.push(EpiphanyStateUpdatedField::Scratch);
     }
     if patch.investigation_checkpoint.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::InvestigationCheckpoint);
+        fields.push(EpiphanyStateUpdatedField::InvestigationCheckpoint);
     }
     if patch.job_bindings.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::JobBindings);
+        fields.push(EpiphanyStateUpdatedField::JobBindings);
     }
     if !patch.acceptance_receipts.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::AcceptanceReceipts);
+        fields.push(EpiphanyStateUpdatedField::AcceptanceReceipts);
     }
     if !patch.runtime_links.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::RuntimeLinks);
+        fields.push(EpiphanyStateUpdatedField::RuntimeLinks);
     }
     if !patch.observations.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Observations);
+        fields.push(EpiphanyStateUpdatedField::Observations);
     }
     if !patch.evidence.is_empty() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Evidence);
+        fields.push(EpiphanyStateUpdatedField::Evidence);
     }
     if patch.churn.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Churn);
+        fields.push(EpiphanyStateUpdatedField::Churn);
     }
     if patch.mode.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Mode);
+        fields.push(EpiphanyStateUpdatedField::Mode);
     }
     if patch.planning.is_some() {
-        fields.push(ThreadEpiphanyStateUpdatedField::Planning);
+        fields.push(EpiphanyStateUpdatedField::Planning);
     }
     fields
 }
 
 pub fn epiphany_promote_changed_fields(
     patch: &EpiphanyRoleStatePatchDocument,
-) -> Vec<ThreadEpiphanyStateUpdatedField> {
+) -> Vec<EpiphanyStateUpdatedField> {
     let mut fields = epiphany_update_patch_changed_fields(&protocol_patch_from_core(patch.clone()));
-    if !fields.contains(&ThreadEpiphanyStateUpdatedField::Evidence) {
-        fields.push(ThreadEpiphanyStateUpdatedField::Evidence);
+    if !fields.contains(&EpiphanyStateUpdatedField::Evidence) {
+        fields.push(EpiphanyStateUpdatedField::Evidence);
     }
     fields
 }

@@ -15,6 +15,7 @@ use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
+use epiphany_codex_bridge::mutation::map_protocol_state_updated_fields;
 use epiphany_codex_bridge::mutation_service::launch_epiphany_job_on_thread;
 use epiphany_codex_bridge::pressure::derive_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
@@ -98,7 +99,9 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
                         thread_id: thread_id_text,
                         source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
                         revision: epiphany_state.revision,
-                        changed_fields: epiphany_job_launch_changed_fields(),
+                        changed_fields: map_protocol_state_updated_fields(
+                            epiphany_job_launch_changed_fields(),
+                        ),
                         epiphany_state,
                     },
                 ))

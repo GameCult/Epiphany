@@ -1,7 +1,6 @@
 use epiphany_core::EpiphanyGraphFreshness;
-use epiphany_core::EpiphanyInvalidationInput;
-use epiphany_core::EpiphanyRetrievalFreshness;
 pub use epiphany_core::EpiphanyGraphFreshnessStatus;
+use epiphany_core::EpiphanyInvalidationInput;
 pub use epiphany_core::EpiphanyInvalidationStatus;
 pub use epiphany_core::EpiphanyJobStatus;
 pub use epiphany_core::EpiphanyJobView;
@@ -16,7 +15,9 @@ pub use epiphany_core::EpiphanyReorientFreshnessStatus;
 pub use epiphany_core::EpiphanyReorientPressureLevel;
 pub use epiphany_core::EpiphanyReorientReason;
 pub use epiphany_core::EpiphanyReorientStateStatus;
+use epiphany_core::EpiphanyRetrievalFreshness;
 pub use epiphany_core::EpiphanyRetrievalFreshnessStatus;
+pub use epiphany_core::EpiphanyStateUpdatedField;
 pub use epiphany_state_model::EpiphanyJobKind;
 use serde::Deserialize;
 use serde::Serialize;

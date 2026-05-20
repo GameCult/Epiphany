@@ -5,7 +5,6 @@ use std::path::PathBuf;
 
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
-use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
@@ -18,6 +17,7 @@ use epiphany_core::EpiphanyReorientStateStatus;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
+use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
@@ -75,7 +75,7 @@ pub trait EpiphanyMutationHost {
 #[derive(Debug, Clone)]
 pub struct EpiphanyThreadUpdateApplied {
     pub revision: u64,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
 }
 
@@ -88,7 +88,7 @@ pub enum EpiphanyThreadPromoteApplied {
 #[derive(Debug, Clone)]
 pub struct EpiphanyRoleAcceptApplied {
     pub revision: u64,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
@@ -100,7 +100,7 @@ pub struct EpiphanyRoleAcceptApplied {
 #[derive(Debug, Clone)]
 pub struct EpiphanyReorientAcceptApplied {
     pub revision: u64,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
@@ -113,7 +113,7 @@ pub struct EpiphanyJobLaunchApplied {
     pub launcher_job_id: String,
     pub backend_job_id: String,
     pub revision: u64,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
     pub job: EpiphanyJobView,
 }
@@ -123,7 +123,7 @@ pub struct EpiphanyJobInterruptApplied {
     pub cancel_requested: bool,
     pub interrupted_thread_ids: Vec<String>,
     pub revision: u64,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
     pub job: EpiphanyJobView,
 }
@@ -137,7 +137,7 @@ pub struct EpiphanyReorientLaunchApplied {
     pub state_revision: Option<u64>,
     pub decision: EpiphanyReorientDecision,
     pub revision: u64,
-    pub changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
     pub epiphany_state: EpiphanyThreadState,
     pub job: EpiphanyJobView,
 }
@@ -544,7 +544,7 @@ pub async fn interrupt_thread_epiphany_job(
     binding_id: &str,
     reason: Option<String>,
 ) -> BridgeResult<EpiphanyJobInterruptApplied> {
-    let changed_fields = vec![ThreadEpiphanyStateUpdatedField::JobBindings];
+    let changed_fields = vec![EpiphanyStateUpdatedField::JobBindings];
     let interrupted = interrupt_epiphany_job_on_thread(
         thread,
         EpiphanyJobInterruptRequest {

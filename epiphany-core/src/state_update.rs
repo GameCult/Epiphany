@@ -19,6 +19,27 @@ use epiphany_state_model::EpiphanySubgoal;
 use epiphany_state_model::EpiphanyThreadState;
 use std::collections::HashSet;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EpiphanyStateUpdatedField {
+    Objective,
+    ActiveSubgoalId,
+    Subgoals,
+    Invariants,
+    Graphs,
+    GraphFrontier,
+    GraphCheckpoint,
+    Scratch,
+    InvestigationCheckpoint,
+    JobBindings,
+    AcceptanceReceipts,
+    RuntimeLinks,
+    Observations,
+    Evidence,
+    Churn,
+    Mode,
+    Planning,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct EpiphanyStateUpdate {
     pub expected_revision: Option<u64>,
