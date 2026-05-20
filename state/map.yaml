@@ -352,7 +352,9 @@ current_status:
     Coordinator note rendering now consumes core CRRC/coordinator actions,
     pressure, and role/reorient result statuses instead of protocol
     `ThreadEpiphany*` action/status DTOs, so prompt/text policy no longer
-    treats JSON-RPC enums as its native fact shape. Context and graph-query
+    treats JSON-RPC enums as its native fact shape. Role-board note rendering
+    now consumes the core reorient state status too; `ThreadEpiphanyReorientStateStatus`
+    is response projection only, not prompt/text policy input. Context and graph-query
     response builders now receive core `EpiphanyContextParams` /
     `EpiphanyGraphQuery`; app-server read routes convert JSON-RPC request cargo
     before invoking the bridge. Role-result response assembly now takes core

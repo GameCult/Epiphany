@@ -65,7 +65,7 @@ remembers doctrine; the branch remembers the blade.
 - Role launch, role accept, and role-result runtime lookup now use core `EpiphanyRoleResultRoleId` inside the bridge. App-server maps `ThreadEpiphanyRoleId` at the JSON-RPC boundary and keeps it only for legacy request/response shape.
 - Reorient launch service results now use typed `EpiphanySurfaceSource`; app-server projects it into `ThreadEpiphanyReorientSource` only for the legacy launch response.
 - Generic job launch now converts protocol `ThreadEpiphanyWorkerLaunchDocument` cargo at the app-server edge before building the core `EpiphanyJobLaunchRequest`; the bridge launch builder takes a typed `EpiphanyWorkerLaunchDocument`.
-- Coordinator note rendering now consumes core CRRC/coordinator actions, pressure, and role/reorient result statuses. `ThreadEpiphany*` status/action DTOs are no longer the native shape for that prompt/text policy helper.
+- Coordinator note rendering now consumes core CRRC/coordinator actions, pressure, role/reorient result statuses, and reorient state status. `ThreadEpiphany*` status/action DTOs are no longer the native shape for that prompt/text policy helper.
 - Context and graph-query response builders now take core `EpiphanyContextParams` / `EpiphanyGraphQuery` documents. App-server read routes convert `ThreadEpiphanyContextParams` / `ThreadEpiphanyGraphQuery` at the JSON-RPC wall before invoking bridge derivation.
 - Role-result response assembly now takes core `EpiphanyRoleResultRoleId`; `ThreadEpiphanyRoleId` is reconstructed only for the legacy response payload and finding projection.
 - Distill response assembly now consumes core `EpiphanyDistillInput`; `ThreadEpiphanyDistillParams` is converted before bridge policy invocation.

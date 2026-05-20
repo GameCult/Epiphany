@@ -334,7 +334,7 @@ pub async fn map_epiphany_view_response(
                         .as_ref()
                         .map(|role_board| role_board.roles.as_slice())
                         .unwrap_or(&[]),
-                    reorient_state_status,
+                    core_reorient_state_status,
                     recommendation
                         .as_ref()
                         .map(|recommendation| recommendation.action)

@@ -4,7 +4,6 @@ use codex_app_server_protocol::ThreadEpiphanyCrrcAction;
 use codex_app_server_protocol::ThreadEpiphanyCrrcRecommendation;
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
-use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleLane;
 use codex_app_server_protocol::ThreadEpiphanyRoleStatus;
@@ -695,7 +694,7 @@ fn map_protocol_coordinator_role_status(
 
 pub fn render_epiphany_roles_note(
     roles: &[EpiphanyRoleBoardLane],
-    state_status: ThreadEpiphanyReorientStateStatus,
+    state_status: CoreEpiphanyReorientStateStatus,
     recommendation: CoreEpiphanyCrrcAction,
 ) -> String {
     render_role_board_note(
