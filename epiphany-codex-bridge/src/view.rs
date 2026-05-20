@@ -5,6 +5,7 @@ use epiphany_core::EpiphanyContextParams;
 use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyGraphQuery;
 use epiphany_core::EpiphanyMapProposalInput;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::derive_scene;
@@ -36,8 +37,8 @@ use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
 use crate::reorient::map_protocol_reorient_decision;
 use crate::reorient::map_protocol_reorient_state_status;
-use crate::results::map_core_role_result_role_id;
 use crate::results::map_protocol_reorient_finding;
+use crate::results::map_protocol_role_result_role_id;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
 use crate::runtime_results::map_protocol_reorient_result_status;
@@ -448,7 +449,7 @@ pub async fn map_epiphany_view_response(
 
 pub struct EpiphanyRoleResultResponseInput<'a> {
     pub thread_id: String,
-    pub role_id: ThreadEpiphanyRoleId,
+    pub role_id: EpiphanyRoleResultRoleId,
     pub source: ThreadEpiphanyRolesSource,
     pub binding_id: String,
     pub state: Option<&'a EpiphanyThreadState>,
@@ -466,10 +467,11 @@ pub async fn map_epiphany_role_result_response(
         state,
         runtime_store_path,
     } = input;
+    let protocol_role_id = map_protocol_role_result_role_id(role_id);
     let Some(state) = state else {
         return ThreadEpiphanyRoleResultResponse {
             thread_id,
-            role_id,
+            role_id: protocol_role_id,
             source,
             state_status: ThreadEpiphanyReorientStateStatus::Missing,
             state_revision: None,
@@ -485,17 +487,13 @@ pub async fn map_epiphany_role_result_response(
         .into_iter()
         .find(|job| job.id == binding_id)
         .map(map_core_epiphany_job_view);
-    let result = load_core_epiphany_role_result_snapshot(
-        state,
-        runtime_store_path,
-        map_core_role_result_role_id(role_id),
-        &binding_id,
-    )
-    .await;
+    let result =
+        load_core_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id)
+            .await;
 
     ThreadEpiphanyRoleResultResponse {
         thread_id,
-        role_id,
+        role_id: protocol_role_id,
         source,
         state_status: ThreadEpiphanyReorientStateStatus::Ready,
         state_revision: Some(state.revision),
@@ -504,7 +502,7 @@ pub async fn map_epiphany_role_result_response(
         job,
         finding: result
             .finding
-            .map(|finding| crate::results::map_protocol_role_finding(role_id, finding)),
+            .map(|finding| crate::results::map_protocol_role_finding(protocol_role_id, finding)),
         note: result.note,
     }
 }

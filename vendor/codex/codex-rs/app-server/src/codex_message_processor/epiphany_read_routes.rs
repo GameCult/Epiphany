@@ -212,7 +212,7 @@ impl CodexMessageProcessor {
         };
         let response = map_epiphany_role_result_response(EpiphanyRoleResultResponseInput {
             thread_id: thread_uuid.to_string(),
-            role_id,
+            role_id: core_role_id,
             source,
             binding_id,
             state: thread.epiphany_state.as_ref(),
