@@ -6,7 +6,6 @@ use std::path::PathBuf;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
-use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
@@ -49,7 +48,6 @@ use crate::mutation::build_role_acceptance_update;
 use crate::mutation::epiphany_job_launch_changed_fields;
 use crate::mutation::epiphany_promote_changed_fields;
 use crate::mutation::epiphany_update_patch_changed_fields;
-use crate::mutation::state_update_from_thread_patch;
 use crate::mutation::thread_epiphany_patch_has_state_replacements;
 use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
@@ -313,10 +311,12 @@ pub async fn interrupt_epiphany_job_on_thread(
 pub async fn apply_thread_epiphany_update(
     thread: &impl EpiphanyMutationHost,
     expected_revision: Option<u64>,
-    patch: ThreadEpiphanyUpdatePatch,
+    patch: EpiphanyRoleStatePatchDocument,
 ) -> BridgeResult<EpiphanyThreadUpdateApplied> {
-    let changed_fields = epiphany_update_patch_changed_fields(&patch);
-    let update = state_update_from_thread_patch(expected_revision, patch);
+    let changed_fields = epiphany_update_patch_changed_fields(
+        &crate::mutation::protocol_patch_from_core(patch.clone()),
+    );
+    let update = crate::mutation::state_update_from_core_patch(expected_revision, patch);
     let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
     let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
     Ok(EpiphanyThreadUpdateApplied {
@@ -329,7 +329,7 @@ pub async fn apply_thread_epiphany_update(
 pub async fn apply_thread_epiphany_promote(
     thread: &impl EpiphanyMutationHost,
     expected_revision: Option<u64>,
-    patch: ThreadEpiphanyUpdatePatch,
+    patch: EpiphanyRoleStatePatchDocument,
     verifier_evidence: EpiphanyEvidenceRecord,
 ) -> BridgeResult<EpiphanyThreadPromoteApplied> {
     let decision = evaluate_promotion(EpiphanyPromotionInput {
@@ -355,7 +355,7 @@ pub async fn apply_thread_epiphany_promote(
     let changed_fields = epiphany_promote_changed_fields(&patch);
     let mut patch = patch;
     patch.evidence.push(verifier_evidence);
-    let update = state_update_from_thread_patch(expected_revision, patch);
+    let update = crate::mutation::state_update_from_core_patch(expected_revision, patch);
     let epiphany_state = apply_epiphany_state_update_to_thread(thread, update).await?;
     let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
     Ok(EpiphanyThreadPromoteApplied::Accepted(

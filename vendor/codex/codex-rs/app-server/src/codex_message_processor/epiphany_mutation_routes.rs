@@ -18,6 +18,7 @@ use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
+use epiphany_codex_bridge::mutation::core_state_patch_from_protocol;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation::protocol_patch_from_core;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
@@ -464,24 +465,29 @@ impl CodexMessageProcessor {
         };
 
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
-        let applied =
-            match apply_thread_epiphany_promote(&host, expected_revision, patch, verifier_evidence)
-                .await
-            {
-                Ok(applied) => applied,
-                Err(EpiphanyBridgeError::InvalidRequest(message)) => {
-                    self.send_invalid_request_error(request_id, message).await;
-                    return;
-                }
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!("failed to promote Epiphany state update: {err}"),
-                    )
-                    .await;
-                    return;
-                }
-            };
+        let core_patch = core_state_patch_from_protocol(&patch);
+        let applied = match apply_thread_epiphany_promote(
+            &host,
+            expected_revision,
+            core_patch,
+            verifier_evidence,
+        )
+        .await
+        {
+            Ok(applied) => applied,
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to promote Epiphany state update: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
 
         let applied = match applied {
             EpiphanyThreadPromoteApplied::Accepted(applied) => applied,
@@ -538,7 +544,9 @@ impl CodexMessageProcessor {
         };
 
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
-        let applied = match apply_thread_epiphany_update(&host, expected_revision, patch).await {
+        let core_patch = core_state_patch_from_protocol(&patch);
+        let applied = match apply_thread_epiphany_update(&host, expected_revision, core_patch).await
+        {
             Ok(applied) => applied,
             Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;

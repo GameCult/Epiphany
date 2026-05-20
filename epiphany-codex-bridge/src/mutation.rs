@@ -305,7 +305,9 @@ pub fn epiphany_job_launch_changed_fields() -> Vec<ThreadEpiphanyStateUpdatedFie
     ]
 }
 
-pub fn thread_epiphany_patch_has_state_replacements(patch: &ThreadEpiphanyUpdatePatch) -> bool {
+pub fn thread_epiphany_patch_has_state_replacements(
+    patch: &EpiphanyRoleStatePatchDocument,
+) -> bool {
     patch.objective.is_some()
         || patch.active_subgoal_id.is_some()
         || patch.subgoals.is_some()
@@ -382,9 +384,9 @@ pub fn epiphany_update_patch_changed_fields(
 }
 
 pub fn epiphany_promote_changed_fields(
-    patch: &ThreadEpiphanyUpdatePatch,
+    patch: &EpiphanyRoleStatePatchDocument,
 ) -> Vec<ThreadEpiphanyStateUpdatedField> {
-    let mut fields = epiphany_update_patch_changed_fields(patch);
+    let mut fields = epiphany_update_patch_changed_fields(&protocol_patch_from_core(patch.clone()));
     if !fields.contains(&ThreadEpiphanyStateUpdatedField::Evidence) {
         fields.push(ThreadEpiphanyStateUpdatedField::Evidence);
     }
