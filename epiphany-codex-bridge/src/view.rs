@@ -35,9 +35,9 @@ use crate::reorient::map_protocol_reorient_decision;
 use crate::reorient::map_protocol_reorient_state_status;
 use crate::results::map_protocol_reorient_finding;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
-use crate::runtime_results::load_epiphany_reorient_result_snapshot;
-use crate::runtime_results::load_epiphany_role_result_snapshot;
+use crate::runtime_results::load_core_epiphany_role_result_snapshot;
 use crate::runtime_results::map_protocol_reorient_result_status;
+use crate::runtime_results::map_protocol_role_result_status;
 use crate::scene::map_core_epiphany_scene_action;
 use crate::scene::map_epiphany_scene;
 
@@ -477,8 +477,9 @@ pub async fn map_epiphany_role_result_response(
     let job = map_epiphany_jobs(Some(state), None)
         .into_iter()
         .find(|job| job.id == binding_id);
-    let (status, finding, note) =
-        load_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id).await;
+    let result =
+        load_core_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id)
+            .await;
 
     ThreadEpiphanyRoleResultResponse {
         thread_id,
@@ -487,10 +488,12 @@ pub async fn map_epiphany_role_result_response(
         state_status: ThreadEpiphanyReorientStateStatus::Ready,
         state_revision: Some(state.revision),
         binding_id,
-        status,
+        status: map_protocol_role_result_status(result.status),
         job,
-        finding,
-        note,
+        finding: result
+            .finding
+            .map(|finding| crate::results::map_protocol_role_finding(role_id, finding)),
+        note: result.note,
     }
 }
 
@@ -529,8 +532,9 @@ pub async fn map_epiphany_reorient_result_response(
     let job = map_epiphany_jobs(Some(state), None)
         .into_iter()
         .find(|job| job.id == binding_id);
-    let (status, finding, note) =
-        load_epiphany_reorient_result_snapshot(Some(state), runtime_store_path, &binding_id).await;
+    let result =
+        load_core_epiphany_reorient_result_snapshot(Some(state), runtime_store_path, &binding_id)
+            .await;
 
     ThreadEpiphanyReorientResultResponse {
         thread_id,
@@ -538,10 +542,10 @@ pub async fn map_epiphany_reorient_result_response(
         state_status: ThreadEpiphanyReorientStateStatus::Ready,
         state_revision: Some(state.revision),
         binding_id,
-        status,
+        status: map_protocol_reorient_result_status(result.status),
         job,
-        finding,
-        note,
+        finding: result.finding.map(map_protocol_reorient_finding),
+        note: result.note,
     }
 }
 

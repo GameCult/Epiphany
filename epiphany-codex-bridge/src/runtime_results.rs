@@ -1,8 +1,6 @@
 use std::path::Path;
 
-use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
-use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
@@ -22,8 +20,6 @@ use epiphany_state_model::EpiphanyThreadState;
 use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
 use crate::results::map_core_role_result_role_id;
-use crate::results::map_protocol_reorient_finding;
-use crate::results::map_protocol_role_finding;
 use crate::results::render_core_reorient_result_note;
 use crate::results::render_core_role_result_note;
 
@@ -114,26 +110,6 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
     }
 }
 
-pub fn load_epiphany_role_result_from_runtime_spine_job(
-    job_id: &str,
-    runtime_store_path: Option<&Path>,
-    role_id: ThreadEpiphanyRoleId,
-) -> (
-    ThreadEpiphanyRoleResultStatus,
-    Option<ThreadEpiphanyRoleFinding>,
-    String,
-) {
-    let snapshot =
-        load_core_epiphany_role_result_from_runtime_spine_job(job_id, runtime_store_path, role_id);
-    (
-        map_protocol_role_result_status(snapshot.status),
-        snapshot
-            .finding
-            .map(|finding| map_protocol_role_finding(role_id, finding)),
-        snapshot.note,
-    )
-}
-
 pub fn load_core_epiphany_reorient_result_from_runtime_spine_job(
     job_id: &str,
     runtime_store_path: Option<&Path>,
@@ -203,23 +179,6 @@ pub fn load_core_epiphany_reorient_result_from_runtime_spine_job(
         finding,
         note,
     }
-}
-
-pub fn load_epiphany_reorient_result_from_runtime_spine_job(
-    job_id: &str,
-    runtime_store_path: Option<&Path>,
-) -> (
-    ThreadEpiphanyReorientResultStatus,
-    Option<ThreadEpiphanyReorientFinding>,
-    String,
-) {
-    let snapshot =
-        load_core_epiphany_reorient_result_from_runtime_spine_job(job_id, runtime_store_path);
-    (
-        map_protocol_reorient_result_status(snapshot.status),
-        snapshot.finding.map(map_protocol_reorient_finding),
-        snapshot.note,
-    )
 }
 
 fn map_runtime_role_result_status(
@@ -314,28 +273,6 @@ pub fn map_protocol_reorient_result_status(
     }
 }
 
-pub async fn load_epiphany_role_result_snapshot(
-    state: &EpiphanyThreadState,
-    runtime_store_path: Option<&Path>,
-    role_id: ThreadEpiphanyRoleId,
-    binding_id: &str,
-) -> (
-    ThreadEpiphanyRoleResultStatus,
-    Option<ThreadEpiphanyRoleFinding>,
-    String,
-) {
-    let snapshot =
-        load_core_epiphany_role_result_snapshot(state, runtime_store_path, role_id, binding_id)
-            .await;
-    (
-        map_protocol_role_result_status(snapshot.status),
-        snapshot
-            .finding
-            .map(|finding| map_protocol_role_finding(role_id, finding)),
-        snapshot.note,
-    )
-}
-
 pub async fn load_core_epiphany_role_result_snapshot(
     state: &EpiphanyThreadState,
     runtime_store_path: Option<&Path>,
@@ -409,24 +346,6 @@ pub fn load_completed_core_epiphany_role_finding(
         "role findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
             .to_string(),
     ))
-}
-
-pub async fn load_epiphany_reorient_result_snapshot(
-    state: Option<&EpiphanyThreadState>,
-    runtime_store_path: Option<&Path>,
-    binding_id: &str,
-) -> (
-    ThreadEpiphanyReorientResultStatus,
-    Option<ThreadEpiphanyReorientFinding>,
-    String,
-) {
-    let snapshot =
-        load_core_epiphany_reorient_result_snapshot(state, runtime_store_path, binding_id).await;
-    (
-        map_protocol_reorient_result_status(snapshot.status),
-        snapshot.finding.map(map_protocol_reorient_finding),
-        snapshot.note,
-    )
 }
 
 pub async fn load_core_epiphany_reorient_result_snapshot(
@@ -523,9 +442,9 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
     use codex_app_server_protocol::ThreadEpiphanyRoleId;
-    use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
+    use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
+    use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
     use epiphany_core::RuntimeSpineInitOptions;
     use epiphany_core::RuntimeSpineJobOptions;
     use epiphany_core::RuntimeSpineJobResultOptions;
@@ -544,15 +463,22 @@ mod tests {
         let store = temp_store_path();
         seed_completed_lifecycle_result(&store, "role-job", "modeling");
 
-        let (status, finding, note) = load_epiphany_role_result_from_runtime_spine_job(
+        let result = load_core_epiphany_role_result_from_runtime_spine_job(
             "role-job",
             Some(store.as_path()),
             ThreadEpiphanyRoleId::Modeling,
         );
 
-        assert_eq!(status, ThreadEpiphanyRoleResultStatus::BackendUnavailable);
-        assert!(finding.is_none());
-        assert!(note.contains("EpiphanyRuntimeRoleWorkerResult typed document"));
+        assert_eq!(
+            result.status,
+            CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable
+        );
+        assert!(result.finding.is_none());
+        assert!(
+            result
+                .note
+                .contains("EpiphanyRuntimeRoleWorkerResult typed document")
+        );
 
         let _ = fs::remove_file(store);
     }
@@ -562,17 +488,21 @@ mod tests {
         let store = temp_store_path();
         seed_completed_lifecycle_result(&store, "reorient-job", "reorientation");
 
-        let (status, finding, note) = load_epiphany_reorient_result_from_runtime_spine_job(
+        let result = load_core_epiphany_reorient_result_from_runtime_spine_job(
             "reorient-job",
             Some(store.as_path()),
         );
 
         assert_eq!(
-            status,
-            ThreadEpiphanyReorientResultStatus::BackendUnavailable
+            result.status,
+            CoreEpiphanyCrrcResultStatus::BackendUnavailable
         );
-        assert!(finding.is_none());
-        assert!(note.contains("EpiphanyRuntimeReorientWorkerResult typed document"));
+        assert!(result.finding.is_none());
+        assert!(
+            result
+                .note
+                .contains("EpiphanyRuntimeReorientWorkerResult typed document")
+        );
 
         let _ = fs::remove_file(store);
     }
