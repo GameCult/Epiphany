@@ -23,12 +23,12 @@ use crate::context::map_epiphany_context;
 use crate::context::map_epiphany_graph_query;
 use crate::context::map_epiphany_planning;
 use crate::coordinator::derive_epiphany_coordinator_status;
-use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
-use crate::coordinator::map_protocol_crrc_recommendation;
-use crate::coordinator::map_protocol_role_board_lanes;
 use crate::coordinator::render_epiphany_roles_note;
+use crate::coordinator_protocol::protocol_coordinator_view;
+use crate::coordinator_protocol::protocol_crrc_recommendation;
+use crate::coordinator_protocol::protocol_role_board_lanes;
 use crate::cultnet::EpiphanyFreshnessSurface;
 use crate::cultnet::EpiphanySurfaceSource;
 use crate::jobs::map_epiphany_jobs;
@@ -286,7 +286,7 @@ pub async fn map_epiphany_view_response(
                 checkpoint_present,
             )
             .await;
-            Some(map_epiphany_coordinator_view(
+            Some(protocol_coordinator_view(
                 thread_id.clone(),
                 loaded,
                 core_reorient_state_status,
@@ -318,7 +318,7 @@ pub async fn map_epiphany_view_response(
             let role_board = roles.clone();
             let protocol_roles = role_board
                 .as_ref()
-                .map(map_protocol_role_board_lanes)
+                .map(protocol_role_board_lanes)
                 .unwrap_or_default();
             ThreadEpiphanyViewRoles {
                 thread_id: thread_id.clone(),
@@ -386,8 +386,7 @@ pub async fn map_epiphany_view_response(
                 let pressure = pressure.clone()?;
                 let decision = reorient_decision.clone()?;
                 let recommendation = recommendation.clone()?;
-                let protocol_recommendation =
-                    map_protocol_crrc_recommendation(recommendation.clone());
+                let protocol_recommendation = protocol_crrc_recommendation(recommendation.clone());
                 let available_actions = derive_scene(EpiphanySceneInput {
                     state,
                     loaded,
