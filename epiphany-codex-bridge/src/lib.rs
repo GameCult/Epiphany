@@ -1,5 +1,6 @@
 pub mod checkpoint;
 pub mod context;
+pub mod context_protocol;
 pub mod coordinator;
 pub mod coordinator_protocol;
 pub mod cultnet;

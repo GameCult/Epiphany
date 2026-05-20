@@ -19,9 +19,12 @@ use epiphany_core::reorient_finding_already_accepted;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
-use crate::context::map_epiphany_context;
-use crate::context::map_epiphany_graph_query;
-use crate::context::map_epiphany_planning;
+use crate::context::derive_epiphany_context;
+use crate::context::derive_epiphany_graph_query;
+use crate::context::derive_epiphany_planning;
+use crate::context_protocol::protocol_context_view;
+use crate::context_protocol::protocol_graph_query_view;
+use crate::context_protocol::protocol_planning_view;
 use crate::coordinator::derive_epiphany_coordinator_status;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
@@ -100,7 +103,8 @@ pub fn map_epiphany_context_response(
     state: Option<&EpiphanyThreadState>,
     params: &EpiphanyContextParams,
 ) -> ThreadEpiphanyContextResponse {
-    let (state_status, state_revision, context, missing) = map_epiphany_context(state, params);
+    let (state_status, state_revision, context, missing) =
+        protocol_context_view(derive_epiphany_context(state, params));
     ThreadEpiphanyContextResponse {
         thread_id,
         source: if loaded {
@@ -122,7 +126,7 @@ pub fn map_epiphany_graph_query_response(
     query: &EpiphanyGraphQuery,
 ) -> ThreadEpiphanyGraphQueryResponse {
     let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
-        map_epiphany_graph_query(state, query);
+        protocol_graph_query_view(derive_epiphany_graph_query(state, query));
     ThreadEpiphanyGraphQueryResponse {
         thread_id,
         source: if loaded {
@@ -344,7 +348,8 @@ pub async fn map_epiphany_view_response(
             }
         }),
         planning: lenses.contains(&EpiphanyViewLens::Planning).then(|| {
-            let (state_status, state_revision, planning, summary) = map_epiphany_planning(state);
+            let (state_status, state_revision, planning, summary) =
+                protocol_planning_view(derive_epiphany_planning(state));
             ThreadEpiphanyViewPlanning {
                 thread_id: thread_id.clone(),
                 source: if loaded {
