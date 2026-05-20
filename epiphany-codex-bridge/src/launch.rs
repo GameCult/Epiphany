@@ -1,11 +1,15 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
+use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
+use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
+use epiphany_core::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
+use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
 use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
 use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshnessStatus;
@@ -679,12 +683,12 @@ fn map_core_reorient_worker_launch_document(
 }
 
 pub fn render_epiphany_coordinator_note(
-    crrc_action: codex_app_server_protocol::ThreadEpiphanyCrrcAction,
-    pressure_level: ThreadEpiphanyPressureLevel,
-    modeling_result_status: codex_app_server_protocol::ThreadEpiphanyRoleResultStatus,
-    verification_result_status: codex_app_server_protocol::ThreadEpiphanyRoleResultStatus,
-    reorient_result_status: codex_app_server_protocol::ThreadEpiphanyReorientResultStatus,
-    coordinator_action: codex_app_server_protocol::ThreadEpiphanyCoordinatorAction,
+    crrc_action: CoreEpiphanyCrrcAction,
+    pressure_level: CoreEpiphanyPressureLevel,
+    modeling_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
+    verification_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
+    reorient_result_status: CoreEpiphanyCrrcResultStatus,
+    coordinator_action: CoreEpiphanyCoordinatorAction,
 ) -> String {
     let template = epiphany_agent_prompt_with_memory(
         &epiphany_specialist_prompt_config()
@@ -788,15 +792,5 @@ fn reorient_freshness_status_label(status: CoreEpiphanyReorientFreshnessStatus) 
         CoreEpiphanyReorientFreshnessStatus::Dirty => "dirty",
         CoreEpiphanyReorientFreshnessStatus::Stale => "stale",
         CoreEpiphanyReorientFreshnessStatus::Changed => "changed",
-    }
-}
-
-pub fn pressure_level_label(level: ThreadEpiphanyPressureLevel) -> &'static str {
-    match level {
-        ThreadEpiphanyPressureLevel::Unknown => "unknown",
-        ThreadEpiphanyPressureLevel::Low => "low",
-        ThreadEpiphanyPressureLevel::Elevated => "elevated",
-        ThreadEpiphanyPressureLevel::High => "high",
-        ThreadEpiphanyPressureLevel::Critical => "critical",
     }
 }

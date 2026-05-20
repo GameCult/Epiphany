@@ -404,12 +404,12 @@ pub async fn derive_epiphany_coordinator_status(
         reorient_finding_accepted,
     );
     let note = render_epiphany_coordinator_note(
-        map_protocol_crrc_action(recommendation.action),
-        map_protocol_pressure_level(pressure.level),
-        map_protocol_coordinator_role_result_status(modeling_result_status),
-        map_protocol_coordinator_role_result_status(verification_result_status),
-        reorient_result_status,
-        map_protocol_coordinator_action(decision.action),
+        recommendation.action,
+        pressure.level,
+        modeling_result_status,
+        verification_result_status,
+        source_signals.reorient_result_status,
+        decision.action,
     );
 
     EpiphanyCoordinatorStatus {

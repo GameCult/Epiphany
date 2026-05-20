@@ -349,6 +349,10 @@ current_status:
     to `ThreadEpiphanyReorientSource` only for the legacy response. Generic job
     launch now converts protocol `ThreadEpiphanyWorkerLaunchDocument` cargo at
     the app-server edge before building the core `EpiphanyJobLaunchRequest`.
+    Coordinator note rendering now consumes core CRRC/coordinator actions,
+    pressure, and role/reorient result statuses instead of protocol
+    `ThreadEpiphany*` action/status DTOs, so prompt/text policy no longer
+    treats JSON-RPC enums as its native fact shape.
     The bridge still depends on vendored Codex for app-server protocol DTOs and
     absolute path validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.
