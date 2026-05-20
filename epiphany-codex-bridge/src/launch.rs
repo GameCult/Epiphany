@@ -601,7 +601,7 @@ pub fn build_epiphany_job_launch_request(
     linked_subgoal_ids: Vec<String>,
     linked_graph_node_ids: Vec<String>,
     instruction: String,
-    launch_document: ThreadEpiphanyWorkerLaunchDocument,
+    launch_document: EpiphanyWorkerLaunchDocument,
     output_contract_id: String,
     max_runtime_seconds: Option<u64>,
 ) -> EpiphanyJobLaunchRequest {
@@ -615,7 +615,7 @@ pub fn build_epiphany_job_launch_request(
         linked_subgoal_ids,
         linked_graph_node_ids,
         instruction,
-        launch_document: map_core_worker_launch_document(launch_document),
+        launch_document,
         output_contract_id,
         max_runtime_seconds,
     }

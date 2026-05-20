@@ -20,6 +20,7 @@ use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
+use epiphany_codex_bridge::launch::map_core_worker_launch_document;
 use epiphany_codex_bridge::mutation::core_state_patch_from_protocol;
 use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation::map_protocol_state_updated_fields;
@@ -622,6 +623,7 @@ impl CodexMessageProcessor {
         };
 
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+        let core_launch_document = map_core_worker_launch_document(launch_document);
         let applied = match launch_thread_epiphany_job(
             &host,
             build_epiphany_job_launch_request(
@@ -634,7 +636,7 @@ impl CodexMessageProcessor {
                 linked_subgoal_ids,
                 linked_graph_node_ids,
                 instruction,
-                launch_document,
+                core_launch_document,
                 output_contract_id,
                 max_runtime_seconds,
             ),

@@ -346,7 +346,9 @@ current_status:
     use core `EpiphanyRoleResultRoleId` internally; app-server maps
     `ThreadEpiphanyRoleId` at the request/response edge. Reorient launch
     service results now use typed `EpiphanySurfaceSource`; app-server maps that
-    to `ThreadEpiphanyReorientSource` only for the legacy response. The bridge
-    still depends on vendored Codex for app-server protocol DTOs and absolute
-    path validation, so the purification is not done.
+    to `ThreadEpiphanyReorientSource` only for the legacy response. Generic job
+    launch now converts protocol `ThreadEpiphanyWorkerLaunchDocument` cargo at
+    the app-server edge before building the core `EpiphanyJobLaunchRequest`.
+    The bridge still depends on vendored Codex for app-server protocol DTOs and
+    absolute path validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.
