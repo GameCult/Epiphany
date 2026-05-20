@@ -46,42 +46,86 @@ use crate::runtime_results::map_protocol_role_result_status;
 use crate::scene::map_core_epiphany_scene_action;
 use crate::scene::map_epiphany_scene;
 
-pub fn default_epiphany_view_lenses() -> Vec<ThreadEpiphanyViewLens> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EpiphanyViewLens {
+    Scene,
+    Jobs,
+    Roles,
+    Planning,
+    Pressure,
+    Reorient,
+    Crrc,
+    Coordinator,
+}
+
+pub fn default_epiphany_view_lenses() -> Vec<EpiphanyViewLens> {
     vec![
-        ThreadEpiphanyViewLens::Scene,
-        ThreadEpiphanyViewLens::Jobs,
-        ThreadEpiphanyViewLens::Roles,
-        ThreadEpiphanyViewLens::Planning,
-        ThreadEpiphanyViewLens::Pressure,
-        ThreadEpiphanyViewLens::Reorient,
-        ThreadEpiphanyViewLens::Crrc,
-        ThreadEpiphanyViewLens::Coordinator,
+        EpiphanyViewLens::Scene,
+        EpiphanyViewLens::Jobs,
+        EpiphanyViewLens::Roles,
+        EpiphanyViewLens::Planning,
+        EpiphanyViewLens::Pressure,
+        EpiphanyViewLens::Reorient,
+        EpiphanyViewLens::Crrc,
+        EpiphanyViewLens::Coordinator,
     ]
 }
 
-pub fn epiphany_view_needs_jobs(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Jobs)
-        || lenses.contains(&ThreadEpiphanyViewLens::Roles)
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
+pub fn map_core_epiphany_view_lenses(lenses: Vec<ThreadEpiphanyViewLens>) -> Vec<EpiphanyViewLens> {
+    lenses
+        .into_iter()
+        .map(map_core_epiphany_view_lens)
+        .collect()
 }
 
-pub fn epiphany_view_needs_reorientation_inputs(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Roles)
-        || lenses.contains(&ThreadEpiphanyViewLens::Reorient)
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
+fn map_core_epiphany_view_lens(lens: ThreadEpiphanyViewLens) -> EpiphanyViewLens {
+    match lens {
+        ThreadEpiphanyViewLens::Scene => EpiphanyViewLens::Scene,
+        ThreadEpiphanyViewLens::Jobs => EpiphanyViewLens::Jobs,
+        ThreadEpiphanyViewLens::Roles => EpiphanyViewLens::Roles,
+        ThreadEpiphanyViewLens::Planning => EpiphanyViewLens::Planning,
+        ThreadEpiphanyViewLens::Pressure => EpiphanyViewLens::Pressure,
+        ThreadEpiphanyViewLens::Reorient => EpiphanyViewLens::Reorient,
+        ThreadEpiphanyViewLens::Crrc => EpiphanyViewLens::Crrc,
+        ThreadEpiphanyViewLens::Coordinator => EpiphanyViewLens::Coordinator,
+    }
 }
 
-pub fn epiphany_view_needs_pressure(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Pressure)
-        || epiphany_view_needs_reorientation_inputs(lenses)
+fn map_protocol_epiphany_view_lens(lens: EpiphanyViewLens) -> ThreadEpiphanyViewLens {
+    match lens {
+        EpiphanyViewLens::Scene => ThreadEpiphanyViewLens::Scene,
+        EpiphanyViewLens::Jobs => ThreadEpiphanyViewLens::Jobs,
+        EpiphanyViewLens::Roles => ThreadEpiphanyViewLens::Roles,
+        EpiphanyViewLens::Planning => ThreadEpiphanyViewLens::Planning,
+        EpiphanyViewLens::Pressure => ThreadEpiphanyViewLens::Pressure,
+        EpiphanyViewLens::Reorient => ThreadEpiphanyViewLens::Reorient,
+        EpiphanyViewLens::Crrc => ThreadEpiphanyViewLens::Crrc,
+        EpiphanyViewLens::Coordinator => ThreadEpiphanyViewLens::Coordinator,
+    }
 }
 
-pub fn epiphany_view_needs_runtime_store(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Roles)
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
+pub fn epiphany_view_needs_jobs(lenses: &[EpiphanyViewLens]) -> bool {
+    lenses.contains(&EpiphanyViewLens::Jobs)
+        || lenses.contains(&EpiphanyViewLens::Roles)
+        || lenses.contains(&EpiphanyViewLens::Crrc)
+        || lenses.contains(&EpiphanyViewLens::Coordinator)
+}
+
+pub fn epiphany_view_needs_reorientation_inputs(lenses: &[EpiphanyViewLens]) -> bool {
+    lenses.contains(&EpiphanyViewLens::Roles)
+        || lenses.contains(&EpiphanyViewLens::Reorient)
+        || lenses.contains(&EpiphanyViewLens::Crrc)
+        || lenses.contains(&EpiphanyViewLens::Coordinator)
+}
+
+pub fn epiphany_view_needs_pressure(lenses: &[EpiphanyViewLens]) -> bool {
+    lenses.contains(&EpiphanyViewLens::Pressure) || epiphany_view_needs_reorientation_inputs(lenses)
+}
+
+pub fn epiphany_view_needs_runtime_store(lenses: &[EpiphanyViewLens]) -> bool {
+    lenses.contains(&EpiphanyViewLens::Roles)
+        || lenses.contains(&EpiphanyViewLens::Crrc)
+        || lenses.contains(&EpiphanyViewLens::Coordinator)
 }
 
 pub struct EpiphanyFreshnessResponseInput<'a> {
@@ -162,7 +206,7 @@ pub fn map_epiphany_graph_query_response(
 
 pub struct EpiphanyViewResponseInput<'a> {
     pub thread_id: String,
-    pub lenses: Vec<ThreadEpiphanyViewLens>,
+    pub lenses: Vec<EpiphanyViewLens>,
     pub loaded: bool,
     pub state: Option<&'a EpiphanyThreadState>,
     pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
@@ -225,8 +269,8 @@ pub async fn map_epiphany_view_response(
         .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
         .cloned();
     let reorient_result = if runtime_store_path.is_some()
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
+        || lenses.contains(&EpiphanyViewLens::Crrc)
+        || lenses.contains(&EpiphanyViewLens::Coordinator)
     {
         load_core_epiphany_reorient_result_snapshot(
             state,
@@ -286,7 +330,7 @@ pub async fn map_epiphany_view_response(
     } else {
         None
     };
-    let coordinator_response = if lenses.contains(&ThreadEpiphanyViewLens::Coordinator) {
+    let coordinator_response = if lenses.contains(&EpiphanyViewLens::Coordinator) {
         if let (Some(core_pressure), Some(recommendation), Some(roles)) = (
             core_pressure.as_ref(),
             recommendation.as_ref(),
@@ -324,9 +368,9 @@ pub async fn map_epiphany_view_response(
     ThreadEpiphanyViewResponse {
         thread_id: thread_id.clone(),
         scene: lenses
-            .contains(&ThreadEpiphanyViewLens::Scene)
+            .contains(&EpiphanyViewLens::Scene)
             .then(|| map_epiphany_scene(state, loaded, EPIPHANY_REORIENT_LAUNCH_BINDING_ID)),
-        jobs: if lenses.contains(&ThreadEpiphanyViewLens::Jobs) {
+        jobs: if lenses.contains(&EpiphanyViewLens::Jobs) {
             jobs.iter()
                 .cloned()
                 .map(map_core_epiphany_job_view)
@@ -334,7 +378,7 @@ pub async fn map_epiphany_view_response(
         } else {
             Vec::new()
         },
-        roles: lenses.contains(&ThreadEpiphanyViewLens::Roles).then(|| {
+        roles: lenses.contains(&EpiphanyViewLens::Roles).then(|| {
             let role_board = roles.clone();
             let protocol_roles = role_board
                 .as_ref()
@@ -363,7 +407,7 @@ pub async fn map_epiphany_view_response(
                 roles: protocol_roles,
             }
         }),
-        planning: lenses.contains(&ThreadEpiphanyViewLens::Planning).then(|| {
+        planning: lenses.contains(&EpiphanyViewLens::Planning).then(|| {
             let (state_status, state_revision, planning, summary) = map_epiphany_planning(state);
             ThreadEpiphanyViewPlanning {
                 thread_id: thread_id.clone(),
@@ -379,11 +423,11 @@ pub async fn map_epiphany_view_response(
             }
         }),
         pressure: lenses
-            .contains(&ThreadEpiphanyViewLens::Pressure)
+            .contains(&EpiphanyViewLens::Pressure)
             .then(|| pressure.clone())
             .flatten(),
         reorient: lenses
-            .contains(&ThreadEpiphanyViewLens::Reorient)
+            .contains(&EpiphanyViewLens::Reorient)
             .then(|| {
                 reorient_decision
                     .clone()
@@ -401,7 +445,7 @@ pub async fn map_epiphany_view_response(
             })
             .flatten(),
         crrc: lenses
-            .contains(&ThreadEpiphanyViewLens::Crrc)
+            .contains(&EpiphanyViewLens::Crrc)
             .then(|| {
                 let pressure = pressure.clone()?;
                 let decision = reorient_decision.clone()?;
@@ -443,7 +487,10 @@ pub async fn map_epiphany_view_response(
             })
             .flatten(),
         coordinator: coordinator_response,
-        lenses,
+        lenses: lenses
+            .into_iter()
+            .map(map_protocol_epiphany_view_lens)
+            .collect(),
     }
 }
 

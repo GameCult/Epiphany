@@ -364,6 +364,9 @@ current_status:
     created only during response projection. Changed-field derivation now
     inspects typed `EpiphanyRoleStatePatchDocument` directly instead of
     converting patches back through `ThreadEpiphanyUpdatePatch` projection.
+    View-lens orchestration now uses bridge-native `EpiphanyViewLens` selectors;
+    app-server converts `ThreadEpiphanyViewLens` at the request wall and the
+    bridge maps back only for the legacy response `lenses` echo.
     The bridge still depends on vendored Codex for app-server protocol DTOs and
     absolute path validation, so the purification is not done.
   next_action: Continue Codex starvation and CultNet liberation by cutting bridge-internal `ThreadEpiphany*` authority. Prioritize role-result/reorient-result DTO coupling next: derive typed CultNet surfaces first, push JSON-RPC projection into app-server, and keep MCP/OpenAI JSON only at their true protocol/text edges. Do not add compatibility adapters unless they protect a named ownership invariant.

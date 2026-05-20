@@ -28,6 +28,7 @@ use epiphany_codex_bridge::view::epiphany_view_needs_pressure;
 use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::view::map_core_epiphany_distill_input;
+use epiphany_codex_bridge::view::map_core_epiphany_view_lenses;
 use epiphany_codex_bridge::view::map_epiphany_context_response;
 use epiphany_codex_bridge::view::map_epiphany_distill_response;
 use epiphany_codex_bridge::view::map_epiphany_graph_query_response;
@@ -52,7 +53,7 @@ impl CodexMessageProcessor {
         let lenses = if lenses.is_empty() {
             default_epiphany_view_lenses()
         } else {
-            lenses
+            map_core_epiphany_view_lenses(lenses)
         };
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
