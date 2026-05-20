@@ -671,6 +671,8 @@ pub struct HeartbeatMoodTiming {
     pub schema_version: String,
     pub source: Option<String>,
     pub cooldown_multiplier: f64,
+    #[serde(default)]
+    pub emotional_dimensions: Vec<HeartbeatMoodDimension>,
     pub anxiety: f64,
     pub urgency: f64,
     pub arousal: f64,
@@ -678,6 +680,13 @@ pub struct HeartbeatMoodTiming {
     pub guardedness: f64,
     pub reaction_intensity: f64,
     pub contract: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct HeartbeatMoodDimension {
+    pub name: String,
+    pub value: f64,
+    pub source_path: String,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]

@@ -1386,11 +1386,14 @@ fn apply_mood_timing_from_appraisals(
             .clamp(0.0, 1.0);
         let multiplier =
             (1.10 - urgency * 0.24 - anxiety * 0.38 - reaction_intensity * 0.12).clamp(0.55, 1.25);
+        let emotional_dimensions =
+            heartbeat_emotional_dimensions(appraisal, anxiety, reaction_intensity);
         participant.mood_cooldown_multiplier = round3(multiplier);
         participant.mood_timing = Some(HeartbeatMoodTiming {
             schema_version: "epiphany.mood_timing.v0".to_string(),
             source: Some(appraisal.appraisal_id.clone()),
             cooldown_multiplier: round3(multiplier),
+            emotional_dimensions,
             anxiety: round3(anxiety),
             urgency: round3(urgency),
             arousal: round3(arousal),
@@ -1400,6 +1403,120 @@ fn apply_mood_timing_from_appraisals(
             contract: "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner.".to_string(),
         });
     }
+}
+
+fn heartbeat_emotional_dimensions(
+    appraisal: &HeartbeatAgentThoughtAppraisal,
+    anxiety: f64,
+    reaction_intensity: f64,
+) -> Vec<HeartbeatMoodDimension> {
+    let emotional = &appraisal.emotional_appraisal;
+    let dimensions = [
+        ("valence", emotional.valence),
+        ("arousal", emotional.arousal),
+        (
+            "dominance",
+            projected_emotion(appraisal, &["dominance", "command_force"]),
+        ),
+        ("urgency", emotional.urgency),
+        (
+            "anger",
+            projected_emotion(appraisal, &["anger", "rage", "fury"]),
+        ),
+        (
+            "despair",
+            projected_emotion(appraisal, &["despair", "hopelessness"]),
+        ),
+        (
+            "sadness",
+            projected_emotion(appraisal, &["sadness", "grief", "sorrow"]),
+        ),
+        (
+            "fear",
+            projected_emotion(appraisal, &["fear", "terror"]).max(anxiety),
+        ),
+        ("anxiety", anxiety),
+        (
+            "disgust",
+            projected_emotion(appraisal, &["disgust", "revulsion"]),
+        ),
+        ("contempt", projected_emotion(appraisal, &["contempt"])),
+        (
+            "annoyance",
+            projected_emotion(appraisal, &["annoyance", "irritation"]),
+        ),
+        (
+            "dismissal",
+            projected_emotion(appraisal, &["dismissal", "dismissiveness"]),
+        ),
+        (
+            "flippancy",
+            projected_emotion(appraisal, &["flippancy", "playfulness"]),
+        ),
+        (
+            "playfulness",
+            projected_emotion(appraisal, &["playfulness", "play"]),
+        ),
+        ("irony", projected_emotion(appraisal, &["irony", "dryness"])),
+        ("tenderness", projected_emotion(appraisal, &["tenderness"])),
+        ("warmth", projected_emotion(appraisal, &["warmth"])),
+        ("joy", projected_emotion(appraisal, &["joy", "delight"])),
+        (
+            "excitement",
+            projected_emotion(appraisal, &["excitement"])
+                .max(emotional.arousal * emotional.curiosity),
+        ),
+        (
+            "fatigue",
+            projected_emotion(appraisal, &["fatigue", "exhaustion"]),
+        ),
+        ("guardedness", emotional.guardedness),
+        ("confidence", projected_emotion(appraisal, &["confidence"])),
+        ("shame", projected_emotion(appraisal, &["shame"])),
+        ("pride", projected_emotion(appraisal, &["pride"])),
+        (
+            "threat",
+            projected_emotion(appraisal, &["threat", "menace"]),
+        ),
+        (
+            "secrecy",
+            projected_emotion(appraisal, &["secrecy", "low_projection"]),
+        ),
+        ("hesitation", projected_emotion(appraisal, &["hesitation"])),
+        (
+            "emotionalContainment",
+            projected_emotion(appraisal, &["emotional_containment", "containment"]),
+        ),
+        ("thoughtPressure", emotional.thought_pressure),
+        ("reactionIntensity", reaction_intensity),
+        (
+            "commandForce",
+            projected_emotion(appraisal, &["command_force"]),
+        ),
+    ];
+    dimensions
+        .into_iter()
+        .map(|(name, value)| HeartbeatMoodDimension {
+            name: name.to_string(),
+            value: round3(value.clamp(0.0, 1.0)),
+            source_path: format!("heartbeat.appraisal.{}.{}", appraisal.appraisal_id, name),
+        })
+        .collect()
+}
+
+fn projected_emotion(appraisal: &HeartbeatAgentThoughtAppraisal, needles: &[&str]) -> f64 {
+    appraisal
+        .personality_projection
+        .iter()
+        .filter(|projection| {
+            let name = projection.name.to_ascii_lowercase();
+            needles.iter().any(|needle| {
+                let spaced = needle.replace('_', " ");
+                name.contains(*needle) || name.contains(&spaced)
+            })
+        })
+        .map(|projection| projection.projection)
+        .fold(0.0_f64, f64::max)
 }
 
 fn build_memory_resonance(records: &[RoleMemoryRecord]) -> HeartbeatMemoryResonance {
@@ -3140,5 +3257,72 @@ mod tests {
         );
         assert_eq!(tick["schedule"]["participants"][0]["arena"], "scene");
         Ok(())
+    }
+
+    #[test]
+    fn appraisal_mood_timing_carries_affect_vector() {
+        let mut state = default_heartbeat_state(1.0);
+        patch_missing_participants(&mut state);
+        let appraisals = HeartbeatAgentThoughtAppraisals {
+            schema_version: "epiphany.agent_thought_appraisals.v0".to_string(),
+            updated_at: "2026-05-20T00:00:00+00:00".to_string(),
+            thought_cluster_ref: "test-affect".to_string(),
+            participant_appraisals: vec![HeartbeatAgentThoughtAppraisal {
+                appraisal_id: "appraisal-face-affect".to_string(),
+                participant_agent_id: "epiphany.face".to_string(),
+                role_id: "face".to_string(),
+                emotional_appraisal: HeartbeatEmotionalAppraisal {
+                    valence: 0.2,
+                    arousal: 0.81,
+                    urgency: 0.66,
+                    curiosity: 0.14,
+                    guardedness: 0.72,
+                    thought_pressure: 0.77,
+                },
+                personality_projection: vec![
+                    HeartbeatPersonalityProjection {
+                        name: "anger".to_string(),
+                        projection: 0.88,
+                        ..HeartbeatPersonalityProjection::default()
+                    },
+                    HeartbeatPersonalityProjection {
+                        name: "dismissal".to_string(),
+                        projection: 0.63,
+                        ..HeartbeatPersonalityProjection::default()
+                    },
+                    HeartbeatPersonalityProjection {
+                        name: "flippancy".to_string(),
+                        projection: 0.41,
+                        ..HeartbeatPersonalityProjection::default()
+                    },
+                ],
+                candidate_implications: HeartbeatCandidateImplications {
+                    reaction_intensity: 0.79,
+                    ..HeartbeatCandidateImplications::default()
+                },
+                ..HeartbeatAgentThoughtAppraisal::default()
+            }],
+        };
+
+        apply_mood_timing_from_appraisals(&mut state, &appraisals);
+        let face = state
+            .participants
+            .iter()
+            .find(|participant| participant.role_id == "face")
+            .expect("face participant");
+        let mood = face.mood_timing.as_ref().expect("face mood timing");
+        assert_eq!(mood.emotional_dimensions.len(), 32);
+        assert_eq!(mood_dimension(mood, "anger"), Some(0.88));
+        assert_eq!(mood_dimension(mood, "dismissal"), Some(0.63));
+        assert_eq!(mood_dimension(mood, "flippancy"), Some(0.41));
+        assert_eq!(mood_dimension(mood, "valence"), Some(0.2));
+        assert_eq!(mood_dimension(mood, "arousal"), Some(0.81));
+    }
+
+    fn mood_dimension(mood: &HeartbeatMoodTiming, name: &str) -> Option<f64> {
+        mood.emotional_dimensions
+            .iter()
+            .find(|dimension| dimension.name == name)
+            .map(|dimension| dimension.value)
     }
 }

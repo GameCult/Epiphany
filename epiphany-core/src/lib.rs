@@ -92,6 +92,8 @@ pub use heartbeat_state::HeartbeatHeatUpdateOptions;
 pub use heartbeat_state::HeartbeatHistoryEvent;
 pub use heartbeat_state::HeartbeatInitiativeHeatPolicy;
 pub use heartbeat_state::HeartbeatInitiativeMultiplier;
+pub use heartbeat_state::HeartbeatMoodDimension;
+pub use heartbeat_state::HeartbeatMoodTiming;
 pub use heartbeat_state::HeartbeatPacingPolicy;
 pub use heartbeat_state::HeartbeatParticipant;
 pub use heartbeat_state::HeartbeatParticipantLocalContext;

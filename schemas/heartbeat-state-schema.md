@@ -74,6 +74,15 @@ Each participant tracks:
 - `constraints`
 - last action metadata
 - optional `pending_turn`
+- optional `mood_timing`
+  - `cooldown_multiplier`
+  - scalar timing pressures: `anxiety`, `urgency`, `arousal`,
+    `thought_pressure`, `guardedness`, `reaction_intensity`
+  - `emotional_dimensions`: the 32-axis current affect vector used by
+    utterance-state projection, including anger, despair, sadness, fear,
+    contempt, annoyance, dismissal, flippancy, tenderness, warmth, shame,
+    pride, fatigue, secrecy, hesitation, emotional containment, and command
+    force
 
 Maintenance participants are the standing Epiphany organs. Scene participants
 reuse the same timing law for Ghostlight-style character turns.
@@ -103,6 +112,13 @@ Heartbeat is physiology, not identity.
 
 Role dossiers describe what an organ is. Heartbeat describes how often it gets
 the floor, how reactive it is, and how current pressure bends that timing.
+
+Current emotional state is heartbeat physiology. Appraisals write a bounded
+named affect vector into `mood_timing`; utterance state consumes that live vector
+before falling back to slower dossier traits. If anger, despair, annoyance,
+dismissal, flippancy, or any other speech-relevant feeling is meant to color a
+voice, it must exist here or in the typed appraisal feeding this field, not only
+as prose in a prompt.
 
 Birth-time repo personality may seed heartbeat timing once. After that, routine
 state, appraisal, mood, continuity pressure, and live work should carry the

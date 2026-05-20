@@ -240,15 +240,29 @@ fn derive_utterance_mood(
             .map(str::to_string)
             .unwrap_or_else(|| inferred_mood_label(timing.map(|mood| mood.arousal), situational)),
         source: timing.and_then(|mood| mood.source.clone()),
-        emotional_dimensions: emotional_dimensions(
-            situational,
-            anxiety,
-            urgency,
-            arousal,
-            thought_pressure,
-            guardedness,
-            reaction_intensity,
-        ),
+        emotional_dimensions: timing
+            .filter(|mood| !mood.emotional_dimensions.is_empty())
+            .map(|mood| {
+                mood.emotional_dimensions
+                    .iter()
+                    .map(|dimension| AgentUtteranceMoodDimension {
+                        name: dimension.name.clone(),
+                        value: dimension.value,
+                        source_path: dimension.source_path.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(|| {
+                emotional_dimensions(
+                    situational,
+                    anxiety,
+                    urgency,
+                    arousal,
+                    thought_pressure,
+                    guardedness,
+                    reaction_intensity,
+                )
+            }),
         anxiety,
         urgency,
         arousal,
