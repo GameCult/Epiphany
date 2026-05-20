@@ -1,0 +1,451 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-utterance-state.schema.json",
+  "title": "Epiphany Agent Utterance State",
+  "description": "Derived speech-conditioning subset of a Ghostlight agent dossier plus heartbeat mood/activation. Excludes memories.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "epiphany.agent_utterance_state.v0"
+    },
+    "source": {
+      "type": "string"
+    },
+    "roleId": {
+      "type": "string"
+    },
+    "agentId": {
+      "type": "string"
+    },
+    "dossierProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profileKind": {
+          "enum": [
+            "lane_core",
+            "embodied_actor"
+          ]
+        },
+        "canonicalDensity": {
+          "type": "string"
+        },
+        "relationshipModel": {
+          "type": "string"
+        },
+        "perceivedOverlayMode": {
+          "type": "string"
+        },
+        "growthChannels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "profileKind",
+        "canonicalDensity",
+        "relationshipModel",
+        "perceivedOverlayMode",
+        "growthChannels",
+        "notes"
+      ]
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "origin": {
+          "type": "string"
+        },
+        "publicDescription": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "roles",
+        "origin",
+        "publicDescription"
+      ]
+    },
+    "personalityVectors": {
+      "$ref": "#/definitions/personalityVectors"
+    },
+    "values": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "valueId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "number"
+          },
+          "unforgivableIfBetrayed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valueId",
+          "label",
+          "priority",
+          "unforgivableIfBetrayed"
+        ]
+      }
+    },
+    "currentMood": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "emotionalDimensions": {
+          "type": "array",
+          "minItems": 32,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              },
+              "sourcePath": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "value",
+              "sourcePath"
+            ]
+          }
+        },
+        "anxiety": {
+          "type": "number"
+        },
+        "urgency": {
+          "type": "number"
+        },
+        "arousal": {
+          "type": "number"
+        },
+        "thoughtPressure": {
+          "type": "number"
+        },
+        "guardedness": {
+          "type": "number"
+        },
+        "reactionIntensity": {
+          "type": "number"
+        },
+        "cooldownMultiplier": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "emotionalDimensions",
+        "anxiety",
+        "urgency",
+        "arousal",
+        "thoughtPressure",
+        "guardedness",
+        "reactionIntensity",
+        "cooldownMultiplier"
+      ]
+    },
+    "activation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "currentLoad": {
+          "type": "number"
+        },
+        "initiativeSpeed": {
+          "type": "number"
+        },
+        "reactionBias": {
+          "type": "number"
+        },
+        "interruptThreshold": {
+          "type": "number"
+        },
+        "personalityCooldownMultiplier": {
+          "type": "number"
+        },
+        "moodCooldownMultiplier": {
+          "type": "number"
+        },
+        "initiativeHeatMultiplier": {
+          "type": "number"
+        },
+        "effectiveCooldownMultiplier": {
+          "type": "number"
+        },
+        "pendingTurnActive": {
+          "type": "boolean"
+        },
+        "sceneId": {
+          "type": "string"
+        },
+        "lastWokeAt": {
+          "type": "string"
+        },
+        "lastFinishedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "currentLoad",
+        "initiativeSpeed",
+        "reactionBias",
+        "interruptThreshold",
+        "personalityCooldownMultiplier",
+        "moodCooldownMultiplier",
+        "initiativeHeatMultiplier",
+        "effectiveCooldownMultiplier",
+        "pendingTurnActive"
+      ]
+    },
+    "characterStateVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": "epiphany.agent_character_state_vector.v0"
+        },
+        "compatibleHandoffSchema": {
+          "const": "weksa.utterance_embedding_handoff.v0.1"
+        },
+        "source": {
+          "type": "string"
+        },
+        "dimensionality": {
+          "const": 64
+        },
+        "values": {
+          "type": "array",
+          "minItems": 64,
+          "maxItems": 64,
+          "items": {
+            "type": "number"
+          }
+        },
+        "slots": {
+          "type": "array",
+          "minItems": 64,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 63
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "number"
+              },
+              "sourcePath": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "index",
+              "name",
+              "value",
+              "sourcePath"
+            ]
+          }
+        },
+        "auditProjection": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "currentStatePressure": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "speakerTraitPressure": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "deliveryShape": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "currentStatePressure",
+            "speakerTraitPressure",
+            "deliveryShape"
+          ]
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "compatibleHandoffSchema",
+        "source",
+        "dimensionality",
+        "values",
+        "slots",
+        "auditProjection",
+        "uncertainties"
+      ]
+    },
+    "utteranceEmbeddingBasis": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "path",
+          "weight",
+          "text"
+        ]
+      }
+    },
+    "contract": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "source",
+    "roleId",
+    "agentId",
+    "dossierProfile",
+    "identity",
+    "personalityVectors",
+    "values",
+    "currentMood",
+    "activation",
+    "characterStateVector",
+    "utteranceEmbeddingBasis",
+    "contract"
+  ],
+  "definitions": {
+    "personalityVectors": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "underlyingOrganization": {
+          "$ref": "#/definitions/traitVectorMap"
+        },
+        "stableDispositions": {
+          "$ref": "#/definitions/traitVectorMap"
+        },
+        "behavioralDimensions": {
+          "$ref": "#/definitions/traitVectorMap"
+        },
+        "presentationStrategy": {
+          "$ref": "#/definitions/traitVectorMap"
+        },
+        "voiceStyle": {
+          "$ref": "#/definitions/traitVectorMap"
+        },
+        "situationalState": {
+          "$ref": "#/definitions/traitVectorMap"
+        }
+      },
+      "required": [
+        "underlyingOrganization",
+        "stableDispositions",
+        "behavioralDimensions",
+        "presentationStrategy",
+        "voiceStyle",
+        "situationalState"
+      ]
+    },
+    "traitVectorMap": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/traitVector"
+      }
+    },
+    "traitVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mean": {
+          "type": "number"
+        },
+        "plasticity": {
+          "type": "number"
+        },
+        "current_activation": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "mean",
+        "plasticity",
+        "current_activation"
+      ]
+    }
+  }
+}

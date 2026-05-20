@@ -3,7 +3,6 @@ use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
 use epiphany_core::EpiphanyAgentMemoryEntry;
-use epiphany_core::GhostlightMemory;
 use epiphany_core::GhostlightPerceivedStateOverlay;
 use epiphany_core::GhostlightTraitVector;
 use epiphany_core::HeartbeatAgentReaction;
@@ -11,8 +10,10 @@ use epiphany_core::HeartbeatAgentThoughtAppraisal;
 use epiphany_core::HeartbeatAppraisalReview;
 use epiphany_core::HeartbeatCandidateImplications;
 use epiphany_core::HeartbeatEmotionalAppraisal;
+use epiphany_core::HeartbeatParticipant;
 use epiphany_core::HeartbeatParticipantLocalContext;
 use epiphany_core::HeartbeatPersonalityProjection;
+use epiphany_core::derive_agent_utterance_state;
 use epiphany_core::dossier_profile_for_role;
 use epiphany_core::load_agent_memory_entry_for_role;
 use serde::Serialize;
@@ -129,6 +130,9 @@ fn character_turn_packet(
     mood: &str,
 ) -> Value {
     let dossier_profile = dossier_profile_for_role(&entry.role_id);
+    let participant = character_loop_participant(entry, status);
+    let utterance_state =
+        derive_agent_utterance_state(entry, Some(&participant), Some(mood), source);
     let projection_seed =
         deterministic_projection_seed(entry, stimulus, source, mode, status, mood);
     let appraisal_seed = deterministic_appraisal_seed(entry, &projection_seed, stimulus, source);
@@ -153,6 +157,7 @@ fn character_turn_packet(
             "status": status,
             "mood": mood,
         },
+        "utteranceState": utterance_state,
         "projectedLocalContext": {
             "identity": {
                 "name": entry.agent.identity.name,
@@ -181,9 +186,6 @@ fn character_turn_packet(
                 "priority": value.priority,
                 "unforgivableIfBetrayed": value.unforgivable_if_betrayed,
             })).collect::<Vec<_>>(),
-            "semanticMemories": entry.agent.memories.semantic.iter().map(memory_projection).collect::<Vec<_>>(),
-            "episodicMemories": entry.agent.memories.episodic.iter().map(memory_projection).collect::<Vec<_>>(),
-            "relationshipMemories": entry.agent.memories.relationship_summaries.iter().map(memory_projection).collect::<Vec<_>>(),
             "perceivedStateOverlays": entry.agent.perceived_state_overlays.iter().take(6).map(perceived_overlay_projection).collect::<Vec<_>>(),
             "privateNoteCount": entry.agent.identity.private_notes.len(),
         },
@@ -252,13 +254,23 @@ fn character_turn_packet(
     })
 }
 
-fn memory_projection(memory: &GhostlightMemory) -> Value {
-    serde_json::json!({
-        "memoryId": memory.memory_id,
-        "summary": memory.summary,
-        "salience": memory.salience,
-        "confidence": memory.confidence,
-    })
+fn character_loop_participant(
+    entry: &EpiphanyAgentMemoryEntry,
+    status: &str,
+) -> HeartbeatParticipant {
+    HeartbeatParticipant {
+        agent_id: entry.agent.agent_id.clone(),
+        role_id: entry.role_id.clone(),
+        display_name: entry.agent.identity.name.clone(),
+        initiative_speed: 1.0,
+        reaction_bias: 0.5,
+        interrupt_threshold: 0.5,
+        status: status.to_string(),
+        personality_cooldown_multiplier: 1.0,
+        mood_cooldown_multiplier: 1.0,
+        initiative_heat_multiplier: 1.0,
+        ..HeartbeatParticipant::default()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -772,6 +784,24 @@ fn run_smoke() -> Result<Value> {
         && packet["protocol"]["roleId"] == "face"
         && packet["protocol"]["dossierProfile"]["profileKind"] == "embodied_actor"
         && packet["projectedLocalContext"]["dossierProfile"]["profileKind"] == "embodied_actor"
+        && packet["utteranceState"]["schemaVersion"] == "epiphany.agent_utterance_state.v0"
+        && packet["utteranceState"]["identity"]["name"]
+            == packet["projectedLocalContext"]["identity"]["name"]
+        && packet["utteranceState"]["personalityVectors"]["voiceStyle"].is_object()
+        && packet["utteranceState"]["characterStateVector"]["compatibleHandoffSchema"]
+            == "weksa.utterance_embedding_handoff.v0.1"
+        && packet["utteranceState"]["characterStateVector"]["values"]
+            .as_array()
+            .is_some_and(|values| values.len() == 64)
+        && packet["projectedLocalContext"]
+            .get("semanticMemories")
+            .is_none()
+        && packet["projectedLocalContext"]
+            .get("episodicMemories")
+            .is_none()
+        && packet["projectedLocalContext"]
+            .get("relationshipMemories")
+            .is_none()
         && packet["projectionSeed"]["schema_version"] == "epiphany.personality_projection.v0"
         && packet["appraisalSeed"]["schema_version"] == "epiphany.agent_thought_appraisal.v0"
         && packet["reactionSeed"]["schema_version"] == "epiphany.agent_reaction.v0"
@@ -797,6 +827,7 @@ fn run_smoke() -> Result<Value> {
             "projectionSchema": packet["projectionSeed"]["schema_version"],
             "appraisalSchema": packet["appraisalSeed"]["schema_version"],
             "reactionSchema": packet["reactionSeed"]["schema_version"],
+            "utteranceStateSchema": packet["utteranceState"]["schemaVersion"],
             "identityName": packet["projectedLocalContext"]["identity"]["name"],
             "allowedOutputs": packet["allowedOutputs"],
             "cognitionLanes": packet["cognitionLanes"]["schema_version"],

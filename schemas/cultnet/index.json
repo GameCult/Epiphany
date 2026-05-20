@@ -112,6 +112,17 @@
       "path": "epiphany.agent.memory.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-utterance-state.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.agent_utterance_state.v0",
+      "documentType": "epiphany.agent_utterance_state",
+      "title": "Epiphany Agent Utterance State",
+      "path": "epiphany.agent-utterance-state.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
       "kind": "document_payload",
       "wireContracts": [
