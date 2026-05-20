@@ -20,7 +20,6 @@ use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view::derive_epiphany_freshness_surface;
-use epiphany_codex_bridge::view::map_core_epiphany_distill_input;
 use epiphany_codex_bridge::view::map_core_epiphany_view_lenses;
 use epiphany_codex_bridge::view::map_epiphany_context_response;
 use epiphany_codex_bridge::view::map_epiphany_distill_response;
@@ -30,6 +29,7 @@ use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view::map_epiphany_view_response;
 use epiphany_core::EpiphanyContextParams;
+use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyGraphQuery;
 use epiphany_core::EpiphanyGraphQueryDirection;
 use epiphany_core::EpiphanyGraphQueryKind;
@@ -514,7 +514,7 @@ impl CodexMessageProcessor {
             .await
             .map(|state| state.revision)
             .unwrap_or(0);
-        let input = map_core_epiphany_distill_input(params);
+        let input = thread_epiphany_distill_params_to_core(params);
         let response = match map_epiphany_distill_response(expected_revision, input) {
             Ok(response) => response,
             Err(err) => {
@@ -596,6 +596,28 @@ fn thread_epiphany_context_params_to_core(
         evidence_ids: params.evidence_ids.clone(),
         include_active_frontier: params.include_active_frontier,
         include_linked_evidence: params.include_linked_evidence,
+    }
+}
+
+fn thread_epiphany_distill_params_to_core(
+    params: ThreadEpiphanyDistillParams,
+) -> EpiphanyDistillInput {
+    let ThreadEpiphanyDistillParams {
+        source_kind,
+        status,
+        text,
+        subject,
+        evidence_kind,
+        code_refs,
+        ..
+    } = params;
+    EpiphanyDistillInput {
+        source_kind,
+        status,
+        text,
+        subject,
+        evidence_kind,
+        code_refs,
     }
 }
 

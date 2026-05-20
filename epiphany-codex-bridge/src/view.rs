@@ -595,28 +595,6 @@ pub fn map_epiphany_distill_response(
     })
 }
 
-pub fn map_core_epiphany_distill_input(
-    params: ThreadEpiphanyDistillParams,
-) -> EpiphanyDistillInput {
-    let ThreadEpiphanyDistillParams {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-        ..
-    } = params;
-    EpiphanyDistillInput {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-    }
-}
-
 pub fn map_epiphany_propose_response(
     state: EpiphanyThreadState,
     observation_ids: Vec<String>,
