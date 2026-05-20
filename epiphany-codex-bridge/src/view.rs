@@ -562,26 +562,9 @@ pub async fn map_epiphany_reorient_result_response(
 
 pub fn map_epiphany_distill_response(
     expected_revision: u64,
-    params: ThreadEpiphanyDistillParams,
+    input: EpiphanyDistillInput,
 ) -> std::result::Result<ThreadEpiphanyDistillResponse, String> {
-    let ThreadEpiphanyDistillParams {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-        ..
-    } = params;
-    let proposal = distill_observation(EpiphanyDistillInput {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-    })
-    .map_err(|err| err.to_string())?;
+    let proposal = distill_observation(input).map_err(|err| err.to_string())?;
 
     Ok(ThreadEpiphanyDistillResponse {
         expected_revision,
@@ -591,6 +574,28 @@ pub fn map_epiphany_distill_response(
             ..Default::default()
         },
     })
+}
+
+pub fn map_core_epiphany_distill_input(
+    params: ThreadEpiphanyDistillParams,
+) -> EpiphanyDistillInput {
+    let ThreadEpiphanyDistillParams {
+        source_kind,
+        status,
+        text,
+        subject,
+        evidence_kind,
+        code_refs,
+        ..
+    } = params;
+    EpiphanyDistillInput {
+        source_kind,
+        status,
+        text,
+        subject,
+        evidence_kind,
+        code_refs,
+    }
 }
 
 pub fn map_epiphany_propose_response(

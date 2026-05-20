@@ -27,6 +27,7 @@ use epiphany_codex_bridge::view::epiphany_view_needs_jobs;
 use epiphany_codex_bridge::view::epiphany_view_needs_pressure;
 use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
+use epiphany_codex_bridge::view::map_core_epiphany_distill_input;
 use epiphany_codex_bridge::view::map_epiphany_context_response;
 use epiphany_codex_bridge::view::map_epiphany_distill_response;
 use epiphany_codex_bridge::view::map_epiphany_graph_query_response;
@@ -510,7 +511,8 @@ impl CodexMessageProcessor {
             .await
             .map(|state| state.revision)
             .unwrap_or(0);
-        let response = match map_epiphany_distill_response(expected_revision, params) {
+        let input = map_core_epiphany_distill_input(params);
+        let response = match map_epiphany_distill_response(expected_revision, input) {
             Ok(response) => response,
             Err(err) => {
                 self.send_invalid_request_error(
