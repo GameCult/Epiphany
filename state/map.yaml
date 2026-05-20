@@ -378,7 +378,10 @@ current_status:
     coordinator decision assembly. Coordinator finding signals now derive in
     core from typed modeling/verification/reorient findings plus
     `EpiphanyThreadState`, so accepted/reviewable/coverage/verdict/evidence
-    sequencing facts are no longer bridge helper law. Reorient worker launch-request/document
+    sequencing facts are no longer bridge helper law. View lens selector
+    semantics also moved into core: `EpiphanyViewLens`, default lens selection,
+    and lens dependency planning now decide which host facts app-server/bridge
+    need to load before legacy response projection. Reorient worker launch-request/document
     composition also moved behind a typed core seam
     (`EpiphanyReorientLaunchRequestInput` -> `EpiphanyJobLaunchRequest`);
     bridge supplies only the prompt instruction and retained compatibility

@@ -8,8 +8,12 @@ use epiphany_core::EpiphanyMapProposalInput;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
+use epiphany_core::EpiphanyViewLens;
 use epiphany_core::derive_scene;
 use epiphany_core::distill_observation;
+use epiphany_core::epiphany_view_needs_jobs;
+use epiphany_core::epiphany_view_needs_pressure;
+use epiphany_core::epiphany_view_needs_reorientation_inputs;
 use epiphany_core::propose_map_update;
 use epiphany_core::reorient_finding_already_accepted;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -46,31 +50,6 @@ use crate::runtime_results::map_protocol_role_result_status;
 use crate::scene::map_core_epiphany_scene_action;
 use crate::scene::map_epiphany_scene;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum EpiphanyViewLens {
-    Scene,
-    Jobs,
-    Roles,
-    Planning,
-    Pressure,
-    Reorient,
-    Crrc,
-    Coordinator,
-}
-
-pub fn default_epiphany_view_lenses() -> Vec<EpiphanyViewLens> {
-    vec![
-        EpiphanyViewLens::Scene,
-        EpiphanyViewLens::Jobs,
-        EpiphanyViewLens::Roles,
-        EpiphanyViewLens::Planning,
-        EpiphanyViewLens::Pressure,
-        EpiphanyViewLens::Reorient,
-        EpiphanyViewLens::Crrc,
-        EpiphanyViewLens::Coordinator,
-    ]
-}
-
 pub fn map_core_epiphany_view_lenses(lenses: Vec<ThreadEpiphanyViewLens>) -> Vec<EpiphanyViewLens> {
     lenses
         .into_iter()
@@ -102,30 +81,6 @@ fn map_protocol_epiphany_view_lens(lens: EpiphanyViewLens) -> ThreadEpiphanyView
         EpiphanyViewLens::Crrc => ThreadEpiphanyViewLens::Crrc,
         EpiphanyViewLens::Coordinator => ThreadEpiphanyViewLens::Coordinator,
     }
-}
-
-pub fn epiphany_view_needs_jobs(lenses: &[EpiphanyViewLens]) -> bool {
-    lenses.contains(&EpiphanyViewLens::Jobs)
-        || lenses.contains(&EpiphanyViewLens::Roles)
-        || lenses.contains(&EpiphanyViewLens::Crrc)
-        || lenses.contains(&EpiphanyViewLens::Coordinator)
-}
-
-pub fn epiphany_view_needs_reorientation_inputs(lenses: &[EpiphanyViewLens]) -> bool {
-    lenses.contains(&EpiphanyViewLens::Roles)
-        || lenses.contains(&EpiphanyViewLens::Reorient)
-        || lenses.contains(&EpiphanyViewLens::Crrc)
-        || lenses.contains(&EpiphanyViewLens::Coordinator)
-}
-
-pub fn epiphany_view_needs_pressure(lenses: &[EpiphanyViewLens]) -> bool {
-    lenses.contains(&EpiphanyViewLens::Pressure) || epiphany_view_needs_reorientation_inputs(lenses)
-}
-
-pub fn epiphany_view_needs_runtime_store(lenses: &[EpiphanyViewLens]) -> bool {
-    lenses.contains(&EpiphanyViewLens::Roles)
-        || lenses.contains(&EpiphanyViewLens::Crrc)
-        || lenses.contains(&EpiphanyViewLens::Coordinator)
 }
 
 pub struct EpiphanyFreshnessResponseInput<'a> {

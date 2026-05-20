@@ -61,6 +61,7 @@ codex-utils-json-to-toml = { workspace = true }
 codex-utils-rustls-provider = { workspace = true }
 chrono = { workspace = true }
 epiphany-codex-bridge = { path = "../../../../epiphany-codex-bridge" }
+epiphany-core = { path = "../../../../epiphany-core" }
 clap = { workspace = true, features = ["derive"] }
 constant_time_eq = { workspace = true }
 futures = { workspace = true }
