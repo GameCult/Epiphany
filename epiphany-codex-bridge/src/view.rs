@@ -36,13 +36,13 @@ use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use crate::pressure::derive_epiphany_pressure;
 use crate::pressure::map_epiphany_pressure;
 use crate::protocol_edge::protocol_job_from_surface;
+use crate::protocol_edge::protocol_reorient_decision;
 use crate::protocol_edge::protocol_reorient_result_status;
+use crate::protocol_edge::protocol_reorient_state_status;
 use crate::protocol_edge::protocol_role_result_status;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::reorient::map_protocol_reorient_decision;
-use crate::reorient::map_protocol_reorient_state_status;
 use crate::results::map_protocol_reorient_finding;
 use crate::results::map_protocol_role_result_role_id;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
@@ -190,10 +190,10 @@ pub async fn map_epiphany_view_response(
                 None,
             )
         };
-    let reorient_state_status = map_protocol_reorient_state_status(core_reorient_state_status);
+    let reorient_state_status = protocol_reorient_state_status(core_reorient_state_status);
     let reorient_decision = core_reorient_decision
         .clone()
-        .map(map_protocol_reorient_decision);
+        .map(protocol_reorient_decision);
     let jobs = if needs_jobs {
         map_epiphany_jobs(state, retrieval_override)
     } else {

@@ -66,11 +66,11 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::protocol_edge::protocol_job_from_surface;
 use crate::protocol_edge::protocol_pressure_level;
 use crate::protocol_edge::protocol_reorient_result_status;
+use crate::protocol_edge::protocol_reorient_state_status;
 use crate::protocol_edge::protocol_role_result_status;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
-use crate::reorient::map_protocol_reorient_state_status;
 use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
 use crate::runtime_results::load_core_epiphany_role_result_snapshot;
 
@@ -285,7 +285,7 @@ pub fn map_epiphany_coordinator_view(
         } else {
             ThreadEpiphanyRolesSource::Stored
         },
-        state_status: map_protocol_reorient_state_status(state_status),
+        state_status: protocol_reorient_state_status(state_status),
         state_revision,
         action: map_protocol_coordinator_action(status.core.decision.action),
         target_role: status

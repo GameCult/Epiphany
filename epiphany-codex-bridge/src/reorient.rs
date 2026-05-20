@@ -1,15 +1,3 @@
-use codex_app_server_protocol::ThreadEpiphanyGraphFreshness;
-use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
-use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
-use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
-use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
-use codex_app_server_protocol::ThreadEpiphanyReorientAction;
-use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
-use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
-use codex_app_server_protocol::ThreadEpiphanyReorientReason;
-use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
-use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
-use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use epiphany_core::EpiphanyFreshnessInput;
 use epiphany_core::EpiphanyFreshnessView;
 use epiphany_core::EpiphanyFreshnessWatcherInput;
@@ -19,13 +7,10 @@ use epiphany_core::EpiphanyInvalidationInput as CoreEpiphanyInvalidationInput;
 use epiphany_core::EpiphanyInvalidationStatus as CoreEpiphanyInvalidationStatus;
 use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureLevel;
-use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
-use epiphany_core::EpiphanyReorientCheckpointStatus as CoreEpiphanyReorientCheckpointStatus;
 use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
 use epiphany_core::EpiphanyReorientFreshnessStatus as CoreEpiphanyReorientFreshnessStatus;
 use epiphany_core::EpiphanyReorientInput;
 use epiphany_core::EpiphanyReorientPressureLevel as CoreEpiphanyReorientPressureLevel;
-use epiphany_core::EpiphanyReorientReason as CoreEpiphanyReorientReason;
 use epiphany_core::EpiphanyReorientStateStatus as CoreEpiphanyReorientStateStatus;
 use epiphany_core::EpiphanyRetrievalFreshness as CoreEpiphanyRetrievalFreshness;
 use epiphany_core::EpiphanyRetrievalFreshnessStatus as CoreEpiphanyRetrievalFreshnessStatus;
@@ -41,20 +26,6 @@ pub struct EpiphanyFreshnessWatcherSnapshot<'a> {
     pub workspace_root: Option<&'a Path>,
     pub observed_at_unix_seconds: Option<i64>,
     pub changed_paths: &'a [PathBuf],
-}
-
-pub fn map_epiphany_freshness(
-    state: Option<&EpiphanyThreadState>,
-    retrieval_override: Option<&EpiphanyRetrievalState>,
-    watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'_>>,
-) -> (
-    Option<u64>,
-    ThreadEpiphanyRetrievalFreshness,
-    ThreadEpiphanyGraphFreshness,
-    ThreadEpiphanyInvalidationInput,
-) {
-    let freshness = derive_epiphany_freshness_view(state, retrieval_override, watcher_snapshot);
-    map_core_epiphany_freshness(freshness)
 }
 
 pub fn derive_epiphany_freshness_view(
@@ -73,94 +44,6 @@ pub fn derive_epiphany_freshness_view(
         retrieval_override,
         watcher,
     })
-}
-
-fn map_core_epiphany_freshness(
-    freshness: EpiphanyFreshnessView,
-) -> (
-    Option<u64>,
-    ThreadEpiphanyRetrievalFreshness,
-    ThreadEpiphanyGraphFreshness,
-    ThreadEpiphanyInvalidationInput,
-) {
-    (
-        freshness.state_revision,
-        map_core_epiphany_retrieval_freshness(freshness.retrieval),
-        map_core_epiphany_graph_freshness(freshness.graph),
-        map_core_epiphany_invalidation_input(freshness.watcher),
-    )
-}
-
-fn map_core_epiphany_retrieval_freshness(
-    retrieval: CoreEpiphanyRetrievalFreshness,
-) -> ThreadEpiphanyRetrievalFreshness {
-    ThreadEpiphanyRetrievalFreshness {
-        status: match retrieval.status {
-            CoreEpiphanyRetrievalFreshnessStatus::Missing => {
-                ThreadEpiphanyRetrievalFreshnessStatus::Missing
-            }
-            CoreEpiphanyRetrievalFreshnessStatus::Ready => {
-                ThreadEpiphanyRetrievalFreshnessStatus::Ready
-            }
-            CoreEpiphanyRetrievalFreshnessStatus::Stale => {
-                ThreadEpiphanyRetrievalFreshnessStatus::Stale
-            }
-            CoreEpiphanyRetrievalFreshnessStatus::Indexing => {
-                ThreadEpiphanyRetrievalFreshnessStatus::Indexing
-            }
-            CoreEpiphanyRetrievalFreshnessStatus::Unavailable => {
-                ThreadEpiphanyRetrievalFreshnessStatus::Unavailable
-            }
-        },
-        semantic_available: retrieval.semantic_available,
-        last_indexed_at_unix_seconds: retrieval.last_indexed_at_unix_seconds,
-        indexed_file_count: retrieval.indexed_file_count,
-        indexed_chunk_count: retrieval.indexed_chunk_count,
-        dirty_paths: retrieval.dirty_paths,
-        note: retrieval.note,
-    }
-}
-
-fn map_core_epiphany_graph_freshness(
-    graph: CoreEpiphanyGraphFreshness,
-) -> ThreadEpiphanyGraphFreshness {
-    ThreadEpiphanyGraphFreshness {
-        status: match graph.status {
-            CoreEpiphanyGraphFreshnessStatus::Missing => {
-                ThreadEpiphanyGraphFreshnessStatus::Missing
-            }
-            CoreEpiphanyGraphFreshnessStatus::Ready => ThreadEpiphanyGraphFreshnessStatus::Ready,
-            CoreEpiphanyGraphFreshnessStatus::Stale => ThreadEpiphanyGraphFreshnessStatus::Stale,
-        },
-        graph_freshness: graph.graph_freshness,
-        checkpoint_id: graph.checkpoint_id,
-        dirty_path_count: graph.dirty_path_count,
-        dirty_paths: graph.dirty_paths,
-        open_question_count: graph.open_question_count,
-        open_gap_count: graph.open_gap_count,
-        note: graph.note,
-    }
-}
-
-fn map_core_epiphany_invalidation_input(
-    watcher: CoreEpiphanyInvalidationInput,
-) -> ThreadEpiphanyInvalidationInput {
-    ThreadEpiphanyInvalidationInput {
-        status: match watcher.status {
-            CoreEpiphanyInvalidationStatus::Unavailable => {
-                ThreadEpiphanyInvalidationStatus::Unavailable
-            }
-            CoreEpiphanyInvalidationStatus::Clean => ThreadEpiphanyInvalidationStatus::Clean,
-            CoreEpiphanyInvalidationStatus::Changed => ThreadEpiphanyInvalidationStatus::Changed,
-        },
-        watched_root: watcher.watched_root,
-        observed_at_unix_seconds: watcher.observed_at_unix_seconds,
-        changed_path_count: watcher.changed_path_count,
-        changed_paths: watcher.changed_paths,
-        graph_node_ids: watcher.graph_node_ids,
-        active_frontier_node_ids: watcher.active_frontier_node_ids,
-        note: watcher.note,
-    }
 }
 
 pub fn derive_epiphany_reorient(
@@ -234,148 +117,5 @@ fn map_core_reorient_watcher_status(
         CoreEpiphanyInvalidationStatus::Unavailable => CoreEpiphanyReorientFreshnessStatus::Unknown,
         CoreEpiphanyInvalidationStatus::Clean => CoreEpiphanyReorientFreshnessStatus::Clean,
         CoreEpiphanyInvalidationStatus::Changed => CoreEpiphanyReorientFreshnessStatus::Changed,
-    }
-}
-
-pub fn map_protocol_reorient_state_status(
-    status: CoreEpiphanyReorientStateStatus,
-) -> ThreadEpiphanyReorientStateStatus {
-    match status {
-        CoreEpiphanyReorientStateStatus::Missing => ThreadEpiphanyReorientStateStatus::Missing,
-        CoreEpiphanyReorientStateStatus::Ready => ThreadEpiphanyReorientStateStatus::Ready,
-    }
-}
-
-pub fn map_protocol_reorient_decision(
-    decision: epiphany_core::EpiphanyReorientDecision,
-) -> ThreadEpiphanyReorientDecision {
-    ThreadEpiphanyReorientDecision {
-        action: map_protocol_reorient_action(decision.action),
-        checkpoint_status: map_protocol_reorient_checkpoint_status(decision.checkpoint_status),
-        checkpoint_id: decision.checkpoint_id,
-        pressure_level: map_protocol_reorient_pressure_level(decision.pressure_level),
-        retrieval_status: map_protocol_reorient_retrieval_status(decision.retrieval_status),
-        graph_status: map_protocol_reorient_graph_status(decision.graph_status),
-        watcher_status: map_protocol_reorient_watcher_status(decision.watcher_status),
-        reasons: decision
-            .reasons
-            .into_iter()
-            .map(map_protocol_reorient_reason)
-            .collect(),
-        checkpoint_dirty_paths: decision.checkpoint_dirty_paths,
-        checkpoint_changed_paths: decision.checkpoint_changed_paths,
-        active_frontier_node_ids: decision.active_frontier_node_ids,
-        next_action: decision.next_action,
-        note: decision.note,
-    }
-}
-
-fn map_protocol_reorient_action(
-    action: CoreEpiphanyReorientAction,
-) -> ThreadEpiphanyReorientAction {
-    match action {
-        CoreEpiphanyReorientAction::Resume => ThreadEpiphanyReorientAction::Resume,
-        CoreEpiphanyReorientAction::Regather => ThreadEpiphanyReorientAction::Regather,
-    }
-}
-
-fn map_protocol_reorient_checkpoint_status(
-    status: CoreEpiphanyReorientCheckpointStatus,
-) -> ThreadEpiphanyReorientCheckpointStatus {
-    match status {
-        CoreEpiphanyReorientCheckpointStatus::Missing => {
-            ThreadEpiphanyReorientCheckpointStatus::Missing
-        }
-        CoreEpiphanyReorientCheckpointStatus::ResumeReady => {
-            ThreadEpiphanyReorientCheckpointStatus::ResumeReady
-        }
-        CoreEpiphanyReorientCheckpointStatus::RegatherRequired => {
-            ThreadEpiphanyReorientCheckpointStatus::RegatherRequired
-        }
-    }
-}
-
-fn map_protocol_reorient_pressure_level(
-    level: CoreEpiphanyReorientPressureLevel,
-) -> ThreadEpiphanyPressureLevel {
-    match level {
-        CoreEpiphanyReorientPressureLevel::Unknown => ThreadEpiphanyPressureLevel::Unknown,
-        CoreEpiphanyReorientPressureLevel::Low => ThreadEpiphanyPressureLevel::Low,
-        CoreEpiphanyReorientPressureLevel::Medium => ThreadEpiphanyPressureLevel::Elevated,
-        CoreEpiphanyReorientPressureLevel::High => ThreadEpiphanyPressureLevel::High,
-        CoreEpiphanyReorientPressureLevel::Critical => ThreadEpiphanyPressureLevel::Critical,
-    }
-}
-
-fn map_protocol_reorient_retrieval_status(
-    status: CoreEpiphanyReorientFreshnessStatus,
-) -> ThreadEpiphanyRetrievalFreshnessStatus {
-    match status {
-        CoreEpiphanyReorientFreshnessStatus::Unknown => {
-            ThreadEpiphanyRetrievalFreshnessStatus::Missing
-        }
-        CoreEpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyRetrievalFreshnessStatus::Ready,
-        CoreEpiphanyReorientFreshnessStatus::Dirty => {
-            ThreadEpiphanyRetrievalFreshnessStatus::Indexing
-        }
-        CoreEpiphanyReorientFreshnessStatus::Stale
-        | CoreEpiphanyReorientFreshnessStatus::Changed => {
-            ThreadEpiphanyRetrievalFreshnessStatus::Stale
-        }
-    }
-}
-
-fn map_protocol_reorient_graph_status(
-    status: CoreEpiphanyReorientFreshnessStatus,
-) -> ThreadEpiphanyGraphFreshnessStatus {
-    match status {
-        CoreEpiphanyReorientFreshnessStatus::Unknown => ThreadEpiphanyGraphFreshnessStatus::Missing,
-        CoreEpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyGraphFreshnessStatus::Ready,
-        CoreEpiphanyReorientFreshnessStatus::Dirty
-        | CoreEpiphanyReorientFreshnessStatus::Stale
-        | CoreEpiphanyReorientFreshnessStatus::Changed => ThreadEpiphanyGraphFreshnessStatus::Stale,
-    }
-}
-
-fn map_protocol_reorient_watcher_status(
-    status: CoreEpiphanyReorientFreshnessStatus,
-) -> ThreadEpiphanyInvalidationStatus {
-    match status {
-        CoreEpiphanyReorientFreshnessStatus::Unknown => {
-            ThreadEpiphanyInvalidationStatus::Unavailable
-        }
-        CoreEpiphanyReorientFreshnessStatus::Clean => ThreadEpiphanyInvalidationStatus::Clean,
-        CoreEpiphanyReorientFreshnessStatus::Dirty
-        | CoreEpiphanyReorientFreshnessStatus::Stale
-        | CoreEpiphanyReorientFreshnessStatus::Changed => ThreadEpiphanyInvalidationStatus::Changed,
-    }
-}
-
-fn map_protocol_reorient_reason(
-    reason: CoreEpiphanyReorientReason,
-) -> ThreadEpiphanyReorientReason {
-    match reason {
-        CoreEpiphanyReorientReason::MissingState => ThreadEpiphanyReorientReason::MissingState,
-        CoreEpiphanyReorientReason::MissingCheckpoint => {
-            ThreadEpiphanyReorientReason::MissingCheckpoint
-        }
-        CoreEpiphanyReorientReason::CheckpointReady => {
-            ThreadEpiphanyReorientReason::CheckpointReady
-        }
-        CoreEpiphanyReorientReason::CheckpointRequestedRegather => {
-            ThreadEpiphanyReorientReason::CheckpointRequestedRegather
-        }
-        CoreEpiphanyReorientReason::CheckpointPathsDirty => {
-            ThreadEpiphanyReorientReason::CheckpointPathsDirty
-        }
-        CoreEpiphanyReorientReason::CheckpointPathsChanged => {
-            ThreadEpiphanyReorientReason::CheckpointPathsChanged
-        }
-        CoreEpiphanyReorientReason::FrontierChanged => {
-            ThreadEpiphanyReorientReason::FrontierChanged
-        }
-        CoreEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
-            ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale
-        }
     }
 }
