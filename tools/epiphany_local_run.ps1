@@ -126,8 +126,11 @@ if ($NoEphemeral) {
     $ephemeralArg = "--no-ephemeral"
 }
 
+$resultPath = ""
+
 if ($Mode -eq "status") {
     $statusJson = Join-Path $artifactRoot "status.json"
+    $resultPath = $statusJson
     $statusArgs = @(
         "--app-server", $codexAppServer,
         "--codex-home", $CodexHome,
@@ -151,6 +154,7 @@ if ($Mode -eq "status") {
 }
 
 if ($Mode -eq "plan") {
+    $resultPath = Join-Path $artifactRoot "coordinator-plan.stdout.json"
     $planArgs = @(
         "--app-server", $codexAppServer,
         "--codex-home", $CodexHome,
@@ -174,6 +178,7 @@ if ($Mode -eq "plan") {
 }
 
 if ($Mode -eq "smoke") {
+    $resultPath = Join-Path $artifactRoot "coordinator-smoke.stdout.json"
     if (-not (Test-Path -LiteralPath $coordinatorSmokeExe)) {
         throw "required binary not found: $coordinatorSmokeExe"
     }
@@ -191,6 +196,7 @@ if ($Mode -eq "smoke") {
 }
 
 if ($Mode -eq "run") {
+    $resultPath = Join-Path $artifactRoot "coordinator-run.stdout.json"
     if (-not (Test-Path -LiteralPath $openaiRuntimeExe)) {
         throw "required runtime binary not found: $openaiRuntimeExe"
     }
@@ -243,6 +249,20 @@ memory, runtime-spine, and artifacts remain typed native surfaces behind it.
 Set-Content -LiteralPath (Join-Path $artifactRoot "README.md") -Value $summary -Encoding UTF8
 
 Write-Host ""
+if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
+    try {
+        $result = Get-Content -Raw -LiteralPath $resultPath | ConvertFrom-Json
+        if ($Mode -eq "smoke") {
+            Write-Host "Smoke: cold=$($result.coldAction), pressure=$($result.pressureAction), privateBackendMutationRejected=$($result.directBackendCompletionRejected)"
+        } elseif ($Mode -eq "status") {
+            Write-Host "Status: thread=$($result.threadId), coordinator=$($result.coordinator.action), crrc=$($result.crrc.recommendation.action)"
+        } else {
+            Write-Host "Coordinator: thread=$($result.threadId), finalAction=$($result.finalAction.action), runtimePresent=$($result.runtimeSpine.present)"
+        }
+    } catch {
+        Write-Host "Summary parse failed; inspect $resultPath"
+    }
+}
 Write-Host "Epiphany local run complete."
 Write-Host "Launcher artifacts: $artifactRoot"
 Write-Host "Coordinator artifacts: $dogfoodRoot"
