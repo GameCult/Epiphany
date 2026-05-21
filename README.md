@@ -80,6 +80,31 @@ Phase 1 through Phase 6 are landed enough for the current experiment. The open
 questions are now about observability, invalidation, coordination, authority,
 and safe capability growth, not whether typed state can exist at all.
 
+## Run Locally
+
+The current one-command operator path is:
+
+```powershell
+.\tools\epiphany_local_run.ps1
+```
+
+Default mode is `smoke`: it builds the retained Codex app-server compatibility
+edge, builds the native Epiphany operator binaries, runs the coordinator smoke,
+and writes launcher artifacts under `.epiphany-run/` plus coordinator evidence
+under `.epiphany-dogfood/`.
+
+Useful variants:
+
+```powershell
+.\tools\epiphany_local_run.ps1 -Mode status
+.\tools\epiphany_local_run.ps1 -Mode plan
+.\tools\epiphany_local_run.ps1 -Mode run -MaxSteps 4
+```
+
+`run` is the live coordinator loop. It also builds `epiphany-openai-runtime` and
+uses the retained Codex auth/model transport spine. `status`, `plan`, and
+`smoke` do not spend model calls.
+
 ## Where This Leads
 
 The architectural goal is not one giant agent that does archaeology, design,

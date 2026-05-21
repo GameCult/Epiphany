@@ -18,6 +18,7 @@ apps/epiphany-gui/src-tauri/target/
 .epiphany-heartbeats/
 .epiphany-face/
 .epiphany-rumination/
+.epiphany-run/
 .voidbot/
 state/agent-heartbeats.json
 state/*.msgpack.lock
