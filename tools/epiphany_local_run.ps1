@@ -2,6 +2,8 @@ param(
     [ValidateSet("status", "plan", "smoke", "run")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
+    [string]$Workspace = "",
+    [string]$ThreadId = "",
     [string]$CodexHome = "",
     [string]$TargetDir = "C:\Users\Meta\.cargo-target-codex",
     [int]$MaxSteps = 4,
@@ -50,6 +52,11 @@ function Invoke-Checked {
 Set-Location -LiteralPath $Root
 $Root = (Resolve-Path ".").Path
 $env:CARGO_TARGET_DIR = $TargetDir
+
+if ($Workspace -eq "") {
+    $Workspace = $Root
+}
+$Workspace = (Resolve-Path $Workspace).Path
 
 if ($CodexHome -eq "") {
     if ($env:CODEX_HOME) {
@@ -121,38 +128,46 @@ if ($NoEphemeral) {
 
 if ($Mode -eq "status") {
     $statusJson = Join-Path $artifactRoot "status.json"
+    $statusArgs = @(
+        "--app-server", $codexAppServer,
+        "--codex-home", $CodexHome,
+        "--cwd", $Workspace,
+        $ephemeralArg,
+        "--json",
+        "--result", $statusJson,
+        "--transcript", (Join-Path $artifactRoot "status-transcript.jsonl"),
+        "--stderr", (Join-Path $artifactRoot "status-app-server.stderr.log")
+    )
+    if ($ThreadId -ne "") {
+        $statusArgs += @("--thread-id", $ThreadId, "--no-ephemeral")
+    }
     Invoke-Checked `
         -Label "run operator status" `
         -FilePath $statusExe `
-        -Arguments @(
-            "--app-server", $codexAppServer,
-            "--codex-home", $CodexHome,
-            "--cwd", $Root,
-            $ephemeralArg,
-            "--json",
-            "--result", $statusJson,
-            "--transcript", (Join-Path $artifactRoot "status-transcript.jsonl"),
-            "--stderr", (Join-Path $artifactRoot "status-app-server.stderr.log")
-        ) `
+        -Arguments $statusArgs `
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "status.stdout.json") `
         -StderrPath (Join-Path $artifactRoot "status.stderr.log")
 }
 
 if ($Mode -eq "plan") {
+    $planArgs = @(
+        "--app-server", $codexAppServer,
+        "--codex-home", $CodexHome,
+        "--cwd", $Workspace,
+        "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
+        "--runtime-store", (Join-Path $dogfoodRoot "runtime-spine.msgpack"),
+        "--mode", "plan",
+        "--max-steps", "1",
+        "--timeout-seconds", "$TimeoutSeconds"
+    )
+    if ($ThreadId -ne "") {
+        $planArgs += @("--thread-id", $ThreadId, "--no-ephemeral")
+    }
     Invoke-Checked `
         -Label "run coordinator plan" `
         -FilePath $coordinatorExe `
-        -Arguments @(
-            "--app-server", $codexAppServer,
-            "--codex-home", $CodexHome,
-            "--cwd", $Root,
-            "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
-            "--runtime-store", (Join-Path $dogfoodRoot "runtime-spine.msgpack"),
-            "--mode", "plan",
-            "--max-steps", "1",
-            "--timeout-seconds", "$TimeoutSeconds"
-        ) `
+        -Arguments $planArgs `
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "coordinator-plan.stdout.json") `
         -StderrPath (Join-Path $artifactRoot "coordinator-plan.stderr.log")
@@ -183,7 +198,7 @@ if ($Mode -eq "run") {
         "--app-server", $codexAppServer,
         "--openai-runtime-bin", $openaiRuntimeExe,
         "--codex-home", $CodexHome,
-        "--cwd", $Root,
+        "--cwd", $Workspace,
         "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
         "--runtime-store", (Join-Path $dogfoodRoot "runtime-spine.msgpack"),
         "--mode", "run",
@@ -192,6 +207,9 @@ if ($Mode -eq "run") {
     )
     if ($AutoReview) {
         $runArgs += "--auto-review"
+    }
+    if ($ThreadId -ne "") {
+        $runArgs += @("--thread-id", $ThreadId, "--no-ephemeral")
     }
     Invoke-Checked `
         -Label "run coordinator loop" `
@@ -207,6 +225,8 @@ $summary = @"
 
 - mode: $Mode
 - root: $Root
+- workspace: $Workspace
+- threadId: $ThreadId
 - codexHome: $CodexHome
 - targetDir: $TargetDir
 - artifactRoot: $artifactRoot

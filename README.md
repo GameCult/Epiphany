@@ -99,6 +99,7 @@ Useful variants:
 .\tools\epiphany_local_run.ps1 -Mode status
 .\tools\epiphany_local_run.ps1 -Mode plan
 .\tools\epiphany_local_run.ps1 -Mode run -MaxSteps 4
+.\tools\epiphany_local_run.ps1 -Mode status -ThreadId <id> -Workspace E:\Projects\SomeRepo
 ```
 
 `run` is the live coordinator loop. It also builds `epiphany-openai-runtime` and
