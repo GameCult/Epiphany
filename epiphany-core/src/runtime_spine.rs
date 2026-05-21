@@ -1547,7 +1547,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_SCENE_TYPE,
             SCENE_SURFACE_SCHEMA_VERSION,
             vec![
-                "Operator-safe scene reflection mirrored from the thread/epiphany/view scene lens.",
+                "Operator-safe scene reflection over typed Epiphany state.",
                 "Aquarium should read this before offering live coordination actions.",
             ],
         ),
@@ -1555,7 +1555,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_FRESHNESS_TYPE,
             FRESHNESS_SURFACE_SCHEMA_VERSION,
             vec![
-                "Freshness reflection mirrored from thread/epiphany/freshness.",
+                "Freshness reflection over retrieval, watcher, and graph staleness signals.",
                 "Use this to visualize retrieval and graph staleness without inventing a hidden refresh daemon.",
             ],
         ),
@@ -1563,7 +1563,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_CONTEXT_TYPE,
             CONTEXT_SURFACE_SCHEMA_VERSION,
             vec![
-                "Targeted graph, frontier, checkpoint, observation, and evidence context mirrored from thread/epiphany/context.",
+                "Targeted graph, frontier, checkpoint, observation, and evidence context shard over typed Epiphany state.",
                 "Aquarium should inspect bounded state shards here instead of scraping state blobs by superstition.",
             ],
         ),
@@ -1571,7 +1571,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_GRAPH_QUERY_TYPE,
             GRAPH_QUERY_SURFACE_SCHEMA_VERSION,
             vec![
-                "Bounded graph traversal mirrored from thread/epiphany/graphQuery.",
+                "Bounded graph traversal over typed architecture/dataflow graph state.",
                 "Use this for architecture/dataflow inspection and frontier neighborhoods without mutating state.",
             ],
         ),
@@ -1579,7 +1579,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_PRESSURE_TYPE,
             PRESSURE_SURFACE_SCHEMA_VERSION,
             vec![
-                "Current context pressure and compaction posture mirrored from thread/epiphany/pressure.",
+                "Current context pressure and compaction posture derived from typed pressure inputs.",
                 "This is a read-only warning surface, not a backdoor to force state mutation.",
             ],
         ),
@@ -1595,7 +1595,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.reorient_result_surface.v0",
             ],
             vec![
-                "Reorientation policy is mirrored from thread/epiphany/reorient.",
+                "Reorientation policy is the typed resume/regather verdict surface.",
                 "Launch and acceptance stay review-gated through explicit typed intents.",
             ],
         ),
@@ -1603,7 +1603,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_CRRC_TYPE,
             CRRC_SURFACE_SCHEMA_VERSION,
             vec![
-                "CRRC recommendation surface mirrored from thread/epiphany/crrc.",
+                "CRRC recommendation surface over continuity, pressure, and reorientation signals.",
                 "Use this to understand continuity pressure without letting CRRC seize authority.",
             ],
         ),
@@ -1616,7 +1616,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Job reflection mirrored from the thread/epiphany/view jobs lens, with launch/interrupt affordances on jobLaunch and jobInterrupt.",
+                "Job reflection over typed job bindings and runtime-spine lifecycle receipts.",
                 "Heartbeat/runtime-spine owns activation; callers submit typed intents and watch receipts.",
             ],
         ),
@@ -1626,7 +1626,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.role_launch_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Role ownership mirrored from the thread/epiphany/view roles lens, with launch affordances on roleLaunch.",
+                "Role ownership surface for fixed Epiphany lanes and launch affordances.",
                 "Treat this as the discoverable lane catalog for Aquarium.",
             ],
         ),
@@ -1636,7 +1636,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.role_accept_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Role findings are read through thread/epiphany/roleResult and accepted through roleAccept.",
+                "Role findings are typed review surfaces accepted through explicit role acceptance intents.",
                 "Semantic findings remain explicitly review-gated.",
             ],
         ),
@@ -1646,7 +1646,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.reorient_accept_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Completed reorientation findings are read through thread/epiphany/reorientResult and accepted through reorientAccept.",
+                "Completed reorientation findings are typed review surfaces accepted through explicit reorientation acceptance intents.",
             ],
         ),
         coordinator_surface_contract(
@@ -1658,7 +1658,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Planning projection is mirrored from the thread/epiphany/view planning lens.",
+                "Planning projection over captures, backlog, roadmap streams, and Objective Drafts.",
                 "Backlog, captures, and Objective Drafts are planning state until explicit adoption.",
             ],
         ),
@@ -1666,7 +1666,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_COORDINATOR_TYPE,
             COORDINATOR_SURFACE_SCHEMA_VERSION,
             vec![
-                "Fixed-lane recommendation surface mirrored from thread/epiphany/coordinator.",
+                "Fixed-lane recommendation surface derived from typed role, pressure, reorientation, and result signals.",
                 "Aquarium should treat this as the primary action oracle, not invent its own scheduler.",
             ],
         ),
@@ -1684,7 +1684,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.character_turn_packet.v0",
             ],
             vec![
-                "Face bubble, draft, and Discord persona affordances are mirrored from epiphany-face-discord and epiphany-character-loop.",
+                "Face bubble, draft, and Discord persona affordances are projected from typed Face and character-loop artifacts.",
                 "Humans talk to Face; sealed inner thoughts stay behind the projection boundary.",
             ],
         ),
@@ -1692,7 +1692,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_VOID_MEMORY_TYPE,
             VOID_MEMORY_SURFACE_SCHEMA_VERSION,
             vec![
-                "Void-derived memory status/search/context availability is mirrored from epiphany-void-memory.",
+                "Void-derived memory status/search/context availability is projected from the typed Void memory bridge.",
                 "This is an inspection surface for the memory organs, not a license to bypass typed Epiphany state.",
             ],
         ),
@@ -1708,7 +1708,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.repo_initialization_record.v0",
             ],
             vec![
-                "Repo birth/startup status is mirrored from epiphany-repo-personality startup and accept-init.",
+                "Repo birth/startup status is projected from typed repo-personality startup and accept-init receipts.",
                 "Birth specialists are startup-only and remain outside the heartbeat lane system.",
             ],
         ),
@@ -1721,7 +1721,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.repo_initialization_record.v0",
             ],
             vec![
-                "Startup-only birth runner plan/run affordances are mirrored from epiphany-repo-birth-runner.",
+                "Startup-only birth runner plan/run affordances are projected from typed birth-runner receipts.",
                 "Aquarium should review birth artifacts and accept them explicitly instead of growing a hidden wizard.",
             ],
         ),
@@ -1735,7 +1735,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Rider bridge affordances are mirrored from epiphany-rider-bridge status/context/open-ref.",
+                "Rider bridge affordances are projected from typed Rider bridge artifacts.",
                 "Use this surface for source/IDE inspection instead of scraping local artifacts by convention.",
             ],
         ),
@@ -1750,7 +1750,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Unity bridge affordances are mirrored from epiphany-unity-bridge inspect/probe/check-compilation/run-tests.",
+                "Unity bridge affordances are projected from typed Unity bridge artifacts.",
                 "Runtime/editor truth must come through the pinned bridge and its receipts, not wishful source reading.",
             ],
         ),

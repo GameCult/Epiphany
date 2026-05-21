@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.thread-state.schema.json",
   "title": "Epiphany Thread State",
-  "description": "Typed Epiphany control-plane state mirrored from a loaded Codex-compatible thread. This is the logical state contract, not the Codex rollout storage format.",
+  "description": "Typed Epiphany control-plane state. Codex rollout storage is a compatibility source, not the logical state contract.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-initialization.schema.json",
   "title": "Epiphany repo-initialization",
-  "description": "Startup-only repo initialization summary mirrored from epiphany-repo-personality startup.",
+  "description": "Startup-only typed repo initialization summary.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
