@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.swarm-control-receipt.schema.json",
   "title": "Epiphany Swarm Control Receipt",
-  "description": "Generic receipt emitted after a coordinator-owned Epiphany control action.",
+  "description": "Generic receipt emitted after a coordinator-owned Epiphany control action. The receipt names the authority that made the final yes/no decision and the transport role that carried it out.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -17,6 +17,41 @@
     },
     "authority": {
       "type": "string"
+    },
+    "decisionOwner": {
+      "type": "string",
+      "description": "Authority that made the final yes/no verdict. For Epiphany-owned launch and reorientation flows this is epiphany-core, not the transport bridge."
+    },
+    "bridgeRole": {
+      "type": "string",
+      "description": "What the bridge did for this action. Expected values are transport, translate, gatherHostFacts, executeSideEffects, and reportReceipt, alone or joined with '+'."
+    },
+    "intentDocumentType": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "verdict": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "sourceDocumentType": {
+          "type": "string"
+        },
+        "sourceRevision": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
     },
     "targetDocumentType": {
       "type": "string"
@@ -51,6 +86,20 @@
         "type": "string"
       }
     },
+    "hostFacts": {
+      "type": "array",
+      "description": "Host/runtime facts gathered by the bridge before execution, expressed as readable labels or artifact refs rather than private context.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "sideEffects": {
+      "type": "array",
+      "description": "Side effects the bridge performed after the core/coordinator verdict.",
+      "items": {
+        "type": "string"
+      }
+    },
     "note": {
       "type": "string"
     }
@@ -60,6 +109,8 @@
     "ok",
     "action",
     "authority",
+    "decisionOwner",
+    "bridgeRole",
     "targetDocumentType",
     "status",
     "summary"
