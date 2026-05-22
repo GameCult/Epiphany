@@ -59,13 +59,23 @@ use uuid::Uuid;
 
 #[allow(async_fn_in_trait)]
 pub trait EpiphanyMutationHost {
+    /// Read the Codex-hosted compatibility snapshot.
+    ///
+    /// The bridge may request host state so core can evaluate typed policy. The
+    /// host snapshot is an input fact, not a bridge-owned source of truth.
     async fn epiphany_state(&self) -> Option<EpiphanyThreadState>;
     async fn epiphany_reference_turn_id(&self) -> Option<String>;
+    /// Persist a state document already validated by Epiphany core policy.
+    ///
+    /// This is the Codex JSON-RPC shell's current persistence hook. It must not
+    /// grow mutation policy of its own.
     async fn epiphany_persist_state(
         &self,
         next_state: EpiphanyThreadState,
     ) -> BridgeResult<EpiphanyThreadState>;
+    /// Locate the native runtime-spine store while Codex still hosts the turn.
     async fn epiphany_runtime_spine_store_path(&self) -> PathBuf;
+    /// Project the already-typed state into Codex's current client-visible view.
     async fn client_visible_epiphany_state(
         &self,
         fallback: EpiphanyThreadState,
@@ -190,6 +200,9 @@ pub async fn launch_epiphany_job_on_thread(
     thread: &impl EpiphanyMutationHost,
     request: EpiphanyJobLaunchRequest,
 ) -> BridgeResult<EpiphanyJobLaunchResult> {
+    // Compatibility choreography only: core validates the launch plan and
+    // runtime-spine opens the typed job. The bridge stitches those typed
+    // documents into Codex's JSON-RPC thread shell until CultNet owns the route.
     let current_state = thread.epiphany_state().await.unwrap_or_default();
     validate_expected_revision(request.expected_revision, current_state.revision)?;
 

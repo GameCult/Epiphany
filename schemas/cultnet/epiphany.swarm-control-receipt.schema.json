@@ -24,7 +24,7 @@
     },
     "transportRole": {
       "type": "string",
-      "description": "What the transport bridge did for this action. Expected values are translate, carryOrder, carryReceipt, or a '+' joined combination. It must not make the launch/reorient verdict, gather host facts, or execute side effects."
+      "description": "What the Epiphany-Codex transport bridge did for this action. Expected values are translateCultNetToCodexJson, translateCodexJsonToCultNet, carryOrder, carryReceipt, or a '+' joined combination. It must not make the launch/reorient verdict, gather host facts, or execute side effects."
     },
     "hostExecutorRole": {
       "type": [

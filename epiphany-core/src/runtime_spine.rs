@@ -1387,8 +1387,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![RUNTIME_JOB_TYPE],
             vec![
                 "Worker launch requests are typed task-intent documents; runtime jobs are lifecycle receipts, not the source of work intent.",
-                "Core/coordinator policy owns the launch yes/no; transport bridges translate and carry orders/receipts only.",
-                "Host executors gather host facts and perform side effects after the verdict, with readable receipts.",
+                "Core/coordinator policy owns the launch yes/no; the Epiphany-Codex bridge translates between CultNet-shaped intent and Codex JSON only.",
+                "Codex-hosted executors may gather host facts and perform side effects after the verdict, with readable receipts.",
             ],
         ),
         mutation_contract(
