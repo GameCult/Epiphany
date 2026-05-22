@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.swarm-control-receipt.schema.json",
   "title": "Epiphany Swarm Control Receipt",
-  "description": "Generic receipt emitted after a coordinator-owned Epiphany control action. The receipt names the authority that made the final yes/no decision and the transport role that carried it out.",
+  "description": "Generic receipt emitted after a coordinator-owned Epiphany control action. The receipt names the authority that made the final yes/no decision, the transport that carried the order, and any host executor that gathered facts or performed side effects.",
   "type": "object",
   "additionalProperties": true,
   "properties": {
@@ -22,9 +22,16 @@
       "type": "string",
       "description": "Authority that made the final yes/no verdict. For Epiphany-owned launch and reorientation flows this is epiphany-core, not the transport bridge."
     },
-    "bridgeRole": {
+    "transportRole": {
       "type": "string",
-      "description": "What the bridge did for this action. Expected values are transport, translate, gatherHostFacts, executeSideEffects, and reportReceipt, alone or joined with '+'."
+      "description": "What the transport bridge did for this action. Expected values are translate, carryOrder, carryReceipt, or a '+' joined combination. It must not make the launch/reorient verdict, gather host facts, or execute side effects."
+    },
+    "hostExecutorRole": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Host-side executor role that gathered facts or performed side effects after the core/coordinator verdict, when such an executor exists."
     },
     "intentDocumentType": {
       "type": [
@@ -88,14 +95,14 @@
     },
     "hostFacts": {
       "type": "array",
-      "description": "Host/runtime facts gathered by the bridge before execution, expressed as readable labels or artifact refs rather than private context.",
+      "description": "Host/runtime facts gathered by the host executor before execution, expressed as readable labels or artifact refs rather than private context.",
       "items": {
         "type": "string"
       }
     },
     "sideEffects": {
       "type": "array",
-      "description": "Side effects the bridge performed after the core/coordinator verdict.",
+      "description": "Side effects the host executor performed after the core/coordinator verdict.",
       "items": {
         "type": "string"
       }
@@ -110,7 +117,7 @@
     "action",
     "authority",
     "decisionOwner",
-    "bridgeRole",
+    "transportRole",
     "targetDocumentType",
     "status",
     "summary"

@@ -1387,7 +1387,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![RUNTIME_JOB_TYPE],
             vec![
                 "Worker launch requests are typed task-intent documents; runtime jobs are lifecycle receipts, not the source of work intent.",
-                "Core/coordinator policy owns the launch yes/no; transport bridges translate, gather host facts, execute side effects, and return receipts.",
+                "Core/coordinator policy owns the launch yes/no; transport bridges translate and carry orders/receipts only.",
+                "Host executors gather host facts and perform side effects after the verdict, with readable receipts.",
             ],
         ),
         mutation_contract(
@@ -1598,7 +1599,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Reorientation policy is the typed resume/regather verdict surface.",
                 "Launch and acceptance stay review-gated through explicit typed intents.",
-                "The bridge may carry a reorient launch intent and report receipts, but the resume/regather verdict belongs to core.",
+                "The transport may carry a reorient launch intent and receipt, but the resume/regather verdict belongs to core.",
             ],
         ),
         read_only_surface_contract(
@@ -1620,7 +1621,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Job reflection over typed job bindings and runtime-spine lifecycle receipts.",
                 "Heartbeat/runtime-spine owns activation; callers submit typed intents and watch receipts.",
-                "Launch receipts must name decisionOwner and bridgeRole so transport never grows an unreadable second opinion.",
+                "Launch receipts must name decisionOwner, transportRole, and any hostExecutorRole so transport never grows an unreadable second opinion.",
             ],
         ),
         coordinator_surface_contract(
@@ -2293,16 +2294,21 @@ mod tests {
             .as_array()
             .expect("receipt schema should list required fields");
         assert!(required.iter().any(|field| field == "decisionOwner"));
-        assert!(required.iter().any(|field| field == "bridgeRole"));
+        assert!(required.iter().any(|field| field == "transportRole"));
         assert!(
             receipt_schema["properties"]["decisionOwner"]["description"]
                 .as_str()
                 .is_some_and(|description| description.contains("epiphany-core"))
         );
         assert!(
-            receipt_schema["properties"]["bridgeRole"]["description"]
+            receipt_schema["properties"]["transportRole"]["description"]
                 .as_str()
-                .is_some_and(|description| description.contains("transport"))
+                .is_some_and(|description| description.contains("must not make"))
+        );
+        assert!(
+            receipt_schema["properties"]["hostExecutorRole"]["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("gathered facts"))
         );
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some(OPENAI_MODEL_REQUEST_TYPE)
