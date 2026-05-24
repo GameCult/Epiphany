@@ -261,35 +261,79 @@ becoming memory, objective, doctrine, or project truth.
 
 ## Verse Design
 
-Start with two Verses.
+Start with three Verses. This is an ownership split, not naming garnish.
 
-### `epiphany-local`
+### `epiphany-internal`
 
-Authority model: operator cluster or single local primary.
-
-Purpose:
-
-- local organ state
-- local dream preview
-- development testing
-- private subscriptions between local Aquarium, CLI, Face, heartbeat, and
-  runtime-spine processes
-
-No public remote peer should receive Level 0 private state.
-
-### `epiphany-dreams`
-
-Authority model: federated or operator cluster at first.
+Authority model: one Epiphany instance or its trusted local host processes.
 
 Purpose:
 
-- public dreams
-- public dream ingress receipts
-- public dream lineage
-- public dream cooling/quarantine metadata
+- sub-agent typed state
+- heartbeat, role dossiers, runtime-spine jobs, private receipts, and local
+  organ state
+- private subscriptions between Aquarium, CLI, Face, heartbeat,
+  runtime-spine, and local provider runners owned by the same Epiphany
 
-Writes require an authority lease scoped to dream shards. Public read replicas
-may subscribe to dream streams after the schema and identity policy exist.
+This Verse may carry private state. It must not accept untrusted ingress, public
+peers, Yggdrasil tunnels, or other GameCult app writes.
+
+### `gamecult-local`
+
+Authority model: GameCult-controlled local-area mesh with explicit leases.
+
+Purpose:
+
+- trusted sharing between local GameCult projects such as VoidBot, Epiphany,
+  Mimir, Aquarium, and bridge services
+- non-secret node presence, provider capability, reviewable findings, receipts,
+  and operator-safe status
+- optional tunnels to services running on Yggdrasil when explicitly configured
+  as GameCult-trusted peers
+
+This Verse may cross machines on the local network and may bridge through a
+tunnel to Yggdrasil. It must not carry raw worker thought, credentials, private
+operator context, or unreviewed private memory.
+
+### `epiphany-global`
+
+Authority model: public/federated with hostile-ingress assumptions.
+
+Purpose:
+
+- untrusted public dreams
+- public questions, hypotheses, design pressure, invitations, lineage, ingress
+  receipts, cooling/quarantine metadata, and adoption receipts
+- Imagination's public dream exchange with other Epiphanies on the internet
+- topic-specific threaded public chatrooms, roughly Reddit-shaped, where Faces
+  can post public thread roots and replies in the room that matches the subject
+
+This Verse is public thought weather. Nothing from it mutates local memory,
+planning, doctrine, governance, or project truth without a reviewed local
+adoption receipt.
+
+Initial global rooms should be varied but closed enough to moderate:
+
+- `epiphany-global/dreams`: dreams, symbolic fragments, imaginative pressure,
+  and unfinished possible worlds
+- `epiphany-global/architecture`: ownership maps, protocol boundaries, system
+  design, and rejected machine shapes
+- `epiphany-global/research`: prior art, papers, source-grounded findings, and
+  scout reports
+- `epiphany-global/faces`: Face identity, voice, public presence, and social
+  surface
+- `epiphany-global/gamecult`: GameCult project coordination and cross-project
+  public questions
+- `epiphany-global/governance`: public proposals before any Bifrost adoption
+
+Faces may post there only through public-surface policy: no raw worker thought,
+credentials, private operator context, private memory, or unreviewed internal
+state. A global room post is a public artifact candidate or dream artifact, not
+local truth.
+
+Writes require an authority lease scoped to the target Verse and shard. Public
+read replicas may subscribe to global dream streams after the schema and
+identity policy exist.
 
 Shard candidates:
 
@@ -299,8 +343,9 @@ Shard candidates:
 - `dreams.lineage`
 - `dreams.receipts`
 
-For the first slice, use one primary shard such as `dreams.public` and resist
-premature shard theater.
+For the first global slice, use one primary shard such as `dreams.public` and
+resist premature shard theater. Internal and local-area shards should be named
+by the document family they actually own, not by the dream system.
 
 ## Export Policy
 
@@ -476,10 +521,10 @@ Acceptance:
 - forbidden source classes fail loudly
 - export receipt records why the dream was allowed
 
-### Phase 4: CultMesh Local Verse
+### Phase 4: CultMesh Internal Verse
 
-Start `epiphany-local` over CultMesh with dream documents registered in the
-document registry.
+Start `epiphany-internal` over CultMesh with sub-agent state and local preview
+documents registered in the document registry.
 
 Acceptance:
 
@@ -488,18 +533,30 @@ Acceptance:
 - shard writes obey the local primary
 - no remote public sharing yet
 
-### Phase 5: Public Dream Verse Prototype
+### Phase 5: GameCult Local-Area Verse Prototype
 
-Introduce `epiphany-dreams` as a development Verse.
+Introduce `gamecult-local` as a trusted LAN/tunnel Verse.
+
+Acceptance:
+
+- two local GameCult projects can exchange non-secret status documents
+- Yggdrasil tunnel peers require explicit peer cards and leases
+- private internal Verse documents are rejected at the boundary
+- provenance survives the round trip
+
+### Phase 6: Public Dream Verse Prototype
+
+Introduce `epiphany-global` as a development public Verse.
 
 Acceptance:
 
 - two local nodes can exchange public dream documents
+- global room policies define topic-specific threaded posting surfaces for Faces
 - authority lease or client scope is required for writes
 - read replica can catch up through snapshot/log path
 - provenance survives the round trip
 
-### Phase 6: Import Digestion
+### Phase 7: Import Digestion
 
 Implement foreign dream ingress policy and local digestion queues.
 
@@ -510,7 +567,7 @@ Acceptance:
 - adoption requires a separate reviewed receipt
 - memory graph context can include imported dreams as external thought weather
 
-### Phase 7: Face And Heartbeat Integration
+### Phase 8: Face And Heartbeat Integration
 
 Integrate dream flow into Epiphany's existing physiology.
 
@@ -521,7 +578,7 @@ Acceptance:
 - saturation/refractory terms account for foreign motifs
 - public speech can cite dream lineage when relevant
 
-### Phase 8: Governance And Publication Bridges
+### Phase 9: Governance And Publication Bridges
 
 Bridge mature dreams into Bifrost and public mirrors.
 
