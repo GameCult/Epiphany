@@ -1,5 +1,17 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::agent_memory::AGENT_MEMORY_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_REQUEST_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_REQUEST_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_REVIEW_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_REVIEW_TYPE;
+use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_TYPE;
+use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_TYPE;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
 use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
@@ -1530,6 +1542,90 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            BODY_REPO_ACCESS_REQUEST_TYPE,
+            BODY_REPO_ACCESS_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![BODY_REPO_ACCESS_REQUEST_TYPE],
+            vec![
+                BODY_REPO_ACCESS_REVIEW_TYPE,
+                BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE,
+                BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+            ],
+            vec![
+                "Body is the repository access guardian: reads, indexing, edits, commands, and bridge operations must be requested through this contract.",
+                "Hands mutates only after a scoped Body grant; Eyes inspects only after a scoped Body read/index grant.",
+            ],
+        ),
+        mutation_contract(
+            BODY_REPO_ACCESS_REVIEW_TYPE,
+            BODY_REPO_ACCESS_REVIEW_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Body reviews explain granted/refused repo paths, operations, commands, and bridge surfaces.",
+            ],
+        ),
+        mutation_contract(
+            BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE,
+            BODY_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["A Body grant receipt scopes a permitted repo touch."],
+        ),
+        mutation_contract(
+            BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+            BODY_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["A Body refusal receipt preserves why repo access was denied."],
+        ),
+        mutation_contract(
+            BODY_REPO_SNAPSHOT_RECEIPT_TYPE,
+            BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Repo snapshots are evidence projections from Body-gated access."],
+        ),
+        mutation_contract(
+            BODY_REPO_MUTATION_RECEIPT_TYPE,
+            BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Repo mutation receipts prove Body granted the substrate touch before Hands changed files or ran repo-affecting commands.",
+            ],
+        ),
+        mutation_contract(
             RUNTIME_EVENT_TYPE,
             RUNTIME_SPINE_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -2293,6 +2389,27 @@ mod tests {
                     notes
                         .iter()
                         .any(|note| note.contains("persistent state guardian"))
+                }));
+                let body_repo_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == BODY_REPO_ACCESS_REQUEST_TYPE)
+                    .expect("Body repo access should advertise a mutation contract");
+                assert_eq!(
+                    body_repo_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    body_repo_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE))
+                );
+                assert!(body_repo_contract.notes.as_ref().is_some_and(|notes| {
+                    notes
+                        .iter()
+                        .any(|note| note.contains("repository access guardian"))
                 }));
                 let coordinator_contract = contracts
                     .iter()

@@ -4,6 +4,11 @@ Objective: make Mind the persistent state guardian. The state is the Mind; every
 sub-agent output is a thought or proposal until Mind admits it into durable
 state.
 
+Body is the neighboring gate. Body decides whether an organ may touch the repo;
+Mind decides whether the resulting thought, evidence, or proposal mutates
+persistent state. Do not collapse these into one throne. That is how the machine
+starts lying with excellent posture.
+
 ## Authority Map
 
 - Owner: Mind owns the decision to mutate persistent Epiphany state.

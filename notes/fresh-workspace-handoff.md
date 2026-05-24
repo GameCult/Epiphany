@@ -1397,6 +1397,13 @@ persistent state guardian over CultNet/CultMesh. The code surface now names
 contracts, and CultMesh stores Verse-scoped `EpiphanyCultMeshMindContractEntry`
 policy docs so `epiphany-internal` owns private state flow while
 `epiphany-global` remains thought weather plus adoption receipts.
+`notes/body-cultnet-contracts.md` is the matching substrate gate: Body owns repo
+access. The code surface now names `epiphany.body.repo_access_request`,
+`epiphany.body.repo_access_review`, grant/refusal receipts, snapshot receipts,
+and mutation receipts; runtime-spine advertises those contracts, and CultMesh
+stores Verse-scoped `EpiphanyCultMeshBodyContractEntry` policy docs. Hands, Eyes,
+Face, workers, and bridge tools should touch the repo only through scoped Body
+access receipts; Mind remains the separate durable-state gate after the touch.
 
 ## Not Yet
 
