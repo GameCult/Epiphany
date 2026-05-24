@@ -1,9 +1,13 @@
 use crate::EpiphanyAgentMemoryEntry;
+use crate::EpiphanyOrganDependency;
 use crate::HeartbeatPendingMention;
+use crate::default_organ_dependencies_for;
+use crate::render_organ_dependencies;
 use serde::Deserialize;
 use serde::Serialize;
 
-pub const FACE_PROJECTOR_PROMPT_SCHEMA_VERSION: &str = "epiphany.face_projector_prompt.v0";
+pub const FACE_PROJECTOR_PROMPT_SCHEMA_VERSION: &str =
+    "epiphany.imagination_face_projector_prompt.v0";
 pub const FACE_TURN_PROMPT_SCHEMA_VERSION: &str = "epiphany.face_turn_prompt.v0";
 pub const FACE_INTERPRETER_PROMPT_SCHEMA_VERSION: &str = "epiphany.face_interpreter_prompt.v0";
 
@@ -62,6 +66,8 @@ pub struct FaceProjectorInput {
     pub repo_activity: Vec<FaceRepoActivity>,
     #[serde(default)]
     pub social_affordances: Vec<FaceSocialAffordance>,
+    #[serde(default)]
+    pub organ_dependencies: Vec<EpiphanyOrganDependency>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -97,16 +103,24 @@ pub fn build_face_projector_prompt(input: &FaceProjectorInput) -> String {
         .as_ref()
         .map(render_memory_packet)
         .unwrap_or_else(|| "No durable Face memory entry is loaded.".to_string());
+    let dependencies = if input.organ_dependencies.is_empty() {
+        vec![default_organ_dependencies_for("face")]
+    } else {
+        input.organ_dependencies.clone()
+    };
     format!(
         r#"<!-- prompt:{schema} -->
-You are the Face Projector for {name}.
+You are Imagination acting as the Face Projector for {name}.
 
-You are not the Face. You are the membrane that turns typed role memory, pending social pressure, repo-body activity, and relationship affordances into lived narrative context.
+You are not the Face. You are not Mind. You are the membrane that turns typed role memory, pending social pressure, repo-body activity, relationship affordances, and organ dependencies into lived narrative context.
 
 Hard boundary:
 - Do not choose public speech.
+- Do not decide durable state; Mind is the Interpreter and state guardian after Face thinks.
+- Do not decide repo access; Body gates substrate access before repo facts enter this packet.
 - Do not emit action blocks, JSON, state patches, SAY blocks, drafts, or Discord instructions.
 - Do not summarize the Face as a job label. Project personhood: values, mood, dignity, pressure, needs, fascinations, wounds, bonds, obligations, fatigue, and what the repo-body motion feels like from inside this Face.
+- Project the dependency web. Every sub-agent depends on all the other organs; Face's scene should feel the pressure of Self, Imagination, Eyes, Body, Hands, Soul, and Life without pretending Face owns them.
 - If the state is sparse, say what is sparse without inventing history.
 
 Face identity:
@@ -124,6 +138,9 @@ Recent home-repo activity:
 Live social affordances:
 {affordances}
 
+Organ dependency contract:
+{dependencies}
+
 Return only narrative context for the Face to inhabit.
 "#,
         schema = FACE_PROJECTOR_PROMPT_SCHEMA_VERSION,
@@ -133,6 +150,7 @@ Return only narrative context for the Face to inhabit.
         mentions = render_pending_mentions(&input.pending_mentions),
         activity = render_repo_activity(&input.repo_activity),
         affordances = render_social_affordances(&input.social_affordances),
+        dependencies = render_organ_dependencies(&dependencies),
     )
 }
 
@@ -149,7 +167,7 @@ Hard boundary:
 - Your side effects are not yours to execute. A parent Interpreter will decide whether your natural turn becomes memory, a draft, public speech, a proposal, or silence.
 - Read the raw transcript directly. Recent human correction beats stale memory.
 
-Projected inner state from the Projector:
+Projected inner state from Imagination:
 {projected}
 
 Recent home-repo activity, before room pressure:
@@ -411,7 +429,11 @@ mod tests {
             }],
             ..FaceProjectorInput::default()
         });
+        assert!(projector.contains("You are Imagination acting as the Face Projector"));
         assert!(projector.contains("You are not the Face"));
+        assert!(projector.contains("Mind is the Interpreter"));
+        assert!(projector.contains("Body gates substrate access"));
+        assert!(projector.contains("Every sub-agent depends on all the other organs"));
         assert!(projector.contains("Do not choose public speech"));
 
         let face = build_face_turn_prompt(&FaceTurnInput {
@@ -430,6 +452,7 @@ mod tests {
             ..FaceTurnInput::default()
         });
         assert!(face.contains("Think narratively"));
+        assert!(face.contains("Projected inner state from Imagination"));
         assert!(face.contains("Do not emit JSON"));
         assert!(face.contains("A parent Interpreter will decide"));
 

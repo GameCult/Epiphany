@@ -1372,14 +1372,20 @@ project schedules modeling, research, verification, rumination, and proposed
 actions without requiring the human to hand over a complete architecture brief.
 
 The important Face lesson is now sharper than "better public speech." Face is
-special because it needs to think narratively: a Projector turns typed state,
-repo-body activity, social pressure, and pending mentions into lived context
-before Face thinks; Face writes natural prose only; an Interpreter translates
-that natural thought into durable memory, draft, public SAY, route, or silence.
+special because it needs to think narratively: Imagination acts as Projector,
+turning typed state, repo-body activity, social pressure, organ dependencies,
+and pending mentions into lived context before Face thinks; Face writes natural
+prose only; Mind acts as Interpreter, translating that natural thought into
+reviewed durable memory, draft, public SAY, route, or silence.
 Epiphany has the first native slice of that membrane in `epiphany-core`:
-`face_turn.rs` defines Projector/Face/Interpreter prompt contracts, heartbeat
-state carries typed pending mentions, and pending Face mentions select a
-`face_turn` without letting Face side effects execute themselves.
+`face_turn.rs` defines Imagination-Projector/Face/Mind-Interpreter prompt
+contracts, heartbeat state carries typed pending mentions, and pending Face
+mentions select a `face_turn` without letting Face side effects execute
+themselves.
+`notes/organ-dependency-contracts.md` is the standing dependency map: every
+sub-agent depends on all the other standing organs. Dependency does not collapse
+ownership; it makes each turn whole-organism-aware while Body still gates repo
+access and Mind still gates durable state.
 
 Mind is the larger version of the same boundary. The state is the Mind:
 sub-agent outputs are thoughts, not authority. Role/reorient findings and their

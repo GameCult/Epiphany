@@ -46,3 +46,6 @@ access authority.
 Mind and Body are neighboring gates, not aliases. Body decides whether the
 machine may touch the repo. Mind decides whether resulting thought or evidence
 mutates persistent state.
+
+Imagination can project Body facts into a Face scene only after those facts have
+entered through Body-gated access. A beautiful scene is not a repo access grant.

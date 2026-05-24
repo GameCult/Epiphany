@@ -9,6 +9,10 @@ Mind decides whether the resulting thought, evidence, or proposal mutates
 persistent state. Do not collapse these into one throne. That is how the machine
 starts lying with excellent posture.
 
+Imagination is the neighboring Projector for Face. It may compose a lived scene
+from state, Body facts, social pressure, and organ dependencies, but it does not
+interpret side effects or admit state.
+
 ## Authority Map
 
 - Owner: Mind owns the decision to mutate persistent Epiphany state.
