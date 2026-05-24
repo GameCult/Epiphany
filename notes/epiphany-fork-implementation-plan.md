@@ -85,6 +85,7 @@ The landed machine now has:
 - old Python dogfood runner cut; replacement must be native Rust/CultCache/CultNet over heartbeat/runtime-spine receipts
 - first auditable Phase 6 fixed-lane coordinator runner through native `epiphany-mvp-coordinator`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, runtime-spine status, native runtime job/result receipts for launched work, and final next-action artifacts while keeping semantic findings review-gated by default
 - first Codex-independent native runtime vertebra through `epiphany-runtime-spine`, storing runtime identity, sessions, jobs, job results, and events as typed CultCache MessagePack documents, opening/completing native jobs, projecting job-result counts, and emitting a framed CultNet hello message for the native contract
+- first Rust CultMesh local-node integration: `CultLib` now owns `crates/cultmesh-rs`, and `epiphany-core` depends on that CultMesh surface for a local `EpiphanyCultMeshStatusEntry` round-trip smoke instead of treating raw CultNet as the ergonomic app-facing database layer
 - live-specialist runner must be rebuilt around heartbeat/runtime-spine result receipts
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - first Unity editor/runtime bridge through native `epiphany-unity-bridge`, native `epiphany-unity-bridge-smoke`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
@@ -115,6 +116,7 @@ These boundaries are more important than the individual method names:
 
 - CultCache documents are the data model. CultNet is the wire for
   Epiphany-controlled subsystems.
+- CultMesh is the preferred ergonomic runtime/database surface over local CultCache plus CultNet contracts. Epiphany should start local Verse, dream, status, and operator-store work through CultMesh unless the task is explicitly implementing a lower-level CultMesh/CultNet/CultCache primitive.
 - JSON is allowed only for schema description, hostile/external ingress before
   immediate typed parsing, sealed forensic artifacts, or named quarantine
   experiments with an expiration path. Generic `serde_json::Value` must not be

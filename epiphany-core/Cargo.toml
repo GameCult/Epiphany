@@ -13,8 +13,9 @@ path = "src/lib.rs"
 anyhow = "1"
 bm25 = "2.3.2"
 chrono = "0.4.44"
-cultcache-rs = { path = "../vendor/cultcache-rs" }
-cultnet-rs = { path = "../vendor/cultnet-rs" }
+cultcache-rs = { path = "../../CultLib/crates/cultcache-rs" }
+cultmesh-rs = { path = "../../CultLib/crates/cultmesh-rs" }
+cultnet-rs = { path = "../../CultLib/crates/cultnet-rs" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 epiphany-state-model = { path = "../epiphany-state-model" }
 ignore = "0.4.23"
