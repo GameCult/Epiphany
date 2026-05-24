@@ -5,6 +5,7 @@ use epiphany_core::GhostlightSceneParticipantSeed;
 use epiphany_core::HeartbeatCompleteOptions;
 use epiphany_core::HeartbeatHeatUpdateOptions;
 use epiphany_core::HeartbeatPumpOptions;
+use epiphany_core::HeartbeatQueueMentionOptions;
 use epiphany_core::HeartbeatTickOptions;
 use epiphany_core::VoidRoutineOptions;
 use epiphany_core::apply_agent_self_patch_document;
@@ -14,6 +15,7 @@ use epiphany_core::initialize_ghostlight_scene_heartbeat_store;
 use epiphany_core::initialize_heartbeat_store;
 use epiphany_core::load_heartbeat_state_entry;
 use epiphany_core::pump_heartbeat_store;
+use epiphany_core::queue_heartbeat_pending_mention_store;
 use epiphany_core::run_void_routine_store;
 use epiphany_core::tick_heartbeat_store;
 use epiphany_core::update_heartbeat_heat_store;
@@ -62,6 +64,15 @@ fn main() -> Result<()> {
     let mut heat_reason: Option<String> = None;
     let mut heat_expires_after: Option<f64> = None;
     let mut heat_clear = false;
+    let mut channel_id: Option<String> = None;
+    let mut message_id: Option<String> = None;
+    let mut author_id: Option<String> = None;
+    let mut author_name: Option<String> = None;
+    let mut content: Option<String> = None;
+    let mut visible_prompt: Option<String> = None;
+    let mut reply_to_message_id: Option<String> = None;
+    let mut source_surface = "operator".to_string();
+    let mut mention_id: Option<String> = None;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
@@ -116,6 +127,17 @@ fn main() -> Result<()> {
                 heat_expires_after = Some(next_value(&mut args, "--expires-after")?.parse()?)
             }
             "--clear" => heat_clear = true,
+            "--channel-id" => channel_id = Some(next_value(&mut args, "--channel-id")?),
+            "--message-id" => message_id = Some(next_value(&mut args, "--message-id")?),
+            "--author-id" => author_id = Some(next_value(&mut args, "--author-id")?),
+            "--author-name" => author_name = Some(next_value(&mut args, "--author-name")?),
+            "--content" => content = Some(next_value(&mut args, "--content")?),
+            "--visible-prompt" => visible_prompt = Some(next_value(&mut args, "--visible-prompt")?),
+            "--reply-to-message-id" => {
+                reply_to_message_id = Some(next_value(&mut args, "--reply-to-message-id")?)
+            }
+            "--source-surface" => source_surface = next_value(&mut args, "--source-surface")?,
+            "--mention-id" => mention_id = Some(next_value(&mut args, "--mention-id")?),
             _ => return Err(anyhow!("unknown argument {arg:?}")),
         }
     }
@@ -244,6 +266,31 @@ fn main() -> Result<()> {
             )?;
             println!("{}", result);
         }
+        "queue-mention" => {
+            let store_path = store_path.ok_or_else(|| anyhow!("queue-mention requires --store"))?;
+            let target_role_id = role.unwrap_or_else(|| "face".to_string());
+            let result = queue_heartbeat_pending_mention_store(
+                &store_path,
+                HeartbeatQueueMentionOptions {
+                    target_role_id,
+                    source_surface,
+                    channel_id: channel_id
+                        .ok_or_else(|| anyhow!("queue-mention requires --channel-id"))?,
+                    message_id: message_id
+                        .ok_or_else(|| anyhow!("queue-mention requires --message-id"))?,
+                    author_id: author_id
+                        .ok_or_else(|| anyhow!("queue-mention requires --author-id"))?,
+                    author_name,
+                    content: content.ok_or_else(|| anyhow!("queue-mention requires --content"))?,
+                    visible_prompt: visible_prompt
+                        .ok_or_else(|| anyhow!("queue-mention requires --visible-prompt"))?,
+                    reply_to_message_id,
+                    queued_at: None,
+                    mention_id,
+                },
+            )?;
+            println!("{}", result);
+        }
         "status" => {
             let store_path = store_path.ok_or_else(|| anyhow!("status requires --store"))?;
             if let Some(artifact_dir) = artifact_dir {
@@ -322,7 +369,7 @@ fn next_value(args: &mut impl Iterator<Item = String>, name: &str) -> Result<Str
 
 fn usage() -> Result<()> {
     Err(anyhow!(
-        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store heat --store <path> [--scope global|all|agent|role|arena|participant_kind|group] [--selector <id>] [--multiplier <n>] [--id <id>] [--label <text>] [--reason <text>] [--expires-after <scene-clock-delta>] [--clear]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
+        "usage: epiphany-heartbeat-store init --store <path> [--profile epiphany|ghostlight-scene] [--scene-id <id>] [--scene-participant <id|name|speed|reaction|threshold|constraint;constraint>]\n       epiphany-heartbeat-store tick --store <path> --artifact-dir <path> [--coordinator-action <action>] [--agent-store <path> --apply-rumination] [--defer-completion]\n       epiphany-heartbeat-store pump --store <path> --artifact-dir <path> [--agent-store <path>] [--urgency <0..1>] [--min-heartbeat-rate <n>] [--max-heartbeat-rate <n>] [--min-concurrency <n>] [--max-concurrency <n>] [--max-ticks <n>]\n       epiphany-heartbeat-store heat --store <path> [--scope global|all|agent|role|arena|participant_kind|group] [--selector <id>] [--multiplier <n>] [--id <id>] [--label <text>] [--reason <text>] [--expires-after <scene-clock-delta>] [--clear]\n       epiphany-heartbeat-store complete --store <path> --artifact-dir <path> --role <role> [--action-id <id>]\n       epiphany-heartbeat-store queue-mention --store <path> [--role face] --channel-id <id> --message-id <id> --author-id <id> --content <text> --visible-prompt <text> [--author-name <name>] [--reply-to-message-id <id>] [--source-surface <name>]\n       epiphany-heartbeat-store status --store <path> [--artifact-dir <path>]\n       epiphany-heartbeat-store routine --store <path> --artifact-dir <path> [--agent-store <path>] [--source <source>] [--no-dream]\n       epiphany-heartbeat-store smoke [--agent-store <path>]"
     ))
 }
 
@@ -755,6 +802,7 @@ fn validate_schedule_shape(schedule: &serde_json::Value) -> Vec<String> {
             "role_work",
             "ruminate_memory",
             "scene_turn",
+            "face_turn",
         ]
         .contains(&action["action_type"].as_str().unwrap_or_default())
         {

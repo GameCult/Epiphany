@@ -1,3 +1,4 @@
+use crate::default_mind_cultnet_contracts;
 use anyhow::Result;
 use cultcache_rs::DatabaseEntry;
 use cultmesh_rs::CultMesh;
@@ -14,6 +15,9 @@ pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultme
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.global_room_policy.v0";
+pub const EPIPHANY_CULTMESH_MIND_CONTRACT_TYPE: &str = "epiphany.cultmesh.mind_contract";
+pub const EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.mind_contract.v0";
 pub const EPIPHANY_CULTMESH_INTERNAL_VERSE_ID: &str = "epiphany-internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID: &str = "gamecult-local";
 pub const EPIPHANY_CULTMESH_GLOBAL_VERSE_ID: &str = "epiphany-global";
@@ -93,10 +97,39 @@ pub struct EpiphanyCultMeshGlobalRoomPolicyEntry {
     pub untrusted_ingress_allowed: bool,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.mind_contract",
+    schema = "EpiphanyCultMeshMindContractEntry"
+)]
+pub struct EpiphanyCultMeshMindContractEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub contract_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub document_type: String,
+    #[cultcache(key = 4)]
+    pub payload_schema_version: String,
+    #[cultcache(key = 5)]
+    pub authority: String,
+    #[cultcache(key = 6)]
+    pub operations: Vec<String>,
+    #[cultcache(key = 7)]
+    pub intent_document_types: Vec<String>,
+    #[cultcache(key = 8)]
+    pub receipt_document_types: Vec<String>,
+    #[cultcache(key = 9)]
+    pub notes: Vec<String>,
+}
+
 cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshStatusEntry => EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
+    EpiphanyCultMeshMindContractEntry => EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION,
 });
 
 pub fn open_epiphany_cultmesh_node(
@@ -245,6 +278,37 @@ pub fn write_epiphany_cultmesh_global_room_policies(
     Ok(written)
 }
 
+pub fn epiphany_cultmesh_mind_contracts() -> Vec<EpiphanyCultMeshMindContractEntry> {
+    default_mind_cultnet_contracts()
+        .into_iter()
+        .map(|contract| EpiphanyCultMeshMindContractEntry {
+            schema_version: EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION.to_string(),
+            contract_id: contract.contract_id,
+            verse_id: contract.verse_id,
+            document_type: contract.document_type,
+            payload_schema_version: contract.payload_schema_version,
+            authority: contract.authority,
+            operations: contract.operations,
+            intent_document_types: contract.intent_document_types,
+            receipt_document_types: contract.receipt_document_types,
+            notes: contract.notes,
+        })
+        .collect()
+}
+
+pub fn write_epiphany_cultmesh_mind_contracts(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyCultMeshMindContractEntry>> {
+    let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let mut written = Vec::new();
+    for contract in epiphany_cultmesh_mind_contracts() {
+        written.push(node.put(contract.contract_id.clone(), &contract)?);
+    }
+    node.flush()?;
+    Ok(written)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,6 +380,39 @@ mod tests {
         assert!(dreams.face_posting_allowed);
         assert!(dreams.untrusted_ingress_allowed);
         assert!(architecture.purpose.contains("ownership"));
+        Ok(())
+    }
+
+    #[test]
+    fn mind_contracts_use_verses_to_keep_state_guarded() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-mind-contracts.ccmp");
+        let written = write_epiphany_cultmesh_mind_contracts(&store, "epiphany-test")?;
+        assert!(written.len() >= 4);
+
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        let state_review = node.get_required::<EpiphanyCultMeshMindContractEntry>(
+            "epiphany.mind.state_effect.review",
+        )?;
+        let public_adoption = node.get_required::<EpiphanyCultMeshMindContractEntry>(
+            "epiphany.mind.public_adoption.review",
+        )?;
+
+        assert_eq!(state_review.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
+        assert_eq!(state_review.authority, "mind");
+        assert!(
+            state_review
+                .notes
+                .iter()
+                .any(|note| note.contains("persistent state guardian"))
+        );
+        assert_eq!(public_adoption.verse_id, EPIPHANY_CULTMESH_GLOBAL_VERSE_ID);
+        assert!(
+            public_adoption
+                .notes
+                .iter()
+                .any(|note| note.contains("thought weather"))
+        );
         Ok(())
     }
 }

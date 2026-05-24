@@ -4,6 +4,18 @@ use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
 use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
 use crate::memory_graph::MEMORY_GRAPH_TYPE;
+use crate::mind_gateway::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_GATEWAY_REVIEW_TYPE;
+use crate::mind_gateway::MIND_STATE_COMMIT_RECEIPT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_STATE_COMMIT_RECEIPT_TYPE;
+use crate::mind_gateway::MIND_STATE_EFFECT_PROPOSAL_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_STATE_EFFECT_PROPOSAL_TYPE;
+use crate::mind_gateway::MIND_STATE_REJECTION_RECEIPT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_STATE_REJECTION_RECEIPT_TYPE;
+use crate::mind_gateway::MIND_THOUGHT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_THOUGHT_TYPE;
+use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
 use crate::thread_state_store::THREAD_STATE_SCHEMA_VERSION;
@@ -1425,6 +1437,99 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            MIND_THOUGHT_TYPE,
+            MIND_THOUGHT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![MIND_THOUGHT_TYPE],
+            vec![MIND_GATEWAY_REVIEW_TYPE, MIND_STATE_REJECTION_RECEIPT_TYPE],
+            vec![
+                "Sub-agent output enters Epiphany as thought, not durable state authority.",
+                "The Mind contract is the gateway between worker output and persistent state.",
+            ],
+        ),
+        mutation_contract(
+            MIND_STATE_EFFECT_PROPOSAL_TYPE,
+            MIND_STATE_EFFECT_PROPOSAL_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![MIND_STATE_EFFECT_PROPOSAL_TYPE],
+            vec![
+                MIND_GATEWAY_REVIEW_TYPE,
+                MIND_STATE_COMMIT_RECEIPT_TYPE,
+                MIND_STATE_REJECTION_RECEIPT_TYPE,
+            ],
+            vec![
+                "Mind is the persistent state guardian: role acceptance, reorientation acceptance, Face Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.",
+                "Workers and public Verse ingress propose effects; Mind accepts, refuses, or holds them before any durable state mutation.",
+            ],
+        ),
+        mutation_contract(
+            MIND_GATEWAY_REVIEW_TYPE,
+            MIND_GATEWAY_REVIEW_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Mind reviews are durable receipts explaining accepted, refused, or held state effects.",
+            ],
+        ),
+        mutation_contract(
+            MIND_STATE_COMMIT_RECEIPT_TYPE,
+            MIND_STATE_COMMIT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "A commit receipt is proof that Mind, not the worker, admitted a proposed effect into durable state.",
+            ],
+        ),
+        mutation_contract(
+            MIND_STATE_REJECTION_RECEIPT_TYPE,
+            MIND_STATE_REJECTION_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "A rejection receipt preserves why a thought or state effect was refused without mutating the Mind.",
+            ],
+        ),
+        mutation_contract(
+            MIND_VERSE_ADOPTION_RECEIPT_TYPE,
+            MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Foreign or public Verse material is thought weather until local Mind emits an adoption receipt.",
+                "The global Verse never receives private state authority by being interesting.",
+            ],
+        ),
+        mutation_contract(
             RUNTIME_EVENT_TYPE,
             RUNTIME_SPINE_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -1489,7 +1594,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.agent_memory_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Sub-agents request memory mutations; the coordinator accepts, rejects, or explains the refusal.",
+                "Sub-agents request memory mutations; the coordinator carries the typed intent, and Mind accepts, rejects, or explains durable-state admission.",
             ],
         ),
         mutation_contract(
@@ -2168,6 +2273,27 @@ mod tests {
                             .iter()
                             .any(|item| item == "epiphany.heartbeat_heat_intent.v0"))
                 );
+                let mind_state_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == MIND_STATE_EFFECT_PROPOSAL_TYPE)
+                    .expect("Mind state-effect proposal should advertise a mutation contract");
+                assert_eq!(
+                    mind_state_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    mind_state_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == MIND_STATE_COMMIT_RECEIPT_TYPE))
+                );
+                assert!(mind_state_contract.notes.as_ref().is_some_and(|notes| {
+                    notes
+                        .iter()
+                        .any(|note| note.contains("persistent state guardian"))
+                }));
                 let coordinator_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == SURFACE_COORDINATOR_TYPE)

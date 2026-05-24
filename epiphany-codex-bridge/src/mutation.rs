@@ -6,9 +6,13 @@ use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
+use epiphany_core::MindGatewayReview;
 use epiphany_core::build_reorient_acceptance_bundle;
 use epiphany_core::build_role_acceptance_bundle;
 use epiphany_core::imagination_role_state_patch_policy_errors;
+use epiphany_core::mind_review_allows_state;
+use epiphany_core::mind_review_reorient_acceptance;
+use epiphany_core::mind_review_role_acceptance;
 use epiphany_core::modeling_role_state_patch_policy_errors;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 
@@ -19,6 +23,7 @@ pub struct RoleAcceptanceUpdate {
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
+    pub mind_review: MindGatewayReview,
 }
 
 pub struct ReorientAcceptanceUpdate {
@@ -27,6 +32,7 @@ pub struct ReorientAcceptanceUpdate {
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
     pub accepted_evidence_id: String,
+    pub mind_review: MindGatewayReview,
 }
 
 pub fn parse_core_role_finding_state_patch(
@@ -109,6 +115,8 @@ pub fn build_role_acceptance_update(
         .into_iter()
         .map(|field| format!("{field:?}"))
         .collect();
+    let mind_review = mind_review_role_acceptance(binding_id, role_id, finding, &core_patch);
+    mind_review_allows_state(&mind_review)?;
     let acceptance_bundle = build_role_acceptance_bundle(
         binding_id,
         EpiphanyRoleAcceptanceFinding {
@@ -144,6 +152,7 @@ pub fn build_role_acceptance_update(
         accepted_receipt_id,
         accepted_observation_id,
         accepted_evidence_id,
+        mind_review,
     })
 }
 
@@ -158,17 +167,25 @@ pub fn build_reorient_acceptance_update(
     update_investigation_checkpoint: bool,
     checkpoint: Option<EpiphanyInvestigationCheckpoint>,
 ) -> Result<ReorientAcceptanceUpdate, String> {
+    let mind_finding = EpiphanyReorientAcceptanceFinding {
+        mode: finding.mode.clone(),
+        summary: finding.summary.clone(),
+        next_safe_move: finding.next_safe_move.clone(),
+        checkpoint_still_valid: finding.checkpoint_still_valid,
+        files_inspected: finding.files_inspected.clone(),
+        runtime_result_id: finding.runtime_result_id.clone(),
+        runtime_job_id: finding.runtime_job_id.clone(),
+    };
+    let mind_review = mind_review_reorient_acceptance(
+        binding_id,
+        &mind_finding,
+        update_scratch,
+        update_investigation_checkpoint,
+    );
+    mind_review_allows_state(&mind_review)?;
     let acceptance_bundle = build_reorient_acceptance_bundle(
         binding_id,
-        EpiphanyReorientAcceptanceFinding {
-            mode: finding.mode.clone(),
-            summary: finding.summary.clone(),
-            next_safe_move: finding.next_safe_move.clone(),
-            checkpoint_still_valid: finding.checkpoint_still_valid,
-            files_inspected: finding.files_inspected.clone(),
-            runtime_result_id: finding.runtime_result_id.clone(),
-            runtime_job_id: finding.runtime_job_id.clone(),
-        },
+        mind_finding,
         accepted_evidence_id,
         accepted_observation_id,
         accepted_at,
@@ -209,6 +226,7 @@ pub fn build_reorient_acceptance_update(
         accepted_receipt_id,
         accepted_observation_id,
         accepted_evidence_id,
+        mind_review,
     })
 }
 

@@ -56,6 +56,7 @@ pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatS
         initiative_heat: Default::default(),
         protocol: None,
         adaptive_pacing: None,
+        pending_mentions: Vec::new(),
     }
 }
 

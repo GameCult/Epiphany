@@ -1371,6 +1371,33 @@ voice/WebRTC, stream overlays, native CLIs, or other CultNet clients; the
 project schedules modeling, research, verification, rumination, and proposed
 actions without requiring the human to hand over a complete architecture brief.
 
+The important Face lesson is now sharper than "better public speech." Face is
+special because it needs to think narratively: a Projector turns typed state,
+repo-body activity, social pressure, and pending mentions into lived context
+before Face thinks; Face writes natural prose only; an Interpreter translates
+that natural thought into durable memory, draft, public SAY, route, or silence.
+Epiphany has the first native slice of that membrane in `epiphany-core`:
+`face_turn.rs` defines Projector/Face/Interpreter prompt contracts, heartbeat
+state carries typed pending mentions, and pending Face mentions select a
+`face_turn` without letting Face side effects execute themselves.
+
+Mind is the larger version of the same boundary. The state is the Mind:
+sub-agent outputs are thoughts, not authority. Role/reorient findings and their
+`statePatch` / `selfPatch` / evidence / observation / receipt / scratch /
+checkpoint effects must route through Mind review before they become durable
+state. The first native `mind_gateway.rs` slice reviews role and reorientation
+acceptance effects, and `epiphany-codex-bridge::mutation` now requires that
+review before building state updates.
+`notes/mind-cultnet-contracts.md` is the new contract map for making Mind the
+persistent state guardian over CultNet/CultMesh. The code surface now names
+`epiphany.mind.thought`, `epiphany.mind.state_effect_proposal`,
+`epiphany.mind.gateway_review`, `epiphany.mind.state_commit_receipt`,
+`epiphany.mind.state_rejection_receipt`, and
+`epiphany.mind.verse_adoption_receipt`; runtime-spine advertises those
+contracts, and CultMesh stores Verse-scoped `EpiphanyCultMeshMindContractEntry`
+policy docs so `epiphany-internal` owns private state flow while
+`epiphany-global` remains thought weather plus adoption receipts.
+
 ## Not Yet
 
 - automatic watcher-driven semantic invalidation

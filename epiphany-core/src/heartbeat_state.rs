@@ -411,6 +411,84 @@ pub fn update_heartbeat_heat_store(
     }))
 }
 
+pub fn queue_heartbeat_pending_mention_store(
+    store_path: impl AsRef<Path>,
+    options: HeartbeatQueueMentionOptions,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut state = load_heartbeat_state_entry(store_path)?.unwrap_or_else(|| {
+        let mut state = default_heartbeat_state(1.0);
+        patch_missing_participants(&mut state);
+        state
+    });
+    patch_missing_participants(&mut state);
+    let participant_index = participant_index_by_role(&state, &options.target_role_id)?;
+    let participant = &state.participants[participant_index];
+    validate_mention_text("content", &options.content, 4, 4000)?;
+    validate_mention_text("visible_prompt", &options.visible_prompt, 4, 1200)?;
+    for (label, value) in [
+        ("source_surface", &options.source_surface),
+        ("channel_id", &options.channel_id),
+        ("message_id", &options.message_id),
+        ("author_id", &options.author_id),
+    ] {
+        validate_mention_text(label, value, 1, 240)?;
+    }
+    let queued_at = options.queued_at.clone().unwrap_or_else(now_iso);
+    let mention_id = options.mention_id.clone().unwrap_or_else(|| {
+        stable_pending_mention_id(
+            &options.target_role_id,
+            &options.channel_id,
+            &options.message_id,
+            &options.visible_prompt,
+        )
+    });
+    if state
+        .pending_mentions
+        .iter()
+        .any(|mention| mention.id == mention_id)
+    {
+        return Ok(serde_json::json!({
+            "ok": true,
+            "queued": false,
+            "reason": "duplicate-pending-mention",
+            "mentionId": mention_id,
+            "pendingMentionCount": state.pending_mentions.len(),
+        }));
+    }
+    state.pending_mentions.push(HeartbeatPendingMention {
+        id: mention_id.clone(),
+        target_role_id: options.target_role_id.clone(),
+        target_agent_id: participant.agent_id.clone(),
+        source_surface: options.source_surface,
+        channel_id: options.channel_id,
+        message_id: options.message_id,
+        author_id: options.author_id,
+        author_name: options.author_name,
+        content: options.content,
+        visible_prompt: options.visible_prompt,
+        reply_to_message_id: options.reply_to_message_id,
+        queued_at,
+    });
+    state.pending_mentions.sort_by(|left, right| {
+        left.queued_at
+            .cmp(&right.queued_at)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    state.participants[participant_index].next_ready_at = state.participants[participant_index]
+        .next_ready_at
+        .min(state.scene_clock);
+    write_heartbeat_state_entry(store_path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "queued": true,
+        "mentionId": mention_id,
+        "targetRoleId": options.target_role_id,
+        "pendingMentionCount": state.pending_mentions.len(),
+        "contract": "Pending Face mentions live in heartbeat physiology. They pull the Face turn forward, but the Face still writes naturally and the Interpreter owns side effects.",
+    }))
+}
+
 fn initiative_heat_json(state: &EpiphanyHeartbeatStateEntry) -> Value {
     serde_json::json!({
         "schemaVersion": state.initiative_heat.schema_version,
@@ -557,6 +635,13 @@ fn tick_once(
     state.participants[selected_index].current_load =
         round6((state.participants[selected_index].current_load * 0.75).clamp(0.0, 1.0));
     state.scene_clock = round6(scene_clock);
+    let selected_pending_mentions = pending_mentions_for_role(state, &selected.role_id);
+    if action.action_type == "face_turn" {
+        let selected_role = selected.role_id.as_str();
+        state
+            .pending_mentions
+            .retain(|mention| mention.target_role_id != selected_role);
+    }
     if !options.defer_completion {
         complete_pending_turn(state, selected_index)?;
     }
@@ -610,6 +695,7 @@ fn tick_once(
             "interruptibility": action.interruptibility,
             "commitment": action.commitment,
             "local_affordance_basis": action.local_affordance_basis,
+            "pending_mentions": selected_pending_mentions,
         }],
         "reaction_windows": if let Some(work_role) = &work_role {
             serde_json::json!([{
@@ -634,6 +720,7 @@ fn tick_once(
             "override_reason": null,
             "readiness_snapshot": readiness_snapshot,
         },
+        "pending_mentions": state.pending_mentions.clone(),
         "review_notes": [
             "Epiphany heartbeat uses Ghostlight initiative timing as a harness scheduling receipt.",
             "A selected idle lane may ruminate and request bounded self-memory mutation; it may not invent project work.",
@@ -732,6 +819,17 @@ fn select_participant(
             ));
         }
     }
+    if let Some(index) = active.iter().copied().find(|index| {
+        let participant = &state.participants[*index];
+        participant.role_id == "face"
+            && !pending_mentions_for_role(state, &participant.role_id).is_empty()
+    }) {
+        return Ok((
+            index,
+            "reaction_interrupt",
+            "Pending addressed Face mention pulled Face forward; Projector and Interpreter remain the side-effect boundaries.".to_string(),
+        ));
+    }
     let selected = active
         .into_iter()
         .min_by(|left, right| {
@@ -783,6 +881,29 @@ fn action_for_selection(
                     .to_string(),
                 "The same heartbeat timing law schedules scene characters and maintenance organs."
                     .to_string(),
+            ],
+        };
+    }
+    let pending_mentions = pending_mentions_for_role(state, &selected.role_id);
+    if !pending_mentions.is_empty() && selected.role_id == "face" {
+        let heartbeat_rate = target_heartbeat_rate.max(minimum_rate);
+        return HeartbeatAction {
+            action_id: "heartbeat.face.turn".to_string(),
+            action_type: "face_turn",
+            action_scale: "standard",
+            base_recovery: state.pacing_policy.work_base_recovery / heartbeat_rate,
+            initiative_cost: 4.0,
+            interruptibility: 0.35,
+            commitment: 0.7,
+            local_affordance_basis: vec![
+                format!(
+                    "Wake {} for {} pending addressed mention(s).",
+                    selected.display_name,
+                    pending_mentions.len()
+                ),
+                "Projector owns state-to-narrative prompting before Face sees context.".to_string(),
+                "Face writes natural narrative thought; Interpreter owns memory, draft, SAY, route, or drop side effects.".to_string(),
+                "Pending mentions are consumed only after this Face turn is queued.".to_string(),
             ],
         };
     }
@@ -856,6 +977,41 @@ fn work_role_for_action(action: Option<&str>, target_role: Option<&str>) -> Opti
         _ => return None,
     };
     Some(role.to_string())
+}
+
+fn pending_mentions_for_role(
+    state: &EpiphanyHeartbeatStateEntry,
+    role_id: &str,
+) -> Vec<HeartbeatPendingMention> {
+    state
+        .pending_mentions
+        .iter()
+        .filter(|mention| mention.target_role_id == role_id)
+        .cloned()
+        .collect()
+}
+
+fn validate_mention_text(label: &str, value: &str, min_len: usize, max_len: usize) -> Result<()> {
+    let trimmed = value.trim();
+    if trimmed.len() < min_len || value.len() > max_len {
+        return Err(anyhow!(
+            "pending mention {label} must be between {min_len} and {max_len} characters"
+        ));
+    }
+    Ok(())
+}
+
+fn stable_pending_mention_id(
+    role_id: &str,
+    channel_id: &str,
+    message_id: &str,
+    visible_prompt: &str,
+) -> String {
+    let mut hash = 5381_u64;
+    for byte in format!("{role_id}\0{channel_id}\0{message_id}\0{visible_prompt}").as_bytes() {
+        hash = ((hash << 5).wrapping_add(hash)).wrapping_add(*byte as u64);
+    }
+    format!("mention-{hash:016x}")
 }
 
 fn patch_missing_participants(state: &mut EpiphanyHeartbeatStateEntry) {
@@ -3256,6 +3412,62 @@ mod tests {
             "scene_turn"
         );
         assert_eq!(tick["schedule"]["participants"][0]["arena"], "scene");
+        Ok(())
+    }
+
+    #[test]
+    fn pending_face_mention_selects_face_turn_and_consumes_queue() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("face-heartbeats.msgpack");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_heartbeat_store(&store_path, 1.0)?;
+        let queued = queue_heartbeat_pending_mention_store(
+            &store_path,
+            HeartbeatQueueMentionOptions {
+                target_role_id: "face".to_string(),
+                source_surface: "discord".to_string(),
+                channel_id: "aquarium".to_string(),
+                message_id: "m1".to_string(),
+                author_id: "human".to_string(),
+                author_name: Some("Metacrat".to_string()),
+                content: "Epiphany, answer this through the Face membrane.".to_string(),
+                visible_prompt: "answer this through the Face membrane".to_string(),
+                reply_to_message_id: None,
+                queued_at: Some("2026-05-24T00:00:00+00:00".to_string()),
+                mention_id: Some("mention-face-test".to_string()),
+            },
+        )?;
+        assert_eq!(queued["queued"], true);
+
+        let tick = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 1.0,
+                coordinator_action: None,
+                target_role: None,
+                urgency: 0.0,
+                schedule_id: "face-mentioned".to_string(),
+                source_scene_ref: "test/face-mentioned".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )?;
+
+        assert_eq!(tick["event"]["selectedRole"], "face");
+        assert_eq!(tick["event"]["actionType"], "face_turn");
+        assert_eq!(
+            tick["schedule"]["action_catalog"][0]["pending_mentions"][0]["id"],
+            "mention-face-test"
+        );
+        assert_eq!(
+            tick["schedule"]["pending_mentions"]
+                .as_array()
+                .map(Vec::len),
+            Some(0)
+        );
+        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
+        assert!(state.pending_mentions.is_empty());
         Ok(())
     }
 

@@ -40,6 +40,8 @@ pub struct EpiphanyHeartbeatStateEntry {
     pub protocol: Option<HeartbeatProtocol>,
     #[cultcache(key = 18, default)]
     pub adaptive_pacing: Option<HeartbeatAdaptivePacing>,
+    #[cultcache(key = 19, default)]
+    pub pending_mentions: Vec<HeartbeatPendingMention>,
 }
 
 #[derive(Clone, Debug, PartialEq, DatabaseEntry)]
@@ -114,6 +116,8 @@ pub(super) struct LegacyHeartbeatStateWithCognition {
     pub(super) reactions: Option<Value>,
     #[cultcache(key = 15, default)]
     pub(super) extra: BTreeMap<String, Value>,
+    #[cultcache(key = 19, default)]
+    pub(super) pending_mentions: Vec<HeartbeatPendingMention>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -755,6 +759,25 @@ pub struct HeartbeatPendingTurn {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatPendingMention {
+    pub id: String,
+    pub target_role_id: String,
+    pub target_agent_id: String,
+    pub source_surface: String,
+    pub channel_id: String,
+    pub message_id: String,
+    pub author_id: String,
+    #[serde(default)]
+    pub author_name: Option<String>,
+    pub content: String,
+    pub visible_prompt: String,
+    #[serde(default)]
+    pub reply_to_message_id: Option<String>,
+    pub queued_at: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct HeartbeatHistoryEvent {
     pub ts: String,
     #[serde(rename = "scheduleId")]
@@ -827,6 +850,21 @@ pub struct HeartbeatHeatUpdateOptions {
     pub reason: Option<String>,
     pub expires_after_scene_clock: Option<f64>,
     pub clear: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeartbeatQueueMentionOptions {
+    pub target_role_id: String,
+    pub source_surface: String,
+    pub channel_id: String,
+    pub message_id: String,
+    pub author_id: String,
+    pub author_name: Option<String>,
+    pub content: String,
+    pub visible_prompt: String,
+    pub reply_to_message_id: Option<String>,
+    pub queued_at: Option<String>,
+    pub mention_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
