@@ -192,6 +192,15 @@ The active priority is now the Codex starvation plan:
 feature surfaces until the auth/model spine and JSON contamination inventories
 exist and the first typed-document replacement cut is underway.
 
+The distributed dreaming direction is now concrete in
+`notes/epiphany-cultmesh-dreaming-roadmap.md`. It is not a license to add a
+new networked thought hose beside the starvation work. It is the target shape
+for the CultNet liberation path: public dreams are separately authored typed
+documents; private state remains local; foreign dreams are external thought
+weather until a reviewed local adoption receipt digests them. The first
+implementation cut is schema plus local CultCache dream store, not public mesh
+fanout.
+
 The next unknowns are:
 
 - what exact vendored Codex crates, files, config, and runtime paths are needed
@@ -211,6 +220,12 @@ The next unknowns are:
   app-server/plugin organs
 - how to make Aquarium and CLI status use CultNet contracts instead of
   `thread/epiphany/*`
+- how to define `EpiphanyDream`, dream lineage, ingress receipts, and adoption
+  receipts as typed documents without letting dreams mutate private state or
+  project truth by import
+- how to expose an `epiphany-local` dream store first, then a public
+  `epiphany-dreams` Verse with leases, shard ownership, provenance, and
+  anti-repetition cooling
 - what bridge surface is sufficient for the next Aetheria run: named Unity operations, Aetheria-side editor probes, GUI environment status, Rider context capture, and a Rider plugin MVP
 - how much controlled runtime/editor access the richer Unity bridge gives implementation and verification lanes before deeper engine probes need another slice
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
