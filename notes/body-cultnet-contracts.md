@@ -49,3 +49,5 @@ mutates persistent state.
 
 Imagination can project Body facts into a Face scene only after those facts have
 entered through Body-gated access. A beautiful scene is not a repo access grant.
+Eyes is the next gate after access: a Body grant allows looking, but only Eyes
+can turn looked-at material into a citable evidence packet.

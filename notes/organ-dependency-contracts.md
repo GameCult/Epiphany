@@ -32,6 +32,8 @@ must be projected with awareness of the whole organism:
   Imagination models the future shape.
 - Mind admits state only after it can see which organ produced the thought and
   which other organs shaped the proposal.
+- Eyes supplies source-grounded evidence packets after Body grants access, so
+  the other organs do not mistake raw retrieval for inspected truth.
 
 ## Projector Ownership
 
@@ -50,5 +52,6 @@ Body-gated facts + Mind state + social stimulus + organ dependencies
 ```
 
 Mind is the Interpreter and persistent state guardian. Body is the repository
-access guardian. Imagination is the Projector. Face is the public person. The
-dependency web is how the machine avoids lonely little monarchies in costumes.
+access guardian. Eyes is the evidence ingress guardian. Imagination is the
+Projector. Face is the public person. The dependency web is how the machine
+avoids lonely little monarchies in costumes.

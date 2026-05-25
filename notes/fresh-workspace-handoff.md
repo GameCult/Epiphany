@@ -1410,6 +1410,11 @@ and mutation receipts; runtime-spine advertises those contracts, and CultMesh
 stores Verse-scoped `EpiphanyCultMeshBodyContractEntry` policy docs. Hands, Eyes,
 Face, workers, and bridge tools should touch the repo only through scoped Body
 access receipts; Mind remains the separate durable-state gate after the touch.
+`notes/eyes-cultnet-contracts.md` is the evidence gate: Eyes owns citable source
+grounding. Body can grant access to the repo, but Eyes decides what was actually
+looked at and emits evidence reviews, source lookup receipts, evidence packets,
+or refusals before Imagination, Hands, Mind, Face, Soul, Self, Body, or Life cite
+the material as known.
 
 ## Not Yet
 

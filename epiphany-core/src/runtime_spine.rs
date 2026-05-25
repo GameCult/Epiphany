@@ -12,6 +12,16 @@ use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_TYPE;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_REQUEST_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_REQUEST_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_TYPE;
+use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
 use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
@@ -1626,6 +1636,77 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            EYES_EVIDENCE_REQUEST_TYPE,
+            EYES_EVIDENCE_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![EYES_EVIDENCE_REQUEST_TYPE],
+            vec![
+                EYES_EVIDENCE_REVIEW_TYPE,
+                EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
+                EYES_EVIDENCE_PACKET_TYPE,
+                EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
+            ],
+            vec![
+                "Eyes is the evidence ingress guardian: source-grounded claims, provenance, uncertainty, and evidence packets enter through this contract.",
+                "Body grants substrate access; Eyes decides what was actually inspected and what other organs may cite.",
+            ],
+        ),
+        mutation_contract(
+            EYES_EVIDENCE_REVIEW_TYPE,
+            EYES_EVIDENCE_REVIEW_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Eyes reviews explain whether a claim is source-grounded, uncertain, or refused."],
+        ),
+        mutation_contract(
+            EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
+            EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Source lookup receipts prove what was searched or inspected under a Body grant."],
+        ),
+        mutation_contract(
+            EYES_EVIDENCE_PACKET_TYPE,
+            EYES_EVIDENCE_PACKET_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Evidence packets carry provenance, uncertainty, and source refs for the other organs.",
+            ],
+        ),
+        mutation_contract(
+            EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
+            EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Evidence refusal receipts preserve why Eyes would not certify a claim."],
+        ),
+        mutation_contract(
             RUNTIME_EVENT_TYPE,
             RUNTIME_SPINE_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -2410,6 +2491,27 @@ mod tests {
                     notes
                         .iter()
                         .any(|note| note.contains("repository access guardian"))
+                }));
+                let eyes_evidence_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == EYES_EVIDENCE_REQUEST_TYPE)
+                    .expect("Eyes evidence request should advertise a mutation contract");
+                assert_eq!(
+                    eyes_evidence_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    eyes_evidence_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == EYES_EVIDENCE_PACKET_TYPE))
+                );
+                assert!(eyes_evidence_contract.notes.as_ref().is_some_and(|notes| {
+                    notes
+                        .iter()
+                        .any(|note| note.contains("evidence ingress guardian"))
                 }));
                 let coordinator_contract = contracts
                     .iter()
