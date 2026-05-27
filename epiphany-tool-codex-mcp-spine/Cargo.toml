@@ -14,6 +14,7 @@ codex-exec-server = { path = "../vendor/codex/codex-rs/exec-server" }
 codex-mcp = { path = "../vendor/codex/codex-rs/codex-mcp" }
 codex-protocol = { path = "../vendor/codex/codex-rs/protocol" }
 cultcache-rs = { path = "../vendor/cultcache-rs" }
+epiphany-core = { path = "../epiphany-core" }
 epiphany-tool-adapter = { path = "../epiphany-tool-adapter" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

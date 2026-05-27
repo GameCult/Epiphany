@@ -37,6 +37,9 @@ use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
+use epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID;
+use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
+use epiphany_tool_adapter::tool_invocation_intent_key;
 use serde::de::DeserializeOwned;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
@@ -65,6 +68,7 @@ pub struct EpiphanyOpenAiRuntimeRunSummary {
     pub verdict: String,
     pub result_id: String,
     pub receipt_id: Option<String>,
+    pub tool_intent_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -236,6 +240,9 @@ pub fn record_openai_events(
         cache.put(model_request_key(&model_request.request_id), &model_request)?;
         for event in events {
             let model_event = model_event_from_openai_event(DEFAULT_MODEL_PROVIDER, event);
+            if let Some(intent) = tool_invocation_intent_from_model_event(&model_event) {
+                cache.put(tool_invocation_intent_key(&intent.intent_id), &intent)?;
+            }
             cache.put(
                 model_event_key(&model_event.request_id, model_event.sequence),
                 &model_event,
@@ -323,6 +330,10 @@ pub fn record_openai_events(
         verdict: verdict.to_string(),
         result_id,
         receipt_id: receipt.map(|item| openai_receipt_key(&item.request_id)),
+        tool_intent_ids: tool_invocation_intents_from_openai_events(DEFAULT_MODEL_PROVIDER, events)
+            .into_iter()
+            .map(|intent| intent.intent_id)
+            .collect(),
     })
 }
 
@@ -771,6 +782,78 @@ pub fn model_receipt_from_openai_receipt(
     }
 }
 
+pub fn tool_invocation_intents_from_openai_events(
+    provider: &str,
+    events: &[EpiphanyOpenAiStreamEvent],
+) -> Vec<EpiphanyToolInvocationIntent> {
+    events
+        .iter()
+        .filter_map(|event| {
+            let model_event = model_event_from_openai_event(provider, event);
+            tool_invocation_intent_from_model_event(&model_event)
+        })
+        .collect()
+}
+
+pub fn tool_invocation_intent_from_model_event(
+    event: &EpiphanyModelStreamEvent,
+) -> Option<EpiphanyToolInvocationIntent> {
+    let EpiphanyModelStreamPayload::ToolCall {
+        call_id,
+        name,
+        arguments,
+    } = &event.payload
+    else {
+        return None;
+    };
+    let (server, tool_name) = split_mcp_tool_name(name)?;
+    if !arguments_are_invocation_ready(arguments) {
+        return None;
+    }
+    Some(EpiphanyToolInvocationIntent::new(
+        format!(
+            "model-{}-{}-{}",
+            sanitize_request_id(&event.request_id),
+            event.sequence,
+            sanitize_request_id(call_id)
+        ),
+        CODEX_MCP_TOOL_ADAPTER_ID,
+        server,
+        tool_name,
+        arguments.clone(),
+        format!("model-runtime:{}", event.provider),
+        format!(
+            "Model request {} emitted MCP tool call {}.",
+            event.request_id, call_id
+        ),
+        now(),
+    ))
+}
+
+fn split_mcp_tool_name(name: &str) -> Option<(String, String)> {
+    let mut parts = name.split("__");
+    if parts.next()? != "mcp" {
+        return None;
+    }
+    let server = parts.next()?.trim();
+    let tool = parts.collect::<Vec<_>>().join("__");
+    if server.is_empty() || tool.trim().is_empty() {
+        return None;
+    }
+    Some((server.to_string(), tool))
+}
+
+fn arguments_are_invocation_ready(arguments: &str) -> bool {
+    let trimmed = arguments.trim();
+    if trimmed.is_empty() || trimmed == "null" {
+        return true;
+    }
+    matches!(
+        serde_json::from_str::<serde_json::Value>(trimmed),
+        Ok(serde_json::Value::Object(_))
+    )
+}
+
 fn require_openai_provider(provider: &str) -> Result<()> {
     if matches!(provider, "openai-codex" | "openai") {
         return Ok(());
@@ -1196,6 +1279,7 @@ mod tests {
             verdict: "pass".to_string(),
             result_id: "result-openai-worker-worker-job-1".to_string(),
             receipt_id: Some(model_request.request_id.clone()),
+            tool_intent_ids: Vec::new(),
         };
         let result = complete_worker_job_from_assistant_text(
             &store,
@@ -1230,5 +1314,56 @@ mod tests {
                 .is_some()
         );
         Ok(())
+    }
+
+    #[test]
+    fn mcp_model_tool_call_becomes_typed_invocation_intent() -> Result<()> {
+        let event = EpiphanyModelStreamEvent {
+            schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+            request_id: "request-1".to_string(),
+            provider: DEFAULT_MODEL_PROVIDER.to_string(),
+            sequence: 7,
+            payload: EpiphanyModelStreamPayload::ToolCall {
+                call_id: "call/1".to_string(),
+                name: "mcp__calendar_server__list_events".to_string(),
+                arguments: r#"{"limit":3}"#.to_string(),
+            },
+        };
+
+        let intent = tool_invocation_intent_from_model_event(&event)
+            .expect("MCP-shaped tool call should produce an intent");
+        assert_eq!(
+            intent.adapter,
+            epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID
+        );
+        assert_eq!(intent.server, "calendar_server");
+        assert_eq!(intent.tool_name, "list_events");
+        assert_eq!(intent.arguments_json, r#"{"limit":3}"#);
+        assert_eq!(intent.intent_id, "model-request-1-7-call-1");
+        Ok(())
+    }
+
+    #[test]
+    fn incomplete_or_non_mcp_tool_calls_do_not_create_invocation_intents() {
+        let base = EpiphanyModelStreamEvent {
+            schema_id: epiphany_model_adapter::MODEL_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+            request_id: "request-1".to_string(),
+            provider: DEFAULT_MODEL_PROVIDER.to_string(),
+            sequence: 7,
+            payload: EpiphanyModelStreamPayload::ToolCall {
+                call_id: "call".to_string(),
+                name: "shell".to_string(),
+                arguments: "{}".to_string(),
+            },
+        };
+        assert!(tool_invocation_intent_from_model_event(&base).is_none());
+
+        let mut incomplete = base.clone();
+        incomplete.payload = EpiphanyModelStreamPayload::ToolCall {
+            call_id: "call".to_string(),
+            name: "mcp__server__tool".to_string(),
+            arguments: "{".to_string(),
+        };
+        assert!(tool_invocation_intent_from_model_event(&incomplete).is_none());
     }
 }

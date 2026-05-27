@@ -2,8 +2,8 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use async_channel::unbounded;
-use codex_config::Constrained;
 use codex_config::CONFIG_TOML_FILE;
+use codex_config::Constrained;
 use codex_config::config_toml::ConfigToml;
 use codex_config::load_global_mcp_servers;
 use codex_config::types::OAuthCredentialsStoreMode;
@@ -15,14 +15,11 @@ use codex_mcp::compute_auth_statuses;
 use codex_mcp::effective_mcp_servers;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::protocol::SandboxPolicy;
-use cultcache_rs::CultCache;
-use cultcache_rs::SingleFileMessagePackBackingStore;
-use epiphany_tool_adapter::EpiphanyToolCapability;
+use epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
 use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
-use epiphany_tool_adapter::TOOL_ADAPTER_CAPABILITY_SCHEMA_ID;
-use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID;
-use epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID;
+use epiphany_tool_adapter::tool_invocation_intent_key;
+use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -34,7 +31,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-const ADAPTER_ID: &str = "codex-mcp";
+const ADAPTER_ID: &str = CODEX_MCP_TOOL_ADAPTER_ID;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -92,9 +89,7 @@ impl Command {
                     .cloned()
                     .unwrap_or_else(|| "codex-mcp-spine-smoke".to_string()),
             })),
-            other => Err(anyhow!(
-                "unknown command {other:?}; expected run or smoke"
-            )),
+            other => Err(anyhow!("unknown command {other:?}; expected run or smoke")),
         }
     }
 }
@@ -129,12 +124,8 @@ fn optional_path(values: &BTreeMap<String, String>, name: &str) -> Result<Option
     Ok(values.get(name).map(PathBuf::from))
 }
 
-fn open_store(path: &Path) -> Result<CultCache> {
-    let mut cache = CultCache::new();
-    cache.register_entry_type::<EpiphanyToolCapability>()?;
-    cache.register_entry_type::<EpiphanyToolInvocationIntent>()?;
-    cache.register_entry_type::<EpiphanyToolInvocationReceipt>()?;
-    cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(path));
+fn open_store(path: &Path) -> Result<cultcache_rs::CultCache> {
+    let mut cache = epiphany_core::runtime_spine_cache(path)?;
     cache.pull_all_backing_stores()?;
     Ok(cache)
 }
@@ -142,8 +133,15 @@ fn open_store(path: &Path) -> Result<CultCache> {
 async fn run_invocation(options: RunOptions) -> Result<RunSummary> {
     let mut cache = open_store(&options.store)?;
     let intent = cache
-        .get_required::<EpiphanyToolInvocationIntent>(&intent_key(&options.intent_id))
-        .with_context(|| format!("failed to load tool invocation intent {}", options.intent_id))?;
+        .get_required::<EpiphanyToolInvocationIntent>(&tool_invocation_intent_key(
+            &options.intent_id,
+        ))
+        .with_context(|| {
+            format!(
+                "failed to load tool invocation intent {}",
+                options.intent_id
+            )
+        })?;
     validate_intent(&intent)?;
 
     let completed_at = now_utc_string();
@@ -155,7 +153,11 @@ async fn run_invocation(options: RunOptions) -> Result<RunSummary> {
         intent.adapter.clone(),
         intent.server.clone(),
         intent.tool_name.clone(),
-        if result.is_ok() { "completed" } else { "failed" },
+        if result.is_ok() {
+            "completed"
+        } else {
+            "failed"
+        },
         completed_at,
     );
 
@@ -168,7 +170,7 @@ async fn run_invocation(options: RunOptions) -> Result<RunSummary> {
         }
     }
 
-    cache.put(receipt_key(&receipt.intent_id), &receipt)?;
+    cache.put(tool_invocation_receipt_key(&receipt.intent_id), &receipt)?;
     Ok(RunSummary {
         adapter: ADAPTER_ID.to_string(),
         store: options.store.display().to_string(),
@@ -235,14 +237,12 @@ async fn execute_codex_mcp(
 
 async fn load_mcp_config(codex_home: &Path) -> Result<McpConfig> {
     let config_toml = read_codex_config_toml(codex_home)?;
-    let mcp_servers = load_global_mcp_servers(codex_home)
-        .await
-        .with_context(|| {
-            format!(
-                "failed to load Codex MCP servers from {}",
-                codex_home.join(CONFIG_TOML_FILE).display()
-            )
-        })?;
+    let mcp_servers = load_global_mcp_servers(codex_home).await.with_context(|| {
+        format!(
+            "failed to load Codex MCP servers from {}",
+            codex_home.join(CONFIG_TOML_FILE).display()
+        )
+    })?;
     Ok(McpConfig {
         chatgpt_base_url: config_toml
             .as_ref()
@@ -313,12 +313,12 @@ fn parse_arguments(arguments_json: &str) -> Result<Option<Value>> {
 }
 
 fn validate_intent(intent: &EpiphanyToolInvocationIntent) -> Result<()> {
-    if intent.schema_id != TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID {
+    if intent.schema_id != epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID {
         return Err(anyhow!(
             "intent {} has schema_id {:?}, expected {:?}",
             intent.intent_id,
             intent.schema_id,
-            TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID
+            epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID
         ));
     }
     if intent.adapter != ADAPTER_ID {
@@ -333,7 +333,10 @@ fn validate_intent(intent: &EpiphanyToolInvocationIntent) -> Result<()> {
         return Err(anyhow!("intent {} has empty MCP server", intent.intent_id));
     }
     if intent.tool_name.trim().is_empty() {
-        return Err(anyhow!("intent {} has empty MCP tool name", intent.intent_id));
+        return Err(anyhow!(
+            "intent {} has empty MCP tool name",
+            intent.intent_id
+        ));
     }
     Ok(())
 }
@@ -359,8 +362,8 @@ fn smoke(options: SmokeOptions) -> Result<SmokeSummary> {
         "smoke",
         now_utc_string(),
     );
-    cache.put(intent_key(&intent.intent_id), &intent)?;
-    cache.put(receipt_key(&intent.intent_id), &receipt)?;
+    cache.put(tool_invocation_intent_key(&intent.intent_id), &intent)?;
+    cache.put(tool_invocation_receipt_key(&intent.intent_id), &receipt)?;
     Ok(SmokeSummary {
         adapter: ADAPTER_ID.to_string(),
         store: options.store.display().to_string(),
@@ -368,14 +371,6 @@ fn smoke(options: SmokeOptions) -> Result<SmokeSummary> {
         receipt_id: receipt.receipt_id,
         schemas: schema_map(),
     })
-}
-
-fn intent_key(intent_id: &str) -> String {
-    format!("intent:{intent_id}")
-}
-
-fn receipt_key(intent_id: &str) -> String {
-    format!("receipt:{intent_id}")
 }
 
 fn receipt_id(intent_id: &str) -> String {
@@ -408,15 +403,15 @@ fn schema_map() -> BTreeMap<String, String> {
     BTreeMap::from([
         (
             "capability".to_string(),
-            TOOL_ADAPTER_CAPABILITY_SCHEMA_ID.to_string(),
+            epiphany_tool_adapter::TOOL_ADAPTER_CAPABILITY_SCHEMA_ID.to_string(),
         ),
         (
             "intent".to_string(),
-            TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID.to_string(),
+            epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID.to_string(),
         ),
         (
             "receipt".to_string(),
-            TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID.to_string(),
+            epiphany_tool_adapter::TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID.to_string(),
         ),
     ])
 }

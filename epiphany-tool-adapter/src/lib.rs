@@ -3,6 +3,15 @@ use cultcache_rs::DatabaseEntry;
 pub const TOOL_ADAPTER_CAPABILITY_SCHEMA_ID: &str = "epiphany.tool_capability.v0";
 pub const TOOL_ADAPTER_INVOCATION_INTENT_SCHEMA_ID: &str = "epiphany.tool_invocation_intent.v0";
 pub const TOOL_ADAPTER_INVOCATION_RECEIPT_SCHEMA_ID: &str = "epiphany.tool_invocation_receipt.v0";
+pub const CODEX_MCP_TOOL_ADAPTER_ID: &str = "codex-mcp";
+
+pub fn tool_invocation_intent_key(intent_id: &str) -> String {
+    format!("intent:{intent_id}")
+}
+
+pub fn tool_invocation_receipt_key(intent_id: &str) -> String {
+    format!("receipt:{intent_id}")
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(

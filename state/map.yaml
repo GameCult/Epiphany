@@ -546,5 +546,8 @@ current_status:
     scaffolding only; it does not own Epiphany scheduler policy, prompt
     authority, durable state, or future provider shape. The future Heimdall or
     native tool-auth spine can replace this adapter without changing the
-    Epiphany-facing intent/receipt contract.
-  next_action: Continue Codex starvation and CultNet liberation by wiring the typed tool invocation intent/receipt path into the coordinator/runtime flow only where a real tool call is needed, while keeping the Codex MCP spine quarantined and replaceable.
+    Epiphany-facing intent/receipt contract. `epiphany-model-runtime` now
+    materializes complete MCP-shaped model tool calls as typed tool invocation
+    intents, and the Codex MCP spine can consume those intents from the mixed
+    runtime-spine store and emit typed success/failure receipts.
+  next_action: Continue Codex starvation and CultNet liberation by deciding the next loop owner for tool results: either a bounded coordinator action that executes pending tool intents and feeds reviewed `ToolResult` input back into a follow-up model turn, or a narrower operator-visible pending-tool review surface first.

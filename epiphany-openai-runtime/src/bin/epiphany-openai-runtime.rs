@@ -127,12 +127,24 @@ async fn main() -> Result<()> {
             let mut receipt = EpiphanyOpenAiModelReceipt::new(&request.request_id, &request.model);
             receipt.response_id = Some("smoke-response".to_string());
             receipt.transport = Some("smoke_no_network".to_string());
-            let events = vec![EpiphanyOpenAiStreamEvent {
-                schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
-                request_id: request.request_id.clone(),
-                sequence: 0,
-                payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
-            }];
+            let events = vec![
+                EpiphanyOpenAiStreamEvent {
+                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+                    request_id: request.request_id.clone(),
+                    sequence: 0,
+                    payload: EpiphanyOpenAiStreamPayload::ToolCall {
+                        call_id: "smoke-tool-call".to_string(),
+                        name: "mcp__smoke_server__smoke_tool".to_string(),
+                        arguments: "{}".to_string(),
+                    },
+                },
+                EpiphanyOpenAiStreamEvent {
+                    schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+                    request_id: request.request_id.clone(),
+                    sequence: 1,
+                    payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
+                },
+            ];
             let summary = record_openai_events(
                 &runtime_options.store_path,
                 &runtime_options,
