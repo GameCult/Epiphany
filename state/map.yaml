@@ -532,12 +532,19 @@ current_status:
     existing coordinator artifact JSON remains operator display and sealed
     audit evidence, but it is no longer the only durable account of what the
     coordinator decided.
-    The first tool/MCP boundary contract is also named:
+    The first tool/MCP boundary contract and quarantined execution spine are
+    named:
     `epiphany-tool-adapter` owns typed `epiphany.tool_capability.v0`,
     `epiphany.tool_invocation_intent.v0`, and
     `epiphany.tool_invocation_receipt.v0` documents. Runtime-spine advertises
     them as the Epiphany-facing tool contract so MCP discovery/call JSON can
     remain protocol-edge cargo instead of scheduler, state, or acceptance
-    authority. This is a contract surface only; the executing MCP adapter still
-    needs to be built before Codex MCP routes can be demoted.
-  next_action: Continue Codex starvation and CultNet liberation by building the executing tool/MCP adapter that consumes `epiphany.tool_invocation_intent.v0`, emits `epiphany.tool_invocation_receipt.v0`, and keeps raw MCP JSON sealed at the adapter boundary.
+    authority. `epiphany-tool-codex-mcp-spine` is the temporary executing
+    quarantine: it loads one typed invocation intent from CultCache, calls
+    user-declared Codex MCP through `codex-mcp`, and writes a typed invocation
+    receipt. It depends on Codex MCP/config/OAuth machinery as transport
+    scaffolding only; it does not own Epiphany scheduler policy, prompt
+    authority, durable state, or future provider shape. The future Heimdall or
+    native tool-auth spine can replace this adapter without changing the
+    Epiphany-facing intent/receipt contract.
+  next_action: Continue Codex starvation and CultNet liberation by wiring the typed tool invocation intent/receipt path into the coordinator/runtime flow only where a real tool call is needed, while keeping the Codex MCP spine quarantined and replaceable.
