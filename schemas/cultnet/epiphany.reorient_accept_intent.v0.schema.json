@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.reorient_accept_intent.v0.schema.json",
   "title": "epiphany reorient_accept_intent v0",
-  "description": "Review-gated reorientation finding acceptance intent mirroring thread/epiphany/reorientAccept.",
+  "description": "Review-gated typed reorientation finding acceptance intent.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

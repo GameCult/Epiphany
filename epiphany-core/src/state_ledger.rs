@@ -6,7 +6,6 @@ use cultcache_rs::SingleFileMessagePackBackingStore;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 pub const STATE_LEDGER_STORE_TYPE: &str = "epiphany.state_ledger";
@@ -22,8 +21,6 @@ pub struct EpiphanyStateLedgerEntry {
     pub branches: Vec<EpiphanyBranchRecord>,
     #[cultcache(key = 2)]
     pub evidence: Vec<EpiphanyLedgerEvidenceRecord>,
-    #[cultcache(key = 3, default)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -33,8 +30,6 @@ pub struct EpiphanyBranchRecord {
     pub status: String,
     pub artifacts: Vec<String>,
     pub notes: String,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -46,8 +41,6 @@ pub struct EpiphanyLedgerEvidenceRecord {
     pub note: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 pub fn state_ledger_status(store_path: impl AsRef<Path>) -> Result<Value> {
@@ -178,7 +171,6 @@ fn default_state_ledger() -> EpiphanyStateLedgerEntry {
         schema_version: STATE_LEDGER_SCHEMA_VERSION.to_string(),
         branches: Vec::new(),
         evidence: Vec::new(),
-        extra: BTreeMap::new(),
     }
 }
 
@@ -228,7 +220,6 @@ mod tests {
                 status: "active".to_string(),
                 artifacts: vec!["state/map.yaml".to_string()],
                 notes: "test".to_string(),
-                extra: BTreeMap::new(),
             },
         )?;
         let entry = load_state_ledger(&store)?;
@@ -242,7 +233,6 @@ mod tests {
                 status: "ok".to_string(),
                 note: "Native evidence append works.".to_string(),
                 branch: Some("main".to_string()),
-                extra: BTreeMap::new(),
             },
         )?;
         assert_eq!(load_state_ledger(&store)?.evidence.len(), 1);

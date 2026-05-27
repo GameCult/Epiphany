@@ -188,13 +188,8 @@ Implementation rules:
 - Environment guardrails:
 {unity_guidance}
 {rider_guidance}
-- Make a bounded first pass: design or implement a parallel compute-backed gravity height producer that preserves the current `_NebulaSurfaceHeight`, `_GridTransform`, and Slime `Heightmap` contracts before changing shader consumers.
 - This is an implementation turn, not a planning turn. Leave a concrete source diff unless direct source evidence proves the bounded pass is impossible.
-- If there is no implementation diff yet, prefer a small reversible compatibility scaffold over another explanation. A valid first diff may be a source-local contract/scaffold for a compute-backed gravity height producer that runs beside the camera path and does not rewire consumers yet.
-- A previous supervised implementation attempt already performed source-only inspection and left no diff. Do not repeat that pattern. Reuse the accepted checkpoint and inspect only what you need to place the smallest safe scaffold.
-- A good minimal patch shape is a disabled/parallel gravity heightfield compatibility producer or contract in the rendering layer, plus any tiny supporting compute-shader stub needed to express the intended data path. Preserve legacy texture names and do not rewire consumers in this pass.
-- Before stopping, check `git status --short`. If it still shows no source diff, continue implementing unless you have found a specific source contradiction or missing dependency that makes even the compatibility scaffold unsafe.
-- Do not attempt the full fog/froxel migration in this pass unless the compatibility producer and contract evidence are already in place.
+- Before stopping, check `git status --short`. If it still shows no source diff, return a concrete source-level blocker naming the files inspected and the exact contradiction or missing dependency.
 - Keep the change reviewable. Update or add source-local notes/tests if the repo has an established place for them.
 - If the source contradicts the checkpoint, stop and explain the contradiction instead of tower-building.
 '''

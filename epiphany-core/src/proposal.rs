@@ -1143,7 +1143,7 @@ mod tests {
                 summary: "The prompt renderer injects Epiphany state".to_string(),
                 source_kind: "verification".to_string(),
                 status: status.to_string(),
-                code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+                code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
                 evidence_ids: vec!["ev-verified".to_string()],
             }],
             recent_evidence: vec![EpiphanyEvidenceRecord {
@@ -1151,7 +1151,7 @@ mod tests {
                 kind: "verification".to_string(),
                 status: "ok".to_string(),
                 summary: "Verified prompt renderer behavior".to_string(),
-                code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+                code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             }],
             churn: Some(EpiphanyChurnState {
                 understanding_status: "grounded".to_string(),
@@ -1197,11 +1197,11 @@ mod tests {
             title: "Prompt renderer".to_string(),
             purpose: "Render Epiphany state into developer context".to_string(),
             status: Some("grounded".to_string()),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             ..Default::default()
         });
         state.observations[0].code_refs.push(EpiphanyCodeRef {
-            path: PathBuf::from("epiphany-core/src/prompt.rs"),
+            path: PathBuf::from("epiphany-state-model/src/prompt.rs"),
             start_line: Some(30),
             end_line: Some(40),
             symbol: Some("render_epiphany_state".to_string()),
@@ -1233,7 +1233,7 @@ mod tests {
     #[test]
     fn propose_map_update_reuses_existing_deterministic_path_node_without_refs() {
         let mut state = state_with_observation("verified");
-        let node_id = graph_node_id(Path::new("epiphany-core/src/prompt.rs"));
+        let node_id = graph_node_id(Path::new("epiphany-state-model/src/prompt.rs"));
         state.graphs.architecture.nodes.push(EpiphanyGraphNode {
             id: node_id.clone(),
             title: "Prompt path".to_string(),
@@ -1299,7 +1299,7 @@ mod tests {
             id: "prompt-renderer".to_string(),
             title: "Prompt renderer".to_string(),
             purpose: "Render Epiphany state into developer context".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             ..Default::default()
         });
 
@@ -1337,7 +1337,7 @@ mod tests {
             title: "Prompt renderer".to_string(),
             purpose: "Render Epiphany state into developer context".to_string(),
             code_refs: vec![EpiphanyCodeRef {
-                path: PathBuf::from("epiphany-core/src/prompt.rs"),
+                path: PathBuf::from("epiphany-state-model/src/prompt.rs"),
                 start_line: Some(100),
                 end_line: Some(120),
                 symbol: Some("render_graphs".to_string()),
@@ -1412,7 +1412,7 @@ mod tests {
             summary: "Live smoke verified prompt renderer Epiphany state injection".to_string(),
             source_kind: "smoke".to_string(),
             status: "ok".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             evidence_ids: vec!["ev-strong".to_string()],
         });
         state.recent_evidence.push(EpiphanyEvidenceRecord {
@@ -1420,7 +1420,7 @@ mod tests {
             kind: "verification".to_string(),
             status: "ok".to_string(),
             summary: "Verifier accepted prompt renderer state injection".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
         });
 
         let proposal = propose_map_update(EpiphanyMapProposalInput {
@@ -1457,7 +1457,7 @@ mod tests {
             summary: "Failed candidate should not be selected".to_string(),
             source_kind: "verification".to_string(),
             status: "failed".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             evidence_ids: vec!["ev-failed".to_string()],
         });
         state.recent_evidence.push(EpiphanyEvidenceRecord {
@@ -1465,14 +1465,14 @@ mod tests {
             kind: "verification".to_string(),
             status: "failed".to_string(),
             summary: "Verifier rejected the failed candidate".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
         });
         state.observations.push(EpiphanyObservation {
             id: "obs-strong".to_string(),
             summary: "Live smoke verified prompt renderer Epiphany state injection".to_string(),
             source_kind: "smoke".to_string(),
             status: "ok".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             evidence_ids: vec!["ev-strong".to_string()],
         });
         state.recent_evidence.push(EpiphanyEvidenceRecord {
@@ -1480,7 +1480,7 @@ mod tests {
             kind: "verification".to_string(),
             status: "ok".to_string(),
             summary: "Verifier accepted prompt renderer state injection".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
         });
 
         let proposal = propose_map_update(EpiphanyMapProposalInput {
@@ -1502,7 +1502,7 @@ mod tests {
     fn propose_map_update_auto_selection_prefers_frontier_dirty_path_cluster() {
         let mut state = state_with_observation("ok");
         state.graph_frontier = Some(EpiphanyGraphFrontier {
-            dirty_paths: vec![PathBuf::from("epiphany-core/src/prompt.rs")],
+            dirty_paths: vec![PathBuf::from("epiphany-state-model/src/prompt.rs")],
             ..Default::default()
         });
         state.observations.push(EpiphanyObservation {
@@ -1537,7 +1537,7 @@ mod tests {
             proposal
                 .graph_frontier
                 .dirty_paths
-                .contains(&PathBuf::from("epiphany-core/src/prompt.rs"))
+                .contains(&PathBuf::from("epiphany-state-model/src/prompt.rs"))
         );
         assert!(
             !proposal
@@ -1580,7 +1580,7 @@ mod tests {
                         id: "prompt-renderer".to_string(),
                         title: "Prompt renderer".to_string(),
                         purpose: "Render Epiphany state".to_string(),
-                        code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+                        code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
                         ..Default::default()
                     },
                 ],
@@ -1619,7 +1619,7 @@ mod tests {
                 dataflow_node_id: "epiphany-state-fragment".to_string(),
                 architecture_node_id: "prompt-renderer".to_string(),
                 relationship: Some("rendered by".to_string()),
-                code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+                code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             }],
         };
 
@@ -1739,7 +1739,7 @@ mod tests {
             id: "prompt-renderer".to_string(),
             title: "Prompt renderer".to_string(),
             purpose: "Render Epiphany state into developer context".to_string(),
-            code_refs: vec![code_ref("epiphany-core/src/prompt.rs")],
+            code_refs: vec![code_ref("epiphany-state-model/src/prompt.rs")],
             ..Default::default()
         });
         state.observations[0]

@@ -392,12 +392,12 @@ fn index_workspace_with_config(
             .map(|(chunk, vector)| QdrantPointInput {
                 id: chunk_point_id(&expected_collection, &chunk),
                 vector,
-                payload: json!({
-                    "path": normalize_payload_path(&chunk.path),
-                    "line_start": chunk.line_start,
-                    "line_end": chunk.line_end,
-                    "excerpt": chunk.excerpt,
-                }),
+                payload: QdrantPointPayload {
+                    path: normalize_payload_path(&chunk.path),
+                    line_start: chunk.line_start,
+                    line_end: chunk.line_end,
+                    excerpt: chunk.excerpt,
+                },
             })
             .collect::<Vec<_>>();
         qdrant.upsert_points(&expected_collection, &points)?;
@@ -1022,7 +1022,16 @@ impl OllamaEmbedder {
 struct QdrantPointInput {
     id: String,
     vector: Vec<f32>,
-    payload: Value,
+    payload: QdrantPointPayload,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct QdrantPointPayload {
+    path: String,
+    line_start: u32,
+    line_end: u32,
+    excerpt: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1044,7 +1053,7 @@ struct QdrantQueryResultEnvelope {
 struct QdrantQueryPoint {
     score: f32,
     #[serde(default)]
-    payload: BTreeMap<String, Value>,
+    payload: Option<QdrantPointPayload>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1386,18 +1395,15 @@ fn search_semantic_chunks(
 }
 
 fn map_qdrant_hit_to_result(point: QdrantQueryPoint) -> Option<EpiphanyRetrieveResult> {
-    let path = point.payload.get("path")?.as_str()?;
-    let excerpt = point.payload.get("excerpt")?.as_str()?.to_string();
-    let line_start = point.payload.get("line_start")?.as_u64()? as u32;
-    let line_end = point.payload.get("line_end")?.as_u64()? as u32;
+    let payload = point.payload?;
 
     Some(EpiphanyRetrieveResult {
         kind: EpiphanyRetrieveResultKind::SemanticChunk,
-        path: PathBuf::from(path),
+        path: PathBuf::from(payload.path),
         score: point.score,
-        line_start: Some(line_start),
-        line_end: Some(line_end),
-        excerpt: Some(excerpt),
+        line_start: Some(payload.line_start),
+        line_end: Some(payload.line_end),
+        excerpt: Some(payload.excerpt),
     })
 }
 

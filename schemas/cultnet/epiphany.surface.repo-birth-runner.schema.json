@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.repo-birth-runner.schema.json",
   "title": "Epiphany repo-birth-runner",
-  "description": "Startup-only birth runner summary mirrored from epiphany-repo-birth-runner.",
+  "description": "Startup-only typed birth runner summary.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

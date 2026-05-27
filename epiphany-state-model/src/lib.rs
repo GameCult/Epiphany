@@ -5,6 +5,10 @@ use serde::Deserialize;
 use serde::Serialize;
 use ts_rs::TS;
 
+mod prompt;
+
+pub use prompt::render_epiphany_state;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, JsonSchema, TS)]
 pub struct EpiphanyStateItem {
     #[serde(default, skip_serializing_if = "Option::is_none")]

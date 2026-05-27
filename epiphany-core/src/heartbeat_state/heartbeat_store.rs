@@ -17,7 +17,6 @@ use anyhow::anyhow;
 use cultcache_rs::CultCache;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::path::Path;
 
 pub fn heartbeat_state_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
@@ -59,15 +58,15 @@ pub fn load_heartbeat_cognition_entry(
 ) -> Result<Option<EpiphanyHeartbeatCognitionEntry>> {
     let store_path = store_path.as_ref();
     let cache = heartbeat_state_cache(store_path)?;
-    if let Some(cognition) = cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
+    if let Some(cognition) =
+        cache.get::<EpiphanyHeartbeatCognitionEntry>(HEARTBEAT_COGNITION_KEY)?
     {
         return Ok(Some(cognition));
     }
     let legacy_cache = legacy_heartbeat_state_cache(store_path)?;
-    let Some(legacy) =
-        legacy_cache.get::<LegacyHeartbeatStateWithCognition>(HEARTBEAT_STATE_KEY)?
-    else {
-        return Ok(None);
+    let legacy = match legacy_cache.get::<LegacyHeartbeatStateWithCognition>(HEARTBEAT_STATE_KEY) {
+        Ok(Some(legacy)) => legacy,
+        Ok(None) | Err(_) => return Ok(None),
     };
     legacy_heartbeat_cognition_entry(legacy)
 }
@@ -126,16 +125,25 @@ fn legacy_heartbeat_cognition_entry(
         latest_run_id,
         latest_artifact_ref: None,
         source,
-        sleep_cycle: legacy.sleep_cycle,
-        memory_resonance: legacy.memory_resonance,
-        incubation: legacy.incubation,
-        thought_lanes: legacy.thought_lanes,
-        bridge: legacy.bridge,
-        candidate_interventions: legacy.candidate_interventions,
-        appraisals: legacy.appraisals,
-        reactions: legacy.reactions,
-        extra: BTreeMap::new(),
+        sleep_cycle: decode_legacy_document(legacy.sleep_cycle)?,
+        memory_resonance: decode_legacy_document(legacy.memory_resonance)?,
+        incubation: decode_legacy_document(legacy.incubation)?,
+        thought_lanes: decode_legacy_document(legacy.thought_lanes)?,
+        bridge: decode_legacy_document(legacy.bridge)?,
+        candidate_interventions: decode_legacy_document(legacy.candidate_interventions)?,
+        appraisals: decode_legacy_document(legacy.appraisals)?,
+        reactions: decode_legacy_document(legacy.reactions)?,
     }))
+}
+
+fn decode_legacy_document<T>(value: Option<Value>) -> Result<Option<T>>
+where
+    T: serde::de::DeserializeOwned,
+{
+    value
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(Into::into)
 }
 
 pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<()> {
@@ -153,6 +161,29 @@ pub fn validate_heartbeat_state(state: &EpiphanyHeartbeatStateEntry) -> Result<(
         return Err(anyhow!(
             "heartbeat target_heartbeat_rate must be non-negative"
         ));
+    }
+    if state.initiative_heat.global_multiplier <= 0.0 {
+        return Err(anyhow!(
+            "heartbeat initiative_heat global_multiplier must be positive"
+        ));
+    }
+    for multiplier in &state.initiative_heat.multipliers {
+        if multiplier.id.trim().is_empty() {
+            return Err(anyhow!("heartbeat initiative heat multiplier has empty id"));
+        }
+        if multiplier.multiplier <= 0.0 {
+            return Err(anyhow!(
+                "heartbeat initiative heat multiplier {} must be positive",
+                multiplier.id
+            ));
+        }
+        if multiplier.selector.trim().is_empty() && multiplier.scope != "all" {
+            return Err(anyhow!(
+                "heartbeat initiative heat multiplier {} selector is empty for scope {}",
+                multiplier.id,
+                multiplier.scope
+            ));
+        }
     }
     for participant in &state.participants {
         if participant.agent_id.trim().is_empty() {
@@ -226,14 +257,16 @@ mod tests {
             candidate_interventions: None,
             appraisals: None,
             reactions: None,
-            extra: BTreeMap::new(),
         };
 
         write_heartbeat_cognition_entry(&store_path, &cognition)?;
         let loaded_cognition = load_heartbeat_cognition_entry(&store_path)?
             .expect("heartbeat cognition should round-trip through CultCache");
 
-        assert_eq!(loaded_cognition.schema_version, HEARTBEAT_COGNITION_SCHEMA_VERSION);
+        assert_eq!(
+            loaded_cognition.schema_version,
+            HEARTBEAT_COGNITION_SCHEMA_VERSION
+        );
         assert_eq!(loaded_cognition.latest_run_id.as_deref(), Some("run-1"));
         Ok(())
     }

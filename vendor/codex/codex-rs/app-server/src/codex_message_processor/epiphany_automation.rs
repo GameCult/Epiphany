@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use codex_app_server_protocol::ServerNotification;
-use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_core::CodexThread;
 use codex_core::SteerInputError;
@@ -15,13 +14,18 @@ use epiphany_codex_bridge::coordinator::select_epiphany_coordinator_automation;
 use epiphany_codex_bridge::invalidation::EpiphanyInvalidationManager;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::mutation::epiphany_job_launch_changed_fields;
-use epiphany_codex_bridge::pressure::map_epiphany_pressure;
+use epiphany_codex_bridge::mutation_service::launch_epiphany_job_on_thread;
+use epiphany_codex_bridge::pressure::derive_epiphany_pressure;
 use epiphany_codex_bridge::pressure::render_epiphany_pre_compaction_checkpoint_intervention;
 use epiphany_codex_bridge::pressure::should_run_epiphany_pre_compaction_checkpoint_intervention;
-use epiphany_codex_bridge::state::client_visible_live_thread_epiphany_state;
+use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
+use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use tokio::sync::Mutex;
 use tracing::warn;
 
+use super::epiphany_thread_host::EpiphanyCodexThreadHost;
+use super::epiphany_thread_host::client_visible_live_thread_epiphany_state;
+use super::epiphany_thread_host::epiphany_token_usage_snapshot;
 use crate::outgoing_message::ThreadScopedOutgoingMessageSender;
 use crate::thread_state::ThreadState;
 
@@ -37,8 +41,10 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         return;
     };
 
-    let retrieval_override = thread.epiphany_retrieval_state().await;
     let config_snapshot = thread.config_snapshot().await;
+    let codex_home = thread.codex_home().await;
+    let retrieval_override =
+        epiphany_retrieval_state_for_paths(config_snapshot.cwd.to_path_buf(), codex_home).await;
     epiphany_invalidation_manager
         .ensure_thread_watch(&thread_id_text, &config_snapshot.cwd)
         .await;
@@ -46,6 +52,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         .snapshot(&thread_id_text)
         .await;
     let token_usage_info = thread.token_usage_info().await;
+    let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
     let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
 
     let verdict = select_epiphany_coordinator_automation(EpiphanyCoordinatorAutomationInput {
@@ -53,7 +60,7 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
         state: &state,
         retrieval_override: &retrieval_override,
         watcher_snapshot: epiphany_freshness_watcher_snapshot(&watcher_snapshot),
-        token_usage_info: token_usage_info.as_ref(),
+        token_usage_info: token_usage_snapshot.as_ref(),
         runtime_store_path: runtime_store_path.as_path(),
         force_checkpoint_compaction,
     })
@@ -72,7 +79,8 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
             let Some(launch_request) = verdict.launch_request else {
                 return;
             };
-            let launched = match thread.epiphany_launch_job(launch_request).await {
+            let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+            let launched = match launch_epiphany_job_on_thread(&host, launch_request).await {
                 Ok(launched) => launched,
                 Err(err) => {
                     warn!(
@@ -86,13 +94,13 @@ pub(crate) async fn maybe_run_epiphany_coordinator_automation_for_turn_boundary(
                     .await;
             outgoing
                 .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                    ThreadEpiphanyStateUpdatedNotification {
-                        thread_id: thread_id_text,
-                        source: ThreadEpiphanyStateUpdatedSource::JobLaunch,
-                        revision: epiphany_state.revision,
-                        changed_fields: epiphany_job_launch_changed_fields(),
+                    protocol_state_updated_notification(
+                        thread_id_text,
+                        ThreadEpiphanyStateUpdatedSource::JobLaunch,
+                        epiphany_state.revision,
+                        epiphany_job_launch_changed_fields(),
                         epiphany_state,
-                    },
+                    ),
                 ))
                 .await;
         }
@@ -106,7 +114,8 @@ pub(crate) async fn maybe_run_epiphany_pre_compaction_checkpoint_intervention_fo
     token_usage_info: Option<CoreTokenUsageInfo>,
     thread_state: &Arc<Mutex<ThreadState>>,
 ) {
-    let pressure = map_epiphany_pressure(token_usage_info.as_ref());
+    let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
+    let pressure = derive_epiphany_pressure(token_usage_snapshot.as_ref());
     if !should_run_epiphany_pre_compaction_checkpoint_intervention(&pressure) {
         return;
     }

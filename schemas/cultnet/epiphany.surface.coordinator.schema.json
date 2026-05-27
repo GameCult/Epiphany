@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.coordinator.schema.json",
   "title": "Epiphany coordinator",
-  "description": "Fixed-lane coordinator recommendation surface mirrored from thread/epiphany/coordinator.",
+  "description": "Fixed-lane coordinator recommendation surface over typed Epiphany signals.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

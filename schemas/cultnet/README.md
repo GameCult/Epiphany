@@ -5,6 +5,13 @@ other swarm-side observers. It contains the runtime state, operator-facing
 surface projections, control intents, and receipt/artifact payloads that the
 runtime-spine advertises over `cultnet.schema.v0`.
 
+The product direction is project-native agency: clients should speak to a
+project or one of its Faces, then watch typed scheduling, memory, evidence, and
+authority surfaces do the structuring work. Aquarium is the most direct client,
+but Discord, voice/WebRTC rooms, stream overlays, native CLIs, and other trusted
+tools should discover the same contracts instead of inventing private command
+verbs.
+
 ## What Lives Here
 
 - `index.json`: local registration manifest loaded by
@@ -21,12 +28,14 @@ server object deserves to be duplicated into a second baroque schema maze.
 - `epiphany.runtime.*`: native runtime-spine identity, session, job, job
   result, and event documents.
 - `epiphany.agent_*` and `epiphany.state-ledger`: durable typed state the swarm
-  actually lives on.
+  actually lives on, plus derived agent views such as
+  `epiphany.agent_utterance_state.v0` for speech-conditioning without memory
+  payloads.
 - `epiphany.surface.*`: operator-safe projections for scene, freshness,
   context, graph query, coordinator, roles, jobs, Face, Rider, Unity, repo
   initialization, and related live surfaces.
-- `*.intent.v0`: control documents Aquarium or another trusted coordinator can
-  submit through CultNet.
+- `*.intent.v0`: control documents Aquarium, a Discord bridge, a voice surface,
+  or another trusted coordinator can submit through CultNet.
 - receipt/artifact schemas such as `epiphany.swarm-control-receipt`,
   `epiphany.face-bubble`, `epiphany.character-turn-packet`, and
   `epiphany.repo-birth-runner`.

@@ -85,10 +85,11 @@ The landed machine now has:
 - old Python dogfood runner cut; replacement must be native Rust/CultCache/CultNet over heartbeat/runtime-spine receipts
 - first auditable Phase 6 fixed-lane coordinator runner through native `epiphany-mvp-coordinator`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, runtime-spine status, native runtime job/result receipts for launched work, and final next-action artifacts while keeping semantic findings review-gated by default
 - first Codex-independent native runtime vertebra through `epiphany-runtime-spine`, storing runtime identity, sessions, jobs, job results, and events as typed CultCache MessagePack documents, opening/completing native jobs, projecting job-result counts, and emitting a framed CultNet hello message for the native contract
+- first Rust CultMesh local-node integration: `CultLib` now owns `crates/cultmesh-rs`, and `epiphany-core` depends on that CultMesh surface for local `EpiphanyCultMeshStatusEntry`, `EpiphanyCultMeshVersePolicyEntry`, and `EpiphanyCultMeshGlobalRoomPolicyEntry` round-trip smokes instead of treating raw CultNet as the ergonomic app-facing database layer
 - live-specialist runner must be rebuilt around heartbeat/runtime-spine result receipts
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
 - first Unity editor/runtime bridge through native `epiphany-unity-bridge`, native `epiphany-unity-bridge-smoke`, and the GUI Inspect Unity action, resolving exact project-pinned editors and writing runtime artifacts while refusing wrong or missing versions
-- prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-core/src/prompts/`, while modeling/Body, research/Eyes, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, and CRRC templates live in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`
+- prompt-file ownership for major Epiphany prompt surfaces: rendered state intro/doctrine lives under `epiphany-state-model/src/prompts/` beside the typed state document renderer, while modeling/Body, research/Eyes, implementation/Hands, verification/Soul, reorientation/Life, coordinator/Self, and CRRC templates live in `vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml`
 - prompt-level anti-Greenspun guardrails: Epiphany keeps Codex's useful operator discipline and requires a bounded research/scout check before agents invent bespoke versions of known algorithms, parsers, schedulers, renderers, protocols, storage layers, security mechanisms, or workflow engines
 - live Phase 6 reorientation app-server smoke coverage through native `epiphany-phase6-reorient-smoke`
 - live Phase 6 MVP status smoke coverage through native `epiphany-mvp-status-smoke`
@@ -115,6 +116,8 @@ These boundaries are more important than the individual method names:
 
 - CultCache documents are the data model. CultNet is the wire for
   Epiphany-controlled subsystems.
+- CultMesh is the preferred ergonomic runtime/database surface over local CultCache plus CultNet contracts. Epiphany should start local Verse, dream, status, and operator-store work through CultMesh unless the task is explicitly implementing a lower-level CultMesh/CultNet/CultCache primitive.
+- Verse boundaries are three-tiered: `epiphany-internal` owns private sub-agent typed state, `gamecult-local` owns trusted LAN/Yggdrasil-tunnel sharing with other GameCult projects, and `epiphany-global` owns untrusted public dream surfaces plus topic-specific threaded rooms for Face posts. Do not route private state through the local-area or global Verse.
 - JSON is allowed only for schema description, hostile/external ingress before
   immediate typed parsing, sealed forensic artifacts, or named quarantine
   experiments with an expiration path. Generic `serde_json::Value` must not be
@@ -192,6 +195,15 @@ The active priority is now the Codex starvation plan:
 feature surfaces until the auth/model spine and JSON contamination inventories
 exist and the first typed-document replacement cut is underway.
 
+The distributed dreaming direction is now concrete in
+`notes/epiphany-cultmesh-dreaming-roadmap.md`. It is not a license to add a
+new networked thought hose beside the starvation work. It is the target shape
+for the CultNet liberation path: public dreams are separately authored typed
+documents; private state remains local; foreign dreams are external thought
+weather until a reviewed local adoption receipt digests them. The first
+implementation cut is schema plus local CultCache dream store, not public mesh
+fanout.
+
 The next unknowns are:
 
 - what exact vendored Codex crates, files, config, and runtime paths are needed
@@ -211,6 +223,12 @@ The next unknowns are:
   app-server/plugin organs
 - how to make Aquarium and CLI status use CultNet contracts instead of
   `thread/epiphany/*`
+- how to define `EpiphanyDream`, dream lineage, ingress receipts, and adoption
+  receipts as typed documents without letting dreams mutate private state or
+  project truth by import
+- how to expose an `epiphany-local` dream store first, then a public
+  `epiphany-dreams` Verse with leases, shard ownership, provenance, and
+  anti-repetition cooling
 - what bridge surface is sufficient for the next Aetheria run: named Unity operations, Aetheria-side editor probes, GUI environment status, Rider context capture, and a Rider plugin MVP
 - how much controlled runtime/editor access the richer Unity bridge gives implementation and verification lanes before deeper engine probes need another slice
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker

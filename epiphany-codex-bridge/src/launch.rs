@@ -1,25 +1,21 @@
-use std::path::Path;
 use std::sync::OnceLock;
 
-use codex_app_server_protocol::ThreadEpiphanyGraphFreshnessStatus;
-use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
-use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
-use codex_app_server_protocol::ThreadEpiphanyReorientAction;
-use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
-use codex_app_server_protocol::ThreadEpiphanyReorientReason;
-use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
-use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
-use codex_app_server_protocol::ThreadEpiphanyRoleId;
-use codex_app_server_protocol::ThreadEpiphanyRoleWorkerLaunchDocument;
-use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
-use codex_protocol::protocol::EpiphanyInvestigationCheckpoint;
-use codex_protocol::protocol::EpiphanyInvestigationDisposition;
-use codex_protocol::protocol::EpiphanyJobKind as CoreEpiphanyJobKind;
-use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_core::EpiphanyCoordinatorAction as CoreEpiphanyCoordinatorAction;
+use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
+use epiphany_core::EpiphanyCrrcAction as CoreEpiphanyCrrcAction;
+use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyJobLaunchRequest;
-use epiphany_core::EpiphanyReorientWorkerLaunchDocument;
+use epiphany_core::EpiphanyPressureLevel as CoreEpiphanyPressureLevel;
+use epiphany_core::EpiphanyReorientAction as CoreEpiphanyReorientAction;
+use epiphany_core::EpiphanyReorientDecision as CoreEpiphanyReorientDecision;
+use epiphany_core::EpiphanyReorientLaunchRequestInput;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::build_reorient_job_launch_request;
+use epiphany_state_model::EpiphanyInvestigationCheckpoint;
+use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
+use epiphany_state_model::EpiphanyThreadState;
 
 pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
 pub const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
@@ -30,59 +26,61 @@ pub const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
 pub const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 pub const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
-pub fn epiphany_role_binding_id(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
+pub fn epiphany_role_binding_id(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
-        ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
-        ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
-        ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
-        ThreadEpiphanyRoleId::Implementation => Err(
+        EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
+        EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
+        EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
+        EpiphanyRoleResultRoleId::Implementation => Err(
             "implementation is owned by the main coding agent; no role specialist launch template exists"
                 .to_string(),
         ),
-        ThreadEpiphanyRoleId::Reorientation => Err(
+        EpiphanyRoleResultRoleId::Reorientation => Err(
             "reorientation uses thread/epiphany/reorientLaunch and thread/epiphany/reorientResult"
                 .to_string(),
         ),
     }
 }
 
-pub fn epiphany_role_owner(role_id: ThreadEpiphanyRoleId) -> Result<&'static str, String> {
+pub fn epiphany_role_owner(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
-        ThreadEpiphanyRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
-        ThreadEpiphanyRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
-        ThreadEpiphanyRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             Err(epiphany_role_binding_id(role_id).unwrap_err())
         }
     }
 }
 
-pub fn epiphany_role_label(role_id: ThreadEpiphanyRoleId) -> &'static str {
+pub fn epiphany_role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
     match role_id {
-        ThreadEpiphanyRoleId::Implementation => "implementation",
-        ThreadEpiphanyRoleId::Imagination => "imagination",
-        ThreadEpiphanyRoleId::Modeling => "modeling",
-        ThreadEpiphanyRoleId::Verification => "verification",
-        ThreadEpiphanyRoleId::Reorientation => "reorientation",
+        EpiphanyRoleResultRoleId::Implementation => "implementation",
+        EpiphanyRoleResultRoleId::Imagination => "imagination",
+        EpiphanyRoleResultRoleId::Modeling => "modeling",
+        EpiphanyRoleResultRoleId::Verification => "verification",
+        EpiphanyRoleResultRoleId::Reorientation => "reorientation",
     }
 }
 
-pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serde_json::Value {
+pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> serde_json::Value {
     let verdict_enum = match role_id {
-        ThreadEpiphanyRoleId::Imagination => {
+        EpiphanyRoleResultRoleId::Imagination => {
             vec!["draft-ready", "planning-update-needed", "blocked"]
         }
-        ThreadEpiphanyRoleId::Modeling => {
+        EpiphanyRoleResultRoleId::Modeling => {
             vec![
                 "checkpoint-ready",
                 "checkpoint-update-needed",
                 "regather-needed",
             ]
         }
-        ThreadEpiphanyRoleId::Verification => {
+        EpiphanyRoleResultRoleId::Verification => {
             vec!["pass", "needs-review", "needs-evidence", "fail"]
         }
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => vec![],
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
+            vec![]
+        }
     };
     let mut properties = serde_json::json!({
         "roleId": {
@@ -194,7 +192,7 @@ pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serd
         "nextSafeMove",
         "filesInspected",
     ];
-    if role_id == ThreadEpiphanyRoleId::Imagination {
+    if role_id == EpiphanyRoleResultRoleId::Imagination {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
                 "statePatch".to_string(),
@@ -231,7 +229,7 @@ pub fn epiphany_role_launch_output_schema(role_id: ThreadEpiphanyRoleId) -> serd
             );
         }
         required.push("statePatch");
-    } else if role_id == ThreadEpiphanyRoleId::Modeling {
+    } else if role_id == EpiphanyRoleResultRoleId::Modeling {
         if let Some(map) = properties.as_object_mut() {
             map.insert(
                 "statePatch".to_string(),
@@ -390,7 +388,7 @@ pub fn epiphany_agent_prompt_with_memory(body: &str) -> String {
 
 pub fn build_epiphany_role_launch_request(
     thread_id: &str,
-    role_id: ThreadEpiphanyRoleId,
+    role_id: EpiphanyRoleResultRoleId,
     expected_revision: Option<u64>,
     max_runtime_seconds: Option<u64>,
     state: &EpiphanyThreadState,
@@ -400,22 +398,22 @@ pub fn build_epiphany_role_launch_request(
     let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
     let linked_graph_node_ids = epiphany_active_graph_node_ids(Some(state));
     let (scope, authority_scope, instruction) = match role_id {
-        ThreadEpiphanyRoleId::Imagination => (
+        EpiphanyRoleResultRoleId::Imagination => (
             "role-scoped planning synthesis",
             "epiphany.role.imagination",
             build_epiphany_role_launch_instruction(role_id),
         ),
-        ThreadEpiphanyRoleId::Modeling => (
+        EpiphanyRoleResultRoleId::Modeling => (
             "role-scoped modeling/checkpoint maintenance",
             "epiphany.role.modeling",
             build_epiphany_role_launch_instruction(role_id),
         ),
-        ThreadEpiphanyRoleId::Verification => (
+        EpiphanyRoleResultRoleId::Verification => (
             "role-scoped verification/review",
             "epiphany.role.verification",
             build_epiphany_role_launch_instruction(role_id),
         ),
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             return Err(epiphany_role_binding_id(role_id).unwrap_err());
         }
     };
@@ -461,13 +459,13 @@ pub fn build_epiphany_role_launch_request(
     })
 }
 
-fn build_epiphany_role_launch_instruction(role_id: ThreadEpiphanyRoleId) -> String {
+fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> String {
     let prompts = &epiphany_specialist_prompt_config().roles;
     let body = match role_id {
-        ThreadEpiphanyRoleId::Imagination => prompts.imagination.as_str(),
-        ThreadEpiphanyRoleId::Modeling => prompts.modeling.as_str(),
-        ThreadEpiphanyRoleId::Verification => prompts.verification.as_str(),
-        ThreadEpiphanyRoleId::Implementation | ThreadEpiphanyRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Imagination => prompts.imagination.as_str(),
+        EpiphanyRoleResultRoleId::Modeling => prompts.modeling.as_str(),
+        EpiphanyRoleResultRoleId::Verification => prompts.verification.as_str(),
+        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             "Unsupported Epiphany role specialist template."
         }
     };
@@ -480,85 +478,54 @@ pub fn build_epiphany_reorient_launch_request(
     max_runtime_seconds: Option<u64>,
     state: &EpiphanyThreadState,
     checkpoint: &EpiphanyInvestigationCheckpoint,
-    decision: &ThreadEpiphanyReorientDecision,
+    decision: &CoreEpiphanyReorientDecision,
 ) -> EpiphanyJobLaunchRequest {
-    let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
-    let linked_graph_node_ids = unique_strings(
-        epiphany_active_graph_node_ids(Some(state))
-            .into_iter()
-            .chain(decision.active_frontier_node_ids.iter().cloned()),
-    );
-    let checkpoint_next_action = checkpoint
-        .next_action
-        .clone()
-        .unwrap_or_else(|| decision.next_action.clone());
-    let authority_scope = match decision.action {
-        ThreadEpiphanyReorientAction::Resume => "epiphany.reorient.resume",
-        ThreadEpiphanyReorientAction::Regather => "epiphany.reorient.regather",
-    };
-    let scope = match decision.action {
-        ThreadEpiphanyReorientAction::Resume => "reorient-guided checkpoint resume",
-        ThreadEpiphanyReorientAction::Regather => "reorient-guided checkpoint regather",
-    };
     let instruction = build_epiphany_reorient_launch_instruction(decision.action);
-    let launch_document =
-        EpiphanyWorkerLaunchDocument::Reorient(EpiphanyReorientWorkerLaunchDocument {
-            thread_id: thread_id.to_string(),
-            mode: reorient_action_label(decision.action).to_string(),
-            checkpoint_id: checkpoint.checkpoint_id.clone(),
-            checkpoint_kind: checkpoint.kind.clone(),
-            checkpoint_disposition: investigation_disposition_label(checkpoint.disposition)
-                .to_string(),
-            checkpoint_focus: Some(checkpoint.focus.clone()),
-            checkpoint_summary: checkpoint.summary.clone(),
-            checkpoint_next_action,
-            checkpoint_open_questions: checkpoint.open_questions.clone(),
-            checkpoint_evidence_ids: checkpoint.evidence_ids.clone(),
-            checkpoint_code_refs: checkpoint.code_refs.clone(),
-            decision_reasons: decision
-                .reasons
-                .iter()
-                .map(|reason| reorient_reason_label(*reason).to_string())
-                .collect(),
-            decision_note: decision.note.clone(),
-            pressure_level: pressure_level_label(decision.pressure_level).to_string(),
-            retrieval_status: retrieval_freshness_status_label(decision.retrieval_status)
-                .to_string(),
-            graph_status: graph_freshness_status_label(decision.graph_status).to_string(),
-            watcher_status: invalidation_status_label(decision.watcher_status).to_string(),
-            checkpoint_dirty_paths: decision
-                .checkpoint_dirty_paths
-                .iter()
-                .map(path_to_display_string)
-                .collect(),
-            checkpoint_changed_paths: decision
-                .checkpoint_changed_paths
-                .iter()
-                .map(path_to_display_string)
-                .collect(),
-            scratch: state.scratch.clone(),
-            graphs: Some(state.graphs.clone()),
-            recent_evidence: state.recent_evidence.iter().take(8).cloned().collect(),
-            recent_observations: state.observations.iter().take(8).cloned().collect(),
-            active_frontier_node_ids: decision.active_frontier_node_ids.clone(),
-            linked_subgoal_ids: linked_subgoal_ids.clone(),
-            linked_graph_node_ids: linked_graph_node_ids.clone(),
-        });
-    let output_contract_id = launch_document.output_contract_id().to_string();
+    build_reorient_job_launch_request(EpiphanyReorientLaunchRequestInput {
+        thread_id,
+        expected_revision,
+        max_runtime_seconds,
+        binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+        owner_role: EPIPHANY_REORIENT_OWNER_ROLE,
+        instruction,
+        state,
+        checkpoint,
+        decision,
+    })
+}
 
+pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAction) -> String {
+    let prompts = &epiphany_specialist_prompt_config().reorientation;
+    let body = match action {
+        CoreEpiphanyReorientAction::Resume => prompts.resume.as_str(),
+        CoreEpiphanyReorientAction::Regather => prompts.regather.as_str(),
+    };
+    epiphany_agent_prompt_with_memory(body)
+}
+
+pub fn build_epiphany_job_launch_request(
+    expected_revision: Option<u64>,
+    binding_id: String,
+    kind: CoreEpiphanyJobKind,
+    scope: String,
+    owner_role: String,
+    authority_scope: String,
+    linked_subgoal_ids: Vec<String>,
+    linked_graph_node_ids: Vec<String>,
+    instruction: String,
+    launch_document: EpiphanyWorkerLaunchDocument,
+    output_contract_id: String,
+    max_runtime_seconds: Option<u64>,
+) -> EpiphanyJobLaunchRequest {
     EpiphanyJobLaunchRequest {
         expected_revision,
-        binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
-        kind: CoreEpiphanyJobKind::Specialist,
-        scope: scope.to_string(),
-        owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
-        authority_scope: authority_scope.to_string(),
-        linked_subgoal_ids: epiphany_active_subgoal_ids(Some(state)),
-        linked_graph_node_ids: unique_strings(
-            epiphany_active_graph_node_ids(Some(state))
-                .into_iter()
-                .chain(decision.active_frontier_node_ids.iter().cloned()),
-        ),
+        binding_id,
+        kind,
+        scope,
+        owner_role,
+        authority_scope,
+        linked_subgoal_ids,
+        linked_graph_node_ids,
         instruction,
         launch_document,
         output_contract_id,
@@ -566,94 +533,13 @@ pub fn build_epiphany_reorient_launch_request(
     }
 }
 
-pub fn build_epiphany_reorient_launch_instruction(action: ThreadEpiphanyReorientAction) -> String {
-    let prompts = &epiphany_specialist_prompt_config().reorientation;
-    let body = match action {
-        ThreadEpiphanyReorientAction::Resume => prompts.resume.as_str(),
-        ThreadEpiphanyReorientAction::Regather => prompts.regather.as_str(),
-    };
-    epiphany_agent_prompt_with_memory(body)
-}
-
-pub fn map_core_worker_launch_document(
-    document: ThreadEpiphanyWorkerLaunchDocument,
-) -> EpiphanyWorkerLaunchDocument {
-    match document {
-        ThreadEpiphanyWorkerLaunchDocument::Role(document) => {
-            EpiphanyWorkerLaunchDocument::Role(map_core_role_worker_launch_document(document))
-        }
-        ThreadEpiphanyWorkerLaunchDocument::Reorient(document) => {
-            EpiphanyWorkerLaunchDocument::Reorient(map_core_reorient_worker_launch_document(
-                document,
-            ))
-        }
-    }
-}
-
-fn map_core_role_worker_launch_document(
-    document: ThreadEpiphanyRoleWorkerLaunchDocument,
-) -> EpiphanyRoleWorkerLaunchDocument {
-    EpiphanyRoleWorkerLaunchDocument {
-        thread_id: document.thread_id,
-        role_id: document.role_id,
-        state_revision: document.state_revision,
-        objective: document.objective,
-        active_subgoal_id: document.active_subgoal_id,
-        active_subgoals: document.active_subgoals,
-        active_graph_node_ids: document.active_graph_node_ids,
-        investigation_checkpoint: document.investigation_checkpoint,
-        scratch: document.scratch,
-        invariants: document.invariants,
-        graphs: document.graphs,
-        recent_evidence: document.recent_evidence,
-        recent_observations: document.recent_observations,
-        graph_frontier: document.graph_frontier,
-        graph_checkpoint: document.graph_checkpoint,
-        planning: document.planning,
-        churn: document.churn,
-    }
-}
-
-fn map_core_reorient_worker_launch_document(
-    document: ThreadEpiphanyReorientWorkerLaunchDocument,
-) -> EpiphanyReorientWorkerLaunchDocument {
-    EpiphanyReorientWorkerLaunchDocument {
-        thread_id: document.thread_id,
-        mode: document.mode,
-        checkpoint_id: document.checkpoint_id,
-        checkpoint_kind: document.checkpoint_kind,
-        checkpoint_disposition: document.checkpoint_disposition,
-        checkpoint_focus: document.checkpoint_focus,
-        checkpoint_summary: document.checkpoint_summary,
-        checkpoint_next_action: document.checkpoint_next_action,
-        checkpoint_open_questions: document.checkpoint_open_questions,
-        checkpoint_evidence_ids: document.checkpoint_evidence_ids,
-        checkpoint_code_refs: document.checkpoint_code_refs,
-        decision_reasons: document.decision_reasons,
-        decision_note: document.decision_note,
-        pressure_level: document.pressure_level,
-        retrieval_status: document.retrieval_status,
-        graph_status: document.graph_status,
-        watcher_status: document.watcher_status,
-        checkpoint_dirty_paths: document.checkpoint_dirty_paths,
-        checkpoint_changed_paths: document.checkpoint_changed_paths,
-        scratch: document.scratch,
-        graphs: document.graphs,
-        recent_evidence: document.recent_evidence,
-        recent_observations: document.recent_observations,
-        active_frontier_node_ids: document.active_frontier_node_ids,
-        linked_subgoal_ids: document.linked_subgoal_ids,
-        linked_graph_node_ids: document.linked_graph_node_ids,
-    }
-}
-
 pub fn render_epiphany_coordinator_note(
-    crrc_action: codex_app_server_protocol::ThreadEpiphanyCrrcAction,
-    pressure_level: ThreadEpiphanyPressureLevel,
-    modeling_result_status: codex_app_server_protocol::ThreadEpiphanyRoleResultStatus,
-    verification_result_status: codex_app_server_protocol::ThreadEpiphanyRoleResultStatus,
-    reorient_result_status: codex_app_server_protocol::ThreadEpiphanyReorientResultStatus,
-    coordinator_action: codex_app_server_protocol::ThreadEpiphanyCoordinatorAction,
+    crrc_action: CoreEpiphanyCrrcAction,
+    pressure_level: CoreEpiphanyPressureLevel,
+    modeling_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
+    verification_result_status: CoreEpiphanyCoordinatorRoleResultStatus,
+    reorient_result_status: CoreEpiphanyCrrcResultStatus,
+    coordinator_action: CoreEpiphanyCoordinatorAction,
 ) -> String {
     let template = epiphany_agent_prompt_with_memory(
         &epiphany_specialist_prompt_config()
@@ -705,75 +591,4 @@ fn epiphany_active_graph_node_ids(state: Option<&EpiphanyThreadState>) -> Vec<St
         .and_then(|state| state.graph_frontier.as_ref())
         .map(|frontier| frontier.active_node_ids.clone())
         .unwrap_or_default()
-}
-
-fn path_to_display_string(path: impl AsRef<Path>) -> String {
-    path.as_ref().to_string_lossy().to_string()
-}
-
-fn reorient_action_label(action: ThreadEpiphanyReorientAction) -> &'static str {
-    match action {
-        ThreadEpiphanyReorientAction::Resume => "resume",
-        ThreadEpiphanyReorientAction::Regather => "regather",
-    }
-}
-
-fn investigation_disposition_label(disposition: EpiphanyInvestigationDisposition) -> &'static str {
-    match disposition {
-        EpiphanyInvestigationDisposition::ResumeReady => "resume_ready",
-        EpiphanyInvestigationDisposition::RegatherRequired => "regather_required",
-    }
-}
-
-fn reorient_reason_label(reason: ThreadEpiphanyReorientReason) -> &'static str {
-    match reason {
-        ThreadEpiphanyReorientReason::MissingState => "missingState",
-        ThreadEpiphanyReorientReason::MissingCheckpoint => "missingCheckpoint",
-        ThreadEpiphanyReorientReason::CheckpointRequestedRegather => "checkpointRequestedRegather",
-        ThreadEpiphanyReorientReason::CheckpointPathsDirty => "checkpointPathsDirty",
-        ThreadEpiphanyReorientReason::CheckpointPathsChanged => "checkpointPathsChanged",
-        ThreadEpiphanyReorientReason::FrontierChanged => "frontierChanged",
-        ThreadEpiphanyReorientReason::UnanchoredCheckpointWhileStateStale => {
-            "unanchoredCheckpointWhileStateStale"
-        }
-        ThreadEpiphanyReorientReason::CheckpointReady => "checkpointReady",
-    }
-}
-
-pub fn pressure_level_label(level: ThreadEpiphanyPressureLevel) -> &'static str {
-    match level {
-        ThreadEpiphanyPressureLevel::Unknown => "unknown",
-        ThreadEpiphanyPressureLevel::Low => "low",
-        ThreadEpiphanyPressureLevel::Elevated => "elevated",
-        ThreadEpiphanyPressureLevel::High => "high",
-        ThreadEpiphanyPressureLevel::Critical => "critical",
-    }
-}
-
-fn retrieval_freshness_status_label(
-    status: ThreadEpiphanyRetrievalFreshnessStatus,
-) -> &'static str {
-    match status {
-        ThreadEpiphanyRetrievalFreshnessStatus::Missing => "missing",
-        ThreadEpiphanyRetrievalFreshnessStatus::Ready => "ready",
-        ThreadEpiphanyRetrievalFreshnessStatus::Stale => "stale",
-        ThreadEpiphanyRetrievalFreshnessStatus::Indexing => "indexing",
-        ThreadEpiphanyRetrievalFreshnessStatus::Unavailable => "unavailable",
-    }
-}
-
-fn graph_freshness_status_label(status: ThreadEpiphanyGraphFreshnessStatus) -> &'static str {
-    match status {
-        ThreadEpiphanyGraphFreshnessStatus::Missing => "missing",
-        ThreadEpiphanyGraphFreshnessStatus::Ready => "ready",
-        ThreadEpiphanyGraphFreshnessStatus::Stale => "stale",
-    }
-}
-
-fn invalidation_status_label(status: ThreadEpiphanyInvalidationStatus) -> &'static str {
-    match status {
-        ThreadEpiphanyInvalidationStatus::Unavailable => "unavailable",
-        ThreadEpiphanyInvalidationStatus::Clean => "clean",
-        ThreadEpiphanyInvalidationStatus::Changed => "changed",
-    }
 }

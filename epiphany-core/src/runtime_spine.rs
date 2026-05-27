@@ -1,9 +1,43 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::agent_memory::AGENT_MEMORY_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_REQUEST_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_REQUEST_TYPE;
+use crate::body_gateway::BODY_REPO_ACCESS_REVIEW_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_ACCESS_REVIEW_TYPE;
+use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_TYPE;
+use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
+use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_REQUEST_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_REQUEST_TYPE;
+use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_TYPE;
+use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;
+use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
 use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
 use crate::memory_graph::MEMORY_GRAPH_TYPE;
+use crate::mind_gateway::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_GATEWAY_REVIEW_TYPE;
+use crate::mind_gateway::MIND_STATE_COMMIT_RECEIPT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_STATE_COMMIT_RECEIPT_TYPE;
+use crate::mind_gateway::MIND_STATE_EFFECT_PROPOSAL_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_STATE_EFFECT_PROPOSAL_TYPE;
+use crate::mind_gateway::MIND_STATE_REJECTION_RECEIPT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_STATE_REJECTION_RECEIPT_TYPE;
+use crate::mind_gateway::MIND_THOUGHT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_THOUGHT_TYPE;
+use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
+use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
 use crate::thread_state_store::THREAD_STATE_SCHEMA_VERSION;
@@ -1387,6 +1421,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![RUNTIME_JOB_TYPE],
             vec![
                 "Worker launch requests are typed task-intent documents; runtime jobs are lifecycle receipts, not the source of work intent.",
+                "Core/coordinator policy owns the launch yes/no; the Epiphany-Codex bridge translates between CultNet-shaped intent and Codex JSON only.",
+                "Codex-hosted executors may gather host facts and perform side effects after the verdict, with readable receipts.",
             ],
         ),
         mutation_contract(
@@ -1421,6 +1457,254 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Job results are evidence records; review and acceptance are separate typed flows.",
             ],
+        ),
+        mutation_contract(
+            MIND_THOUGHT_TYPE,
+            MIND_THOUGHT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![MIND_THOUGHT_TYPE],
+            vec![MIND_GATEWAY_REVIEW_TYPE, MIND_STATE_REJECTION_RECEIPT_TYPE],
+            vec![
+                "Sub-agent output enters Epiphany as thought, not durable state authority.",
+                "The Mind contract is the gateway between worker output and persistent state.",
+            ],
+        ),
+        mutation_contract(
+            MIND_STATE_EFFECT_PROPOSAL_TYPE,
+            MIND_STATE_EFFECT_PROPOSAL_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![MIND_STATE_EFFECT_PROPOSAL_TYPE],
+            vec![
+                MIND_GATEWAY_REVIEW_TYPE,
+                MIND_STATE_COMMIT_RECEIPT_TYPE,
+                MIND_STATE_REJECTION_RECEIPT_TYPE,
+            ],
+            vec![
+                "Mind is the persistent state guardian: role acceptance, reorientation acceptance, Face Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.",
+                "Workers and public Verse ingress propose effects; Mind accepts, refuses, or holds them before any durable state mutation.",
+            ],
+        ),
+        mutation_contract(
+            MIND_GATEWAY_REVIEW_TYPE,
+            MIND_GATEWAY_REVIEW_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Mind reviews are durable receipts explaining accepted, refused, or held state effects.",
+            ],
+        ),
+        mutation_contract(
+            MIND_STATE_COMMIT_RECEIPT_TYPE,
+            MIND_STATE_COMMIT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "A commit receipt is proof that Mind, not the worker, admitted a proposed effect into durable state.",
+            ],
+        ),
+        mutation_contract(
+            MIND_STATE_REJECTION_RECEIPT_TYPE,
+            MIND_STATE_REJECTION_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "A rejection receipt preserves why a thought or state effect was refused without mutating the Mind.",
+            ],
+        ),
+        mutation_contract(
+            MIND_VERSE_ADOPTION_RECEIPT_TYPE,
+            MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Foreign or public Verse material is thought weather until local Mind emits an adoption receipt.",
+                "The global Verse never receives private state authority by being interesting.",
+            ],
+        ),
+        mutation_contract(
+            BODY_REPO_ACCESS_REQUEST_TYPE,
+            BODY_REPO_ACCESS_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![BODY_REPO_ACCESS_REQUEST_TYPE],
+            vec![
+                BODY_REPO_ACCESS_REVIEW_TYPE,
+                BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE,
+                BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+            ],
+            vec![
+                "Body is the repository access guardian: reads, indexing, edits, commands, and bridge operations must be requested through this contract.",
+                "Hands mutates only after a scoped Body grant; Eyes inspects only after a scoped Body read/index grant.",
+            ],
+        ),
+        mutation_contract(
+            BODY_REPO_ACCESS_REVIEW_TYPE,
+            BODY_REPO_ACCESS_REVIEW_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Body reviews explain granted/refused repo paths, operations, commands, and bridge surfaces.",
+            ],
+        ),
+        mutation_contract(
+            BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE,
+            BODY_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["A Body grant receipt scopes a permitted repo touch."],
+        ),
+        mutation_contract(
+            BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+            BODY_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["A Body refusal receipt preserves why repo access was denied."],
+        ),
+        mutation_contract(
+            BODY_REPO_SNAPSHOT_RECEIPT_TYPE,
+            BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Repo snapshots are evidence projections from Body-gated access."],
+        ),
+        mutation_contract(
+            BODY_REPO_MUTATION_RECEIPT_TYPE,
+            BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Repo mutation receipts prove Body granted the substrate touch before Hands changed files or ran repo-affecting commands.",
+            ],
+        ),
+        mutation_contract(
+            EYES_EVIDENCE_REQUEST_TYPE,
+            EYES_EVIDENCE_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![EYES_EVIDENCE_REQUEST_TYPE],
+            vec![
+                EYES_EVIDENCE_REVIEW_TYPE,
+                EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
+                EYES_EVIDENCE_PACKET_TYPE,
+                EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
+            ],
+            vec![
+                "Eyes is the evidence ingress guardian: source-grounded claims, provenance, uncertainty, and evidence packets enter through this contract.",
+                "Body grants substrate access; Eyes decides what was actually inspected and what other organs may cite.",
+            ],
+        ),
+        mutation_contract(
+            EYES_EVIDENCE_REVIEW_TYPE,
+            EYES_EVIDENCE_REVIEW_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Eyes reviews explain whether a claim is source-grounded, uncertain, or refused."],
+        ),
+        mutation_contract(
+            EYES_SOURCE_LOOKUP_RECEIPT_TYPE,
+            EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Source lookup receipts prove what was searched or inspected under a Body grant."],
+        ),
+        mutation_contract(
+            EYES_EVIDENCE_PACKET_TYPE,
+            EYES_EVIDENCE_PACKET_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Evidence packets carry provenance, uncertainty, and source refs for the other organs.",
+            ],
+        ),
+        mutation_contract(
+            EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
+            EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Evidence refusal receipts preserve why Eyes would not certify a claim."],
         ),
         mutation_contract(
             RUNTIME_EVENT_TYPE,
@@ -1487,7 +1771,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.agent_memory_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Sub-agents request memory mutations; the coordinator accepts, rejects, or explains the refusal.",
+                "Sub-agents request memory mutations; the coordinator carries the typed intent, and Mind accepts, rejects, or explains durable-state admission.",
             ],
         ),
         mutation_contract(
@@ -1501,11 +1785,13 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::Coordinator,
             vec![
                 "epiphany.heartbeat_pump_intent.v0",
+                "epiphany.heartbeat_heat_intent.v0",
                 "epiphany.circadian_rhythm_intent.v0",
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
                 "Aquarium controls heartbeat and circadian rhythm through typed intents, not blind state replacement.",
+                "Initiative heat is heartbeat policy: global, group, role, and agent tempo changes enter through the heartbeat heat intent.",
             ],
         ),
         mutation_contract(
@@ -1545,7 +1831,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_SCENE_TYPE,
             SCENE_SURFACE_SCHEMA_VERSION,
             vec![
-                "Operator-safe scene reflection mirrored from the thread/epiphany/view scene lens.",
+                "Operator-safe scene reflection over typed Epiphany state.",
                 "Aquarium should read this before offering live coordination actions.",
             ],
         ),
@@ -1553,7 +1839,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_FRESHNESS_TYPE,
             FRESHNESS_SURFACE_SCHEMA_VERSION,
             vec![
-                "Freshness reflection mirrored from thread/epiphany/freshness.",
+                "Freshness reflection over retrieval, watcher, and graph staleness signals.",
                 "Use this to visualize retrieval and graph staleness without inventing a hidden refresh daemon.",
             ],
         ),
@@ -1561,7 +1847,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_CONTEXT_TYPE,
             CONTEXT_SURFACE_SCHEMA_VERSION,
             vec![
-                "Targeted graph, frontier, checkpoint, observation, and evidence context mirrored from thread/epiphany/context.",
+                "Targeted graph, frontier, checkpoint, observation, and evidence context shard over typed Epiphany state.",
                 "Aquarium should inspect bounded state shards here instead of scraping state blobs by superstition.",
             ],
         ),
@@ -1569,7 +1855,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_GRAPH_QUERY_TYPE,
             GRAPH_QUERY_SURFACE_SCHEMA_VERSION,
             vec![
-                "Bounded graph traversal mirrored from thread/epiphany/graphQuery.",
+                "Bounded graph traversal over typed architecture/dataflow graph state.",
                 "Use this for architecture/dataflow inspection and frontier neighborhoods without mutating state.",
             ],
         ),
@@ -1577,7 +1863,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_PRESSURE_TYPE,
             PRESSURE_SURFACE_SCHEMA_VERSION,
             vec![
-                "Current context pressure and compaction posture mirrored from thread/epiphany/pressure.",
+                "Current context pressure and compaction posture derived from typed pressure inputs.",
                 "This is a read-only warning surface, not a backdoor to force state mutation.",
             ],
         ),
@@ -1593,15 +1879,16 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.reorient_result_surface.v0",
             ],
             vec![
-                "Reorientation policy is mirrored from thread/epiphany/reorient.",
+                "Reorientation policy is the typed resume/regather verdict surface.",
                 "Launch and acceptance stay review-gated through explicit typed intents.",
+                "The transport may carry a reorient launch intent and receipt, but the resume/regather verdict belongs to core.",
             ],
         ),
         read_only_surface_contract(
             SURFACE_CRRC_TYPE,
             CRRC_SURFACE_SCHEMA_VERSION,
             vec![
-                "CRRC recommendation surface mirrored from thread/epiphany/crrc.",
+                "CRRC recommendation surface over continuity, pressure, and reorientation signals.",
                 "Use this to understand continuity pressure without letting CRRC seize authority.",
             ],
         ),
@@ -1614,8 +1901,9 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Job reflection mirrored from the thread/epiphany/view jobs lens, with launch/interrupt affordances on jobLaunch and jobInterrupt.",
+                "Job reflection over typed job bindings and runtime-spine lifecycle receipts.",
                 "Heartbeat/runtime-spine owns activation; callers submit typed intents and watch receipts.",
+                "Launch receipts must name decisionOwner, transportRole, and any hostExecutorRole so transport never grows an unreadable second opinion.",
             ],
         ),
         coordinator_surface_contract(
@@ -1624,7 +1912,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.role_launch_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Role ownership mirrored from the thread/epiphany/view roles lens, with launch affordances on roleLaunch.",
+                "Role ownership surface for fixed Epiphany lanes and launch affordances.",
                 "Treat this as the discoverable lane catalog for Aquarium.",
             ],
         ),
@@ -1634,7 +1922,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.role_accept_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Role findings are read through thread/epiphany/roleResult and accepted through roleAccept.",
+                "Role findings are typed review surfaces accepted through explicit role acceptance intents.",
                 "Semantic findings remain explicitly review-gated.",
             ],
         ),
@@ -1644,7 +1932,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["epiphany.reorient_accept_intent.v0"],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Completed reorientation findings are read through thread/epiphany/reorientResult and accepted through reorientAccept.",
+                "Completed reorientation findings are typed review surfaces accepted through explicit reorientation acceptance intents.",
             ],
         ),
         coordinator_surface_contract(
@@ -1656,7 +1944,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Planning projection is mirrored from the thread/epiphany/view planning lens.",
+                "Planning projection over captures, backlog, roadmap streams, and Objective Drafts.",
                 "Backlog, captures, and Objective Drafts are planning state until explicit adoption.",
             ],
         ),
@@ -1664,7 +1952,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_COORDINATOR_TYPE,
             COORDINATOR_SURFACE_SCHEMA_VERSION,
             vec![
-                "Fixed-lane recommendation surface mirrored from thread/epiphany/coordinator.",
+                "Fixed-lane recommendation surface derived from typed role, pressure, reorientation, and result signals.",
                 "Aquarium should treat this as the primary action oracle, not invent its own scheduler.",
             ],
         ),
@@ -1682,7 +1970,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.character_turn_packet.v0",
             ],
             vec![
-                "Face bubble, draft, and Discord persona affordances are mirrored from epiphany-face-discord and epiphany-character-loop.",
+                "Face bubble, draft, and Discord persona affordances are projected from typed Face and character-loop artifacts.",
                 "Humans talk to Face; sealed inner thoughts stay behind the projection boundary.",
             ],
         ),
@@ -1690,7 +1978,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             SURFACE_VOID_MEMORY_TYPE,
             VOID_MEMORY_SURFACE_SCHEMA_VERSION,
             vec![
-                "Void-derived memory status/search/context availability is mirrored from epiphany-void-memory.",
+                "Void-derived memory status/search/context availability is projected from the typed Void memory bridge.",
                 "This is an inspection surface for the memory organs, not a license to bypass typed Epiphany state.",
             ],
         ),
@@ -1706,7 +1994,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.repo_initialization_record.v0",
             ],
             vec![
-                "Repo birth/startup status is mirrored from epiphany-repo-personality startup and accept-init.",
+                "Repo birth/startup status is projected from typed repo-personality startup and accept-init receipts.",
                 "Birth specialists are startup-only and remain outside the heartbeat lane system.",
             ],
         ),
@@ -1719,7 +2007,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "epiphany.repo_initialization_record.v0",
             ],
             vec![
-                "Startup-only birth runner plan/run affordances are mirrored from epiphany-repo-birth-runner.",
+                "Startup-only birth runner plan/run affordances are projected from typed birth-runner receipts.",
                 "Aquarium should review birth artifacts and accept them explicitly instead of growing a hidden wizard.",
             ],
         ),
@@ -1733,7 +2021,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Rider bridge affordances are mirrored from epiphany-rider-bridge status/context/open-ref.",
+                "Rider bridge affordances are projected from typed Rider bridge artifacts.",
                 "Use this surface for source/IDE inspection instead of scraping local artifacts by convention.",
             ],
         ),
@@ -1748,7 +2036,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec!["epiphany.swarm_control_receipt.v0"],
             vec![
-                "Unity bridge affordances are mirrored from epiphany-unity-bridge inspect/probe/check-compilation/run-tests.",
+                "Unity bridge affordances are projected from typed Unity bridge artifacts.",
                 "Runtime/editor truth must come through the pinned bridge and its receipts, not wishful source reading.",
             ],
         ),
@@ -2154,6 +2442,77 @@ mod tests {
                         .operations
                         .contains(&CultNetDocumentOperation::IntentSubmit)
                 );
+                assert!(
+                    heartbeat_contract
+                        .intent_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == "epiphany.heartbeat_heat_intent.v0"))
+                );
+                let mind_state_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == MIND_STATE_EFFECT_PROPOSAL_TYPE)
+                    .expect("Mind state-effect proposal should advertise a mutation contract");
+                assert_eq!(
+                    mind_state_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    mind_state_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == MIND_STATE_COMMIT_RECEIPT_TYPE))
+                );
+                assert!(mind_state_contract.notes.as_ref().is_some_and(|notes| {
+                    notes
+                        .iter()
+                        .any(|note| note.contains("persistent state guardian"))
+                }));
+                let body_repo_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == BODY_REPO_ACCESS_REQUEST_TYPE)
+                    .expect("Body repo access should advertise a mutation contract");
+                assert_eq!(
+                    body_repo_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    body_repo_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE))
+                );
+                assert!(body_repo_contract.notes.as_ref().is_some_and(|notes| {
+                    notes
+                        .iter()
+                        .any(|note| note.contains("repository access guardian"))
+                }));
+                let eyes_evidence_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == EYES_EVIDENCE_REQUEST_TYPE)
+                    .expect("Eyes evidence request should advertise a mutation contract");
+                assert_eq!(
+                    eyes_evidence_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    eyes_evidence_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == EYES_EVIDENCE_PACKET_TYPE))
+                );
+                assert!(eyes_evidence_contract.notes.as_ref().is_some_and(|notes| {
+                    notes
+                        .iter()
+                        .any(|note| note.contains("evidence ingress guardian"))
+                }));
                 let coordinator_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == SURFACE_COORDINATOR_TYPE)
@@ -2261,9 +2620,41 @@ mod tests {
                 && schema.schema_version.as_deref() == Some("epiphany.role_launch_intent.v0")
         }));
         assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some("epiphany.heartbeat_initiative_heat.v0")
+                && schema.schema_version.as_deref() == Some("epiphany.heartbeat_initiative_heat.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some("epiphany.heartbeat_heat_intent.v0")
+                && schema.schema_version.as_deref() == Some("epiphany.heartbeat_heat_intent.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some("epiphany.swarm_control_receipt.v0")
                 && schema.schema_version.as_deref() == Some("epiphany.swarm_control_receipt.v0")
         }));
+        let receipt_schema_path =
+            epiphany_schema_root().join("epiphany.swarm-control-receipt.schema.json");
+        let receipt_schema: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(receipt_schema_path)?)?;
+        let required = receipt_schema["required"]
+            .as_array()
+            .expect("receipt schema should list required fields");
+        assert!(required.iter().any(|field| field == "decisionOwner"));
+        assert!(required.iter().any(|field| field == "transportRole"));
+        assert!(
+            receipt_schema["properties"]["decisionOwner"]["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("epiphany-core"))
+        );
+        assert!(
+            receipt_schema["properties"]["transportRole"]["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("must not make"))
+        );
+        assert!(
+            receipt_schema["properties"]["hostExecutorRole"]["description"]
+                .as_str()
+                .is_some_and(|description| description.contains("gathered facts"))
+        );
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some(OPENAI_MODEL_REQUEST_TYPE)
                 && schema.schema_version.as_deref() == Some(OPENAI_MODEL_REQUEST_SCHEMA_VERSION)

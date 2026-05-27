@@ -23,6 +23,9 @@
       "type": "object",
       "additionalProperties": true
     },
+    "utteranceState": {
+      "$ref": "epiphany.agent-utterance-state.schema.json"
+    },
     "projectedLocalContext": {
       "type": "object",
       "additionalProperties": true
@@ -66,6 +69,7 @@
     "source",
     "createdAt",
     "stimulus",
+    "utteranceState",
     "projectedLocalContext",
     "projectionSeed",
     "appraisalSeed",

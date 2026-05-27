@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.heartbeat_heat_intent.v0.schema.json",
+  "title": "epiphany heartbeat_heat_intent v0",
+  "description": "Coordinator intent for changing heartbeat initiative heat at global, group, arena, role, or agent scope.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "threadId": {
+      "type": "string"
+    },
+    "storeKey": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Optional heartbeat store key when the coordinator hosts more than one heartbeat arena."
+    },
+    "scope": {
+      "$ref": "epiphany.heartbeat_initiative_heat.v0.schema.json#/definitions/scope"
+    },
+    "selector": {
+      "type": "string",
+      "description": "Agent id, role id, arena, participant kind, group, or constraint selected by scope. Empty only for global/all."
+    },
+    "multiplier": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Recovery-speed multiplier. Values above 1 turn up heat; values below 1 cool the selected lane."
+    },
+    "id": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Stable policy id. Defaults to global or scope:selector when omitted."
+    },
+    "label": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "expiresAfterSceneClock": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "description": "Relative scene-clock duration before the multiplier stops affecting participants."
+    },
+    "clear": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "threadId",
+    "scope"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "clear": {
+            "const": false
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "multiplier"
+        ]
+      }
+    }
+  ]
+}

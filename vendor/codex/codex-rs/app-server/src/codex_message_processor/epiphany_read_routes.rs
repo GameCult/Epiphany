@@ -1,31 +1,43 @@
 use codex_app_server_protocol::*;
+use codex_core::CodexThread;
 use codex_protocol::ThreadId;
+use codex_protocol::protocol::EpiphanyRetrievalState;
+use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::retrieve::map_epiphany_retrieve_response;
-use epiphany_codex_bridge::view::EpiphanyFreshnessResponseInput;
-use epiphany_codex_bridge::view::EpiphanyReorientResultResponseInput;
-use epiphany_codex_bridge::view::EpiphanyRoleResultResponseInput;
-use epiphany_codex_bridge::view::EpiphanyViewResponseInput;
-use epiphany_codex_bridge::view::default_epiphany_view_lenses;
-use epiphany_codex_bridge::view::epiphany_view_needs_jobs;
-use epiphany_codex_bridge::view::epiphany_view_needs_pressure;
-use epiphany_codex_bridge::view::epiphany_view_needs_reorientation_inputs;
-use epiphany_codex_bridge::view::epiphany_view_needs_runtime_store;
-use epiphany_codex_bridge::view::map_epiphany_context_response;
-use epiphany_codex_bridge::view::map_epiphany_distill_response;
-use epiphany_codex_bridge::view::map_epiphany_freshness_response;
-use epiphany_codex_bridge::view::map_epiphany_graph_query_response;
-use epiphany_codex_bridge::view::map_epiphany_propose_response;
-use epiphany_codex_bridge::view::map_epiphany_reorient_result_response;
-use epiphany_codex_bridge::view::map_epiphany_role_result_response;
-use epiphany_codex_bridge::view::map_epiphany_view_response;
-use epiphany_core::normalize_epiphany_retrieve_query;
+use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_jobs;
+use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_pressure;
+use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation_inputs;
+use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_runtime_store;
+use epiphany_codex_bridge::protocol_edge::default_core_epiphany_view_lenses;
+use epiphany_codex_bridge::protocol_edge::protocol_context_params_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_distill_params_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_freshness_response_from_surface;
+use epiphany_codex_bridge::protocol_edge::protocol_graph_query_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
+use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
+use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
+use epiphany_codex_bridge::retrieve::retrieve_epiphany_for_paths;
+use epiphany_codex_bridge::retrieve_protocol::protocol_retrieve_response;
+use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
+use epiphany_codex_bridge::view_protocol::EpiphanyReorientResultResponseInput;
+use epiphany_codex_bridge::view_protocol::EpiphanyRoleResultResponseInput;
+use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
+use epiphany_codex_bridge::view_protocol::derive_epiphany_freshness_surface;
+use epiphany_codex_bridge::view_protocol::map_epiphany_context_response;
+use epiphany_codex_bridge::view_protocol::map_epiphany_distill_response;
+use epiphany_codex_bridge::view_protocol::map_epiphany_graph_query_response;
+use epiphany_codex_bridge::view_protocol::map_epiphany_propose_response;
+use epiphany_codex_bridge::view_protocol::map_epiphany_reorient_result_response;
+use epiphany_codex_bridge::view_protocol::map_epiphany_role_result_response;
+use epiphany_codex_bridge::view_protocol::map_epiphany_view_response;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
+use super::epiphany_thread_host::epiphany_token_usage_snapshot;
 use super::latest_token_usage_info_from_rollout_path;
 
 impl CodexMessageProcessor {
@@ -36,9 +48,9 @@ impl CodexMessageProcessor {
     ) {
         let ThreadEpiphanyViewParams { thread_id, lenses } = params;
         let lenses = if lenses.is_empty() {
-            default_epiphany_view_lenses()
+            default_core_epiphany_view_lenses()
         } else {
-            lenses
+            protocol_view_lenses_to_core(lenses)
         };
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
@@ -64,9 +76,9 @@ impl CodexMessageProcessor {
             }
         };
 
-        let needs_jobs = epiphany_view_needs_jobs(&lenses);
-        let needs_reorientation_inputs = epiphany_view_needs_reorientation_inputs(&lenses);
-        let needs_pressure = epiphany_view_needs_pressure(&lenses);
+        let needs_jobs = core_epiphany_view_needs_jobs(&lenses);
+        let needs_reorientation_inputs = core_epiphany_view_needs_reorientation_inputs(&lenses);
+        let needs_pressure = core_epiphany_view_needs_pressure(&lenses);
         let retrieval_override = if (needs_jobs || needs_reorientation_inputs)
             && thread
                 .epiphany_state
@@ -75,7 +87,7 @@ impl CodexMessageProcessor {
                 .is_none()
         {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
-                Some(loaded_thread.epiphany_retrieval_state().await)
+                Some(thread_epiphany_retrieval_state(loaded_thread.as_ref()).await)
             } else {
                 None
             }
@@ -111,7 +123,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let runtime_store_path = if epiphany_view_needs_runtime_store(&lenses) {
+        let runtime_store_path = if core_epiphany_view_needs_runtime_store(&lenses) {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
                 Some(loaded_thread.epiphany_runtime_spine_store_path().await)
             } else {
@@ -120,6 +132,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
+        let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
         let response = map_epiphany_view_response(EpiphanyViewResponseInput {
             thread_id: thread_id.clone(),
             lenses,
@@ -129,7 +142,7 @@ impl CodexMessageProcessor {
             watcher_snapshot: watcher_snapshot
                 .as_ref()
                 .map(epiphany_freshness_watcher_snapshot),
-            token_usage_info: token_usage_info.as_ref(),
+            token_usage_info: token_usage_snapshot.as_ref(),
             runtime_store_path: runtime_store_path.as_deref(),
         })
         .await;
@@ -146,10 +159,11 @@ impl CodexMessageProcessor {
             role_id,
             binding_id,
         } = params;
+        let core_role_id = protocol_role_id_to_core(role_id);
 
         let binding_id = match binding_id {
             Some(binding_id) => binding_id,
-            None => match epiphany_role_binding_id(role_id) {
+            None => match epiphany_role_binding_id(core_role_id) {
                 Ok(binding_id) => binding_id.to_string(),
                 Err(message) => {
                     self.send_invalid_request_error(request_id, message).await;
@@ -180,12 +194,12 @@ impl CodexMessageProcessor {
             }
         };
         let source = if loaded_thread.is_some() {
-            ThreadEpiphanyRolesSource::Live
+            EpiphanySurfaceSource::Live
         } else {
-            ThreadEpiphanyRolesSource::Stored
+            EpiphanySurfaceSource::Stored
         };
 
-        if let Err(message) = epiphany_role_binding_id(role_id) {
+        if let Err(message) = epiphany_role_binding_id(core_role_id) {
             self.send_invalid_request_error(request_id, message).await;
             return;
         }
@@ -197,7 +211,7 @@ impl CodexMessageProcessor {
         };
         let response = map_epiphany_role_result_response(EpiphanyRoleResultResponseInput {
             thread_id: thread_uuid.to_string(),
-            role_id,
+            role_id: core_role_id,
             source,
             binding_id,
             state: thread.epiphany_state.as_ref(),
@@ -238,7 +252,7 @@ impl CodexMessageProcessor {
         };
 
         let retrieval_override = if let Some(loaded_thread) = loaded_thread.as_ref() {
-            Some(loaded_thread.epiphany_retrieval_state().await)
+            Some(thread_epiphany_retrieval_state(loaded_thread.as_ref()).await)
         } else {
             None
         };
@@ -255,7 +269,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let response = map_epiphany_freshness_response(EpiphanyFreshnessResponseInput {
+        let surface = derive_epiphany_freshness_surface(EpiphanyFreshnessResponseInput {
             thread_id,
             loaded: loaded_thread.is_some(),
             state: thread.epiphany_state.as_ref(),
@@ -264,6 +278,7 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .map(epiphany_freshness_watcher_snapshot),
         });
+        let response = protocol_freshness_response_from_surface(surface);
         self.outgoing.send_response(request_id, response).await;
     }
 
@@ -295,11 +310,12 @@ impl CodexMessageProcessor {
             }
         };
 
+        let core_params = protocol_context_params_to_core(&params);
         let response = map_epiphany_context_response(
             thread_id,
             loaded,
             thread.epiphany_state.as_ref(),
-            &params,
+            &core_params,
         );
         self.outgoing.send_response(request_id, response).await;
     }
@@ -332,11 +348,12 @@ impl CodexMessageProcessor {
             }
         };
 
+        let core_query = protocol_graph_query_to_core(&params.query);
         let response = map_epiphany_graph_query_response(
             thread_id,
             loaded,
             thread.epiphany_state.as_ref(),
-            &params.query,
+            &core_query,
         );
         self.outgoing.send_response(request_id, response).await;
     }
@@ -375,9 +392,9 @@ impl CodexMessageProcessor {
         };
 
         let source = if loaded_thread.is_some() {
-            ThreadEpiphanyReorientSource::Live
+            EpiphanySurfaceSource::Live
         } else {
-            ThreadEpiphanyReorientSource::Stored
+            EpiphanySurfaceSource::Stored
         };
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
             Some(loaded_thread.epiphany_runtime_spine_store_path().await)
@@ -417,7 +434,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let query = match normalize_epiphany_retrieve_query(query, limit, path_prefixes) {
+        let query = match normalize_thread_epiphany_retrieve_query(query, limit, path_prefixes) {
             Ok(query) => query,
             Err(message) => {
                 self.send_invalid_request_error(request_id, message.to_string())
@@ -438,21 +455,23 @@ impl CodexMessageProcessor {
             }
         };
 
-        let response = match thread
-            .epiphany_retrieve(query)
-            .await
-            .and_then(map_epiphany_retrieve_response)
-        {
-            Ok(response) => response,
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let config = thread.config_snapshot().await;
+        let codex_home = thread.codex_home().await;
+        let response =
+            match retrieve_epiphany_for_paths(config.cwd.to_path_buf(), codex_home, query)
+                .await
+                .and_then(protocol_retrieve_response)
+            {
+                Ok(response) => response,
+                Err(err) => {
+                    self.send_internal_error(
+                        request_id,
+                        format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
+                    )
+                    .await;
+                    return;
+                }
+            };
 
         self.outgoing.send_response(request_id, response).await;
     }
@@ -490,7 +509,8 @@ impl CodexMessageProcessor {
             .await
             .map(|state| state.revision)
             .unwrap_or(0);
-        let response = match map_epiphany_distill_response(expected_revision, params) {
+        let input = protocol_distill_params_to_core(params);
+        let response = match map_epiphany_distill_response(expected_revision, input) {
             Ok(response) => response,
             Err(err) => {
                 self.send_invalid_request_error(
@@ -559,4 +579,10 @@ impl CodexMessageProcessor {
 
         self.outgoing.send_response(request_id, response).await;
     }
+}
+
+async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRetrievalState {
+    let config = thread.config_snapshot().await;
+    let codex_home = thread.codex_home().await;
+    epiphany_retrieval_state_for_paths(config.cwd.to_path_buf(), codex_home).await
 }

@@ -1,19 +1,19 @@
-use epiphany_state_model::EpiphanyChurnState;
-use epiphany_state_model::EpiphanyCodeRef;
-use epiphany_state_model::EpiphanyEvidenceRecord;
-use epiphany_state_model::EpiphanyGraph;
-use epiphany_state_model::EpiphanyGraphCheckpoint;
-use epiphany_state_model::EpiphanyGraphEdge;
-use epiphany_state_model::EpiphanyGraphFrontier;
-use epiphany_state_model::EpiphanyGraphLink;
-use epiphany_state_model::EpiphanyGraphNode;
-use epiphany_state_model::EpiphanyInvestigationCheckpoint;
-use epiphany_state_model::EpiphanyInvestigationDisposition;
-use epiphany_state_model::EpiphanyModeState;
-use epiphany_state_model::EpiphanyObservation;
-use epiphany_state_model::EpiphanyPlanningState;
-use epiphany_state_model::EpiphanyScratchPad;
-use epiphany_state_model::EpiphanyThreadState;
+use crate::EpiphanyChurnState;
+use crate::EpiphanyCodeRef;
+use crate::EpiphanyEvidenceRecord;
+use crate::EpiphanyGraph;
+use crate::EpiphanyGraphCheckpoint;
+use crate::EpiphanyGraphEdge;
+use crate::EpiphanyGraphFrontier;
+use crate::EpiphanyGraphLink;
+use crate::EpiphanyGraphNode;
+use crate::EpiphanyInvestigationCheckpoint;
+use crate::EpiphanyInvestigationDisposition;
+use crate::EpiphanyModeState;
+use crate::EpiphanyObservation;
+use crate::EpiphanyPlanningState;
+use crate::EpiphanyScratchPad;
+use crate::EpiphanyThreadState;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -798,19 +798,19 @@ fn push_omitted_count(lines: &mut Vec<String>, total: usize, shown: usize, label
 #[cfg(test)]
 mod tests {
     use super::render_epiphany_state;
-    use epiphany_state_model::EpiphanyChurnState;
-    use epiphany_state_model::EpiphanyCodeRef;
-    use epiphany_state_model::EpiphanyGraph;
-    use epiphany_state_model::EpiphanyGraphCheckpoint;
-    use epiphany_state_model::EpiphanyGraphEdge;
-    use epiphany_state_model::EpiphanyGraphFrontier;
-    use epiphany_state_model::EpiphanyGraphNode;
-    use epiphany_state_model::EpiphanyGraphs;
-    use epiphany_state_model::EpiphanyInvestigationCheckpoint;
-    use epiphany_state_model::EpiphanyInvestigationDisposition;
-    use epiphany_state_model::EpiphanyModeKind;
-    use epiphany_state_model::EpiphanyModeState;
-    use epiphany_state_model::EpiphanyThreadState;
+    use crate::EpiphanyChurnState;
+    use crate::EpiphanyCodeRef;
+    use crate::EpiphanyGraph;
+    use crate::EpiphanyGraphCheckpoint;
+    use crate::EpiphanyGraphEdge;
+    use crate::EpiphanyGraphFrontier;
+    use crate::EpiphanyGraphNode;
+    use crate::EpiphanyGraphs;
+    use crate::EpiphanyInvestigationCheckpoint;
+    use crate::EpiphanyInvestigationDisposition;
+    use crate::EpiphanyModeKind;
+    use crate::EpiphanyModeState;
+    use crate::EpiphanyThreadState;
     use std::path::PathBuf;
 
     #[test]

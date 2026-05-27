@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.roles.schema.json",
   "title": "Epiphany roles",
-  "description": "Role ownership reflection mirrored from thread/epiphany/roles.",
+  "description": "Role ownership reflection over fixed typed Epiphany lanes.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

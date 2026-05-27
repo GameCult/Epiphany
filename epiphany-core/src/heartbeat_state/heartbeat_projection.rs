@@ -9,6 +9,7 @@ use super::HeartbeatPendingTurn;
 use super::HeartbeatSelectionPolicy;
 use super::VOID_ROUTINE_SCHEMA_VERSION;
 use super::effective_cooldown_multiplier;
+use super::initiative_heat_multiplier;
 use super::load_heartbeat_cognition_entry;
 use super::load_heartbeat_state_entry;
 use super::mood_cooldown_multiplier;
@@ -68,6 +69,22 @@ pub fn heartbeat_status_projection(
         "artifactDir": artifact_dir.as_ref(),
         "targetHeartbeatRate": state.target_heartbeat_rate,
         "sceneClock": state.scene_clock,
+        "initiativeHeat": {
+            "schemaVersion": state.initiative_heat.schema_version,
+            "globalMultiplier": state.initiative_heat.global_multiplier,
+            "multipliers": state.initiative_heat.multipliers.iter().map(|multiplier| {
+                serde_json::json!({
+                    "id": multiplier.id,
+                    "label": multiplier.label,
+                    "scope": multiplier.scope,
+                    "selector": multiplier.selector,
+                    "multiplier": multiplier.multiplier,
+                    "reason": multiplier.reason,
+                    "updatedAt": multiplier.updated_at,
+                    "expiresAtSceneClock": multiplier.expires_at_scene_clock,
+                })
+            }).collect::<Vec<_>>(),
+        },
         "participants": state.participants.iter().map(participant_status_json).collect::<Vec<_>>(),
         "latestEvent": history.last().cloned(),
         "history": history,
@@ -81,8 +98,8 @@ pub fn heartbeat_status_projection(
         "candidateInterventions": cognition.as_ref().and_then(|entry| entry.candidate_interventions.clone()),
         "appraisals": cognition.as_ref().and_then(|entry| entry.appraisals.clone()),
         "reactions": cognition.as_ref().and_then(|entry| entry.reactions.clone()),
-        "adaptivePacing": state.extra.get("adaptivePacing"),
-        "availableActions": ["init", "tick", "pump", "complete", "status", "routine"],
+        "adaptivePacing": state.adaptive_pacing.as_ref(),
+        "availableActions": ["init", "tick", "pump", "heat", "complete", "status", "routine"],
     }))
 }
 
@@ -94,7 +111,10 @@ fn latest_json_artifacts(artifact_dir: impl AsRef<Path>, limit: usize) -> Vec<Va
     let mut paths: Vec<_> = read_dir
         .filter_map(Result::ok)
         .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "json"))
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
         .filter_map(|path| {
             let modified = path.metadata().and_then(|meta| meta.modified()).ok()?;
             Some((path, modified))
@@ -121,7 +141,8 @@ fn latest_json_artifacts(artifact_dir: impl AsRef<Path>, limit: usize) -> Vec<Va
 }
 
 fn artifact_summary(payload: &Value) -> Value {
-    if payload.get("schema_version") == Some(&Value::String(VOID_ROUTINE_SCHEMA_VERSION.to_string()))
+    if payload.get("schema_version")
+        == Some(&Value::String(VOID_ROUTINE_SCHEMA_VERSION.to_string()))
     {
         return serde_json::json!({
             "runId": payload.get("runId"),
@@ -203,9 +224,19 @@ fn participant_status_json(participant: &HeartbeatParticipant) -> Value {
         "initiativeSpeed": participant.initiative_speed,
         "personalityCooldownMultiplier": personality_cooldown_multiplier(participant),
         "moodCooldownMultiplier": mood_cooldown_multiplier(participant),
+        "initiativeHeatMultiplier": initiative_heat_multiplier(participant),
+        "initiativeHeat": participant.initiative_heat.as_ref(),
         "effectiveCooldownMultiplier": effective_cooldown_multiplier(participant),
-        "personalityTiming": participant.extra.get("personalityTiming"),
-        "moodTiming": participant.extra.get("moodTiming"),
+        "initiativeFrozen": participant
+            .pending_turn
+            .as_ref()
+            .is_some_and(|turn| turn.status == "running"),
+        "initiativeFreezeReason": participant
+            .pending_turn
+            .as_ref()
+            .and_then(|turn| turn.initiative_freeze_reason.as_ref()),
+        "personalityTiming": participant.personality_timing.as_ref(),
+        "moodTiming": participant.mood_timing.as_ref(),
         "nextReadyAt": participant.next_ready_at,
         "reactionBias": participant.reaction_bias,
         "interruptThreshold": participant.interrupt_threshold,
@@ -228,7 +259,16 @@ pub(super) fn schedule_participant_json(participant: &HeartbeatParticipant) -> V
         "initiative_speed": participant.initiative_speed,
         "personality_cooldown_multiplier": personality_cooldown_multiplier(participant),
         "mood_cooldown_multiplier": mood_cooldown_multiplier(participant),
+        "initiative_heat_multiplier": initiative_heat_multiplier(participant),
         "effective_cooldown_multiplier": effective_cooldown_multiplier(participant),
+        "initiative_frozen": participant
+            .pending_turn
+            .as_ref()
+            .is_some_and(|turn| turn.status == "running"),
+        "initiative_freeze_reason": participant
+            .pending_turn
+            .as_ref()
+            .and_then(|turn| turn.initiative_freeze_reason.as_ref()),
         "next_ready_at": participant.next_ready_at,
         "reaction_bias": participant.reaction_bias,
         "interrupt_threshold": participant.interrupt_threshold,
@@ -259,9 +299,12 @@ pub(super) fn pending_turn_json(turn: &HeartbeatPendingTurn) -> Value {
         "startedAt": turn.started_at,
         "startedSceneClock": turn.started_scene_clock,
         "baseRecovery": turn.base_recovery,
-        "personalityCooldownMultiplier": turn.extra.get("personalityCooldownMultiplier"),
-        "moodCooldownMultiplier": turn.extra.get("moodCooldownMultiplier"),
-        "effectiveCooldownMultiplier": turn.extra.get("effectiveCooldownMultiplier"),
+        "personalityCooldownMultiplier": turn.personality_cooldown_multiplier,
+        "moodCooldownMultiplier": turn.mood_cooldown_multiplier,
+        "initiativeHeatMultiplier": turn.initiative_heat_multiplier,
+        "effectiveCooldownMultiplier": turn.effective_cooldown_multiplier,
+        "initiativeFrozen": turn.initiative_frozen,
+        "initiativeFreezeReason": turn.initiative_freeze_reason.as_ref(),
         "recovery": turn.recovery,
         "cooldownPolicy": turn.cooldown_policy,
         "completedAt": turn.completed_at,

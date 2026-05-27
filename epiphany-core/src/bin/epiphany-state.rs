@@ -6,7 +6,6 @@ use epiphany_core::add_state_branch;
 use epiphany_core::append_state_evidence;
 use epiphany_core::close_state_branch;
 use epiphany_core::load_state_ledger;
-use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -55,7 +54,6 @@ fn main() -> Result<()> {
                     status: status.context("missing --status")?,
                     note: note.context("missing --note")?,
                     branch,
-                    extra: BTreeMap::new(),
                 },
             )?;
             println!("Appended evidence record.");
@@ -93,7 +91,6 @@ fn main() -> Result<()> {
                     status: "active".to_string(),
                     artifacts,
                     notes: note.unwrap_or_default(),
-                    extra: BTreeMap::new(),
                 },
             )?;
             println!("Added branch '{id}'.");

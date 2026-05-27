@@ -1,4 +1,7 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyRoleResultRoleId {
     Implementation,
     Imagination,
@@ -7,14 +10,16 @@ pub enum EpiphanyRoleResultRoleId {
     Reorientation,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyRoleSelfPersistenceStatus {
     Missing,
     Accepted,
     Rejected,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleSelfPersistenceReview {
     pub status: EpiphanyRoleSelfPersistenceStatus,
     pub target_agent_id: Option<String>,
@@ -22,7 +27,8 @@ pub struct EpiphanyRoleSelfPersistenceReview {
     pub reasons: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleFindingInterpretation {
     pub verdict: Option<String>,
     pub summary: Option<String>,
@@ -45,7 +51,8 @@ pub struct EpiphanyRoleFindingInterpretation {
     pub item_error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyRoleAcceptanceFinding {
     pub role_id: EpiphanyRoleResultRoleId,
     pub verdict: Option<String>,
@@ -57,7 +64,8 @@ pub struct EpiphanyRoleAcceptanceFinding {
     pub projected_fields: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyReorientAcceptanceFinding {
     pub mode: Option<String>,
     pub summary: Option<String>,
@@ -68,7 +76,8 @@ pub struct EpiphanyReorientAcceptanceFinding {
     pub runtime_job_id: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyReorientFindingInterpretation {
     pub mode: Option<String>,
     pub summary: Option<String>,
@@ -84,7 +93,8 @@ pub struct EpiphanyReorientFindingInterpretation {
     pub item_error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyAcceptanceBundle {
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,
@@ -94,7 +104,8 @@ pub struct EpiphanyAcceptanceBundle {
     pub receipt: EpiphanyAcceptanceReceipt,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyReorientAcceptanceBundle {
     pub accepted_receipt_id: String,
     pub accepted_observation_id: String,

@@ -21,6 +21,10 @@ developer's damp recollection.
 - [dossier-profiles.md](./dossier-profiles.md):
   explicit split between lean Epiphany work-organ dossiers and embodied
   Ghostlight/Face personalities.
+- [agent-utterance-state-schema.md](./agent-utterance-state-schema.md):
+  derived speech-conditioning subset for Weks, Aquarium, and other utterance
+  surfaces; it carries identity, trait vectors, mood, and activation without
+  memory records.
 - [repo-personality-birth-projection.md](./repo-personality-birth-projection.md):
   deterministic birth-time path from repo terrain to newborn trait lattice and
   heartbeat seeds.

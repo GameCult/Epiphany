@@ -1,73 +1,62 @@
 use std::path::Path;
 
 use codex_app_server_protocol::*;
-use codex_protocol::protocol::EpiphanyRetrievalState;
-use codex_protocol::protocol::EpiphanyThreadState;
-use codex_protocol::protocol::TokenUsageInfo as CoreTokenUsageInfo;
+use epiphany_core::EpiphanyContextParams;
 use epiphany_core::EpiphanyDistillInput;
+use epiphany_core::EpiphanyGraphQuery;
 use epiphany_core::EpiphanyMapProposalInput;
+use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanySceneInput;
+use epiphany_core::EpiphanyTokenUsageSnapshot;
+use epiphany_core::EpiphanyViewLens;
 use epiphany_core::derive_scene;
 use epiphany_core::distill_observation;
+use epiphany_core::epiphany_view_needs_jobs;
+use epiphany_core::epiphany_view_needs_pressure;
+use epiphany_core::epiphany_view_needs_reorientation_inputs;
 use epiphany_core::propose_map_update;
+use epiphany_core::reorient_finding_already_accepted;
+use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyThreadState;
 
-use crate::context::map_epiphany_context;
-use crate::context::map_epiphany_graph_query;
-use crate::context::map_epiphany_planning;
+use crate::context::derive_epiphany_context;
+use crate::context::derive_epiphany_graph_query;
+use crate::context::derive_epiphany_planning;
+use crate::context_protocol::protocol_context_view;
+use crate::context_protocol::protocol_graph_query_view;
+use crate::context_protocol::protocol_planning_view;
 use crate::coordinator::derive_epiphany_coordinator_status;
-use crate::coordinator::epiphany_reorient_finding_already_accepted;
-use crate::coordinator::map_epiphany_coordinator_view;
 use crate::coordinator::map_epiphany_crrc_recommendation;
 use crate::coordinator::map_epiphany_roles;
 use crate::coordinator::render_epiphany_roles_note;
+use crate::coordinator_protocol::protocol_coordinator_view;
+use crate::coordinator_protocol::protocol_crrc_recommendation;
+use crate::coordinator_protocol::protocol_role_board_lanes;
+use crate::cultnet::EpiphanyFreshnessSurface;
+use crate::cultnet::EpiphanySurfaceSource;
 use crate::jobs::map_epiphany_jobs;
 use crate::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
-use crate::pressure::map_epiphany_pressure;
+use crate::pressure::derive_epiphany_pressure;
+use crate::protocol_edge::protocol_job_from_surface;
+use crate::protocol_edge::protocol_pressure_from_core;
+use crate::protocol_edge::protocol_reorient_decision;
+use crate::protocol_edge::protocol_reorient_finding;
+use crate::protocol_edge::protocol_reorient_result_status;
+use crate::protocol_edge::protocol_reorient_source;
+use crate::protocol_edge::protocol_reorient_state_status;
+use crate::protocol_edge::protocol_role_finding;
+use crate::protocol_edge::protocol_role_id_from_core;
+use crate::protocol_edge::protocol_role_result_status;
+use crate::protocol_edge::protocol_roles_source;
+use crate::protocol_edge::protocol_view_lens_from_core;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
-use crate::reorient::map_epiphany_freshness;
-use crate::reorient::map_epiphany_reorient;
-use crate::runtime_results::load_epiphany_reorient_result_snapshot;
-use crate::runtime_results::load_epiphany_role_result_snapshot;
-use crate::scene::map_core_epiphany_scene_action;
-use crate::scene::map_epiphany_scene;
-
-pub fn default_epiphany_view_lenses() -> Vec<ThreadEpiphanyViewLens> {
-    vec![
-        ThreadEpiphanyViewLens::Scene,
-        ThreadEpiphanyViewLens::Jobs,
-        ThreadEpiphanyViewLens::Roles,
-        ThreadEpiphanyViewLens::Planning,
-        ThreadEpiphanyViewLens::Pressure,
-        ThreadEpiphanyViewLens::Reorient,
-        ThreadEpiphanyViewLens::Crrc,
-        ThreadEpiphanyViewLens::Coordinator,
-    ]
-}
-
-pub fn epiphany_view_needs_jobs(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Jobs)
-        || lenses.contains(&ThreadEpiphanyViewLens::Roles)
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
-}
-
-pub fn epiphany_view_needs_reorientation_inputs(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Roles)
-        || lenses.contains(&ThreadEpiphanyViewLens::Reorient)
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
-}
-
-pub fn epiphany_view_needs_pressure(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Pressure)
-        || epiphany_view_needs_reorientation_inputs(lenses)
-}
-
-pub fn epiphany_view_needs_runtime_store(lenses: &[ThreadEpiphanyViewLens]) -> bool {
-    lenses.contains(&ThreadEpiphanyViewLens::Roles)
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
-}
+use crate::reorient::derive_epiphany_freshness_view;
+use crate::reorient::derive_epiphany_reorient;
+use crate::runtime_results::load_core_epiphany_reorient_result_snapshot;
+use crate::runtime_results::load_core_epiphany_role_result_snapshot;
+use crate::scene::derive_epiphany_scene;
+use crate::scene_protocol::protocol_scene;
+use crate::scene_protocol::protocol_scene_action;
 
 pub struct EpiphanyFreshnessResponseInput<'a> {
     pub thread_id: String,
@@ -77,25 +66,25 @@ pub struct EpiphanyFreshnessResponseInput<'a> {
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
 }
 
-pub fn map_epiphany_freshness_response(
+pub fn derive_epiphany_freshness_surface(
     input: EpiphanyFreshnessResponseInput<'_>,
-) -> ThreadEpiphanyFreshnessResponse {
-    let (state_revision, retrieval, graph, watcher) = map_epiphany_freshness(
+) -> EpiphanyFreshnessSurface {
+    let freshness = derive_epiphany_freshness_view(
         input.state,
         input.retrieval_override,
         input.watcher_snapshot,
     );
-    ThreadEpiphanyFreshnessResponse {
+    EpiphanyFreshnessSurface {
         thread_id: input.thread_id,
         source: if input.loaded {
-            ThreadEpiphanyFreshnessSource::Live
+            EpiphanySurfaceSource::Live
         } else {
-            ThreadEpiphanyFreshnessSource::Stored
+            EpiphanySurfaceSource::Stored
         },
-        state_revision,
-        retrieval,
-        graph,
-        watcher,
+        state_revision: freshness.state_revision,
+        retrieval: freshness.retrieval,
+        graph: freshness.graph,
+        watcher: freshness.watcher,
     }
 }
 
@@ -103,9 +92,10 @@ pub fn map_epiphany_context_response(
     thread_id: String,
     loaded: bool,
     state: Option<&EpiphanyThreadState>,
-    params: &ThreadEpiphanyContextParams,
+    params: &EpiphanyContextParams,
 ) -> ThreadEpiphanyContextResponse {
-    let (state_status, state_revision, context, missing) = map_epiphany_context(state, params);
+    let (state_status, state_revision, context, missing) =
+        protocol_context_view(derive_epiphany_context(state, params));
     ThreadEpiphanyContextResponse {
         thread_id,
         source: if loaded {
@@ -124,10 +114,10 @@ pub fn map_epiphany_graph_query_response(
     thread_id: String,
     loaded: bool,
     state: Option<&EpiphanyThreadState>,
-    query: &ThreadEpiphanyGraphQuery,
+    query: &EpiphanyGraphQuery,
 ) -> ThreadEpiphanyGraphQueryResponse {
     let (state_status, state_revision, graph, frontier, checkpoint, matched, missing) =
-        map_epiphany_graph_query(state, query);
+        protocol_graph_query_view(derive_epiphany_graph_query(state, query));
     ThreadEpiphanyGraphQueryResponse {
         thread_id,
         source: if loaded {
@@ -147,12 +137,12 @@ pub fn map_epiphany_graph_query_response(
 
 pub struct EpiphanyViewResponseInput<'a> {
     pub thread_id: String,
-    pub lenses: Vec<ThreadEpiphanyViewLens>,
+    pub lenses: Vec<EpiphanyViewLens>,
     pub loaded: bool,
     pub state: Option<&'a EpiphanyThreadState>,
     pub retrieval_override: Option<&'a EpiphanyRetrievalState>,
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
-    pub token_usage_info: Option<&'a CoreTokenUsageInfo>,
+    pub token_usage_info: Option<&'a EpiphanyTokenUsageSnapshot>,
     pub runtime_store_path: Option<&'a Path>,
 }
 
@@ -173,19 +163,34 @@ pub async fn map_epiphany_view_response(
     let needs_jobs = epiphany_view_needs_jobs(&lenses);
     let needs_reorientation_inputs = epiphany_view_needs_reorientation_inputs(&lenses);
     let needs_pressure = epiphany_view_needs_pressure(&lenses);
-    let pressure = needs_pressure.then(|| map_epiphany_pressure(token_usage_info));
-    let freshness = needs_reorientation_inputs
-        .then(|| map_epiphany_freshness(state, retrieval_override, watcher_snapshot));
-    let (state_revision, reorient_state_status, reorient_decision) =
-        if let (Some((state_revision, retrieval, graph, watcher)), Some(pressure)) =
-            (freshness.as_ref(), pressure.as_ref())
+    let core_pressure = needs_pressure.then(|| derive_epiphany_pressure(token_usage_info));
+    let pressure = needs_pressure
+        .then(|| protocol_pressure_from_core(derive_epiphany_pressure(token_usage_info)));
+    let core_freshness = needs_reorientation_inputs
+        .then(|| derive_epiphany_freshness_view(state, retrieval_override, watcher_snapshot));
+    let (state_revision, core_reorient_state_status, core_reorient_decision) =
+        if let (Some(freshness), Some(core_pressure)) =
+            (core_freshness.as_ref(), core_pressure.as_ref())
         {
-            let (state_status, decision) =
-                map_epiphany_reorient(state, pressure, retrieval, graph, watcher);
-            (*state_revision, state_status, Some(decision))
+            let (state_status, decision) = derive_epiphany_reorient(
+                state,
+                core_pressure,
+                &freshness.retrieval,
+                &freshness.graph,
+                &freshness.watcher,
+            );
+            (freshness.state_revision, state_status, Some(decision))
         } else {
-            (None, ThreadEpiphanyReorientStateStatus::Missing, None)
+            (
+                None,
+                epiphany_core::EpiphanyReorientStateStatus::Missing,
+                None,
+            )
         };
+    let reorient_state_status = protocol_reorient_state_status(core_reorient_state_status);
+    let reorient_decision = core_reorient_decision
+        .clone()
+        .map(protocol_reorient_decision);
     let jobs = if needs_jobs {
         map_epiphany_jobs(state, retrieval_override)
     } else {
@@ -195,85 +200,94 @@ pub async fn map_epiphany_view_response(
         .iter()
         .find(|job| job.id == EPIPHANY_REORIENT_LAUNCH_BINDING_ID)
         .cloned();
-    let (reorient_result_status, reorient_finding, reorient_result_note) = if runtime_store_path
-        .is_some()
-        || lenses.contains(&ThreadEpiphanyViewLens::Crrc)
-        || lenses.contains(&ThreadEpiphanyViewLens::Coordinator)
+    let reorient_result = if runtime_store_path.is_some()
+        || lenses.contains(&EpiphanyViewLens::Crrc)
+        || lenses.contains(&EpiphanyViewLens::Coordinator)
     {
-        load_epiphany_reorient_result_snapshot(
+        load_core_epiphany_reorient_result_snapshot(
             state,
             runtime_store_path,
             EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
         )
         .await
     } else {
-        (
-            ThreadEpiphanyReorientResultStatus::MissingState,
-            None,
-            "Reorient result was not requested.".to_string(),
-        )
+        crate::runtime_results::EpiphanyReorientResultSnapshot {
+            status: epiphany_core::EpiphanyCrrcResultStatus::MissingState,
+            finding: None,
+            note: "Reorient result was not requested.".to_string(),
+        }
     };
+    let reorient_result_status = protocol_reorient_result_status(reorient_result.status);
+    let reorient_finding = reorient_result
+        .finding
+        .clone()
+        .map(protocol_reorient_finding);
+    let reorient_result_note = reorient_result.note.clone();
     let checkpoint_present = state
         .and_then(|state| state.investigation_checkpoint.as_ref())
         .is_some();
-    let reorient_finding_accepted = reorient_finding.as_ref().is_some_and(|finding| {
-        state.is_some_and(|state| epiphany_reorient_finding_already_accepted(state, finding))
+    let reorient_finding_accepted = reorient_result.finding.as_ref().is_some_and(|finding| {
+        state.is_some_and(|state| reorient_finding_already_accepted(state, finding))
     });
-    let recommendation =
-        if let (Some(pressure), Some(decision)) = (pressure.as_ref(), reorient_decision.as_ref()) {
-            Some(map_epiphany_crrc_recommendation(
-                loaded,
-                reorient_state_status,
-                pressure,
-                decision,
-                reorient_result_status,
-                checkpoint_present,
-                reorient_finding.is_some(),
-                reorient_finding_accepted,
-            ))
-        } else {
-            None
-        };
-    let roles = if let (Some(pressure), Some(decision), Some(recommendation)) = (
-        pressure.as_ref(),
-        reorient_decision.as_ref(),
+    let recommendation = if let (Some(core_pressure), Some(decision)) =
+        (core_pressure.as_ref(), core_reorient_decision.as_ref())
+    {
+        Some(map_epiphany_crrc_recommendation(
+            loaded,
+            core_reorient_state_status,
+            core_pressure,
+            decision,
+            reorient_result.status,
+            checkpoint_present,
+            reorient_finding.is_some(),
+            reorient_finding_accepted,
+        ))
+    } else {
+        None
+    };
+    let roles = if let (Some(core_pressure), Some(decision), Some(recommendation)) = (
+        core_pressure.as_ref(),
+        core_reorient_decision.as_ref(),
         recommendation.as_ref(),
     ) {
         Some(map_epiphany_roles(
             state,
             &jobs,
             decision,
-            pressure,
+            core_pressure,
             recommendation,
-            reorient_result_status,
+            reorient_result.status,
             reorient_job.as_ref(),
         ))
     } else {
         None
     };
-    let coordinator_response = if lenses.contains(&ThreadEpiphanyViewLens::Coordinator) {
-        if let (Some(pressure), Some(recommendation), Some(roles)) =
-            (pressure.as_ref(), recommendation.as_ref(), roles.clone())
-        {
+    let coordinator_response = if lenses.contains(&EpiphanyViewLens::Coordinator) {
+        if let (Some(core_pressure), Some(recommendation), Some(roles)) = (
+            core_pressure.as_ref(),
+            recommendation.as_ref(),
+            roles.clone(),
+        ) {
             let status = derive_epiphany_coordinator_status(
                 state,
                 runtime_store_path,
-                reorient_state_status,
-                pressure,
+                core_reorient_state_status,
+                core_pressure,
                 recommendation,
-                roles,
-                reorient_decision.as_ref(),
-                reorient_result_status,
-                reorient_finding.as_ref(),
+                roles.roles.clone(),
+                core_reorient_decision.as_ref(),
+                reorient_result.status,
+                reorient_result.finding.as_ref(),
                 checkpoint_present,
             )
             .await;
-            Some(map_epiphany_coordinator_view(
+            Some(protocol_coordinator_view(
                 thread_id.clone(),
                 loaded,
-                reorient_state_status,
+                core_reorient_state_status,
                 state_revision,
                 status,
+                roles,
             ))
         } else {
             None
@@ -284,16 +298,27 @@ pub async fn map_epiphany_view_response(
 
     ThreadEpiphanyViewResponse {
         thread_id: thread_id.clone(),
-        scene: lenses
-            .contains(&ThreadEpiphanyViewLens::Scene)
-            .then(|| map_epiphany_scene(state, loaded, EPIPHANY_REORIENT_LAUNCH_BINDING_ID)),
-        jobs: if lenses.contains(&ThreadEpiphanyViewLens::Jobs) {
-            jobs.clone()
+        scene: lenses.contains(&EpiphanyViewLens::Scene).then(|| {
+            protocol_scene(derive_epiphany_scene(
+                state,
+                loaded,
+                EPIPHANY_REORIENT_LAUNCH_BINDING_ID,
+            ))
+        }),
+        jobs: if lenses.contains(&EpiphanyViewLens::Jobs) {
+            jobs.iter()
+                .cloned()
+                .map(|job| protocol_job_from_surface(job, None, None))
+                .collect()
         } else {
             Vec::new()
         },
-        roles: lenses.contains(&ThreadEpiphanyViewLens::Roles).then(|| {
-            let roles = roles.clone().unwrap_or_default();
+        roles: lenses.contains(&EpiphanyViewLens::Roles).then(|| {
+            let role_board = roles.clone();
+            let protocol_roles = role_board
+                .as_ref()
+                .map(protocol_role_board_lanes)
+                .unwrap_or_default();
             ThreadEpiphanyViewRoles {
                 thread_id: thread_id.clone(),
                 source: if loaded {
@@ -304,18 +329,22 @@ pub async fn map_epiphany_view_response(
                 state_status: reorient_state_status,
                 state_revision,
                 note: render_epiphany_roles_note(
-                    &roles,
-                    reorient_state_status,
+                    role_board
+                        .as_ref()
+                        .map(|role_board| role_board.roles.as_slice())
+                        .unwrap_or(&[]),
+                    core_reorient_state_status,
                     recommendation
                         .as_ref()
                         .map(|recommendation| recommendation.action)
-                        .unwrap_or(ThreadEpiphanyCrrcAction::Continue),
+                        .unwrap_or(epiphany_core::EpiphanyCrrcAction::Continue),
                 ),
-                roles,
+                roles: protocol_roles,
             }
         }),
-        planning: lenses.contains(&ThreadEpiphanyViewLens::Planning).then(|| {
-            let (state_status, state_revision, planning, summary) = map_epiphany_planning(state);
+        planning: lenses.contains(&EpiphanyViewLens::Planning).then(|| {
+            let (state_status, state_revision, planning, summary) =
+                protocol_planning_view(derive_epiphany_planning(state));
             ThreadEpiphanyViewPlanning {
                 thread_id: thread_id.clone(),
                 source: if loaded {
@@ -330,11 +359,11 @@ pub async fn map_epiphany_view_response(
             }
         }),
         pressure: lenses
-            .contains(&ThreadEpiphanyViewLens::Pressure)
+            .contains(&EpiphanyViewLens::Pressure)
             .then(|| pressure.clone())
             .flatten(),
         reorient: lenses
-            .contains(&ThreadEpiphanyViewLens::Reorient)
+            .contains(&EpiphanyViewLens::Reorient)
             .then(|| {
                 reorient_decision
                     .clone()
@@ -352,11 +381,12 @@ pub async fn map_epiphany_view_response(
             })
             .flatten(),
         crrc: lenses
-            .contains(&ThreadEpiphanyViewLens::Crrc)
+            .contains(&EpiphanyViewLens::Crrc)
             .then(|| {
                 let pressure = pressure.clone()?;
                 let decision = reorient_decision.clone()?;
                 let recommendation = recommendation.clone()?;
+                let protocol_recommendation = protocol_crrc_recommendation(recommendation.clone());
                 let available_actions = derive_scene(EpiphanySceneInput {
                     state,
                     loaded,
@@ -364,7 +394,7 @@ pub async fn map_epiphany_view_response(
                 })
                 .available_actions
                 .into_iter()
-                .map(map_core_epiphany_scene_action)
+                .map(protocol_scene_action)
                 .collect();
                 let note = format!(
                     "{} Result status: {:?}. {}",
@@ -381,10 +411,12 @@ pub async fn map_epiphany_view_response(
                     state_revision,
                     pressure,
                     decision,
-                    recommendation,
+                    recommendation: protocol_recommendation,
                     reorient_binding_id: EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string(),
                     reorient_result_status,
-                    reorient_job: reorient_job.clone(),
+                    reorient_job: reorient_job
+                        .clone()
+                        .map(|job| protocol_job_from_surface(job, None, None)),
                     reorient_finding: reorient_finding.clone(),
                     available_actions,
                     note,
@@ -392,14 +424,17 @@ pub async fn map_epiphany_view_response(
             })
             .flatten(),
         coordinator: coordinator_response,
-        lenses,
+        lenses: lenses
+            .into_iter()
+            .map(protocol_view_lens_from_core)
+            .collect(),
     }
 }
 
 pub struct EpiphanyRoleResultResponseInput<'a> {
     pub thread_id: String,
-    pub role_id: ThreadEpiphanyRoleId,
-    pub source: ThreadEpiphanyRolesSource,
+    pub role_id: EpiphanyRoleResultRoleId,
+    pub source: EpiphanySurfaceSource,
     pub binding_id: String,
     pub state: Option<&'a EpiphanyThreadState>,
     pub runtime_store_path: Option<&'a Path>,
@@ -416,12 +451,16 @@ pub async fn map_epiphany_role_result_response(
         state,
         runtime_store_path,
     } = input;
+    let protocol_role_id = protocol_role_id_from_core(role_id);
+    let protocol_source = protocol_roles_source(source);
     let Some(state) = state else {
         return ThreadEpiphanyRoleResultResponse {
             thread_id,
-            role_id,
-            source,
-            state_status: ThreadEpiphanyReorientStateStatus::Missing,
+            role_id: protocol_role_id,
+            source: protocol_source,
+            state_status: protocol_reorient_state_status(
+                epiphany_core::EpiphanyReorientStateStatus::Missing,
+            ),
             state_revision: None,
             binding_id,
             status: ThreadEpiphanyRoleResultStatus::MissingState,
@@ -433,27 +472,33 @@ pub async fn map_epiphany_role_result_response(
 
     let job = map_epiphany_jobs(Some(state), None)
         .into_iter()
-        .find(|job| job.id == binding_id);
-    let (status, finding, note) =
-        load_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id).await;
+        .find(|job| job.id == binding_id)
+        .map(|job| protocol_job_from_surface(job, None, None));
+    let result =
+        load_core_epiphany_role_result_snapshot(state, runtime_store_path, role_id, &binding_id)
+            .await;
 
     ThreadEpiphanyRoleResultResponse {
         thread_id,
-        role_id,
-        source,
-        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+        role_id: protocol_role_id,
+        source: protocol_source,
+        state_status: protocol_reorient_state_status(
+            epiphany_core::EpiphanyReorientStateStatus::Ready,
+        ),
         state_revision: Some(state.revision),
         binding_id,
-        status,
+        status: protocol_role_result_status(result.status),
         job,
-        finding,
-        note,
+        finding: result
+            .finding
+            .map(|finding| protocol_role_finding(protocol_role_id, finding)),
+        note: result.note,
     }
 }
 
 pub struct EpiphanyReorientResultResponseInput<'a> {
     pub thread_id: String,
-    pub source: ThreadEpiphanyReorientSource,
+    pub source: EpiphanySurfaceSource,
     pub binding_id: String,
     pub state: Option<&'a EpiphanyThreadState>,
     pub runtime_store_path: Option<&'a Path>,
@@ -469,11 +514,14 @@ pub async fn map_epiphany_reorient_result_response(
         state,
         runtime_store_path,
     } = input;
+    let protocol_source = protocol_reorient_source(source);
     let Some(state) = state else {
         return ThreadEpiphanyReorientResultResponse {
             thread_id,
-            source,
-            state_status: ThreadEpiphanyReorientStateStatus::Missing,
+            source: protocol_source,
+            state_status: protocol_reorient_state_status(
+                epiphany_core::EpiphanyReorientStateStatus::Missing,
+            ),
             state_revision: None,
             binding_id,
             status: ThreadEpiphanyReorientResultStatus::MissingState,
@@ -485,45 +533,32 @@ pub async fn map_epiphany_reorient_result_response(
 
     let job = map_epiphany_jobs(Some(state), None)
         .into_iter()
-        .find(|job| job.id == binding_id);
-    let (status, finding, note) =
-        load_epiphany_reorient_result_snapshot(Some(state), runtime_store_path, &binding_id).await;
+        .find(|job| job.id == binding_id)
+        .map(|job| protocol_job_from_surface(job, None, None));
+    let result =
+        load_core_epiphany_reorient_result_snapshot(Some(state), runtime_store_path, &binding_id)
+            .await;
 
     ThreadEpiphanyReorientResultResponse {
         thread_id,
-        source,
-        state_status: ThreadEpiphanyReorientStateStatus::Ready,
+        source: protocol_source,
+        state_status: protocol_reorient_state_status(
+            epiphany_core::EpiphanyReorientStateStatus::Ready,
+        ),
         state_revision: Some(state.revision),
         binding_id,
-        status,
+        status: protocol_reorient_result_status(result.status),
         job,
-        finding,
-        note,
+        finding: result.finding.map(protocol_reorient_finding),
+        note: result.note,
     }
 }
 
 pub fn map_epiphany_distill_response(
     expected_revision: u64,
-    params: ThreadEpiphanyDistillParams,
+    input: EpiphanyDistillInput,
 ) -> std::result::Result<ThreadEpiphanyDistillResponse, String> {
-    let ThreadEpiphanyDistillParams {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-        ..
-    } = params;
-    let proposal = distill_observation(EpiphanyDistillInput {
-        source_kind,
-        status,
-        text,
-        subject,
-        evidence_kind,
-        code_refs,
-    })
-    .map_err(|err| err.to_string())?;
+    let proposal = distill_observation(input).map_err(|err| err.to_string())?;
 
     Ok(ThreadEpiphanyDistillResponse {
         expected_revision,

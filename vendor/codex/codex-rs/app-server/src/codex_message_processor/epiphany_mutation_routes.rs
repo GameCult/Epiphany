@@ -1,13 +1,14 @@
 use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
-use codex_protocol::error::CodexErr;
+use codex_protocol::protocol::EpiphanyRetrievalState;
 use codex_protocol::protocol::EpiphanyThreadState;
+use epiphany_codex_bridge::cultnet::EpiphanyStateUpdatedField;
+use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
-use epiphany_codex_bridge::launch::map_core_worker_launch_document;
-use epiphany_codex_bridge::mutation::epiphany_state_updated_notification;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
@@ -17,13 +18,28 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
-use epiphany_codex_bridge::retrieve::index_thread_epiphany_retrieval;
-use epiphany_core::EpiphanyJobLaunchRequest;
+use epiphany_codex_bridge::protocol_edge::protocol_job_from_surface;
+use epiphany_codex_bridge::protocol_edge::protocol_patch_from_core;
+use epiphany_codex_bridge::protocol_edge::protocol_reorient_decision;
+use epiphany_codex_bridge::protocol_edge::protocol_reorient_finding;
+use epiphany_codex_bridge::protocol_edge::protocol_reorient_source;
+use epiphany_codex_bridge::protocol_edge::protocol_reorient_state_status;
+use epiphany_codex_bridge::protocol_edge::protocol_role_finding;
+use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_state_updated_fields;
+use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
+use epiphany_codex_bridge::protocol_edge::protocol_update_patch_to_core;
+use epiphany_codex_bridge::protocol_edge::protocol_worker_launch_document_to_core;
+use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
+use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
+use epiphany_codex_bridge::retrieve_protocol::protocol_index_response;
 use std::sync::Arc;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
 use super::ThreadReadViewError;
+use super::epiphany_thread_host::EpiphanyCodexThreadHost;
+use super::epiphany_thread_host::epiphany_token_usage_snapshot;
 
 impl CodexMessageProcessor {
     async fn load_epiphany_thread(
@@ -62,12 +78,12 @@ impl CodexMessageProcessor {
         &self,
         thread_uuid: ThreadId,
         source: ThreadEpiphanyStateUpdatedSource,
-        changed_fields: Vec<ThreadEpiphanyStateUpdatedField>,
+        changed_fields: Vec<EpiphanyStateUpdatedField>,
         epiphany_state: EpiphanyThreadState,
     ) {
         self.outgoing
             .send_server_notification(ServerNotification::ThreadEpiphanyStateUpdated(
-                epiphany_state_updated_notification(
+                protocol_state_updated_notification(
                     thread_uuid.to_string(),
                     source,
                     epiphany_state.revision,
@@ -89,23 +105,25 @@ impl CodexMessageProcessor {
             expected_revision,
             max_runtime_seconds,
         } = params;
+        let core_role_id = protocol_role_id_to_core(role_id);
 
         let (thread_uuid, loaded_thread) =
             match self.load_epiphany_thread(&request_id, &thread_id).await {
                 Some(thread) => thread,
                 None => return,
             };
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match launch_thread_epiphany_role(
-            loaded_thread.as_ref(),
+            &host,
             &thread_id,
-            role_id,
+            core_role_id,
             expected_revision,
             max_runtime_seconds,
         )
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -119,6 +137,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -128,9 +147,13 @@ impl CodexMessageProcessor {
                     thread_id: thread_uuid.to_string(),
                     role_id,
                     revision: applied.revision,
-                    changed_fields: changed_fields.clone(),
+                    changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: protocol_job_from_surface(
+                        applied.job,
+                        Some(applied.launcher_job_id),
+                        Some(applied.backend_job_id),
+                    ),
                 },
             )
             .await;
@@ -154,8 +177,9 @@ impl CodexMessageProcessor {
             expected_revision,
             binding_id,
         } = params;
+        let core_role_id = protocol_role_id_to_core(role_id);
 
-        let default_binding_id = match epiphany_role_binding_id(role_id) {
+        let default_binding_id = match epiphany_role_binding_id(core_role_id) {
             Ok(binding_id) => binding_id,
             Err(message) => {
                 self.send_invalid_request_error(request_id, message).await;
@@ -169,16 +193,17 @@ impl CodexMessageProcessor {
                 Some(thread) => thread,
                 None => return,
             };
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match apply_thread_epiphany_role_accept(
-            loaded_thread.as_ref(),
-            role_id,
+            &host,
+            core_role_id,
             expected_revision,
             &binding_id,
         )
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -192,6 +217,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -199,15 +225,15 @@ impl CodexMessageProcessor {
                 request_id,
                 ThreadEpiphanyRoleAcceptResponse {
                     revision: applied.revision,
-                    changed_fields: changed_fields.clone(),
+                    changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
                     role_id,
                     binding_id: binding_id.clone(),
                     accepted_receipt_id: applied.accepted_receipt_id,
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,
-                    applied_patch: applied.applied_patch,
-                    finding: applied.finding,
+                    applied_patch: protocol_patch_from_core(applied.applied_patch),
+                    finding: protocol_role_finding(role_id, applied.finding),
                 },
             )
             .await;
@@ -248,7 +274,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let retrieval_override = loaded_thread.epiphany_retrieval_state().await;
+        let retrieval_override = thread_epiphany_retrieval_state(loaded_thread.as_ref()).await;
         let config_snapshot = loaded_thread.config_snapshot().await;
         self.epiphany_invalidation_manager
             .ensure_thread_watch(&thread_id, &config_snapshot.cwd)
@@ -258,20 +284,22 @@ impl CodexMessageProcessor {
             .snapshot(&thread_id)
             .await;
         let token_usage_info = loaded_thread.token_usage_info().await;
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
+        let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
         let applied = match launch_thread_epiphany_reorient(
-            loaded_thread.as_ref(),
+            &host,
             &thread_id,
             expected_revision,
             max_runtime_seconds,
             thread.epiphany_state.as_ref(),
             Some(&retrieval_override),
             Some(epiphany_freshness_watcher_snapshot(&watcher_snapshot)),
-            token_usage_info.as_ref(),
+            token_usage_snapshot.as_ref(),
         )
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -287,6 +315,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -294,14 +323,18 @@ impl CodexMessageProcessor {
                 request_id,
                 ThreadEpiphanyReorientLaunchResponse {
                     thread_id: thread_uuid.to_string(),
-                    source: applied.source,
-                    state_status: applied.state_status,
+                    source: protocol_reorient_source(applied.source),
+                    state_status: protocol_reorient_state_status(applied.state_status),
                     state_revision: applied.state_revision,
-                    decision: applied.decision,
+                    decision: protocol_reorient_decision(applied.decision),
                     revision: applied.revision,
-                    changed_fields: changed_fields.clone(),
+                    changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: protocol_job_from_surface(
+                        applied.job,
+                        Some(applied.launcher_job_id),
+                        Some(applied.backend_job_id),
+                    ),
                 },
             )
             .await;
@@ -333,8 +366,9 @@ impl CodexMessageProcessor {
                 Some(thread) => thread,
                 None => return,
             };
+        let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match apply_thread_epiphany_reorient_accept(
-            loaded_thread.as_ref(),
+            &host,
             expected_revision,
             binding_id.as_str(),
             update_scratch,
@@ -343,7 +377,7 @@ impl CodexMessageProcessor {
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -357,6 +391,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -364,13 +399,13 @@ impl CodexMessageProcessor {
                 request_id,
                 ThreadEpiphanyReorientAcceptResponse {
                     revision: applied.revision,
-                    changed_fields: changed_fields.clone(),
+                    changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
                     binding_id: binding_id.clone(),
                     accepted_receipt_id: applied.accepted_receipt_id,
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,
-                    finding: applied.finding,
+                    finding: protocol_reorient_finding(applied.finding),
                 },
             )
             .await;
@@ -398,8 +433,15 @@ impl CodexMessageProcessor {
             None => return,
         };
 
-        let response = match index_thread_epiphany_retrieval(thread.as_ref(), force_full_rebuild)
-            .await
+        let config = thread.config_snapshot().await;
+        let codex_home = thread.codex_home().await;
+        let response = match index_epiphany_retrieval_for_paths(
+            config.cwd.to_path_buf(),
+            codex_home,
+            force_full_rebuild,
+        )
+        .await
+        .and_then(protocol_index_response)
         {
             Ok(response) => response,
             Err(err) => {
@@ -432,16 +474,18 @@ impl CodexMessageProcessor {
             None => return,
         };
 
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+        let core_patch = protocol_update_patch_to_core(&patch);
         let applied = match apply_thread_epiphany_promote(
-            thread.as_ref(),
+            &host,
             expected_revision,
-            patch,
+            core_patch,
             verifier_evidence,
         )
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -474,12 +518,13 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyPromoteResponse {
             accepted: true,
             reasons: Vec::new(),
             revision: Some(applied.revision),
-            changed_fields: changed_fields.clone(),
+            changed_fields: protocol_changed_fields,
             epiphany_state: Some(epiphany_state.clone()),
         };
 
@@ -509,27 +554,30 @@ impl CodexMessageProcessor {
             None => return,
         };
 
-        let applied =
-            match apply_thread_epiphany_update(thread.as_ref(), expected_revision, patch).await {
-                Ok(applied) => applied,
-                Err(CodexErr::InvalidRequest(message)) => {
-                    self.send_invalid_request_error(request_id, message).await;
-                    return;
-                }
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!("failed to update Epiphany state for {thread_uuid}: {err}"),
-                    )
-                    .await;
-                    return;
-                }
-            };
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+        let core_patch = protocol_update_patch_to_core(&patch);
+        let applied = match apply_thread_epiphany_update(&host, expected_revision, core_patch).await
+        {
+            Ok(applied) => applied,
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to update Epiphany state for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
         let response = ThreadEpiphanyUpdateResponse {
             revision: applied.revision,
-            changed_fields: changed_fields.clone(),
+            changed_fields: protocol_changed_fields,
             epiphany_state: epiphany_state.clone(),
         };
 
@@ -569,12 +617,13 @@ impl CodexMessageProcessor {
             None => return,
         };
 
-        let launch_document = map_core_worker_launch_document(launch_document);
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
+        let core_launch_document = protocol_worker_launch_document_to_core(launch_document);
         let applied = match launch_thread_epiphany_job(
-            thread.as_ref(),
-            EpiphanyJobLaunchRequest {
+            &host,
+            build_epiphany_job_launch_request(
                 expected_revision,
-                binding_id: binding_id.clone(),
+                binding_id.clone(),
                 kind,
                 scope,
                 owner_role,
@@ -582,17 +631,17 @@ impl CodexMessageProcessor {
                 linked_subgoal_ids,
                 linked_graph_node_ids,
                 instruction,
-                launch_document,
+                core_launch_document,
                 output_contract_id,
                 max_runtime_seconds,
-            },
+            ),
             kind,
             "missing launched job projection",
         )
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -606,6 +655,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -613,9 +663,13 @@ impl CodexMessageProcessor {
                 request_id,
                 ThreadEpiphanyJobLaunchResponse {
                     revision: applied.revision,
-                    changed_fields: changed_fields.clone(),
+                    changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: protocol_job_from_surface(
+                        applied.job,
+                        Some(applied.launcher_job_id),
+                        Some(applied.backend_job_id),
+                    ),
                 },
             )
             .await;
@@ -645,8 +699,9 @@ impl CodexMessageProcessor {
             None => return,
         };
 
+        let host = EpiphanyCodexThreadHost::new(thread.as_ref());
         let applied = match interrupt_thread_epiphany_job(
-            thread.as_ref(),
+            &host,
             expected_revision,
             &binding_id,
             reason,
@@ -654,7 +709,7 @@ impl CodexMessageProcessor {
         .await
         {
             Ok(applied) => applied,
-            Err(CodexErr::InvalidRequest(message)) => {
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
@@ -668,6 +723,7 @@ impl CodexMessageProcessor {
             }
         };
         let changed_fields = applied.changed_fields;
+        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
         let epiphany_state = applied.epiphany_state;
 
         self.outgoing
@@ -677,9 +733,9 @@ impl CodexMessageProcessor {
                     cancel_requested: applied.cancel_requested,
                     interrupted_thread_ids: applied.interrupted_thread_ids.clone(),
                     revision: applied.revision,
-                    changed_fields: changed_fields.clone(),
+                    changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
-                    job: applied.job,
+                    job: protocol_job_from_surface(applied.job, None, None),
                 },
             )
             .await;
@@ -691,4 +747,10 @@ impl CodexMessageProcessor {
         )
         .await;
     }
+}
+
+async fn thread_epiphany_retrieval_state(thread: &CodexThread) -> EpiphanyRetrievalState {
+    let config = thread.config_snapshot().await;
+    let codex_home = thread.codex_home().await;
+    epiphany_retrieval_state_for_paths(config.cwd.to_path_buf(), codex_home).await
 }

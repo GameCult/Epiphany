@@ -251,7 +251,6 @@ mod tests {
             relationships: Vec::new(),
             events: Vec::new(),
             scenes: Vec::new(),
-            extra: Default::default(),
         };
 
         let snapshot = memory_graph_from_agent_memories("agent-profile", &[entry]);

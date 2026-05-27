@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.job_interrupt_intent.v0.schema.json",
   "title": "epiphany job_interrupt_intent v0",
-  "description": "Bounded job interrupt intent mirroring thread/epiphany/jobInterrupt.",
+  "description": "Bounded typed job interrupt intent.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.reorient.schema.json",
   "title": "Epiphany reorient",
-  "description": "Read-only reorientation verdict mirrored from thread/epiphany/reorient.",
+  "description": "Read-only typed reorientation resume/regather verdict.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

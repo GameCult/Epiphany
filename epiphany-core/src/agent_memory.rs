@@ -41,13 +41,11 @@ pub struct EpiphanyAgentMemoryEntry {
     #[cultcache(key = 3)]
     pub agent: GhostlightAgent,
     #[cultcache(key = 4, default)]
-    pub relationships: Vec<Value>,
+    pub relationships: Vec<GhostlightRelationship>,
     #[cultcache(key = 5, default)]
-    pub events: Vec<Value>,
+    pub events: Vec<GhostlightEvent>,
     #[cultcache(key = 6, default)]
-    pub scenes: Vec<Value>,
-    #[cultcache(key = 7, default)]
-    pub extra: BTreeMap<String, Value>,
+    pub scenes: Vec<GhostlightScene>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -56,15 +54,11 @@ pub struct GhostlightWorld {
     pub setting: String,
     pub time: GhostlightTime,
     pub canon_context: Vec<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct GhostlightTime {
     pub label: String,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -74,9 +68,82 @@ pub struct GhostlightAgent {
     pub canonical_state: GhostlightCanonicalState,
     pub goals: Vec<GhostlightGoal>,
     pub memories: GhostlightMemories,
-    pub perceived_state_overlays: Vec<Value>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
+    #[serde(default)]
+    pub perceived_state_overlays: Vec<GhostlightPerceivedStateOverlay>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightRelationship {
+    #[serde(default)]
+    pub relationship_id: String,
+    #[serde(default)]
+    pub participant_ids: Vec<String>,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub stance: String,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(default)]
+    pub linked_memory_ids: Vec<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightEvent {
+    #[serde(default)]
+    pub event_id: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp_label: Option<String>,
+    #[serde(default)]
+    pub participant_ids: Vec<String>,
+    #[serde(default)]
+    pub linked_memory_ids: Vec<String>,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub confidence: f64,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightScene {
+    #[serde(default)]
+    pub scene_id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub participant_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<String>,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub status: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct GhostlightPerceivedStateOverlay {
+    #[serde(default)]
+    pub overlay_id: String,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub source: String,
+    #[serde(default)]
+    pub salience: f64,
+    #[serde(default)]
+    pub confidence: f64,
+    #[serde(default)]
+    pub linked_memory_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -87,8 +154,6 @@ pub struct GhostlightIdentity {
     pub public_description: String,
     #[serde(default)]
     pub private_notes: Vec<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -100,8 +165,6 @@ pub struct GhostlightCanonicalState {
     pub voice_style: BTreeMap<String, GhostlightTraitVector>,
     pub situational_state: BTreeMap<String, GhostlightTraitVector>,
     pub values: Vec<GhostlightValue>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -109,8 +172,6 @@ pub struct GhostlightTraitVector {
     pub mean: f64,
     pub plasticity: f64,
     pub current_activation: f64,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -119,8 +180,6 @@ pub struct GhostlightValue {
     pub label: String,
     pub priority: f64,
     pub unforgivable_if_betrayed: bool,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -133,8 +192,6 @@ pub struct GhostlightGoal {
     #[serde(default)]
     pub blockers: Vec<String>,
     pub status: String,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -142,8 +199,6 @@ pub struct GhostlightMemories {
     pub episodic: Vec<GhostlightMemory>,
     pub semantic: Vec<GhostlightMemory>,
     pub relationship_summaries: Vec<GhostlightMemory>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -156,8 +211,6 @@ pub struct GhostlightMemory {
     pub linked_event_ids: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linked_relationship_id: Option<String>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -166,13 +219,11 @@ struct AgentMemoryProjection {
     pub world: GhostlightWorld,
     pub agents: Vec<GhostlightAgent>,
     #[serde(default)]
-    pub relationships: Vec<Value>,
+    pub relationships: Vec<GhostlightRelationship>,
     #[serde(default)]
-    pub events: Vec<Value>,
+    pub events: Vec<GhostlightEvent>,
     #[serde(default)]
-    pub scenes: Vec<Value>,
-    #[serde(flatten)]
-    pub extra: BTreeMap<String, Value>,
+    pub scenes: Vec<GhostlightScene>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
@@ -582,7 +633,6 @@ pub fn apply_agent_canonical_trait_seeds(
             mean: clamp_unit(seed.mean),
             plasticity: clamp_unit(seed.plasticity),
             current_activation: clamp_unit(seed.current_activation),
-            extra: BTreeMap::new(),
         };
         let mut entry = cache
             .get::<EpiphanyAgentMemoryEntry>(&seed.role_id)?
@@ -718,7 +768,6 @@ pub fn project_agent_memory_to_json_dir(
             relationships: entry.relationships,
             events: entry.events,
             scenes: entry.scenes,
-            extra: entry.extra,
         };
         let path = output_dir.join(filename);
         fs::write(
@@ -793,7 +842,6 @@ fn entry_from_projection(
         relationships: projection.relationships,
         events: projection.events,
         scenes: projection.scenes,
-        extra: projection.extra,
     })
 }
 
@@ -855,6 +903,26 @@ fn validate_agent_entry(entry: &EpiphanyAgentMemoryEntry, expected_agent_id: &st
             validate_memory(memory, &format!("memories.{bundle}[{index}]"), &mut errors);
         }
     }
+    for (index, overlay) in entry.agent.perceived_state_overlays.iter().enumerate() {
+        validate_overlay(
+            overlay,
+            &format!("perceived_state_overlays[{index}]"),
+            &mut errors,
+        );
+    }
+    for (index, relationship) in entry.relationships.iter().enumerate() {
+        validate_relationship(
+            relationship,
+            &format!("relationships[{index}]"),
+            &mut errors,
+        );
+    }
+    for (index, event) in entry.events.iter().enumerate() {
+        validate_event(event, &format!("events[{index}]"), &mut errors);
+    }
+    for (index, scene) in entry.scenes.iter().enumerate() {
+        validate_scene(scene, &format!("scenes[{index}]"), &mut errors);
+    }
     for (index, goal) in entry.agent.goals.iter().enumerate() {
         validate_goal(goal, &format!("goals[{index}]"), &mut errors);
     }
@@ -903,6 +971,69 @@ fn validate_memory(memory: &GhostlightMemory, path: &str, errors: &mut Vec<Strin
     check_string(&memory.summary, &format!("{path}.summary"), errors, 800);
     check_unit(memory.salience, &format!("{path}.salience"), errors);
     check_unit(memory.confidence, &format!("{path}.confidence"), errors);
+}
+
+fn validate_overlay(
+    overlay: &GhostlightPerceivedStateOverlay,
+    path: &str,
+    errors: &mut Vec<String>,
+) {
+    check_optional_identifier(&overlay.overlay_id, &format!("{path}.overlay_id"), errors);
+    check_string(&overlay.summary, &format!("{path}.summary"), errors, 800);
+    check_optional_text(&overlay.label, &format!("{path}.label"), errors, 240);
+    check_optional_text(&overlay.source, &format!("{path}.source"), errors, 240);
+    check_unit(overlay.salience, &format!("{path}.salience"), errors);
+    check_unit(overlay.confidence, &format!("{path}.confidence"), errors);
+}
+
+fn validate_relationship(
+    relationship: &GhostlightRelationship,
+    path: &str,
+    errors: &mut Vec<String>,
+) {
+    check_optional_identifier(
+        &relationship.relationship_id,
+        &format!("{path}.relationship_id"),
+        errors,
+    );
+    check_string(
+        &relationship.summary,
+        &format!("{path}.summary"),
+        errors,
+        800,
+    );
+    check_optional_text(&relationship.stance, &format!("{path}.stance"), errors, 240);
+    if relationship.participant_ids.is_empty() {
+        errors.push(format!("{path}.participant_ids must not be empty"));
+    }
+    check_unit(relationship.salience, &format!("{path}.salience"), errors);
+    check_unit(
+        relationship.confidence,
+        &format!("{path}.confidence"),
+        errors,
+    );
+}
+
+fn validate_event(event: &GhostlightEvent, path: &str, errors: &mut Vec<String>) {
+    check_optional_identifier(&event.event_id, &format!("{path}.event_id"), errors);
+    check_string(&event.kind, &format!("{path}.kind"), errors, 120);
+    check_string(&event.summary, &format!("{path}.summary"), errors, 800);
+    if event.participant_ids.is_empty() {
+        errors.push(format!("{path}.participant_ids must not be empty"));
+    }
+    check_unit(event.salience, &format!("{path}.salience"), errors);
+    check_unit(event.confidence, &format!("{path}.confidence"), errors);
+}
+
+fn validate_scene(scene: &GhostlightScene, path: &str, errors: &mut Vec<String>) {
+    check_optional_identifier(&scene.scene_id, &format!("{path}.scene_id"), errors);
+    check_string(&scene.label, &format!("{path}.label"), errors, 240);
+    check_string(&scene.summary, &format!("{path}.summary"), errors, 800);
+    if scene.participant_ids.is_empty() {
+        errors.push(format!("{path}.participant_ids must not be empty"));
+    }
+    check_unit(scene.salience, &format!("{path}.salience"), errors);
+    check_optional_text(&scene.status, &format!("{path}.status"), errors, 120);
 }
 
 fn validate_goal(goal: &GhostlightGoal, path: &str, errors: &mut Vec<String>) {
@@ -954,6 +1085,29 @@ fn check_string(value: &str, path: &str, errors: &mut Vec<String>, max_len: usiz
     if value.trim().is_empty() || value.len() > max_len {
         errors.push(format!(
             "{path} must be non-empty text under {max_len} characters"
+        ));
+    }
+}
+
+fn check_optional_text(value: &str, path: &str, errors: &mut Vec<String>, max_len: usize) {
+    if !value.is_empty() && (value.trim().is_empty() || value.len() > max_len) {
+        errors.push(format!(
+            "{path} must be empty or text under {max_len} characters"
+        ));
+    }
+}
+
+fn check_optional_identifier(value: &str, path: &str, errors: &mut Vec<String>) {
+    if value.is_empty() {
+        return;
+    }
+    if value.len() > 120
+        || !value.chars().all(|ch| {
+            ch.is_ascii() && (ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_' | '.'))
+        })
+    {
+        errors.push(format!(
+            "{path} must be empty or an ASCII identifier without whitespace"
         ));
     }
 }
@@ -1218,7 +1372,6 @@ fn upsert_memories(records: &mut Vec<GhostlightMemory>, incoming: Vec<SelfPatchM
                 confidence: item.confidence,
                 linked_event_ids: item.linked_event_ids,
                 linked_relationship_id: item.linked_relationship_id,
-                extra: BTreeMap::new(),
             },
         );
     }
@@ -1242,7 +1395,6 @@ fn upsert_goals(records: &mut Vec<GhostlightGoal>, incoming: Vec<SelfPatchGoal>)
                 emotional_stake: item.emotional_stake,
                 blockers: item.blockers,
                 status: item.status,
-                extra: BTreeMap::new(),
             },
         );
     }
@@ -1263,7 +1415,6 @@ fn upsert_values(records: &mut Vec<GhostlightValue>, incoming: Vec<SelfPatchValu
                 label: item.label,
                 priority: item.priority,
                 unforgivable_if_betrayed: item.unforgivable_if_betrayed,
-                extra: BTreeMap::new(),
             },
         );
     }

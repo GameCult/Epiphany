@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.role-result.schema.json",
   "title": "Epiphany role-result",
-  "description": "Reviewable role finding read-back mirrored from thread/epiphany/roleResult.",
+  "description": "Reviewable typed role finding read-back surface.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

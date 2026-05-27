@@ -14,13 +14,13 @@ The spine exists in more than twenty-five live paths:
 
 - protocol state shape: `EpiphanyThreadState`, `RolloutItem::EpiphanyState`, retrieval summaries, and prompt tags live in [protocol.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/protocol/src/protocol.rs:103).
 - in-memory session state: `SessionState` stores an optional `EpiphanyThreadState`, and `Session` exposes thin async accessors over it in [state/session.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/state/session.rs:36) and [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:1240).
-- prompt injection: `build_initial_context` reads the optional state and adds a bounded `<epiphany_state>` developer fragment; the renderer now includes durable investigation-checkpoint and planning sections when authoritative state carries them, so a resumed agent can see whether source gathering was banked and what captures/backlog/drafts exist without treating them as adopted objectives in [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2434), [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:33), and [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:127).
+- prompt injection: `build_initial_context` reads the optional state and adds a bounded `<epiphany_state>` developer fragment; the renderer now lives beside the typed state model and includes durable investigation-checkpoint and planning sections when authoritative state carries them, so a resumed agent can see whether source gathering was banked and what captures/backlog/drafts exist without treating them as adopted objectives in [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2434), [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:33), and [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:127).
 - per-turn persistence: normal turn setup persists one `RolloutItem::EpiphanyState` after the `TurnContext` when state exists in [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2677).
 - client read hydration: app-server thread views attach live or reconstructed `thread.epiphanyState` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4706) and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4822).
 - explicit distillation proposals: app-server routes read-only `thread/epiphany/distill` through a loaded-thread handler into `epiphany-core` so one explicit observation can become a patch candidate without mutating state; tool/command/shell/model sources now get typed evidence kinds and bounded salient-output summaries instead of dumping raw output into durable state in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4358) and [distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28).
 - explicit map/churn proposals: app-server routes read-only `thread/epiphany/propose` through a loaded-thread handler into `epiphany-core` so verified observations with code refs and accepting recent evidence can be selected explicitly or auto-selected as a bounded path cluster, prioritize the strongest selected observation, focus or extend architecture graph nodes, rescue unanchored graph nodes through strict semantic overlap, carry linked dataflow nodes and incident graph edges into the frontier, update churn candidates with match-kind-aware map-delta judgment and pressure, and still avoid mutation until promotion in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4429) and [proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:115).
 - explicit promotion gates: app-server routes `thread/epiphany/promote` through a loaded-thread handler into `epiphany-core` policy evaluation, rejects failed verifier evidence without mutation, applies accepted candidates through the same durable update path, and now treats medium/high/expanded/broadening/semantic churn deltas as needing explicit rationale plus stronger verifier evidence whose kind is token-matched rather than substring-matched; the same gate also validates durable investigation-checkpoint packets, including linked evidence ids, before they can be inked into state in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4501) and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:33).
-- explicit state updates: app-server routes `thread/epiphany/update` through a loaded `CodexThread` update method that rejects malformed appended observation/evidence graph records and structurally invalid replacement fields, including investigation checkpoints that cite missing evidence and planning records with broken ids/source refs/backlog links/draft acceptance criteria, mutates live `SessionState` only after validation, bumps the revision, and persists an immediate `RolloutItem::EpiphanyState` snapshot in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4620), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:376), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:552), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:1294), and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:44).
+- explicit state updates: app-server routes `thread/epiphany/update` through `epiphany-codex-bridge` mutation policy, which rejects malformed appended observation/evidence graph records and structurally invalid replacement fields, including investigation checkpoints that cite missing evidence and planning records with broken ids/source refs/backlog links/draft acceptance criteria, then asks `CodexThread` only to persist the already-mutated typed state snapshot as a `RolloutItem::EpiphanyState` in [mutation_service.rs](E:/Projects/EpiphanyAgent/epiphany-codex-bridge/src/mutation_service.rs:126), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:348), and [promotion.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/promotion.rs:44).
 - live state notifications and write responses: app-server declares experimental `thread/epiphany/stateUpdated` and emits it with the updated typed state, typed `source`, event-level `revision`, and typed `changedFields` after successful direct updates and accepted promotions, but not after rejected promotions; direct `thread/epiphany/update` and accepted `thread/epiphany/promote` responses expose the same revision/change metadata, accepted promotions always report `Evidence` because verifier evidence is appended even when the patch evidence list is empty, and successful write response/notification states now use the same client-visible live projection as `thread/read`, including retrieval-summary backfill when durable state has no persisted retrieval metadata, in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:1113), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4354), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4419), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4428), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4555), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4608), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4652), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4693), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11327), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:11370).
 - scene projection: the `scene` view lens reads the same live/stored Epiphany state view used by `thread/read` and adapts the core scene projection. `epiphany-core` derives the compact client scene with objective, active subgoal, invariant status counts, graph focus/counts, retrieval status, investigation-checkpoint summary counts, observation/evidence summaries, churn, live/stored source, and available control-plane actions without mutating or persisting state in [scene.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/scene.rs:1).
 - job/progress reflection: the `jobs` view lens reads the same thread view as scene, optionally fills retrieval state for loaded threads with no Epiphany state, and adapts core-derived non-authoritative progress slots for retrieval indexing, graph remap, invariant verification, and bound specialist work. Durable `job_bindings` now act as thin Epiphany-owned authority slots with binding id, kind, scope, owner role, authority scope, linked ids, and optional blocking reason only. Runtime job ids project from `runtime_links` through core job view policy; old `agent_jobs` bindings are sealed instead of live-crawled in [jobs.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/jobs.rs:1).
@@ -37,7 +37,7 @@ The spine exists in more than twenty-five live paths:
 - CRRC coordinator recommendation: the `crrc` view lens reuses pressure/freshness/watcher/reorientation mapping plus the fixed `reorient-worker` binding and result read-back helper, recognizes already accepted reorientation findings so an accepted result is not recommended for acceptance again, and calls pure `epiphany-core` CRRC policy to return one bounded recommendation such as continue, prepare checkpoint, launch worker, wait, review, accept, or regather manually without mutating, launching, accepting, compacting, notifying, scheduling, or silently continuing work in [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4661), [crrc.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/crrc.rs:60), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4546).
 - role ownership projection: the `roles` view lens reuses the same state/jobs/pressure/reorient/result/CRRC signals as the coordinator loop, and projects implementation, Imagination/planning, modeling/checkpoint, verification/review, and reorientation lanes with owner roles, status, linked jobs, authority scopes, and recommended scene actions without launching, scheduling, accepting, compacting, notifying, or mutating state. App-server adapts concrete protocol jobs and thread state, while the pure role-board projection policy now lives in [role_board.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/role_board.rs:70).
 - role specialist launch/read-back/acceptance: app-server declares experimental `thread/epiphany/roleLaunch`, read-only `thread/epiphany/roleResult`, and write-gated `thread/epiphany/roleAccept`. `roleLaunch` accepts fixed Imagination/planning, modeling/checkpoint, and verification/review role ids, builds bounded specialist payloads from authoritative Epiphany state, routes them through the heartbeat-backed `epiphany_launch_job` seam, opens a typed runtime-spine job receipt, and emits the normal `jobLaunch` state update for `jobBindings` only. `roleResult` resolves heartbeat bindings through typed runtime-spine job results and seals legacy `agent_jobs` bindings, then adapts worker JSON through core role-result interpretation in [role_result.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/role_result.rs:45), projecting structured output as a reviewable finding with verdict, summary, next safe move, inspected files, frontier/evidence ids, optional `statePatch`, optional `selfPatch`, coordinator `selfPersistence` review, and errors without mutation, promotion, scheduling, or hidden continuation. `selfPatch` is a Ghostlight-shaped lane-memory request, not project truth: core accepts only role-matched, bounded, evidence-grounded memory/goal/value/private-note mutations and refuses objectives, graphs, checkpoints, scratch, planning, jobs, authority, code edits, or raw transcripts with reasons. `roleAccept` accepts completed heartbeat findings from typed runtime-spine results, accepts completed Imagination findings only when they contain a valid planning-only patch with draft Objective Draft review gates, accepts completed modeling/checkpoint findings only with a modeling-safe `statePatch`, applies accepted project patches through the existing Epiphany state validator, and uses core acceptance bundle policy to build the audit observation, evidence, and typed receipt. GUI/coordinator accept paths then apply accepted `selfPatch` requests to typed CultCache role dossiers in `state/agents.msgpack` through the native `epiphany-agent-memory-store` binary. Implementation stays owned by the main coding agent, verification output remains review-only, and reorientation stays on the CRRC-specific `reorientLaunch` / `reorientResult` / `reorientAccept` path.
-- shared prompt memory projection and role dossiers: the prompt config now carries `[shared].persistent_memory` in [epiphany_specialists.toml](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml:2). App-server parses that block, prepends it through `epiphany_agent_prompt_with_memory`, and therefore projects the same Ghostlight-derived memory into fixed role specialist instructions, reorientation-worker instructions, coordinator notes, and CRRC checkpoint steering. The base `<epiphany_state>` doctrine reinforces the Perfect Machine rule through [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:31) and [epiphany_doctrine.md](E:/Projects/EpiphanyAgent/epiphany-core/src/prompts/epiphany_doctrine.md:1). Individual Ghostlight-shaped role dossiers now live in typed CultCache `state/agents.msgpack`, and the native `epiphany-agent-memory-store` binary validates, reviews, and applies bounded self-memory patches through the Rust store.
+- shared prompt memory projection and role dossiers: the prompt config now carries `[shared].persistent_memory` in [epiphany_specialists.toml](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/prompts/epiphany_specialists.toml:2). App-server parses that block, prepends it through `epiphany_agent_prompt_with_memory`, and therefore projects the same Ghostlight-derived memory into fixed role specialist instructions, reorientation-worker instructions, coordinator notes, and CRRC checkpoint steering. The base `<epiphany_state>` doctrine reinforces the Perfect Machine rule through [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:31) and [epiphany_doctrine.md](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompts/epiphany_doctrine.md:1). Individual Ghostlight-shaped role dossiers now live in typed CultCache `state/agents.msgpack`, and the native `epiphany-agent-memory-store` binary validates, reviews, and applies bounded self-memory patches through the Rust store.
 - fixed-lane coordinator: the `coordinator` view lens composes role, pressure, reorient, CRRC, role result, and reorient result signals, and returns one current action without mutation. App-server assembles host/protocol inputs, but the pure fixed-lane decision ladder now lives in `epiphany-core` in [coordinator.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/coordinator.rs:132). Review acceptance and implementation clearance are intentionally different: an accepted verification finding clears implementation only when the verifier verdict is `pass`; accepted `needs-evidence`, `needs-review`, or `fail` findings route back toward modeling/checkpoint strengthening before code work resumes. `regatherManually` is now fallback, not a supervisor-puppeteering excuse: completed unaccepted modeling findings stop at `reviewModelingResult`, modeling acceptance precedes verification, and fixed lane actions are considered before manual regather.
 - MVP operator view: native `epiphany-mvp-status` launches app-server over stdio, starts or reads one thread, gathers scene, planning, pressure, reorient, jobs, roles, Imagination/modeling/verification role results, reorient result, CRRC responses, heartbeat, and Face bubble artifacts, and renders them as text or JSON so the loop can be dogfooded without Python owning the product surface.
 - MVP dogfood runner: the old Python runner was cut with the `agent_jobs` path. The replacement must be native Rust/CultCache/CultNet and complete heartbeat-owned runtime-spine job results with operator-safe artifacts.
@@ -45,11 +45,11 @@ The spine exists in more than twenty-five live paths:
 - reorientation launch: app-server now declares experimental `thread/epiphany/reorientLaunch`, requires a loaded thread plus durable investigation checkpoint, consumes the live reorientation verdict, and launches one fixed `reorient-worker` binding through the existing job-control seam with explicit resume-versus-regather scope, checkpoint-derived payload, and structured-output expectations instead of pretending CRRC suddenly grew a scheduler in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:370), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4575), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4519).
 - reorientation result read-back: app-server now declares experimental read-only `thread/epiphany/reorientResult`, defaults to the fixed `reorient-worker` binding, resolves heartbeat bindings through typed runtime-spine job results, seals legacy `agent_jobs` bindings, and projects a reviewable finding with mode, summary, next safe move, checkpoint-validity flag, inspected files, frontier ids, evidence ids, raw result, and any errors without mutating state, promoting evidence, or scheduling follow-up work.
 - reorientation finding acceptance: app-server now declares experimental `thread/epiphany/reorientAccept`, requires a loaded thread and a completed `reorient-worker` result, accepts heartbeat-backed results from typed runtime-spine receipts before falling back to old bindings, uses core acceptance bundle policy to build accepted observation/evidence/receipt payloads plus optional scratch and durable investigation-checkpoint updates, persists through the normal typed update path, and emits `thread/epiphany/stateUpdated` with source `reorientAccept` without accepting pending work, auto-promoting arbitrary worker output, launching follow-up work, or silently continuing implementation in [common.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/common.rs:378), [v2.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server-protocol/src/protocol/v2.rs:4635), [role_result.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/surfaces/role_result.rs:150), and [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4885).
-- retrieval/indexing: app-server routes `thread/epiphany/retrieve` and `thread/epiphany/index` through loaded `CodexThread` host methods into `epiphany-core` in [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4356), [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4432), [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:467), and [codex_thread.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/codex_thread.rs:449).
+- retrieval/indexing: app-server routes `thread/epiphany/retrieve` and `thread/epiphany/index` through `epiphany-codex-bridge::retrieve`, which reads only host cwd/Codex-home facts from `CodexThread` and calls native `epiphany-core` retrieval/indexing in [retrieve.rs](E:/Projects/EpiphanyAgent/epiphany-codex-bridge/src/retrieve.rs:42), [retrieve.rs](E:/Projects/EpiphanyAgent/epiphany-codex-bridge/src/retrieve.rs:57), and [retrieve.rs](E:/Projects/EpiphanyAgent/epiphany-codex-bridge/src/retrieve.rs:69).
 
 The thick Epiphany-owned implementation is mostly outside vendored Codex now:
 
-- prompt rendering lives in [epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:33), including the always-rendered operating-discipline section in [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:26).
+- prompt rendering lives in [epiphany-state-model/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:33), including the always-rendered operating-discipline section in [prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:26).
 - generic rollout replay for stored-thread reads lives in [epiphany-core/src/rollout.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/rollout.rs:38).
 - retrieval and indexing live in [epiphany-core/src/retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:144) and [retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:160), with summary-only freshness reads in [retrieval.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/retrieval.rs:100).
 - deterministic observation distillation lives in [epiphany-core/src/distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28).
@@ -64,7 +64,7 @@ flowchart TD
     A["Loaded Codex Session"] --> B["SessionState.epiphany_state"]
     B --> C["build_initial_context"]
     C --> D["EpiphanyStateInstructions wrapper"]
-    D --> E["epiphany-core render_epiphany_state"]
+    D --> E["epiphany-state-model render_epiphany_state"]
     E --> EA["Operating Discipline anti-Jenga section"]
     EA --> F["<epiphany_state> developer fragment"]
     F --> G["Model/tool turn runs in normal Codex loop"]
@@ -130,15 +130,15 @@ flowchart TD
     AE --> AF{"Accepted?"}
     AF -->|"No"| AG["Return reasons, no state mutation"]
     AF -->|"Yes"| Z
-    R --> T["CodexThread.epiphany_retrieve"]
-    S --> U["CodexThread.epiphany_index"]
-    Z --> ZA["CodexThread.epiphany_update_state"]
-    AJL --> AJLA["CodexThread.epiphany_launch_job"]
+    R --> T["epiphany-codex-bridge retrieve_thread_epiphany"]
+    S --> U["epiphany-codex-bridge index_thread_epiphany_retrieval_state"]
+    Z --> ZA["epiphany-codex-bridge apply_epiphany_state_update_to_thread"]
+    AJL --> AJLA["epiphany-codex-bridge launch_epiphany_job_on_thread"]
     QRLQ --> QRLA["Map checkpoint + reorient verdict into fixed reorient-worker launch"]
     QRLA --> AJLA
     AJLA --> AJLB["Persist authority-slot jobBinding + runtimeLink"]
     AJLB --> ZD
-    AJI --> AJIA["CodexThread.epiphany_interrupt_job"]
+    AJI --> AJIA["epiphany-codex-bridge interrupt_epiphany_job_on_thread"]
     AJIA --> AJIB["Interrupt backend worker(s) + clear bound backend from jobBinding"]
     AJIB --> ZD
     ZA --> ZB["Apply typed patch and increment revision"]
@@ -310,7 +310,7 @@ There is now one deliberately unbounded-in-spirit but tiny-in-text exception: th
 
 It then builds the normal developer bundle. After collaboration-mode instructions, it checks `epiphany_state.as_ref()` and pushes `EpiphanyStateInstructions::from_state(...).render()`.
 
-`EpiphanyStateInstructions` is only a Codex adapter. It calls `epiphany_core::render_epiphany_state(state)` and wraps the result in the protocol tags.
+`EpiphanyStateInstructions` is only a Codex adapter. It calls the `codex_protocol` re-export of the state-model `render_epiphany_state(state)` and wraps the result in the protocol tags.
 
 `render_epiphany_state` always emits:
 
@@ -324,9 +324,9 @@ Code refs:
 - [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2447)
 - [session/mod.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/session/mod.rs:2509)
 - [context/epiphany_state_instructions.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/core/src/context/epiphany_state_instructions.rs:7)
-- [epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:26)
-- [epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:33)
-- [epiphany-core/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/prompt.rs:43)
+- [epiphany-state-model/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:26)
+- [epiphany-state-model/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:33)
+- [epiphany-state-model/src/prompt.rs](E:/Projects/EpiphanyAgent/epiphany-state-model/src/prompt.rs:43)
 
 ### Output
 
@@ -415,7 +415,7 @@ For `thread/read`, `read_thread_view` loads the persisted thread view and option
 - if the thread is loaded, use `live_thread_epiphany_state`.
 - otherwise, read rollout items from disk and reconstruct the latest surviving Epiphany state with `latest_epiphany_state_from_rollout_items`.
 
-`live_thread_epiphany_state` reads `CodexThread.epiphany_state()`. If state exists but has no retrieval summary, it calls `thread.epiphany_retrieval_state().await` and backfills the summary into the returned API object. That backfill is for the view; it is not a durable rollout write.
+`live_thread_epiphany_state` reads `CodexThread.epiphany_state()`. If state exists but has no retrieval summary, it calls `epiphany-codex-bridge::thread_epiphany_retrieval_state` and backfills the summary into the returned API object. That backfill is for the view; it is not a durable rollout write.
 
 Code refs:
 
@@ -468,10 +468,10 @@ The app-server handler:
 3. rejects zero limits.
 4. requires the thread to be loaded.
 5. clamps limit to Epiphany bounds.
-6. calls `CodexThread.epiphany_retrieve`.
+6. calls `epiphany-codex-bridge::retrieve_thread_epiphany`.
 7. maps core results into app-server protocol DTOs.
 
-`CodexThread.epiphany_retrieve` snapshots the thread config, extracts `cwd` as workspace root, gets `codex_home`, and runs `epiphany_retrieval::retrieve_workspace` in `spawn_blocking`.
+`retrieve_thread_epiphany` snapshots the host config, extracts `cwd` as workspace root, gets Codex home from the host seam, and runs `epiphany_core::retrieve_workspace` in `spawn_blocking`.
 
 `epiphany-core::retrieve_workspace`:
 
@@ -541,10 +541,10 @@ The app-server handler:
 
 1. parses the thread id.
 2. requires the thread to be loaded.
-3. calls `CodexThread.epiphany_index(force_full_rebuild)`.
+3. calls `epiphany-codex-bridge::index_thread_epiphany_retrieval`.
 4. maps the returned core retrieval state into an app-server index summary response.
 
-`CodexThread.epiphany_index` snapshots `cwd`, reads `codex_home`, and runs `epiphany_retrieval::index_workspace` in `spawn_blocking`.
+`index_thread_epiphany_retrieval_state` snapshots `cwd`, reads Codex home from the host seam, and runs `epiphany_core::index_workspace` in `spawn_blocking`.
 
 `epiphany-core::index_workspace`:
 
@@ -595,7 +595,7 @@ It must stay light. It should measure the catalog, not rewrite the catalog. If t
 
 ### Mechanism
 
-`live_thread_epiphany_state` calls `thread.epiphany_retrieval_state().await`. That method runs `retrieval_state_for_workspace`, which:
+`live_thread_epiphany_state` calls `epiphany-codex-bridge::thread_epiphany_retrieval_state`. That bridge helper runs `retrieval_state_for_workspace`, which:
 
 1. checks the workspace exists.
 2. loads backend config.
@@ -653,14 +653,14 @@ The app-server handler:
 1. parses the thread id.
 2. requires the thread to be loaded.
 3. maps the app-server patch DTO into `EpiphanyStateUpdate`.
-4. calls `CodexThread.epiphany_update_state`.
+4. calls `epiphany-codex-bridge::apply_epiphany_state_update_to_thread`.
 5. computes `changedFields` from the accepted patch surface.
 6. projects the just-written state through `client_visible_live_thread_epiphany_state`, which reuses the `thread/read` live-state helper and backfills retrieval summary metadata when needed.
 7. returns the client-visible `EpiphanyThreadState` plus response-level `revision` and `changedFields`.
 8. emits `thread/epiphany/stateUpdated` with `source: "update"`, event-level `revision`, typed `changedFields`, and the same client-visible updated state.
 9. reports empty patches and revision mismatches as invalid requests before notification.
 
-`CodexThread.epiphany_update_state`:
+`apply_epiphany_state_update_to_thread`:
 
 1. rejects an empty patch.
 2. reads the current reference turn id when one exists.
@@ -920,7 +920,7 @@ The app-server handler:
 4. returns `accepted: false`, reasons, and `epiphanyState: null` when policy rejects.
 5. appends verifier evidence to the patch evidence when policy accepts.
 6. maps the patch into `EpiphanyStateUpdate`.
-7. calls `CodexThread.epiphany_update_state`.
+7. calls `epiphany-codex-bridge::apply_epiphany_state_update_to_thread`.
 8. projects the just-written state through `client_visible_live_thread_epiphany_state`, matching the `thread/read` live-state view and retrieval-summary backfill.
 9. returns the client-visible `EpiphanyThreadState` plus response-level `revision` and `changedFields`.
 10. emits `thread/epiphany/stateUpdated` with `source: "promote"`, event-level `revision`, and typed `changedFields` only for the accepted path; `Evidence` is included even if the accepted patch had no patch evidence because verifier evidence was appended to the durable state.
@@ -958,7 +958,7 @@ Rejected promotions return reasons and no state. Accepted promotions return the 
 
 ### Invariant
 
-Promotion is a gate, not independent persistence. It does not write rollout items directly, it does not mutate state on rejection, and rejected promotions emit no state update notification. Accepted promotions still go through `CodexThread.epiphany_update_state`, so the red pen remains one tool, not three tools in a coat.
+Promotion is a gate, not independent persistence. It does not write rollout items directly, it does not mutate state on rejection, and rejected promotions emit no state update notification. Accepted promotions still go through `epiphany-codex-bridge::apply_epiphany_state_update_to_thread`, so the red pen remains one tool, not three tools in a coat.
 
 ## Flow 13: Scene View Lens Control Flow
 
@@ -1509,7 +1509,7 @@ Current tests cover the landed flows at useful seams:
 - deterministic map/churn proposal in `epiphany-core`.
 - verifier-backed promotion policy in `epiphany-core`.
 - map/churn promotion validation for evidence-backed state replacements in `epiphany-core`.
-- typed state-update patch application in `codex-core`.
+- typed state-update patch application in `epiphany-codex-bridge` plus host persistence in `codex-core`.
 - retrieval ranking, fallback, stale manifest detection, and mocked Qdrant/Ollama indexing in `epiphany-core`.
 - app-server protocol serde for `thread/epiphany/retrieve`, `thread/epiphany/index`, `thread/epiphany/distill`, `thread/epiphany/propose`, `thread/epiphany/promote`, `thread/epiphany/update`, `thread/epiphany/stateUpdated`, and `thread/epiphany/jobsUpdated`.
 - focused app-server coverage for sealed `thread/epiphany/jobsUpdated` behavior and heartbeat-backed job projection.

@@ -1913,7 +1913,6 @@ dependencies = [
  "constant_time_eq 0.3.1",
  "core_test_support",
  "epiphany-codex-bridge",
- "epiphany-core",
  "futures",
  "gethostname",
  "hmac 0.12.1",
@@ -2393,7 +2392,6 @@ dependencies = [
  "dirs",
  "dunce",
  "env-flags",
- "epiphany-core",
  "eventsource-stream",
  "futures",
  "http 1.4.0",
@@ -5086,12 +5084,10 @@ dependencies = [
  "anyhow",
  "chrono",
  "codex-app-server-protocol",
- "codex-core",
- "codex-protocol",
  "codex-utils-absolute-path",
  "epiphany-core",
- "epiphany-openai-adapter",
- "epiphany-openai-codex-spine",
+ "epiphany-state-model",
+ "notify",
  "serde",
  "serde_json",
  "tokio",
@@ -5128,29 +5124,6 @@ version = "0.1.0"
 dependencies = [
  "cultcache-rs",
  "serde",
-]
-
-[[package]]
-name = "epiphany-openai-auth-spine"
-version = "0.1.0"
-dependencies = [
- "codex-login",
- "serde_json",
-]
-
-[[package]]
-name = "epiphany-openai-codex-spine"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "codex-client",
- "epiphany-openai-adapter",
- "epiphany-openai-auth-spine",
- "futures",
- "http 1.4.0",
- "serde",
- "serde_json",
- "tokio",
 ]
 
 [[package]]

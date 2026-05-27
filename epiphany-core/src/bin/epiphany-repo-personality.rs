@@ -7,6 +7,7 @@ use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
 use epiphany_core::AgentCanonicalTraitSeed;
 use epiphany_core::AgentSelfPatch;
+use epiphany_core::HeartbeatBirthPersonalitySeed;
 use epiphany_core::apply_agent_canonical_trait_seeds;
 use epiphany_core::apply_agent_self_patch_document;
 use epiphany_core::default_heartbeat_state;
@@ -1540,11 +1541,11 @@ fn process_heartbeat_seed_patches(
         };
         let previous_initiative_speed = participant.initiative_speed;
         let previous_reaction_bias = participant.reaction_bias;
-        let previous_cooldown = participant
-            .extra
-            .get("personalityCooldownMultiplier")
-            .and_then(Value::as_f64)
-            .unwrap_or(1.0);
+        let previous_cooldown = if participant.personality_cooldown_multiplier > 0.0 {
+            participant.personality_cooldown_multiplier
+        } else {
+            1.0
+        };
         let initiative_delta = number_from_map(&seed.heartbeat_deltas, "initiativeSpeedDelta");
         let cooldown_delta = number_from_map(&seed.heartbeat_deltas, "cooldownMultiplierDelta");
         let urgency = number_from_map(&seed.default_mood_pressure, "urgency");
@@ -1554,21 +1555,16 @@ fn process_heartbeat_seed_patches(
         participant.reaction_bias =
             round3((participant.reaction_bias + urgency * 0.08 + anxiety * 0.04).clamp(0.05, 2.0));
         let cooldown = round3((previous_cooldown + cooldown_delta).clamp(0.55, 1.55));
-        participant
-            .extra
-            .insert("personalityCooldownMultiplier".to_string(), json!(cooldown));
-        participant.extra.insert(
-            "birthPersonalitySeed".to_string(),
-            json!({
-                "schemaVersion": "epiphany.birth_heartbeat_seed.v0",
-                "source": "repo-personality accept-init",
-                "projectionId": seed.projection_id,
-                "repoId": seed.repo_id,
-                "heartbeatDeltas": seed.heartbeat_deltas,
-                "defaultMoodPressure": seed.default_mood_pressure,
-                "contract": "Birth personality may seed heartbeat timing once after Self review; later drift belongs to mood, rumination, sleep, and reviewed selfPatch."
-            }),
-        );
+        participant.personality_cooldown_multiplier = cooldown;
+        participant.birth_personality_seed = Some(HeartbeatBirthPersonalitySeed {
+            schema_version: "epiphany.birth_heartbeat_seed.v0".to_string(),
+            source: "repo-personality accept-init".to_string(),
+            projection_id: seed.projection_id.clone(),
+            repo_id: seed.repo_id.clone(),
+            heartbeat_deltas: seed.heartbeat_deltas.clone(),
+            default_mood_pressure: seed.default_mood_pressure.clone(),
+            contract: "Birth personality may seed heartbeat timing once after Self review; later drift belongs to mood, rumination, sleep, and reviewed selfPatch.".to_string(),
+        });
         applied.push(json!({
             "roleId": seed.role_id,
             "status": "applied",

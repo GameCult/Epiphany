@@ -770,7 +770,7 @@ work so repo orientation stops beginning with blind `rg`.
 
 Files:
 
-- `epiphany-core/src/prompt.rs`
+- `epiphany-state-model/src/prompt.rs`
 - `epiphany-core/src/surfaces/worker_launch.rs`
 - `vendor/codex/...` only as compatibility bridge surfaces if still needed
 

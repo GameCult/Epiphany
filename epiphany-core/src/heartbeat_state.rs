@@ -14,8 +14,23 @@ mod heartbeat_projection;
 mod heartbeat_roles;
 mod heartbeat_store;
 pub use heartbeat_documents::*;
+use heartbeat_pacing::adaptive_swarm_pacing;
+use heartbeat_pacing::apply_initiative_heat_policy;
+use heartbeat_pacing::effective_cooldown_multiplier;
+use heartbeat_pacing::initiative_heat_multiplier;
+use heartbeat_pacing::mood_cooldown_multiplier;
+use heartbeat_pacing::personality_cooldown_multiplier;
+use heartbeat_pacing::running_turn_count;
 pub use heartbeat_projection::heartbeat_status_projection;
+use heartbeat_projection::history_event_json;
+use heartbeat_projection::pending_turn_json;
+use heartbeat_projection::schedule_participant_json;
+use heartbeat_projection::selection_policy_json;
+use heartbeat_roles::ROLE_ORDER;
+use heartbeat_roles::agent_id_for_role;
 pub use heartbeat_roles::default_heartbeat_state;
+use heartbeat_roles::default_participant;
+use heartbeat_roles::display_name_for_role;
 pub use heartbeat_roles::ghostlight_scene_heartbeat_state;
 pub use heartbeat_roles::initialize_ghostlight_scene_heartbeat_store;
 pub use heartbeat_roles::initialize_heartbeat_store;
@@ -26,19 +41,6 @@ pub use heartbeat_store::validate_heartbeat_cognition;
 pub use heartbeat_store::validate_heartbeat_state;
 pub use heartbeat_store::write_heartbeat_cognition_entry;
 pub use heartbeat_store::write_heartbeat_state_entry;
-use heartbeat_projection::history_event_json;
-use heartbeat_projection::pending_turn_json;
-use heartbeat_projection::schedule_participant_json;
-use heartbeat_projection::selection_policy_json;
-use heartbeat_pacing::adaptive_swarm_pacing;
-use heartbeat_pacing::effective_cooldown_multiplier;
-use heartbeat_pacing::mood_cooldown_multiplier;
-use heartbeat_pacing::personality_cooldown_multiplier;
-use heartbeat_pacing::running_turn_count;
-use heartbeat_roles::ROLE_ORDER;
-use heartbeat_roles::agent_id_for_role;
-use heartbeat_roles::default_participant;
-use heartbeat_roles::display_name_for_role;
 
 pub(super) const HEARTBEAT_ARENA_MAINTENANCE: &str = "maintenance";
 pub(super) const HEARTBEAT_ARENA_SCENE: &str = "scene";
@@ -73,8 +75,12 @@ pub fn run_void_routine_store(
     apply_personality_timing_profiles(&mut state, &appraisal_profiles);
     let resonance = build_memory_resonance(&memory_records);
     let incubation = build_incubation(
-        &previous_cognition.as_ref().and_then(|entry| entry.incubation.clone()),
-        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.incubation.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.bridge.clone()),
         &previous_cognition
             .as_ref()
             .and_then(|entry| entry.candidate_interventions.clone()),
@@ -83,7 +89,9 @@ pub fn run_void_routine_store(
     );
     let thought_lanes = build_thought_lanes(&resonance, &incubation, &memory_records);
     let bridge = build_thought_bridge(
-        &previous_cognition.as_ref().and_then(|entry| entry.bridge.clone()),
+        &previous_cognition
+            .as_ref()
+            .and_then(|entry| entry.bridge.clone()),
         &thought_lanes,
         &resonance,
         &incubation,
@@ -113,14 +121,14 @@ pub fn run_void_routine_store(
         "storeFile": store_path,
         "agentStore": options.agent_store,
         "updatedAt": now_iso(),
-        "sleepCycle": sleep_cycle,
-        "memoryResonance": resonance,
-        "incubation": incubation,
-        "thoughtLanes": thought_lanes,
-        "bridge": bridge,
-        "candidateInterventions": candidate_interventions,
-        "appraisals": appraisals,
-        "reactions": reactions,
+        "sleepCycle": &sleep_cycle,
+        "memoryResonance": &resonance,
+        "incubation": &incubation,
+        "thoughtLanes": &thought_lanes,
+        "bridge": &bridge,
+        "candidateInterventions": &candidate_interventions,
+        "appraisals": &appraisals,
+        "reactions": &reactions,
         "reviewNotes": [
             "Void is reference material, not a runtime dependency.",
             "The routine mutates only typed heartbeat physiology fields; project truth and role memory mutation stay on their dedicated reviewed surfaces.",
@@ -147,7 +155,6 @@ pub fn run_void_routine_store(
             candidate_interventions: Some(candidate_interventions),
             appraisals: Some(appraisals),
             reactions: Some(reactions),
-            extra: BTreeMap::new(),
         },
     )?;
     write_heartbeat_state_entry(store_path, &state)?;
@@ -181,6 +188,7 @@ pub fn tick_heartbeat_store(
     {
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
     }
+    apply_initiative_heat_policy(&mut state);
     let result = tick_once(&mut state, &options)?;
     write_heartbeat_state_entry(store_path, &state)?;
 
@@ -228,22 +236,20 @@ pub fn pump_heartbeat_store(
     {
         apply_mood_timing_from_appraisals(&mut state, &appraisals);
     }
+    apply_initiative_heat_policy(&mut state);
 
     let pacing = adaptive_swarm_pacing(&state, &options);
     state.target_heartbeat_rate = pacing.effective_heartbeat_rate;
-    state.extra.insert(
-        "adaptivePacing".to_string(),
-        serde_json::json!({
-            "schema_version": "epiphany.adaptive_heartbeat_pacing.v0",
-            "contract": "Swarm pressure controls both heartbeat tempo and concurrency. Relaxed systems sleep slow; urgent systems fill more lanes without re-waking unfinished turns.",
-            "pressure": pacing.pressure,
-            "effectiveHeartbeatRate": pacing.effective_heartbeat_rate,
-            "targetConcurrency": pacing.target_concurrency,
-            "runningTurns": pacing.running_turns,
-            "activeParticipants": pacing.active_participants,
-            "signals": pacing.signals,
-        }),
-    );
+    state.adaptive_pacing = Some(HeartbeatAdaptivePacing {
+        schema_version: "epiphany.adaptive_heartbeat_pacing.v0".to_string(),
+        contract: "Swarm pressure controls both heartbeat tempo and concurrency. Relaxed systems sleep slow; urgent systems fill more lanes without re-waking unfinished turns.".to_string(),
+        pressure: pacing.pressure,
+        effective_heartbeat_rate: pacing.effective_heartbeat_rate,
+        target_concurrency: pacing.target_concurrency,
+        running_turns: pacing.running_turns,
+        active_participants: pacing.active_participants,
+        signals: pacing.signals.clone(),
+    });
 
     let artifact_dir = artifact_dir.as_ref();
     fs::create_dir_all(artifact_dir)
@@ -335,6 +341,173 @@ pub fn pump_heartbeat_store(
     }))
 }
 
+pub fn update_heartbeat_heat_store(
+    store_path: impl AsRef<Path>,
+    options: HeartbeatHeatUpdateOptions,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut state = load_heartbeat_state_entry(store_path)?.unwrap_or_else(|| {
+        let mut state = default_heartbeat_state(1.0);
+        patch_missing_participants(&mut state);
+        state
+    });
+    patch_missing_participants(&mut state);
+    let scope = options.scope.trim().to_lowercase();
+    let selector = options.selector.trim().to_string();
+    let id = options.id.clone().unwrap_or_else(|| {
+        if scope == "global" {
+            "global".to_string()
+        } else {
+            format!("{scope}:{selector}")
+        }
+    });
+
+    if options.clear {
+        if scope == "global" || id == "global" {
+            state.initiative_heat.global_multiplier = 1.0;
+        }
+        state
+            .initiative_heat
+            .multipliers
+            .retain(|multiplier| multiplier.id != id);
+    } else if scope == "global" {
+        state.initiative_heat.global_multiplier = options.multiplier.clamp(0.05, 25.0);
+    } else {
+        if selector.is_empty() && scope != "all" {
+            return Err(anyhow!(
+                "heartbeat heat selector is required for scope {scope}"
+            ));
+        }
+        let multiplier = HeartbeatInitiativeMultiplier {
+            id: id.clone(),
+            label: options.label.clone().unwrap_or_default(),
+            scope: scope.clone(),
+            selector: selector.clone(),
+            multiplier: options.multiplier.clamp(0.05, 25.0),
+            reason: options.reason.clone().unwrap_or_default(),
+            updated_at: Some(now_iso()),
+            expires_at_scene_clock: options
+                .expires_after_scene_clock
+                .map(|delta| round6(state.scene_clock + delta.max(0.0))),
+        };
+        state
+            .initiative_heat
+            .multipliers
+            .retain(|existing| existing.id != id);
+        state.initiative_heat.multipliers.push(multiplier);
+        state
+            .initiative_heat
+            .multipliers
+            .sort_by(|left, right| left.id.cmp(&right.id));
+    }
+    apply_initiative_heat_policy(&mut state);
+    write_heartbeat_state_entry(store_path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "command": "heat",
+        "storeFile": store_path,
+        "heat": initiative_heat_json(&state),
+        "participants": state.participants.iter().map(schedule_participant_json).collect::<Vec<_>>(),
+    }))
+}
+
+pub fn queue_heartbeat_pending_mention_store(
+    store_path: impl AsRef<Path>,
+    options: HeartbeatQueueMentionOptions,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let mut state = load_heartbeat_state_entry(store_path)?.unwrap_or_else(|| {
+        let mut state = default_heartbeat_state(1.0);
+        patch_missing_participants(&mut state);
+        state
+    });
+    patch_missing_participants(&mut state);
+    let participant_index = participant_index_by_role(&state, &options.target_role_id)?;
+    let participant = &state.participants[participant_index];
+    validate_mention_text("content", &options.content, 4, 4000)?;
+    validate_mention_text("visible_prompt", &options.visible_prompt, 4, 1200)?;
+    for (label, value) in [
+        ("source_surface", &options.source_surface),
+        ("channel_id", &options.channel_id),
+        ("message_id", &options.message_id),
+        ("author_id", &options.author_id),
+    ] {
+        validate_mention_text(label, value, 1, 240)?;
+    }
+    let queued_at = options.queued_at.clone().unwrap_or_else(now_iso);
+    let mention_id = options.mention_id.clone().unwrap_or_else(|| {
+        stable_pending_mention_id(
+            &options.target_role_id,
+            &options.channel_id,
+            &options.message_id,
+            &options.visible_prompt,
+        )
+    });
+    if state
+        .pending_mentions
+        .iter()
+        .any(|mention| mention.id == mention_id)
+    {
+        return Ok(serde_json::json!({
+            "ok": true,
+            "queued": false,
+            "reason": "duplicate-pending-mention",
+            "mentionId": mention_id,
+            "pendingMentionCount": state.pending_mentions.len(),
+        }));
+    }
+    state.pending_mentions.push(HeartbeatPendingMention {
+        id: mention_id.clone(),
+        target_role_id: options.target_role_id.clone(),
+        target_agent_id: participant.agent_id.clone(),
+        source_surface: options.source_surface,
+        channel_id: options.channel_id,
+        message_id: options.message_id,
+        author_id: options.author_id,
+        author_name: options.author_name,
+        content: options.content,
+        visible_prompt: options.visible_prompt,
+        reply_to_message_id: options.reply_to_message_id,
+        queued_at,
+    });
+    state.pending_mentions.sort_by(|left, right| {
+        left.queued_at
+            .cmp(&right.queued_at)
+            .then_with(|| left.id.cmp(&right.id))
+    });
+    state.participants[participant_index].next_ready_at = state.participants[participant_index]
+        .next_ready_at
+        .min(state.scene_clock);
+    write_heartbeat_state_entry(store_path, &state)?;
+    Ok(serde_json::json!({
+        "ok": true,
+        "queued": true,
+        "mentionId": mention_id,
+        "targetRoleId": options.target_role_id,
+        "pendingMentionCount": state.pending_mentions.len(),
+        "contract": "Pending Face mentions live in heartbeat physiology. They pull the Face turn forward, but the Face still writes naturally and the Interpreter owns side effects.",
+    }))
+}
+
+fn initiative_heat_json(state: &EpiphanyHeartbeatStateEntry) -> Value {
+    serde_json::json!({
+        "schemaVersion": state.initiative_heat.schema_version,
+        "globalMultiplier": state.initiative_heat.global_multiplier,
+        "multipliers": state.initiative_heat.multipliers.iter().map(|multiplier| {
+            serde_json::json!({
+                "id": multiplier.id,
+                "label": multiplier.label,
+                "scope": multiplier.scope,
+                "selector": multiplier.selector,
+                "multiplier": multiplier.multiplier,
+                "reason": multiplier.reason,
+                "updatedAt": multiplier.updated_at,
+                "expiresAtSceneClock": multiplier.expires_at_scene_clock,
+            })
+        }).collect::<Vec<_>>(),
+    })
+}
+
 pub fn complete_heartbeat_store(
     store_path: impl AsRef<Path>,
     artifact_dir: impl AsRef<Path>,
@@ -383,8 +556,7 @@ pub fn complete_heartbeat_store(
         scene_clock: Some(state.scene_clock),
         next_ready_at: Some(participant.next_ready_at),
         turn_status: Some("completed".to_string()),
-        cooldown_started_after_completion: None,
-        extra: BTreeMap::new(),
+        cooldown_started_after_completion: Some(true),
     };
     state.history.push(event.clone());
     trim_history(&mut state);
@@ -447,27 +619,29 @@ fn tick_once(
         completed_at: None,
         completed_scene_clock: None,
         next_ready_at: None,
-        extra: BTreeMap::new(),
+        personality_cooldown_multiplier: personality_cooldown_multiplier(&selected),
+        mood_cooldown_multiplier: mood_cooldown_multiplier(&selected),
+        initiative_heat_multiplier: initiative_heat_multiplier(&selected),
+        effective_cooldown_multiplier: effective_cooldown_multiplier(&selected),
+        initiative_frozen: true,
+        initiative_freeze_reason: Some(
+            "Participant has an active heartbeat turn; initiative cannot queue it again until the turn completes."
+                .to_string(),
+        ),
     };
-    let mut pending = pending;
-    pending.extra.insert(
-        "personalityCooldownMultiplier".to_string(),
-        serde_json::json!(personality_cooldown_multiplier(&selected)),
-    );
-    pending.extra.insert(
-        "moodCooldownMultiplier".to_string(),
-        serde_json::json!(mood_cooldown_multiplier(&selected)),
-    );
-    pending.extra.insert(
-        "effectiveCooldownMultiplier".to_string(),
-        serde_json::json!(effective_cooldown_multiplier(&selected)),
-    );
     state.participants[selected_index].pending_turn = Some(pending.clone());
     state.participants[selected_index].last_action_id = Some(action.action_id.clone());
     state.participants[selected_index].last_woke_at = Some(now_iso());
     state.participants[selected_index].current_load =
         round6((state.participants[selected_index].current_load * 0.75).clamp(0.0, 1.0));
     state.scene_clock = round6(scene_clock);
+    let selected_pending_mentions = pending_mentions_for_role(state, &selected.role_id);
+    if action.action_type == "face_turn" {
+        let selected_role = selected.role_id.as_str();
+        state
+            .pending_mentions
+            .retain(|mention| mention.target_role_id != selected_role);
+    }
     if !options.defer_completion {
         complete_pending_turn(state, selected_index)?;
     }
@@ -494,7 +668,6 @@ fn tick_once(
             "completed".to_string()
         }),
         cooldown_started_after_completion: Some(true),
-        extra: BTreeMap::new(),
     };
     state.history.push(event.clone());
     trim_history(state);
@@ -516,11 +689,13 @@ fn tick_once(
             "base_recovery": action.base_recovery,
             "personality_cooldown_multiplier": personality_cooldown_multiplier(&selected_after),
             "mood_cooldown_multiplier": mood_cooldown_multiplier(&selected_after),
+            "initiative_heat_multiplier": initiative_heat_multiplier(&selected_after),
             "effective_cooldown_multiplier": effective_cooldown_multiplier(&selected_after),
             "initiative_cost": action.initiative_cost,
             "interruptibility": action.interruptibility,
             "commitment": action.commitment,
             "local_affordance_basis": action.local_affordance_basis,
+            "pending_mentions": selected_pending_mentions,
         }],
         "reaction_windows": if let Some(work_role) = &work_role {
             serde_json::json!([{
@@ -545,6 +720,7 @@ fn tick_once(
             "override_reason": null,
             "readiness_snapshot": readiness_snapshot,
         },
+        "pending_mentions": state.pending_mentions.clone(),
         "review_notes": [
             "Epiphany heartbeat uses Ghostlight initiative timing as a harness scheduling receipt.",
             "A selected idle lane may ruminate and request bounded self-memory mutation; it may not invent project work.",
@@ -643,6 +819,17 @@ fn select_participant(
             ));
         }
     }
+    if let Some(index) = active.iter().copied().find(|index| {
+        let participant = &state.participants[*index];
+        participant.role_id == "face"
+            && !pending_mentions_for_role(state, &participant.role_id).is_empty()
+    }) {
+        return Ok((
+            index,
+            "reaction_interrupt",
+            "Pending addressed Face mention pulled Face forward; Projector and Interpreter remain the side-effect boundaries.".to_string(),
+        ));
+    }
     let selected = active
         .into_iter()
         .min_by(|left, right| {
@@ -694,6 +881,29 @@ fn action_for_selection(
                     .to_string(),
                 "The same heartbeat timing law schedules scene characters and maintenance organs."
                     .to_string(),
+            ],
+        };
+    }
+    let pending_mentions = pending_mentions_for_role(state, &selected.role_id);
+    if !pending_mentions.is_empty() && selected.role_id == "face" {
+        let heartbeat_rate = target_heartbeat_rate.max(minimum_rate);
+        return HeartbeatAction {
+            action_id: "heartbeat.face.turn".to_string(),
+            action_type: "face_turn",
+            action_scale: "standard",
+            base_recovery: state.pacing_policy.work_base_recovery / heartbeat_rate,
+            initiative_cost: 4.0,
+            interruptibility: 0.35,
+            commitment: 0.7,
+            local_affordance_basis: vec![
+                format!(
+                    "Wake {} for {} pending addressed mention(s).",
+                    selected.display_name,
+                    pending_mentions.len()
+                ),
+                "Projector owns state-to-narrative prompting before Face sees context.".to_string(),
+                "Face writes natural narrative thought; Interpreter owns memory, draft, SAY, route, or drop side effects.".to_string(),
+                "Pending mentions are consumed only after this Face turn is queued.".to_string(),
             ],
         };
     }
@@ -769,6 +979,41 @@ fn work_role_for_action(action: Option<&str>, target_role: Option<&str>) -> Opti
     Some(role.to_string())
 }
 
+fn pending_mentions_for_role(
+    state: &EpiphanyHeartbeatStateEntry,
+    role_id: &str,
+) -> Vec<HeartbeatPendingMention> {
+    state
+        .pending_mentions
+        .iter()
+        .filter(|mention| mention.target_role_id == role_id)
+        .cloned()
+        .collect()
+}
+
+fn validate_mention_text(label: &str, value: &str, min_len: usize, max_len: usize) -> Result<()> {
+    let trimmed = value.trim();
+    if trimmed.len() < min_len || value.len() > max_len {
+        return Err(anyhow!(
+            "pending mention {label} must be between {min_len} and {max_len} characters"
+        ));
+    }
+    Ok(())
+}
+
+fn stable_pending_mention_id(
+    role_id: &str,
+    channel_id: &str,
+    message_id: &str,
+    visible_prompt: &str,
+) -> String {
+    let mut hash = 5381_u64;
+    for byte in format!("{role_id}\0{channel_id}\0{message_id}\0{visible_prompt}").as_bytes() {
+        hash = ((hash << 5).wrapping_add(hash)).wrapping_add(*byte as u64);
+    }
+    format!("mention-{hash:016x}")
+}
+
 fn patch_missing_participants(state: &mut EpiphanyHeartbeatStateEntry) {
     if !is_ghostlight_scene_state(state) {
         let present: Vec<String> = state
@@ -801,12 +1046,9 @@ fn patch_missing_participants(state: &mut EpiphanyHeartbeatStateEntry) {
 
 fn is_ghostlight_scene_state(state: &EpiphanyHeartbeatStateEntry) -> bool {
     state
-        .extra
-        .get("protocol")
-        .and_then(Value::as_object)
-        .and_then(|protocol| protocol.get("domain"))
-        .and_then(Value::as_str)
-        == Some("ghostlight")
+        .protocol
+        .as_ref()
+        .is_some_and(|protocol| protocol.domain == "ghostlight")
 }
 
 fn participant_index_by_role(state: &EpiphanyHeartbeatStateEntry, role_id: &str) -> Result<usize> {
@@ -844,6 +1086,8 @@ fn readiness_snapshot(
                 "arena": participant_arena(item),
                 "participant_kind": participant_kind(item),
                 "next_ready_at": item.next_ready_at,
+                "initiative_frozen": pending,
+                "freeze_reason": pending.then_some("running_heartbeat_turn"),
                 "reaction_readiness": reaction_readiness,
                 "eligible_for_reaction": eligible,
             })
@@ -1139,24 +1383,18 @@ fn apply_personality_timing_profiles(
             continue;
         };
         let timing = personality_timing_for_profile(profile);
-        participant.extra.insert(
-            "personalityCooldownMultiplier".to_string(),
-            serde_json::json!(timing.cooldown_multiplier),
-        );
-        participant.extra.insert(
-            "personalityTiming".to_string(),
-            serde_json::json!({
-                "schema_version": "epiphany.personality_timing.v0",
-                "source": "state/agents.msgpack",
-                "cooldownMultiplier": timing.cooldown_multiplier,
-                "workDrive": timing.work_drive,
-                "handsiness": timing.handsiness,
-                "caution": timing.caution,
-                "ruminationBias": timing.rumination_bias,
-                "basis": timing.basis,
-                "contract": "Cooldown is personality-shaped. Lower multipliers recover faster; higher multipliers yield the floor to other lanes."
-            }),
-        );
+        participant.personality_cooldown_multiplier = timing.cooldown_multiplier;
+        participant.personality_timing = Some(HeartbeatPersonalityTiming {
+            schema_version: "epiphany.personality_timing.v0".to_string(),
+            source: "state/agents.msgpack".to_string(),
+            cooldown_multiplier: timing.cooldown_multiplier,
+            work_drive: timing.work_drive,
+            handsiness: timing.handsiness,
+            caution: timing.caution,
+            rumination_bias: timing.rumination_bias,
+            basis: timing.basis,
+            contract: "Cooldown is personality-shaped. Lower multipliers recover faster; higher multipliers yield the floor to other lanes.".to_string(),
+        });
     }
 }
 
@@ -1273,47 +1511,28 @@ fn trait_match_score(traits: &[PersonalityTraitProjection], needles: &[&str]) ->
     }
 }
 
-fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, appraisals: &Value) {
-    let Some(items) = appraisals
-        .get("participantAppraisals")
-        .and_then(Value::as_array)
-    else {
-        return;
-    };
+fn apply_mood_timing_from_appraisals(
+    state: &mut EpiphanyHeartbeatStateEntry,
+    appraisals: &HeartbeatAgentThoughtAppraisals,
+) {
     for participant in &mut state.participants {
-        let Some(appraisal) = items
+        let Some(appraisal) = appraisals
+            .participant_appraisals
             .iter()
-            .find(|item| item.get("roleId").and_then(Value::as_str) == Some(&participant.role_id))
+            .find(|item| item.role_id == participant.role_id)
         else {
             continue;
         };
-        let emotional = appraisal
-            .get("emotionalAppraisal")
-            .and_then(Value::as_object);
-        let urgency = emotional
-            .and_then(|value| value.get("urgency"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
+        let urgency = appraisal.emotional_appraisal.urgency.clamp(0.0, 1.0);
+        let arousal = appraisal.emotional_appraisal.arousal.clamp(0.0, 1.0);
+        let thought_pressure = appraisal
+            .emotional_appraisal
+            .thought_pressure
             .clamp(0.0, 1.0);
-        let arousal = emotional
-            .and_then(|value| value.get("arousal"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
-            .clamp(0.0, 1.0);
-        let thought_pressure = emotional
-            .and_then(|value| value.get("thoughtPressure"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
-            .clamp(0.0, 1.0);
-        let guardedness = emotional
-            .and_then(|value| value.get("guardedness"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
-            .clamp(0.0, 1.0);
+        let guardedness = appraisal.emotional_appraisal.guardedness.clamp(0.0, 1.0);
         let reaction_intensity = appraisal
-            .pointer("/candidateImplications/reactionIntensity")
-            .and_then(Value::as_f64)
-            .unwrap_or(0.0)
+            .candidate_implications
+            .reaction_intensity
             .clamp(0.0, 1.0);
         let anxiety = (urgency * 0.32
             + arousal * 0.22
@@ -1323,29 +1542,140 @@ fn apply_mood_timing_from_appraisals(state: &mut EpiphanyHeartbeatStateEntry, ap
             .clamp(0.0, 1.0);
         let multiplier =
             (1.10 - urgency * 0.24 - anxiety * 0.38 - reaction_intensity * 0.12).clamp(0.55, 1.25);
-        participant.extra.insert(
-            "moodCooldownMultiplier".to_string(),
-            serde_json::json!(round3(multiplier)),
-        );
-        participant.extra.insert(
-            "moodTiming".to_string(),
-            serde_json::json!({
-                "schema_version": "epiphany.mood_timing.v0",
-                "source": appraisal.get("appraisalId"),
-                "cooldownMultiplier": round3(multiplier),
-                "anxiety": round3(anxiety),
-                "urgency": round3(urgency),
-                "arousal": round3(arousal),
-                "thoughtPressure": round3(thought_pressure),
-                "guardedness": round3(guardedness),
-                "reactionIntensity": round3(reaction_intensity),
-                "contract": "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner."
-            }),
-        );
+        let emotional_dimensions =
+            heartbeat_emotional_dimensions(appraisal, anxiety, reaction_intensity);
+        participant.mood_cooldown_multiplier = round3(multiplier);
+        participant.mood_timing = Some(HeartbeatMoodTiming {
+            schema_version: "epiphany.mood_timing.v0".to_string(),
+            source: Some(appraisal.appraisal_id.clone()),
+            cooldown_multiplier: round3(multiplier),
+            emotional_dimensions,
+            anxiety: round3(anxiety),
+            urgency: round3(urgency),
+            arousal: round3(arousal),
+            thought_pressure: round3(thought_pressure),
+            guardedness: round3(guardedness),
+            reaction_intensity: round3(reaction_intensity),
+            contract: "Mood bends personality timing. Anxiety and urgency lower cooldown so the lane that needs the floor most gets it sooner.".to_string(),
+        });
     }
 }
 
-fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
+fn heartbeat_emotional_dimensions(
+    appraisal: &HeartbeatAgentThoughtAppraisal,
+    anxiety: f64,
+    reaction_intensity: f64,
+) -> Vec<HeartbeatMoodDimension> {
+    let emotional = &appraisal.emotional_appraisal;
+    let dimensions = [
+        ("valence", emotional.valence),
+        ("arousal", emotional.arousal),
+        (
+            "dominance",
+            projected_emotion(appraisal, &["dominance", "command_force"]),
+        ),
+        ("urgency", emotional.urgency),
+        (
+            "anger",
+            projected_emotion(appraisal, &["anger", "rage", "fury"]),
+        ),
+        (
+            "despair",
+            projected_emotion(appraisal, &["despair", "hopelessness"]),
+        ),
+        (
+            "sadness",
+            projected_emotion(appraisal, &["sadness", "grief", "sorrow"]),
+        ),
+        (
+            "fear",
+            projected_emotion(appraisal, &["fear", "terror"]).max(anxiety),
+        ),
+        ("anxiety", anxiety),
+        (
+            "disgust",
+            projected_emotion(appraisal, &["disgust", "revulsion"]),
+        ),
+        ("contempt", projected_emotion(appraisal, &["contempt"])),
+        (
+            "annoyance",
+            projected_emotion(appraisal, &["annoyance", "irritation"]),
+        ),
+        (
+            "dismissal",
+            projected_emotion(appraisal, &["dismissal", "dismissiveness"]),
+        ),
+        (
+            "flippancy",
+            projected_emotion(appraisal, &["flippancy", "playfulness"]),
+        ),
+        (
+            "playfulness",
+            projected_emotion(appraisal, &["playfulness", "play"]),
+        ),
+        ("irony", projected_emotion(appraisal, &["irony", "dryness"])),
+        ("tenderness", projected_emotion(appraisal, &["tenderness"])),
+        ("warmth", projected_emotion(appraisal, &["warmth"])),
+        ("joy", projected_emotion(appraisal, &["joy", "delight"])),
+        (
+            "excitement",
+            projected_emotion(appraisal, &["excitement"])
+                .max(emotional.arousal * emotional.curiosity),
+        ),
+        (
+            "fatigue",
+            projected_emotion(appraisal, &["fatigue", "exhaustion"]),
+        ),
+        ("guardedness", emotional.guardedness),
+        ("confidence", projected_emotion(appraisal, &["confidence"])),
+        ("shame", projected_emotion(appraisal, &["shame"])),
+        ("pride", projected_emotion(appraisal, &["pride"])),
+        (
+            "threat",
+            projected_emotion(appraisal, &["threat", "menace"]),
+        ),
+        (
+            "secrecy",
+            projected_emotion(appraisal, &["secrecy", "low_projection"]),
+        ),
+        ("hesitation", projected_emotion(appraisal, &["hesitation"])),
+        (
+            "emotionalContainment",
+            projected_emotion(appraisal, &["emotional_containment", "containment"]),
+        ),
+        ("thoughtPressure", emotional.thought_pressure),
+        ("reactionIntensity", reaction_intensity),
+        (
+            "commandForce",
+            projected_emotion(appraisal, &["command_force"]),
+        ),
+    ];
+    dimensions
+        .into_iter()
+        .map(|(name, value)| HeartbeatMoodDimension {
+            name: name.to_string(),
+            value: round3(value.clamp(0.0, 1.0)),
+            source_path: format!("heartbeat.appraisal.{}.{}", appraisal.appraisal_id, name),
+        })
+        .collect()
+}
+
+fn projected_emotion(appraisal: &HeartbeatAgentThoughtAppraisal, needles: &[&str]) -> f64 {
+    appraisal
+        .personality_projection
+        .iter()
+        .filter(|projection| {
+            let name = projection.name.to_ascii_lowercase();
+            needles.iter().any(|needle| {
+                let spaced = needle.replace('_', " ");
+                name.contains(*needle) || name.contains(&spaced)
+            })
+        })
+        .map(|projection| projection.projection)
+        .fold(0.0_f64, f64::max)
+}
+
+fn build_memory_resonance(records: &[RoleMemoryRecord]) -> HeartbeatMemoryResonance {
     let mut pairs = Vec::new();
     for (left_index, left) in records.iter().enumerate() {
         for right in records.iter().skip(left_index + 1) {
@@ -1363,84 +1693,60 @@ fn build_memory_resonance(records: &[RoleMemoryRecord]) -> Value {
             if strength < 0.08 {
                 continue;
             }
-            pairs.push(serde_json::json!({
-                "leftRole": left.role_id,
-                "leftMemoryId": left.memory_id,
-                "leftMemoryKind": left.memory_kind,
-                "leftSummary": left.summary,
-                "rightRole": right.role_id,
-                "rightMemoryId": right.memory_id,
-                "rightMemoryKind": right.memory_kind,
-                "rightSummary": right.summary,
-                "strength": strength,
-                "sharedTokens": shared_tokens(&left.tokens, &right.tokens),
-                "sourceRoles": [left.role_id, right.role_id],
-                "sourceKinds": [left.memory_kind, right.memory_kind],
-                "evidenceRefs": [left.memory_id, right.memory_id],
-            }));
+            pairs.push(HeartbeatMemoryResonancePair {
+                left_role: left.role_id.clone(),
+                left_memory_id: left.memory_id.clone(),
+                left_memory_kind: left.memory_kind.clone(),
+                left_summary: left.summary.clone(),
+                right_role: right.role_id.clone(),
+                right_memory_id: right.memory_id.clone(),
+                right_memory_kind: right.memory_kind.clone(),
+                right_summary: right.summary.clone(),
+                strength,
+                shared_tokens: shared_tokens(&left.tokens, &right.tokens),
+                source_roles: vec![left.role_id.clone(), right.role_id.clone()],
+                source_kinds: vec![left.memory_kind.clone(), right.memory_kind.clone()],
+                evidence_refs: vec![left.memory_id.clone(), right.memory_id.clone()],
+            });
         }
     }
-    pairs.sort_by(|left, right| {
-        right["strength"]
-            .as_f64()
-            .unwrap_or_default()
-            .total_cmp(&left["strength"].as_f64().unwrap_or_default())
-    });
+    pairs.sort_by(|left, right| right.strength.total_cmp(&left.strength));
     pairs.truncate(8);
-    serde_json::json!({
-        "schema_version": "epiphany.memory_resonance.v0",
-        "updatedAt": now_iso(),
-        "source": "epiphany-native-void-routine",
-        "recordCount": records.len(),
-        "pairs": pairs,
-    })
+    HeartbeatMemoryResonance {
+        schema_version: "epiphany.memory_resonance.v0".to_string(),
+        updated_at: now_iso(),
+        source: "epiphany-native-void-routine".to_string(),
+        record_count: records.len(),
+        pairs,
+    }
 }
 
 fn build_incubation(
-    previous: &Option<Value>,
-    bridge: &Option<Value>,
-    candidate_interventions: &Option<Value>,
-    resonance: &Value,
+    previous: &Option<HeartbeatIncubation>,
+    bridge: &Option<HeartbeatCognitionBridge>,
+    candidate_interventions: &Option<HeartbeatCandidateInterventions>,
+    resonance: &HeartbeatMemoryResonance,
     records: &[RoleMemoryRecord],
-) -> Value {
+) -> HeartbeatIncubation {
     let previous_themes = previous
         .as_ref()
-        .and_then(|value| value.get("themes"))
-        .and_then(Value::as_array)
-        .cloned()
+        .map(|value| value.themes.clone())
         .unwrap_or_default();
     let source_coverage = build_source_coverage(records);
     let mut themes = Vec::new();
-    for pair in resonance
-        .get("pairs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .take(6)
-    {
-        let left_role = pair
-            .get("leftRole")
-            .and_then(Value::as_str)
-            .unwrap_or("left");
-        let right_role = pair
-            .get("rightRole")
-            .and_then(Value::as_str)
-            .unwrap_or("right");
+    for pair in resonance.pairs.iter().take(6) {
+        let left_role = pair.left_role.as_str();
+        let right_role = pair.right_role.as_str();
         let tokens = pair
-            .get("sharedTokens")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .take(3)
-                    .collect::<Vec<_>>()
-                    .join("/")
-            })
-            .unwrap_or_default();
-        let source_roles = unique_strings_from_value(pair.get("sourceRoles"));
-        let source_kinds = unique_strings_from_value(pair.get("sourceKinds"));
-        let source_memory_ids = unique_strings_from_value(pair.get("evidenceRefs"));
+            .shared_tokens
+            .iter()
+            .take(3)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("/");
+        let source_roles = pair.source_roles.clone();
+        let source_kinds = pair.source_kinds.clone();
+        let source_memory_ids = pair.evidence_refs.clone();
         let summary = format!(
             "{} and {} keep touching {}; let the swarm decide whether that is signal, stale echo, or a branch worth following.",
             display_name_for_role(left_role),
@@ -1483,11 +1789,8 @@ fn build_incubation(
             evidence_diversity(&source_roles, &source_kinds, &source_memory_ids);
         let exploration_bonus = exploration_bonus(&source_roles, &source_kinds, &source_coverage);
         let quiet_signal_ratio = 0.0;
-        let prior_maturation = previous_theme
-            .and_then(|theme| theme.get("maturation"))
-            .and_then(Value::as_f64)
-            .unwrap_or(0.32);
-        let strength = pair.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
+        let prior_maturation = previous_theme.map(|theme| theme.maturation).unwrap_or(0.32);
+        let strength = pair.strength;
         let maturation = round3(
             (prior_maturation * 0.44
                 + strength * 0.24
@@ -1536,164 +1839,177 @@ fn build_incubation(
                 - refractory_penalty * 0.14)
                 .clamp(0.0, 1.0),
         );
-        themes.push(serde_json::json!({
-            "themeId": previous_theme
-                .and_then(|theme| theme.get("themeId"))
-                .and_then(Value::as_str)
-                .unwrap_or(theme_id.as_str()),
-            "summary": summary,
-            "strength": round3(strength),
-            "source": "memory_resonance",
-            "sourceRoles": source_roles,
-            "sourceKinds": source_kinds,
-            "sourceMemoryIds": source_memory_ids,
-            "supportCount": support_count,
-            "evidenceDiversity": round3(evidence_diversity),
-            "explorationBonus": round3(exploration_bonus),
-            "novelty": novelty,
-            "noveltyToSelf": round3(novelty_to_self),
-            "noveltyToRoom": round3(novelty_to_room),
-            "maturation": maturation,
-            "desireToSpeak": desire_to_speak,
-            "saturationScore": round3(saturation.score),
-            "recentMatchCount": saturation.recent_match_count,
-            "refractoryPenalty": round3(refractory_penalty),
-            "priorityScore": priority_score,
-            "status": status,
-            "latentQuestion": build_incubation_question(&source_roles, &source_kinds),
-            "whyItPulls": build_incubation_attraction(
+        themes.push(HeartbeatIncubationTheme {
+            theme_id: previous_theme
+                .map(|theme| theme.theme_id.clone())
+                .unwrap_or(theme_id),
+            summary,
+            strength: round3(strength),
+            source: "memory_resonance".to_string(),
+            source_roles: source_roles.clone(),
+            source_kinds: source_kinds.clone(),
+            source_memory_ids,
+            support_count,
+            evidence_diversity: round3(evidence_diversity),
+            exploration_bonus: round3(exploration_bonus),
+            novelty,
+            novelty_to_self: round3(novelty_to_self),
+            novelty_to_room: round3(novelty_to_room),
+            maturation,
+            desire_to_speak,
+            saturation_score: round3(saturation.score),
+            recent_match_count: saturation.recent_match_count,
+            refractory_penalty: round3(refractory_penalty),
+            priority_score,
+            status: status.to_string(),
+            latent_question: build_incubation_question(&source_roles, &source_kinds).to_string(),
+            why_it_pulls: build_incubation_attraction(
                 &source_roles,
                 &source_kinds,
                 novelty_to_self,
                 evidence_diversity,
-            ),
-            "holdingCloseBecause": build_incubation_holding_line(
+            )
+            .to_string(),
+            holding_close_because: build_incubation_holding_line(
                 status,
                 saturation.score,
                 novelty_to_self,
                 exploration_bonus,
-            ),
-            "updatedAt": now_iso(),
-        }));
+            )
+            .to_string(),
+            updated_at: now_iso(),
+        });
     }
     if themes.is_empty() && !records.is_empty() {
         let strongest = &records[0];
-        themes.push(serde_json::json!({
-            "themeId": format!("theme-{}-strongest-memory", strongest.role_id),
-            "summary": format!("{} carries the hottest current memory: {}", display_name_for_role(&strongest.role_id), strongest.summary),
-            "strength": round3(strongest.salience * strongest.confidence),
-            "source": "strongest_memory",
-            "sourceRoles": [strongest.role_id.clone()],
-            "sourceKinds": [strongest.memory_kind.clone()],
-            "sourceMemoryIds": [strongest.memory_id.clone()],
-            "supportCount": 1,
-            "evidenceDiversity": 0.28,
-            "explorationBonus": 0.18,
-            "novelty": 0.62,
-            "noveltyToSelf": 0.62,
-            "noveltyToRoom": 0.58,
-            "maturation": round3((strongest.salience * strongest.confidence).clamp(0.18, 0.72)),
-            "desireToSpeak": round3((strongest.salience * strongest.confidence * 0.6).clamp(0.12, 0.55)),
-            "saturationScore": 0.0,
-            "recentMatchCount": 0,
-            "refractoryPenalty": 0.0,
-            "priorityScore": round3((strongest.salience * strongest.confidence * 0.7).clamp(0.14, 0.7)),
-            "status": "incubating",
-            "latentQuestion": "Does this hot memory deserve real follow-up, or is it just the loudest ember in the tray?",
-            "whyItPulls": "One strong memory is enough to seed a thought, but not enough to rule the room by default.",
-            "holdingCloseBecause": "This is a seed, not a verdict. Give it one more pass before it starts issuing prophecies.",
-            "updatedAt": now_iso(),
-        }));
+        themes.push(HeartbeatIncubationTheme {
+            theme_id: format!("theme-{}-strongest-memory", strongest.role_id),
+            summary: format!(
+                "{} carries the hottest current memory: {}",
+                display_name_for_role(&strongest.role_id),
+                strongest.summary
+            ),
+            strength: round3(strongest.salience * strongest.confidence),
+            source: "strongest_memory".to_string(),
+            source_roles: vec![strongest.role_id.clone()],
+            source_kinds: vec![strongest.memory_kind.clone()],
+            source_memory_ids: vec![strongest.memory_id.clone()],
+            support_count: 1,
+            evidence_diversity: 0.28,
+            exploration_bonus: 0.18,
+            novelty: 0.62,
+            novelty_to_self: 0.62,
+            novelty_to_room: 0.58,
+            maturation: round3((strongest.salience * strongest.confidence).clamp(0.18, 0.72)),
+            desire_to_speak: round3(
+                (strongest.salience * strongest.confidence * 0.6).clamp(0.12, 0.55),
+            ),
+            saturation_score: 0.0,
+            recent_match_count: 0,
+            refractory_penalty: 0.0,
+            priority_score: round3(
+                (strongest.salience * strongest.confidence * 0.7).clamp(0.14, 0.7),
+            ),
+            status: "incubating".to_string(),
+            latent_question:
+                "Does this hot memory deserve real follow-up, or is it just the loudest ember in the tray?"
+                    .to_string(),
+            why_it_pulls:
+                "One strong memory is enough to seed a thought, but not enough to rule the room by default."
+                    .to_string(),
+            holding_close_because:
+                "This is a seed, not a verdict. Give it one more pass before it starts issuing prophecies."
+                    .to_string(),
+            updated_at: now_iso(),
+        });
     }
     themes.sort_by(|left, right| {
-        right["priorityScore"]
-            .as_f64()
-            .unwrap_or_default()
-            .total_cmp(&left["priorityScore"].as_f64().unwrap_or_default())
-            .then_with(|| {
-                right["strength"]
-                    .as_f64()
-                    .unwrap_or_default()
-                    .total_cmp(&left["strength"].as_f64().unwrap_or_default())
-            })
+        right
+            .priority_score
+            .total_cmp(&left.priority_score)
+            .then_with(|| right.strength.total_cmp(&left.strength))
     });
     themes.truncate(12);
-    serde_json::json!({
-        "schema_version": "epiphany.incubation.v0",
-        "updatedAt": now_iso(),
-        "sourceCoverage": source_coverage,
-        "lastIncubationSummary": themes.first().map(|theme| {
+    let last_incubation_summary = themes
+        .first()
+        .map(|theme| {
             format!(
                 "Strongest incubating seam: {} ({}, self={:.2}, room={:.2}, speak={:.2}).",
-                theme.get("themeId").and_then(Value::as_str).unwrap_or("unnamed-theme"),
-                theme.get("status").and_then(Value::as_str).unwrap_or("incubating"),
-                theme.get("noveltyToSelf").and_then(Value::as_f64).unwrap_or(0.0),
-                theme.get("noveltyToRoom").and_then(Value::as_f64).unwrap_or(0.0),
-                theme.get("desireToSpeak").and_then(Value::as_f64).unwrap_or(0.0),
+                theme.theme_id,
+                theme.status,
+                theme.novelty_to_self,
+                theme.novelty_to_room,
+                theme.desire_to_speak,
             )
-        }).unwrap_or_else(|| "No incubating thought currently has enough connective tissue to justify special treatment.".to_string()),
-        "themes": themes,
-    })
+        })
+        .unwrap_or_else(|| {
+            "No incubating thought currently has enough connective tissue to justify special treatment."
+                .to_string()
+        });
+    HeartbeatIncubation {
+        schema_version: "epiphany.incubation.v0".to_string(),
+        updated_at: now_iso(),
+        source_coverage,
+        last_incubation_summary,
+        themes,
+    }
 }
 
 fn build_thought_lanes(
-    resonance: &Value,
-    incubation: &Value,
+    resonance: &HeartbeatMemoryResonance,
+    incubation: &HeartbeatIncubation,
     records: &[RoleMemoryRecord],
-) -> Value {
+) -> HeartbeatThoughtLanes {
     let analytic_threads = resonance
-        .get("pairs")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+        .pairs
+        .iter()
         .take(4)
         .enumerate()
         .map(|(index, pair)| {
-            let left_role = pair.get("leftRole").and_then(Value::as_str).unwrap_or("left");
-            let right_role = pair.get("rightRole").and_then(Value::as_str).unwrap_or("right");
-            let strength = pair.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
-            serde_json::json!({
-                "threadId": format!("analytic-{left_role}-{right_role}-{index}"),
-                "topic": format!("{left_role}/{right_role} evidence seam"),
-                "claim": format!("{} and {} share a recurring memory edge; inspect whether this changes lane routing or evidence expectations.", display_name_for_role(left_role), display_name_for_role(right_role)),
-                "evidenceRefs": [
-                    pair.get("leftMemoryId").and_then(Value::as_str).unwrap_or_default(),
-                    pair.get("rightMemoryId").and_then(Value::as_str).unwrap_or_default()
-                ],
-                "salience": round3(strength),
-                "confidence": round3((0.55 + strength).min(0.95)),
-                "desireToAct": round3((strength * 1.4).min(0.85)),
-                "counterweight": "Shared vocabulary is not proof of shared truth; verify against artifacts before changing project state.",
-                "lastTouchedAt": now_iso(),
-            })
+            let left_role = pair.left_role.as_str();
+            let right_role = pair.right_role.as_str();
+            let strength = pair.strength;
+            HeartbeatAnalyticThread {
+                thread_id: format!("analytic-{left_role}-{right_role}-{index}"),
+                topic: format!("{left_role}/{right_role} evidence seam"),
+                claim: format!(
+                    "{} and {} share a recurring memory edge; inspect whether this changes lane routing or evidence expectations.",
+                    display_name_for_role(left_role),
+                    display_name_for_role(right_role)
+                ),
+                evidence_refs: vec![pair.left_memory_id.clone(), pair.right_memory_id.clone()],
+                salience: round3(strength),
+                confidence: round3((0.55 + strength).min(0.95)),
+                desire_to_act: round3((strength * 1.4).min(0.85)),
+                counterweight:
+                    "Shared vocabulary is not proof of shared truth; verify against artifacts before changing project state."
+                        .to_string(),
+                last_touched_at: now_iso(),
+            }
         })
         .collect::<Vec<_>>();
 
     let associative_threads = incubation
-        .get("themes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+        .themes
+        .iter()
         .take(4)
         .enumerate()
         .map(|(index, theme)| {
-            let topic = theme
-                .get("themeId")
-                .and_then(Value::as_str)
-                .unwrap_or("incubating-theme");
-            let strength = theme.get("strength").and_then(Value::as_f64).unwrap_or(0.0);
-            serde_json::json!({
-                "threadId": format!("associative-{topic}-{index}"),
-                "topic": topic,
-                "claim": theme.get("summary").and_then(Value::as_str).unwrap_or("An incubating thought wants another pass before it speaks."),
-                "sourceThemeId": topic,
-                "novelty": theme.get("novelty").cloned().unwrap_or_else(|| serde_json::json!(round3((0.42 + strength).min(0.92)))),
-                "roomRelevance": theme.get("noveltyToRoom").cloned().unwrap_or_else(|| serde_json::json!(round3((0.35 + strength).min(0.88)))),
-                "desireToSpeak": theme.get("desireToSpeak").cloned().unwrap_or_else(|| serde_json::json!(round3((strength * 1.25).min(0.8)))),
-                "status": theme.get("status").cloned().unwrap_or_else(|| serde_json::json!("incubating")),
-                "counterweight": "A theme that keeps returning may be signal, obsession, or stale echo; the bridge must decide.",
-                "lastTouchedAt": now_iso(),
-            })
+            let topic = theme.theme_id.as_str();
+            HeartbeatAssociativeThread {
+                thread_id: format!("associative-{topic}-{index}"),
+                topic: topic.to_string(),
+                claim: theme.summary.clone(),
+                source_theme_id: topic.to_string(),
+                novelty: theme.novelty,
+                room_relevance: theme.novelty_to_room,
+                desire_to_speak: theme.desire_to_speak,
+                status: theme.status.clone(),
+                counterweight:
+                    "A theme that keeps returning may be signal, obsession, or stale echo; the bridge must decide."
+                        .to_string(),
+                last_touched_at: now_iso(),
+            }
         })
         .collect::<Vec<_>>();
 
@@ -1701,87 +2017,76 @@ fn build_thought_lanes(
         records
             .first()
             .map(|record| {
-                vec![serde_json::json!({
-                    "threadId": format!("analytic-{}-seed", record.role_id),
-                    "topic": format!("{} strongest memory", record.role_id),
-                    "claim": record.summary,
-                    "evidenceRefs": [record.memory_id],
-                    "salience": round3(record.salience),
-                    "confidence": round3(record.confidence),
-                    "desireToAct": 0.2,
-                    "counterweight": "One hot memory is only a seed; do not let it annex the whole mind.",
-                    "lastTouchedAt": now_iso(),
-                })]
+                vec![HeartbeatAnalyticThread {
+                    thread_id: format!("analytic-{}-seed", record.role_id),
+                    topic: format!("{} strongest memory", record.role_id),
+                    claim: record.summary.clone(),
+                    evidence_refs: vec![record.memory_id.clone()],
+                    salience: round3(record.salience),
+                    confidence: round3(record.confidence),
+                    desire_to_act: 0.2,
+                    counterweight:
+                        "One hot memory is only a seed; do not let it annex the whole mind."
+                            .to_string(),
+                    last_touched_at: now_iso(),
+                }]
             })
             .unwrap_or_default()
     } else {
         Vec::new()
     };
 
-    serde_json::json!({
-        "schema_version": "epiphany.cognition_lanes.v0",
-        "updatedAt": now_iso(),
-        "analytic": {
-            "description": "Literal, evidence-facing lane: what is happening, what constraints matter, what action is justified.",
-            "activeThreads": if analytic_threads.is_empty() { seed_threads } else { analytic_threads },
+    HeartbeatThoughtLanes {
+        schema_version: "epiphany.cognition_lanes.v0".to_string(),
+        updated_at: now_iso(),
+        analytic: HeartbeatAnalyticLane {
+            description:
+                "Literal, evidence-facing lane: what is happening, what constraints matter, what action is justified."
+                    .to_string(),
+            active_threads: if analytic_threads.is_empty() {
+                seed_threads
+            } else {
+                analytic_threads
+            },
         },
-        "associative": {
-            "description": "Pattern-facing lane: what this rhymes with, what seam is ripening, what surprising branch may be worth a later retrieval hop.",
-            "activeThreads": associative_threads,
+        associative: HeartbeatAssociativeLane {
+            description:
+                "Pattern-facing lane: what this rhymes with, what seam is ripening, what surprising branch may be worth a later retrieval hop."
+                    .to_string(),
+            active_threads: associative_threads,
         },
-    })
+    }
 }
 
 fn build_thought_bridge(
-    previous: &Option<Value>,
-    thought_lanes: &Value,
-    resonance: &Value,
-    incubation: &Value,
-) -> Value {
-    let analytic_count = thought_lanes
-        .pointer("/analytic/activeThreads")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or_default();
-    let associative_count = thought_lanes
-        .pointer("/associative/activeThreads")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or_default();
-    let resonance_count = resonance
-        .get("pairs")
-        .and_then(Value::as_array)
-        .map(Vec::len)
-        .unwrap_or_default();
-    let strongest_theme = incubation
-        .get("themes")
-        .and_then(Value::as_array)
-        .and_then(|themes| themes.first())
-        .cloned();
+    previous: &Option<HeartbeatCognitionBridge>,
+    thought_lanes: &HeartbeatThoughtLanes,
+    resonance: &HeartbeatMemoryResonance,
+    incubation: &HeartbeatIncubation,
+) -> HeartbeatCognitionBridge {
+    let analytic_count = thought_lanes.analytic.active_threads.len();
+    let associative_count = thought_lanes.associative.active_threads.len();
+    let resonance_count = resonance.pairs.len();
+    let strongest_theme = incubation.themes.first().cloned();
     let strongest_status = strongest_theme
         .as_ref()
-        .and_then(|theme| theme.get("status"))
-        .and_then(Value::as_str)
+        .map(|theme| theme.status.as_str())
         .unwrap_or("incubating");
     let strongest_novelty_to_self = strongest_theme
         .as_ref()
-        .and_then(|theme| theme.get("noveltyToSelf"))
-        .and_then(Value::as_f64)
+        .map(|theme| theme.novelty_to_self)
         .unwrap_or(0.0);
     let strongest_novelty_to_room = strongest_theme
         .as_ref()
-        .and_then(|theme| theme.get("noveltyToRoom"))
-        .and_then(Value::as_f64)
+        .map(|theme| theme.novelty_to_room)
         .unwrap_or(0.0);
     let strongest_saturation = strongest_theme
         .as_ref()
-        .and_then(|theme| theme.get("saturationScore"))
-        .and_then(Value::as_f64)
+        .map(|theme| theme.saturation_score)
         .unwrap_or(0.0);
     let strongest_refractory = strongest_theme
         .as_ref()
-        .and_then(|theme| theme.get("refractoryPenalty"))
-        .and_then(Value::as_f64)
+        .map(|theme| theme.refractory_penalty)
         .unwrap_or(0.0);
     let lane_balance = match analytic_count.cmp(&associative_count) {
         std::cmp::Ordering::Greater => "analytic-heavy",
@@ -1805,145 +2110,120 @@ fn build_thought_bridge(
     };
     let mut syntheses = previous
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            previous
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
-        .cloned()
+        .map(|value| value.recent_syntheses.clone())
         .unwrap_or_default();
-    syntheses.push(serde_json::json!({
-        "timestamp": now_iso(),
-        "summary": if let Some(theme) = &strongest_theme {
+    syntheses.push(HeartbeatBridgeSynthesis {
+        timestamp: now_iso(),
+        summary: if let Some(theme) = &strongest_theme {
             bridge_summary(theme, speak_decision)
         } else {
             "No strong convergence yet; hold the lanes open without forcing speech.".to_string()
         },
-        "dominantTopics": strongest_theme
+        dominant_topics: strongest_theme
             .as_ref()
-            .and_then(|theme| theme.get("themeId"))
-            .cloned()
-            .map(|topic| vec![topic])
+            .map(|theme| vec![theme.theme_id.clone()])
             .unwrap_or_default(),
-        "laneBalance": lane_balance,
-        "speakDecision": speak_decision,
-        "themeStatus": strongest_status,
-        "noveltyToSelf": round3(strongest_novelty_to_self),
-        "noveltyToRoom": round3(strongest_novelty_to_room),
-        "saturationScore": round3(strongest_saturation),
-        "saturationNote": synthesis_saturation_note(strongest_status, strongest_saturation, strongest_novelty_to_self),
-    }));
+        lane_balance: lane_balance.to_string(),
+        speak_decision: speak_decision.to_string(),
+        theme_status: strongest_status.to_string(),
+        novelty_to_self: round3(strongest_novelty_to_self),
+        novelty_to_room: round3(strongest_novelty_to_room),
+        saturation_score: round3(strongest_saturation),
+        saturation_note: synthesis_saturation_note(
+            strongest_status,
+            strongest_saturation,
+            strongest_novelty_to_self,
+        )
+        .unwrap_or("No saturation warning.")
+        .to_string(),
+    });
     syntheses.reverse();
     syntheses.truncate(8);
     syntheses.reverse();
-    let source_coverage = incubation
-        .get("sourceCoverage")
-        .cloned()
-        .unwrap_or_else(empty_source_coverage);
-    let topic_saturation = topic_saturation_from_syntheses_and_themes(
-        &syntheses,
-        incubation
-            .get("themes")
-            .and_then(Value::as_array)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]),
-    );
-    let refractory_topics = refractory_topics_from_themes(
-        previous,
-        incubation
-            .get("themes")
-            .and_then(Value::as_array)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]),
-    );
+    let source_coverage = incubation.source_coverage.clone();
+    let topic_saturation =
+        topic_saturation_from_syntheses_and_themes(&syntheses, &incubation.themes);
+    let refractory_topics = refractory_topics_from_themes(previous, &incubation.themes);
 
-    serde_json::json!({
-        "schema_version": "epiphany.cognition_bridge.v0",
-        "updatedAt": now_iso(),
-        "recentSyntheses": syntheses,
-        "sourceCoverage": source_coverage,
-        "topicSaturation": topic_saturation,
-        "refractoryTopics": refractory_topics,
-        "unresolvedTensions": [{
-            "topic": "thought authority boundary",
-            "summary": "Cognition lanes may shape attention and drafts, but only reviewed Epiphany state surfaces change project truth.",
-            "openedAt": now_iso(),
+    HeartbeatCognitionBridge {
+        schema_version: "epiphany.cognition_bridge.v0".to_string(),
+        updated_at: now_iso(),
+        recent_syntheses: syntheses,
+        source_coverage,
+        topic_saturation,
+        refractory_topics,
+        unresolved_tensions: vec![HeartbeatBridgeTension {
+            topic: "thought authority boundary".to_string(),
+            summary:
+                "Cognition lanes may shape attention and drafts, but only reviewed Epiphany state surfaces change project truth."
+                    .to_string(),
+            opened_at: now_iso(),
         }],
-        "decision": {
-            "laneBalance": lane_balance,
-            "speakDecision": speak_decision,
-            "reason": bridge_decision_reason(
+        decision: HeartbeatBridgeDecision {
+            lane_balance: lane_balance.to_string(),
+            speak_decision: speak_decision.to_string(),
+            reason: bridge_decision_reason(
                 strongest_status,
                 strongest_novelty_to_self,
                 strongest_novelty_to_room,
                 strongest_saturation,
                 strongest_refractory,
                 speak_decision,
-            ),
+            )
+            .to_string(),
         },
-    })
+    }
 }
 
-fn build_candidate_interventions(bridge: &Value, incubation: &Value) -> Value {
-    let decision = bridge
-        .pointer("/decision/speakDecision")
-        .and_then(Value::as_str)
-        .unwrap_or("silence");
-    let strongest_theme = incubation
-        .get("themes")
-        .and_then(Value::as_array)
-        .and_then(|themes| themes.first());
+fn build_candidate_interventions(
+    bridge: &HeartbeatCognitionBridge,
+    incubation: &HeartbeatIncubation,
+) -> HeartbeatCandidateInterventions {
+    let decision = bridge.decision.speak_decision.as_str();
+    let strongest_theme = incubation.themes.first();
     let strongest_status = strongest_theme
-        .as_ref()
-        .and_then(|theme| theme.get("status"))
-        .and_then(Value::as_str)
+        .map(|theme| theme.status.as_str())
         .unwrap_or("incubating");
     let items = if decision == "draft" && strongest_status == "ripe" {
         strongest_theme
             .map(|theme| {
-                vec![serde_json::json!({
-                    "interventionId": format!("candidate-{}", theme.get("themeId").and_then(Value::as_str).unwrap_or("theme")),
-                    "summary": "Possible Aquarium-facing thought-weather note",
-                    "draft": format!("I keep seeing {} rhyme across the swarm; this one finally has enough blood to inspect in the open.", theme.get("themeId").and_then(Value::as_str).unwrap_or("an unnamed seam")),
-                    "decision": decision,
-                    "requiresFace": true,
-                    "requiresReview": true,
-                    "noveltyToRoom": theme.get("noveltyToRoom").cloned().unwrap_or(Value::Null),
-                    "saturationScore": theme.get("saturationScore").cloned().unwrap_or(Value::Null),
-                    "createdAt": now_iso(),
-                })]
+                let theme_id = theme.theme_id.as_str();
+                vec![HeartbeatCandidateIntervention {
+                    intervention_id: format!("candidate-{theme_id}"),
+                    summary: "Possible Aquarium-facing thought-weather note".to_string(),
+                    draft: format!("I keep seeing {} rhyme across the swarm; this one finally has enough blood to inspect in the open.", theme_id),
+                    decision: decision.to_string(),
+                    requires_face: true,
+                    requires_review: true,
+                    novelty_to_room: theme.novelty_to_room,
+                    saturation_score: theme.saturation_score,
+                    created_at: now_iso(),
+                }]
             })
             .unwrap_or_default()
     } else {
         Vec::new()
     };
-    serde_json::json!({
-        "schema_version": "epiphany.candidate_interventions.v0",
-        "updatedAt": now_iso(),
-        "items": items,
-    })
+    HeartbeatCandidateInterventions {
+        schema_version: "epiphany.candidate_interventions.v0".to_string(),
+        updated_at: now_iso(),
+        items,
+    }
 }
 
 fn build_agent_appraisals(
     profiles: &[RoleAppraisalProfile],
-    thought_lanes: &Value,
-    incubation: &Value,
-    bridge: &Value,
-) -> Value {
+    thought_lanes: &HeartbeatThoughtLanes,
+    incubation: &HeartbeatIncubation,
+    bridge: &HeartbeatCognitionBridge,
+) -> HeartbeatAgentThoughtAppraisals {
     let thought_tokens = cognition_tokens(thought_lanes, incubation, bridge);
     let thought_pressure = thought_pressure(thought_lanes, incubation);
-    let bridge_decision = bridge
-        .pointer("/decision/speakDecision")
-        .and_then(Value::as_str)
-        .unwrap_or("silence");
+    let bridge_decision = bridge.decision.speak_decision.as_str();
     let focus = incubation
-        .get("themes")
-        .and_then(Value::as_array)
-        .and_then(|themes| themes.first())
-        .and_then(|theme| theme.get("themeId"))
-        .and_then(Value::as_str)
+        .themes
+        .first()
+        .map(|theme| theme.theme_id.as_str())
         .unwrap_or("no-active-theme");
     let appraisals = profiles
         .iter()
@@ -1951,7 +2231,7 @@ fn build_agent_appraisals(
             let projection = personality_projection(profile, &thought_tokens);
             let alignment = projection
                 .iter()
-                .filter_map(|item| item.get("projection").and_then(Value::as_f64))
+                .map(|item| item.projection)
                 .next()
                 .unwrap_or(profile.reactivity);
             let arousal = round3(
@@ -1969,161 +2249,162 @@ fn build_agent_appraisals(
             let urgency = round3((arousal * 0.65 + guardedness * 0.25 + thought_pressure * 0.1).clamp(0.0, 1.0));
             let valence = round3((0.55 + curiosity * 0.2 - guardedness * 0.18).clamp(0.0, 1.0));
             let label = interpretation_label(bridge_decision, arousal, guardedness, curiosity);
-            serde_json::json!({
-                "schema_version": "epiphany.agent_thought_appraisal.v0",
-                "appraisalId": format!("appraisal-{}-{}", profile.role_id, stable_theme_suffix(focus)),
-                "reviewStatus": "generated_unreviewed",
-                "participantAgentId": profile.agent_id,
-                "roleId": profile.role_id,
-                "currentCharacterStateRef": format!("state/agents.msgpack#{}", profile.role_id),
-                "thoughtClusterRef": focus,
-                "participantLocalContext": {
-                    "displayName": profile.display_name,
-                    "values": profile.values,
-                    "reactivity": profile.reactivity,
-                    "plasticity": profile.plasticity,
-                    "expressiveness": profile.expressiveness,
-                    "guardedness": profile.guardedness,
+            HeartbeatAgentThoughtAppraisal {
+                schema_version: "epiphany.agent_thought_appraisal.v0".to_string(),
+                appraisal_id: format!("appraisal-{}-{}", profile.role_id, stable_theme_suffix(focus)),
+                review_status: "generated_unreviewed".to_string(),
+                participant_agent_id: profile.agent_id.clone(),
+                role_id: profile.role_id.clone(),
+                current_character_state_ref: format!("state/agents.msgpack#{}", profile.role_id),
+                thought_cluster_ref: focus.to_string(),
+                participant_local_context: HeartbeatParticipantLocalContext {
+                    display_name: profile.display_name.clone(),
+                    values: profile.values.clone(),
+                    reactivity: profile.reactivity,
+                    plasticity: profile.plasticity,
+                    expressiveness: profile.expressiveness,
+                    guardedness: profile.guardedness,
                 },
-                "observableThoughtSummary": strongest_thought_summary(thought_lanes, incubation),
-                "personalityProjection": projection,
-                "interpretation": format!("{} appraises {} through its current personality vector; reaction should follow this appraisal rather than a global mood knob.", profile.display_name, focus),
-                "emotionalAppraisal": {
-                    "valence": valence,
-                    "arousal": arousal,
-                    "urgency": urgency,
-                    "curiosity": curiosity,
-                    "guardedness": guardedness,
-                    "thoughtPressure": round3(thought_pressure),
+                observable_thought_summary: strongest_thought_summary(thought_lanes, incubation),
+                personality_projection: projection,
+                interpretation: format!("{} appraises {} through its current personality vector; reaction should follow this appraisal rather than a global mood knob.", profile.display_name, focus),
+                emotional_appraisal: HeartbeatEmotionalAppraisal {
+                    valence,
+                    arousal,
+                    urgency,
+                    curiosity,
+                    guardedness,
+                    thought_pressure: round3(thought_pressure),
                 },
-                "interpretationLabel": label,
-                "confidenceNotes": "Deterministic first-pass appraisal from typed role personality vectors and clustered thought state; useful as reaction guidance, not reviewed truth.",
-                "candidateImplications": {
-                    "reactionMode": reaction_mode(&label, bridge_decision),
-                    "reactionIntensity": round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
-                    "shouldSpeak": bridge_decision == "draft" && profile.role_id == "face" && guardedness < 0.75,
-                    "shouldIncubate": bridge_decision != "silence" && guardedness >= 0.55,
+                interpretation_label: label.to_string(),
+                confidence_notes: "Deterministic first-pass appraisal from typed role personality vectors and clustered thought state; useful as reaction guidance, not reviewed truth.".to_string(),
+                candidate_implications: HeartbeatCandidateImplications {
+                    reaction_mode: reaction_mode(&label, bridge_decision).to_string(),
+                    reaction_intensity: round3((urgency * 0.55 + arousal * 0.3 + curiosity * 0.15).clamp(0.0, 1.0)),
+                    should_speak: bridge_decision == "draft" && profile.role_id == "face" && guardedness < 0.75,
+                    should_incubate: bridge_decision != "silence" && guardedness >= 0.55,
                 },
-                "review": {
-                    "acceptedForMutation": false,
-                    "rationale": "Appraisal may steer reaction and display; state mutation still requires the explicit selfPatch or project-state review path.",
+                review: HeartbeatAppraisalReview {
+                    accepted_for_mutation: false,
+                    rationale: "Appraisal may steer reaction and display; state mutation still requires the explicit selfPatch or project-state review path.".to_string(),
                 },
-            })
+            }
         })
         .collect::<Vec<_>>();
-    serde_json::json!({
-        "schema_version": "epiphany.agent_thought_appraisals.v0",
-        "updatedAt": now_iso(),
-        "thoughtClusterRef": focus,
-        "participantAppraisals": appraisals,
-    })
-}
-
-fn build_agent_reactions(appraisals: &Value, bridge: &Value) -> Value {
-    let bridge_decision = bridge
-        .pointer("/decision/speakDecision")
-        .and_then(Value::as_str)
-        .unwrap_or("silence");
-    let reactions = appraisals
-        .get("participantAppraisals")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .map(|appraisal| {
-            let role_id = appraisal
-                .get("roleId")
-                .and_then(Value::as_str)
-                .unwrap_or("unknown");
-            let arousal = appraisal
-                .pointer("/emotionalAppraisal/arousal")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            let guardedness = appraisal
-                .pointer("/emotionalAppraisal/guardedness")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            let curiosity = appraisal
-                .pointer("/emotionalAppraisal/curiosity")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            let mode = appraisal
-                .pointer("/candidateImplications/reactionMode")
-                .and_then(Value::as_str)
-                .unwrap_or("hold");
-            let intensity = appraisal
-                .pointer("/candidateImplications/reactionIntensity")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
-            serde_json::json!({
-                "reactionId": format!("reaction-{}-{}", role_id, now_stamp()),
-                "roleId": role_id,
-                "participantAgentId": appraisal.get("participantAgentId"),
-                "appraisalId": appraisal.get("appraisalId"),
-                "mode": mode,
-                "moodLabel": mood_label(arousal, guardedness, curiosity),
-                "intensity": round3(intensity),
-                "bridgeDecision": bridge_decision,
-                "surface": if role_id == "face" { "aquarium" } else { "internal" },
-                "recommendedUse": reaction_recommended_use(role_id, mode),
-            })
-        })
-        .collect::<Vec<_>>();
-    serde_json::json!({
-        "schema_version": "epiphany.agent_reactions.v0",
-        "updatedAt": now_iso(),
-        "reactions": reactions,
-        "contract": "Reaction is appraisal output. It may pace, color, draft, or display behavior; it does not mutate state without review.",
-    })
-}
-
-fn cognition_tokens(thought_lanes: &Value, incubation: &Value, bridge: &Value) -> BTreeSet<String> {
-    let mut tokens = BTreeSet::new();
-    collect_json_tokens(thought_lanes, &mut tokens);
-    collect_json_tokens(incubation, &mut tokens);
-    collect_json_tokens(bridge, &mut tokens);
-    tokens
-}
-
-fn collect_json_tokens(value: &Value, tokens: &mut BTreeSet<String>) {
-    match value {
-        Value::String(text) => tokens.extend(summary_tokens(text)),
-        Value::Array(items) => {
-            for item in items {
-                collect_json_tokens(item, tokens);
-            }
-        }
-        Value::Object(object) => {
-            for (key, value) in object {
-                tokens.extend(summary_tokens(key));
-                collect_json_tokens(value, tokens);
-            }
-        }
-        _ => {}
+    HeartbeatAgentThoughtAppraisals {
+        schema_version: "epiphany.agent_thought_appraisals.v0".to_string(),
+        updated_at: now_iso(),
+        thought_cluster_ref: focus.to_string(),
+        participant_appraisals: appraisals,
     }
 }
 
-fn thought_pressure(thought_lanes: &Value, incubation: &Value) -> f64 {
-    let analytic = max_number_at(thought_lanes, "/analytic/activeThreads", "desireToAct");
-    let associative = max_number_at(thought_lanes, "/associative/activeThreads", "desireToSpeak");
-    let theme = max_number_at(incubation, "/themes", "strength");
-    (analytic * 0.35 + associative * 0.25 + theme * 0.4).clamp(0.0, 1.0)
+fn build_agent_reactions(
+    appraisals: &HeartbeatAgentThoughtAppraisals,
+    bridge: &HeartbeatCognitionBridge,
+) -> HeartbeatAgentReactions {
+    let bridge_decision = bridge.decision.speak_decision.as_str();
+    let reactions = appraisals
+        .participant_appraisals
+        .iter()
+        .map(|appraisal| {
+            let role_id = appraisal.role_id.as_str();
+            let arousal = appraisal.emotional_appraisal.arousal;
+            let guardedness = appraisal.emotional_appraisal.guardedness;
+            let curiosity = appraisal.emotional_appraisal.curiosity;
+            let mode = appraisal.candidate_implications.reaction_mode.as_str();
+            let intensity = appraisal.candidate_implications.reaction_intensity;
+            HeartbeatAgentReaction {
+                reaction_id: format!("reaction-{}-{}", role_id, now_stamp()),
+                role_id: role_id.to_string(),
+                participant_agent_id: appraisal.participant_agent_id.clone(),
+                appraisal_id: appraisal.appraisal_id.clone(),
+                mode: mode.to_string(),
+                mood_label: mood_label(arousal, guardedness, curiosity).to_string(),
+                intensity: round3(intensity),
+                bridge_decision: bridge_decision.to_string(),
+                surface: if role_id == "face" {
+                    "aquarium"
+                } else {
+                    "internal"
+                }
+                .to_string(),
+                recommended_use: reaction_recommended_use(role_id, mode).to_string(),
+            }
+        })
+        .collect::<Vec<_>>();
+    HeartbeatAgentReactions {
+        schema_version: "epiphany.agent_reactions.v0".to_string(),
+        updated_at: now_iso(),
+        reactions,
+        contract: "Reaction is appraisal output. It may pace, color, draft, or display behavior; it does not mutate state without review.".to_string(),
+    }
 }
 
-fn max_number_at(value: &Value, pointer: &str, key: &str) -> f64 {
-    value
-        .pointer(pointer)
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|item| item.get(key).and_then(Value::as_f64))
+fn cognition_tokens(
+    thought_lanes: &HeartbeatThoughtLanes,
+    incubation: &HeartbeatIncubation,
+    bridge: &HeartbeatCognitionBridge,
+) -> BTreeSet<String> {
+    let mut tokens = BTreeSet::new();
+    for thread in &thought_lanes.analytic.active_threads {
+        tokens.extend(summary_tokens(&thread.topic));
+        tokens.extend(summary_tokens(&thread.claim));
+        tokens.extend(summary_tokens(&thread.counterweight));
+    }
+    for thread in &thought_lanes.associative.active_threads {
+        tokens.extend(summary_tokens(&thread.topic));
+        tokens.extend(summary_tokens(&thread.claim));
+        tokens.extend(summary_tokens(&thread.counterweight));
+    }
+    for theme in &incubation.themes {
+        tokens.extend(summary_tokens(&theme.theme_id));
+        tokens.extend(summary_tokens(&theme.summary));
+        tokens.extend(summary_tokens(&theme.latent_question));
+        tokens.extend(summary_tokens(&theme.why_it_pulls));
+        tokens.extend(summary_tokens(&theme.holding_close_because));
+    }
+    for synthesis in &bridge.recent_syntheses {
+        tokens.extend(summary_tokens(&synthesis.summary));
+        for topic in &synthesis.dominant_topics {
+            tokens.extend(summary_tokens(topic));
+        }
+    }
+    tokens.extend(summary_tokens(&bridge.decision.reason));
+    tokens
+}
+
+fn thought_pressure(
+    thought_lanes: &HeartbeatThoughtLanes,
+    incubation: &HeartbeatIncubation,
+) -> f64 {
+    let analytic = thought_lanes
+        .analytic
+        .active_threads
+        .iter()
+        .map(|thread| thread.desire_to_act)
         .max_by(f64::total_cmp)
-        .unwrap_or(0.0)
+        .unwrap_or(0.0);
+    let associative = thought_lanes
+        .associative
+        .active_threads
+        .iter()
+        .map(|thread| thread.desire_to_speak)
+        .max_by(f64::total_cmp)
+        .unwrap_or(0.0);
+    let theme = incubation
+        .themes
+        .iter()
+        .map(|theme| theme.strength)
+        .max_by(f64::total_cmp)
+        .unwrap_or(0.0);
+    (analytic * 0.35 + associative * 0.25 + theme * 0.4).clamp(0.0, 1.0)
 }
 
 fn personality_projection(
     profile: &RoleAppraisalProfile,
     thought_tokens: &BTreeSet<String>,
-) -> Vec<Value> {
+) -> Vec<HeartbeatPersonalityProjection> {
     let mut scored = profile
         .traits
         .iter()
@@ -2131,40 +2412,35 @@ fn personality_projection(
             let trait_tokens = summary_tokens(&format!("{} {}", item.group, item.name));
             let overlap = token_overlap(&trait_tokens, thought_tokens);
             let projection = round3((item.weight * (0.55 + overlap * 1.8)).clamp(0.0, 1.0));
-            serde_json::json!({
-                "group": item.group,
-                "name": item.name,
-                "activation": round3(item.activation),
-                "plasticity": round3(item.plasticity),
-                "tokenOverlap": round3(overlap),
-                "projection": projection,
-            })
+            HeartbeatPersonalityProjection {
+                group: item.group.clone(),
+                name: item.name.clone(),
+                activation: round3(item.activation),
+                plasticity: round3(item.plasticity),
+                token_overlap: round3(overlap),
+                projection,
+            }
         })
         .collect::<Vec<_>>();
-    scored.sort_by(|left, right| {
-        right["projection"]
-            .as_f64()
-            .unwrap_or_default()
-            .total_cmp(&left["projection"].as_f64().unwrap_or_default())
-    });
+    scored.sort_by(|left, right| right.projection.total_cmp(&left.projection));
     scored.truncate(6);
     scored
 }
 
-fn strongest_thought_summary(thought_lanes: &Value, incubation: &Value) -> String {
+fn strongest_thought_summary(
+    thought_lanes: &HeartbeatThoughtLanes,
+    incubation: &HeartbeatIncubation,
+) -> String {
     incubation
-        .get("themes")
-        .and_then(Value::as_array)
-        .and_then(|themes| themes.first())
-        .and_then(|theme| theme.get("summary"))
-        .and_then(Value::as_str)
+        .themes
+        .first()
+        .map(|theme| theme.summary.as_str())
         .or_else(|| {
             thought_lanes
-                .pointer("/analytic/activeThreads")
-                .and_then(Value::as_array)
-                .and_then(|threads| threads.first())
-                .and_then(|thread| thread.get("claim"))
-                .and_then(Value::as_str)
+                .analytic
+                .active_threads
+                .first()
+                .map(|thread| thread.claim.as_str())
         })
         .unwrap_or("No salient thought cluster is active.")
         .to_string()
@@ -2225,94 +2501,62 @@ fn reaction_recommended_use(role_id: &str, mode: &str) -> &'static str {
     }
 }
 
-fn topic_saturation_from_syntheses_and_themes(syntheses: &[Value], themes: &[Value]) -> Vec<Value> {
+fn topic_saturation_from_syntheses_and_themes(
+    syntheses: &[HeartbeatBridgeSynthesis],
+    themes: &[HeartbeatIncubationTheme],
+) -> Vec<HeartbeatTopicSaturation> {
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     for synthesis in syntheses {
-        for topic in synthesis
-            .get("dominantTopics")
-            .and_then(Value::as_array)
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-        {
+        for topic in &synthesis.dominant_topics {
             *counts.entry(topic.to_string()).or_default() += 1;
         }
     }
     for theme in themes {
-        if let Some(topic) = theme.get("themeId").and_then(Value::as_str) {
-            let bonus = if matches!(
-                theme.get("status").and_then(Value::as_str),
-                Some("refractory" | "stalled")
-            ) {
-                2
-            } else {
-                1
-            };
-            *counts.entry(topic.to_string()).or_default() += bonus;
-        }
+        let bonus = if matches!(theme.status.as_str(), "refractory" | "stalled") {
+            2
+        } else {
+            1
+        };
+        *counts.entry(theme.theme_id.clone()).or_default() += bonus;
     }
     counts
         .into_iter()
         .filter(|(_, count)| *count > 1)
-        .map(|(topic, count)| {
-            serde_json::json!({
-                "topic": topic,
-                "dominance": round3((count as f64 / syntheses.len().max(1) as f64).min(1.0)),
-                "recentMentions": count,
-                "coolingAdvice": "Require fresh evidence or a new angle before surfacing this topic again.",
-            })
+        .map(|(topic, count)| HeartbeatTopicSaturation {
+            topic,
+            dominance: round3((count as f64 / syntheses.len().max(1) as f64).min(1.0)),
+            recent_mentions: count,
+            cooling_advice:
+                "Require fresh evidence or a new angle before surfacing this topic again."
+                    .to_string(),
         })
         .collect()
 }
 
-fn refractory_topics_from_themes(previous_bridge: &Option<Value>, themes: &[Value]) -> Vec<Value> {
+fn refractory_topics_from_themes(
+    previous_bridge: &Option<HeartbeatCognitionBridge>,
+    themes: &[HeartbeatIncubationTheme],
+) -> Vec<HeartbeatRefractoryTopic> {
     let previous_topics = previous_bridge
         .as_ref()
-        .and_then(|value| value.get("refractoryTopics"))
-        .or_else(|| {
-            previous_bridge
-                .as_ref()
-                .and_then(|value| value.get("refractory_topics"))
-        })
-        .and_then(Value::as_array)
-        .cloned()
+        .map(|value| value.refractory_topics.clone())
         .unwrap_or_default();
     let now = chrono::Utc::now();
     themes
         .iter()
         .filter_map(|theme| {
-            let status = theme.get("status").and_then(Value::as_str).unwrap_or("incubating");
-            let saturation = theme
-                .get("saturationScore")
-                .and_then(Value::as_f64)
-                .unwrap_or(0.0);
+            let status = theme.status.as_str();
+            let saturation = theme.saturation_score;
             if !matches!(status, "refractory" | "stalled") && saturation < 0.62 {
                 return None;
             }
-            let topic = theme
-                .get("themeId")
-                .and_then(Value::as_str)
-                .unwrap_or("unnamed-theme");
+            let topic = theme.theme_id.as_str();
             let previous_penalty = previous_topics
                 .iter()
-                .find(|entry| {
-                    theme_similarity(
-                        topic,
-                        "",
-                        entry.get("topic").and_then(Value::as_str).unwrap_or(""),
-                        "",
-                    ) >= 0.48
-                })
-                .and_then(|entry| entry.get("penalty"))
-                .and_then(Value::as_f64)
+                .find(|entry| theme_similarity(topic, "", &entry.topic, "") >= 0.48)
+                .map(|entry| entry.penalty)
                 .unwrap_or(0.18);
-            let penalty = round3(
-                theme
-                    .get("refractoryPenalty")
-                    .and_then(Value::as_f64)
-                    .unwrap_or(previous_penalty)
-                    .max(previous_penalty),
-            );
+            let penalty = round3(theme.refractory_penalty.max(previous_penalty));
             let hours = if penalty >= 0.28 {
                 4
             } else if penalty >= 0.20 {
@@ -2320,66 +2564,47 @@ fn refractory_topics_from_themes(previous_bridge: &Option<Value>, themes: &[Valu
             } else {
                 2
             };
-            Some(serde_json::json!({
-                "topic": topic,
-                "penalty": penalty,
-                "coolsUntil": (now + Duration::hours(hours)).to_rfc3339_opts(chrono::SecondsFormat::Secs, false).replace('Z', "+00:00"),
-                "reason": build_refractory_reason(theme),
-                "lastTriggeredAt": now_iso(),
-            }))
+            Some(HeartbeatRefractoryTopic {
+                topic: topic.to_string(),
+                penalty,
+                cools_until: (now + Duration::hours(hours))
+                    .to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
+                    .replace('Z', "+00:00"),
+                reason: build_refractory_reason(theme),
+                last_triggered_at: now_iso(),
+            })
         })
         .take(6)
         .collect()
 }
 
-fn build_source_coverage(records: &[RoleMemoryRecord]) -> Value {
+fn build_source_coverage(records: &[RoleMemoryRecord]) -> HeartbeatSourceCoverage {
     let mut role_counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut kind_counts: BTreeMap<String, usize> = BTreeMap::new();
     for record in records {
         *role_counts.entry(record.role_id.clone()).or_default() += 1;
         *kind_counts.entry(record.memory_kind.clone()).or_default() += 1;
     }
-    serde_json::json!({
-        "schema_version": "epiphany.source_coverage.v0",
-        "updatedAt": now_iso(),
-        "roles": role_counts.into_iter().map(|(role_id, count)| serde_json::json!({
-            "roleId": role_id,
-            "count": count,
-        })).collect::<Vec<_>>(),
-        "memoryKinds": kind_counts.into_iter().map(|(kind, count)| serde_json::json!({
-            "kind": kind,
-            "count": count,
-        })).collect::<Vec<_>>(),
-    })
-}
-
-fn empty_source_coverage() -> Value {
-    serde_json::json!({
-        "schema_version": "epiphany.source_coverage.v0",
-        "updatedAt": now_iso(),
-        "roles": [],
-        "memoryKinds": [],
-    })
-}
-
-fn unique_strings_from_value(value: Option<&Value>) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    value
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .filter(|item| seen.insert((*item).to_string()))
-        .map(str::to_string)
-        .collect()
+    HeartbeatSourceCoverage {
+        schema_version: "epiphany.source_coverage.v0".to_string(),
+        updated_at: now_iso(),
+        roles: role_counts
+            .into_iter()
+            .map(|(role_id, count)| HeartbeatSourceCoverageRole { role_id, count })
+            .collect(),
+        memory_kinds: kind_counts
+            .into_iter()
+            .map(|(kind, count)| HeartbeatSourceCoverageKind { kind, count })
+            .collect(),
+    }
 }
 
 fn best_matching_theme<'a>(
-    previous_themes: &'a [Value],
+    previous_themes: &'a [HeartbeatIncubationTheme],
     theme_id: &str,
     summary: &str,
     source_memory_ids: &[String],
-) -> Option<&'a Value> {
+) -> Option<&'a HeartbeatIncubationTheme> {
     let best =
         previous_themes.iter().max_by(|left, right| {
             theme_match_score(theme_id, summary, source_memory_ids, left).total_cmp(
@@ -2389,64 +2614,37 @@ fn best_matching_theme<'a>(
     (theme_match_score(theme_id, summary, source_memory_ids, best) >= 0.42).then_some(best)
 }
 
-fn previous_support_count(previous_theme: Option<&Value>) -> usize {
-    previous_theme
-        .and_then(|theme| theme.get("supportCount"))
-        .and_then(Value::as_u64)
-        .unwrap_or(0) as usize
+fn previous_support_count(previous_theme: Option<&HeartbeatIncubationTheme>) -> usize {
+    previous_theme.map(|theme| theme.support_count).unwrap_or(0)
 }
 
 fn novelty_to_self(
     theme_id: &str,
     summary: &str,
     source_memory_ids: &[String],
-    previous_themes: &[Value],
-    bridge: &Option<Value>,
+    previous_themes: &[HeartbeatIncubationTheme],
+    bridge: &Option<HeartbeatCognitionBridge>,
 ) -> f64 {
     let mut strongest_match = 0.0_f64;
     for theme in previous_themes {
         strongest_match = strongest_match.max(
-            theme_similarity(
-                theme_id,
-                summary,
-                theme.get("themeId").and_then(Value::as_str).unwrap_or(""),
-                theme.get("summary").and_then(Value::as_str).unwrap_or(""),
-            )
-            .max(overlap_ratio_strings(
-                source_memory_ids,
-                &unique_strings_from_value(theme.get("sourceMemoryIds")),
-            )),
+            theme_similarity(theme_id, summary, &theme.theme_id, &theme.summary).max(
+                overlap_ratio_strings(source_memory_ids, &theme.source_memory_ids),
+            ),
         );
     }
     for synthesis in bridge
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.recent_syntheses.iter())
+        .into_iter()
         .take(6)
     {
         strongest_match = strongest_match.max(theme_similarity(
             theme_id,
             summary,
-            synthesis
-                .get("dominantTopics")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(" / ")
-                .as_str(),
-            synthesis
-                .get("summary")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            &synthesis.dominant_topics.join(" / "),
+            &synthesis.summary,
         ));
     }
     (1.0 - strongest_match).clamp(0.0, 1.0)
@@ -2455,29 +2653,21 @@ fn novelty_to_self(
 fn novelty_to_room(
     theme_id: &str,
     summary: &str,
-    previous_candidate_interventions: &Option<Value>,
-    bridge: &Option<Value>,
+    previous_candidate_interventions: &Option<HeartbeatCandidateInterventions>,
+    bridge: &Option<HeartbeatCognitionBridge>,
 ) -> f64 {
     let mut score = 0.64_f64;
     for intervention in previous_candidate_interventions
         .as_ref()
-        .and_then(|value| value.get("items"))
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.items.iter())
         .take(8)
     {
         let similarity = theme_similarity(
             theme_id,
             summary,
-            intervention
-                .get("interventionId")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
-            intervention
-                .get("draft")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            &intervention.intervention_id,
+            &intervention.draft,
         );
         if similarity >= 0.42 {
             return 0.22;
@@ -2485,33 +2675,16 @@ fn novelty_to_room(
     }
     for synthesis in bridge
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.recent_syntheses.iter())
+        .into_iter()
         .take(6)
     {
         let similarity = theme_similarity(
             theme_id,
             summary,
-            synthesis
-                .get("dominantTopics")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(" / ")
-                .as_str(),
-            synthesis
-                .get("summary")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            &synthesis.dominant_topics.join(" / "),
+            &synthesis.summary,
         );
         if similarity >= 0.42 {
             score = score.min(0.44);
@@ -2530,55 +2703,31 @@ fn saturation_metrics(
     theme_id: &str,
     summary: &str,
     source_memory_ids: &[String],
-    previous_themes: &[Value],
-    bridge: &Option<Value>,
+    previous_themes: &[HeartbeatIncubationTheme],
+    bridge: &Option<HeartbeatCognitionBridge>,
     support_count: usize,
 ) -> SaturationMetrics {
     let mut recent_match_count = 0_usize;
     for theme in previous_themes {
-        let similarity = theme_similarity(
-            theme_id,
-            summary,
-            theme.get("themeId").and_then(Value::as_str).unwrap_or(""),
-            theme.get("summary").and_then(Value::as_str).unwrap_or(""),
-        )
-        .max(overlap_ratio_strings(
-            source_memory_ids,
-            &unique_strings_from_value(theme.get("sourceMemoryIds")),
-        ));
+        let similarity = theme_similarity(theme_id, summary, &theme.theme_id, &theme.summary).max(
+            overlap_ratio_strings(source_memory_ids, &theme.source_memory_ids),
+        );
         if similarity >= 0.42 {
             recent_match_count += 1;
         }
     }
     for synthesis in bridge
         .as_ref()
-        .and_then(|value| value.get("recentSyntheses"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("recent_syntheses"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.recent_syntheses.iter())
+        .into_iter()
         .take(5)
     {
         let similarity = theme_similarity(
             theme_id,
             summary,
-            synthesis
-                .get("dominantTopics")
-                .and_then(Value::as_array)
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .collect::<Vec<_>>()
-                .join(" / ")
-                .as_str(),
-            synthesis
-                .get("summary")
-                .and_then(Value::as_str)
-                .unwrap_or(""),
+            &synthesis.dominant_topics.join(" / "),
+            &synthesis.summary,
         );
         if similarity >= 0.42 {
             recent_match_count += 1;
@@ -2586,28 +2735,11 @@ fn saturation_metrics(
     }
     let existing_topic_saturation = bridge
         .as_ref()
-        .and_then(|value| value.get("topicSaturation"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("topic_saturation"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.topic_saturation.iter())
         .filter_map(|entry| {
-            let similarity = theme_similarity(
-                theme_id,
-                summary,
-                entry.get("topic").and_then(Value::as_str).unwrap_or(""),
-                "",
-            );
-            (similarity >= 0.42).then(|| {
-                entry
-                    .get("dominance")
-                    .and_then(Value::as_f64)
-                    .unwrap_or(0.0)
-            })
+            let similarity = theme_similarity(theme_id, summary, &entry.topic, "");
+            (similarity >= 0.42).then_some(entry.dominance)
         })
         .fold(0.0_f64, f64::max);
     SaturationMetrics {
@@ -2619,38 +2751,27 @@ fn saturation_metrics(
     }
 }
 
-fn refractory_penalty(theme_id: &str, summary: &str, bridge: &Option<Value>) -> f64 {
+fn refractory_penalty(
+    theme_id: &str,
+    summary: &str,
+    bridge: &Option<HeartbeatCognitionBridge>,
+) -> f64 {
     let mut penalty = 0.0_f64;
     let now = chrono::Utc::now();
     for topic in bridge
         .as_ref()
-        .and_then(|value| value.get("refractoryTopics"))
-        .or_else(|| {
-            bridge
-                .as_ref()
-                .and_then(|value| value.get("refractory_topics"))
-        })
-        .and_then(Value::as_array)
         .into_iter()
-        .flatten()
+        .flat_map(|value| value.refractory_topics.iter())
     {
-        let cools_until = topic
-            .get("coolsUntil")
-            .and_then(Value::as_str)
-            .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+        let cools_until = chrono::DateTime::parse_from_rfc3339(&topic.cools_until)
+            .ok()
             .map(|value| value.with_timezone(&chrono::Utc));
         if cools_until.is_some_and(|deadline| deadline < now) {
             continue;
         }
-        let similarity = theme_similarity(
-            theme_id,
-            summary,
-            topic.get("topic").and_then(Value::as_str).unwrap_or(""),
-            topic.get("reason").and_then(Value::as_str).unwrap_or(""),
-        );
+        let similarity = theme_similarity(theme_id, summary, &topic.topic, &topic.reason);
         if similarity >= 0.48 {
-            penalty = penalty
-                .max(topic.get("penalty").and_then(Value::as_f64).unwrap_or(0.18) * similarity);
+            penalty = penalty.max(topic.penalty * similarity);
         }
     }
     penalty.clamp(0.0, 0.45)
@@ -2670,22 +2791,14 @@ fn evidence_diversity(
 fn exploration_bonus(
     source_roles: &[String],
     source_kinds: &[String],
-    source_coverage: &Value,
+    source_coverage: &HeartbeatSourceCoverage,
 ) -> f64 {
     let mut scores = Vec::new();
     for role_id in source_roles {
-        scores.push(inverse_coverage_weight(
-            source_coverage.get("roles"),
-            "roleId",
-            role_id,
-        ));
+        scores.push(inverse_role_coverage_weight(source_coverage, role_id));
     }
     for kind in source_kinds {
-        scores.push(inverse_coverage_weight(
-            source_coverage.get("memoryKinds"),
-            "kind",
-            kind,
-        ));
+        scores.push(inverse_kind_coverage_weight(source_coverage, kind));
     }
     if scores.is_empty() {
         return 0.18;
@@ -2693,15 +2806,29 @@ fn exploration_bonus(
     average(scores.into_iter()).unwrap_or(0.18).clamp(0.0, 1.0)
 }
 
-fn inverse_coverage_weight(entries: Option<&Value>, key: &str, needle: &str) -> f64 {
-    let count = entries
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .find(|entry| entry.get(key).and_then(Value::as_str) == Some(needle))
-        .and_then(|entry| entry.get("count"))
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
+fn inverse_role_coverage_weight(source_coverage: &HeartbeatSourceCoverage, needle: &str) -> f64 {
+    inverse_coverage_count(
+        source_coverage
+            .roles
+            .iter()
+            .find(|entry| entry.role_id == needle)
+            .map(|entry| entry.count)
+            .unwrap_or(0),
+    )
+}
+
+fn inverse_kind_coverage_weight(source_coverage: &HeartbeatSourceCoverage, needle: &str) -> f64 {
+    inverse_coverage_count(
+        source_coverage
+            .memory_kinds
+            .iter()
+            .find(|entry| entry.kind == needle)
+            .map(|entry| entry.count)
+            .unwrap_or(0),
+    )
+}
+
+fn inverse_coverage_count(count: usize) -> f64 {
     match count {
         0 | 1 => 0.90,
         2 => 0.64,
@@ -2796,19 +2923,10 @@ fn build_incubation_holding_line(
     }
 }
 
-fn build_refractory_reason(theme: &Value) -> String {
-    let topic = theme
-        .get("themeId")
-        .and_then(Value::as_str)
-        .unwrap_or("this seam");
-    let novelty_to_self = theme
-        .get("noveltyToSelf")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
-    let saturation_score = theme
-        .get("saturationScore")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+fn build_refractory_reason(theme: &HeartbeatIncubationTheme) -> String {
+    let topic = theme.theme_id.as_str();
+    let novelty_to_self = theme.novelty_to_self;
+    let saturation_score = theme.saturation_score;
     if novelty_to_self < 0.3 {
         format!(
             "{topic} is matching Epiphany's own recent thought history too closely to deserve another immediate pass."
@@ -2822,23 +2940,11 @@ fn build_refractory_reason(theme: &Value) -> String {
     }
 }
 
-fn bridge_summary(theme: &Value, speak_decision: &str) -> String {
-    let topic = theme
-        .get("themeId")
-        .and_then(Value::as_str)
-        .unwrap_or("an unnamed theme");
-    let status = theme
-        .get("status")
-        .and_then(Value::as_str)
-        .unwrap_or("incubating");
-    let novelty_to_self = theme
-        .get("noveltyToSelf")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
-    let novelty_to_room = theme
-        .get("noveltyToRoom")
-        .and_then(Value::as_f64)
-        .unwrap_or(0.0);
+fn bridge_summary(theme: &HeartbeatIncubationTheme, speak_decision: &str) -> String {
+    let topic = theme.theme_id.as_str();
+    let status = theme.status.as_str();
+    let novelty_to_self = theme.novelty_to_self;
+    let novelty_to_room = theme.novelty_to_room;
     match (speak_decision, status) {
         ("draft", _) => format!(
             "Analytic evidence edges and associative incubation currently converge on {topic}; this seam is still fresh enough to surface (self={novelty_to_self:.2}, room={novelty_to_room:.2})."
@@ -2926,17 +3032,11 @@ fn theme_match_score(
     theme_id: &str,
     summary: &str,
     source_memory_ids: &[String],
-    theme: &Value,
+    theme: &HeartbeatIncubationTheme,
 ) -> f64 {
-    theme_similarity(
-        theme_id,
-        summary,
-        theme.get("themeId").and_then(Value::as_str).unwrap_or(""),
-        theme.get("summary").and_then(Value::as_str).unwrap_or(""),
-    )
-    .max(overlap_ratio_strings(
+    theme_similarity(theme_id, summary, &theme.theme_id, &theme.summary).max(overlap_ratio_strings(
         source_memory_ids,
-        &unique_strings_from_value(theme.get("sourceMemoryIds")),
+        &theme.source_memory_ids,
     ))
 }
 
@@ -2954,20 +3054,21 @@ fn overlap_ratio_strings(left: &[String], right: &[String]) -> f64 {
     if union <= 0.0 { 0.0 } else { shared / union }
 }
 
-fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream: bool) -> Value {
+fn update_sleep_cycle(
+    previous: Option<&HeartbeatSleepCycle>,
+    incubation: &HeartbeatIncubation,
+    allow_dream: bool,
+) -> HeartbeatSleepCycle {
     let cycle_hours = previous
-        .and_then(|value| value.get("cycleHours"))
-        .and_then(Value::as_i64)
+        .map(|cycle| cycle.cycle_hours)
         .unwrap_or(4)
         .clamp(2, 12);
     let nap_duration_minutes = previous
-        .and_then(|value| value.get("napDurationMinutes"))
-        .and_then(Value::as_i64)
+        .map(|cycle| cycle.nap_duration_minutes)
         .unwrap_or(60)
         .clamp(15, cycle_hours * 60 - 5);
     let phase_offset_minutes = previous
-        .and_then(|value| value.get("phaseOffsetMinutesLocal"))
-        .and_then(Value::as_i64)
+        .map(|cycle| cycle.phase_offset_minutes_local)
         .unwrap_or(120)
         .clamp(0, cycle_hours * 60 - 1);
     let now = chrono::Utc::now();
@@ -2987,17 +3088,14 @@ fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream:
         nap_start
     };
     let active_themes = incubation
-        .get("themes")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
-        .filter_map(|theme| theme.get("themeId").and_then(Value::as_str))
+        .themes
+        .iter()
+        .map(|theme| theme.theme_id.as_str())
         .take(4)
         .map(str::to_string)
         .collect::<Vec<_>>();
     let previous_dream_count = previous
-        .and_then(|value| value.get("dreamCountInCurrentNap"))
-        .and_then(Value::as_u64)
+        .map(|cycle| cycle.dream_count_in_current_nap)
         .unwrap_or(0);
     let dream_count = if is_napping && allow_dream {
         previous_dream_count.saturating_add(1)
@@ -3006,26 +3104,39 @@ fn update_sleep_cycle(previous: Option<&Value>, incubation: &Value, allow_dream:
     } else {
         0
     };
-    serde_json::json!({
-        "schema_version": "epiphany.sleep_cycle.v0",
-        "enabled": true,
-        "cycleHours": cycle_hours,
-        "napDurationMinutes": nap_duration_minutes,
-        "phaseOffsetMinutesLocal": phase_offset_minutes,
-        "replyMode": "sleep_rumination",
-        "isNapping": is_napping,
-        "currentNapStartedAt": if is_napping { Some(nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { None },
-        "currentNapEndsAt": if is_napping { Some(nap_end.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { None },
-        "nextNapStartsAt": next_nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        "lastDreamAt": if is_napping && allow_dream { Some(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)) } else { previous.and_then(|value| value.get("lastDreamAt")).cloned().and_then(|value| value.as_str().map(str::to_string)) },
-        "dreamCountInCurrentNap": dream_count,
-        "activeDreamThemes": active_themes,
-        "lastDistillationSummary": if is_napping {
+    HeartbeatSleepCycle {
+        schema_version: "epiphany.sleep_cycle.v0".to_string(),
+        enabled: true,
+        cycle_hours,
+        nap_duration_minutes,
+        phase_offset_minutes_local: phase_offset_minutes,
+        reply_mode: "sleep_rumination".to_string(),
+        is_napping,
+        current_nap_started_at: if is_napping {
+            Some(nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        } else {
+            None
+        },
+        current_nap_ends_at: if is_napping {
+            Some(nap_end.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        } else {
+            None
+        },
+        next_nap_starts_at: next_nap_start.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        last_dream_at: if is_napping && allow_dream {
+            Some(now.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+        } else {
+            previous.and_then(|cycle| cycle.last_dream_at.clone())
+        },
+        dream_count_in_current_nap: dream_count,
+        active_dream_themes: active_themes,
+        last_distillation_summary: if is_napping {
             "Sleep pass prefers memory compression, resonance cooling, and dream residue over active work."
         } else {
             "Awake pass keeps resonance/incubation fresh without speaking unless Face has a real surface reason."
-        },
-    })
+        }
+        .to_string(),
+    }
 }
 
 fn summary_tokens(summary: &str) -> BTreeSet<String> {
@@ -3121,6 +3232,19 @@ mod tests {
         )?;
         assert_eq!(work["event"]["selectedRole"], "implementation");
         assert_eq!(work["event"]["turnStatus"], "running");
+        let implementation = work["schedule"]["participants"]
+            .as_array()
+            .and_then(|participants| {
+                participants
+                    .iter()
+                    .find(|participant| participant["role_id"] == "implementation")
+            })
+            .expect("implementation participant should be projected");
+        assert_eq!(implementation["initiative_frozen"], true);
+        assert_eq!(
+            implementation["pending_turn"]["initiativeFrozen"],
+            serde_json::json!(true)
+        );
         assert!(artifact_dir.join("native-work.initiative.json").exists());
 
         let blocked = tick_heartbeat_store(
@@ -3153,7 +3277,86 @@ mod tests {
             },
         )?;
         assert_eq!(completed["event"]["turnStatus"], "completed");
+        assert_eq!(
+            completed["event"]["cooldownStartedAfterCompletion"],
+            serde_json::json!(true)
+        );
         assert!(artifact_dir.join("native-work.completion.json").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn high_heat_cannot_requeue_running_participant() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("hot-heartbeats.msgpack");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_heartbeat_store(&store_path, 1.0)?;
+        update_heartbeat_heat_store(
+            &store_path,
+            HeartbeatHeatUpdateOptions {
+                scope: "role".to_string(),
+                selector: "implementation".to_string(),
+                multiplier: 25.0,
+                id: Some("implementation-overheat".to_string()),
+                label: None,
+                reason: Some("High heat must still respect active thought freeze.".to_string()),
+                expires_after_scene_clock: None,
+                clear: false,
+            },
+        )?;
+
+        let work = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 4.0,
+                coordinator_action: Some("continueImplementation".to_string()),
+                target_role: None,
+                urgency: 1.0,
+                schedule_id: "hot-work".to_string(),
+                source_scene_ref: "test/high-heat".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )?;
+        assert_eq!(
+            work["schedule"]["action_catalog"][0]["initiative_heat_multiplier"],
+            serde_json::json!(25.0)
+        );
+        let implementation = work["schedule"]["participants"]
+            .as_array()
+            .and_then(|participants| {
+                participants
+                    .iter()
+                    .find(|participant| participant["role_id"] == "implementation")
+            })
+            .expect("implementation participant should be projected");
+        assert_eq!(implementation["initiative_frozen"], true);
+        assert_eq!(
+            implementation["pending_turn"]["initiativeFrozen"],
+            serde_json::json!(true)
+        );
+
+        let blocked = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 4.0,
+                coordinator_action: Some("continueImplementation".to_string()),
+                target_role: None,
+                urgency: 1.0,
+                schedule_id: "hot-work-repeat".to_string(),
+                source_scene_ref: "test/high-heat".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )
+        .unwrap_err();
+        assert!(
+            blocked
+                .to_string()
+                .contains("already has running heartbeat turn")
+        );
         Ok(())
     }
 
@@ -3210,5 +3413,128 @@ mod tests {
         );
         assert_eq!(tick["schedule"]["participants"][0]["arena"], "scene");
         Ok(())
+    }
+
+    #[test]
+    fn pending_face_mention_selects_face_turn_and_consumes_queue() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store_path = temp.path().join("face-heartbeats.msgpack");
+        let artifact_dir = temp.path().join("artifacts");
+        initialize_heartbeat_store(&store_path, 1.0)?;
+        let queued = queue_heartbeat_pending_mention_store(
+            &store_path,
+            HeartbeatQueueMentionOptions {
+                target_role_id: "face".to_string(),
+                source_surface: "discord".to_string(),
+                channel_id: "aquarium".to_string(),
+                message_id: "m1".to_string(),
+                author_id: "human".to_string(),
+                author_name: Some("Metacrat".to_string()),
+                content: "Epiphany, answer this through the Face membrane.".to_string(),
+                visible_prompt: "answer this through the Face membrane".to_string(),
+                reply_to_message_id: None,
+                queued_at: Some("2026-05-24T00:00:00+00:00".to_string()),
+                mention_id: Some("mention-face-test".to_string()),
+            },
+        )?;
+        assert_eq!(queued["queued"], true);
+
+        let tick = tick_heartbeat_store(
+            &store_path,
+            &artifact_dir,
+            HeartbeatTickOptions {
+                target_heartbeat_rate: 1.0,
+                coordinator_action: None,
+                target_role: None,
+                urgency: 0.0,
+                schedule_id: "face-mentioned".to_string(),
+                source_scene_ref: "test/face-mentioned".to_string(),
+                defer_completion: true,
+                agent_store: None,
+            },
+        )?;
+
+        assert_eq!(tick["event"]["selectedRole"], "face");
+        assert_eq!(tick["event"]["actionType"], "face_turn");
+        assert_eq!(
+            tick["schedule"]["action_catalog"][0]["pending_mentions"][0]["id"],
+            "mention-face-test"
+        );
+        assert_eq!(
+            tick["schedule"]["pending_mentions"]
+                .as_array()
+                .map(Vec::len),
+            Some(0)
+        );
+        let state = load_heartbeat_state_entry(&store_path)?.expect("heartbeat state");
+        assert!(state.pending_mentions.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn appraisal_mood_timing_carries_affect_vector() {
+        let mut state = default_heartbeat_state(1.0);
+        patch_missing_participants(&mut state);
+        let appraisals = HeartbeatAgentThoughtAppraisals {
+            schema_version: "epiphany.agent_thought_appraisals.v0".to_string(),
+            updated_at: "2026-05-20T00:00:00+00:00".to_string(),
+            thought_cluster_ref: "test-affect".to_string(),
+            participant_appraisals: vec![HeartbeatAgentThoughtAppraisal {
+                appraisal_id: "appraisal-face-affect".to_string(),
+                participant_agent_id: "epiphany.face".to_string(),
+                role_id: "face".to_string(),
+                emotional_appraisal: HeartbeatEmotionalAppraisal {
+                    valence: 0.2,
+                    arousal: 0.81,
+                    urgency: 0.66,
+                    curiosity: 0.14,
+                    guardedness: 0.72,
+                    thought_pressure: 0.77,
+                },
+                personality_projection: vec![
+                    HeartbeatPersonalityProjection {
+                        name: "anger".to_string(),
+                        projection: 0.88,
+                        ..HeartbeatPersonalityProjection::default()
+                    },
+                    HeartbeatPersonalityProjection {
+                        name: "dismissal".to_string(),
+                        projection: 0.63,
+                        ..HeartbeatPersonalityProjection::default()
+                    },
+                    HeartbeatPersonalityProjection {
+                        name: "flippancy".to_string(),
+                        projection: 0.41,
+                        ..HeartbeatPersonalityProjection::default()
+                    },
+                ],
+                candidate_implications: HeartbeatCandidateImplications {
+                    reaction_intensity: 0.79,
+                    ..HeartbeatCandidateImplications::default()
+                },
+                ..HeartbeatAgentThoughtAppraisal::default()
+            }],
+        };
+
+        apply_mood_timing_from_appraisals(&mut state, &appraisals);
+        let face = state
+            .participants
+            .iter()
+            .find(|participant| participant.role_id == "face")
+            .expect("face participant");
+        let mood = face.mood_timing.as_ref().expect("face mood timing");
+        assert_eq!(mood.emotional_dimensions.len(), 32);
+        assert_eq!(mood_dimension(mood, "anger"), Some(0.88));
+        assert_eq!(mood_dimension(mood, "dismissal"), Some(0.63));
+        assert_eq!(mood_dimension(mood, "flippancy"), Some(0.41));
+        assert_eq!(mood_dimension(mood, "valence"), Some(0.2));
+        assert_eq!(mood_dimension(mood, "arousal"), Some(0.81));
+    }
+
+    fn mood_dimension(mood: &HeartbeatMoodTiming, name: &str) -> Option<f64> {
+        mood.emotional_dimensions
+            .iter()
+            .find(|dimension| dimension.name == name)
+            .map(|dimension| dimension.value)
     }
 }

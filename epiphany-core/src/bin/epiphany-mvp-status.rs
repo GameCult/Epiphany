@@ -26,6 +26,8 @@ const SEALED_DIRECT_THOUGHT_KEYS: &[&str] = &[
     "inputTranscript",
     "activeTranscript",
 ];
+const SEALED_LONG_TEXT_KEYS: &[&str] = &["note"];
+const MAX_OPERATOR_TEXT_CHARS: usize = 1200;
 
 fn main() -> Result<()> {
     let args = Args::parse()?;
@@ -192,7 +194,10 @@ fn run_status(args: &Args) -> Result<Value> {
         true,
     )?;
     let crrc = view.get("crrc").cloned().unwrap_or_else(|| json!(null));
-    let coordinator = view.get("coordinator").cloned().unwrap_or_else(|| json!(null));
+    let coordinator = view
+        .get("coordinator")
+        .cloned()
+        .unwrap_or_else(|| json!(null));
     let root = env::current_dir().context("failed to resolve current directory")?;
     let heartbeat_dir = root.join(".epiphany-heartbeats");
     let face_dir = root.join(".epiphany-face");
@@ -694,6 +699,13 @@ pub fn sanitize_for_operator(value: Value) -> Value {
                     .any(|candidate| candidate == &key)
                 {
                     sanitized.insert(key.clone(), sealed_direct_thought(&key, &item));
+                } else if SEALED_LONG_TEXT_KEYS
+                    .iter()
+                    .any(|candidate| candidate == &key)
+                    && let Some(text) = item.as_str()
+                    && text.chars().count() > MAX_OPERATOR_TEXT_CHARS
+                {
+                    sanitized.insert(key.clone(), sealed_long_text(&key, text));
                 } else {
                     sanitized.insert(key, sanitize_for_operator(item));
                 }
@@ -721,6 +733,17 @@ fn sealed_direct_thought(key: &str, value: &Value) -> Value {
         sealed["size"] = json!(size);
     }
     sealed
+}
+
+fn sealed_long_text(key: &str, text: &str) -> Value {
+    let preview: String = text.chars().take(240).collect();
+    json!({
+        "sealed": true,
+        "key": key,
+        "reason": "Long operator note sealed to keep status artifacts readable; inspect the sealed transcript or prompt source only during explicit forensic debugging.",
+        "size": text.chars().count(),
+        "preview": preview,
+    })
 }
 
 pub fn write_transcript_telemetry(transcript: &Path, output: &Path) -> Result<()> {

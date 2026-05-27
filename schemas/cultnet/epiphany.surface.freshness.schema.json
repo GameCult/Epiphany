@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.freshness.schema.json",
   "title": "Epiphany freshness",
-  "description": "Read-only freshness reflection mirrored from thread/epiphany/freshness.",
+  "description": "Read-only freshness reflection over retrieval, watcher, and graph staleness signals.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

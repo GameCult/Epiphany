@@ -1,16 +1,22 @@
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use serde::Deserialize;
+use serde::Serialize;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCrrcStateStatus {
     Missing,
     Ready,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCrrcReorientAction {
     Resume,
     Regather,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCrrcResultStatus {
     MissingState,
     MissingBinding,
@@ -23,7 +29,8 @@ pub enum EpiphanyCrrcResultStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCrrcAction {
     Continue,
     PrepareCheckpoint,
@@ -34,7 +41,8 @@ pub enum EpiphanyCrrcAction {
     RegatherManually,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyCrrcSceneAction {
     Update,
     Reorient,
@@ -43,7 +51,8 @@ pub enum EpiphanyCrrcSceneAction {
     ReorientAccept,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyCrrcRecommendation {
     pub action: EpiphanyCrrcAction,
     pub recommended_scene_action: Option<EpiphanyCrrcSceneAction>,
