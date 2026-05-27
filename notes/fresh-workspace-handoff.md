@@ -1430,12 +1430,18 @@ kind, and output contract id, carries the full organ dependency matrix, and
 names required Mind/Body/Eyes/Hands/Soul/Life receipt document types.
 Runtime-spine validates and persists it on `EpiphanyRuntimeWorkerLaunchRequest`;
 bridge role/reorient/generic launch builders populate it.
+Role/reorient acceptance now refuses completed runtime-spine findings when the
+original worker launch request is missing, mismatched by document kind, or lacks
+a dependency/receipt contract requiring Mind review. This blocks the old naked
+runtime-spine acceptance path without pretending Body/Hands/Soul receipt proof
+exists before the runtime emits those documents.
 `notes/perfect-machine-audit-roadmap.md` is the current audit/path document. It
 compares Epiphany's named organ contracts against Void's current Face prompting
 shape and maps the route from contract catalog to executable organism. Main
 finding: the boundaries are directionally right, launch packets now carry organ
-receipt expectations, but most gates still need runtime enforcement that proves
-the required receipts before state/action promotion. The
+receipt expectations, and acceptance minimally gates against missing Mind-review
+launch contracts, but most gates still need runtime enforcement that proves the
+required receipts before state/action promotion. The
 first dependency-body repair is landed: the missing
 `E:\Projects\CultLib\crates\*` paths were replaced with repo-contained vendored
 CultCache/CultNet/CultMesh crates, and the `epiphany-core` library tests pass

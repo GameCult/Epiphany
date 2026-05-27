@@ -363,6 +363,7 @@ pub use runtime_spine::runtime_role_worker_result;
 pub use runtime_spine::runtime_schema_catalog_response;
 pub use runtime_spine::runtime_spine_cache;
 pub use runtime_spine::runtime_spine_status;
+pub use runtime_spine::runtime_worker_launch_request;
 pub use runtime_spine::write_runtime_hello_frame;
 pub use runtime_spine::write_runtime_schema_catalog_json;
 pub use soul_gateway::*;

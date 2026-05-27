@@ -963,6 +963,20 @@ pub fn runtime_job_snapshot(
     Ok(Some(EpiphanyRuntimeJobSnapshot { job, result }))
 }
 
+pub fn runtime_worker_launch_request(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+) -> Result<Option<EpiphanyRuntimeWorkerLaunchRequest>> {
+    validate_non_empty(job_id, "worker launch request job id")?;
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(None);
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<EpiphanyRuntimeWorkerLaunchRequest>(job_id)
+}
+
 pub fn put_runtime_role_worker_result(
     store_path: impl AsRef<Path>,
     result: &EpiphanyRuntimeRoleWorkerResult,

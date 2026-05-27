@@ -7,11 +7,13 @@ use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
+use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
 use epiphany_core::interpret_runtime_reorient_worker_result;
 use epiphany_core::interpret_runtime_role_worker_result;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_reorient_worker_result;
 use epiphany_core::runtime_role_worker_result;
+use epiphany_core::runtime_worker_launch_request;
 use epiphany_state_model::EpiphanyRuntimeLink;
 use epiphany_state_model::EpiphanyThreadState;
 
@@ -267,6 +269,7 @@ pub fn load_completed_core_epiphany_role_finding(
                 snapshot.status
             )));
         }
+        require_launch_organ_contract(runtime_store_path, link.runtime_job_id.as_str(), "role")?;
         return snapshot.finding.ok_or_else(|| {
             EpiphanyBridgeError::InvalidRequest(
                 "cannot accept completed role worker because no typed runtime-spine result was recorded"
@@ -345,6 +348,11 @@ pub fn load_completed_core_epiphany_reorient_finding(
                 snapshot.status
             )));
         }
+        require_launch_organ_contract(
+            runtime_store_path,
+            link.runtime_job_id.as_str(),
+            "reorient",
+        )?;
         return snapshot.finding.ok_or_else(|| {
             EpiphanyBridgeError::InvalidRequest(
                 "cannot accept completed reorientation worker because no typed runtime-spine result was recorded"
@@ -368,6 +376,54 @@ pub fn load_completed_core_epiphany_reorient_finding(
         "reorientation findings without runtime-spine results are unsupported; accept only typed runtime-spine results"
             .to_string(),
     ))
+}
+
+fn require_launch_organ_contract(
+    runtime_store_path: &Path,
+    job_id: &str,
+    expected_document_kind: &str,
+) -> BridgeResult<()> {
+    let request = runtime_worker_launch_request(runtime_store_path, job_id).map_err(|err| {
+        EpiphanyBridgeError::Fatal(format!(
+            "failed to read worker launch request for runtime job {:?}: {err}",
+            job_id
+        ))
+    })?;
+    let request = request.ok_or_else(|| {
+        EpiphanyBridgeError::InvalidRequest(format!(
+            "cannot accept runtime job {:?} without its typed worker launch request",
+            job_id
+        ))
+    })?;
+    if request.document_kind != expected_document_kind {
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
+            "cannot accept runtime job {:?}: launch document kind {:?} does not match expected {:?}",
+            job_id, request.document_kind, expected_document_kind
+        )));
+    }
+    if request.organ_launch_contract.dependencies.is_empty()
+        || request
+            .organ_launch_contract
+            .required_receipt_document_types
+            .is_empty()
+    {
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
+            "cannot accept runtime job {:?}: worker launch request has no organ dependency/receipt contract",
+            job_id
+        )));
+    }
+    if !request
+        .organ_launch_contract
+        .required_receipt_document_types
+        .iter()
+        .any(|document_type| document_type == MIND_GATEWAY_REVIEW_TYPE)
+    {
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
+            "cannot accept runtime job {:?}: worker launch contract does not require Mind review",
+            job_id
+        )));
+    }
+    Ok(())
 }
 
 pub fn latest_epiphany_runtime_link_for_binding<'a>(

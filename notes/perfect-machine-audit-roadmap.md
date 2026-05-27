@@ -125,9 +125,11 @@ policy documents for each. The first executable pressure slice is landed:
 worker launch packets now carry an `EpiphanyLaunchOrganContract` derived from
 authority scope, launch document kind, and output contract id. That contract
 carries the full standing organ dependency matrix plus required Mind, Body,
-Eyes, Hands, Soul, and Life receipt document types. Remaining weakness: the
-receipts are now launch-carried expectations, but most gates still need
-runtime enforcement that proves the receipt chain before state/action
+Eyes, Hands, Soul, and Life receipt document types. Role/reorient acceptance
+now refuses completed runtime-spine findings if the original launch request is
+missing, document-kind mismatched, or lacks a dependency/receipt contract that
+requires Mind review. Remaining weakness: most organ receipts are still
+launch-carried expectations, not enforced proof chains before state/action
 promotion.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
@@ -302,8 +304,12 @@ comfort tunnels.
 - Landed: role, generic, and reorient worker launch packets declare authority
   scope, launch document kind, output contract id, owner organ, full organ
   dependency matrix, and required Body/Eyes/Hands/Soul/Life/Mind receipts.
-- Make acceptance refuse results missing required receipts for their claimed
-  effect type.
+- Landed: role/reorient acceptance refuses completed runtime-spine findings
+  when the original worker launch request is missing, mismatched by document
+  kind, or lacks a dependency/receipt contract requiring Mind review.
+- Next: make acceptance refuse results missing required Body/Eyes/Hands/Soul/Life
+  receipts for their claimed effect type once those receipt documents are
+  produced by the live runtime.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and
