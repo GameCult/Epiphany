@@ -5,9 +5,8 @@ This is the new foundation directive.
 The previous control-plane rebuild made Epiphany cleaner inside Codex. That was
 useful, but it is no longer the target. The target is not a better parasite
 inside the Codex organ. The target is Epiphany as its own CultCache/CultNet
-machine, with Codex reduced to the smallest honest OpenAI subscription
-compatibility reliquary that can authenticate and call models as a modified
-Codex-derived client.
+machine, with a relatively vanilla vendored Codex retained as the bridge to
+OpenAI and Codex-native runtime affordances.
 
 No outward product, bridge, Aquarium, Face, dogfood, Unity, Rider, planning, or
 personality work outranks this liberation pass unless the user explicitly
@@ -21,8 +20,9 @@ Free Epiphany from heretek contamination:
 - subsystem communication is CultNet typed messages and mutation contracts
 - JSON exists only as schema description, wire compatibility at hostile edges,
   or explicitly quarantined forensic/import material
-- vendored Codex stops being a host brain and becomes an honest OpenAI
-  auth/model-call compatibility organ
+- vendored Codex stops being an Epiphany host brain and remains a relatively
+  vanilla Codex bridge for OpenAI auth/model calls and useful Codex-native
+  app-server/runtime affordances
 
 ## Current Mechanism
 
@@ -45,7 +45,9 @@ host:
   from Codex protocol/app-server shapes instead of sitting behind a native
   CultNet service boundary.
 
-This is cleaner than the earlier Jenga pile. It is still the wrong organ.
+This is cleaner than the earlier Jenga pile. It is still the wrong ownership
+shape while Codex-specific routes, prompt machinery, or lifecycle decisions can
+tell Epiphany agents what to do.
 
 ## Invariants
 
@@ -59,29 +61,41 @@ This is cleaner than the earlier Jenga pile. It is still the wrong organ.
   - schema catalog emission
   - sealed forensic artifacts
   - deliberately named quarantine experiments with an expiration path
-- OpenAI subscription compatibility is the only long-term reason to preserve a
-  Codex-derived organ.
+- OpenAI subscription compatibility is the primary long-term reason to preserve
+  a Codex-derived organ, but retaining mostly vanilla Codex app-server/runtime
+  functionality is allowed when it remains Codex's own bridge surface rather
+  than Epiphany's state/process authority.
 - Epiphany must remain Codex-compatible rather than merely Codex-impersonating.
   Do not replace vendored Codex auth semantics with a lookalike implementation
   just because it is technically possible; keep enough Codex-derived auth/model
   machinery that the system is honestly a modified Codex backend, not a fake
   client tunnel.
 - Codex apps, skills, marketplace, broad app-server lifecycle, plugin UX, and
-  JSON-RPC surface sprawl are not Epiphany foundations.
+  JSON-RPC surface sprawl are not Epiphany foundations. If retained, they belong
+  to the Codex bridge organism and must not inject instructions, prompt
+  fragments, routes, scheduling decisions, or policy into Epiphany agents.
+- Epiphany does not need to know Codex internals, and Codex does not need to
+  know Epiphany internals. The bridge owns interop: request/response mapping,
+  auth/model transport, event projection, and any legacy compatibility wrappers.
+- Codex prompt machinery must not become Epiphany prompt authority. Epiphany
+  agents receive Epiphany-owned prompts, state projections, and organ contracts;
+  Codex may transport or stream the turn, but it must not decide the agent's
+  doctrine, role, scheduler instructions, or state mutation law.
 - MCP support may survive, but as a separate CultNet-speaking adapter, not as a
   reason to preserve the Codex app-server brain.
 
 ## Essential Machinery
 
-Keep or extract:
+Keep or bridge:
 
 - OpenAI authentication/session compatibility needed for the user's Codex
   subscription; this should remain anchored in Codex-derived auth machinery
   unless the user obtains explicit permission or a public first-party API path
   makes that unnecessary
 - model request/response transport required to use that auth
-- any model/tool streaming primitives that are truly cheaper to extract than
-  rewrite
+- useful Codex app-server/runtime affordances, including experimental streaming
+  APIs, when they stay on the Codex side of the bridge and do not own Epiphany
+  state, processes, prompts, or decisions
 - typed Epiphany domain state, runtime-spine, heartbeat, role memory, evidence,
   planning, graph, checkpoint, and acceptance documents
 - CultCache document storage and CultNet mutation/read contracts
@@ -109,23 +123,25 @@ Cut, replace, or quarantine:
 Epiphany native runtime
 -> typed CultCache documents
 -> CultNet read / mutation / event contracts
--> OpenAI subscription auth adapter
--> OpenAI model transport
+-> Epiphany/Codex bridge
+-> relatively vanilla vendored Codex
+-> OpenAI auth/model transport and Codex-native app-server affordances
 ```
 
-Codex becomes:
+Codex remains:
 
 ```text
-OpenAIAuthAdapter
-OpenAIModelTransport
-LegacyCodexImportBridge, only if needed
+VanillaCodexBridgeRuntime
+OpenAIAuthAndModelTransport
+CodexAppServerAffordances, where useful
 ```
 
-The adapter may know how to refresh credentials and submit model calls. It
-should preserve Codex-compatible identity and auth semantics rather than
-pretending to be official Codex from a clean-room clone. It must not own
-Epiphany state, scheduling, view derivation, worker lifecycle, operator APIs,
-plugin UX, app discovery, marketplace state, or document truth.
+The bridge may know how to refresh credentials, submit model calls, stream
+events, and expose useful Codex app-server behavior. It should preserve
+Codex-compatible identity and auth semantics rather than pretending to be
+official Codex from a clean-room clone. It must not own Epiphany state,
+scheduling, view derivation, worker lifecycle, operator APIs, plugin UX, app
+discovery, marketplace state, prompt doctrine, or document truth.
 
 ## Ranked Liberation Plan
 
@@ -171,7 +187,8 @@ Define an Epiphany-native runtime crate/binary boundary that can:
 - advertise CultNet schema and mutation contracts
 - route typed intents to runtime-spine, heartbeat, memory, planning, graph,
   evidence, checkpoint, retrieval, and coordinator organs
-- call the OpenAI adapter for model turns
+- call the Epiphany/Codex bridge for model turns and streaming without importing
+  Codex prompt or state authority
 
 Success: a minimal native runtime can serve/read a typed status document
 without `codex_message_processor.rs`.
@@ -203,11 +220,13 @@ Move operator reads/actions from `thread/epiphany/*` to CultNet contracts:
 - checkpoint/CRRC/coordinator actions
 - role memory and heartbeat actions
 
-Old JSON-RPC endpoints become compatibility wrappers only while named consumers
-still need them.
+Old JSON-RPC endpoints become bridge compatibility wrappers only while named
+consumers still need them. Their survival is acceptable only if Epiphany's
+native CultCache/CultNet surfaces remain authoritative.
 
-Success: Aquarium and CLI status can operate through CultNet without the Codex
-app-server.
+Success: Aquarium and CLI status can operate through CultNet without requiring
+Codex to know Epiphany internals, even if the Codex app-server still exists for
+Codex-native bridge functions.
 
 ### 6. Split MCP From Codex
 

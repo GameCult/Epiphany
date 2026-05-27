@@ -34,7 +34,7 @@ remembers doctrine; the branch remembers the blade.
 
 - Do not copy exact branch or HEAD from this note. Run `git status --short --branch` and `git log --oneline -5`.
 - The repo now has a one-command local operator path: `.\tools\epiphany_local_run.ps1`. Default mode is `smoke`; it builds the retained Codex app-server compatibility edge, builds native Epiphany operator binaries, runs the coordinator smoke, and writes launcher artifacts under `.epiphany-run/` plus coordinator artifacts under `.epiphany-dogfood/`. Use `-Mode status`, `-Mode plan`, or `-Mode run -MaxSteps 4` for the other current entrypoints; add `-ThreadId <id>` and `-Workspace <path>` to inspect or continue an existing thread. `status`, `plan`, and `smoke` do not spend model calls; `run` builds and uses `epiphany-openai-runtime`.
-- The active foundation directive is now `notes/codex-starvation-and-cultnet-liberation-plan.md`. The previous Codex app-server control-plane rebuild made Epiphany less rotten inside Codex, but that is not the destination. Epiphany must become a native CultCache/CultNet runtime while remaining an honest modified Codex-derived backend for subscription auth/model use. Codex is a compatibility reliquary for OpenAI subscription auth and model transport, not the host brain and not a mask for impersonation.
+- The active foundation directive is now `notes/codex-starvation-and-cultnet-liberation-plan.md`. The previous Codex app-server control-plane rebuild made Epiphany less rotten inside Codex, but that is not the destination. Epiphany must become a native CultCache/CultMesh/CultNet runtime while remaining an honest modified Codex-derived backend for subscription auth/model use. Codex should remain relatively vanilla and keep doing Codex things, including useful app-server and streaming bridge affordances, but it must not own Epiphany state, processes, prompts, scheduler decisions, or policy. The bridge handles interop; Codex and Epiphany do not get to rummage around in each other's organs.
 - `notes/epiphany-cultmesh-dreaming-roadmap.md` is the new concrete design for distributed Epiphany dreaming. The invariant is hard: private state stays local; public dreams are separately authored typed documents distributed through CultMesh/CultNet; foreign dreams are thought weather until a reviewed local adoption receipt digests them. The first code slice should be dream schemas plus a local CultMesh-backed store, not public fanout.
 - CultMesh is now the preferred Rust abstraction for that local store work. The compile-time Rust substrate is repo-contained: `vendor/cultcache-rs`, `vendor/cultnet-rs`, and `vendor/cultmesh-rs`. The old `E:\Projects\CultLib\crates\*` dependency body is dead in this checkout and must not be revived by accident. Vendored CultCache reads/writes `cultcache.store.v1`, so `state/ledgers.msgpack` and `epiphany-state status` are aligned again. The first integration is deliberately small: `EpiphanyCultMeshStatusEntry`, `EpiphanyCultMeshVersePolicyEntry`, and `EpiphanyCultMeshGlobalRoomPolicyEntry` round-trip through `.epiphany-smoke/cultmesh/epiphany-local.ccmp` using `cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-cultmesh-smoke`. Future local dream/status/Verse work should start from CultMesh, not raw CultNet, unless the task is polishing the CultMesh internals themselves. Preserve the three Verse tiers: `epiphany-internal` for private sub-agent typed state, `gamecult-local` for trusted LAN/Yggdrasil-tunnel GameCult sharing, and `epiphany-global` for untrusted public dreams plus topic-specific threaded public rooms for Face posts.
 - `notes/codex-auth-spine-inventory.md` is the source-grounded keeper list for that reliquary. Corrected compliance invariant: Codex-compatible auth identity stays anchored in vendored Codex-derived auth machinery. `epiphany-openai-auth-spine` is now a thin Epiphany-named boundary over `codex-login`, not a clean-room clone of credential storage or token refresh. Codex apps, skills, marketplace, plugin UX, broad app-server workflow, and JSON-RPC sprawl remain cuttable because they are not subscription-auth legitimacy.
@@ -176,7 +176,7 @@ remembers doctrine; the branch remembers the blade.
 - The planning loop is now runtime-backed and operator-visible. Typed captures, backlog items, roadmap streams, Objective Drafts, and GitHub issue source refs live in `EpiphanyThreadState`, validate through revision-gated `thread/epiphany/update`, render into prompts when present, project read-only through the `planning` view lens, render in the GUI Planning panel, can be synthesized by the fixed Imagination/planning lane, and can be explicitly adopted through the artifacted `adoptObjectiveDraft` GUI action. Chat is deliberation, not an objective pipe; ideas and GitHub Issues remain planning state until explicit human adoption.
 - The bridge/dashboard slice is now landed far enough to test locally. Native `epiphany-rider-bridge` inspects Rider installation, solution, VCS, changed files, and captures file/selection/symbol context into `.epiphany-gui/rider` artifacts; Aquarium has Inspect Rider and renders Rider audit artifacts in Environment; Aquarium also embeds the adjacent EpiphanyGraph viewer over typed `graphs.architecture`, `graphs.dataflow`, and `graphs.links`.
 - A first Rider plugin scaffold lives under `integrations/rider`: tool window, Refresh status, and Send Context to Epiphany action. It shells through native `epiphany-rider-bridge` and does not own state. `gradle` is not installed on this machine, so the scaffold is not build-verified yet.
-- Next real product move: surface the repo birth runner review flow in Aquarium and then live-dogfood `epiphany-repo-birth-runner --mode run` on a real newborn repo. Continue Aquarium UI work in `E:\Projects\EpiphanyAquarium` after that; surface native heartbeat `sleepCycle`, `memoryResonance`, `incubation`, `thoughtLanes`, `bridge`, `candidateInterventions`, `appraisals`, and `reactions`; keep EpiphanyAgent focused on backend contracts, typed state, coordinator policy, bridge tools, heartbeat scheduling, Face guardrails, and the ongoing purification from Python/JSON scaffolding into Rust/CultCache/CultNet organs. Then build-verify/package the Rider plugin scaffold when Gradle/wrapper support is available, install the Aetheria-pinned Unity `6000.1.10f1` editor, and run the next Aetheria dogfood pass through Aquarium/Rider/Unity bridge artifacts. GitHub Issues import is deferred until the backlog source is fresh enough to deserve Imagination's attention.
+- Next real move: continue Codex starvation and native Epiphany ownership. Quarantine Rider/Unity bridge work for now; those artifacts remain optional later environment evidence, not MVP blockers. Keep EpiphanyAgent focused on backend contracts, typed state, coordinator policy, heartbeat scheduling, Face guardrails, prompt-authority separation, and the ongoing purification from Python/JSON scaffolding into Rust/CultCache/CultMesh/CultNet organs. Resume repo birth/Aquarium/Rider/Unity work only when the user explicitly shifts priority back outward. GitHub Issues import is deferred until the backlog source is fresh enough to deserve Imagination's attention.
 - The repo is an Epiphany fork of Codex, not a Codex preset.
 - `vendor/codex` is tracked directly, not a submodule.
 - `epiphany-core` owns the heavy Epiphany organs where practical.
@@ -1309,42 +1309,17 @@ bounded browser-fallback controls. A live bridge probe also proved
 `prepareCheckpoint` creates a resumable thread and a later process can
 `readModelingResult` from it.
 
-The next real move is still bridge construction, not another Aetheria
-implementation dogfood run. The pinned Unity bridge is landed, the clean
-Aetheria branch `codex/epiphany-unity-editor-bridge` now contains the resident
-`Assets/Editor/Epiphany/EpiphanyEditorBridge.cs` package, and
-native `epiphany-unity-bridge` can detect that package and plan named
-editor-resident probes/tests through
-`GameCult.Epiphany.Unity.EpiphanyEditorBridge.RunProbe`. The GUI Environment
-panel now shows the latest Unity runtime audit, resident package presence,
-execute method, installed/candidate editor paths, search roots, and artifact
-bundle details. Rider bridge status now exists too: the GUI can inspect Rider
-installation, solution, VCS branch/dirty state, changed files, installations,
-and source-context artifacts through native `epiphany-rider-bridge`. Runtime
-execution still correctly blocks until Unity `6000.1.10f1` is installed. The
-detailed next-environment plan now lives in
-`notes/epiphany-rider-unity-integration-plan.md`: Rider is the
-IDE/source-context organ, Unity is the editor/runtime fact organ, and Epiphany
-remains the durable coordinator/Self. The intended product workflow is
-three-pronged: Rider is the human code view for repo state, source tree, diffs,
-diagnostics, and code refs; Epiphany GUI is the agent dashboard for objectives,
-specialist lane state, logs/artifacts, persisted state, and graph/control-flow
-views; Unity is the pinned runtime environment for tests, probes, scene
-configuration, assets, shaders, and play/edit-mode evidence. The EpiphanyGraph
-GUI dashboard and Rider bridge CLI are now landed, and the Rider plugin MVP is
-source-scaffolded but not build-verified because Gradle is not on PATH. The
-Unity package is not optional decoration: scene files, prefabs,
-materials, shaders, ScriptableObjects, asset GUIDs, and prefab overrides must be
-inspected from inside the Unity Editor through Unity APIs, not inferred from
-serialized text unless there is no editor-level path. The adjacent
-`E:\Projects\EpiphanyGraph\web\epiphany-graph-viewer` component consumes
-`graphs.architecture`, `graphs.dataflow`, and `graphs.links` directly and is
-now embedded in the GUI graph dashboard. The next Aetheria dogfood pass should
-happen only after the pinned Unity editor is installed and Epiphany can gather
-Rider/source context plus Unity/editor runtime evidence through auditable
-bridges. The implementation
-lane may inspect source and may use bridge artifacts as evidence, but it must
-not launch Unity directly or use installed `6000.4.2f1` as a substitute. Read
+Rider/Unity bridge construction is now quarantined rather than the next real
+move. The pinned Unity bridge, Aetheria-side resident package, GUI Environment
+surface, EpiphanyGraph dashboard, Rider bridge CLI, and unverified Rider plugin
+scaffold remain useful later engine-repo evidence surfaces, but they are not
+essential to the MVP. The next real move is Codex starvation: keep Codex mostly
+vanilla as the OpenAI/app-server bridge while Epiphany owns its state,
+processes, prompt authority, scheduler, and policy through typed
+CultCache/CultMesh/CultNet organs. When engine dogfood resumes, the
+implementation lane may inspect source and may use bridge artifacts as
+evidence, but it must not launch Unity directly or use installed `6000.4.2f1`
+as a substitute. Read
 only operator-safe projections; do not open raw worker
 transcripts, direct worker messages, or `rawResult` payloads unless the user
 explicitly asks for forensic debugging. Use generated function/API telemetry

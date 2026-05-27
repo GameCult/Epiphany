@@ -101,15 +101,18 @@ in `notes/codex-starvation-and-cultnet-liberation-plan.md`. The May 2026
 control-plane rebuild made the app-server Epiphany seam cleaner, but the user's
 current doctrine is stricter: a cleaner Codex host is still the wrong organ.
 Epiphany data must live as typed CultCache documents, Epiphany-owned
-subsystems must communicate through CultNet contracts, and vendored Codex must
-shrink to the minimum OpenAI subscription auth/model-transport adapter.
+subsystems must communicate through CultNet contracts, and vendored Codex should
+remain relatively vanilla bridge machinery for OpenAI auth/model transport and
+useful Codex-native app-server/runtime affordances.
 
 The older teardown/rebuild pair remains useful source history:
 `notes/epiphany-architectural-teardown.md` names the host-seam rot, and
 `notes/epiphany-ideal-architecture-rebuild-plan.md` records the completed
 cleanup inside Codex. They no longer authorize outward product work while
-Epiphany still depends on Codex app-server, apps, skills, marketplace, or
-generic JSON cargo as internal machinery.
+Epiphany still depends on Codex app-server routes, Codex prompt injection, apps,
+skills, marketplace, or generic JSON cargo as internal Epiphany machinery.
+Retained Codex app-server behavior is acceptable only as Codex-side bridge
+functionality, not as an Epiphany state/process/prompt owner.
 
 ## Boundary Rules
 
@@ -123,9 +126,15 @@ These boundaries are more important than the individual method names:
   immediate typed parsing, sealed forensic artifacts, or named quarantine
   experiments with an expiration path. Generic `serde_json::Value` must not be
   passed between Epiphany-owned organs as runtime data.
-- Codex is a vestigial compatibility organ for OpenAI subscription auth and
-  model transport. Codex apps, skills, marketplace, app-server lifecycle, and
-  plugin UX are not Epiphany foundations.
+- Codex is a relatively vanilla bridge organ for OpenAI subscription auth,
+  model transport, streaming, and useful Codex-native app-server affordances.
+  Codex apps, skills, marketplace, app-server lifecycle, and plugin UX are not
+  Epiphany foundations unless explicitly exposed through bridge contracts.
+- Epiphany does not need to know Codex internals, and Codex does not need to
+  know Epiphany internals. The bridge handles interop.
+- Codex prompt machinery must not tell Epiphany agents what to do. Epiphany
+  prompts, typed state projections, organ contracts, scheduler decisions, and
+  mutation law are Epiphany-owned; Codex may transport and stream turns.
 - MCP may survive only as a separate CultNet-speaking adapter; it does not
   justify preserving the Codex host brain.
 - `thread/epiphany/retrieve` is read-only.
@@ -154,7 +163,11 @@ These boundaries are more important than the individual method names:
 - `thread/epiphany/roleResult` is a read-only result projection, not a promotion gate, state writer, scheduler, or hidden continuation trigger.
 - `thread/epiphany/roleAccept` is a narrow modeling/checkpoint acceptance write, not automatic specialist promotion, a verifier substitute, a broad state editor, or permission for workers to accept their own output.
 - The GUI may render and steer typed state, but it must not manufacture canonical understanding.
-- The Unity bridge may inspect and run only the project-pinned editor through explicit bridge commands; agents must not launch PATH/default/legacy Unity directly or substitute nearby Hub versions.
+- Rider and Unity bridge work is quarantined for now. The landed bridges remain
+  optional later engine-repo evidence surfaces, not MVP blockers or current
+  product priority. When resumed, the Unity bridge may inspect and run only the
+  project-pinned editor through explicit bridge commands; agents must not launch
+  PATH/default/legacy Unity directly or substitute nearby Hub versions.
 - The MVP GUI target is a local Tauri v2 + React operator app over the existing app-server APIs. Tauri owns windowing and local lifecycle; app-server and typed Epiphany state remain authoritative.
 - The app-server remains a host seam; Epiphany-owned machinery should live in `epiphany-core` where practical.
 - Qdrant is the preferred persistent semantic backend; BM25 remains the bootstrap/fallback/control path.
@@ -194,7 +207,9 @@ and notify typed state. It can.
 The active priority is now the Codex starvation plan:
 `notes/codex-starvation-and-cultnet-liberation-plan.md`. Do not add outward
 feature surfaces until the auth/model spine and JSON contamination inventories
-exist and the first typed-document replacement cut is underway.
+exist and the first typed-document replacement cut is underway. The target is
+not to delete useful vanilla Codex app-server behavior for its own sake; it is
+to prevent Codex from owning Epiphany state, processes, prompts, or policy.
 
 The distributed dreaming direction is now concrete in
 `notes/epiphany-cultmesh-dreaming-roadmap.md`. It is not a license to add a
@@ -208,7 +223,8 @@ fanout.
 The next unknowns are:
 
 - what exact vendored Codex crates, files, config, and runtime paths are needed
-  solely for OpenAI subscription auth and model transport
+  for OpenAI subscription auth/model transport and useful vanilla Codex
+  app-server/streaming bridge affordances
 - which Codex dependencies can be deleted, ignored, or sealed because they are
   apps, skills, marketplace, app-server UX, plugin plumbing, or thread
   lifecycle machinery outside the OpenAI auth/model spine
@@ -230,8 +246,12 @@ The next unknowns are:
 - how to expose an `epiphany-local` dream store first, then a public
   `epiphany-dreams` Verse with leases, shard ownership, provenance, and
   anti-repetition cooling
-- what bridge surface is sufficient for the next Aetheria run: named Unity operations, Aetheria-side editor probes, GUI environment status, Rider context capture, and a Rider plugin MVP
-- how much controlled runtime/editor access the richer Unity bridge gives implementation and verification lanes before deeper engine probes need another slice
+- what bridge surface is sufficient for the next Aetheria run, once Rider/Unity
+  quarantine is explicitly lifted: named Unity operations, Aetheria-side editor
+  probes, GUI environment status, Rider context capture, and a Rider plugin MVP
+- how much controlled runtime/editor access the richer Unity bridge gives
+  implementation and verification lanes before deeper engine probes need
+  another slice, once engine bridge work is back in scope
 - how the landed watcher-backed invalidation telemetry should be consumed without turning freshness into a secret worker
 - how far the read-only CRRC recommendation should go before explicit client/operator action takes over
 - how much narrow coordination is needed so modeling, implementation, verification, and CRRC automation can hand off work without collapsing back into one context
