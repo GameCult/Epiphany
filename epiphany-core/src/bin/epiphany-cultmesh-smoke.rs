@@ -3,6 +3,8 @@ use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_TIER;
 use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
 use epiphany_core::EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION;
 use epiphany_core::EpiphanyCultMeshStatusEntry;
+use epiphany_core::default_epiphany_cultmesh_operator_status;
+use epiphany_core::load_epiphany_cultmesh_operator_status;
 use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::write_epiphany_cultmesh_body_contracts;
 use epiphany_core::write_epiphany_cultmesh_eyes_contracts;
@@ -10,6 +12,7 @@ use epiphany_core::write_epiphany_cultmesh_global_room_policies;
 use epiphany_core::write_epiphany_cultmesh_hands_contracts;
 use epiphany_core::write_epiphany_cultmesh_life_contracts;
 use epiphany_core::write_epiphany_cultmesh_mind_contracts;
+use epiphany_core::write_epiphany_cultmesh_operator_status;
 use epiphany_core::write_epiphany_cultmesh_soul_contracts;
 use epiphany_core::write_epiphany_cultmesh_status;
 use epiphany_core::write_epiphany_cultmesh_verse_policies;
@@ -39,9 +42,19 @@ fn main() -> Result<()> {
     write_epiphany_cultmesh_hands_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_soul_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_life_contracts(&store, "epiphany-cultmesh-smoke")?;
+    let operator_status = default_epiphany_cultmesh_operator_status(
+        "epiphany-cultmesh-smoke",
+        "2026-05-27T00:00:00Z",
+    );
+    write_epiphany_cultmesh_operator_status(&store, operator_status.clone())?;
     let loaded = load_epiphany_cultmesh_status(&store, "epiphany-cultmesh-smoke")?;
     if loaded != Some(status) {
         anyhow::bail!("CultMesh smoke failed to round-trip Epiphany status document");
+    }
+    let loaded_operator_status =
+        load_epiphany_cultmesh_operator_status(&store, "epiphany-cultmesh-smoke")?;
+    if loaded_operator_status != Some(operator_status) {
+        anyhow::bail!("CultMesh smoke failed to round-trip Epiphany operator status document");
     }
 
     println!(

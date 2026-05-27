@@ -189,6 +189,17 @@
       "path": "epiphany.memory-graph.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-status.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.cultmesh.operator_status.v0",
+      "documentType": "epiphany.cultmesh.operator_status",
+      "title": "Epiphany CultMesh Operator Status",
+      "path": "epiphany.cultmesh.operator-status.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.scene.schema.json",
       "kind": "document_payload",
       "wireContracts": [
@@ -374,28 +385,6 @@
       "documentType": "epiphany.surface.repo_birth_runner",
       "title": "Epiphany repo-birth-runner",
       "path": "epiphany.surface.repo-birth-runner.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.rider-bridge.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.rider_bridge_surface.v0",
-      "documentType": "epiphany.surface.rider_bridge",
-      "title": "Epiphany rider-bridge",
-      "path": "epiphany.surface.rider-bridge.schema.json"
-    },
-    {
-      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.unity-bridge.schema.json",
-      "kind": "document_payload",
-      "wireContracts": [
-        "cultnet.schema.v0"
-      ],
-      "schemaVersion": "epiphany.unity_bridge_surface.v0",
-      "documentType": "epiphany.surface.unity_bridge",
-      "title": "Epiphany unity-bridge",
-      "path": "epiphany.surface.unity-bridge.schema.json"
     },
     {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.runtime.session_intent.v0.schema.json",

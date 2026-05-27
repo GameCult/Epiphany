@@ -12,6 +12,8 @@ use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_TYPE;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_TYPE;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_TYPE;
 use crate::eyes_gateway::EYES_EVIDENCE_REFUSAL_RECEIPT_SCHEMA_VERSION;
@@ -107,8 +109,6 @@ pub const SURFACE_FACE_TYPE: &str = "epiphany.surface.face";
 pub const SURFACE_VOID_MEMORY_TYPE: &str = "epiphany.surface.void_memory";
 pub const SURFACE_REPO_INITIALIZATION_TYPE: &str = "epiphany.surface.repo_initialization";
 pub const SURFACE_REPO_BIRTH_RUNNER_TYPE: &str = "epiphany.surface.repo_birth_runner";
-pub const SURFACE_RIDER_BRIDGE_TYPE: &str = "epiphany.surface.rider_bridge";
-pub const SURFACE_UNITY_BRIDGE_TYPE: &str = "epiphany.surface.unity_bridge";
 pub const RUNTIME_IDENTITY_KEY: &str = "self";
 pub const RUNTIME_SPINE_SCHEMA_VERSION: &str = "epiphany.runtime_spine.v0";
 pub const RUNTIME_WORKER_LAUNCH_REQUEST_SCHEMA_VERSION: &str =
@@ -139,8 +139,6 @@ pub const VOID_MEMORY_SURFACE_SCHEMA_VERSION: &str = "epiphany.void_memory_surfa
 pub const REPO_INITIALIZATION_SURFACE_SCHEMA_VERSION: &str =
     "epiphany.repo_initialization_surface.v0";
 pub const REPO_BIRTH_RUNNER_SURFACE_SCHEMA_VERSION: &str = "epiphany.repo_birth_runner_surface.v0";
-pub const RIDER_BRIDGE_SURFACE_SCHEMA_VERSION: &str = "epiphany.rider_bridge_surface.v0";
-pub const UNITY_BRIDGE_SURFACE_SCHEMA_VERSION: &str = "epiphany.unity_bridge_surface.v0";
 pub const AGENT_MEMORY_PAYLOAD_SCHEMA_VERSION: &str = "epiphany.agent_memory.v0";
 pub const CULTNET_SCHEMA_INDEX_RELATIVE: &str = "schemas/cultnet/index.json";
 
@@ -2138,6 +2136,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "The unified memory graph is typed durable state; Qdrant embeddings are rebuildable cache, not canonical memory.",
             ],
         ),
+        mutation_contract(
+            EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE,
+            EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Native operator status is a CultMesh document; Codex app-server status is bridge/display compatibility.",
+                "This surface names the Codex bridge role, Epiphany authority role, prompt-authority boundary, and quarantined optional bridges.",
+            ],
+        ),
         read_only_surface_contract(
             SURFACE_SCENE_TYPE,
             SCENE_SURFACE_SCHEMA_VERSION,
@@ -2320,35 +2330,6 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![
                 "Startup-only birth runner plan/run affordances are projected from typed birth-runner receipts.",
                 "Aquarium should review birth artifacts and accept them explicitly instead of growing a hidden wizard.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_RIDER_BRIDGE_TYPE,
-            RIDER_BRIDGE_SURFACE_SCHEMA_VERSION,
-            vec![
-                "epiphany.rider_status_intent.v0",
-                "epiphany.rider_context_intent.v0",
-                "epiphany.rider_open_ref_intent.v0",
-            ],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Rider bridge affordances are projected from typed Rider bridge artifacts.",
-                "Use this surface for source/IDE inspection instead of scraping local artifacts by convention.",
-            ],
-        ),
-        coordinator_surface_contract(
-            SURFACE_UNITY_BRIDGE_TYPE,
-            UNITY_BRIDGE_SURFACE_SCHEMA_VERSION,
-            vec![
-                "epiphany.unity_inspect_intent.v0",
-                "epiphany.unity_probe_intent.v0",
-                "epiphany.unity_check_compilation_intent.v0",
-                "epiphany.unity_run_tests_intent.v0",
-            ],
-            vec!["epiphany.swarm_control_receipt.v0"],
-            vec![
-                "Unity bridge affordances are projected from typed Unity bridge artifacts.",
-                "Runtime/editor truth must come through the pinned bridge and its receipts, not wishful source reading.",
             ],
         ),
     ]
@@ -2910,17 +2891,35 @@ mod tests {
                             .iter()
                             .any(|item| item == "epiphany.face_bubble.v0"))
                 );
-                let unity_contract = contracts
+                let operator_status_contract = contracts
                     .iter()
-                    .find(|contract| contract.document_type == SURFACE_UNITY_BRIDGE_TYPE)
-                    .expect("unity bridge surface should advertise an interactive contract");
+                    .find(|contract| {
+                        contract.document_type == EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE
+                    })
+                    .expect("operator status should advertise a read-only CultMesh document");
+                assert_eq!(
+                    operator_status_contract.authority,
+                    CultNetMutationAuthority::ReadOnly
+                );
                 assert!(
-                    unity_contract
-                        .intent_document_types
+                    operator_status_contract
+                        .notes
                         .as_ref()
-                        .is_some_and(|items| items
-                            .iter()
-                            .any(|item| item == "epiphany.unity_probe_intent.v0"))
+                        .is_some_and(|notes| {
+                            notes
+                                .iter()
+                                .any(|note| note.contains("Codex app-server status is bridge"))
+                        })
+                );
+                assert!(
+                    contracts
+                        .iter()
+                        .all(|contract| contract.document_type != "epiphany.surface.rider_bridge")
+                );
+                assert!(
+                    contracts
+                        .iter()
+                        .all(|contract| contract.document_type != "epiphany.surface.unity_bridge")
                 );
                 let birth_contract = contracts
                     .iter()
@@ -3044,6 +3043,23 @@ mod tests {
             schema.document_type.as_deref() == Some(THREAD_STATE_TYPE)
                 && schema.schema_version.as_deref() == Some(THREAD_STATE_SCHEMA_VERSION)
         }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE)
+                && schema.schema_version.as_deref()
+                    == Some(EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION)
+        }));
+        assert!(
+            !schemas.iter().any(|schema| {
+                schema.document_type.as_deref() == Some("epiphany.surface.rider_bridge")
+            }),
+            "Rider bridge schema is quarantined and should not be advertised in the active catalog"
+        );
+        assert!(
+            !schemas.iter().any(|schema| {
+                schema.document_type.as_deref() == Some("epiphany.surface.unity_bridge")
+            }),
+            "Unity bridge schema is quarantined and should not be advertised in the active catalog"
+        );
         Ok(())
     }
 }
