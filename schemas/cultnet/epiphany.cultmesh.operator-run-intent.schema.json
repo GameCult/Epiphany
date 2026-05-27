@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-run-intent.schema.json",
+  "title": "Epiphany CultMesh Operator Run Intent",
+  "description": "CultCache tuple recording an explicit local operator-run request before the compatibility wrapper acts.",
+  "type": "array",
+  "minItems": 17,
+  "maxItems": 17,
+  "items": [
+    { "title": "schemaVersion", "type": "string", "const": "epiphany.cultmesh.operator_run_intent.v0" },
+    { "title": "runtimeId", "type": "string" },
+    { "title": "verseId", "type": "string" },
+    { "title": "runId", "type": "string" },
+    { "title": "requestedAtUtc", "type": "string" },
+    { "title": "mode", "type": "string" },
+    { "title": "root", "type": "string" },
+    { "title": "workspace", "type": "string" },
+    { "title": "threadId", "type": "string" },
+    { "title": "codexHome", "type": "string" },
+    { "title": "targetDir", "type": "string" },
+    { "title": "maxSteps", "type": "integer", "minimum": 0 },
+    { "title": "timeoutSeconds", "type": "integer", "minimum": 0 },
+    { "title": "autoReview", "type": "boolean" },
+    { "title": "noEphemeral", "type": "boolean" },
+    { "title": "artifactRoot", "type": "string" },
+    { "title": "dogfoodRoot", "type": "string" }
+  ]
+}

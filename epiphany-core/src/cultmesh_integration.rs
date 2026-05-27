@@ -26,6 +26,18 @@ pub const EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.operator_snapshot.v0";
 pub const EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY: &str =
     "epiphany-local/operator-snapshot/latest";
+pub const EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE: &str =
+    "epiphany.cultmesh.operator_run_intent";
+pub const EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.operator_run_intent.v0";
+pub const EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY: &str =
+    "epiphany-local/operator-run-intent/latest";
+pub const EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE: &str =
+    "epiphany.cultmesh.operator_run_receipt";
+pub const EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.operator_run_receipt.v0";
+pub const EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY: &str =
+    "epiphany-local/operator-run-receipt/latest";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_TYPE: &str = "epiphany.cultmesh.verse_policy";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultmesh.verse_policy.v0";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
@@ -149,6 +161,84 @@ pub struct EpiphanyCultMeshOperatorSnapshotEntry {
     #[cultcache(key = 16)]
     pub available_actions: Vec<String>,
     #[cultcache(key = 17)]
+    pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.operator_run_intent",
+    schema = "EpiphanyCultMeshOperatorRunIntentEntry"
+)]
+pub struct EpiphanyCultMeshOperatorRunIntentEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub run_id: String,
+    #[cultcache(key = 4)]
+    pub requested_at_utc: String,
+    #[cultcache(key = 5)]
+    pub mode: String,
+    #[cultcache(key = 6)]
+    pub root: String,
+    #[cultcache(key = 7)]
+    pub workspace: String,
+    #[cultcache(key = 8)]
+    pub thread_id: String,
+    #[cultcache(key = 9)]
+    pub codex_home: String,
+    #[cultcache(key = 10)]
+    pub target_dir: String,
+    #[cultcache(key = 11)]
+    pub max_steps: u32,
+    #[cultcache(key = 12)]
+    pub timeout_seconds: u32,
+    #[cultcache(key = 13)]
+    pub auto_review: bool,
+    #[cultcache(key = 14)]
+    pub no_ephemeral: bool,
+    #[cultcache(key = 15)]
+    pub artifact_root: String,
+    #[cultcache(key = 16)]
+    pub dogfood_root: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.operator_run_receipt",
+    schema = "EpiphanyCultMeshOperatorRunReceiptEntry"
+)]
+pub struct EpiphanyCultMeshOperatorRunReceiptEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub run_id: String,
+    #[cultcache(key = 4)]
+    pub completed_at_utc: String,
+    #[cultcache(key = 5)]
+    pub mode: String,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub result_path: String,
+    #[cultcache(key = 8)]
+    pub artifact_root: String,
+    #[cultcache(key = 9)]
+    pub dogfood_root: String,
+    #[cultcache(key = 10)]
+    pub operator_snapshot_store: String,
+    #[cultcache(key = 11)]
+    pub operator_snapshot_id: String,
+    #[cultcache(key = 12)]
+    pub artifact_refs: Vec<String>,
+    #[cultcache(key = 13)]
     pub notes: Vec<String>,
 }
 
@@ -376,6 +466,8 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshStatusEntry => EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorStatusEntry => EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorSnapshotEntry => EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
+    EpiphanyCultMeshOperatorRunIntentEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION,
+    EpiphanyCultMeshOperatorRunReceiptEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshMindContractEntry => EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION,
@@ -549,8 +641,56 @@ pub fn load_latest_epiphany_cultmesh_operator_snapshot(
     node.get(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY)
 }
 
+pub fn write_epiphany_cultmesh_operator_run_intent(
+    store_path: impl AsRef<Path>,
+    intent: EpiphanyCultMeshOperatorRunIntentEntry,
+) -> Result<EpiphanyCultMeshOperatorRunIntentEntry> {
+    let mut node = open_epiphany_cultmesh_node(&store_path, intent.runtime_id.clone())?;
+    let intent_key = epiphany_cultmesh_operator_run_intent_key(&intent.run_id);
+    let written = node.put(intent_key.as_str(), &intent)?;
+    node.put(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_operator_run_intent(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshOperatorRunIntentEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY)
+}
+
+pub fn write_epiphany_cultmesh_operator_run_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: EpiphanyCultMeshOperatorRunReceiptEntry,
+) -> Result<EpiphanyCultMeshOperatorRunReceiptEntry> {
+    let mut node = open_epiphany_cultmesh_node(&store_path, receipt.runtime_id.clone())?;
+    let receipt_key = epiphany_cultmesh_operator_run_receipt_key(&receipt.run_id);
+    let written = node.put(receipt_key.as_str(), &receipt)?;
+    node.put(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_operator_run_receipt(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshOperatorRunReceiptEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)
+}
+
 fn epiphany_cultmesh_operator_snapshot_key(snapshot_id: &str) -> String {
     format!("epiphany-local/operator-snapshot/{snapshot_id}")
+}
+
+fn epiphany_cultmesh_operator_run_intent_key(run_id: &str) -> String {
+    format!("epiphany-local/operator-run-intent/{run_id}")
+}
+
+fn epiphany_cultmesh_operator_run_receipt_key(run_id: &str) -> String {
+    format!("epiphany-local/operator-run-receipt/{run_id}")
 }
 
 fn pointer_text(value: &Value, pointer: &str, fallback: &str) -> String {
@@ -987,6 +1127,71 @@ mod tests {
         assert!(
             node.documents()
                 .binding(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE)
+                .is_some()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn operator_run_intent_and_receipt_round_trip_as_native_cultmesh_documents() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-operator-run.ccmp");
+        let intent = EpiphanyCultMeshOperatorRunIntentEntry {
+            schema_version: EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION.to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+            run_id: "run-test".to_string(),
+            requested_at_utc: "2026-05-27T00:00:00Z".to_string(),
+            mode: "status".to_string(),
+            root: "E:\\Projects\\EpiphanyAgent".to_string(),
+            workspace: "E:\\Projects\\EpiphanyAgent".to_string(),
+            thread_id: String::new(),
+            codex_home: "C:\\Users\\Meta\\.codex".to_string(),
+            target_dir: "C:\\Users\\Meta\\.cargo-target-codex".to_string(),
+            max_steps: 4,
+            timeout_seconds: 240,
+            auto_review: false,
+            no_ephemeral: false,
+            artifact_root: ".epiphany-run/run-test".to_string(),
+            dogfood_root: ".epiphany-dogfood/run-test".to_string(),
+        };
+        let receipt = EpiphanyCultMeshOperatorRunReceiptEntry {
+            schema_version: EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+            run_id: "run-test".to_string(),
+            completed_at_utc: "2026-05-27T00:00:01Z".to_string(),
+            mode: "status".to_string(),
+            status: "completed".to_string(),
+            result_path: ".epiphany-run/run-test/status.json".to_string(),
+            artifact_root: ".epiphany-run/run-test".to_string(),
+            dogfood_root: ".epiphany-dogfood/run-test".to_string(),
+            operator_snapshot_store: ".epiphany-run/cultmesh/operator-snapshots.ccmp".to_string(),
+            operator_snapshot_id: "run-test-status".to_string(),
+            artifact_refs: vec![".epiphany-run/run-test/status.json".to_string()],
+            notes: vec!["receipt".to_string()],
+        };
+
+        write_epiphany_cultmesh_operator_run_intent(&store, intent.clone())?;
+        write_epiphany_cultmesh_operator_run_receipt(&store, receipt.clone())?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_operator_run_intent(&store, "epiphany-test")?,
+            Some(intent)
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_operator_run_receipt(&store, "epiphany-test")?,
+            Some(receipt)
+        );
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE)
+                .is_some()
+        );
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE)
                 .is_some()
         );
         Ok(())

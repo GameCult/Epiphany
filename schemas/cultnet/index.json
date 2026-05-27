@@ -211,6 +211,28 @@
       "path": "epiphany.cultmesh.operator-snapshot.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-run-intent.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.cultmesh.operator_run_intent.v0",
+      "documentType": "epiphany.cultmesh.operator_run_intent",
+      "title": "Epiphany CultMesh Operator Run Intent",
+      "path": "epiphany.cultmesh.operator-run-intent.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-run-receipt.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.cultmesh.operator_run_receipt.v0",
+      "documentType": "epiphany.cultmesh.operator_run_receipt",
+      "title": "Epiphany CultMesh Operator Run Receipt",
+      "path": "epiphany.cultmesh.operator-run-receipt.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.scene.schema.json",
       "kind": "document_payload",
       "wireContracts": [

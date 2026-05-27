@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-run-receipt.schema.json",
+  "title": "Epiphany CultMesh Operator Run Receipt",
+  "description": "CultCache tuple recording local operator-run completion and the evidence artifacts it produced.",
+  "type": "array",
+  "minItems": 14,
+  "maxItems": 14,
+  "items": [
+    { "title": "schemaVersion", "type": "string", "const": "epiphany.cultmesh.operator_run_receipt.v0" },
+    { "title": "runtimeId", "type": "string" },
+    { "title": "verseId", "type": "string" },
+    { "title": "runId", "type": "string" },
+    { "title": "completedAtUtc", "type": "string" },
+    { "title": "mode", "type": "string" },
+    { "title": "status", "type": "string" },
+    { "title": "resultPath", "type": "string" },
+    { "title": "artifactRoot", "type": "string" },
+    { "title": "dogfoodRoot", "type": "string" },
+    { "title": "operatorSnapshotStore", "type": "string" },
+    { "title": "operatorSnapshotId", "type": "string" },
+    { "title": "artifactRefs", "type": "array", "items": { "type": "string" } },
+    { "title": "notes", "type": "array", "items": { "type": "string" } }
+  ]
+}

@@ -74,11 +74,14 @@ New-Item -ItemType Directory -Force -Path $dogfoodRoot | Out-Null
 
 $codexAppServer = Join-Path $TargetDir "debug\codex-app-server.exe"
 $statusExe = Join-Path $TargetDir "debug\epiphany-mvp-status.exe"
+$operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
 $openaiRuntimeExe = Join-Path $TargetDir "debug\epiphany-openai-runtime.exe"
+$operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
 $operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
+$operatorSnapshotId = "$runId-status"
 
 if (-not $SkipBuild) {
     Invoke-Checked `
@@ -96,6 +99,7 @@ if (-not $SkipBuild) {
             "build",
             "--manifest-path", ".\epiphany-core\Cargo.toml",
             "--bin", "epiphany-mvp-status",
+            "--bin", "epiphany-operator-run",
             "--bin", "epiphany-operator-snapshot",
             "--bin", "epiphany-mvp-coordinator",
             "--bin", "epiphany-mvp-coordinator-smoke",
@@ -118,7 +122,7 @@ if (-not $SkipBuild) {
     }
 }
 
-foreach ($required in @($codexAppServer, $statusExe, $operatorSnapshotExe, $coordinatorExe)) {
+foreach ($required in @($codexAppServer, $statusExe, $operatorRunExe, $operatorSnapshotExe, $coordinatorExe)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "required binary not found: $required"
     }
@@ -130,6 +134,36 @@ if ($NoEphemeral) {
 }
 
 $resultPath = ""
+$autoReviewValue = $AutoReview.IsPresent.ToString().ToLowerInvariant()
+$noEphemeralValue = $NoEphemeral.IsPresent.ToString().ToLowerInvariant()
+$operatorRunIntentArgs = @(
+    "intent",
+    "--store", $operatorRunStore,
+    "--runtime-id", "epiphany-local",
+    "--run-id", $runId,
+    "--mode", $Mode,
+    "--root", $Root,
+    "--workspace", $Workspace,
+    "--codex-home", $CodexHome,
+    "--target-dir", $TargetDir,
+    "--max-steps", "$MaxSteps",
+    "--timeout-seconds", "$TimeoutSeconds",
+    "--auto-review", $autoReviewValue,
+    "--no-ephemeral", $noEphemeralValue,
+    "--artifact-root", $artifactRoot,
+    "--dogfood-root", $dogfoodRoot
+)
+if ($ThreadId -ne "") {
+    $operatorRunIntentArgs += @("--thread-id", $ThreadId)
+}
+
+Invoke-Checked `
+    -Label "write CultMesh operator run intent" `
+    -FilePath $operatorRunExe `
+    -Arguments $operatorRunIntentArgs `
+    -WorkingDirectory $Root `
+    -StdoutPath (Join-Path $artifactRoot "operator-run-intent.stdout.json") `
+    -StderrPath (Join-Path $artifactRoot "operator-run-intent.stderr.log")
 
 if ($Mode -eq "status") {
     $statusJson = Join-Path $artifactRoot "status.json"
@@ -161,7 +195,7 @@ if ($Mode -eq "status") {
             "from-status",
             "--store", $operatorSnapshotStore,
             "--runtime-id", "epiphany-local",
-            "--snapshot-id", "$runId-status",
+            "--snapshot-id", $operatorSnapshotId,
             "--source-mode", "status",
             "--input", $statusJson
         ) `
@@ -256,6 +290,8 @@ $summary = @"
 - dogfoodRoot: $dogfoodRoot
 - codexAppServer: $codexAppServer
 - statusBinary: $statusExe
+- operatorRunBinary: $operatorRunExe
+- operatorRunStore: $operatorRunStore
 - operatorSnapshotBinary: $operatorSnapshotExe
 - operatorSnapshotStore: $operatorSnapshotStore
 - coordinatorBinary: $coordinatorExe
@@ -283,6 +319,28 @@ if ($resultPath -ne "" -and (Test-Path -LiteralPath $resultPath)) {
         Write-Host "Summary parse failed; inspect $resultPath"
     }
 }
+$operatorRunReceiptArgs = @(
+    "receipt",
+    "--store", $operatorRunStore,
+    "--runtime-id", "epiphany-local",
+    "--run-id", $runId,
+    "--mode", $Mode,
+    "--status", "completed",
+    "--result-path", $resultPath,
+    "--artifact-root", $artifactRoot,
+    "--dogfood-root", $dogfoodRoot,
+    "--operator-snapshot-store", $operatorSnapshotStore
+)
+if ($Mode -eq "status") {
+    $operatorRunReceiptArgs += @("--operator-snapshot-id", $operatorSnapshotId)
+}
+Invoke-Checked `
+    -Label "write CultMesh operator run receipt" `
+    -FilePath $operatorRunExe `
+    -Arguments $operatorRunReceiptArgs `
+    -WorkingDirectory $Root `
+    -StdoutPath (Join-Path $artifactRoot "operator-run-receipt.stdout.json") `
+    -StderrPath (Join-Path $artifactRoot "operator-run-receipt.stderr.log")
 Write-Host "Epiphany local run complete."
 Write-Host "Launcher artifacts: $artifactRoot"
 Write-Host "Coordinator artifacts: $dogfoodRoot"

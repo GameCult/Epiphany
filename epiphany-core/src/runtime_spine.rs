@@ -12,6 +12,10 @@ use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_TYPE;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_TYPE;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION;
@@ -2165,6 +2169,37 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "Raw Codex app-server JSON remains an edge artifact; this CultMesh document is the native Epiphany status receipt.",
             ],
         ),
+        mutation_contract(
+            EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE,
+            EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::DocumentPut,
+            ],
+            CultNetMutationAuthority::LocalUser,
+            vec![],
+            vec![EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE],
+            vec![
+                "Operator run intents record explicit local wrapper requests before status/plan/smoke/run actions execute.",
+                "This is not a scheduler queue; it is the typed consent/trace surface for local operator action.",
+            ],
+        ),
+        mutation_contract(
+            EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE,
+            EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::DocumentPut,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::LocalUser,
+            vec![],
+            vec![],
+            vec![
+                "Operator run receipts record completed local wrapper actions and evidence artifact references.",
+                "Referenced artifacts remain evidence; the receipt is the native completion contract.",
+            ],
+        ),
         read_only_surface_contract(
             SURFACE_SCENE_TYPE,
             SCENE_SURFACE_SCHEMA_VERSION,
@@ -2943,6 +2978,35 @@ mod tests {
                         .operations
                         .contains(&CultNetDocumentOperation::DocumentPut)
                 );
+                let operator_run_intent_contract = contracts
+                    .iter()
+                    .find(|contract| {
+                        contract.document_type == EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE
+                    })
+                    .expect("operator run intent should advertise a local typed action document");
+                assert_eq!(
+                    operator_run_intent_contract.authority,
+                    CultNetMutationAuthority::LocalUser
+                );
+                assert!(
+                    operator_run_intent_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE))
+                );
+                let operator_run_receipt_contract = contracts
+                    .iter()
+                    .find(|contract| {
+                        contract.document_type == EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE
+                    })
+                    .expect("operator run receipt should advertise a local typed receipt document");
+                assert!(
+                    operator_run_receipt_contract
+                        .operations
+                        .contains(&CultNetDocumentOperation::ReceiptWatch)
+                );
                 assert!(
                     contracts
                         .iter()
@@ -3084,6 +3148,16 @@ mod tests {
             schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE)
                 && schema.schema_version.as_deref()
                     == Some(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE)
+                && schema.schema_version.as_deref()
+                    == Some(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE)
+                && schema.schema_version.as_deref()
+                    == Some(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION)
         }));
         assert!(
             !schemas.iter().any(|schema| {
