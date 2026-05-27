@@ -98,6 +98,7 @@ pub const RUNTIME_ROLE_WORKER_RESULT_TYPE: &str = "epiphany.runtime.role_worker_
 pub const RUNTIME_REORIENT_WORKER_RESULT_TYPE: &str = "epiphany.runtime.reorient_worker_result";
 pub const RUNTIME_JOB_RESULT_TYPE: &str = "epiphany.runtime.job_result";
 pub const RUNTIME_EVENT_TYPE: &str = "epiphany.runtime.event";
+pub const COORDINATOR_RUN_RECEIPT_TYPE: &str = "epiphany.coordinator_run_receipt.v0";
 pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0";
 pub const OPENAI_MODEL_REQUEST_TYPE: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_MODEL_STREAM_EVENT_TYPE: &str = "epiphany.openai_model_stream_event.v0";
@@ -131,6 +132,7 @@ pub const RUNTIME_ROLE_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.role_worker_result.v0";
 pub const RUNTIME_REORIENT_WORKER_RESULT_SCHEMA_VERSION: &str =
     "epiphany.runtime.reorient_worker_result.v0";
+pub const COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION: &str = "epiphany.coordinator_run_receipt.v0";
 pub const OPENAI_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.openai_adapter_status.v0";
 pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.openai_model_stream_event.v0";
@@ -450,6 +452,44 @@ pub struct EpiphanyRuntimeEvent {
     pub metadata: BTreeMap<String, String>,
 }
 
+#[derive(Clone, Debug, PartialEq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.coordinator_run_receipt.v0",
+    schema = "EpiphanyCoordinatorRunReceipt"
+)]
+pub struct EpiphanyCoordinatorRunReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub session_id: String,
+    #[cultcache(key = 3)]
+    pub thread_id: String,
+    #[cultcache(key = 4)]
+    pub mode: String,
+    #[cultcache(key = 5)]
+    pub status: String,
+    #[cultcache(key = 6)]
+    pub final_action: String,
+    #[cultcache(key = 7, default)]
+    pub final_reason: Option<String>,
+    #[cultcache(key = 8)]
+    pub step_count: u64,
+    #[cultcache(key = 9)]
+    pub created_at: String,
+    #[cultcache(key = 10, default)]
+    pub model_provider: Option<String>,
+    #[cultcache(key = 11, default)]
+    pub runtime_store: String,
+    #[cultcache(key = 12, default)]
+    pub artifact_refs: Vec<String>,
+    #[cultcache(key = 13, default)]
+    pub sealed_artifact_refs: Vec<String>,
+    #[cultcache(key = 14, default)]
+    pub metadata: BTreeMap<String, String>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EpiphanyRuntimeSessionStatus {
@@ -635,6 +675,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeReorientWorkerResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
+    cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
@@ -1041,6 +1082,27 @@ pub fn runtime_reorient_worker_result(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)
+}
+
+pub fn put_coordinator_run_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &EpiphanyCoordinatorRunReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "coordinator run receipt id")?;
+    validate_non_empty(&receipt.session_id, "coordinator run receipt session id")?;
+    validate_non_empty(&receipt.thread_id, "coordinator run receipt thread id")?;
+    validate_non_empty(&receipt.mode, "coordinator run receipt mode")?;
+    validate_non_empty(&receipt.status, "coordinator run receipt status")?;
+    validate_non_empty(
+        &receipt.final_action,
+        "coordinator run receipt final action",
+    )?;
+    validate_non_empty(&receipt.created_at, "coordinator run receipt created at")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
 }
 
 pub fn complete_runtime_job(
@@ -2047,6 +2109,17 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Runtime events are append-only projections for inspection."],
         ),
         mutation_contract(
+            COORDINATOR_RUN_RECEIPT_TYPE,
+            COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::Coordinator,
+            vec![],
+            vec![],
+            vec![
+                "Coordinator run receipts are typed summaries of local plan/run decisions; artifact JSON is display evidence, not the only durable account.",
+            ],
+        ),
+        mutation_contract(
             MODEL_ADAPTER_STATUS_TYPE,
             MODEL_ADAPTER_STATUS_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -2648,6 +2721,26 @@ mod tests {
                 summary: "Session started.".to_string(),
             },
         )?;
+        put_coordinator_run_receipt(
+            &store,
+            &EpiphanyCoordinatorRunReceipt {
+                schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+                receipt_id: "coordinator-receipt-1".to_string(),
+                session_id: "session-1".to_string(),
+                thread_id: "thread-1".to_string(),
+                mode: "plan".to_string(),
+                status: "planned".to_string(),
+                final_action: "launchModeling".to_string(),
+                final_reason: Some("Modeling should run.".to_string()),
+                step_count: 1,
+                created_at: "2026-05-06T00:03:00Z".to_string(),
+                model_provider: Some("openai-codex".to_string()),
+                runtime_store: store.display().to_string(),
+                artifact_refs: vec!["coordinator-summary.json".to_string()],
+                sealed_artifact_refs: vec!["epiphany-transcript.jsonl".to_string()],
+                metadata: BTreeMap::new(),
+            },
+        )?;
 
         let status = runtime_spine_status(&store)?;
         assert!(status.present);
@@ -2655,6 +2748,13 @@ mod tests {
         assert_eq!(status.sessions, 1);
         assert_eq!(status.active_sessions, 1);
         assert_eq!(status.events, 1);
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        assert!(
+            cache
+                .get::<EpiphanyCoordinatorRunReceipt>("coordinator-receipt-1")?
+                .is_some()
+        );
         Ok(())
     }
 
@@ -3079,6 +3179,19 @@ mod tests {
                         .iter()
                         .all(|contract| contract.document_type != "epiphany.surface.unity_bridge")
                 );
+                let coordinator_run_receipt_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == COORDINATOR_RUN_RECEIPT_TYPE)
+                    .expect("coordinator run receipt should advertise typed receipt contract");
+                assert_eq!(
+                    coordinator_run_receipt_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    coordinator_run_receipt_contract
+                        .operations
+                        .contains(&CultNetDocumentOperation::ReceiptWatch)
+                );
                 let birth_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == SURFACE_REPO_BIRTH_RUNNER_TYPE)
@@ -3169,6 +3282,10 @@ mod tests {
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some("epiphany.swarm_control_receipt.v0")
                 && schema.schema_version.as_deref() == Some("epiphany.swarm_control_receipt.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(COORDINATOR_RUN_RECEIPT_TYPE)
+                && schema.schema_version.as_deref() == Some(COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION)
         }));
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some(MODEL_REQUEST_TYPE)

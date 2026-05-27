@@ -2,15 +2,20 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
+use epiphany_core::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::COORDINATOR_RUN_RECEIPT_TYPE;
+use epiphany_core::EpiphanyCoordinatorRunReceipt;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
 use epiphany_core::append_runtime_event;
 use epiphany_core::create_runtime_session;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::put_coordinator_run_receipt;
 use epiphany_core::runtime_spine_status;
 use serde_json::Value;
 use serde_json::json;
+use std::collections::BTreeMap;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -472,6 +477,53 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let runtime_status = runtime_spine_status(&runtime_store)?;
     let final_rendered = status_cli::render_status(&operator_final_status);
     let operator_steps = status_cli::sanitize_for_operator(Value::Array(steps));
+    let artifact_manifest = vec![
+        "coordinator-summary.json".to_string(),
+        "coordinator-steps.jsonl".to_string(),
+        "coordinator-final-status.json".to_string(),
+        "coordinator-final-status.txt".to_string(),
+        "coordinator-final-action.txt".to_string(),
+        "agent-function-telemetry.json".to_string(),
+        "runtime-spine-status.json".to_string(),
+    ];
+    let sealed_artifact_manifest = vec![
+        "epiphany-transcript.jsonl".to_string(),
+        "epiphany-server.stderr.log".to_string(),
+    ];
+    let receipt_created_at = now();
+    let coordinator_run_receipt = EpiphanyCoordinatorRunReceipt {
+        schema_version: COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: format!(
+            "coordinator-run-{}-{}",
+            sanitize_id(&thread_id),
+            chrono::Utc::now().timestamp_millis()
+        ),
+        session_id: runtime_session_id.clone(),
+        thread_id: thread_id.clone(),
+        mode: args.mode.clone(),
+        status: coordinator_receipt_status(&args.mode, &final_action),
+        final_action: final_action_name(&final_action),
+        final_reason: final_action_reason(&final_action),
+        step_count: operator_steps
+            .as_array()
+            .map_or(0, |items| items.len() as u64),
+        created_at: receipt_created_at,
+        model_provider: Some(args.model_provider.clone()),
+        runtime_store: runtime_store.display().to_string(),
+        artifact_refs: artifact_manifest.clone(),
+        sealed_artifact_refs: sealed_artifact_manifest.clone(),
+        metadata: BTreeMap::from([
+            (
+                "artifactDir".to_string(),
+                artifact_dir.display().to_string(),
+            ),
+            (
+                "modelRuntimeBin".to_string(),
+                model_runtime_bin.display().to_string(),
+            ),
+        ]),
+    };
+    put_coordinator_run_receipt(&runtime_store, &coordinator_run_receipt)?;
     let summary = json!({
         "objective": "Coordinate the Epiphany MVP lanes over existing app-server APIs.",
         "artifactDir": artifact_dir,
@@ -488,15 +540,12 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "snapshots": snapshots,
         "finalAction": status_cli::sanitize_for_operator(final_action),
         "finalStatus": operator_final_status,
-        "artifactManifest": [
-            "coordinator-summary.json",
-            "coordinator-steps.jsonl",
-            "coordinator-final-status.json",
-            "coordinator-final-status.txt",
-            "coordinator-final-action.txt",
-            "agent-function-telemetry.json",
-            "runtime-spine-status.json"
-        ],
+        "coordinatorRunReceipt": {
+            "documentType": COORDINATOR_RUN_RECEIPT_TYPE,
+            "receiptId": coordinator_run_receipt.receipt_id,
+            "store": runtime_store,
+        },
+        "artifactManifest": artifact_manifest,
         "sealedArtifactManifest": [
             {"path": "epiphany-transcript.jsonl", "reason": "sealed JSON-RPC audit trail; do not read during normal supervision"},
             {"path": "epiphany-server.stderr.log", "reason": "sealed app-server diagnostics; inspect only for explicit debugging"}
@@ -883,6 +932,34 @@ fn first_string_at(value: &Value, paths: &[&[&str]]) -> Option<String> {
         }
     }
     None
+}
+
+fn coordinator_receipt_status(mode: &str, final_action: &Value) -> String {
+    if mode == "plan" {
+        return "planned".to_string();
+    }
+    if final_action_name(final_action) == "regatherManually" {
+        "needsReview".to_string()
+    } else {
+        "completed".to_string()
+    }
+}
+
+fn final_action_name(final_action: &Value) -> String {
+    final_action
+        .get("action")
+        .and_then(Value::as_str)
+        .filter(|action| !action.trim().is_empty())
+        .unwrap_or("unknown")
+        .to_string()
+}
+
+fn final_action_reason(final_action: &Value) -> Option<String> {
+    final_action
+        .get("reason")
+        .and_then(Value::as_str)
+        .filter(|reason| !reason.trim().is_empty())
+        .map(ToString::to_string)
 }
 
 fn sanitize_id(value: &str) -> String {

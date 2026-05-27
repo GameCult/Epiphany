@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.coordinator-run-receipt.schema.json",
+  "title": "Epiphany Coordinator Run Receipt",
+  "description": "Typed receipt emitted by the local coordinator after a plan/run/smoke pass. Artifact JSON may display the same facts, but this document is the durable coordinator decision receipt.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "session_id",
+    "thread_id",
+    "mode",
+    "status",
+    "final_action",
+    "step_count",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": { "const": "epiphany.coordinator_run_receipt.v0" },
+    "receipt_id": { "type": "string" },
+    "session_id": { "type": "string" },
+    "thread_id": { "type": "string" },
+    "mode": { "enum": ["plan", "run", "smoke", "status"] },
+    "status": { "type": "string" },
+    "final_action": { "type": "string" },
+    "final_reason": { "type": ["string", "null"] },
+    "step_count": { "type": "integer", "minimum": 0 },
+    "created_at": { "type": "string" },
+    "model_provider": { "type": ["string", "null"] },
+    "runtime_store": { "type": "string" },
+    "artifact_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "sealed_artifact_refs": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

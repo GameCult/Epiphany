@@ -57,6 +57,17 @@
       "path": "epiphany.runtime.event.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.coordinator-run-receipt.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.coordinator_run_receipt.v0",
+      "documentType": "epiphany.coordinator_run_receipt.v0",
+      "title": "Epiphany Coordinator Run Receipt",
+      "path": "epiphany.coordinator-run-receipt.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.model-adapter-status.schema.json",
       "kind": "document_payload",
       "wireContracts": [

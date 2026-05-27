@@ -525,4 +525,11 @@ current_status:
     but model turns and worker launches now enter through provider-neutral
     requests, store provider-neutral events/receipts, and mirror OpenAI docs
     only as transport proof.
-  next_action: Continue Codex starvation and CultNet liberation by moving coordinator plan/run outputs into typed CultNet receipts, then make the next provider adapter implement the `epiphany.model_*` contract without teaching scheduler/status/state surfaces provider-specific law.
+    Coordinator plan/run output now has a typed receipt too:
+    `epiphany.coordinator_run_receipt.v0` is registered in runtime-spine,
+    advertised in the CultNet schema catalog, and written by
+    `epiphany-mvp-coordinator` at the end of plan/run/smoke passes. The
+    existing coordinator artifact JSON remains operator display and sealed
+    audit evidence, but it is no longer the only durable account of what the
+    coordinator decided.
+  next_action: Continue Codex starvation and CultNet liberation by wrapping remaining unavoidable JSON protocol edges, especially MCP/tool execution, in typed Epiphany intent/result/receipt documents before letting them influence scheduler, state, or acceptance authority.
