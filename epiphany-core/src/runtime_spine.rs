@@ -71,6 +71,10 @@ use cultnet_rs::CultNetWireContract;
 use cultnet_rs::builtin_schema_registry;
 use cultnet_rs::encode_cultnet_message_to_vec;
 use cultnet_rs::encode_frame;
+use epiphany_model_adapter::EpiphanyModelAdapterStatus;
+use epiphany_model_adapter::EpiphanyModelReceipt;
+use epiphany_model_adapter::EpiphanyModelRequest;
+use epiphany_model_adapter::EpiphanyModelStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiAdapterStatus;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
@@ -98,6 +102,10 @@ pub const OPENAI_ADAPTER_STATUS_TYPE: &str = "epiphany.openai_adapter_status.v0"
 pub const OPENAI_MODEL_REQUEST_TYPE: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_MODEL_STREAM_EVENT_TYPE: &str = "epiphany.openai_model_stream_event.v0";
 pub const OPENAI_MODEL_RECEIPT_TYPE: &str = "epiphany.openai_model_receipt.v0";
+pub const MODEL_ADAPTER_STATUS_TYPE: &str = "epiphany.model_adapter_status.v0";
+pub const MODEL_REQUEST_TYPE: &str = "epiphany.model_request.v0";
+pub const MODEL_STREAM_EVENT_TYPE: &str = "epiphany.model_stream_event.v0";
+pub const MODEL_RECEIPT_TYPE: &str = "epiphany.model_receipt.v0";
 pub const SURFACE_SCENE_TYPE: &str = "epiphany.surface.scene";
 pub const SURFACE_FRESHNESS_TYPE: &str = "epiphany.surface.freshness";
 pub const SURFACE_CONTEXT_TYPE: &str = "epiphany.surface.context";
@@ -127,6 +135,10 @@ pub const OPENAI_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.openai_adapter_
 pub const OPENAI_MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.openai_model_request.v0";
 pub const OPENAI_MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.openai_model_stream_event.v0";
 pub const OPENAI_MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.openai_model_receipt.v0";
+pub const MODEL_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.model_adapter_status.v0";
+pub const MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.model_request.v0";
+pub const MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.model_stream_event.v0";
+pub const MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.model_receipt.v0";
 pub const SCENE_SURFACE_SCHEMA_VERSION: &str = "epiphany.scene_surface.v0";
 pub const FRESHNESS_SURFACE_SCHEMA_VERSION: &str = "epiphany.freshness_surface.v0";
 pub const CONTEXT_SURFACE_SCHEMA_VERSION: &str = "epiphany.context_surface.v0";
@@ -627,6 +639,10 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelReceipt>()?;
+    cache.register_entry_type::<EpiphanyModelAdapterStatus>()?;
+    cache.register_entry_type::<EpiphanyModelRequest>()?;
+    cache.register_entry_type::<EpiphanyModelStreamEvent>()?;
+    cache.register_entry_type::<EpiphanyModelReceipt>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(
         store_path.to_path_buf(),
     ));
@@ -2031,6 +2047,52 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Runtime events are append-only projections for inspection."],
         ),
         mutation_contract(
+            MODEL_ADAPTER_STATUS_TYPE,
+            MODEL_ADAPTER_STATUS_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Model adapter status is provider-neutral; OpenAI/Codex is one current provider behind this boundary.",
+            ],
+        ),
+        mutation_contract(
+            MODEL_REQUEST_TYPE,
+            MODEL_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![MODEL_REQUEST_TYPE],
+            vec![MODEL_STREAM_EVENT_TYPE, MODEL_RECEIPT_TYPE],
+            vec![
+                "Model turns enter through typed provider-neutral Epiphany request documents and return typed stream events/receipts.",
+                "Provider adapters may authenticate and transport; they must not own Epiphany state, prompt authority, or scheduling.",
+            ],
+        ),
+        mutation_contract(
+            MODEL_STREAM_EVENT_TYPE,
+            MODEL_STREAM_EVENT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Model stream events are receipts from a typed model request."],
+        ),
+        mutation_contract(
+            MODEL_RECEIPT_TYPE,
+            MODEL_RECEIPT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Terminal model receipts carry provider response id, usage, and transport evidence.",
+            ],
+        ),
+        mutation_contract(
             OPENAI_ADAPTER_STATUS_TYPE,
             OPENAI_ADAPTER_STATUS_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -2038,22 +2100,18 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec![
-                "OpenAI adapter status is a typed document; it is not a Codex app-server status blob.",
+                "OpenAI adapter status is provider-specific evidence behind the model adapter boundary.",
             ],
         ),
         mutation_contract(
             OPENAI_MODEL_REQUEST_TYPE,
             OPENAI_MODEL_REQUEST_SCHEMA_VERSION,
-            vec![
-                CultNetDocumentOperation::IntentSubmit,
-                CultNetDocumentOperation::ReceiptWatch,
-            ],
-            CultNetMutationAuthority::Coordinator,
-            vec![OPENAI_MODEL_REQUEST_TYPE],
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
             vec![OPENAI_MODEL_STREAM_EVENT_TYPE, OPENAI_MODEL_RECEIPT_TYPE],
             vec![
-                "Model turns enter through typed Epiphany request documents and return typed stream events/receipts.",
-                "The Codex spine may authenticate and transport; it must not own Epiphany state or scheduling.",
+                "OpenAI model requests are adapter projection evidence, not the provider-neutral request authority.",
             ],
         ),
         mutation_contract(
@@ -2063,7 +2121,9 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["OpenAI stream events are receipts from a typed model request."],
+            vec![
+                "OpenAI stream events are provider-specific receipts mirrored from model stream events.",
+            ],
         ),
         mutation_contract(
             OPENAI_MODEL_RECEIPT_TYPE,
@@ -2072,7 +2132,9 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["Terminal model receipts carry response id, usage, and transport evidence."],
+            vec![
+                "OpenAI terminal receipts are provider-specific evidence behind the model receipt.",
+            ],
         ),
         mutation_contract(
             AGENT_MEMORY_TYPE,
@@ -3029,22 +3091,31 @@ mod tests {
                             .iter()
                             .any(|item| item == "epiphany.repo_birth_runner.v0"))
                 );
-                let openai_contract = contracts
+                let model_contract = contracts
                     .iter()
-                    .find(|contract| contract.document_type == OPENAI_MODEL_REQUEST_TYPE)
-                    .expect("OpenAI adapter should advertise typed model request contract");
+                    .find(|contract| contract.document_type == MODEL_REQUEST_TYPE)
+                    .expect("model adapter should advertise provider-neutral request contract");
                 assert_eq!(
-                    openai_contract.authority,
+                    model_contract.authority,
                     CultNetMutationAuthority::Coordinator
                 );
                 assert!(
-                    openai_contract
+                    model_contract
                         .receipt_document_types
                         .as_ref()
-                        .is_some_and(|items| items
-                            .iter()
-                            .any(|item| item == OPENAI_MODEL_RECEIPT_TYPE))
+                        .is_some_and(|items| items.iter().any(|item| item == MODEL_RECEIPT_TYPE))
                 );
+                let openai_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == OPENAI_MODEL_REQUEST_TYPE)
+                    .expect("OpenAI adapter should advertise typed provider evidence contract");
+                assert_eq!(
+                    openai_contract.authority,
+                    CultNetMutationAuthority::ReadOnly
+                );
+                assert!(openai_contract.notes.as_ref().is_some_and(|notes| {
+                    notes.iter().any(|note| note.contains("adapter projection"))
+                }));
                 let memory_graph_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == MEMORY_GRAPH_TYPE)
@@ -3098,6 +3169,14 @@ mod tests {
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some("epiphany.swarm_control_receipt.v0")
                 && schema.schema_version.as_deref() == Some("epiphany.swarm_control_receipt.v0")
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(MODEL_REQUEST_TYPE)
+                && schema.schema_version.as_deref() == Some(MODEL_REQUEST_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(MODEL_RECEIPT_TYPE)
+                && schema.schema_version.as_deref() == Some(MODEL_RECEIPT_SCHEMA_VERSION)
         }));
         let receipt_schema_path =
             epiphany_schema_root().join("epiphany.swarm-control-receipt.schema.json");

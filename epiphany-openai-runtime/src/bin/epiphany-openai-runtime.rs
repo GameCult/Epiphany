@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
-use epiphany_openai_adapter::EpiphanyOpenAiInputItem;
+use epiphany_model_adapter::EpiphanyModelInputItem;
+use epiphany_model_adapter::EpiphanyModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
 use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
@@ -13,11 +14,12 @@ use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
-use epiphany_openai_runtime::assistant_text_from_openai_events;
+use epiphany_openai_runtime::assistant_text_from_model_events;
 use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
 use epiphany_openai_runtime::record_openai_events;
+use epiphany_openai_runtime::run_model_turn;
 use epiphany_openai_runtime::run_openai_model_turn;
 use epiphany_openai_runtime::run_worker_launch;
 use serde_json::json;
@@ -36,16 +38,27 @@ async fn main() -> Result<()> {
             require_supported_provider(&options.provider)?;
             let request_text = fs::read_to_string(&options.request_path)
                 .with_context(|| format!("failed to read {}", options.request_path.display()))?;
-            let request: EpiphanyOpenAiModelRequest = serde_json::from_str(&request_text)
-                .with_context(|| format!("failed to parse {}", options.request_path.display()))?;
             let output_last_message_path = options.output_last_message_path.clone();
-            let runtime_options = options.into_runtime_options(&request);
-            let summary = run_openai_model_turn(runtime_options.clone(), request.clone()).await?;
+            let (request_id, runtime_options, summary) =
+                if let Ok(request) = serde_json::from_str::<EpiphanyModelRequest>(&request_text) {
+                    let runtime_options = options.clone().into_runtime_options_for_model(&request);
+                    let summary =
+                        run_model_turn(&options.provider, runtime_options.clone(), request.clone())
+                            .await?;
+                    (request.request_id, runtime_options, summary)
+                } else {
+                    let request: EpiphanyOpenAiModelRequest = serde_json::from_str(&request_text)
+                        .with_context(|| {
+                        format!("failed to parse {}", options.request_path.display())
+                    })?;
+                    let runtime_options = options.into_runtime_options(&request);
+                    let summary =
+                        run_openai_model_turn(runtime_options.clone(), request.clone()).await?;
+                    (request.request_id, runtime_options, summary)
+                };
             if let Some(path) = output_last_message_path {
-                let text = assistant_text_from_openai_events(
-                    &runtime_options.store_path,
-                    &request.request_id,
-                )?;
+                let text =
+                    assistant_text_from_model_events(&runtime_options.store_path, &request_id)?;
                 fs::write(&path, text)
                     .with_context(|| format!("failed to write {}", path.display()))?;
             }
@@ -57,6 +70,7 @@ async fn main() -> Result<()> {
             let summary = run_worker_launch(EpiphanyWorkerRuntimeOptions {
                 store_path: options.store_path,
                 codex_home: options.codex_home,
+                provider: options.provider,
                 job_id: options.job_id,
                 model: options.model,
             })
@@ -66,17 +80,23 @@ async fn main() -> Result<()> {
         "smoke" => {
             let options = parse_smoke_options(args.collect())?;
             require_supported_provider(&options.provider)?;
-            let mut request = EpiphanyOpenAiModelRequest::new(
+            let mut request = EpiphanyModelRequest::new(
                 "smoke-request",
                 "smoke-conversation",
+                &options.provider,
                 "gpt-5.4",
                 "Answer with one sentence.",
             );
-            request.input.push(EpiphanyOpenAiInputItem::UserText {
+            request.input.push(EpiphanyModelInputItem::UserText {
                 text: "smoke".to_string(),
             });
-            let runtime_options =
-                default_options(options.store_path.clone(), options.codex_home, &request);
+            let openai_request =
+                epiphany_openai_runtime::openai_request_from_model_request(&request);
+            let runtime_options = default_options(
+                options.store_path.clone(),
+                options.codex_home,
+                &openai_request,
+            );
             ensure_openai_runtime_ready(&runtime_options)?;
             epiphany_core::ensure_runtime_session(
                 &runtime_options.store_path,
@@ -99,7 +119,11 @@ async fn main() -> Result<()> {
                     artifact_refs: Vec::new(),
                 },
             )?;
-            epiphany_openai_runtime::store_openai_request(&runtime_options.store_path, &request)?;
+            epiphany_openai_runtime::store_model_request(&runtime_options.store_path, &request)?;
+            epiphany_openai_runtime::store_openai_request(
+                &runtime_options.store_path,
+                &openai_request,
+            )?;
             let mut receipt = EpiphanyOpenAiModelReceipt::new(&request.request_id, &request.model);
             receipt.response_id = Some("smoke-response".to_string());
             receipt.transport = Some("smoke_no_network".to_string());
@@ -112,7 +136,7 @@ async fn main() -> Result<()> {
             let summary = record_openai_events(
                 &runtime_options.store_path,
                 &runtime_options,
-                &request,
+                &openai_request,
                 &events,
             )?;
             print_json(&json!({
@@ -125,6 +149,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+#[derive(Clone)]
 struct ModelTurnCliOptions {
     provider: String,
     store_path: PathBuf,
@@ -138,6 +163,14 @@ struct ModelTurnCliOptions {
 }
 
 impl ModelTurnCliOptions {
+    fn into_runtime_options_for_model(
+        self,
+        request: &EpiphanyModelRequest,
+    ) -> EpiphanyOpenAiRuntimeOptions {
+        let openai_request = epiphany_openai_runtime::openai_request_from_model_request(request);
+        self.into_runtime_options(&openai_request)
+    }
+
     fn into_runtime_options(
         self,
         request: &EpiphanyOpenAiModelRequest,

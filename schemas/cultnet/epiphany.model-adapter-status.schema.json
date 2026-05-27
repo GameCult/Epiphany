@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.model-adapter-status.schema.json",
+  "title": "Epiphany Model Adapter Status",
+  "type": "object",
+  "required": ["schema_id", "adapter_id", "provider", "streaming_supported", "provider_transport_attached"],
+  "properties": {
+    "schema_id": { "const": "epiphany.model_adapter_status.v0" },
+    "adapter_id": { "type": "string" },
+    "provider": { "type": "string" },
+    "default_model": { "type": ["string", "null"] },
+    "streaming_supported": { "type": "boolean" },
+    "provider_transport_attached": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

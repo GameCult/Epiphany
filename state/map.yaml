@@ -515,4 +515,14 @@ current_status:
     uses typed OpenAI request/event/receipt documents through the Codex auth
     reliquary. It does move provider selection out of scheduler/status/state
     surfaces and into one runtime executable boundary.
-  next_action: Continue Codex starvation and CultNet liberation by moving coordinator plan/run outputs into typed CultNet receipts and by replacing OpenAI-specific request/event/receipt document names with provider-neutral model request/event/receipt documents plus OpenAI/Codex adapter projection behind the runtime boundary.
+    The provider-neutral model document seam is now landed:
+    `epiphany-model-adapter` owns `epiphany.model_request.v0`,
+    `epiphany.model_stream_event.v0`, `epiphany.model_receipt.v0`, and
+    `epiphany.model_adapter_status.v0`; runtime-spine advertises those as the
+    coordinator/model contract; and OpenAI request/event/receipt/status
+    documents are read-only adapter evidence behind that boundary. The current
+    `epiphany-model-runtime` still executes through the Codex/OpenAI provider,
+    but model turns and worker launches now enter through provider-neutral
+    requests, store provider-neutral events/receipts, and mirror OpenAI docs
+    only as transport proof.
+  next_action: Continue Codex starvation and CultNet liberation by moving coordinator plan/run outputs into typed CultNet receipts, then make the next provider adapter implement the `epiphany.model_*` contract without teaching scheduler/status/state surfaces provider-specific law.

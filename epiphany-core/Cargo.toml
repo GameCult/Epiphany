@@ -17,6 +17,7 @@ cultcache-rs = { path = "../vendor/cultcache-rs" }
 cultmesh-rs = { path = "../vendor/cultmesh-rs" }
 cultnet-rs = { path = "../vendor/cultnet-rs" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
+epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-state-model = { path = "../epiphany-state-model" }
 ignore = "0.4.23"
 postgres = "0.19"

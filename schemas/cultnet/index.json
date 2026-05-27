@@ -57,6 +57,50 @@
       "path": "epiphany.runtime.event.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.model-adapter-status.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.model_adapter_status.v0",
+      "documentType": "epiphany.model_adapter_status.v0",
+      "title": "Epiphany Model Adapter Status",
+      "path": "epiphany.model-adapter-status.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.model-request.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.model_request.v0",
+      "documentType": "epiphany.model_request.v0",
+      "title": "Epiphany Model Request",
+      "path": "epiphany.model-request.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.model-stream-event.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.model_stream_event.v0",
+      "documentType": "epiphany.model_stream_event.v0",
+      "title": "Epiphany Model Stream Event",
+      "path": "epiphany.model-stream-event.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.model-receipt.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.model_receipt.v0",
+      "documentType": "epiphany.model_receipt.v0",
+      "title": "Epiphany Model Receipt",
+      "path": "epiphany.model-receipt.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-adapter-status.schema.json",
       "kind": "document_payload",
       "wireContracts": [

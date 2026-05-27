@@ -145,7 +145,7 @@ fn run(args: Args) -> Result<Value> {
         let prompt_path = execution_dir.join("prompt.md");
         let schema_path = execution_dir.join("output-schema.json");
         let result_path = execution_dir.join("result.json");
-        let request_path = execution_dir.join("openai-request.json");
+        let request_path = execution_dir.join("model-request.json");
         let runtime_summary_path = execution_dir.join("model-runtime-summary.json");
         let stdout_path = execution_dir.join("executor.stdout.log");
         let stderr_path = execution_dir.join("executor.stderr.log");
@@ -333,9 +333,10 @@ fn run_openai_runtime_specialist(
         Utc::now().timestamp_millis()
     );
     let request = json!({
-        "schema_id": "epiphany.openai_model_request.v0",
+        "schema_id": "epiphany.model_request.v0",
         "request_id": request_id,
         "conversation_id": format!("repo-birth-{}", sanitize(kind)),
+        "provider": args.model_provider.clone(),
         "model": model,
         "instructions": format!(
             "{prompt}\n\nReturn only a single JSON object matching this output schema. No Markdown, no commentary.\n\n```json\n{schema_text}\n```"

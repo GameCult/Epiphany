@@ -13,6 +13,7 @@ path = "src/lib.rs"
 anyhow = "1"
 chrono = "0.4.44"
 epiphany-core = { path = "../epiphany-core" }
+epiphany-model-adapter = { path = "../epiphany-model-adapter" }
 epiphany-openai-adapter = { path = "../epiphany-openai-adapter" }
 epiphany-openai-codex-spine = { path = "../epiphany-openai-codex-spine" }
 rmp-serde = "1"

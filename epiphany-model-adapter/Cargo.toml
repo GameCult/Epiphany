@@ -1,0 +1,14 @@
+[package]
+name = "epiphany-model-adapter"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license-file = "../LICENSE"
+
+[lib]
+name = "epiphany_model_adapter"
+path = "src/lib.rs"
+
+[dependencies]
+cultcache-rs = { path = "../vendor/cultcache-rs" }
+serde = { version = "1", features = ["derive"] }

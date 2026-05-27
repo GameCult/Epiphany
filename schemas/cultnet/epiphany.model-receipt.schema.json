@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.model-receipt.schema.json",
+  "title": "Epiphany Model Receipt",
+  "type": "object",
+  "required": ["schema_id", "request_id", "provider", "model"],
+  "properties": {
+    "schema_id": { "const": "epiphany.model_receipt.v0" },
+    "request_id": { "type": "string" },
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "provider_response_id": { "type": ["string", "null"] },
+    "input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+    "output_tokens": { "type": ["integer", "null"], "minimum": 0 },
+    "reasoning_output_tokens": { "type": ["integer", "null"], "minimum": 0 },
+    "transport": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}
