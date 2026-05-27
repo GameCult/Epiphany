@@ -1,24 +1,29 @@
 use epiphany_state_model::EpiphanyInvestigationDisposition;
 use epiphany_state_model::EpiphanyRetrievalStatus;
 use epiphany_state_model::EpiphanyThreadState;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 pub const EPIPHANY_SCENE_RECORD_LIMIT: usize = 5;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanySceneStateStatus {
     Missing,
     Ready,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanySceneSource {
     Stored,
     Live,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanySceneAction {
     Index,
     Retrieve,
@@ -46,7 +51,8 @@ pub enum EpiphanySceneAction {
     Update,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneSubgoal {
     pub id: String,
     pub title: String,
@@ -55,13 +61,15 @@ pub struct EpiphanySceneSubgoal {
     pub active: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneStatusCount {
     pub status: String,
     pub count: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneGraph {
     pub architecture_node_count: u32,
     pub architecture_edge_count: u32,
@@ -77,7 +85,8 @@ pub struct EpiphanySceneGraph {
     pub checkpoint_summary: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneRetrieval {
     pub workspace_root: PathBuf,
     pub status: EpiphanyRetrievalStatus,
@@ -89,7 +98,8 @@ pub struct EpiphanySceneRetrieval {
     pub dirty_path_count: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneInvestigationCheckpoint {
     pub checkpoint_id: String,
     pub kind: String,
@@ -103,13 +113,15 @@ pub struct EpiphanySceneInvestigationCheckpoint {
     pub evidence_count: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneRecords {
     pub total_count: u32,
     pub latest: Vec<EpiphanySceneRecord>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneRecord {
     pub id: String,
     pub kind: String,
@@ -118,7 +130,8 @@ pub struct EpiphanySceneRecord {
     pub code_ref_count: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanySceneChurn {
     pub understanding_status: String,
     pub diff_pressure: String,
@@ -127,7 +140,8 @@ pub struct EpiphanySceneChurn {
     pub unexplained_writes: Option<u32>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyScene {
     pub state_status: EpiphanySceneStateStatus,
     pub source: EpiphanySceneSource,

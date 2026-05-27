@@ -1,13 +1,17 @@
 use epiphany_state_model::EpiphanyPlanningState;
 use epiphany_state_model::EpiphanyThreadState;
+use serde::Deserialize;
+use serde::Serialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum EpiphanyPlanningStateStatus {
     Missing,
     Ready,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyPlanningSummary {
     pub capture_count: u32,
     pub pending_capture_count: u32,
@@ -21,7 +25,8 @@ pub struct EpiphanyPlanningSummary {
     pub note: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyPlanningView {
     pub state_status: EpiphanyPlanningStateStatus,
     pub state_revision: Option<u64>,

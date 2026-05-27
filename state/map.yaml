@@ -495,4 +495,13 @@ current_status:
     completion; `tools/epiphany_local_run.ps1 -Mode status` now writes intent,
     legacy status artifact, operator snapshot, and completion receipt in that
     order.
-  next_action: Continue Codex starvation and CultNet liberation by moving coordinator plan/run outputs into typed CultNet receipts and by reducing the local wrapper's dependence on Codex app-server JSON-RPC projections for facts Epiphany already owns natively.
+    The first native status cut is landed: `epiphany-mvp-status` has an
+    explicit `--source native` mode that reads `state/thread-state.msgpack`
+    when present and derives scene, pressure, jobs, roles, planning, reorient,
+    CRRC, and coordinator status through `epiphany-core` instead of Codex
+    JSON-RPC. `tools/epiphany_local_run.ps1 -Mode status` now builds only
+    Epiphany operator binaries, does not start or require `codex-app-server`,
+    and still writes operator intent, status artifact, snapshot, and completion
+    receipt. Codex status remains as a compatibility source for legacy smokes
+    and bridge-equipped coordinator paths, not the MVP status authority.
+  next_action: Continue Codex starvation and CultNet liberation by moving coordinator plan/run outputs into typed CultNet receipts and by defining a narrow provider/runtime boundary so future non-OpenAI providers can swap behind Epiphany-owned launch/result documents without touching status, scheduler, prompts, or durable state.

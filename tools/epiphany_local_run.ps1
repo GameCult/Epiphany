@@ -84,13 +84,15 @@ $operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapsh
 $operatorSnapshotId = "$runId-status"
 
 if (-not $SkipBuild) {
-    Invoke-Checked `
-        -Label "build Codex app-server compatibility organ" `
-        -FilePath "cargo" `
-        -Arguments @("build", "-p", "codex-app-server", "--manifest-path", ".\vendor\codex\codex-rs\Cargo.toml") `
-        -WorkingDirectory $Root `
-        -StdoutPath (Join-Path $artifactRoot "build-codex-app-server.stdout.log") `
-        -StderrPath (Join-Path $artifactRoot "build-codex-app-server.stderr.log")
+    if ($Mode -ne "status") {
+        Invoke-Checked `
+            -Label "build Codex app-server compatibility organ" `
+            -FilePath "cargo" `
+            -Arguments @("build", "-p", "codex-app-server", "--manifest-path", ".\vendor\codex\codex-rs\Cargo.toml") `
+            -WorkingDirectory $Root `
+            -StdoutPath (Join-Path $artifactRoot "build-codex-app-server.stdout.log") `
+            -StderrPath (Join-Path $artifactRoot "build-codex-app-server.stderr.log")
+    }
 
     Invoke-Checked `
         -Label "build Epiphany operator binaries" `
@@ -105,7 +107,8 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
             "--bin", "epiphany-face-discord",
-            "--bin", "epiphany-agent-telemetry"
+            "--bin", "epiphany-agent-telemetry",
+            "--bin", "epiphany-void-memory"
         ) `
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "build-epiphany-core.stdout.log") `
@@ -122,7 +125,11 @@ if (-not $SkipBuild) {
     }
 }
 
-foreach ($required in @($codexAppServer, $statusExe, $operatorRunExe, $operatorSnapshotExe, $coordinatorExe)) {
+$requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe)
+if ($Mode -ne "status") {
+    $requiredBinaries += @($codexAppServer, $coordinatorExe)
+}
+foreach ($required in $requiredBinaries) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "required binary not found: $required"
     }
@@ -169,17 +176,14 @@ if ($Mode -eq "status") {
     $statusJson = Join-Path $artifactRoot "status.json"
     $resultPath = $statusJson
     $statusArgs = @(
-        "--app-server", $codexAppServer,
-        "--codex-home", $CodexHome,
+        "--source", "native",
         "--cwd", $Workspace,
-        $ephemeralArg,
+        "--thread-state-store", (Join-Path $Root "state\thread-state.msgpack"),
         "--json",
-        "--result", $statusJson,
-        "--transcript", (Join-Path $artifactRoot "status-transcript.jsonl"),
-        "--stderr", (Join-Path $artifactRoot "status-app-server.stderr.log")
+        "--result", $statusJson
     )
     if ($ThreadId -ne "") {
-        $statusArgs += @("--thread-id", $ThreadId, "--no-ephemeral")
+        $statusArgs += @("--thread-id", $ThreadId)
     }
     Invoke-Checked `
         -Label "run operator status" `
@@ -297,10 +301,10 @@ $summary = @"
 - coordinatorBinary: $coordinatorExe
 - openaiRuntimeBinary: $openaiRuntimeExe
 
-This is an operator entrypoint over the current compatibility shell. Codex
-app-server remains the JSON-RPC edge for now; Epiphany state, heartbeat, role
-memory, runtime-spine, operator snapshots, and artifacts remain typed native
-surfaces behind it.
+This is an operator entrypoint over the current MVP shell. Status mode is
+Epiphany-native and does not start Codex app-server; coordinator plan/smoke/run
+modes still use the sealed Codex compatibility bridge until their provider
+boundary is cut.
 "@
 Set-Content -LiteralPath (Join-Path $artifactRoot "README.md") -Value $summary -Encoding UTF8
 

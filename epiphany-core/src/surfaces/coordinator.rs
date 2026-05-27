@@ -172,7 +172,8 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub reorient_finding_accepted: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EpiphanyCoordinatorStatus {
     pub decision: EpiphanyCoordinatorDecision,
     pub source_signals: EpiphanyCoordinatorSourceSignals,

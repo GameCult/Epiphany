@@ -1,6 +1,34 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
+use epiphany_core::EpiphanyCoordinatorStatusInput;
+use epiphany_core::EpiphanyCrrcInput;
+use epiphany_core::EpiphanyCrrcReorientAction;
+use epiphany_core::EpiphanyCrrcResultStatus;
+use epiphany_core::EpiphanyCrrcStateStatus;
+use epiphany_core::EpiphanyJobsInput;
+use epiphany_core::EpiphanyReorientAction;
+use epiphany_core::EpiphanyReorientFreshnessStatus;
+use epiphany_core::EpiphanyReorientInput;
+use epiphany_core::EpiphanyReorientPressureLevel;
+use epiphany_core::EpiphanyRoleBoardCheckpointSummary;
+use epiphany_core::EpiphanyRoleBoardInput;
+use epiphany_core::EpiphanyRoleBoardJob;
+use epiphany_core::EpiphanyRoleBoardJobStatus;
+use epiphany_core::EpiphanyRoleBoardPlanningSummary;
+use epiphany_core::EpiphanySceneInput;
+use epiphany_core::EpiphanyTokenUsageSnapshot;
+use epiphany_core::derive_coordinator_finding_signals;
+use epiphany_core::derive_coordinator_status;
+use epiphany_core::derive_jobs;
+use epiphany_core::derive_planning_view;
+use epiphany_core::derive_pressure_view;
+use epiphany_core::derive_role_board;
+use epiphany_core::derive_scene;
+use epiphany_core::load_thread_state_entry;
+use epiphany_core::recommend_crrc_action;
+use epiphany_core::recommend_reorientation;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -19,6 +47,11 @@ use std::time::{Duration, Instant};
 
 const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_CARGO_TARGET_DIR: &str = r"C:\Users\Meta\.cargo-target-codex";
+const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.msgpack";
+const REORIENT_BINDING_ID: &str = "reorient-worker";
+const IMAGINATION_BINDING_ID: &str = "imagination-synthesis-worker";
+const MODELING_BINDING_ID: &str = "modeling-checkpoint-worker";
+const VERIFICATION_BINDING_ID: &str = "verification-review-worker";
 const SEALED_DIRECT_THOUGHT_KEYS: &[&str] = &[
     "rawResult",
     "turns",
@@ -42,12 +75,16 @@ fn main() -> Result<()> {
             format!("{}\n", serde_json::to_string_pretty(&status)?),
         )
         .with_context(|| format!("failed to write {}", result.display()))?;
-        write_transcript_telemetry(&args.transcript, &result.with_extension("telemetry.json"))?;
+        if args.source == StatusSource::Codex {
+            write_transcript_telemetry(&args.transcript, &result.with_extension("telemetry.json"))?;
+        }
     }
-    write_transcript_telemetry(
-        &args.transcript,
-        &args.transcript.with_extension("telemetry.json"),
-    )?;
+    if args.source == StatusSource::Codex {
+        write_transcript_telemetry(
+            &args.transcript,
+            &args.transcript.with_extension("telemetry.json"),
+        )?;
+    }
     if args.json {
         println!("{}", serde_json::to_string_pretty(&status)?);
     } else {
@@ -56,12 +93,20 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StatusSource {
+    Native,
+    Codex,
+}
+
 #[derive(Debug)]
 struct Args {
+    source: StatusSource,
     app_server: PathBuf,
     codex_home: PathBuf,
     thread_id: Option<String>,
     cwd: PathBuf,
+    thread_state_store: PathBuf,
     ephemeral: bool,
     json: bool,
     result: Option<PathBuf>,
@@ -74,12 +119,14 @@ impl Args {
         let root = env::current_dir().context("failed to resolve current directory")?;
         let mut args = env::args().skip(1);
         let mut parsed = Args {
+            source: StatusSource::Codex,
             app_server: PathBuf::from(DEFAULT_APP_SERVER),
             codex_home: env::var_os("CODEX_HOME")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| home_dir().join(".codex")),
             thread_id: None,
             cwd: root.clone(),
+            thread_state_store: PathBuf::from(DEFAULT_THREAD_STATE_STORE),
             ephemeral: true,
             json: false,
             result: None,
@@ -92,10 +139,16 @@ impl Args {
         };
         while let Some(arg) = args.next() {
             match arg.as_str() {
+                "--source" => parsed.source = take_source(&mut args, "--source")?,
+                "--native" => parsed.source = StatusSource::Native,
+                "--codex" => parsed.source = StatusSource::Codex,
                 "--app-server" => parsed.app_server = take_path(&mut args, "--app-server")?,
                 "--codex-home" => parsed.codex_home = take_path(&mut args, "--codex-home")?,
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
+                "--thread-state-store" => {
+                    parsed.thread_state_store = take_path(&mut args, "--thread-state-store")?
+                }
                 "--ephemeral" => parsed.ephemeral = true,
                 "--no-ephemeral" => parsed.ephemeral = false,
                 "--json" => parsed.json = true,
@@ -110,6 +163,255 @@ impl Args {
 }
 
 fn run_status(args: &Args) -> Result<Value> {
+    match args.source {
+        StatusSource::Native => run_native_status(args),
+        StatusSource::Codex => run_codex_status(args),
+    }
+}
+
+fn run_native_status(args: &Args) -> Result<Value> {
+    let cwd = absolute_path(&args.cwd)?;
+    let store_path = absolute_path(&args.thread_state_store)?;
+    let state_entry = if store_path.exists() {
+        load_thread_state_entry(&store_path)
+            .with_context(|| format!("failed to load {}", store_path.display()))?
+    } else {
+        None
+    };
+    let thread_id = args
+        .thread_id
+        .clone()
+        .or_else(|| state_entry.as_ref().map(|entry| entry.thread_id.clone()))
+        .unwrap_or_else(|| "native-local".to_string());
+    let state = state_entry
+        .as_ref()
+        .map(|entry| entry.state())
+        .transpose()
+        .context("failed to decode native Epiphany thread state")?;
+    let state_ref = state.as_ref();
+    let loaded = state_ref.is_some();
+
+    let scene = derive_scene(EpiphanySceneInput {
+        state: state_ref,
+        loaded,
+        reorient_binding_id: REORIENT_BINDING_ID,
+    });
+    let pressure = derive_pressure_view(None::<&EpiphanyTokenUsageSnapshot>);
+    let reorient_pressure_level = match pressure.level {
+        epiphany_core::EpiphanyPressureLevel::Unknown => EpiphanyReorientPressureLevel::Unknown,
+        epiphany_core::EpiphanyPressureLevel::Low => EpiphanyReorientPressureLevel::Low,
+        epiphany_core::EpiphanyPressureLevel::Elevated => EpiphanyReorientPressureLevel::Medium,
+        epiphany_core::EpiphanyPressureLevel::High => EpiphanyReorientPressureLevel::High,
+        epiphany_core::EpiphanyPressureLevel::Critical => EpiphanyReorientPressureLevel::Critical,
+    };
+    let (reorient_state_status, reorient_decision) =
+        recommend_reorientation(EpiphanyReorientInput {
+            checkpoint: state_ref.and_then(|state| state.investigation_checkpoint.as_ref()),
+            state_present: state_ref.is_some(),
+            pressure_level: reorient_pressure_level,
+            retrieval_status: EpiphanyReorientFreshnessStatus::Unknown,
+            retrieval_dirty_paths: Vec::new(),
+            graph_status: EpiphanyReorientFreshnessStatus::Unknown,
+            graph_dirty_paths: Vec::new(),
+            watcher_status: EpiphanyReorientFreshnessStatus::Unknown,
+            watcher_changed_paths: Vec::new(),
+            watcher_graph_node_ids: Vec::new(),
+            active_frontier_node_ids: state_ref
+                .and_then(|state| state.graph_frontier.as_ref())
+                .map(|frontier| frontier.active_node_ids.clone())
+                .unwrap_or_default(),
+            watched_root: Some(cwd.clone()),
+        });
+    let planning = derive_planning_view(state_ref);
+    let jobs = derive_jobs(EpiphanyJobsInput {
+        state: state_ref,
+        retrieval_override: None,
+    });
+    let state_status = if state_ref.is_some() {
+        EpiphanyCrrcStateStatus::Ready
+    } else {
+        EpiphanyCrrcStateStatus::Missing
+    };
+    let reorient_action = match reorient_decision.action {
+        EpiphanyReorientAction::Resume => EpiphanyCrrcReorientAction::Resume,
+        EpiphanyReorientAction::Regather => EpiphanyCrrcReorientAction::Regather,
+    };
+    let result_status = EpiphanyCrrcResultStatus::BackendMissing;
+    let recommendation = recommend_crrc_action(EpiphanyCrrcInput {
+        loaded,
+        state_status,
+        should_prepare_compaction: pressure.should_prepare_compaction,
+        reorient_action,
+        result_status,
+        checkpoint_present: state_ref
+            .and_then(|state| state.investigation_checkpoint.as_ref())
+            .is_some(),
+        finding_present: false,
+        finding_accepted: false,
+    });
+    let role_jobs = jobs
+        .iter()
+        .map(|job| EpiphanyRoleBoardJob {
+            id: job.id.clone(),
+            owner_role: job.owner_role.clone(),
+            status: role_job_status(job.status),
+            progress_note: job.progress_note.clone(),
+            blocking_reason: job.blocking_reason.clone(),
+        })
+        .collect::<Vec<_>>();
+    let roles = derive_role_board(EpiphanyRoleBoardInput {
+        state_present: state_ref.is_some(),
+        planning: EpiphanyRoleBoardPlanningSummary {
+            capture_count: planning.summary.capture_count as usize,
+            backlog_item_count: planning.summary.backlog_item_count as usize,
+            roadmap_stream_count: planning.summary.roadmap_stream_count as usize,
+            objective_draft_count: planning.summary.objective_draft_count as usize,
+        },
+        checkpoint: state_ref.and_then(|state| {
+            state.investigation_checkpoint.as_ref().map(|checkpoint| {
+                EpiphanyRoleBoardCheckpointSummary {
+                    disposition: Some(format!("{:?}", checkpoint.disposition)),
+                    next_action: checkpoint.next_action.clone(),
+                }
+            })
+        }),
+        reorient_next_action: reorient_decision.next_action.clone(),
+        jobs: role_jobs.clone(),
+        crrc_action: recommendation.action,
+        crrc_recommended_scene_action: recommendation
+            .recommended_scene_action
+            .map(epiphany_core::crrc_scene_action_to_coordinator_scene_action),
+        crrc_reason: recommendation.reason.clone(),
+        reorient_decision_action: format!("{:?}", reorient_decision.action),
+        pressure_level: format!("{:?}", pressure.level),
+        reorient_result_status: result_status,
+        reorient_job: role_jobs
+            .iter()
+            .find(|job| job.id == REORIENT_BINDING_ID)
+            .cloned(),
+        imagination_binding_id: IMAGINATION_BINDING_ID.to_string(),
+        modeling_binding_id: MODELING_BINDING_ID.to_string(),
+        verification_binding_id: VERIFICATION_BINDING_ID.to_string(),
+        reorient_owner_role: "epiphany-reorienter".to_string(),
+        imagination_owner_role: "epiphany-imagination".to_string(),
+    });
+    let finding_signals = derive_coordinator_finding_signals(state_ref, None, None, None);
+    let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
+        state_status,
+        checkpoint_present: state_ref
+            .and_then(|state| state.investigation_checkpoint.as_ref())
+            .is_some(),
+        pressure: pressure.clone(),
+        recommendation: recommendation.clone(),
+        roles: roles.clone(),
+        reorient_action: reorient_decision.action,
+        modeling_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+        verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+        reorient_result_status: result_status,
+        modeling_result_accepted: finding_signals.modeling_result_accepted,
+        modeling_result_reviewable: finding_signals.modeling_result_reviewable,
+        modeling_result_accepted_after_verification: finding_signals
+            .modeling_result_accepted_after_verification,
+        implementation_evidence_after_verification: finding_signals
+            .implementation_evidence_after_verification,
+        verification_result_cites_implementation_evidence: finding_signals
+            .verification_result_cites_implementation_evidence,
+        verification_result_covers_current_modeling: finding_signals
+            .verification_result_covers_current_modeling,
+        verification_result_accepted: finding_signals.verification_result_accepted,
+        verification_result_allows_implementation: finding_signals
+            .verification_result_allows_implementation,
+        verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
+        reorient_finding_accepted: finding_signals.reorient_finding_accepted,
+    });
+    let coordinator_json = coordinator_status_json(&coordinator)?;
+
+    let root = env::current_dir().context("failed to resolve current directory")?;
+    let native_aux = native_auxiliary_status(&root)?;
+    let status = json!({
+        "threadId": thread_id,
+        "read": {
+            "source": "native",
+            "threadStateStore": store_path,
+            "statePresent": state_ref.is_some(),
+        },
+        "view": {
+            "source": "native",
+            "scene": scene,
+            "pressure": pressure,
+            "jobs": jobs,
+            "roles": {
+                "threadId": thread_id,
+                "source": "native",
+                "stateStatus": crrc_state_status_text(state_status),
+                "roles": roles,
+            },
+            "planning": planning,
+            "reorient": {
+                "threadId": thread_id,
+                "source": "native",
+                "stateStatus": reorient_state_status,
+                "decision": reorient_decision,
+            },
+            "crrc": {
+                "threadId": thread_id,
+                "source": "native",
+                "recommendation": recommendation,
+            },
+            "coordinator": coordinator_json,
+        },
+        "scene": {
+            "threadId": thread_id,
+            "scene": scene,
+        },
+        "pressure": {
+            "threadId": thread_id,
+            "source": "native",
+            "pressure": pressure,
+        },
+        "reorient": {
+            "threadId": thread_id,
+            "source": "native",
+            "stateStatus": reorient_state_status,
+            "decision": reorient_decision,
+        },
+        "jobs": {
+            "threadId": thread_id,
+            "source": "native",
+            "jobs": jobs,
+        },
+        "roles": {
+            "threadId": thread_id,
+            "source": "native",
+            "stateStatus": crrc_state_status_text(state_status),
+            "roles": roles,
+        },
+        "planning": planning,
+        "roleResults": {
+            "imagination": native_role_result(IMAGINATION_BINDING_ID),
+            "modeling": native_role_result(MODELING_BINDING_ID),
+            "verification": native_role_result(VERIFICATION_BINDING_ID),
+        },
+        "reorientResult": {
+            "source": "native",
+            "status": "backendMissing",
+            "bindingId": REORIENT_BINDING_ID,
+            "note": "Native status is provider-neutral and does not query model-worker runtime results yet.",
+        },
+        "crrc": {
+            "threadId": thread_id,
+            "source": "native",
+            "recommendation": recommendation,
+        },
+        "coordinator": coordinator_json,
+        "heartbeat": native_aux.heartbeat,
+        "face": native_aux.face,
+        "voidMemory": native_aux.void_memory,
+    });
+    Ok(sanitize_for_operator(status))
+}
+
+fn run_codex_status(args: &Args) -> Result<Value> {
     let app_server = absolute_path(&args.app_server)?;
     let codex_home = absolute_path(&args.codex_home)?;
     let cwd = absolute_path(&args.cwd)?;
@@ -199,6 +501,35 @@ fn run_status(args: &Args) -> Result<Value> {
         .cloned()
         .unwrap_or_else(|| json!(null));
     let root = env::current_dir().context("failed to resolve current directory")?;
+    let native_aux = native_auxiliary_status(&root)?;
+    let status = json!({
+        "threadId": thread_id,
+        "read": read,
+        "view": view,
+        "scene": scene,
+        "pressure": pressure,
+        "reorient": reorient,
+        "jobs": jobs,
+        "roles": roles,
+        "planning": planning,
+        "roleResults": role_results,
+        "reorientResult": reorient_result,
+        "crrc": crrc,
+        "coordinator": coordinator,
+        "heartbeat": native_aux.heartbeat,
+        "face": native_aux.face,
+        "voidMemory": native_aux.void_memory,
+    });
+    Ok(sanitize_for_operator(status))
+}
+
+struct NativeAuxiliaryStatus {
+    heartbeat: Value,
+    face: Value,
+    void_memory: Value,
+}
+
+fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     let heartbeat_dir = root.join(".epiphany-heartbeats");
     let face_dir = root.join(".epiphany-face");
     let heartbeat = native_json(
@@ -237,25 +568,56 @@ fn run_status(args: &Args) -> Result<Value> {
         &["status", "--config", "state/void-memory.toml"],
     )
     .unwrap_or_else(|error| json!({"ok": false, "error": error.to_string()}));
-    let status = json!({
-        "threadId": thread_id,
-        "read": read,
-        "view": view,
-        "scene": scene,
-        "pressure": pressure,
-        "reorient": reorient,
-        "jobs": jobs,
-        "roles": roles,
-        "planning": planning,
-        "roleResults": role_results,
-        "reorientResult": reorient_result,
-        "crrc": crrc,
-        "coordinator": coordinator,
-        "heartbeat": heartbeat,
-        "face": face,
-        "voidMemory": void_memory,
-    });
-    Ok(sanitize_for_operator(status))
+
+    Ok(NativeAuxiliaryStatus {
+        heartbeat,
+        face,
+        void_memory,
+    })
+}
+
+fn native_role_result(binding_id: &str) -> Value {
+    json!({
+        "source": "native",
+        "status": "backendMissing",
+        "bindingId": binding_id,
+        "note": "Native status is provider-neutral and does not query model-worker runtime results yet.",
+    })
+}
+
+fn coordinator_status_json(status: &epiphany_core::EpiphanyCoordinatorStatus) -> Result<Value> {
+    let mut value = serde_json::to_value(status).context("failed to encode coordinator status")?;
+    let decision = value
+        .get("decision")
+        .cloned()
+        .ok_or_else(|| anyhow!("coordinator status encoded without decision"))?;
+    if let (Value::Object(root), Value::Object(decision)) = (&mut value, decision) {
+        for (key, item) in decision {
+            root.entry(key).or_insert(item);
+        }
+    }
+    Ok(value)
+}
+
+fn crrc_state_status_text(status: EpiphanyCrrcStateStatus) -> &'static str {
+    match status {
+        EpiphanyCrrcStateStatus::Missing => "missing",
+        EpiphanyCrrcStateStatus::Ready => "ready",
+    }
+}
+
+fn role_job_status(status: epiphany_core::EpiphanyJobStatus) -> EpiphanyRoleBoardJobStatus {
+    match status {
+        epiphany_core::EpiphanyJobStatus::Idle => EpiphanyRoleBoardJobStatus::Idle,
+        epiphany_core::EpiphanyJobStatus::Needed => EpiphanyRoleBoardJobStatus::Needed,
+        epiphany_core::EpiphanyJobStatus::Pending => EpiphanyRoleBoardJobStatus::Pending,
+        epiphany_core::EpiphanyJobStatus::Running => EpiphanyRoleBoardJobStatus::Running,
+        epiphany_core::EpiphanyJobStatus::Completed => EpiphanyRoleBoardJobStatus::Completed,
+        epiphany_core::EpiphanyJobStatus::Failed => EpiphanyRoleBoardJobStatus::Failed,
+        epiphany_core::EpiphanyJobStatus::Cancelled => EpiphanyRoleBoardJobStatus::Cancelled,
+        epiphany_core::EpiphanyJobStatus::Blocked => EpiphanyRoleBoardJobStatus::Blocked,
+        epiphany_core::EpiphanyJobStatus::Unavailable => EpiphanyRoleBoardJobStatus::Unavailable,
+    }
 }
 
 pub struct AppServerClient {
@@ -805,6 +1167,16 @@ fn take_string(args: &mut impl Iterator<Item = String>, name: &str) -> Result<St
 
 fn take_path(args: &mut impl Iterator<Item = String>, name: &str) -> Result<PathBuf> {
     Ok(PathBuf::from(take_string(args, name)?))
+}
+
+fn take_source(args: &mut impl Iterator<Item = String>, name: &str) -> Result<StatusSource> {
+    match take_string(args, name)?.as_str() {
+        "native" => Ok(StatusSource::Native),
+        "codex" => Ok(StatusSource::Codex),
+        other => Err(anyhow!(
+            "{name} must be 'native' or 'codex', received {other:?}"
+        )),
+    }
 }
 
 fn home_dir() -> PathBuf {
