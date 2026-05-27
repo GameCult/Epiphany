@@ -130,9 +130,9 @@ shape parts of the living workflow. The Perfect Machine needs Self as a typed
 router over CultNet/CultMesh contracts, not a half-native coordinator behind a
 JSON-RPC organ.
 
-### 5. CultMesh/CultLib Local Dependency Is Broken
+### 5. CultMesh/CultLib Local Dependency Was Broken
 
-`epiphany-core` currently points at:
+`epiphany-core` previously pointed at:
 
 ```toml
 cultcache-rs = { path = "../../CultLib/crates/cultcache-rs" }
@@ -141,13 +141,24 @@ cultnet-rs = { path = "../../CultLib/crates/cultnet-rs" }
 ```
 
 This checkout has `E:\Projects\CultLib` but no `crates` directory, so cargo
-checks fail before reaching the new code. This is a Body-level substrate wound:
-the Rust dependency body described by the map does not exist at the path the
-machine uses.
+checks failed before reaching the new code. This was a Body-level substrate
+wound: the Rust dependency body described by the map did not exist at the path
+the machine used.
 
-Required correction: decide whether CultLib should restore `crates/` or
-Epiphany should depend on the sibling standalone Rust repos. Do not make that
-choice as a drive-by patch.
+Correction landed: Epiphany now compiles against repo-contained vendored crates:
+
+```toml
+cultcache-rs = { path = "../vendor/cultcache-rs" }
+cultmesh-rs = { path = "../vendor/cultmesh-rs" }
+cultnet-rs = { path = "../vendor/cultnet-rs" }
+```
+
+`vendor/cultmesh-rs` is a small Rust facade over vendored CultCache and CultNet.
+It owns document-set registration plus local typed node operations
+(`put`/`get`/`get_required`/`delete`/`flush`) for now. Vendored CultCache also
+reads and writes the `cultcache.store.v1` snapshot format used by the current
+state ledgers. This keeps Epiphany's body self-contained while preserving
+CultMesh as the ergonomic local store surface.
 
 ### 6. Face Prompting Is Directionally Correct But Behind Void
 
@@ -168,12 +179,14 @@ Epiphany should port that shape, not the exact TypeScript machinery.
 
 ### Phase 0: Repair The Rust Body
 
-Goal: make the existing contracts buildable again.
+Goal: make the existing contracts buildable again. Status: landed for the local
+repo-contained dependency body.
 
-- Audit the CultLib/CultCache/CultNet/CultMesh repo layout.
-- Choose the canonical Rust dependency source.
-- Update dependency paths or restore the expected `CultLib/crates` layout.
-- Run the focused tests that are currently blocked:
+- Audited the CultLib/CultCache/CultNet/CultMesh repo layout.
+- Chose the repo-contained vendored Rust dependency source.
+- Updated dependency paths away from the dead `CultLib/crates` layout.
+- Added `vendor/cultmesh-rs` as the local CultMesh facade.
+- Ran the previously blocked focused surface through:
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib face_turn`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib mind_gateway`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib body_gateway`
@@ -182,7 +195,9 @@ Goal: make the existing contracts buildable again.
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib runtime_spine::tests::runtime_spine_emits_cultnet_hello_frame`
 
 Definition of done: contract code compiles against the intended Rust substrate
-without local path superstition.
+without local path superstition. Verification: `cargo test --manifest-path
+.\vendor\cultmesh-rs\Cargo.toml` and `cargo test --manifest-path
+.\epiphany-core\Cargo.toml --lib` pass.
 
 ### Phase 1: Make The Gates Executable
 
