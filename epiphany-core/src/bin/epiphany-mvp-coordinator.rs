@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 mod status_cli;
 
 const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
-const DEFAULT_OPENAI_RUNTIME_BIN: &str = "epiphany-openai-runtime";
+const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const GRAPH_NODE_ID: &str = "reorient-target";
 const WATCHED_RELATIVE_PATH: &str = "src/reorient_target.rs";
@@ -38,7 +38,8 @@ fn main() -> Result<()> {
 #[derive(Debug)]
 struct Args {
     app_server: PathBuf,
-    openai_runtime_bin: PathBuf,
+    model_runtime_bin: PathBuf,
+    model_provider: String,
     thread_id: Option<String>,
     cwd: PathBuf,
     codex_home: PathBuf,
@@ -64,7 +65,8 @@ impl Args {
         let mut args = env::args().skip(1);
         let mut parsed = Args {
             app_server: PathBuf::from(DEFAULT_APP_SERVER),
-            openai_runtime_bin: PathBuf::from(DEFAULT_OPENAI_RUNTIME_BIN),
+            model_runtime_bin: PathBuf::from(DEFAULT_MODEL_RUNTIME_BIN),
+            model_provider: "openai-codex".to_string(),
             thread_id: None,
             cwd: root.clone(),
             codex_home: env::var_os("CODEX_HOME")
@@ -88,8 +90,14 @@ impl Args {
         while let Some(arg) = args.next() {
             match arg.as_str() {
                 "--app-server" => parsed.app_server = take_path(&mut args, "--app-server")?,
+                "--model-runtime-bin" => {
+                    parsed.model_runtime_bin = take_path(&mut args, "--model-runtime-bin")?;
+                }
                 "--openai-runtime-bin" => {
-                    parsed.openai_runtime_bin = take_path(&mut args, "--openai-runtime-bin")?;
+                    parsed.model_runtime_bin = take_path(&mut args, "--openai-runtime-bin")?;
+                }
+                "--model-provider" => {
+                    parsed.model_provider = take_string(&mut args, "--model-provider")?;
                 }
                 "--thread-id" => parsed.thread_id = Some(take_string(&mut args, "--thread-id")?),
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
@@ -139,7 +147,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
     let app_server = status_cli::absolute_path(&args.app_server)?;
     let mut cwd = status_cli::absolute_path(&args.cwd)?;
-    let openai_runtime_bin = resolve_openai_runtime_bin(&root, &args.openai_runtime_bin)?;
+    let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
     let codex_home = status_cli::absolute_path(&args.codex_home)?;
     let artifact_dir = status_cli::absolute_path(&args.artifact_dir)?;
     let agent_memory_dir = status_cli::absolute_path(&args.agent_memory_dir)?;
@@ -372,7 +380,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     json!({"type": "roleLaunch", "roleId": role_id, "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
                 );
                 let worker_run = run_worker_runtime(
-                    &openai_runtime_bin,
+                    &model_runtime_bin,
+                    &args.model_provider,
                     &runtime_store,
                     &codex_home,
                     &worker_job_id,
@@ -410,7 +419,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     json!({"type": "reorientLaunch", "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
                 );
                 let worker_run = run_worker_runtime(
-                    &openai_runtime_bin,
+                    &model_runtime_bin,
+                    &args.model_provider,
                     &runtime_store,
                     &codex_home,
                     &worker_job_id,
@@ -465,7 +475,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let summary = json!({
         "objective": "Coordinate the Epiphany MVP lanes over existing app-server APIs.",
         "artifactDir": artifact_dir,
-        "openaiRuntimeBin": openai_runtime_bin,
+        "modelRuntimeBin": model_runtime_bin,
+        "modelProvider": args.model_provider,
         "codexHome": codex_home,
         "runtimeStore": runtime_store,
         "runtimeSpine": runtime_status,
@@ -611,7 +622,7 @@ fn collect_coordinator_status(
     }))
 }
 
-fn resolve_openai_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
+fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> {
     if configured.components().count() != 1 {
         return status_cli::absolute_path(configured);
     }
@@ -675,7 +686,8 @@ fn worker_job_id_from_launch(launch: &Value) -> Result<String> {
 }
 
 fn run_worker_runtime(
-    openai_runtime_bin: &Path,
+    model_runtime_bin: &Path,
+    model_provider: &str,
     runtime_store: &Path,
     codex_home: &Path,
     job_id: &str,
@@ -692,9 +704,11 @@ fn run_worker_runtime(
         "step-{step_index:02}-{}-worker-runtime.stderr.log",
         sanitize_id(role_id)
     ));
-    let mut command = Command::new(openai_runtime_bin);
+    let mut command = Command::new(model_runtime_bin);
     command
         .arg("run-worker")
+        .arg("--provider")
+        .arg(model_provider)
         .arg("--store")
         .arg(runtime_store)
         .arg("--codex-home")
@@ -705,7 +719,7 @@ fn run_worker_runtime(
         .stderr(Stdio::piped());
     let mut child = command
         .spawn()
-        .with_context(|| format!("failed to spawn {}", openai_runtime_bin.display()))?;
+        .with_context(|| format!("failed to spawn {}", model_runtime_bin.display()))?;
     let deadline = Instant::now() + Duration::from_secs(timeout_seconds);
     loop {
         if let Some(status) = child.try_wait()? {

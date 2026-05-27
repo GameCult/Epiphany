@@ -24,6 +24,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 const DEFAULT_STORE: &str = "state/runtime-spine.msgpack";
+const DEFAULT_PROVIDER: &str = "openai-codex";
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,6 +33,7 @@ async fn main() -> Result<()> {
     match command.as_str() {
         "model-turn" => {
             let options = parse_model_turn_options(args.collect())?;
+            require_supported_provider(&options.provider)?;
             let request_text = fs::read_to_string(&options.request_path)
                 .with_context(|| format!("failed to read {}", options.request_path.display()))?;
             let request: EpiphanyOpenAiModelRequest = serde_json::from_str(&request_text)
@@ -51,6 +53,7 @@ async fn main() -> Result<()> {
         }
         "run-worker" => {
             let options = parse_run_worker_options(args.collect())?;
+            require_supported_provider(&options.provider)?;
             let summary = run_worker_launch(EpiphanyWorkerRuntimeOptions {
                 store_path: options.store_path,
                 codex_home: options.codex_home,
@@ -62,6 +65,7 @@ async fn main() -> Result<()> {
         }
         "smoke" => {
             let options = parse_smoke_options(args.collect())?;
+            require_supported_provider(&options.provider)?;
             let mut request = EpiphanyOpenAiModelRequest::new(
                 "smoke-request",
                 "smoke-conversation",
@@ -90,7 +94,8 @@ async fn main() -> Result<()> {
                     session_id: runtime_options.session_id.clone(),
                     role: OPENAI_RUNTIME_ROLE.to_string(),
                     created_at: now(),
-                    summary: "Smoke typed OpenAI runtime route.".to_string(),
+                    summary: "Smoke typed model runtime route through the OpenAI/Codex provider."
+                        .to_string(),
                     artifact_refs: Vec::new(),
                 },
             )?;
@@ -121,6 +126,7 @@ async fn main() -> Result<()> {
 }
 
 struct ModelTurnCliOptions {
+    provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
     request_path: PathBuf,
@@ -154,11 +160,13 @@ impl ModelTurnCliOptions {
 }
 
 struct SmokeCliOptions {
+    provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
 }
 
 struct RunWorkerCliOptions {
+    provider: String,
     store_path: PathBuf,
     codex_home: PathBuf,
     job_id: String,
@@ -166,6 +174,7 @@ struct RunWorkerCliOptions {
 }
 
 fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
+    let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
     let mut request_path = None;
@@ -177,6 +186,7 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
+            "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
             "--request" => request_path = Some(PathBuf::from(next_value(&mut iter, "--request")?)),
@@ -194,6 +204,7 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
         }
     }
     Ok(ModelTurnCliOptions {
+        provider,
         store_path,
         codex_home,
         request_path: request_path.context("model-turn requires --request")?,
@@ -206,6 +217,7 @@ fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
 }
 
 fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
+    let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
     let mut job_id = None;
@@ -213,6 +225,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
+            "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
             "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
@@ -221,6 +234,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         }
     }
     Ok(RunWorkerCliOptions {
+        provider,
         store_path,
         codex_home,
         job_id: job_id.context("run-worker requires --job-id")?,
@@ -229,23 +243,35 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
 }
 
 fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
+    let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(format!(
-        ".epiphany-dogfood/openai-runtime/smoke-{}.msgpack",
+        ".epiphany-dogfood/model-runtime/smoke-{}.msgpack",
         Uuid::new_v4()
     ));
     let mut codex_home = default_codex_home()?;
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
+            "--provider" => provider = next_value(&mut iter, "--provider")?,
             "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
             other => return Err(anyhow!("unknown smoke argument: {other}")),
         }
     }
     Ok(SmokeCliOptions {
+        provider,
         store_path,
         codex_home,
     })
+}
+
+fn require_supported_provider(provider: &str) -> Result<()> {
+    if matches!(provider, "openai-codex" | "openai") {
+        return Ok(());
+    }
+    Err(anyhow!(
+        "unsupported model runtime provider {provider:?}; current providers: openai-codex"
+    ))
 }
 
 fn next_value(iter: &mut impl Iterator<Item = String>, name: &str) -> Result<String> {
@@ -263,5 +289,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-openai-runtime <model-turn|run-worker|smoke> [--store path] [--codex-home path] [--request path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
+    "usage: epiphany-model-runtime <model-turn|run-worker|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
 }

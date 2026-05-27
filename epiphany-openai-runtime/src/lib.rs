@@ -907,6 +907,11 @@ mod tests {
                     },
                 ),
                 output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                    "epiphany.role.modeling",
+                    "role",
+                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
                 created_at: now(),
             },
         )?;

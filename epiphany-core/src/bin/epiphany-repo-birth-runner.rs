@@ -15,7 +15,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 const DEFAULT_CODEX_BIN: &str = "codex";
-const DEFAULT_OPENAI_RUNTIME_BIN: &str = "epiphany-openai-runtime";
+const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 
 fn main() -> Result<()> {
@@ -35,7 +35,8 @@ struct Args {
     heartbeat_store: PathBuf,
     runtime_store: PathBuf,
     codex_bin: String,
-    openai_runtime_bin: String,
+    model_runtime_bin: String,
+    model_provider: String,
     executor: String,
     mode: String,
     model: Option<String>,
@@ -59,8 +60,9 @@ impl Args {
             heartbeat_store: root.join("state").join("agent-heartbeats.msgpack"),
             runtime_store: root.join("state").join("runtime-spine.msgpack"),
             codex_bin: DEFAULT_CODEX_BIN.to_string(),
-            openai_runtime_bin: DEFAULT_OPENAI_RUNTIME_BIN.to_string(),
-            executor: "openai-runtime".to_string(),
+            model_runtime_bin: DEFAULT_MODEL_RUNTIME_BIN.to_string(),
+            model_provider: "openai-codex".to_string(),
+            executor: "model-runtime".to_string(),
             mode: "plan".to_string(),
             model: None,
             timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
@@ -80,8 +82,14 @@ impl Args {
                     parsed.runtime_store = take_path(&mut args, "--runtime-store")?
                 }
                 "--codex-bin" => parsed.codex_bin = take_string(&mut args, "--codex-bin")?,
+                "--model-runtime-bin" => {
+                    parsed.model_runtime_bin = take_string(&mut args, "--model-runtime-bin")?;
+                }
                 "--openai-runtime-bin" => {
-                    parsed.openai_runtime_bin = take_string(&mut args, "--openai-runtime-bin")?;
+                    parsed.model_runtime_bin = take_string(&mut args, "--openai-runtime-bin")?;
+                }
+                "--model-provider" => {
+                    parsed.model_provider = take_string(&mut args, "--model-provider")?;
                 }
                 "--executor" => parsed.executor = take_string(&mut args, "--executor")?,
                 "--mode" => parsed.mode = take_string(&mut args, "--mode")?,
@@ -97,8 +105,11 @@ impl Args {
         if !matches!(parsed.mode.as_str(), "plan" | "run") {
             return Err(anyhow!("--mode must be plan or run"));
         }
-        if !matches!(parsed.executor.as_str(), "openai-runtime" | "codex-exec") {
-            return Err(anyhow!("--executor must be openai-runtime or codex-exec"));
+        if parsed.executor == "openai-runtime" {
+            parsed.executor = "model-runtime".to_string();
+        }
+        if !matches!(parsed.executor.as_str(), "model-runtime" | "codex-exec") {
+            return Err(anyhow!("--executor must be model-runtime or codex-exec"));
         }
         Ok(parsed)
     }
@@ -135,7 +146,7 @@ fn run(args: Args) -> Result<Value> {
         let schema_path = execution_dir.join("output-schema.json");
         let result_path = execution_dir.join("result.json");
         let request_path = execution_dir.join("openai-request.json");
-        let runtime_summary_path = execution_dir.join("openai-runtime-summary.json");
+        let runtime_summary_path = execution_dir.join("model-runtime-summary.json");
         let stdout_path = execution_dir.join("executor.stdout.log");
         let stderr_path = execution_dir.join("executor.stderr.log");
         let prompt = render_specialist_prompt(kind, &packet_value)?;
@@ -156,6 +167,8 @@ fn run(args: Args) -> Result<Value> {
             "stdoutPath": stdout_path,
             "stderrPath": stderr_path,
             "executor": args.executor.clone(),
+            "modelRuntimeBin": args.model_runtime_bin.clone(),
+            "modelProvider": args.model_provider.clone(),
             "status": "planned",
             "acceptCommand": accept_command(kind, &args, &packet_path, &result_path),
         });
@@ -216,6 +229,8 @@ fn run(args: Args) -> Result<Value> {
         "heartbeatStore": args.heartbeat_store,
         "runtimeStore": args.runtime_store,
         "executor": args.executor,
+        "modelRuntimeBin": args.model_runtime_bin,
+        "modelProvider": args.model_provider,
         "startup": startup,
         "executions": executions,
         "requiresReview": !args.auto_accept,
@@ -339,9 +354,11 @@ fn run_openai_runtime_specialist(
     });
     write_json(request_path, &request)?;
 
-    let mut command = Command::new(&args.openai_runtime_bin);
+    let mut command = Command::new(&args.model_runtime_bin);
     command
         .arg("model-turn")
+        .arg("--provider")
+        .arg(&args.model_provider)
         .arg("--store")
         .arg(&args.runtime_store)
         .arg("--request")
@@ -356,7 +373,7 @@ fn run_openai_runtime_specialist(
         .stderr(Stdio::piped());
     let child = command
         .spawn()
-        .context("failed to spawn epiphany-openai-runtime model-turn")?;
+        .context("failed to spawn model runtime model-turn")?;
     wait_for_child(
         child,
         args.timeout_seconds,

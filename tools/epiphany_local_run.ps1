@@ -78,7 +78,8 @@ $operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
-$openaiRuntimeExe = Join-Path $TargetDir "debug\epiphany-openai-runtime.exe"
+$modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
+$modelProvider = "openai-codex"
 $operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
 $operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
 $operatorSnapshotId = "$runId-status"
@@ -116,12 +117,12 @@ if (-not $SkipBuild) {
 
     if ($Mode -eq "run") {
         Invoke-Checked `
-            -Label "build Epiphany OpenAI runtime" `
+            -Label "build Epiphany model runtime" `
             -FilePath "cargo" `
-            -Arguments @("build", "--manifest-path", ".\epiphany-openai-runtime\Cargo.toml", "--bin", "epiphany-openai-runtime") `
+            -Arguments @("build", "--manifest-path", ".\epiphany-openai-runtime\Cargo.toml", "--bin", "epiphany-model-runtime") `
             -WorkingDirectory $Root `
-            -StdoutPath (Join-Path $artifactRoot "build-openai-runtime.stdout.log") `
-            -StderrPath (Join-Path $artifactRoot "build-openai-runtime.stderr.log")
+            -StdoutPath (Join-Path $artifactRoot "build-model-runtime.stdout.log") `
+            -StderrPath (Join-Path $artifactRoot "build-model-runtime.stderr.log")
     }
 }
 
@@ -252,12 +253,13 @@ if ($Mode -eq "smoke") {
 
 if ($Mode -eq "run") {
     $resultPath = Join-Path $artifactRoot "coordinator-run.stdout.json"
-    if (-not (Test-Path -LiteralPath $openaiRuntimeExe)) {
-        throw "required runtime binary not found: $openaiRuntimeExe"
+    if (-not (Test-Path -LiteralPath $modelRuntimeExe)) {
+        throw "required runtime binary not found: $modelRuntimeExe"
     }
     $runArgs = @(
         "--app-server", $codexAppServer,
-        "--openai-runtime-bin", $openaiRuntimeExe,
+        "--model-runtime-bin", $modelRuntimeExe,
+        "--model-provider", $modelProvider,
         "--codex-home", $CodexHome,
         "--cwd", $Workspace,
         "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
@@ -299,7 +301,8 @@ $summary = @"
 - operatorSnapshotBinary: $operatorSnapshotExe
 - operatorSnapshotStore: $operatorSnapshotStore
 - coordinatorBinary: $coordinatorExe
-- openaiRuntimeBinary: $openaiRuntimeExe
+- modelRuntimeBinary: $modelRuntimeExe
+- modelProvider: $modelProvider
 
 This is an operator entrypoint over the current MVP shell. Status mode is
 Epiphany-native and does not start Codex app-server; coordinator plan/smoke/run

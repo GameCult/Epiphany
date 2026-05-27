@@ -504,4 +504,15 @@ current_status:
     and still writes operator intent, status artifact, snapshot, and completion
     receipt. Codex status remains as a compatibility source for legacy smokes
     and bridge-equipped coordinator paths, not the MVP status authority.
-  next_action: Continue Codex starvation and CultNet liberation by moving coordinator plan/run outputs into typed CultNet receipts and by defining a narrow provider/runtime boundary so future non-OpenAI providers can swap behind Epiphany-owned launch/result documents without touching status, scheduler, prompts, or durable state.
+    The first provider-neutral runtime seam is landed too:
+    `epiphany-openai-runtime` now also builds `epiphany-model-runtime`, whose
+    CLI accepts `--provider openai-codex` and owns the current
+    `model-turn`/`run-worker`/`smoke` executable contract. Coordinator run mode,
+    the local wrapper, and repo birth runner now default to
+    `--model-runtime-bin` plus `--model-provider`; old `--openai-runtime-bin`
+    and `openai-runtime` executor names remain compatibility aliases. This
+    does not make OpenAI generic internally yet: the current provider still
+    uses typed OpenAI request/event/receipt documents through the Codex auth
+    reliquary. It does move provider selection out of scheduler/status/state
+    surfaces and into one runtime executable boundary.
+  next_action: Continue Codex starvation and CultNet liberation by moving coordinator plan/run outputs into typed CultNet receipts and by replacing OpenAI-specific request/event/receipt document names with provider-neutral model request/event/receipt documents plus OpenAI/Codex adapter projection behind the runtime boundary.
