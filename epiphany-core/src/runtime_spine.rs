@@ -83,6 +83,9 @@ use epiphany_state_model::EpiphanyJobBinding;
 use epiphany_state_model::EpiphanyJobKind;
 use epiphany_state_model::EpiphanyRuntimeLink;
 use epiphany_state_model::EpiphanyThreadState;
+use epiphany_tool_adapter::EpiphanyToolCapability;
+use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
+use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -107,6 +110,9 @@ pub const MODEL_ADAPTER_STATUS_TYPE: &str = "epiphany.model_adapter_status.v0";
 pub const MODEL_REQUEST_TYPE: &str = "epiphany.model_request.v0";
 pub const MODEL_STREAM_EVENT_TYPE: &str = "epiphany.model_stream_event.v0";
 pub const MODEL_RECEIPT_TYPE: &str = "epiphany.model_receipt.v0";
+pub const TOOL_CAPABILITY_TYPE: &str = "epiphany.tool_capability.v0";
+pub const TOOL_INVOCATION_INTENT_TYPE: &str = "epiphany.tool_invocation_intent.v0";
+pub const TOOL_INVOCATION_RECEIPT_TYPE: &str = "epiphany.tool_invocation_receipt.v0";
 pub const SURFACE_SCENE_TYPE: &str = "epiphany.surface.scene";
 pub const SURFACE_FRESHNESS_TYPE: &str = "epiphany.surface.freshness";
 pub const SURFACE_CONTEXT_TYPE: &str = "epiphany.surface.context";
@@ -141,6 +147,9 @@ pub const MODEL_ADAPTER_STATUS_SCHEMA_VERSION: &str = "epiphany.model_adapter_st
 pub const MODEL_REQUEST_SCHEMA_VERSION: &str = "epiphany.model_request.v0";
 pub const MODEL_STREAM_EVENT_SCHEMA_VERSION: &str = "epiphany.model_stream_event.v0";
 pub const MODEL_RECEIPT_SCHEMA_VERSION: &str = "epiphany.model_receipt.v0";
+pub const TOOL_CAPABILITY_SCHEMA_VERSION: &str = "epiphany.tool_capability.v0";
+pub const TOOL_INVOCATION_INTENT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_intent.v0";
+pub const TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.tool_invocation_receipt.v0";
 pub const SCENE_SURFACE_SCHEMA_VERSION: &str = "epiphany.scene_surface.v0";
 pub const FRESHNESS_SURFACE_SCHEMA_VERSION: &str = "epiphany.freshness_surface.v0";
 pub const CONTEXT_SURFACE_SCHEMA_VERSION: &str = "epiphany.context_surface.v0";
@@ -684,6 +693,9 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyModelRequest>()?;
     cache.register_entry_type::<EpiphanyModelStreamEvent>()?;
     cache.register_entry_type::<EpiphanyModelReceipt>()?;
+    cache.register_entry_type::<EpiphanyToolCapability>()?;
+    cache.register_entry_type::<EpiphanyToolInvocationIntent>()?;
+    cache.register_entry_type::<EpiphanyToolInvocationReceipt>()?;
     cache.add_generic_backing_store(SingleFileMessagePackBackingStore::new(
         store_path.to_path_buf(),
     ));
@@ -2166,6 +2178,42 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
+            TOOL_CAPABILITY_TYPE,
+            TOOL_CAPABILITY_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::Snapshot],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Tool capability documents describe adapter-discovered tools without making raw MCP discovery JSON authoritative.",
+            ],
+        ),
+        mutation_contract(
+            TOOL_INVOCATION_INTENT_TYPE,
+            TOOL_INVOCATION_INTENT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![TOOL_INVOCATION_INTENT_TYPE],
+            vec![TOOL_INVOCATION_RECEIPT_TYPE],
+            vec![
+                "Tool calls enter Epiphany as typed invocation intents; MCP JSON remains protocol-edge cargo.",
+            ],
+        ),
+        mutation_contract(
+            TOOL_INVOCATION_RECEIPT_TYPE,
+            TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION,
+            vec![CultNetDocumentOperation::ReceiptWatch],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Tool invocation receipts seal parsed results, errors, and raw-result artifact refs before scheduler or state admission.",
+            ],
+        ),
+        mutation_contract(
             OPENAI_ADAPTER_STATUS_TYPE,
             OPENAI_ADAPTER_STATUS_SCHEMA_VERSION,
             vec![CultNetDocumentOperation::Snapshot],
@@ -3229,6 +3277,22 @@ mod tests {
                 assert!(openai_contract.notes.as_ref().is_some_and(|notes| {
                     notes.iter().any(|note| note.contains("adapter projection"))
                 }));
+                let tool_intent_contract = contracts
+                    .iter()
+                    .find(|contract| contract.document_type == TOOL_INVOCATION_INTENT_TYPE)
+                    .expect("tool invocation intent should advertise typed adapter contract");
+                assert_eq!(
+                    tool_intent_contract.authority,
+                    CultNetMutationAuthority::Coordinator
+                );
+                assert!(
+                    tool_intent_contract
+                        .receipt_document_types
+                        .as_ref()
+                        .is_some_and(|items| items
+                            .iter()
+                            .any(|item| item == TOOL_INVOCATION_RECEIPT_TYPE))
+                );
                 let memory_graph_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == MEMORY_GRAPH_TYPE)
@@ -3294,6 +3358,14 @@ mod tests {
         assert!(schemas.iter().any(|schema| {
             schema.document_type.as_deref() == Some(MODEL_RECEIPT_TYPE)
                 && schema.schema_version.as_deref() == Some(MODEL_RECEIPT_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(TOOL_INVOCATION_INTENT_TYPE)
+                && schema.schema_version.as_deref() == Some(TOOL_INVOCATION_INTENT_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(TOOL_INVOCATION_RECEIPT_TYPE)
+                && schema.schema_version.as_deref() == Some(TOOL_INVOCATION_RECEIPT_SCHEMA_VERSION)
         }));
         let receipt_schema_path =
             epiphany_schema_root().join("epiphany.swarm-control-receipt.schema.json");

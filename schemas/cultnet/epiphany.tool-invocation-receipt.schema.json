@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-invocation-receipt.schema.json",
+  "title": "Epiphany Tool Invocation Receipt",
+  "description": "Typed receipt from a tool adapter after it executes or refuses a tool invocation.",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "receipt_id",
+    "intent_id",
+    "adapter",
+    "server",
+    "tool_name",
+    "status",
+    "completed_at"
+  ],
+  "properties": {
+    "schema_id": { "const": "epiphany.tool_invocation_receipt.v0" },
+    "receipt_id": { "type": "string" },
+    "intent_id": { "type": "string" },
+    "adapter": { "type": "string" },
+    "server": { "type": "string" },
+    "tool_name": { "type": "string" },
+    "status": { "type": "string" },
+    "completed_at": { "type": "string" },
+    "result_json": { "type": ["string", "null"] },
+    "error": { "type": ["string", "null"] },
+    "sealed_raw_result_ref": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-capability.schema.json",
+  "title": "Epiphany Tool Capability",
+  "description": "Typed capability advertised by an Epiphany tool adapter. MCP discovery JSON may be the source, but this document is the inspectable Epiphany-facing capability record.",
+  "type": "object",
+  "required": ["schema_id", "capability_id", "adapter", "server", "tool_name"],
+  "properties": {
+    "schema_id": { "const": "epiphany.tool_capability.v0" },
+    "capability_id": { "type": "string" },
+    "adapter": { "type": "string" },
+    "server": { "type": "string" },
+    "tool_name": { "type": "string" },
+    "description": { "type": ["string", "null"] },
+    "input_schema_json": { "type": ["string", "null"] }
+  },
+  "additionalProperties": false
+}

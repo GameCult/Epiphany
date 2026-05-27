@@ -532,4 +532,12 @@ current_status:
     existing coordinator artifact JSON remains operator display and sealed
     audit evidence, but it is no longer the only durable account of what the
     coordinator decided.
-  next_action: Continue Codex starvation and CultNet liberation by wrapping remaining unavoidable JSON protocol edges, especially MCP/tool execution, in typed Epiphany intent/result/receipt documents before letting them influence scheduler, state, or acceptance authority.
+    The first tool/MCP boundary contract is also named:
+    `epiphany-tool-adapter` owns typed `epiphany.tool_capability.v0`,
+    `epiphany.tool_invocation_intent.v0`, and
+    `epiphany.tool_invocation_receipt.v0` documents. Runtime-spine advertises
+    them as the Epiphany-facing tool contract so MCP discovery/call JSON can
+    remain protocol-edge cargo instead of scheduler, state, or acceptance
+    authority. This is a contract surface only; the executing MCP adapter still
+    needs to be built before Codex MCP routes can be demoted.
+  next_action: Continue Codex starvation and CultNet liberation by building the executing tool/MCP adapter that consumes `epiphany.tool_invocation_intent.v0`, emits `epiphany.tool_invocation_receipt.v0`, and keeps raw MCP JSON sealed at the adapter boundary.

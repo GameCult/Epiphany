@@ -112,6 +112,39 @@
       "path": "epiphany.model-receipt.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-capability.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.tool_capability.v0",
+      "documentType": "epiphany.tool_capability.v0",
+      "title": "Epiphany Tool Capability",
+      "path": "epiphany.tool-capability.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-invocation-intent.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.tool_invocation_intent.v0",
+      "documentType": "epiphany.tool_invocation_intent.v0",
+      "title": "Epiphany Tool Invocation Intent",
+      "path": "epiphany.tool-invocation-intent.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-invocation-receipt.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.tool_invocation_receipt.v0",
+      "documentType": "epiphany.tool_invocation_receipt.v0",
+      "title": "Epiphany Tool Invocation Receipt",
+      "path": "epiphany.tool-invocation-receipt.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.openai-adapter-status.schema.json",
       "kind": "document_payload",
       "wireContracts": [

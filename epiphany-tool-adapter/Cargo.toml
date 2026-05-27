@@ -1,0 +1,12 @@
+[package]
+name = "epiphany-tool-adapter"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "epiphany_tool_adapter"
+path = "src/lib.rs"
+
+[dependencies]
+cultcache-rs = { path = "../vendor/cultcache-rs" }
+serde = { version = "1", features = ["derive"] }

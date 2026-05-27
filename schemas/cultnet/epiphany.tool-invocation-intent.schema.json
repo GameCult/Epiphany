@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.tool-invocation-intent.schema.json",
+  "title": "Epiphany Tool Invocation Intent",
+  "description": "Coordinator-owned typed request to call a tool through an adapter. Raw MCP arguments remain string cargo until the adapter validates them.",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "intent_id",
+    "adapter",
+    "server",
+    "tool_name",
+    "arguments_json",
+    "caller",
+    "reason",
+    "created_at"
+  ],
+  "properties": {
+    "schema_id": { "const": "epiphany.tool_invocation_intent.v0" },
+    "intent_id": { "type": "string" },
+    "adapter": { "type": "string" },
+    "server": { "type": "string" },
+    "tool_name": { "type": "string" },
+    "arguments_json": { "type": "string" },
+    "caller": { "type": "string" },
+    "reason": { "type": "string" },
+    "created_at": { "type": "string" }
+  },
+  "additionalProperties": false
+}
