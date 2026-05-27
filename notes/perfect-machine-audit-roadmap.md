@@ -108,20 +108,21 @@ Need fact or action
 
 Today the chain is documented, not structurally unavoidable.
 
-### 3. Hands, Soul, and Life Need First-Class Contracts
+### 3. Hands, Soul, and Life Have First-Class Contract Catalogs
 
-The current contract set names the gates around action but not action itself.
-That leaves three weak organs:
+The contract set now names the gates around action, verification, and
+continuity:
 
-- Hands needs action intent, execution receipt, patch receipt, command receipt,
-  commit/PR receipt, and refusal/rollback receipt contracts.
-- Soul needs verification request, invariant check, evidence verdict,
-  regression/refusal, and review receipt contracts.
-- Life needs compaction request, continuity packet, sleep/distillation,
-  recovery, stale-turn repair, and handoff receipt contracts.
+- Hands has action intent/review plus command, patch, commit, PR, rollback, and
+  refusal receipts.
+- Soul has verification request plus invariant check, verdict, regression,
+  review, and refusal receipts.
+- Life has continuity packet plus compaction checkpoint, sleep distillation,
+  recovery, stale-turn repair, and continuity refusal receipts.
 
-Without those, Body/Mind/Eyes become paper gates around action and continuity
-paths they do not own.
+Runtime-spine advertises those contracts and CultMesh persists Verse-scoped
+policy documents for each. Remaining weakness: these are still contract
+catalogs, not mandatory runtime receipt chains.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
 
@@ -220,19 +221,22 @@ receipt.
 ### Phase 2: Give Hands, Soul, And Life Their Own Contracts
 
 Goal: action, verification, and continuity stop hiding behind neighbors.
+Status: first contract catalog slice landed.
 
-- Hands contracts:
+- Hands contracts landed:
   - `epiphany.hands.action_intent`
   - `epiphany.hands.command_receipt`
   - `epiphany.hands.patch_receipt`
   - `epiphany.hands.commit_receipt`
+  - `epiphany.hands.pr_receipt`
   - `epiphany.hands.rollback_receipt`
-- Soul contracts:
+- Soul contracts landed:
   - `epiphany.soul.verification_request`
   - `epiphany.soul.invariant_check`
   - `epiphany.soul.verdict_receipt`
   - `epiphany.soul.regression_receipt`
-- Life contracts:
+  - `epiphany.soul.review_receipt`
+- Life contracts landed:
   - `epiphany.life.continuity_packet`
   - `epiphany.life.compaction_checkpoint`
   - `epiphany.life.sleep_distillation`
@@ -240,7 +244,11 @@ Goal: action, verification, and continuity stop hiding behind neighbors.
   - `epiphany.life.stale_turn_repair`
 
 Definition of done: action, verification, and continuity have the same typed
-contract dignity as Mind/Body/Eyes.
+contract dignity as Mind/Body/Eyes. Verification: `cargo test --manifest-path
+.\epiphany-core\Cargo.toml --lib` and `cargo run --manifest-path
+.\epiphany-core\Cargo.toml --bin epiphany-cultmesh-smoke` pass. Next step:
+make these contracts executable gates in the live worker/action/verification
+and compaction paths.
 
 ### Phase 3: Port Void's Face Prompting Shape Properly
 

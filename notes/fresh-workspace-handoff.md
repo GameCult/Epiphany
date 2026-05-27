@@ -1415,15 +1415,24 @@ grounding. Body can grant access to the repo, but Eyes decides what was actually
 looked at and emits evidence reviews, source lookup receipts, evidence packets,
 or refusals before Imagination, Hands, Mind, Face, Soul, Self, Body, or Life cite
 the material as known.
+`notes/hands-cultnet-contracts.md`, `notes/soul-cultnet-contracts.md`, and
+`notes/life-cultnet-contracts.md` are now the missing action, verification, and
+continuity gates. The code surface now names Hands action intents/reviews plus
+command, patch, commit, PR, rollback, and refusal receipts; Soul verification
+requests plus invariant, verdict, regression, review, and refusal receipts; and
+Life continuity packets plus compaction, sleep distillation, recovery,
+stale-turn repair, and continuity refusal receipts. Runtime-spine advertises
+those contracts, CultMesh stores matching Verse-scoped policy docs, and the
+local CultMesh smoke writes them beside Mind/Body/Eyes.
 `notes/perfect-machine-audit-roadmap.md` is the current audit/path document. It
 compares Epiphany's named organ contracts against Void's current Face prompting
 shape and maps the route from contract catalog to executable organism. Main
-finding: the boundaries are directionally right, but Mind/Body/Eyes are still
-mostly advertised gates rather than mandatory runtime receipt chains; Hands,
-Soul, and Life need their own contract families. The first dependency-body
-repair is landed: the missing `E:\Projects\CultLib\crates\*` paths were replaced
-with repo-contained vendored CultCache/CultNet/CultMesh crates, and the
-`epiphany-core` library tests pass against that body.
+finding: the boundaries are directionally right, but the organ contracts are
+still mostly advertised gates rather than mandatory runtime receipt chains. The
+first dependency-body repair is landed: the missing
+`E:\Projects\CultLib\crates\*` paths were replaced with repo-contained vendored
+CultCache/CultNet/CultMesh crates, and the `epiphany-core` library tests pass
+against that body.
 
 ## Not Yet
 
@@ -1436,7 +1445,7 @@ with repo-contained vendored CultCache/CultNet/CultMesh crates, and the
 - broader editor/runtime bridges beyond the first pinned Unity bridge
 - broad event stream beyond the landed state update notification
 - typed repetitive-work queues plus final-answer gates, so batch/tile/import/migration work cannot end merely because the pattern was demonstrated or the partial result sounds tidy
-- public CultMesh Verse deployment or cross-app live sharing; only the local Rust CultMesh node/status smoke exists so far
+- public CultMesh Verse deployment or cross-app live sharing; only the local Rust CultMesh node/status/contract smoke exists so far
 
 The machine is no longer cleared to move outward. Free it from the Codex organ
 first.

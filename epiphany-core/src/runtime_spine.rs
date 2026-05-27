@@ -22,8 +22,10 @@ use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_TYPE;
 use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
+use crate::hands_gateway::*;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
+use crate::life_gateway::*;
 use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
 use crate::memory_graph::MEMORY_GRAPH_TYPE;
 use crate::mind_gateway::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
@@ -38,6 +40,7 @@ use crate::mind_gateway::MIND_THOUGHT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_THOUGHT_TYPE;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
+use crate::soul_gateway::*;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
 use crate::thread_state_store::THREAD_STATE_SCHEMA_VERSION;
@@ -1705,6 +1708,286 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec!["Evidence refusal receipts preserve why Eyes would not certify a claim."],
+        ),
+        mutation_contract(
+            HANDS_ACTION_INTENT_TYPE,
+            HANDS_ACTION_INTENT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![HANDS_ACTION_INTENT_TYPE],
+            vec![
+                HANDS_ACTION_REVIEW_TYPE,
+                HANDS_COMMAND_RECEIPT_TYPE,
+                HANDS_PATCH_RECEIPT_TYPE,
+                HANDS_COMMIT_RECEIPT_TYPE,
+                HANDS_PR_RECEIPT_TYPE,
+                HANDS_ROLLBACK_RECEIPT_TYPE,
+                HANDS_ACTION_REFUSAL_RECEIPT_TYPE,
+            ],
+            vec![
+                "Hands is the action organ: commands, patches, commits, PRs, and rollbacks enter as bounded action intents.",
+                "Body grants substrate access before Hands mutates; Soul verifies consequences after.",
+            ],
+        ),
+        mutation_contract(
+            HANDS_ACTION_REVIEW_TYPE,
+            HANDS_ACTION_REVIEW_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Hands reviews explain allowed, refused, sequenced, or delegated action."],
+        ),
+        mutation_contract(
+            HANDS_COMMAND_RECEIPT_TYPE,
+            HANDS_COMMAND_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Command receipts prove what command ran and under which Body grant."],
+        ),
+        mutation_contract(
+            HANDS_PATCH_RECEIPT_TYPE,
+            HANDS_PATCH_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Patch receipts prove file mutations and the scoped grant that permitted them."],
+        ),
+        mutation_contract(
+            HANDS_COMMIT_RECEIPT_TYPE,
+            HANDS_COMMIT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![HANDS_PR_RECEIPT_TYPE],
+            vec!["Commit receipts preserve publication consequences after verification."],
+        ),
+        mutation_contract(
+            HANDS_PR_RECEIPT_TYPE,
+            HANDS_PR_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["PR receipts preserve outward publication consequences for operator review."],
+        ),
+        mutation_contract(
+            HANDS_ROLLBACK_RECEIPT_TYPE,
+            HANDS_ROLLBACK_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Rollback receipts prove failed action was unwound instead of hidden."],
+        ),
+        mutation_contract(
+            HANDS_ACTION_REFUSAL_RECEIPT_TYPE,
+            HANDS_ACTION_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Hands refusal receipts preserve why an action intent was denied."],
+        ),
+        mutation_contract(
+            SOUL_VERIFICATION_REQUEST_TYPE,
+            SOUL_VERIFICATION_REQUEST_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![SOUL_VERIFICATION_REQUEST_TYPE],
+            vec![
+                SOUL_INVARIANT_CHECK_TYPE,
+                SOUL_VERDICT_RECEIPT_TYPE,
+                SOUL_REGRESSION_RECEIPT_TYPE,
+                SOUL_REVIEW_RECEIPT_TYPE,
+                SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE,
+            ],
+            vec![
+                "Soul is the verification organ: invariants, tests, review, falsification, and refusal enter here.",
+                "Soul verdicts inform Mind admission; they do not mutate repo or state by themselves.",
+            ],
+        ),
+        mutation_contract(
+            SOUL_INVARIANT_CHECK_TYPE,
+            SOUL_INVARIANT_CHECK_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Invariant checks identify which promise was tested and whether old paths can still violate it.",
+            ],
+        ),
+        mutation_contract(
+            SOUL_VERDICT_RECEIPT_TYPE,
+            SOUL_VERDICT_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Verdict receipts are proof of sanctity or proof of failure."],
+        ),
+        mutation_contract(
+            SOUL_REGRESSION_RECEIPT_TYPE,
+            SOUL_REGRESSION_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Regression receipts preserve violated invariants and surviving obsolete authorities.",
+            ],
+        ),
+        mutation_contract(
+            SOUL_REVIEW_RECEIPT_TYPE,
+            SOUL_REVIEW_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Review receipts preserve risks, missing tests, and falsification notes."],
+        ),
+        mutation_contract(
+            SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE,
+            SOUL_VERIFICATION_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Soul refusal receipts preserve why a verification request could not honestly be performed.",
+            ],
+        ),
+        mutation_contract(
+            LIFE_CONTINUITY_PACKET_TYPE,
+            LIFE_CONTINUITY_PACKET_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::IntentSubmit,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::Coordinator,
+            vec![LIFE_CONTINUITY_PACKET_TYPE],
+            vec![
+                LIFE_COMPACTION_CHECKPOINT_TYPE,
+                LIFE_SLEEP_DISTILLATION_TYPE,
+                LIFE_RECOVERY_RECEIPT_TYPE,
+                LIFE_STALE_TURN_REPAIR_TYPE,
+                LIFE_CONTINUITY_REFUSAL_RECEIPT_TYPE,
+            ],
+            vec![
+                "Life is the continuity organ: compaction, sleep, recovery, stale-turn repair, and handoff packets enter here.",
+                "Life preserves survival across rupture; Mind admits durable state.",
+            ],
+        ),
+        mutation_contract(
+            LIFE_COMPACTION_CHECKPOINT_TYPE,
+            LIFE_COMPACTION_CHECKPOINT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Compaction checkpoints preserve hot context before rupture."],
+        ),
+        mutation_contract(
+            LIFE_SLEEP_DISTILLATION_TYPE,
+            LIFE_SLEEP_DISTILLATION_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Sleep distillation receipts separate durable lessons from rumination residue."],
+        ),
+        mutation_contract(
+            LIFE_RECOVERY_RECEIPT_TYPE,
+            LIFE_RECOVERY_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Recovery receipts explain what survived and what must be regathered."],
+        ),
+        mutation_contract(
+            LIFE_STALE_TURN_REPAIR_TYPE,
+            LIFE_STALE_TURN_REPAIR_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec![
+                "Stale-turn repair receipts close abandoned work without pretending it completed.",
+            ],
+        ),
+        mutation_contract(
+            LIFE_CONTINUITY_REFUSAL_RECEIPT_TYPE,
+            LIFE_CONTINUITY_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::ReceiptWatch,
+            ],
+            CultNetMutationAuthority::ReadOnly,
+            vec![],
+            vec![],
+            vec!["Life refusal receipts preserve why a continuity packet could not be trusted."],
         ),
         mutation_contract(
             RUNTIME_EVENT_TYPE,

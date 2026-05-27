@@ -7,7 +7,10 @@ use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::write_epiphany_cultmesh_body_contracts;
 use epiphany_core::write_epiphany_cultmesh_eyes_contracts;
 use epiphany_core::write_epiphany_cultmesh_global_room_policies;
+use epiphany_core::write_epiphany_cultmesh_hands_contracts;
+use epiphany_core::write_epiphany_cultmesh_life_contracts;
 use epiphany_core::write_epiphany_cultmesh_mind_contracts;
+use epiphany_core::write_epiphany_cultmesh_soul_contracts;
 use epiphany_core::write_epiphany_cultmesh_status;
 use epiphany_core::write_epiphany_cultmesh_verse_policies;
 use std::path::PathBuf;
@@ -33,6 +36,9 @@ fn main() -> Result<()> {
     write_epiphany_cultmesh_mind_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_body_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_eyes_contracts(&store, "epiphany-cultmesh-smoke")?;
+    write_epiphany_cultmesh_hands_contracts(&store, "epiphany-cultmesh-smoke")?;
+    write_epiphany_cultmesh_soul_contracts(&store, "epiphany-cultmesh-smoke")?;
+    write_epiphany_cultmesh_life_contracts(&store, "epiphany-cultmesh-smoke")?;
     let loaded = load_epiphany_cultmesh_status(&store, "epiphany-cultmesh-smoke")?;
     if loaded != Some(status) {
         anyhow::bail!("CultMesh smoke failed to round-trip Epiphany status document");
