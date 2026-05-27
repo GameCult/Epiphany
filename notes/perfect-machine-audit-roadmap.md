@@ -121,8 +121,14 @@ continuity:
   recovery, stale-turn repair, and continuity refusal receipts.
 
 Runtime-spine advertises those contracts and CultMesh persists Verse-scoped
-policy documents for each. Remaining weakness: these are still contract
-catalogs, not mandatory runtime receipt chains.
+policy documents for each. The first executable pressure slice is landed:
+worker launch packets now carry an `EpiphanyLaunchOrganContract` derived from
+authority scope, launch document kind, and output contract id. That contract
+carries the full standing organ dependency matrix plus required Mind, Body,
+Eyes, Hands, Soul, and Life receipt document types. Remaining weakness: the
+receipts are now launch-carried expectations, but most gates still need
+runtime enforcement that proves the receipt chain before state/action
+promotion.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
 
@@ -244,11 +250,17 @@ Status: first contract catalog slice landed.
   - `epiphany.life.stale_turn_repair`
 
 Definition of done: action, verification, and continuity have the same typed
-contract dignity as Mind/Body/Eyes. Verification: `cargo test --manifest-path
-.\epiphany-core\Cargo.toml --lib` and `cargo run --manifest-path
-.\epiphany-core\Cargo.toml --bin epiphany-cultmesh-smoke` pass. Next step:
-make these contracts executable gates in the live worker/action/verification
-and compaction paths.
+contract dignity as Mind/Body/Eyes, and every worker launch carries the
+organ-dependency/receipt contract that later gates can enforce. Verification:
+`cargo test --manifest-path .\epiphany-core\Cargo.toml --lib` and `cargo run
+--manifest-path .\epiphany-core\Cargo.toml --bin epiphany-cultmesh-smoke` pass
+for the catalog slice; the launch-contract slice is verified by `cargo test
+--manifest-path .\epiphany-core\Cargo.toml --lib`. The attempted bridge crate
+verification is currently blocked before local code by an upstream
+`starlark_map`/`hashbrown` `Allocative` dependency conflict.
+
+Next step: make the launch-carried receipt expectations executable in the live
+worker/action/verification and compaction paths.
 
 ### Phase 3: Port Void's Face Prompting Shape Properly
 
@@ -287,8 +299,11 @@ comfort tunnels.
 
 - Add Self routing contracts for choosing next organ, required dependencies,
   and allowed authority.
-- Make role launch packets declare required Body/Eyes/Hands/Soul/Life/Mind
-  receipts.
+- Landed: role, generic, and reorient worker launch packets declare authority
+  scope, launch document kind, output contract id, owner organ, full organ
+  dependency matrix, and required Body/Eyes/Hands/Soul/Life/Mind receipts.
+- Make acceptance refuse results missing required receipts for their claimed
+  effect type.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and

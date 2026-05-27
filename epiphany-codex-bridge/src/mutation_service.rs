@@ -221,6 +221,7 @@ pub async fn launch_epiphany_job_on_thread(
             instruction: request.instruction.clone(),
             launch_document: request.launch_document.clone(),
             output_contract_id: request.output_contract_id.clone(),
+            organ_launch_contract: request.organ_launch_contract.clone(),
             max_runtime_seconds: request.max_runtime_seconds,
             runtime_job_id: backend_job_id.clone(),
         },
@@ -679,6 +680,7 @@ fn open_epiphany_runtime_spine_job(
             instruction: request.instruction.clone(),
             launch_document: request.launch_document.clone(),
             output_contract_id: request.output_contract_id.clone(),
+            organ_launch_contract: request.organ_launch_contract.clone(),
             created_at: now,
         },
     )

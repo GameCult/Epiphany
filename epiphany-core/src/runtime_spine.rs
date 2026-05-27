@@ -40,6 +40,7 @@ use crate::mind_gateway::MIND_THOUGHT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_THOUGHT_TYPE;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
+use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::soul_gateway::*;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
@@ -258,6 +259,8 @@ pub struct EpiphanyRuntimeWorkerLaunchRequest {
     pub launch_document_msgpack: Vec<u8>,
     #[cultcache(key = 9, default)]
     pub metadata: BTreeMap<String, String>,
+    #[cultcache(key = 10, default)]
+    pub organ_launch_contract: EpiphanyLaunchOrganContract,
 }
 
 impl EpiphanyRuntimeWorkerLaunchRequest {
@@ -532,6 +535,7 @@ pub struct RuntimeSpineHeartbeatJobOptions {
     pub instruction: String,
     pub launch_document: EpiphanyWorkerLaunchDocument,
     pub output_contract_id: String,
+    pub organ_launch_contract: EpiphanyLaunchOrganContract,
     pub created_at: String,
 }
 
@@ -547,6 +551,7 @@ pub struct RuntimeSpineHeartbeatLaunchPlanOptions {
     pub instruction: String,
     pub launch_document: EpiphanyWorkerLaunchDocument,
     pub output_contract_id: String,
+    pub organ_launch_contract: EpiphanyLaunchOrganContract,
     pub max_runtime_seconds: Option<u64>,
     pub runtime_job_id: String,
 }
@@ -570,6 +575,7 @@ pub struct EpiphanyJobLaunchRequest {
     pub instruction: String,
     pub launch_document: EpiphanyWorkerLaunchDocument,
     pub output_contract_id: String,
+    pub organ_launch_contract: EpiphanyLaunchOrganContract,
     pub max_runtime_seconds: Option<u64>,
 }
 
@@ -856,6 +862,12 @@ pub fn open_runtime_spine_heartbeat_job(
             "worker launch output_contract_id must match the typed launch document"
         ));
     }
+    validate_launch_organ_contract(
+        &options.organ_launch_contract,
+        &options.authority_scope,
+        options.launch_document.document_kind(),
+        &options.output_contract_id,
+    )?;
     validate_non_empty(&options.created_at, "created at")?;
     let store_path = store_path.as_ref();
     let job_id = options.job_id.clone();
@@ -864,6 +876,7 @@ pub fn open_runtime_spine_heartbeat_job(
     let authority_scope = options.authority_scope.clone();
     let instruction = options.instruction.clone();
     let output_contract_id = options.output_contract_id.clone();
+    let organ_launch_contract = options.organ_launch_contract.clone();
     let launch_document = options.launch_document.clone();
     initialize_runtime_spine(
         store_path,
@@ -918,6 +931,7 @@ pub fn open_runtime_spine_heartbeat_job(
         document_kind: worker_launch_document_kind(&launch_document).to_string(),
         launch_document_msgpack: encode_worker_launch_document(&launch_document)?,
         metadata: BTreeMap::new(),
+        organ_launch_contract,
     };
     cache.put(&job_id, &request)?;
     Ok(job)
@@ -2334,14 +2348,53 @@ fn validate_non_empty(value: &str, field: &str) -> Result<()> {
 }
 
 fn worker_launch_document_kind(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
-    match document {
-        EpiphanyWorkerLaunchDocument::Role(_) => "role",
-        EpiphanyWorkerLaunchDocument::Reorient(_) => "reorient",
-    }
+    document.document_kind()
 }
 
 fn encode_worker_launch_document(document: &EpiphanyWorkerLaunchDocument) -> Result<Vec<u8>> {
     rmp_serde::to_vec_named(document).context("failed to encode worker launch document MessagePack")
+}
+
+fn validate_launch_organ_contract(
+    contract: &EpiphanyLaunchOrganContract,
+    authority_scope: &str,
+    document_kind: &str,
+    output_contract_id: &str,
+) -> Result<()> {
+    validate_non_empty(
+        &contract.schema_version,
+        "epiphany launch organ contract schema_version",
+    )?;
+    if contract.authority_scope != authority_scope {
+        return Err(anyhow!(
+            "epiphany launch organ contract authority_scope must match the launch request"
+        ));
+    }
+    if contract.document_kind != document_kind {
+        return Err(anyhow!(
+            "epiphany launch organ contract document_kind must match the typed launch document"
+        ));
+    }
+    if contract.output_contract_id != output_contract_id {
+        return Err(anyhow!(
+            "epiphany launch organ contract output_contract_id must match the launch request"
+        ));
+    }
+    validate_non_empty(
+        &contract.owner_organ,
+        "epiphany launch organ contract owner_organ",
+    )?;
+    if contract.dependencies.is_empty() {
+        return Err(anyhow!(
+            "epiphany launch organ contract must carry organ dependencies"
+        ));
+    }
+    if contract.required_receipt_document_types.is_empty() {
+        return Err(anyhow!(
+            "epiphany launch organ contract must carry required receipt document types"
+        ));
+    }
+    Ok(())
 }
 
 fn decode_optional_msgpack<T>(payload: Option<&[u8]>, label: &str) -> Result<Option<T>>
@@ -2394,6 +2447,12 @@ fn validate_heartbeat_launch_options(
             "epiphany job launch output_contract_id must match the typed launch document"
         ));
     }
+    validate_launch_organ_contract(
+        &options.organ_launch_contract,
+        &options.authority_scope,
+        options.launch_document.document_kind(),
+        &options.output_contract_id,
+    )?;
     if let Some(max_runtime_seconds) = options.max_runtime_seconds
         && max_runtime_seconds == 0
     {
@@ -2595,6 +2654,11 @@ mod tests {
                     },
                 ),
                 output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: crate::default_launch_organ_contract(
+                    "modeling",
+                    "role",
+                    crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
                 created_at: "2026-05-06T00:02:00Z".to_string(),
             },
         )?;
@@ -2622,6 +2686,13 @@ mod tests {
         assert_eq!(launch_request.document_kind, "role");
         assert!(!launch_request.launch_document_msgpack.is_empty());
         assert_eq!(launch_request.launch_document()?.thread_id(), "thread-1");
+        assert_eq!(launch_request.organ_launch_contract.document_kind, "role");
+        assert!(
+            launch_request
+                .organ_launch_contract
+                .required_receipt_document_types
+                .contains(&crate::MIND_GATEWAY_REVIEW_TYPE.to_string())
+        );
         Ok(())
     }
 
@@ -2660,6 +2731,11 @@ mod tests {
                     },
                 ),
                 output_contract_id: "epiphany.worker.role_result.v0".to_string(),
+                organ_launch_contract: crate::default_launch_organ_contract(
+                    "epiphany.role.modeling",
+                    "role",
+                    "epiphany.worker.role_result.v0",
+                ),
                 max_runtime_seconds: Some(60),
                 runtime_job_id: "turn-1".to_string(),
             },

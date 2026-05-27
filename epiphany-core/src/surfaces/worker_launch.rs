@@ -42,6 +42,13 @@ impl EpiphanyWorkerLaunchDocument {
         }
     }
 
+    pub fn document_kind(&self) -> &'static str {
+        match self {
+            Self::Role(_) => "role",
+            Self::Reorient(_) => "reorient",
+        }
+    }
+
     pub fn thread_id(&self) -> &str {
         match self {
             Self::Role(document) => &document.thread_id,
@@ -163,6 +170,11 @@ pub fn build_reorient_job_launch_request(
             linked_graph_node_ids.clone(),
         ));
     let output_contract_id = launch_document.output_contract_id().to_string();
+    let organ_launch_contract = crate::default_launch_organ_contract(
+        reorient_launch_authority_scope(input.decision.action),
+        launch_document.document_kind(),
+        &output_contract_id,
+    );
 
     EpiphanyJobLaunchRequest {
         expected_revision: input.expected_revision,
@@ -176,6 +188,7 @@ pub fn build_reorient_job_launch_request(
         instruction: input.instruction,
         launch_document,
         output_contract_id,
+        organ_launch_contract,
         max_runtime_seconds: input.max_runtime_seconds,
     }
 }

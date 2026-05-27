@@ -1424,11 +1424,18 @@ Life continuity packets plus compaction, sleep distillation, recovery,
 stale-turn repair, and continuity refusal receipts. Runtime-spine advertises
 those contracts, CultMesh stores matching Verse-scoped policy docs, and the
 local CultMesh smoke writes them beside Mind/Body/Eyes.
+Worker launch packets now carry the first executable pressure from that map:
+`EpiphanyLaunchOrganContract` is derived from authority scope, launch document
+kind, and output contract id, carries the full organ dependency matrix, and
+names required Mind/Body/Eyes/Hands/Soul/Life receipt document types.
+Runtime-spine validates and persists it on `EpiphanyRuntimeWorkerLaunchRequest`;
+bridge role/reorient/generic launch builders populate it.
 `notes/perfect-machine-audit-roadmap.md` is the current audit/path document. It
 compares Epiphany's named organ contracts against Void's current Face prompting
 shape and maps the route from contract catalog to executable organism. Main
-finding: the boundaries are directionally right, but the organ contracts are
-still mostly advertised gates rather than mandatory runtime receipt chains. The
+finding: the boundaries are directionally right, launch packets now carry organ
+receipt expectations, but most gates still need runtime enforcement that proves
+the required receipts before state/action promotion. The
 first dependency-body repair is landed: the missing
 `E:\Projects\CultLib\crates\*` paths were replaced with repo-contained vendored
 CultCache/CultNet/CultMesh crates, and the `epiphany-core` library tests pass

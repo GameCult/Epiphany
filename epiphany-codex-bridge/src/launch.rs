@@ -13,6 +13,7 @@ use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::build_reorient_job_launch_request;
+use epiphany_core::default_launch_organ_contract;
 use epiphany_state_model::EpiphanyInvestigationCheckpoint;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyThreadState;
@@ -442,6 +443,11 @@ pub fn build_epiphany_role_launch_request(
         churn: state.churn.clone(),
     });
     let output_contract_id = launch_document.output_contract_id().to_string();
+    let organ_launch_contract = default_launch_organ_contract(
+        authority_scope,
+        launch_document.document_kind(),
+        &output_contract_id,
+    );
 
     Ok(EpiphanyJobLaunchRequest {
         expected_revision,
@@ -455,6 +461,7 @@ pub fn build_epiphany_role_launch_request(
         instruction,
         launch_document,
         output_contract_id,
+        organ_launch_contract,
         max_runtime_seconds,
     })
 }
@@ -517,6 +524,11 @@ pub fn build_epiphany_job_launch_request(
     output_contract_id: String,
     max_runtime_seconds: Option<u64>,
 ) -> EpiphanyJobLaunchRequest {
+    let organ_launch_contract = default_launch_organ_contract(
+        &authority_scope,
+        launch_document.document_kind(),
+        &output_contract_id,
+    );
     EpiphanyJobLaunchRequest {
         expected_revision,
         binding_id,
@@ -529,6 +541,7 @@ pub fn build_epiphany_job_launch_request(
         instruction,
         launch_document,
         output_contract_id,
+        organ_launch_contract,
         max_runtime_seconds,
     }
 }
