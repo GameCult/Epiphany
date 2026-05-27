@@ -200,6 +200,17 @@
       "path": "epiphany.cultmesh.operator-status.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-snapshot.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.cultmesh.operator_snapshot.v0",
+      "documentType": "epiphany.cultmesh.operator_snapshot",
+      "title": "Epiphany CultMesh Operator Snapshot",
+      "path": "epiphany.cultmesh.operator-snapshot.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.scene.schema.json",
       "kind": "document_payload",
       "wireContracts": [

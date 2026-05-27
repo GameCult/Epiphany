@@ -269,6 +269,12 @@ pub fn load_completed_core_epiphany_role_finding(
                 snapshot.status
             )));
         }
+        let runtime_store_path = runtime_store_path.ok_or_else(|| {
+            EpiphanyBridgeError::InvalidRequest(
+                "cannot accept completed role worker without a loaded runtime-spine store"
+                    .to_string(),
+            )
+        })?;
         require_launch_organ_contract(runtime_store_path, link.runtime_job_id.as_str(), "role")?;
         return snapshot.finding.ok_or_else(|| {
             EpiphanyBridgeError::InvalidRequest(
@@ -348,6 +354,12 @@ pub fn load_completed_core_epiphany_reorient_finding(
                 snapshot.status
             )));
         }
+        let runtime_store_path = runtime_store_path.ok_or_else(|| {
+            EpiphanyBridgeError::InvalidRequest(
+                "cannot accept completed reorientation worker without a loaded runtime-spine store"
+                    .to_string(),
+            )
+        })?;
         require_launch_organ_contract(
             runtime_store_path,
             link.runtime_job_id.as_str(),

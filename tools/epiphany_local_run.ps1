@@ -74,9 +74,11 @@ New-Item -ItemType Directory -Force -Path $dogfoodRoot | Out-Null
 
 $codexAppServer = Join-Path $TargetDir "debug\codex-app-server.exe"
 $statusExe = Join-Path $TargetDir "debug\epiphany-mvp-status.exe"
+$operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
 $openaiRuntimeExe = Join-Path $TargetDir "debug\epiphany-openai-runtime.exe"
+$operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
 
 if (-not $SkipBuild) {
     Invoke-Checked `
@@ -94,6 +96,7 @@ if (-not $SkipBuild) {
             "build",
             "--manifest-path", ".\epiphany-core\Cargo.toml",
             "--bin", "epiphany-mvp-status",
+            "--bin", "epiphany-operator-snapshot",
             "--bin", "epiphany-mvp-coordinator",
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
@@ -115,7 +118,7 @@ if (-not $SkipBuild) {
     }
 }
 
-foreach ($required in @($codexAppServer, $statusExe, $coordinatorExe)) {
+foreach ($required in @($codexAppServer, $statusExe, $operatorSnapshotExe, $coordinatorExe)) {
     if (-not (Test-Path -LiteralPath $required)) {
         throw "required binary not found: $required"
     }
@@ -151,6 +154,20 @@ if ($Mode -eq "status") {
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "status.stdout.json") `
         -StderrPath (Join-Path $artifactRoot "status.stderr.log")
+    Invoke-Checked `
+        -Label "write CultMesh operator snapshot" `
+        -FilePath $operatorSnapshotExe `
+        -Arguments @(
+            "from-status",
+            "--store", $operatorSnapshotStore,
+            "--runtime-id", "epiphany-local",
+            "--snapshot-id", "$runId-status",
+            "--source-mode", "status",
+            "--input", $statusJson
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "operator-snapshot.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "operator-snapshot.stderr.log")
 }
 
 if ($Mode -eq "plan") {
@@ -239,12 +256,15 @@ $summary = @"
 - dogfoodRoot: $dogfoodRoot
 - codexAppServer: $codexAppServer
 - statusBinary: $statusExe
+- operatorSnapshotBinary: $operatorSnapshotExe
+- operatorSnapshotStore: $operatorSnapshotStore
 - coordinatorBinary: $coordinatorExe
 - openaiRuntimeBinary: $openaiRuntimeExe
 
 This is an operator entrypoint over the current compatibility shell. Codex
 app-server remains the JSON-RPC edge for now; Epiphany state, heartbeat, role
-memory, runtime-spine, and artifacts remain typed native surfaces behind it.
+memory, runtime-spine, operator snapshots, and artifacts remain typed native
+surfaces behind it.
 "@
 Set-Content -LiteralPath (Join-Path $artifactRoot "README.md") -Value $summary -Encoding UTF8
 

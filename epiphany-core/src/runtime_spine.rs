@@ -12,6 +12,8 @@ use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_TYPE;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
 use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_TYPE;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION;
+use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE;
 use crate::eyes_gateway::EYES_EVIDENCE_PACKET_SCHEMA_VERSION;
@@ -2148,6 +2150,21 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
                 "This surface names the Codex bridge role, Epiphany authority role, prompt-authority boundary, and quarantined optional bridges.",
             ],
         ),
+        mutation_contract(
+            EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE,
+            EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
+            vec![
+                CultNetDocumentOperation::Snapshot,
+                CultNetDocumentOperation::DocumentPut,
+            ],
+            CultNetMutationAuthority::LocalUser,
+            vec![],
+            vec![],
+            vec![
+                "Operator snapshots are bounded typed receipts derived from operator-safe status/run artifacts.",
+                "Raw Codex app-server JSON remains an edge artifact; this CultMesh document is the native Epiphany status receipt.",
+            ],
+        ),
         read_only_surface_contract(
             SURFACE_SCENE_TYPE,
             SCENE_SURFACE_SCHEMA_VERSION,
@@ -2911,6 +2928,21 @@ mod tests {
                                 .any(|note| note.contains("Codex app-server status is bridge"))
                         })
                 );
+                let operator_snapshot_contract = contracts
+                    .iter()
+                    .find(|contract| {
+                        contract.document_type == EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE
+                    })
+                    .expect("operator snapshot should advertise a local typed receipt document");
+                assert_eq!(
+                    operator_snapshot_contract.authority,
+                    CultNetMutationAuthority::LocalUser
+                );
+                assert!(
+                    operator_snapshot_contract
+                        .operations
+                        .contains(&CultNetDocumentOperation::DocumentPut)
+                );
                 assert!(
                     contracts
                         .iter()
@@ -3047,6 +3079,11 @@ mod tests {
             schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE)
                 && schema.schema_version.as_deref()
                     == Some(EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION)
+        }));
+        assert!(schemas.iter().any(|schema| {
+            schema.document_type.as_deref() == Some(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE)
+                && schema.schema_version.as_deref()
+                    == Some(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION)
         }));
         assert!(
             !schemas.iter().any(|schema| {

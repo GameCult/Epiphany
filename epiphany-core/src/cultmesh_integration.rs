@@ -5,11 +5,13 @@ use crate::default_life_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use anyhow::Result;
+use anyhow::anyhow;
 use cultcache_rs::DatabaseEntry;
 use cultmesh_rs::CultMesh;
 use cultmesh_rs::CultMeshNode;
 use cultmesh_rs::CultMeshNodeOptions;
 use cultmesh_rs::cultmesh_documents;
+use serde_json::Value;
 use std::path::Path;
 
 pub const EPIPHANY_CULTMESH_STATUS_TYPE: &str = "epiphany.cultmesh.status";
@@ -19,6 +21,11 @@ pub const EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE: &str = "epiphany.cultmesh.oper
 pub const EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.operator_status.v0";
 pub const EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY: &str = "epiphany-local/operator-status";
+pub const EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE: &str = "epiphany.cultmesh.operator_snapshot";
+pub const EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.operator_snapshot.v0";
+pub const EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY: &str =
+    "epiphany-local/operator-snapshot/latest";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_TYPE: &str = "epiphany.cultmesh.verse_policy";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultmesh.verse_policy.v0";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
@@ -99,6 +106,50 @@ pub struct EpiphanyCultMeshOperatorStatusEntry {
     pub native_authorities: Vec<String>,
     #[cultcache(key = 11)]
     pub quarantined_surfaces: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.operator_snapshot",
+    schema = "EpiphanyCultMeshOperatorSnapshotEntry"
+)]
+pub struct EpiphanyCultMeshOperatorSnapshotEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub snapshot_id: String,
+    #[cultcache(key = 4)]
+    pub generated_at_utc: String,
+    #[cultcache(key = 5)]
+    pub source_mode: String,
+    #[cultcache(key = 6)]
+    pub source_path: String,
+    #[cultcache(key = 7)]
+    pub thread_id: String,
+    #[cultcache(key = 8)]
+    pub status: String,
+    #[cultcache(key = 9)]
+    pub state_status: String,
+    #[cultcache(key = 10)]
+    pub coordinator_action: String,
+    #[cultcache(key = 11)]
+    pub crrc_action: String,
+    #[cultcache(key = 12)]
+    pub pressure_level: String,
+    #[cultcache(key = 13)]
+    pub reorient_action: String,
+    #[cultcache(key = 14)]
+    pub next_action: String,
+    #[cultcache(key = 15)]
+    pub artifact_refs: Vec<String>,
+    #[cultcache(key = 16)]
+    pub available_actions: Vec<String>,
+    #[cultcache(key = 17)]
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -324,6 +375,7 @@ pub struct EpiphanyCultMeshLifeContractEntry {
 cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshStatusEntry => EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorStatusEntry => EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION,
+    EpiphanyCultMeshOperatorSnapshotEntry => EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshMindContractEntry => EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION,
@@ -418,6 +470,113 @@ pub fn load_epiphany_cultmesh_operator_status(
 ) -> Result<Option<EpiphanyCultMeshOperatorStatusEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY)
+}
+
+pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
+    runtime_id: impl Into<String>,
+    snapshot_id: impl Into<String>,
+    generated_at_utc: impl Into<String>,
+    source_mode: impl Into<String>,
+    source_path: impl Into<String>,
+    status_json: &Value,
+) -> Result<EpiphanyCultMeshOperatorSnapshotEntry> {
+    let source_path = source_path.into();
+    let state_status = pointer_text(status_json, "/scene/scene/stateStatus", "unknown");
+    let crrc_action = pointer_text(status_json, "/crrc/recommendation/action", "unknown");
+    let reorient_action = pointer_text(status_json, "/reorient/decision/action", "unknown");
+    let operator_status = if state_status == "missing" || crrc_action == "regatherManually" {
+        "needs-regather"
+    } else {
+        "ready"
+    };
+    let mut artifact_refs = Vec::new();
+    if !source_path.trim().is_empty() {
+        artifact_refs.push(source_path.clone());
+    }
+
+    Ok(EpiphanyCultMeshOperatorSnapshotEntry {
+        schema_version: EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION.to_string(),
+        runtime_id: runtime_id.into(),
+        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+        snapshot_id: snapshot_id.into(),
+        generated_at_utc: generated_at_utc.into(),
+        source_mode: source_mode.into(),
+        source_path,
+        thread_id: pointer_text(status_json, "/threadId", "missing"),
+        status: operator_status.to_string(),
+        state_status,
+        coordinator_action: pointer_text(status_json, "/coordinator/action", "none"),
+        crrc_action,
+        pressure_level: pointer_text(status_json, "/pressure/pressure/level", "unknown"),
+        reorient_action,
+        next_action: pointer_text(status_json, "/reorient/decision/nextAction", "none"),
+        artifact_refs,
+        available_actions: pointer_string_array(status_json, "/scene/scene/availableActions")?,
+        notes: vec![
+            "Snapshot is derived from the operator-safe MVP status artifact; raw JSON remains an edge artifact, not internal state.".to_string(),
+            "Codex app-server remains compatibility transport for this source until the status surface is native end to end.".to_string(),
+        ],
+    })
+}
+
+pub fn write_epiphany_cultmesh_operator_snapshot(
+    store_path: impl AsRef<Path>,
+    snapshot: EpiphanyCultMeshOperatorSnapshotEntry,
+) -> Result<EpiphanyCultMeshOperatorSnapshotEntry> {
+    let mut node = open_epiphany_cultmesh_node(&store_path, snapshot.runtime_id.clone())?;
+    let snapshot_key = epiphany_cultmesh_operator_snapshot_key(&snapshot.snapshot_id);
+    let written = node.put(snapshot_key.as_str(), &snapshot)?;
+    node.put(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_epiphany_cultmesh_operator_snapshot(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    snapshot_id: impl AsRef<str>,
+) -> Result<Option<EpiphanyCultMeshOperatorSnapshotEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    let snapshot_key = epiphany_cultmesh_operator_snapshot_key(snapshot_id.as_ref());
+    node.get(snapshot_key.as_str())
+}
+
+pub fn load_latest_epiphany_cultmesh_operator_snapshot(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshOperatorSnapshotEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY)
+}
+
+fn epiphany_cultmesh_operator_snapshot_key(snapshot_id: &str) -> String {
+    format!("epiphany-local/operator-snapshot/{snapshot_id}")
+}
+
+fn pointer_text(value: &Value, pointer: &str, fallback: &str) -> String {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_str)
+        .filter(|text| !text.trim().is_empty())
+        .unwrap_or(fallback)
+        .to_string()
+}
+
+fn pointer_string_array(value: &Value, pointer: &str) -> Result<Vec<String>> {
+    let Some(items) = value.pointer(pointer) else {
+        return Ok(Vec::new());
+    };
+    let items = items
+        .as_array()
+        .ok_or_else(|| anyhow!("{pointer} must be an array when present"))?;
+    items
+        .iter()
+        .map(|item| {
+            item.as_str()
+                .map(ToString::to_string)
+                .ok_or_else(|| anyhow!("{pointer} must contain only strings"))
+        })
+        .collect()
 }
 
 pub fn epiphany_cultmesh_verse_policies() -> Vec<EpiphanyCultMeshVersePolicyEntry> {
@@ -761,6 +920,73 @@ mod tests {
         assert!(
             node.documents()
                 .binding(EPIPHANY_CULTMESH_OPERATOR_STATUS_TYPE)
+                .is_some()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn operator_snapshot_distills_status_json_into_typed_cultmesh_document() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-operator-snapshot.ccmp");
+        let status_json = serde_json::json!({
+            "threadId": "thread-test",
+            "scene": {
+                "scene": {
+                    "stateStatus": "missing",
+                    "availableActions": ["crrc", "roles"]
+                }
+            },
+            "pressure": {
+                "pressure": {
+                    "level": "low"
+                }
+            },
+            "reorient": {
+                "decision": {
+                    "action": "regather",
+                    "nextAction": "Regather source context."
+                }
+            },
+            "crrc": {
+                "recommendation": {
+                    "action": "regatherManually"
+                }
+            },
+            "coordinator": {
+                "action": "wait"
+            },
+            "rawResult": {
+                "sealed": true
+            }
+        });
+        let snapshot = epiphany_cultmesh_operator_snapshot_from_status_json(
+            "epiphany-test",
+            "snapshot-test",
+            "2026-05-27T00:00:00Z",
+            "status",
+            ".epiphany-run/status.json",
+            &status_json,
+        )?;
+
+        assert_eq!(snapshot.status, "needs-regather");
+        assert_eq!(snapshot.thread_id, "thread-test");
+        assert_eq!(snapshot.available_actions, vec!["crrc", "roles"]);
+        assert_eq!(snapshot.artifact_refs, vec![".epiphany-run/status.json"]);
+
+        write_epiphany_cultmesh_operator_snapshot(&store, snapshot.clone())?;
+        assert_eq!(
+            load_epiphany_cultmesh_operator_snapshot(&store, "epiphany-test", "snapshot-test")?,
+            Some(snapshot.clone())
+        );
+        assert_eq!(
+            load_latest_epiphany_cultmesh_operator_snapshot(&store, "epiphany-test")?,
+            Some(snapshot)
+        );
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_TYPE)
                 .is_some()
         );
         Ok(())

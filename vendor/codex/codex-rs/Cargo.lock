@@ -4230,6 +4230,7 @@ dependencies = [
  "rmp-serde",
  "serde",
  "serde_bytes",
+ "serde_json",
  "uuid",
 ]
 
@@ -4240,6 +4241,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "cultmesh-rs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cultcache-rs",
+ "cultnet-rs",
+ "serde",
 ]
 
 [[package]]
@@ -5104,6 +5115,7 @@ dependencies = [
  "bm25",
  "chrono",
  "cultcache-rs",
+ "cultmesh-rs",
  "cultnet-rs",
  "epiphany-openai-adapter",
  "epiphany-state-model",

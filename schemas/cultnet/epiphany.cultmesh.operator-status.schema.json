@@ -2,67 +2,65 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.cultmesh.operator-status.schema.json",
   "title": "Epiphany CultMesh Operator Status",
-  "description": "Native operator-status document naming the Codex bridge role, Epiphany authority role, prompt boundary, and quarantined optional bridge surfaces.",
-  "type": "object",
-  "additionalProperties": false,
-  "properties": {
-    "schemaVersion": {
+  "description": "Native operator-status CultCache tuple naming the Codex bridge role, Epiphany authority role, prompt boundary, and quarantined optional bridge surfaces.",
+  "type": "array",
+  "minItems": 12,
+  "maxItems": 12,
+  "items": [
+    {
+      "title": "schemaVersion",
       "type": "string",
       "const": "epiphany.cultmesh.operator_status.v0"
     },
-    "runtimeId": {
+    {
+      "title": "runtimeId",
       "type": "string"
     },
-    "verseId": {
+    {
+      "title": "verseId",
       "type": "string"
     },
-    "surfaceId": {
+    {
+      "title": "surfaceId",
       "type": "string"
     },
-    "status": {
+    {
+      "title": "status",
       "type": "string"
     },
-    "generatedAtUtc": {
+    {
+      "title": "generatedAtUtc",
       "type": "string"
     },
-    "summary": {
+    {
+      "title": "summary",
       "type": "string"
     },
-    "codexBridgeRole": {
-      "type": "string",
-      "description": "What Codex may do for this Epiphany instance: bridge OpenAI/model transport, streaming, and Codex-native app-server affordances."
+    {
+      "title": "codexBridgeRole",
+      "type": "string"
     },
-    "epiphanyAuthorityRole": {
-      "type": "string",
-      "description": "What Epiphany owns: state, processes, prompts, scheduler decisions, organ contracts, and mutation law."
+    {
+      "title": "epiphanyAuthorityRole",
+      "type": "string"
     },
-    "promptAuthority": {
-      "type": "string",
-      "description": "Boundary forbidding Codex prompt machinery from injecting doctrine, role instructions, state law, or coordinator policy into Epiphany agents."
+    {
+      "title": "promptAuthority",
+      "type": "string"
     },
-    "nativeAuthorities": {
+    {
+      "title": "nativeAuthorities",
       "type": "array",
       "items": {
         "type": "string"
       }
     },
-    "quarantinedSurfaces": {
+    {
+      "title": "quarantinedSurfaces",
       "type": "array",
       "items": {
         "type": "string"
       }
     }
-  },
-  "required": [
-    "schemaVersion",
-    "runtimeId",
-    "verseId",
-    "surfaceId",
-    "status",
-    "generatedAtUtc",
-    "summary",
-    "codexBridgeRole",
-    "epiphanyAuthorityRole",
-    "promptAuthority"
   ]
 }
