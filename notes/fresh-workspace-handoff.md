@@ -1415,6 +1415,14 @@ grounding. Body can grant access to the repo, but Eyes decides what was actually
 looked at and emits evidence reviews, source lookup receipts, evidence packets,
 or refusals before Imagination, Hands, Mind, Face, Soul, Self, Body, or Life cite
 the material as known.
+`notes/perfect-machine-audit-roadmap.md` is the current audit/path document. It
+compares Epiphany's named organ contracts against Void's current Face prompting
+shape and maps the route from contract catalog to executable organism. Main
+finding: the boundaries are directionally right, but Mind/Body/Eyes are still
+mostly advertised gates rather than mandatory runtime receipt chains; Hands,
+Soul, and Life need their own contract families; and cargo verification is
+blocked until the missing `E:\Projects\CultLib\crates\*` Rust dependency body is
+repaired or deliberately replaced.
 
 ## Not Yet
 
