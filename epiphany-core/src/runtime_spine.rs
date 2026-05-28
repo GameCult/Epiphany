@@ -1,17 +1,5 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::agent_memory::AGENT_MEMORY_TYPE;
-use crate::body_gateway::BODY_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
-use crate::body_gateway::BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE;
-use crate::body_gateway::BODY_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION;
-use crate::body_gateway::BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE;
-use crate::body_gateway::BODY_REPO_ACCESS_REQUEST_SCHEMA_VERSION;
-use crate::body_gateway::BODY_REPO_ACCESS_REQUEST_TYPE;
-use crate::body_gateway::BODY_REPO_ACCESS_REVIEW_SCHEMA_VERSION;
-use crate::body_gateway::BODY_REPO_ACCESS_REVIEW_TYPE;
-use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
-use crate::body_gateway::BODY_REPO_MUTATION_RECEIPT_TYPE;
-use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
-use crate::body_gateway::BODY_REPO_SNAPSHOT_RECEIPT_TYPE;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION;
@@ -52,6 +40,18 @@ use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::soul_gateway::*;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REQUEST_SCHEMA_VERSION;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REVIEW_SCHEMA_VERSION;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_ACCESS_REVIEW_TYPE;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
+use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE;
 use crate::thread_state_store::THREAD_STATE_SCHEMA_VERSION;
 use crate::thread_state_store::THREAD_STATE_TYPE;
 use anyhow::Context;
@@ -1763,28 +1763,28 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            BODY_REPO_ACCESS_REQUEST_TYPE,
-            BODY_REPO_ACCESS_REQUEST_SCHEMA_VERSION,
+            SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE,
+            SUBSTRATE_GATE_REPO_ACCESS_REQUEST_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::IntentSubmit,
                 CultNetDocumentOperation::ReceiptWatch,
             ],
             CultNetMutationAuthority::Coordinator,
-            vec![BODY_REPO_ACCESS_REQUEST_TYPE],
+            vec![SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE],
             vec![
-                BODY_REPO_ACCESS_REVIEW_TYPE,
-                BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE,
-                BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+                SUBSTRATE_GATE_REPO_ACCESS_REVIEW_TYPE,
+                SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE,
+                SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
             ],
             vec![
-                "Body is the repository access guardian: reads, indexing, edits, commands, and bridge operations must be requested through this contract.",
-                "Hands mutates only after a scoped Body grant; Eyes inspects only after a scoped Body read/index grant.",
+                "Substrate Gate is the repository access protocol: reads, indexing, edits, commands, and bridge operations must be requested through this contract.",
+                "Hands mutates only after a scoped Substrate Gate grant; Eyes inspects only after a scoped Substrate Gate read/index grant.",
             ],
         ),
         mutation_contract(
-            BODY_REPO_ACCESS_REVIEW_TYPE,
-            BODY_REPO_ACCESS_REVIEW_SCHEMA_VERSION,
+            SUBSTRATE_GATE_REPO_ACCESS_REVIEW_TYPE,
+            SUBSTRATE_GATE_REPO_ACCESS_REVIEW_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -1793,12 +1793,12 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec![
-                "Body reviews explain granted/refused repo paths, operations, commands, and bridge surfaces.",
+                "Substrate Gate reviews explain granted/refused repo paths, operations, commands, and bridge surfaces.",
             ],
         ),
         mutation_contract(
-            BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE,
-            BODY_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION,
+            SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE,
+            SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -1806,11 +1806,11 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["A Body grant receipt scopes a permitted repo touch."],
+            vec!["A Substrate Gate grant receipt scopes a permitted repo touch."],
         ),
         mutation_contract(
-            BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
-            BODY_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+            SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -1818,11 +1818,11 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["A Body refusal receipt preserves why repo access was denied."],
+            vec!["A Substrate Gate refusal receipt preserves why repo access was denied."],
         ),
         mutation_contract(
-            BODY_REPO_SNAPSHOT_RECEIPT_TYPE,
-            BODY_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
+            SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE,
+            SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -1830,11 +1830,11 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["Repo snapshots are evidence projections from Body-gated access."],
+            vec!["Repo snapshots are evidence projections from Substrate-Gate-scoped access."],
         ),
         mutation_contract(
-            BODY_REPO_MUTATION_RECEIPT_TYPE,
-            BODY_REPO_MUTATION_RECEIPT_SCHEMA_VERSION,
+            SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE,
+            SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -1843,7 +1843,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec![],
             vec![],
             vec![
-                "Repo mutation receipts prove Body granted the substrate touch before Hands changed files or ran repo-affecting commands.",
+                "Repo mutation receipts prove Substrate Gate granted the substrate touch before Hands changed files or ran repo-affecting commands.",
             ],
         ),
         mutation_contract(
@@ -1864,7 +1864,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec![
                 "Eyes is the evidence ingress guardian: source-grounded claims, provenance, uncertainty, and evidence packets enter through this contract.",
-                "Body grants substrate access; Eyes decides what was actually inspected and what other organs may cite.",
+                "Substrate Gate grants substrate access; Eyes decides what was actually inspected and what other organs may cite.",
             ],
         ),
         mutation_contract(
@@ -1889,7 +1889,9 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["Source lookup receipts prove what was searched or inspected under a Body grant."],
+            vec![
+                "Source lookup receipts prove what was searched or inspected under a Substrate Gate grant.",
+            ],
         ),
         mutation_contract(
             EYES_EVIDENCE_PACKET_TYPE,
@@ -1938,7 +1940,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
             vec![
                 "Hands is the action organ: commands, patches, commits, PRs, and rollbacks enter as bounded action intents.",
-                "Body grants substrate access before Hands mutates; Soul verifies consequences after.",
+                "Substrate Gate grants substrate access before Hands mutates; Soul verifies consequences after.",
             ],
         ),
         mutation_contract(
@@ -1963,7 +1965,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["Command receipts prove what command ran and under which Body grant."],
+            vec!["Command receipts prove what command ran and under which Substrate Gate grant."],
         ),
         mutation_contract(
             HANDS_PATCH_RECEIPT_TYPE,
@@ -3313,27 +3315,34 @@ mod tests {
                         .iter()
                         .any(|note| note.contains("persistent state guardian"))
                 }));
-                let body_repo_contract = contracts
+                let substrate_gate_repo_contract = contracts
                     .iter()
-                    .find(|contract| contract.document_type == BODY_REPO_ACCESS_REQUEST_TYPE)
-                    .expect("Body repo access should advertise a mutation contract");
+                    .find(|contract| {
+                        contract.document_type == SUBSTRATE_GATE_REPO_ACCESS_REQUEST_TYPE
+                    })
+                    .expect("Substrate Gate repo access should advertise a mutation contract");
                 assert_eq!(
-                    body_repo_contract.authority,
+                    substrate_gate_repo_contract.authority,
                     CultNetMutationAuthority::Coordinator
                 );
                 assert!(
-                    body_repo_contract
+                    substrate_gate_repo_contract
                         .receipt_document_types
                         .as_ref()
                         .is_some_and(|items| items
                             .iter()
-                            .any(|item| item == BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE))
+                            .any(|item| item == SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE))
                 );
-                assert!(body_repo_contract.notes.as_ref().is_some_and(|notes| {
-                    notes
-                        .iter()
-                        .any(|note| note.contains("repository access guardian"))
-                }));
+                assert!(
+                    substrate_gate_repo_contract
+                        .notes
+                        .as_ref()
+                        .is_some_and(|notes| {
+                            notes
+                                .iter()
+                                .any(|note| note.contains("repository access protocol"))
+                        })
+                );
                 let eyes_evidence_contract = contracts
                     .iter()
                     .find(|contract| contract.document_type == EYES_EVIDENCE_REQUEST_TYPE)

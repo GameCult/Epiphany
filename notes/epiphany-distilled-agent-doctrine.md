@@ -186,7 +186,7 @@ Implementation candidates for Epiphany:
 The shared prompt is only common blood. Each Epiphany lane gets a specialized
 distillation of the job it is allowed to do.
 
-- Modeling/checkpoint is the Body of the machine: architecture, data flow,
+- Modeling/checkpoint is Proprioception of the machine: architecture, data flow,
   seams, source scars, frontier nodes, and checkpoint anatomy. It must inspect
   source before trusting the map, name the living seam and open wound, and hand
   back where implementation can safely place its hands.

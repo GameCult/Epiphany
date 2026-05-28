@@ -21,7 +21,7 @@ looked at well enough to become citable evidence for another organ.
 - Shared path: any organ that needs truth asks Eyes for a source-grounded
   packet. Soul may later verify the packet against invariants, but Eyes owns the
   first act of looking.
-- Deletion line: Body access receipts are not evidence receipts. A repo read
+- Deletion line: Substrate Gate access receipts are not evidence receipts. A repo read
   grant says the substrate may be touched; it does not say the claim is known.
 
 ## Contract Families
@@ -30,7 +30,7 @@ looked at well enough to become citable evidence for another organ.
 - `epiphany.eyes.evidence_review`: Eyes decision about grounding, uncertainty,
   and missing looking.
 - `epiphany.eyes.source_lookup_receipt`: proof of what was searched or
-  inspected under which Body grant.
+  inspected under which Substrate Gate grant.
 - `epiphany.eyes.evidence_packet`: citable packet with provenance,
   uncertainty, and source refs.
 - `epiphany.eyes.evidence_refusal_receipt`: proof that Eyes refused to certify a
@@ -38,7 +38,7 @@ looked at well enough to become citable evidence for another organ.
 
 ## Neighboring Gates
 
-- Body grants repo/substrate access.
+- Substrate Gate grants repo/substrate access.
 - Eyes turns inspected material into evidence.
 - Imagination projects evidence into possible scenes and futures.
 - Mind decides whether evidence or thought mutates persistent state.

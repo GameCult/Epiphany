@@ -405,7 +405,7 @@ mod tests {
     fn finding() -> EpiphanyRoleFindingInterpretation {
         EpiphanyRoleFindingInterpretation {
             verdict: Some("checkpoint-ready".to_string()),
-            summary: Some("Body mapped the seam.".to_string()),
+            summary: Some("Proprioception mapped the seam.".to_string()),
             next_safe_move: None,
             checkpoint_summary: None,
             scratch_summary: None,
@@ -472,7 +472,7 @@ mod tests {
         let prompt = build_mind_interpreter_prompt(&MindInterpreterPromptInput {
             source_kind: "roleWorkerResult".to_string(),
             source_role_id: "modeling".to_string(),
-            worker_summary: "Body proposes a graph patch.".to_string(),
+            worker_summary: "Proprioception proposes a graph patch.".to_string(),
             proposed_effects: vec!["graphs".to_string()],
             current_state_context: "revision 7".to_string(),
         });

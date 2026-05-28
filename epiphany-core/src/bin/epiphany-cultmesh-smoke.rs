@@ -8,7 +8,6 @@ use epiphany_core::epiphany_cultmesh_operator_snapshot_from_status_json;
 use epiphany_core::load_epiphany_cultmesh_operator_status;
 use epiphany_core::load_epiphany_cultmesh_status;
 use epiphany_core::load_latest_epiphany_cultmesh_operator_snapshot;
-use epiphany_core::write_epiphany_cultmesh_body_contracts;
 use epiphany_core::write_epiphany_cultmesh_eyes_contracts;
 use epiphany_core::write_epiphany_cultmesh_global_room_policies;
 use epiphany_core::write_epiphany_cultmesh_hands_contracts;
@@ -18,6 +17,7 @@ use epiphany_core::write_epiphany_cultmesh_operator_snapshot;
 use epiphany_core::write_epiphany_cultmesh_operator_status;
 use epiphany_core::write_epiphany_cultmesh_soul_contracts;
 use epiphany_core::write_epiphany_cultmesh_status;
+use epiphany_core::write_epiphany_cultmesh_substrate_gate_contracts;
 use epiphany_core::write_epiphany_cultmesh_verse_policies;
 use std::path::PathBuf;
 
@@ -40,7 +40,7 @@ fn main() -> Result<()> {
     write_epiphany_cultmesh_verse_policies(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_global_room_policies(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_mind_contracts(&store, "epiphany-cultmesh-smoke")?;
-    write_epiphany_cultmesh_body_contracts(&store, "epiphany-cultmesh-smoke")?;
+    write_epiphany_cultmesh_substrate_gate_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_eyes_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_hands_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_soul_contracts(&store, "epiphany-cultmesh-smoke")?;

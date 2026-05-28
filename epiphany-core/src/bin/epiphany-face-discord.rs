@@ -458,7 +458,7 @@ fn run_smoke() -> Result<Value> {
         env::remove_var("EPIPHANY_FACE_AQUARIUM_CHANNEL_ID_TEST");
     }
     let draft = run_draft(
-        "Face notices Body and Soul disagree about evidence shape.",
+        "Face notices Proprioception and Soul disagree about evidence shape.",
         &config,
         &temp_dir,
         "draft",

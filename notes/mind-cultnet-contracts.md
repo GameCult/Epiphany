@@ -4,13 +4,13 @@ Objective: make Mind the persistent state guardian. The state is the Mind; every
 sub-agent output is a thought or proposal until Mind admits it into durable
 state.
 
-Body is the neighboring gate. Body decides whether an organ may touch the repo;
+Body is the neighboring gate. Substrate Gate decides whether an organ may touch the repo;
 Mind decides whether the resulting thought, evidence, or proposal mutates
 persistent state. Do not collapse these into one throne. That is how the machine
 starts lying with excellent posture.
 
 Imagination is the neighboring Projector for Face. It may compose a lived scene
-from state, Body facts, social pressure, and organ dependencies, but it does not
+from state, Body substrate facts, social pressure, and organ dependencies, but it does not
 interpret side effects or admit state.
 
 ## Authority Map

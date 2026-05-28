@@ -15,7 +15,7 @@ Convert useful doctrine, durable lessons, and repo-local planning/modeling surfa
 - Face / public surface
 - Imagination / planning and future shape
 - Eyes / research and existing-work scout
-- Body / modeling, graph, checkpoint, source anatomy
+- Proprioception / modeling, graph, checkpoint, source anatomy
 - Hands / implementation actuator
 - Soul / verification, evidence, objective truth
 - Life / continuity, CRRC, compaction, reorientation
@@ -164,7 +164,7 @@ Good memories for Eyes sound like:
 - "Semantic retrieval is an orientation tool; exact patch work still needs exact source reads."
 - "Known libraries, vendor behavior, and official examples should beat homemade machinery unless local constraints prove otherwise."
 
-### Body / Modeling
+### Proprioception / Modeling
 
 Look for lessons about architecture maps, data flow, graph shape, domain seams, typed contracts, source anatomy, and checkpoint readiness.
 
@@ -177,7 +177,7 @@ Likely sources:
 - LunaMosaic's scene graph / region contract / manifest direction.
 - VoidBot's split runtime organs.
 
-Good memories for Body sound like:
+Good memories for Proprioception sound like:
 
 - "A model is ready when it names ownership boundaries, inputs, outputs, invariants, and acceptance evidence."
 - "Do not centralize app-domain state merely because a shared mechanism touches it."
@@ -397,7 +397,7 @@ Write these files:
    - which repo roadmaps became roadmap streams
    - which backlog items and objective drafts are low-confidence or stale
    - which source maps were strong enough to become graph/model candidates
-   - what should be reviewed by Imagination, Body, Soul, or the human before apply
+   - what should be reviewed by Imagination, Proprioception, Soul, or the human before apply
 
 4. `role-selfpatches/`
 
@@ -416,13 +416,13 @@ Write these files:
 
    ```json
    {
-     "agentId": "epiphany.body",
-     "reason": "Distilled adjacent pseudo-Epiphany modeling doctrine into Body's future graph/checkpoint judgment.",
+     "agentId": "epiphany.proprioception",
+     "reason": "Distilled adjacent pseudo-Epiphany modeling doctrine into Proprioception's future graph/checkpoint judgment.",
      "evidenceIds": ["pseudo-repo-memory-migration-2026-05-05"],
      "semanticMemories": [
        {
          "memoryId": "mem-body-source-owned-boundaries",
-         "summary": "Shared mechanisms do not own app-domain truth; Body should model provider/auth/runtime seams by naming ownership, inputs, outputs, invariants, and acceptance evidence before Hands edits.",
+         "summary": "Shared mechanisms do not own app-domain truth; Proprioception should model provider/auth/runtime seams by naming ownership, inputs, outputs, invariants, and acceptance evidence before Hands edits.",
          "salience": 0.88,
          "confidence": 0.84
        }

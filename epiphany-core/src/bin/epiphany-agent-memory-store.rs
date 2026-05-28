@@ -144,8 +144,8 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
         }));
     }
     let accepted_patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
-        "agentId": "epiphany.body",
-        "reason": "The Body should remember accepted graph growth must be source-grounded and bounded.",
+        "agentId": "epiphany.proprioception",
+        "reason": "Proprioception should remember accepted graph growth must be source-grounded and bounded.",
         "semanticMemories": [{
             "memoryId": "mem-body-smoke-source-grounding",
             "summary": "A modeling self-memory request is acceptable when it improves future graph/checkpoint judgment without smuggling project truth.",
@@ -156,7 +156,7 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
     let accepted = review_agent_self_patch_document("modeling", &accepted_patch, store);
     let wrong_role = review_agent_self_patch_document("verification", &accepted_patch, store);
     let forbidden_patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
-        "agentId": "epiphany.body",
+        "agentId": "epiphany.proprioception",
         "reason": "This tries to put project state in lane memory, which should be refused.",
         "graphs": {},
         "semanticMemories": [{

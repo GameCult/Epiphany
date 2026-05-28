@@ -37,6 +37,6 @@ scratch notes or hopeful transcript memory.
 
 Life preserves what survives rupture. Mind decides what preserved material
 becomes durable state. Soul verifies continuity invariants. Self routes recovery
-work. Body and Eyes regather reality when continuity is missing.
+work. Eyes and Proprioception regather reality when continuity is missing.
 
 Life is not nostalgia. It is survival with receipts.

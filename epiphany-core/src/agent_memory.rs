@@ -20,7 +20,11 @@ const ROLE_TARGETS: &[(&str, &str, &str)] = &[
         "epiphany.imagination",
         "imagination.agent-state.json",
     ),
-    ("modeling", "epiphany.body", "body.agent-state.json"),
+    (
+        "modeling",
+        "epiphany.proprioception",
+        "proprioception.agent-state.json",
+    ),
     ("verification", "epiphany.soul", "soul.agent-state.json"),
     ("implementation", "epiphany.hands", "hands.agent-state.json"),
     ("reorientation", "epiphany.life", "life.agent-state.json"),
@@ -1432,8 +1436,8 @@ mod tests {
         let agent_dir = temp.path().join("agents");
         fs::create_dir_all(&agent_dir)?;
         fs::write(
-            agent_dir.join("body.agent-state.json"),
-            sample_agent_json("epiphany.body", "Body"),
+            agent_dir.join("proprioception.agent-state.json"),
+            sample_agent_json("epiphany.proprioception", "Proprioception"),
         )?;
         for (role_id, agent_id, filename) in ROLE_TARGETS {
             if *role_id == "modeling" {
@@ -1449,8 +1453,8 @@ mod tests {
         assert!(validate_agent_memory_store(&store)?.is_empty());
 
         let patch: AgentSelfPatch = serde_json::from_value(serde_json::json!({
-            "agentId": "epiphany.body",
-            "reason": "The Body should remember accepted graph growth must stay source-grounded.",
+            "agentId": "epiphany.proprioception",
+            "reason": "Proprioception should remember accepted graph growth must stay source-grounded.",
             "semanticMemories": [{
                 "memoryId": "mem-body-native-source-grounding",
                 "summary": "Native role memory patches update typed CultCache state rather than JSON dossier files.",
@@ -1466,9 +1470,10 @@ mod tests {
 
         let mut cache = agent_memory_cache(&store)?;
         cache.pull_all_backing_stores()?;
-        let body = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
+        let proprioception = cache.get_required::<EpiphanyAgentMemoryEntry>("modeling")?;
         assert!(
-            body.agent
+            proprioception
+                .agent
                 .memories
                 .semantic
                 .iter()

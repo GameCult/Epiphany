@@ -1,10 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::body_gateway::{
-    BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE, BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
-    BODY_REPO_MUTATION_RECEIPT_TYPE, BODY_REPO_SNAPSHOT_RECEIPT_TYPE,
-};
 use crate::eyes_gateway::{EYES_EVIDENCE_PACKET_TYPE, EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE};
 use crate::hands_gateway::{
     HANDS_ACTION_REFUSAL_RECEIPT_TYPE, HANDS_COMMIT_RECEIPT_TYPE, HANDS_PATCH_RECEIPT_TYPE,
@@ -18,6 +14,10 @@ use crate::soul_gateway::{
     SOUL_REGRESSION_RECEIPT_TYPE, SOUL_REVIEW_RECEIPT_TYPE, SOUL_VERDICT_RECEIPT_TYPE,
     SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE,
 };
+use crate::substrate_gate::{
+    SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE, SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+    SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE, SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE,
+};
 
 pub const EPIPHANY_ORGAN_DEPENDENCY_SCHEMA_VERSION: &str = "epiphany.organ_dependency.v0";
 pub const EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION: &str = "epiphany.launch_organ_contract.v0";
@@ -27,7 +27,7 @@ pub const EPIPHANY_STANDING_ORGANS: [&str; 8] = [
     "face",
     "imagination",
     "eyes",
-    "body",
+    "proprioception",
     "hands",
     "soul",
     "life",
@@ -65,7 +65,7 @@ pub fn default_organ_dependencies_for(organ_id: &str) -> EpiphanyOrganDependency
             .filter(|candidate| **candidate != normalized)
             .map(|candidate| (*candidate).to_string())
             .collect(),
-        contract: "Every sub-agent depends on the other organs: Self routes, Face speaks, Imagination projects futures/scenes, Eyes seeks evidence, Body gates substrate access, Hands acts, Soul verifies, and Life preserves continuity.".to_string(),
+        contract: "Every sub-agent depends on the other organs: Self routes, Face speaks, Imagination projects futures/scenes, Eyes seeks evidence, Proprioception models the Body, Hands acts through Substrate Gate grants, Soul verifies, and Life preserves continuity.".to_string(),
     }
 }
 
@@ -89,7 +89,7 @@ pub fn default_launch_organ_contract(
         owner_organ: owner_organ_for_authority_scope(authority_scope).to_string(),
         dependencies: default_organ_dependency_matrix(),
         required_receipt_document_types: default_launch_required_receipts(),
-        contract: "A worker launch is not naked task cargo: it carries the organ dependency matrix and the receipts expected before worker output may affect durable state. Mind gates state effects, Body gates repo access, Eyes supplies evidence, Hands records action, Soul verifies, and Life preserves continuity.".to_string(),
+        contract: "A worker launch is not naked task cargo: it carries the organ dependency matrix and the receipts expected before worker output may affect durable state. Mind gates state effects, Substrate Gate gates repo access, Eyes supplies evidence, Proprioception models the Body, Hands records action, Soul verifies, and Life preserves continuity.".to_string(),
     }
 }
 
@@ -98,10 +98,10 @@ pub fn default_launch_required_receipts() -> Vec<String> {
         MIND_GATEWAY_REVIEW_TYPE,
         MIND_STATE_COMMIT_RECEIPT_TYPE,
         MIND_STATE_REJECTION_RECEIPT_TYPE,
-        BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE,
-        BODY_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
-        BODY_REPO_SNAPSHOT_RECEIPT_TYPE,
-        BODY_REPO_MUTATION_RECEIPT_TYPE,
+        SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE,
+        SUBSTRATE_GATE_REPO_ACCESS_REFUSAL_RECEIPT_TYPE,
+        SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE,
+        SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE,
         EYES_EVIDENCE_PACKET_TYPE,
         EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
         HANDS_PATCH_RECEIPT_TYPE,
@@ -153,8 +153,8 @@ fn owner_organ_for_authority_scope(authority_scope: &str) -> &'static str {
         "imagination"
     } else if normalized.contains("eyes") || normalized.contains("evidence") {
         "eyes"
-    } else if normalized.contains("body") || normalized.contains("repo") {
-        "body"
+    } else if normalized.contains("modeling") || normalized.contains("proprioception") {
+        "proprioception"
     } else if normalized.contains("hands") || normalized.contains("implementation") {
         "hands"
     } else if normalized.contains("verification") || normalized.contains("soul") {
@@ -216,7 +216,7 @@ mod tests {
         assert!(
             contract
                 .required_receipt_document_types
-                .contains(&BODY_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string())
+                .contains(&SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string())
         );
         assert!(
             contract

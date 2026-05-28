@@ -58,7 +58,7 @@ pub fn default_hands_cultnet_contracts() -> Vec<HandsCultNetContract> {
             ],
             notes: vec![
                 "Hands is the action organ: commands, patches, commits, PRs, and rollbacks enter here as bounded action intents.".to_string(),
-                "Hands does not grant repo access; Body grants substrate access before Hands mutates, and Soul verifies the result after.".to_string(),
+                "Hands does not grant repo access; Substrate Gate grants substrate access before Hands mutates, and Soul verifies the result after.".to_string(),
             ],
         },
         HandsCultNetContract {
@@ -71,7 +71,7 @@ pub fn default_hands_cultnet_contracts() -> Vec<HandsCultNetContract> {
             intent_document_types: Vec::new(),
             receipt_document_types: Vec::new(),
             notes: vec![
-                "Hands reviews explain what action was allowed, refused, sequenced, or delegated after Body access was checked.".to_string(),
+                "Hands reviews explain what action was allowed, refused, sequenced, or delegated after Substrate Gate access was checked.".to_string(),
             ],
         },
         HandsCultNetContract {
@@ -84,7 +84,7 @@ pub fn default_hands_cultnet_contracts() -> Vec<HandsCultNetContract> {
             intent_document_types: Vec::new(),
             receipt_document_types: Vec::new(),
             notes: vec![
-                "Command receipts prove what command ran, under which Body grant, and where output artifacts live.".to_string(),
+                "Command receipts prove what command ran, under which Substrate Gate grant, and where output artifacts live.".to_string(),
             ],
         },
         HandsCultNetContract {
@@ -97,7 +97,7 @@ pub fn default_hands_cultnet_contracts() -> Vec<HandsCultNetContract> {
             intent_document_types: Vec::new(),
             receipt_document_types: Vec::new(),
             notes: vec![
-                "Patch receipts prove which files changed and which Body grant made the edit legal.".to_string(),
+                "Patch receipts prove which files changed and which Substrate Gate grant made the edit legal.".to_string(),
             ],
         },
         HandsCultNetContract {

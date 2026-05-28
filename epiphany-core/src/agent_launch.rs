@@ -128,7 +128,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
             "properties": {
                 "agentId": {
                     "type": "string",
-                    "description": "Expected target persistent agent id for this lane, such as epiphany.body or epiphany.soul."
+                    "description": "Expected target persistent agent id for this lane, such as epiphany.proprioception or epiphany.soul."
                 },
                 "reason": {
                     "type": "string",

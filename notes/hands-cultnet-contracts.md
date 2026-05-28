@@ -7,7 +7,7 @@ and leave receipts that can be verified, refused, or admitted into Mind state.
 ## Authority Map
 
 - Owner: Hands owns execution of bounded actions.
-- Inputs: typed action intents, Body access grants, requested commands or
+- Inputs: typed action intents, Substrate Gate access grants, requested commands or
   patches, current repo policy, Soul verification requirements, and coordinator
   authority.
 - Outputs: Hands action reviews, command receipts, patch receipts, commit
@@ -20,7 +20,7 @@ and leave receipts that can be verified, refused, or admitted into Mind state.
   access.
 - Shared path: file edits, shell commands, commits, PRs, and rollbacks should
   share Hands action intent/review/receipt semantics.
-- Deletion line: Body grants access; it does not execute. Soul verifies; it
+- Deletion line: Substrate Gate grants access; it does not execute. Soul verifies; it
   does not execute. Mind records durable state; it does not execute.
 
 ## Contract Families
@@ -36,7 +36,7 @@ and leave receipts that can be verified, refused, or admitted into Mind state.
 
 ## Neighboring Gates
 
-Body grants substrate access before Hands touches the repo. Eyes packages
+Substrate Gate grants substrate access before Hands touches the repo. Eyes packages
 evidence for action reasoning. Soul verifies action results and invariants.
 Mind admits durable state after the action and verification receipts exist.
 

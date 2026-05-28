@@ -1009,7 +1009,7 @@ fn run_trajectory_packet(args: AgentPacketArgs) -> Result<Value> {
         "lifecycle": {
             "mode": "birth-only",
             "contract": "Run this specialist only when the repo/swarm has no accepted trajectory initialization. Later direction drift belongs to heartbeat, mood, lived work, reviewed selfPatch, and planning/evidence truth.",
-            "rerunPolicy": "If accepted trajectory initialization exists, do not rerun to rebrand the repo. Route contradictions through normal Eyes/Body/Imagination/Soul work and reviewed memory drift."
+            "rerunPolicy": "If accepted trajectory initialization exists, do not rerun to rebrand the repo. Route contradictions through normal Eyes/Proprioception/Imagination/Soul work and reviewed memory drift."
         },
         "prompt": REPO_TRAJECTORY_DISTILLER_PROMPT,
         "input": {
@@ -1118,7 +1118,7 @@ fn run_agent_packet(args: AgentPacketArgs) -> Result<Value> {
         "lifecycle": {
             "mode": "birth-only",
             "contract": "Run this specialist only when the repo/swarm has no accepted personality initialization. Later personality movement belongs to heartbeat, mood, rumination, sleep consolidation, lived evidence, and reviewed selfPatch.",
-            "rerunPolicy": "If an accepted initialization exists, do not rerun to refresh personality. Route major terrain surprises to Eyes/Body or Self review as normal state/model work, not personality reset."
+            "rerunPolicy": "If an accepted initialization exists, do not rerun to refresh personality. Route major terrain surprises to Eyes/Proprioception or Self review as normal state/model work, not personality reset."
         },
         "prompt": REPO_PERSONALITY_DISTILLER_PROMPT,
         "input": {
@@ -1223,7 +1223,7 @@ fn run_memory_packet(args: AgentPacketArgs) -> Result<Value> {
         "lifecycle": {
             "mode": "birth-only",
             "contract": "Run this specialist only when the repo/swarm has no accepted memory initialization. Later memory growth belongs to heartbeat, work evidence, rumination, sleep consolidation, and reviewed selfPatch.",
-            "rerunPolicy": "If accepted memory initialization exists, do not rerun to refresh memory. Route stale or contradicted knowledge through normal Eyes/Body/Soul state, evidence, and sleep consolidation."
+            "rerunPolicy": "If accepted memory initialization exists, do not rerun to refresh memory. Route stale or contradicted knowledge through normal Eyes/Proprioception/Soul state, evidence, and sleep consolidation."
         },
         "prompt": REPO_MEMORY_DISTILLER_PROMPT,
         "input": {
@@ -2231,7 +2231,7 @@ fn role_id_for_agent_id(agent_id: &str) -> Option<&'static str> {
         "epiphany.face" => Some("face"),
         "epiphany.imagination" => Some("imagination"),
         "epiphany.eyes" => Some("research"),
-        "epiphany.body" => Some("modeling"),
+        "epiphany.proprioception" => Some("modeling"),
         "epiphany.hands" => Some("implementation"),
         "epiphany.soul" => Some("verification"),
         "epiphany.life" => Some("reorientation"),
@@ -2434,7 +2434,7 @@ fn memory_role_filter(role_id: &str) -> &'static str {
             "Distill known prior art, standard algorithms, vendor docs, research trails, and signals that should make Eyes search before invention."
         }
         "modeling" => {
-            "Distill architecture, control/data-flow, graph frontiers, invariants, source-map practices, and what Body must understand before Hands cuts."
+            "Distill architecture, control/data-flow, graph frontiers, invariants, source-map practices, and what Proprioception must understand before Hands cuts."
         }
         "implementation" => {
             "Distill build/edit conventions, harness constraints, source-touch rules, coding style, dependency policy, and common traps for Hands."
@@ -3949,7 +3949,7 @@ fn role_display(role_id: &str) -> &'static str {
         "face" => "Face",
         "imagination" => "Imagination",
         "research" => "Eyes",
-        "modeling" => "Body",
+        "modeling" => "Proprioception",
         "implementation" => "Hands",
         "verification" => "Soul",
         "reorientation" => "Life",

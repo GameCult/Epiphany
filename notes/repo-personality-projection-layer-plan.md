@@ -26,7 +26,7 @@ The shared conclusion is that repo personality should combine three projections:
 3. **Memory doctrine:** how the repo preserves intention, evidence, and identity.
 
 Only after those three are scored should Epiphany modulate Self, Face,
-Imagination, Eyes, Body, Hands, Soul, and Life.
+Imagination, Eyes, Proprioception, Hands, Soul, and Life.
 
 ## Source Families
 
@@ -288,7 +288,7 @@ Projection:
 - Determines how aggressively Eyes must research existing systems, official
   docs, live runtime state, and repo-local source before invention.
 
-### Body
+### Proprioception
 
 Primary inputs:
 
@@ -316,7 +316,7 @@ Primary inputs:
 Projection:
 
 - Determines slice size, willingness to edit, need for queue state, and how much
-  Hands must wait for Body/Soul before cutting.
+  Hands must wait for Proprioception/Soul before cutting.
 
 ### Soul
 
@@ -482,7 +482,7 @@ the machine has repeatable bones.
 - Do not store repo facts inside role personality memory.
 - Do not let high aesthetic appetite lower verification gates.
 - Do not let high experimental heat excuse churn without receipts.
-- Do not let high production pressure make Hands bypass Body or Soul.
+- Do not let high production pressure make Hands bypass Proprioception or Soul.
 - Treat low-confidence inferred personality as a candidate, not a soul brand.
 
 ## Landed First Slice
@@ -527,7 +527,7 @@ personality initialization record. After Self accepts the initial role-memory
 pressure, personality is allowed to drift through heartbeat, mood, rumination,
 sleep consolidation, lived evidence, and reviewed `selfPatch` mutations. Startup
 must not rerun this specialist merely because terrain changed or the repo
-reopened; major terrain surprises should route to Eyes/Body/Self as normal
+reopened; major terrain surprises should route to Eyes/Proprioception/Self as normal
 modeling or review work, not as a personality reset.
 
 ## Repo Memory Distillation
@@ -546,7 +546,7 @@ distiller brief for each standing organ:
 - Face receives public-surface, Aquarium, Discord, voice, and sealed-thought boundary memory.
 - Imagination receives roadmap, backlog, objective-shaping, dream, and rejected-path memory.
 - Eyes receives research, prior-art, canonical algorithm, vendor/API, and invention-avoidance memory.
-- Body receives architecture, graph, control/data-flow, invariant, and checkpoint memory.
+- Proprioception receives architecture, graph, control/data-flow, invariant, and checkpoint memory.
 - Hands receives implementation conventions, build/edit constraints, dependency habits, and common patch traps.
 - Soul receives verification commands, evidence standards, invariant checks, and truth-refusal memory.
 - Life receives compaction, scratch, checkpoint, heartbeat, sleep, and continuity memory.

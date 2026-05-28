@@ -35,7 +35,7 @@ Each record in `state/agents.msgpack` is an
 - `face` -> `epiphany.face`
 - `imagination` -> `epiphany.imagination`
 - `research` -> `epiphany.eyes`
-- `modeling` -> `epiphany.body`
+- `modeling` -> `epiphany.proprioception`
 - `implementation` -> `epiphany.hands`
 - `verification` -> `epiphany.soul`
 - `reorientation` -> `epiphany.life`

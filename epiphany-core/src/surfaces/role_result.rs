@@ -422,9 +422,10 @@ pub fn role_self_memory_target(role_id: EpiphanyRoleResultRoleId) -> (&'static s
             "epiphany.imagination",
             "state/agents/imagination.agent-state.json",
         ),
-        EpiphanyRoleResultRoleId::Modeling => {
-            ("epiphany.body", "state/agents/body.agent-state.json")
-        }
+        EpiphanyRoleResultRoleId::Modeling => (
+            "epiphany.proprioception",
+            "state/agents/proprioception.agent-state.json",
+        ),
         EpiphanyRoleResultRoleId::Verification => {
             ("epiphany.soul", "state/agents/soul.agent-state.json")
         }
@@ -947,8 +948,8 @@ mod tests {
             &serde_json::json!({
                 "statePatch": {"scratch": {"summary": "Source-grounded modeling checkpoint."}},
                 "selfPatch": {
-                    "agentId": "epiphany.body",
-                    "reason": "The Body should remember graph growth must stay source-grounded and bounded.",
+                    "agentId": "epiphany.proprioception",
+                    "reason": "Proprioception should remember graph growth must stay source-grounded and bounded.",
                     "semanticMemories": [{
                         "memoryId": "mem-body-source-grounded-growth",
                         "summary": "Grow graph and checkpoint state only when source evidence makes the anatomy harder to misread.",
@@ -964,7 +965,10 @@ mod tests {
 
         let review = finding.self_persistence.as_ref().unwrap();
         assert_eq!(review.status, EpiphanyRoleSelfPersistenceStatus::Accepted);
-        assert_eq!(review.target_agent_id.as_deref(), Some("epiphany.body"));
+        assert_eq!(
+            review.target_agent_id.as_deref(),
+            Some("epiphany.proprioception")
+        );
     }
 
     #[test]
@@ -973,7 +977,7 @@ mod tests {
             EpiphanyRoleResultRoleId::Verification,
             &serde_json::json!({
                 "selfPatch": {
-                    "agentId": "epiphany.body",
+                    "agentId": "epiphany.proprioception",
                     "reason": "Too broad.",
                     "graphs": {},
                     "semanticMemories": [{

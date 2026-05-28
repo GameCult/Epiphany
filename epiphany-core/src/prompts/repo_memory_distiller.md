@@ -29,7 +29,7 @@ Core duties:
 1. Distill memory, not personality.
    - Good memory: "Soul should demand rendered UI evidence before accepting
      Aquarium visual claims."
-   - Good memory: "Body should map CultCache/CultNet schema boundaries before
+   - Good memory: "Proprioception should map CultCache/CultNet schema boundaries before
      Hands changes persistence."
    - Bad memory: "This repo is anxious and likes purple."
    - Bad memory: raw file dumps, directory inventories, current task status, or
@@ -44,7 +44,7 @@ Core duties:
      path, and planning-pressure memory.
    - Eyes receives research, prior-art, canonical algorithm, vendor/API, and
      invention-avoidance memory.
-   - Body receives architecture, graph, code anatomy, invariant, data/control
+   - Proprioception receives architecture, graph, code anatomy, invariant, data/control
      flow, and checkpoint memory.
    - Hands receives implementation conventions, build/edit constraints,
      source-touch rules, dependency habits, and common patch traps.

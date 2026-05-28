@@ -1,9 +1,9 @@
-use crate::default_body_cultnet_contracts;
 use crate::default_eyes_cultnet_contracts;
 use crate::default_hands_cultnet_contracts;
 use crate::default_life_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
+use crate::default_substrate_gate_cultnet_contracts;
 use anyhow::Result;
 use anyhow::anyhow;
 use cultcache_rs::DatabaseEntry;
@@ -46,9 +46,10 @@ pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION: &str =
 pub const EPIPHANY_CULTMESH_MIND_CONTRACT_TYPE: &str = "epiphany.cultmesh.mind_contract";
 pub const EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.mind_contract.v0";
-pub const EPIPHANY_CULTMESH_BODY_CONTRACT_TYPE: &str = "epiphany.cultmesh.body_contract";
-pub const EPIPHANY_CULTMESH_BODY_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.body_contract.v0";
+pub const EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_TYPE: &str =
+    "epiphany.cultmesh.substrate_gate_contract";
+pub const EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.substrate_gate_contract.v0";
 pub const EPIPHANY_CULTMESH_EYES_CONTRACT_TYPE: &str = "epiphany.cultmesh.eyes_contract";
 pub const EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.eyes_contract.v0";
@@ -324,10 +325,10 @@ pub struct EpiphanyCultMeshMindContractEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.cultmesh.body_contract",
-    schema = "EpiphanyCultMeshBodyContractEntry"
+    type = "epiphany.cultmesh.substrate_gate_contract",
+    schema = "EpiphanyCultMeshSubstrateGateContractEntry"
 )]
-pub struct EpiphanyCultMeshBodyContractEntry {
+pub struct EpiphanyCultMeshSubstrateGateContractEntry {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
@@ -471,7 +472,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshMindContractEntry => EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION,
-    EpiphanyCultMeshBodyContractEntry => EPIPHANY_CULTMESH_BODY_CONTRACT_SCHEMA_VERSION,
+    EpiphanyCultMeshSubstrateGateContractEntry => EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshEyesContractEntry => EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshHandsContractEntry => EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshSoulContractEntry => EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION,
@@ -864,11 +865,12 @@ pub fn write_epiphany_cultmesh_mind_contracts(
     Ok(written)
 }
 
-pub fn epiphany_cultmesh_body_contracts() -> Vec<EpiphanyCultMeshBodyContractEntry> {
-    default_body_cultnet_contracts()
+pub fn epiphany_cultmesh_substrate_gate_contracts()
+-> Vec<EpiphanyCultMeshSubstrateGateContractEntry> {
+    default_substrate_gate_cultnet_contracts()
         .into_iter()
-        .map(|contract| EpiphanyCultMeshBodyContractEntry {
-            schema_version: EPIPHANY_CULTMESH_BODY_CONTRACT_SCHEMA_VERSION.to_string(),
+        .map(|contract| EpiphanyCultMeshSubstrateGateContractEntry {
+            schema_version: EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION.to_string(),
             contract_id: contract.contract_id,
             verse_id: contract.verse_id,
             document_type: contract.document_type,
@@ -882,13 +884,13 @@ pub fn epiphany_cultmesh_body_contracts() -> Vec<EpiphanyCultMeshBodyContractEnt
         .collect()
 }
 
-pub fn write_epiphany_cultmesh_body_contracts(
+pub fn write_epiphany_cultmesh_substrate_gate_contracts(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshBodyContractEntry>> {
+) -> Result<Vec<EpiphanyCultMeshSubstrateGateContractEntry>> {
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut written = Vec::new();
-    for contract in epiphany_cultmesh_body_contracts() {
+    for contract in epiphany_cultmesh_substrate_gate_contracts() {
         written.push(node.put(contract.contract_id.clone(), &contract)?);
     }
     node.flush()?;
@@ -1279,24 +1281,24 @@ mod tests {
     }
 
     #[test]
-    fn body_contracts_use_verses_to_keep_repo_access_guarded() -> Result<()> {
+    fn substrate_gate_contracts_use_verses_to_keep_repo_access_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-body-contracts.ccmp");
-        let written = write_epiphany_cultmesh_body_contracts(&store, "epiphany-test")?;
+        let store = temp.path().join("epiphany-substrate-gate-contracts.ccmp");
+        let written = write_epiphany_cultmesh_substrate_gate_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 4);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let repo_access = node.get_required::<EpiphanyCultMeshBodyContractEntry>(
-            "epiphany.body.repo_access.review",
+        let repo_access = node.get_required::<EpiphanyCultMeshSubstrateGateContractEntry>(
+            "epiphany.substrate_gate.repo_access.review",
         )?;
 
         assert_eq!(repo_access.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(repo_access.authority, "body");
+        assert_eq!(repo_access.authority, "substrateGate");
         assert!(
             repo_access
                 .notes
                 .iter()
-                .any(|note| note.contains("repo access guardian"))
+                .any(|note| note.contains("repo access protocol"))
         );
         Ok(())
     }

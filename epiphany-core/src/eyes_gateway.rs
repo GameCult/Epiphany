@@ -50,7 +50,7 @@ pub fn default_eyes_cultnet_contracts() -> Vec<EyesCultNetContract> {
             ],
             notes: vec![
                 "Eyes is the evidence ingress guardian: organs request source-grounded lookup, provenance, uncertainty, and evidence packets here.".to_string(),
-                "Body grants substrate access; Eyes turns inspected material into citable evidence packets.".to_string(),
+                "Substrate Gate grants substrate access; Eyes turns inspected material into citable evidence packets.".to_string(),
             ],
         },
         EyesCultNetContract {
@@ -76,7 +76,7 @@ pub fn default_eyes_cultnet_contracts() -> Vec<EyesCultNetContract> {
             intent_document_types: Vec::new(),
             receipt_document_types: Vec::new(),
             notes: vec![
-                "Source lookup receipts prove what was searched or inspected, under which Body grant, before another organ cites it.".to_string(),
+                "Source lookup receipts prove what was searched or inspected, under which Substrate Gate grant, before another organ cites it.".to_string(),
             ],
         },
         EyesCultNetContract {

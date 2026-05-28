@@ -14,7 +14,7 @@ Epiphany has the first typed skeleton for the organ boundaries:
 - `Mind`: persistent state guardian. `epiphany-core::mind_gateway` names
   thought, state-effect proposal, gateway-review, commit/rejection, and Verse
   adoption contracts.
-- `Body`: repository/substrate access guardian. `epiphany-core::body_gateway`
+- `Substrate Gate`: repository/substrate access protocol. `epiphany-core::substrate_gate`
   names repo access requests, reviews, grant/refusal receipts, snapshots, and
   mutation receipts.
 - `Eyes`: evidence ingress guardian. `epiphany-core::eyes_gateway` names
@@ -25,7 +25,7 @@ Epiphany has the first typed skeleton for the organ boundaries:
 - `Face`: public person-shaped surface. It receives projected context and writes
   natural prose only.
 - `Hands`: action organ by doctrine, but not yet backed by a dedicated CultNet
-  contract family parallel to Body/Eyes/Mind.
+  contract family parallel to Substrate Gate/Eyes/Mind.
 - `Soul`: verification organ by doctrine, but not yet backed by a dedicated
   CultNet contract family parallel to Eyes.
 - `Life`: continuity organ by doctrine, heartbeat, reorientation, and handoff
@@ -82,7 +82,7 @@ as Void's `rejectLeakyMemorySurface`.
 
 ### 1. Contract Names Exist Before Contract Execution
 
-Mind, Body, and Eyes have type constants, CultMesh policy documents, and
+Mind, Substrate Gate, and Eyes have type constants, CultMesh policy documents, and
 runtime-spine advertisement. They are not yet the mandatory runtime path.
 Workers can still be launched and accepted through older bridge/service flows
 without every substrate touch, evidence claim, or state mutation passing through
@@ -90,14 +90,14 @@ a real receipt chain.
 
 Required correction: turn contract families into executable gates.
 
-### 2. Body/Eyes/Mind Are Correctly Split But Not Yet Chained
+### 2. Substrate Gate/Eyes/Mind Are Correctly Split But Not Yet Chained
 
 The desired chain is:
 
 ```text
 Need fact or action
   -> Self routes
-  -> Body grants scoped substrate access
+  -> Substrate Gate grants scoped substrate access
   -> Eyes packages inspected evidence when truth is needed
   -> Imagination projects options or scenes when future/personhood is needed
   -> Hands executes bounded action when mutation is needed
@@ -124,7 +124,7 @@ Runtime-spine advertises those contracts and CultMesh persists Verse-scoped
 policy documents for each. The first executable pressure slice is landed:
 worker launch packets now carry an `EpiphanyLaunchOrganContract` derived from
 authority scope, launch document kind, and output contract id. That contract
-carries the full standing organ dependency matrix plus required Mind, Body,
+carries the full standing organ dependency matrix plus required Mind, Substrate Gate,
 Eyes, Hands, Soul, and Life receipt document types. Role/reorient acceptance
 now refuses completed runtime-spine findings if the original launch request is
 missing, document-kind mismatched, or lacks a dependency/receipt contract that
@@ -198,7 +198,7 @@ repo-contained dependency body.
 - Ran the previously blocked focused surface through:
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib face_turn`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib mind_gateway`
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib body_gateway`
+  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib substrate_gate`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib eyes_gateway`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib cultmesh_integration`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib runtime_spine::tests::runtime_spine_emits_cultnet_hello_frame`
@@ -213,9 +213,9 @@ without local path superstition. Verification: `cargo test --manifest-path
 Goal: no worker output, repo touch, or evidence claim bypasses the appropriate
 organ.
 
-- Implement Body access request/review/grant/refusal documents in CultCache.
+- Implement Substrate Gate access request/review/grant/refusal documents in CultCache.
 - Route retrieval, indexing, file edit, shell command, Rider, and Unity bridge
-  operations through Body access receipts.
+  operations through Substrate Gate access receipts.
 - Implement Eyes evidence request/review/packet/refusal documents in CultCache.
 - Require Eyes packets for claims promoted into Mind state proposals when the
   claim depends on inspected source.
@@ -252,7 +252,7 @@ Status: first contract catalog slice landed.
   - `epiphany.life.stale_turn_repair`
 
 Definition of done: action, verification, and continuity have the same typed
-contract dignity as Mind/Body/Eyes, and every worker launch carries the
+contract dignity as Mind/Substrate Gate/Eyes, and every worker launch carries the
 organ-dependency/receipt contract that later gates can enforce. Verification:
 `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib` and `cargo run
 --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-cultmesh-smoke` pass
@@ -277,7 +277,7 @@ Goal: Face becomes a living public organ without stealing authority.
   - human pronoun guidance
   - channel label/permission policy
   - media attachment awareness
-  - recent home-repo activity from Body-gated reads
+  - recent home-repo activity from Substrate-Gate-scoped reads
 - Make projection model-owned and read-only, with model output receipts.
 - Strengthen projection leakage rejection: no schema words, repo paths, prompt
   construction language, grants/jurisdictions slurry, or direct action syntax.
@@ -303,11 +303,11 @@ comfort tunnels.
   and allowed authority.
 - Landed: role, generic, and reorient worker launch packets declare authority
   scope, launch document kind, output contract id, owner organ, full organ
-  dependency matrix, and required Body/Eyes/Hands/Soul/Life/Mind receipts.
+  dependency matrix, and required Substrate Gate/Eyes/Hands/Soul/Life/Mind receipts.
 - Landed: role/reorient acceptance refuses completed runtime-spine findings
   when the original worker launch request is missing, mismatched by document
   kind, or lacks a dependency/receipt contract requiring Mind review.
-- Next: make acceptance refuse results missing required Body/Eyes/Hands/Soul/Life
+- Next: make acceptance refuse results missing required Substrate Gate/Eyes/Hands/Soul/Life
   receipts for their claimed effect type once those receipt documents are
   produced by the live runtime.
 - Make Aquarium read the contract catalog and available receipts instead of
@@ -342,7 +342,7 @@ Goal: make the organism visible without making the UI a second truth.
 - Display receipt chains per turn.
 - Display Face prompt packet boundaries: deterministic evidence, Imagination
   projection, Face natural turn, Mind interpretation.
-- Display Body grants, Eyes packets, Hands actions, Soul verdicts, Life
+- Display Substrate Gate grants, Eyes packets, Hands actions, Soul verdicts, Life
   continuity, and Mind state commits.
 
 Definition of done: a human can ask "why did you touch that file / say that /
@@ -355,7 +355,7 @@ coherent authority graph:
 
 ```text
 Self routes.
-Body grants substrate access.
+Substrate Gate grants substrate access.
 Eyes certifies looked-at evidence.
 Imagination projects possible scenes and futures.
 Face speaks as a person.

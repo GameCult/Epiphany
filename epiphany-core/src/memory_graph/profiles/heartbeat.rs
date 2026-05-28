@@ -388,11 +388,12 @@ mod tests {
                 schema_version: "epiphany.incubation.v0".to_string(),
                 updated_at: "2026-05-18T00:00:00Z".to_string(),
                 source_coverage: HeartbeatSourceCoverage::default(),
-                last_incubation_summary: "Body/Soul evidence seam is live.".to_string(),
+                last_incubation_summary: "Proprioception/Soul evidence seam is live.".to_string(),
                 themes: vec![
                     HeartbeatIncubationTheme {
                         theme_id: "theme-body-soul".to_string(),
-                        summary: "Body and Soul keep touching evidence boundaries.".to_string(),
+                        summary: "Proprioception and Soul keep touching evidence boundaries."
+                            .to_string(),
                         latent_question: "Should this become doctrine?".to_string(),
                         holding_close_because: "It is live but not settled.".to_string(),
                         why_it_pulls: "It affects future review gates.".to_string(),
