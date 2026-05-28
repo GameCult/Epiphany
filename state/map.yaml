@@ -476,8 +476,12 @@ current_status:
     Runnability now has a thin operator entrypoint:
     `tools/epiphany_local_run.ps1` builds the retained Codex app-server
     compatibility edge, builds native Epiphany operator binaries, runs status,
-    plan, smoke, or live coordinator modes, and writes launcher artifacts under
-    `.epiphany-run/` plus coordinator evidence under `.epiphany-dogfood/`.
+    plan, smoke, live coordinator, or local MVP product-cycle modes, and writes
+    launcher artifacts under `.epiphany-run/` plus coordinator evidence under
+    `.epiphany-dogfood/`. `-Mode mvp` is the current Face-front-door wrapper:
+    it projects a typed Face character turn, writes a local Face/Aquarium
+    bubble, runs the bridge-equipped coordinator loop with auto-tools, then
+    invokes heartbeat sleep/dream maintenance unless explicitly skipped.
     This is scaffolding over the current compatibility shell, not a new policy
     owner.
     Native CultMesh operator status is landed too: `epiphany-core` can write,

@@ -99,12 +99,16 @@ Useful variants:
 .\tools\epiphany_local_run.ps1 -Mode status
 .\tools\epiphany_local_run.ps1 -Mode plan
 .\tools\epiphany_local_run.ps1 -Mode run -MaxSteps 4
+.\tools\epiphany_local_run.ps1 -Mode mvp -FaceInput "Wake the local swarm and report through Face." -MaxSteps 4
 .\tools\epiphany_local_run.ps1 -Mode status -ThreadId <id> -Workspace E:\Projects\SomeRepo
 ```
 
 `run` is the live coordinator loop. It also builds `epiphany-openai-runtime` and
-uses the retained Codex auth/model transport spine. `status`, `plan`, and
-`smoke` do not spend model calls.
+uses the retained Codex auth/model transport spine. `mvp` is the local product
+cycle: project Face's character turn, write a Face/Aquarium bubble, run the
+bridge-equipped coordinator loop with auto-tools, then run heartbeat sleep/dream
+maintenance. `status`, `plan`, and `smoke` do not spend model calls; `run` and
+`mvp` do.
 
 ## Where This Leads
 

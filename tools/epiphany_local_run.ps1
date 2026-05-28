@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("status", "plan", "smoke", "run")]
+    [ValidateSet("status", "plan", "smoke", "run", "mvp")]
     [string]$Mode = "smoke",
     [string]$Root = (Resolve-Path ".").Path,
     [string]$Workspace = "",
@@ -8,9 +8,11 @@ param(
     [string]$TargetDir = "C:\Users\Meta\.cargo-target-codex",
     [int]$MaxSteps = 4,
     [int]$TimeoutSeconds = 240,
+    [string]$FaceInput = "",
     [switch]$SkipBuild,
     [switch]$AutoReview,
-    [switch]$NoEphemeral
+    [switch]$NoEphemeral,
+    [switch]$SkipSleep
 )
 
 $ErrorActionPreference = "Stop"
@@ -80,10 +82,16 @@ $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
 $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
 $toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-codex-mcp-spine.exe"
+$heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
+$faceExe = Join-Path $TargetDir "debug\epiphany-face-discord.exe"
+$characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
 $modelProvider = "openai-codex"
 $operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
 $operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
 $operatorSnapshotId = "$runId-status"
+$agentStore = Join-Path $Root "state\agents.msgpack"
+$heartbeatStore = Join-Path $Root "state\agent-heartbeats.msgpack"
+$liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
     if ($Mode -ne "status") {
@@ -109,6 +117,7 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
             "--bin", "epiphany-face-discord",
+            "--bin", "epiphany-character-loop",
             "--bin", "epiphany-agent-telemetry",
             "--bin", "epiphany-void-memory"
         ) `
@@ -116,7 +125,7 @@ if (-not $SkipBuild) {
         -StdoutPath (Join-Path $artifactRoot "build-epiphany-core.stdout.log") `
         -StderrPath (Join-Path $artifactRoot "build-epiphany-core.stderr.log")
 
-    if ($Mode -eq "run") {
+    if ($liveRuntimeMode) {
         Invoke-Checked `
             -Label "build Epiphany model runtime" `
             -FilePath "cargo" `
@@ -137,6 +146,12 @@ if (-not $SkipBuild) {
 $requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe)
 if ($Mode -ne "status") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
+}
+if ($liveRuntimeMode) {
+    $requiredBinaries += @($modelRuntimeExe, $toolAdapterExe)
+}
+if ($Mode -eq "mvp") {
+    $requiredBinaries += @($heartbeatExe, $faceExe, $characterLoopExe)
 }
 foreach ($required in $requiredBinaries) {
     if (-not (Test-Path -LiteralPath $required)) {
@@ -259,14 +274,49 @@ if ($Mode -eq "smoke") {
         -StderrPath (Join-Path $artifactRoot "coordinator-smoke.stderr.log")
 }
 
-if ($Mode -eq "run") {
+if ($Mode -eq "mvp") {
+    if ($FaceInput.Trim() -eq "") {
+        $FaceInput = "Operator requested the local Epiphany MVP cycle. Face should surface the swarm state, then the coordinator may continue bounded work and sleep afterward."
+    }
+    $faceArtifactDir = Join-Path $dogfoodRoot "face"
+    $characterArtifactDir = Join-Path $dogfoodRoot "character-loop"
+    $faceBubblePath = Join-Path $artifactRoot "face-bubble.stdout.json"
+    $characterTurnPath = Join-Path $artifactRoot "face-character-turn.stdout.json"
+    Invoke-Checked `
+        -Label "project Face character turn" `
+        -FilePath $characterLoopExe `
+        -Arguments @(
+            "turn",
+            "--role", "face",
+            "--agent-store", $agentStore,
+            "--artifact-dir", $characterArtifactDir,
+            "--stimulus", $FaceInput,
+            "--source", "epiphany/local-mvp",
+            "--mode", "local-mvp-front-door",
+            "--status", "ready",
+            "--mood", "attentive"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $characterTurnPath `
+        -StderrPath (Join-Path $artifactRoot "face-character-turn.stderr.log")
+    Invoke-Checked `
+        -Label "write Face Aquarium bubble" `
+        -FilePath $faceExe `
+        -Arguments @(
+            "bubble",
+            "--artifact-dir", $faceArtifactDir,
+            "--content", $FaceInput,
+            "--source", "epiphany/local-mvp",
+            "--status", "ready",
+            "--mood", "attentive"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $faceBubblePath `
+        -StderrPath (Join-Path $artifactRoot "face-bubble.stderr.log")
+}
+
+if ($liveRuntimeMode) {
     $resultPath = Join-Path $artifactRoot "coordinator-run.stdout.json"
-    if (-not (Test-Path -LiteralPath $modelRuntimeExe)) {
-        throw "required runtime binary not found: $modelRuntimeExe"
-    }
-    if (-not (Test-Path -LiteralPath $toolAdapterExe)) {
-        throw "required tool adapter binary not found: $toolAdapterExe"
-    }
     $runArgs = @(
         "--app-server", $codexAppServer,
         "--model-runtime-bin", $modelRuntimeExe,
@@ -295,6 +345,46 @@ if ($Mode -eq "run") {
         -StderrPath (Join-Path $artifactRoot "coordinator-run.stderr.log")
 }
 
+if ($Mode -eq "mvp" -and -not $SkipSleep) {
+    $sleepArtifactDir = Join-Path $dogfoodRoot "sleep"
+    if (-not (Test-Path -LiteralPath $heartbeatStore)) {
+        Invoke-Checked `
+            -Label "initialize heartbeat store" `
+            -FilePath $heartbeatExe `
+            -Arguments @(
+                "init",
+                "--store", $heartbeatStore
+            ) `
+            -WorkingDirectory $Root `
+            -StdoutPath (Join-Path $artifactRoot "heartbeat-init.stdout.json") `
+            -StderrPath (Join-Path $artifactRoot "heartbeat-init.stderr.log")
+    }
+    Invoke-Checked `
+        -Label "run sleep and dream routine" `
+        -FilePath $heartbeatExe `
+        -Arguments @(
+            "routine",
+            "--store", $heartbeatStore,
+            "--artifact-dir", $sleepArtifactDir,
+            "--agent-store", $agentStore,
+            "--source", "epiphany/local-mvp"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "sleep-routine.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "sleep-routine.stderr.log")
+    Invoke-Checked `
+        -Label "project heartbeat sleep status" `
+        -FilePath $heartbeatExe `
+        -Arguments @(
+            "status",
+            "--store", $heartbeatStore,
+            "--artifact-dir", $sleepArtifactDir
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath (Join-Path $artifactRoot "sleep-status.stdout.json") `
+        -StderrPath (Join-Path $artifactRoot "sleep-status.stderr.log")
+}
+
 $summary = @"
 # Epiphany Local Run
 
@@ -315,11 +405,16 @@ $summary = @"
 - coordinatorBinary: $coordinatorExe
 - modelRuntimeBinary: $modelRuntimeExe
 - modelProvider: $modelProvider
+- faceBinary: $faceExe
+- characterLoopBinary: $characterLoopExe
+- heartbeatBinary: $heartbeatExe
 
 This is an operator entrypoint over the current MVP shell. Status mode is
 Epiphany-native and does not start Codex app-server; coordinator plan/smoke/run
 modes still use the sealed Codex compatibility bridge until their provider
-boundary is cut.
+boundary is cut. MVP mode wraps that bridge-equipped coordinator loop in the
+local product cycle: Face front door, bounded swarm work, then heartbeat
+sleep/dream maintenance.
 "@
 Set-Content -LiteralPath (Join-Path $artifactRoot "README.md") -Value $summary -Encoding UTF8
 
