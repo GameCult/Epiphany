@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process;
 use std::process::Command;
@@ -94,7 +95,7 @@ async fn main() -> Result<()> {
                     Ok(result) => result?,
                     Err(_) => {
                         let summary = format!("Worker runtime timed out after {seconds} seconds.");
-                        let result = fail_worker_job(
+                        let result = fail_worker_and_openai_jobs(
                             &timeout_store,
                             &timeout_job_id,
                             summary.clone(),
@@ -486,15 +487,51 @@ fn start_run_worker_timeout_watchdog(options: &RunWorkerCliOptions) -> Arc<Atomi
             return;
         }
         let summary = format!("Worker runtime timed out after {seconds} seconds.");
-        let _ = fail_worker_job(
+        let _ = fail_worker_and_openai_jobs(
             &store_path,
             &job_id,
-            summary,
+            summary.clone(),
             "Inspect provider/tool transport before relaunching the worker.".to_string(),
         );
         process::exit(124);
     });
     completed
+}
+
+fn fail_worker_and_openai_jobs(
+    store_path: &Path,
+    job_id: &str,
+    summary: String,
+    next_safe_move: String,
+) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
+    let result = fail_worker_job(store_path, job_id, summary.clone(), next_safe_move)?;
+    let openai_job_id = format!("openai-worker-{job_id}");
+    let _ = fail_worker_job_with_retry(
+        store_path,
+        &openai_job_id,
+        format!("{summary} Inner OpenAI transport job was sealed by the worker timeout."),
+        "Inspect provider stream/request observability before relaunching the worker.".to_string(),
+    );
+    Ok(result)
+}
+
+fn fail_worker_job_with_retry(
+    store_path: &Path,
+    job_id: &str,
+    summary: String,
+    next_safe_move: String,
+) -> Result<()> {
+    let mut last_error = None;
+    for _ in 0..20 {
+        match fail_worker_job(store_path, job_id, summary.clone(), next_safe_move.clone()) {
+            Ok(_) => return Ok(()),
+            Err(err) => {
+                last_error = Some(err);
+                thread::sleep(Duration::from_millis(100));
+            }
+        }
+    }
+    Err(last_error.unwrap_or_else(|| anyhow!("failed to seal runtime job {job_id:?}")))
 }
 
 async fn run_worker_launch_with_tool_continuation(

@@ -2,6 +2,8 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
+use epiphany_core::EpiphanyRuntimeJob;
+use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
@@ -12,6 +14,7 @@ use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
 use epiphany_core::create_runtime_session;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
 use epiphany_core::write_runtime_hello_frame;
 use epiphany_core::write_runtime_schema_catalog_json;
@@ -72,6 +75,27 @@ fn main() -> Result<()> {
             );
             if !status.supported_document_types.is_empty() {
                 println!("documents: {}", status.supported_document_types.join(", "));
+            }
+        }
+        Command::ListJobs => {
+            let mut cache = runtime_spine_cache(&args.store)?;
+            cache.pull_all_backing_stores()?;
+            let mut jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
+            let results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
+            jobs.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+            println!("runtime jobs");
+            for job in jobs {
+                let result = results.iter().find(|result| result.job_id == job.job_id);
+                println!(
+                    "{}\t{:?}\t{}\t{}\t{}",
+                    job.job_id,
+                    job.status,
+                    job.role,
+                    result
+                        .map(|result| result.result_id.as_str())
+                        .unwrap_or("no-result"),
+                    job.summary.replace(['\r', '\n', '\t'], " ")
+                );
             }
         }
         Command::OpenSession {
@@ -198,6 +222,7 @@ enum Command {
         display_name: String,
     },
     Status,
+    ListJobs,
     OpenSession {
         session_id: String,
         objective: String,
@@ -278,6 +303,7 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
             })
         }
         "status" => Ok(Command::Status),
+        "list-jobs" => Ok(Command::ListJobs),
         "open-session" => {
             let mut session_id = format!("session-{}", Uuid::new_v4());
             let mut objective = String::new();
@@ -523,5 +549,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|open-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|open-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
 }

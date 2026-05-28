@@ -106,9 +106,6 @@ pub async fn run_openai_model_turn(
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     ensure_openai_runtime_ready(&options)?;
     let auth_manager = auth_manager(options.codex_home.clone());
-    let status = status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
-    store_openai_status(&options.store_path, &status)?;
-    store_model_status(&options.store_path, &status, DEFAULT_MODEL_PROVIDER)?;
     store_model_request(
         &options.store_path,
         &model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, &request),
@@ -146,6 +143,10 @@ pub async fn run_openai_model_turn(
             summary: format!("Started typed OpenAI request {}.", request.request_id),
         },
     )?;
+
+    let status = status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
+    store_openai_status(&options.store_path, &status)?;
+    store_model_status(&options.store_path, &status, DEFAULT_MODEL_PROVIDER)?;
 
     let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
     let events = match transport.collect_model_events(request.clone()).await {
