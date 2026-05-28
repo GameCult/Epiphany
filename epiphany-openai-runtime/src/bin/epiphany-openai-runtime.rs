@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process::Command;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -16,12 +17,16 @@ use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
 use epiphany_openai_runtime::assistant_text_from_model_events;
 use epiphany_openai_runtime::build_tool_followup_model_request;
+use epiphany_openai_runtime::build_worker_model_request;
+use epiphany_openai_runtime::complete_worker_job_from_assistant_text;
 use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
+use epiphany_openai_runtime::load_worker_launch_request;
 use epiphany_openai_runtime::record_openai_events;
 use epiphany_openai_runtime::run_model_turn;
 use epiphany_openai_runtime::run_openai_model_turn;
+use epiphany_openai_runtime::run_tool_followup_model_turn;
 use epiphany_openai_runtime::run_worker_launch;
 use serde_json::json;
 use uuid::Uuid;
@@ -68,14 +73,20 @@ async fn main() -> Result<()> {
         "run-worker" => {
             let options = parse_run_worker_options(args.collect())?;
             require_supported_provider(&options.provider)?;
-            let summary = run_worker_launch(EpiphanyWorkerRuntimeOptions {
-                store_path: options.store_path,
-                codex_home: options.codex_home,
-                provider: options.provider,
-                job_id: options.job_id,
-                model: options.model,
-            })
-            .await?;
+            let summary = if options.auto_tools {
+                run_worker_launch_with_tool_continuation(options).await?
+            } else {
+                serde_json::to_value(
+                    run_worker_launch(EpiphanyWorkerRuntimeOptions {
+                        store_path: options.store_path,
+                        codex_home: options.codex_home,
+                        provider: options.provider,
+                        job_id: options.job_id,
+                        model: options.model,
+                    })
+                    .await?,
+                )?
+            };
             print_json(&summary)?;
         }
         "tool-followup" => {
@@ -260,6 +271,10 @@ struct RunWorkerCliOptions {
     codex_home: PathBuf,
     job_id: String,
     model: String,
+    auto_tools: bool,
+    tool_adapter_bin: Option<PathBuf>,
+    cwd: Option<PathBuf>,
+    max_tool_rounds: usize,
 }
 
 struct ToolFollowupCliOptions {
@@ -354,6 +369,10 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut codex_home = default_codex_home()?;
     let mut job_id = None;
     let mut model = "gpt-5.4".to_string();
+    let mut auto_tools = false;
+    let mut tool_adapter_bin = None;
+    let mut cwd = None;
+    let mut max_tool_rounds = 4usize;
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -362,6 +381,14 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
             "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
             "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
             "--model" | "--default-model" => model = next_value(&mut iter, "--model")?,
+            "--auto-tools" => auto_tools = true,
+            "--tool-adapter-bin" => {
+                tool_adapter_bin = Some(PathBuf::from(next_value(&mut iter, "--tool-adapter-bin")?))
+            }
+            "--cwd" => cwd = Some(PathBuf::from(next_value(&mut iter, "--cwd")?)),
+            "--max-tool-rounds" => {
+                max_tool_rounds = next_value(&mut iter, "--max-tool-rounds")?.parse()?
+            }
             other => return Err(anyhow!("unknown run-worker argument: {other}")),
         }
     }
@@ -371,6 +398,10 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         codex_home,
         job_id: job_id.context("run-worker requires --job-id")?,
         model,
+        auto_tools,
+        tool_adapter_bin,
+        cwd,
+        max_tool_rounds,
     })
 }
 
@@ -398,6 +429,130 @@ fn parse_tool_followup_options(args: Vec<String>) -> Result<ToolFollowupCliOptio
             .unwrap_or_else(|| format!("tool-followup-{}", Uuid::new_v4())),
         output: output.context("tool-followup requires --output")?,
     })
+}
+
+async fn run_worker_launch_with_tool_continuation(
+    options: RunWorkerCliOptions,
+) -> Result<serde_json::Value> {
+    let tool_adapter_bin = options
+        .tool_adapter_bin
+        .clone()
+        .context("run-worker --auto-tools requires --tool-adapter-bin")?;
+    let launch_request = load_worker_launch_request(&options.store_path, &options.job_id)?;
+    let initial_request =
+        build_worker_model_request(&launch_request, &options.provider, &options.model)?;
+    let openai_options = EpiphanyOpenAiRuntimeOptions {
+        store_path: options.store_path.clone(),
+        codex_home: options.codex_home.clone(),
+        session_id: format!("openai-worker-session-{}", launch_request.binding_id),
+        job_id: format!("openai-worker-{}", launch_request.job_id),
+        objective: format!(
+            "Run Epiphany worker {} for {}",
+            launch_request.job_id, launch_request.binding_id
+        ),
+        coordinator_note: "Native worker runtime route; Codex is auth/model transport only."
+            .to_string(),
+        default_model: Some(options.model.clone()),
+    };
+    let mut current_request_id = initial_request.request_id.clone();
+    let mut current_options = openai_options.clone();
+    let mut openai_summary =
+        run_model_turn(&options.provider, current_options.clone(), initial_request).await?;
+    let mut tool_rounds = Vec::new();
+
+    for round in 0..options.max_tool_rounds {
+        if openai_summary.tool_intent_ids.is_empty() {
+            break;
+        }
+        let mut adapter_runs = Vec::new();
+        for intent_id in openai_summary.tool_intent_ids.clone() {
+            adapter_runs.push(run_tool_adapter(
+                &tool_adapter_bin,
+                &options.store_path,
+                &options.codex_home,
+                options.cwd.as_ref(),
+                &intent_id,
+            )?);
+        }
+        let followup_request_id = format!("{}-tool-followup-{round}", current_request_id);
+        current_options.job_id = format!("{}-tool-followup-{round}", openai_options.job_id);
+        openai_summary = run_tool_followup_model_turn(
+            &options.provider,
+            current_options.clone(),
+            &current_request_id,
+            &followup_request_id,
+        )
+        .await?;
+        current_request_id = followup_request_id;
+        tool_rounds.push(json!({
+            "round": round,
+            "adapterRuns": adapter_runs,
+            "followupRequestId": current_request_id,
+            "summary": openai_summary,
+        }));
+    }
+
+    if !openai_summary.tool_intent_ids.is_empty() {
+        return Err(anyhow!(
+            "worker {} still requested tools after {} automatic tool rounds",
+            launch_request.job_id,
+            options.max_tool_rounds
+        ));
+    }
+
+    let assistant_text =
+        assistant_text_from_model_events(&options.store_path, &current_request_id)?;
+    let worker_result = complete_worker_job_from_assistant_text(
+        &options.store_path,
+        &launch_request,
+        &current_request_id,
+        &openai_summary,
+        &assistant_text,
+    )?;
+
+    Ok(json!({
+        "store": options.store_path,
+        "jobId": launch_request.job_id,
+        "bindingId": launch_request.binding_id,
+        "role": launch_request.role,
+        "requestId": current_request_id,
+        "openaiResultId": openai_summary.result_id,
+        "workerResultId": worker_result.result_id,
+        "verdict": worker_result.verdict,
+        "toolRounds": tool_rounds,
+    }))
+}
+
+fn run_tool_adapter(
+    tool_adapter_bin: &PathBuf,
+    store_path: &PathBuf,
+    codex_home: &PathBuf,
+    cwd: Option<&PathBuf>,
+    intent_id: &str,
+) -> Result<serde_json::Value> {
+    let mut command = Command::new(tool_adapter_bin);
+    command
+        .arg("run")
+        .arg("--store")
+        .arg(store_path)
+        .arg("--intent-id")
+        .arg(intent_id)
+        .arg("--codex-home")
+        .arg(codex_home);
+    if let Some(cwd) = cwd {
+        command.arg("--cwd").arg(cwd);
+    }
+    let output = command
+        .output()
+        .with_context(|| format!("failed to spawn {}", tool_adapter_bin.display()))?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "tool adapter failed for {intent_id}: {}{}",
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        ));
+    }
+    serde_json::from_slice(&output.stdout).context("tool adapter returned invalid JSON")
 }
 
 fn parse_tool_followup_turn_options(args: Vec<String>) -> Result<ToolFollowupTurnCliOptions> {
@@ -496,5 +651,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
+    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path] [--auto-tools --tool-adapter-bin path --cwd path --max-tool-rounds n]"
 }

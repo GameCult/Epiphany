@@ -79,6 +79,7 @@ $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.ex
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
 $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
+$toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-codex-mcp-spine.exe"
 $modelProvider = "openai-codex"
 $operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
 $operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
@@ -123,6 +124,13 @@ if (-not $SkipBuild) {
             -WorkingDirectory $Root `
             -StdoutPath (Join-Path $artifactRoot "build-model-runtime.stdout.log") `
             -StderrPath (Join-Path $artifactRoot "build-model-runtime.stderr.log")
+        Invoke-Checked `
+            -Label "build quarantined Codex MCP tool adapter" `
+            -FilePath "cargo" `
+            -Arguments @("build", "--manifest-path", ".\epiphany-tool-codex-mcp-spine\Cargo.toml") `
+            -WorkingDirectory $Root `
+            -StdoutPath (Join-Path $artifactRoot "build-tool-adapter.stdout.log") `
+            -StderrPath (Join-Path $artifactRoot "build-tool-adapter.stderr.log")
     }
 }
 
@@ -256,9 +264,13 @@ if ($Mode -eq "run") {
     if (-not (Test-Path -LiteralPath $modelRuntimeExe)) {
         throw "required runtime binary not found: $modelRuntimeExe"
     }
+    if (-not (Test-Path -LiteralPath $toolAdapterExe)) {
+        throw "required tool adapter binary not found: $toolAdapterExe"
+    }
     $runArgs = @(
         "--app-server", $codexAppServer,
         "--model-runtime-bin", $modelRuntimeExe,
+        "--tool-adapter-bin", $toolAdapterExe,
         "--model-provider", $modelProvider,
         "--codex-home", $CodexHome,
         "--cwd", $Workspace,

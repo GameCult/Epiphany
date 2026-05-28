@@ -29,6 +29,7 @@ mod status_cli;
 
 const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
+const DEFAULT_TOOL_ADAPTER_BIN: &str = "epiphany-tool-codex-mcp-spine";
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const GRAPH_NODE_ID: &str = "reorient-target";
 const WATCHED_RELATIVE_PATH: &str = "src/reorient_target.rs";
@@ -44,6 +45,7 @@ fn main() -> Result<()> {
 struct Args {
     app_server: PathBuf,
     model_runtime_bin: PathBuf,
+    tool_adapter_bin: PathBuf,
     model_provider: String,
     thread_id: Option<String>,
     cwd: PathBuf,
@@ -58,6 +60,7 @@ struct Args {
     max_runtime_seconds: u64,
     ephemeral: bool,
     auto_review: bool,
+    auto_tools: bool,
     bootstrap_smoke_state: bool,
     simulate_high_pressure: bool,
     simulate_source_drift: bool,
@@ -71,6 +74,7 @@ impl Args {
         let mut parsed = Args {
             app_server: PathBuf::from(DEFAULT_APP_SERVER),
             model_runtime_bin: PathBuf::from(DEFAULT_MODEL_RUNTIME_BIN),
+            tool_adapter_bin: PathBuf::from(DEFAULT_TOOL_ADAPTER_BIN),
             model_provider: "openai-codex".to_string(),
             thread_id: None,
             cwd: root.clone(),
@@ -87,6 +91,7 @@ impl Args {
             max_runtime_seconds: 180,
             ephemeral: true,
             auto_review: false,
+            auto_tools: true,
             bootstrap_smoke_state: false,
             simulate_high_pressure: false,
             simulate_source_drift: false,
@@ -97,6 +102,9 @@ impl Args {
                 "--app-server" => parsed.app_server = take_path(&mut args, "--app-server")?,
                 "--model-runtime-bin" => {
                     parsed.model_runtime_bin = take_path(&mut args, "--model-runtime-bin")?;
+                }
+                "--tool-adapter-bin" => {
+                    parsed.tool_adapter_bin = take_path(&mut args, "--tool-adapter-bin")?;
                 }
                 "--openai-runtime-bin" => {
                     parsed.model_runtime_bin = take_path(&mut args, "--openai-runtime-bin")?;
@@ -132,6 +140,8 @@ impl Args {
                 "--ephemeral" => parsed.ephemeral = true,
                 "--no-ephemeral" => parsed.ephemeral = false,
                 "--auto-review" => parsed.auto_review = true,
+                "--auto-tools" => parsed.auto_tools = true,
+                "--no-auto-tools" => parsed.auto_tools = false,
                 "--test-complete-backend" => {
                     return Err(anyhow!(
                         "--test-complete-backend was removed: native coordinator refuses direct private state-store job mutation; use live workers or a future CultNet job-result API"
@@ -153,6 +163,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let app_server = status_cli::absolute_path(&args.app_server)?;
     let mut cwd = status_cli::absolute_path(&args.cwd)?;
     let model_runtime_bin = resolve_model_runtime_bin(&root, &args.model_runtime_bin)?;
+    let tool_adapter_bin = resolve_model_runtime_bin(&root, &args.tool_adapter_bin)?;
     let codex_home = status_cli::absolute_path(&args.codex_home)?;
     let artifact_dir = status_cli::absolute_path(&args.artifact_dir)?;
     let agent_memory_dir = status_cli::absolute_path(&args.agent_memory_dir)?;
@@ -386,14 +397,17 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 );
                 let worker_run = run_worker_runtime(
                     &model_runtime_bin,
+                    &tool_adapter_bin,
                     &args.model_provider,
                     &runtime_store,
                     &codex_home,
+                    &cwd,
                     &worker_job_id,
                     role_id,
                     index,
                     &artifact_dir,
                     args.timeout_seconds,
+                    args.auto_tools,
                 )?;
                 push_event(
                     &mut step,
@@ -425,14 +439,17 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 );
                 let worker_run = run_worker_runtime(
                     &model_runtime_bin,
+                    &tool_adapter_bin,
                     &args.model_provider,
                     &runtime_store,
                     &codex_home,
+                    &cwd,
                     &worker_job_id,
                     "reorient-worker",
                     index,
                     &artifact_dir,
                     args.timeout_seconds,
+                    args.auto_tools,
                 )?;
                 push_event(
                     &mut step,
@@ -521,6 +538,11 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 "modelRuntimeBin".to_string(),
                 model_runtime_bin.display().to_string(),
             ),
+            (
+                "toolAdapterBin".to_string(),
+                tool_adapter_bin.display().to_string(),
+            ),
+            ("autoTools".to_string(), args.auto_tools.to_string()),
         ]),
     };
     put_coordinator_run_receipt(&runtime_store, &coordinator_run_receipt)?;
@@ -528,6 +550,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "objective": "Coordinate the Epiphany MVP lanes over existing app-server APIs.",
         "artifactDir": artifact_dir,
         "modelRuntimeBin": model_runtime_bin,
+        "toolAdapterBin": tool_adapter_bin,
+        "autoTools": args.auto_tools,
         "modelProvider": args.model_provider,
         "codexHome": codex_home,
         "runtimeStore": runtime_store,
@@ -676,14 +700,20 @@ fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> 
         return status_cli::absolute_path(configured);
     }
     let exe_name = format!("{}.exe", configured.display());
+    let cargo_target_candidate = env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .map(|path| path.join("debug").join(&exe_name));
     let candidates = [
-        root.join("epiphany-openai-runtime")
-            .join("target")
-            .join("debug")
-            .join(&exe_name),
-        root.join("target").join("debug").join(&exe_name),
+        cargo_target_candidate,
+        Some(
+            root.join("epiphany-openai-runtime")
+                .join("target")
+                .join("debug")
+                .join(&exe_name),
+        ),
+        Some(root.join("target").join("debug").join(&exe_name)),
     ];
-    for candidate in candidates {
+    for candidate in candidates.into_iter().flatten() {
         if candidate.exists() {
             return Ok(candidate);
         }
@@ -736,14 +766,17 @@ fn worker_job_id_from_launch(launch: &Value) -> Result<String> {
 
 fn run_worker_runtime(
     model_runtime_bin: &Path,
+    tool_adapter_bin: &Path,
     model_provider: &str,
     runtime_store: &Path,
     codex_home: &Path,
+    cwd: &Path,
     job_id: &str,
     role_id: &str,
     step_index: usize,
     artifact_dir: &Path,
     timeout_seconds: u64,
+    auto_tools: bool,
 ) -> Result<Value> {
     let stdout_path = artifact_dir.join(format!(
         "step-{step_index:02}-{}-worker-runtime.stdout.json",
@@ -763,9 +796,16 @@ fn run_worker_runtime(
         .arg("--codex-home")
         .arg(codex_home)
         .arg("--job-id")
-        .arg(job_id)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .arg(job_id);
+    if auto_tools {
+        command
+            .arg("--auto-tools")
+            .arg("--tool-adapter-bin")
+            .arg(tool_adapter_bin)
+            .arg("--cwd")
+            .arg(cwd);
+    }
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command
         .spawn()
         .with_context(|| format!("failed to spawn {}", model_runtime_bin.display()))?;
