@@ -78,6 +78,10 @@ pub struct EpiphanyToolInvocationIntent {
     pub reason: String,
     #[cultcache(key = 8)]
     pub created_at: String,
+    #[cultcache(key = 9, default)]
+    pub call_id: Option<String>,
+    #[cultcache(key = 10, default)]
+    pub model_request_id: Option<String>,
 }
 
 impl EpiphanyToolInvocationIntent {
@@ -101,7 +105,19 @@ impl EpiphanyToolInvocationIntent {
             caller: caller.into(),
             reason: reason.into(),
             created_at: created_at.into(),
+            call_id: None,
+            model_request_id: None,
         }
+    }
+
+    pub fn with_model_call(
+        mut self,
+        call_id: impl Into<String>,
+        model_request_id: impl Into<String>,
+    ) -> Self {
+        self.call_id = Some(call_id.into());
+        self.model_request_id = Some(model_request_id.into());
+        self
     }
 }
 

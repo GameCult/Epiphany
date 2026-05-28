@@ -204,6 +204,7 @@ pub fn responses_body_from_epiphany(
         stream: true,
         include: Vec::new(),
         service_tier: parse_service_tier(request.service_tier.as_deref())?,
+        previous_response_id: request.previous_response_id,
         prompt_cache_key: None,
         text: None,
         client_metadata: None,
@@ -226,6 +227,8 @@ struct EpiphanyResponsesBody {
     include: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     service_tier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    previous_response_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     prompt_cache_key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -562,11 +565,13 @@ mod tests {
         request.reasoning_effort = Some("low".to_string());
         request.reasoning_summary = Some("concise".to_string());
         request.service_tier = Some("flex".to_string());
+        request.previous_response_id = Some("resp-1".to_string());
 
         let responses = responses_body_from_epiphany(request).expect("request should map");
 
         assert_eq!(responses["model"], "gpt-5.4");
         assert_eq!(responses["instructions"], "Answer plainly.");
+        assert_eq!(responses["previous_response_id"], "resp-1");
         assert_eq!(responses["input"][0]["content"][0]["type"], "input_text");
         assert_eq!(responses["stream"], true);
         assert_eq!(responses["service_tier"], "flex");

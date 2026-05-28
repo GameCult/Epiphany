@@ -39,7 +39,9 @@ pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
 use epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID;
 use epiphany_tool_adapter::EpiphanyToolInvocationIntent;
+use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use epiphany_tool_adapter::tool_invocation_intent_key;
+use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::de::DeserializeOwned;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
@@ -572,6 +574,87 @@ pub fn assistant_text_from_model_events(
     Ok(text)
 }
 
+pub fn build_tool_followup_model_request(
+    store_path: impl AsRef<Path>,
+    original_request_id: &str,
+    followup_request_id: &str,
+) -> Result<EpiphanyModelRequest> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let original = cache
+        .get::<EpiphanyModelRequest>(&model_request_key(original_request_id))?
+        .ok_or_else(|| anyhow!("model request {original_request_id:?} does not exist"))?;
+    let receipt = cache
+        .get::<EpiphanyModelReceipt>(&model_receipt_key(original_request_id))?
+        .ok_or_else(|| anyhow!("model receipt {original_request_id:?} does not exist"))?;
+    let previous_response_id = receipt.provider_response_id.clone().ok_or_else(|| {
+        anyhow!("model receipt {original_request_id:?} has no provider_response_id")
+    })?;
+    let original_prefix = format!("model-{}-", sanitize_request_id(original_request_id));
+    let mut followup_items = Vec::new();
+    for intent in cache.get_all::<EpiphanyToolInvocationIntent>()? {
+        if intent.model_request_id.as_deref() != Some(original_request_id)
+            && !intent.intent_id.starts_with(&original_prefix)
+        {
+            continue;
+        }
+        let Some(call_id) = intent.call_id.clone() else {
+            continue;
+        };
+        let Some(receipt) = cache.get::<EpiphanyToolInvocationReceipt>(
+            &tool_invocation_receipt_key(&intent.intent_id),
+        )?
+        else {
+            continue;
+        };
+        followup_items.push((intent, call_id, receipt));
+    }
+    followup_items.sort_by(|left, right| {
+        left.0
+            .created_at
+            .cmp(&right.0.created_at)
+            .then_with(|| left.0.intent_id.cmp(&right.0.intent_id))
+    });
+    if followup_items.is_empty() {
+        return Err(anyhow!(
+            "model request {original_request_id:?} has no completed tool receipts with call ids"
+        ));
+    }
+
+    let mut followup = original;
+    followup.request_id = followup_request_id.to_string();
+    followup.previous_response_id = Some(previous_response_id);
+    followup.input = followup_items
+        .into_iter()
+        .map(
+            |(intent, call_id, receipt)| EpiphanyModelInputItem::ToolResult {
+                call_id,
+                output: tool_receipt_output_for_model(&intent, &receipt),
+            },
+        )
+        .collect();
+    Ok(followup)
+}
+
+fn tool_receipt_output_for_model(
+    intent: &EpiphanyToolInvocationIntent,
+    receipt: &EpiphanyToolInvocationReceipt,
+) -> String {
+    if let Some(result) = receipt.result_json.as_ref() {
+        return result.clone();
+    }
+    serde_json::json!({
+        "status": receipt.status,
+        "adapter": receipt.adapter,
+        "server": receipt.server,
+        "toolName": receipt.tool_name,
+        "intentId": intent.intent_id,
+        "receiptId": receipt.receipt_id,
+        "error": receipt.error,
+    })
+    .to_string()
+}
+
 pub fn default_options(
     store_path: PathBuf,
     codex_home: PathBuf,
@@ -670,6 +753,7 @@ pub fn model_request_from_openai_request(
         reasoning_summary: request.reasoning_summary.clone(),
         service_tier: request.service_tier.clone(),
         output_contract_id: request.output_contract_id.clone(),
+        previous_response_id: request.previous_response_id.clone(),
     }
 }
 
@@ -691,6 +775,7 @@ pub fn openai_request_from_model_request(
         reasoning_summary: request.reasoning_summary.clone(),
         service_tier: request.service_tier.clone(),
         output_contract_id: request.output_contract_id.clone(),
+        previous_response_id: request.previous_response_id.clone(),
     }
 }
 
@@ -810,24 +895,27 @@ pub fn tool_invocation_intent_from_model_event(
     if !arguments_are_invocation_ready(arguments) {
         return None;
     }
-    Some(EpiphanyToolInvocationIntent::new(
-        format!(
-            "model-{}-{}-{}",
-            sanitize_request_id(&event.request_id),
-            event.sequence,
-            sanitize_request_id(call_id)
-        ),
-        CODEX_MCP_TOOL_ADAPTER_ID,
-        server,
-        tool_name,
-        arguments.clone(),
-        format!("model-runtime:{}", event.provider),
-        format!(
-            "Model request {} emitted MCP tool call {}.",
-            event.request_id, call_id
-        ),
-        now(),
-    ))
+    Some(
+        EpiphanyToolInvocationIntent::new(
+            format!(
+                "model-{}-{}-{}",
+                sanitize_request_id(&event.request_id),
+                event.sequence,
+                sanitize_request_id(call_id)
+            ),
+            CODEX_MCP_TOOL_ADAPTER_ID,
+            server,
+            tool_name,
+            arguments.clone(),
+            format!("model-runtime:{}", event.provider),
+            format!(
+                "Model request {} emitted MCP tool call {}.",
+                event.request_id, call_id
+            ),
+            now(),
+        )
+        .with_model_call(call_id.clone(), event.request_id.clone()),
+    )
 }
 
 fn split_mcp_tool_name(name: &str) -> Option<(String, String)> {
@@ -1340,6 +1428,99 @@ mod tests {
         assert_eq!(intent.tool_name, "list_events");
         assert_eq!(intent.arguments_json, r#"{"limit":3}"#);
         assert_eq!(intent.intent_id, "model-request-1-7-call-1");
+        assert_eq!(intent.call_id.as_deref(), Some("call/1"));
+        assert_eq!(intent.model_request_id.as_deref(), Some("request-1"));
+        Ok(())
+    }
+
+    #[test]
+    fn builds_tool_followup_model_request_from_receipts() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        let request = EpiphanyOpenAiModelRequest::new(
+            "req-tools",
+            "conversation-1",
+            "gpt-5.4",
+            "Answer after tool output.",
+        );
+        let options = default_options(store.clone(), PathBuf::from(".codex"), &request);
+        ensure_openai_runtime_ready(&options)?;
+        ensure_runtime_session(
+            &store,
+            RuntimeSpineSessionOptions {
+                session_id: options.session_id.clone(),
+                objective: options.objective.clone(),
+                created_at: now(),
+                coordinator_note: options.coordinator_note.clone(),
+            },
+        )?;
+        create_runtime_job(
+            &store,
+            RuntimeSpineJobOptions {
+                job_id: options.job_id.clone(),
+                session_id: options.session_id.clone(),
+                role: OPENAI_RUNTIME_ROLE.to_string(),
+                created_at: now(),
+                summary: "tool test job".to_string(),
+                artifact_refs: Vec::new(),
+            },
+        )?;
+        let mut receipt = EpiphanyOpenAiModelReceipt::new("req-tools", "gpt-5.4");
+        receipt.response_id = Some("resp-tools".to_string());
+        receipt.transport = Some("test".to_string());
+        let events = vec![
+            EpiphanyOpenAiStreamEvent {
+                schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+                request_id: "req-tools".to_string(),
+                sequence: 0,
+                payload: EpiphanyOpenAiStreamPayload::ToolCall {
+                    call_id: "call-original".to_string(),
+                    name: "mcp__smoke_server__smoke_tool".to_string(),
+                    arguments: "{}".to_string(),
+                },
+            },
+            EpiphanyOpenAiStreamEvent {
+                schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+                request_id: "req-tools".to_string(),
+                sequence: 1,
+                payload: EpiphanyOpenAiStreamPayload::Completed { receipt },
+            },
+        ];
+        let summary = record_openai_events(&store, &options, &request, &events)?;
+        let intent_id = summary
+            .tool_intent_ids
+            .first()
+            .expect("tool intent id")
+            .clone();
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let mut tool_receipt = EpiphanyToolInvocationReceipt::new(
+            "receipt-tool",
+            intent_id.clone(),
+            epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID,
+            "smoke_server",
+            "smoke_tool",
+            "completed",
+            now(),
+        );
+        tool_receipt.result_json = Some(r#"{"ok":true}"#.to_string());
+        cache.put(
+            tool_invocation_receipt_key(&tool_receipt.intent_id),
+            &tool_receipt,
+        )?;
+
+        let followup =
+            build_tool_followup_model_request(&store, "req-tools", "req-tools-followup")?;
+        assert_eq!(followup.request_id, "req-tools-followup");
+        assert_eq!(followup.previous_response_id.as_deref(), Some("resp-tools"));
+        assert_eq!(followup.input.len(), 1);
+        assert_eq!(
+            followup.input[0],
+            EpiphanyModelInputItem::ToolResult {
+                call_id: "call-original".to_string(),
+                output: r#"{"ok":true}"#.to_string()
+            }
+        );
         Ok(())
     }
 

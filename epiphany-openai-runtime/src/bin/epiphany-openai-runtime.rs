@@ -15,6 +15,7 @@ use epiphany_openai_runtime::EpiphanyOpenAiRuntimeOptions;
 use epiphany_openai_runtime::EpiphanyWorkerRuntimeOptions;
 use epiphany_openai_runtime::OPENAI_RUNTIME_ROLE;
 use epiphany_openai_runtime::assistant_text_from_model_events;
+use epiphany_openai_runtime::build_tool_followup_model_request;
 use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
@@ -76,6 +77,26 @@ async fn main() -> Result<()> {
             })
             .await?;
             print_json(&summary)?;
+        }
+        "tool-followup" => {
+            let options = parse_tool_followup_options(args.collect())?;
+            let request = build_tool_followup_model_request(
+                &options.store_path,
+                &options.request_id,
+                &options.followup_request_id,
+            )?;
+            if let Some(parent) = options.output.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("failed to create {}", parent.display()))?;
+            }
+            fs::write(&options.output, serde_json::to_string_pretty(&request)?)
+                .with_context(|| format!("failed to write {}", options.output.display()))?;
+            print_json(&json!({
+                "requestId": request.request_id,
+                "previousResponseId": request.previous_response_id,
+                "inputItems": request.input.len(),
+                "output": options.output,
+            }))?;
         }
         "smoke" => {
             let options = parse_smoke_options(args.collect())?;
@@ -218,6 +239,13 @@ struct RunWorkerCliOptions {
     model: String,
 }
 
+struct ToolFollowupCliOptions {
+    store_path: PathBuf,
+    request_id: String,
+    followup_request_id: String,
+    output: PathBuf,
+}
+
 fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
@@ -287,6 +315,32 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     })
 }
 
+fn parse_tool_followup_options(args: Vec<String>) -> Result<ToolFollowupCliOptions> {
+    let mut store_path = PathBuf::from(DEFAULT_STORE);
+    let mut request_id = None;
+    let mut followup_request_id = None;
+    let mut output = None;
+    let mut iter = args.into_iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
+            "--request-id" => request_id = Some(next_value(&mut iter, "--request-id")?),
+            "--followup-request-id" => {
+                followup_request_id = Some(next_value(&mut iter, "--followup-request-id")?)
+            }
+            "--output" => output = Some(PathBuf::from(next_value(&mut iter, "--output")?)),
+            other => return Err(anyhow!("unknown tool-followup argument: {other}")),
+        }
+    }
+    Ok(ToolFollowupCliOptions {
+        store_path,
+        request_id: request_id.context("tool-followup requires --request-id")?,
+        followup_request_id: followup_request_id
+            .unwrap_or_else(|| format!("tool-followup-{}", Uuid::new_v4())),
+        output: output.context("tool-followup requires --output")?,
+    })
+}
+
 fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(format!(
@@ -334,5 +388,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <model-turn|run-worker|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
+    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
 }

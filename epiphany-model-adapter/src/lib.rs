@@ -52,6 +52,8 @@ pub struct EpiphanyModelRequest {
     pub service_tier: Option<String>,
     #[cultcache(key = 10, default)]
     pub output_contract_id: Option<String>,
+    #[cultcache(key = 11, default)]
+    pub previous_response_id: Option<String>,
 }
 
 impl EpiphanyModelRequest {
@@ -74,6 +76,7 @@ impl EpiphanyModelRequest {
             reasoning_summary: None,
             service_tier: None,
             output_contract_id: None,
+            previous_response_id: None,
         }
     }
 }
