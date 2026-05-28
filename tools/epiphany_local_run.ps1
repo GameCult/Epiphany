@@ -8,6 +8,7 @@ param(
     [string]$TargetDir = "C:\Users\Meta\.cargo-target-codex",
     [int]$MaxSteps = 4,
     [int]$TimeoutSeconds = 600,
+    [int]$MaxRuntimeSeconds = 180,
     [string]$FaceInput = "",
     [switch]$SkipBuild,
     [switch]$AutoReview,
@@ -16,6 +17,42 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+
+function ConvertTo-NativeArgument {
+    param([string]$Argument)
+
+    if ($Argument.Length -eq 0) {
+        return '""'
+    }
+    if ($Argument -notmatch '[\s"]') {
+        return $Argument
+    }
+
+    $quoted = '"'
+    $backslashes = 0
+    foreach ($character in $Argument.ToCharArray()) {
+        if ($character -eq '\') {
+            $backslashes += 1
+            continue
+        }
+        if ($character -eq '"') {
+            $quoted += ('\' * (($backslashes * 2) + 1))
+            $quoted += '"'
+            $backslashes = 0
+            continue
+        }
+        if ($backslashes -gt 0) {
+            $quoted += ('\' * $backslashes)
+            $backslashes = 0
+        }
+        $quoted += $character
+    }
+    if ($backslashes -gt 0) {
+        $quoted += ('\' * ($backslashes * 2))
+    }
+    $quoted += '"'
+    return $quoted
+}
 
 function Invoke-Checked {
     param(
@@ -28,24 +65,28 @@ function Invoke-Checked {
     )
 
     Write-Host "==> $Label"
-    Push-Location -LiteralPath $WorkingDirectory
-    $previousErrorActionPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        if ($StdoutPath -ne "" -and $StderrPath -ne "") {
-            & $FilePath @Arguments 1> $StdoutPath 2> $StderrPath
-        } elseif ($StdoutPath -ne "") {
-            & $FilePath @Arguments 1> $StdoutPath
-        } elseif ($StderrPath -ne "") {
-            & $FilePath @Arguments 2> $StderrPath
-        } else {
-            & $FilePath @Arguments
-        }
-        $exitCode = $LASTEXITCODE
-    } finally {
-        $ErrorActionPreference = $previousErrorActionPreference
-        Pop-Location
+    $commandLine = ConvertTo-NativeArgument $FilePath
+    if ($Arguments.Count -gt 0) {
+        $commandLine += " "
+        $commandLine += (($Arguments | ForEach-Object { ConvertTo-NativeArgument $_ }) -join " ")
     }
+    if ($StdoutPath -ne "") {
+        $commandLine += " 1>"
+        $commandLine += ConvertTo-NativeArgument $StdoutPath
+    }
+    if ($StderrPath -ne "") {
+        $commandLine += " 2>"
+        $commandLine += ConvertTo-NativeArgument $StderrPath
+    }
+    $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $processInfo.FileName = $env:ComSpec
+    $processInfo.Arguments = "/d /c " + $commandLine
+    $processInfo.WorkingDirectory = $WorkingDirectory
+    $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
+    $process = [System.Diagnostics.Process]::Start($processInfo)
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
     if ($exitCode -ne 0) {
         throw "$Label failed with exit code $exitCode"
     }
@@ -160,14 +201,10 @@ foreach ($required in $requiredBinaries) {
     }
 }
 
-$ephemeralArg = "--ephemeral"
-if ($NoEphemeral) {
-    $ephemeralArg = "--no-ephemeral"
-}
-
 $resultPath = ""
 $autoReviewValue = $AutoReview.IsPresent.ToString().ToLowerInvariant()
-$noEphemeralValue = $NoEphemeral.IsPresent.ToString().ToLowerInvariant()
+$effectiveNoEphemeral = $NoEphemeral.IsPresent -or ($Mode -eq "mvp")
+$noEphemeralValue = $effectiveNoEphemeral.ToString().ToLowerInvariant()
 $operatorRunIntentArgs = @(
     "intent",
     "--store", $operatorRunStore,
@@ -329,13 +366,17 @@ if ($liveRuntimeMode) {
         "--runtime-store", $runtimeStore,
         "--mode", "run",
         "--max-steps", "$MaxSteps",
-        "--timeout-seconds", "$TimeoutSeconds"
+        "--timeout-seconds", "$TimeoutSeconds",
+        "--max-runtime-seconds", "$MaxRuntimeSeconds"
     )
     if ($AutoReview) {
         $runArgs += "--auto-review"
     }
     if ($Mode -eq "mvp" -and $ThreadId -eq "") {
         $runArgs += @("--bootstrap-local-state", "--bootstrap-objective", $FaceInput)
+    }
+    if ($Mode -eq "mvp" -or $NoEphemeral) {
+        $runArgs += "--no-ephemeral"
     }
     if ($ThreadId -ne "") {
         $runArgs += @("--thread-id", $ThreadId, "--no-ephemeral")

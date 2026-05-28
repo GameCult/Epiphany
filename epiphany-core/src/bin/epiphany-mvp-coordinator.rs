@@ -21,7 +21,17 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
+
+#[cfg(windows)]
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+#[cfg(windows)]
+const DETACHED_PROCESS: u32 = 0x0000_0008;
 
 #[allow(dead_code)]
 #[path = "epiphany-mvp-status.rs"]
@@ -348,7 +358,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             steps.push(step);
             break;
         }
-        if is_stop_action(&action) && !args.auto_review {
+        if is_stop_action(&action) && !args.auto_review && !is_result_review_action(&action) {
             append_jsonl(&steps_path, &step)?;
             steps.push(step);
             break;
@@ -356,29 +366,48 @@ fn run_coordinator(args: &Args) -> Result<Value> {
 
         let revision = state_revision(&status);
         match action.as_str() {
-            "reviewModelingResult" => {
+            "reviewModelingResult" | "reviewVerificationResult" => {
+                let role_id = if action == "reviewModelingResult" {
+                    "modeling"
+                } else {
+                    "verification"
+                };
                 let result = client.send(
                     "thread/epiphany/roleResult",
-                    Some(json!({"threadId": thread_id, "roleId": "modeling"})),
+                    Some(json!({"threadId": thread_id, "roleId": role_id})),
                     true,
                 )?;
                 push_event(
                     &mut step,
-                    json!({"type": "roleResult", "roleId": "modeling", "result": status_cli::sanitize_for_operator(result.clone())}),
+                    json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
                 );
+                if !matches!(
+                    result["status"].as_str(),
+                    Some("completed" | "failed" | "cancelled")
+                ) {
+                    final_action = json!({
+                        "action": if role_id == "modeling" { "waitForModelingResult" } else { "waitForVerificationResult" },
+                        "reason": result["note"],
+                    });
+                    append_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    break;
+                }
                 let can_accept = args.auto_review
                     && result.pointer("/finding/statePatch").is_some()
                     && revision.is_some();
                 if !can_accept {
-                    final_action =
-                        json!({"action": "reviewModelingResult", "reason": result["note"]});
+                    final_action = json!({
+                        "action": if role_id == "modeling" { "reviewModelingResult" } else { "reviewVerificationResult" },
+                        "reason": result["note"]
+                    });
                     append_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
                 let accepted = client.send(
                     "thread/epiphany/roleAccept",
-                    Some(json!({"threadId": thread_id, "roleId": "modeling", "expectedRevision": revision})),
+                    Some(json!({"threadId": thread_id, "roleId": role_id, "expectedRevision": revision})),
                     true,
                 )?;
                 if let Some(memory) = maybe_apply_role_self_patch(&accepted, &agent_memory_dir)? {
@@ -386,15 +415,36 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     accepted_with_memory["selfMemoryApply"] = memory;
                     push_event(
                         &mut step,
-                        json!({"type": "roleAccept", "roleId": "modeling", "accepted": status_cli::sanitize_for_operator(accepted_with_memory)}),
+                        json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted_with_memory)}),
                     );
                 } else {
                     push_event(
                         &mut step,
-                        json!({"type": "roleAccept", "roleId": "modeling", "accepted": status_cli::sanitize_for_operator(accepted)}),
+                        json!({"type": "roleAccept", "roleId": role_id, "accepted": status_cli::sanitize_for_operator(accepted)}),
                     );
                 }
                 final_status = collect_coordinator_status(&mut client, &thread_id)?;
+            }
+            "reviewReorientResult" => {
+                let result = read_reorient_result(&mut client, &thread_id)?;
+                push_event(
+                    &mut step,
+                    json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
+                );
+                if !matches!(
+                    result["status"].as_str(),
+                    Some("completed" | "failed" | "cancelled")
+                ) {
+                    final_action =
+                        json!({"action": "waitForReorientResult", "reason": result["note"]});
+                    append_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    break;
+                }
+                final_action = json!({"action": "reviewReorientResult", "reason": result["note"]});
+                append_jsonl(&steps_path, &step)?;
+                steps.push(step);
+                break;
             }
             "launchModeling" | "launchVerification" => {
                 let role_id = if action == "launchModeling" {
@@ -414,7 +464,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &mut step,
                     json!({"type": "roleLaunch", "roleId": role_id, "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
                 );
-                let worker_run = run_worker_runtime(
+                let worker_run = launch_worker_runtime_detached(
                     &model_runtime_bin,
                     &tool_adapter_bin,
                     &args.model_provider,
@@ -425,19 +475,31 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     role_id,
                     index,
                     &artifact_dir,
-                    args.timeout_seconds,
+                    args.max_runtime_seconds,
                     args.auto_tools,
                 )?;
                 push_event(
                     &mut step,
                     json!({"type": "workerRuntime", "roleId": role_id, "run": worker_run}),
                 );
-                let result = wait_for_role_result(&mut client, &thread_id, role_id, args)?;
+                let result = read_role_result(&mut client, &thread_id, role_id)?;
                 push_event(
                     &mut step,
                     json!({"type": "roleResult", "roleId": role_id, "result": status_cli::sanitize_for_operator(result.clone())}),
                 );
                 final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                if !matches!(
+                    result["status"].as_str(),
+                    Some("completed" | "failed" | "cancelled")
+                ) {
+                    final_action = json!({
+                        "action": if role_id == "modeling" { "waitForModelingResult" } else { "waitForVerificationResult" },
+                        "reason": result["note"],
+                    });
+                    append_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    break;
+                }
                 if !args.auto_review {
                     final_action = json!({
                         "action": if role_id == "modeling" { "reviewModelingResult" } else { "reviewVerificationResult" },
@@ -456,7 +518,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     &mut step,
                     json!({"type": "reorientLaunch", "launch": status_cli::sanitize_for_operator(launch.clone()), "runtimeJobId": worker_job_id}),
                 );
-                let worker_run = run_worker_runtime(
+                let worker_run = launch_worker_runtime_detached(
                     &model_runtime_bin,
                     &tool_adapter_bin,
                     &args.model_provider,
@@ -467,19 +529,29 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     "reorient-worker",
                     index,
                     &artifact_dir,
-                    args.timeout_seconds,
+                    args.max_runtime_seconds,
                     args.auto_tools,
                 )?;
                 push_event(
                     &mut step,
                     json!({"type": "workerRuntime", "roleId": "reorient-worker", "run": worker_run}),
                 );
-                let result = wait_for_reorient_result(&mut client, &thread_id, args)?;
+                let result = read_reorient_result(&mut client, &thread_id)?;
                 push_event(
                     &mut step,
                     json!({"type": "reorientResult", "result": status_cli::sanitize_for_operator(result.clone())}),
                 );
                 final_status = collect_coordinator_status(&mut client, &thread_id)?;
+                if !matches!(
+                    result["status"].as_str(),
+                    Some("completed" | "failed" | "cancelled")
+                ) {
+                    final_action =
+                        json!({"action": "waitForReorientResult", "reason": result["note"]});
+                    append_jsonl(&steps_path, &step)?;
+                    steps.push(step);
+                    break;
+                }
                 if !args.auto_review {
                     final_action =
                         json!({"action": "reviewReorientResult", "reason": result["note"]});
@@ -783,7 +855,7 @@ fn worker_job_id_from_launch(launch: &Value) -> Result<String> {
     .ok_or_else(|| anyhow!("launch response did not include a runtime worker job id"))
 }
 
-fn run_worker_runtime(
+fn launch_worker_runtime_detached(
     model_runtime_bin: &Path,
     tool_adapter_bin: &Path,
     model_provider: &str,
@@ -794,7 +866,7 @@ fn run_worker_runtime(
     role_id: &str,
     step_index: usize,
     artifact_dir: &Path,
-    timeout_seconds: u64,
+    max_runtime_seconds: u64,
     auto_tools: bool,
 ) -> Result<Value> {
     let stdout_path = artifact_dir.join(format!(
@@ -815,7 +887,9 @@ fn run_worker_runtime(
         .arg("--codex-home")
         .arg(codex_home)
         .arg("--job-id")
-        .arg(job_id);
+        .arg(job_id)
+        .arg("--max-runtime-seconds")
+        .arg(max_runtime_seconds.to_string());
     if auto_tools {
         command
             .arg("--auto-tools")
@@ -824,93 +898,50 @@ fn run_worker_runtime(
             .arg("--cwd")
             .arg(cwd);
     }
-    command.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = command
+    let stdout_file = fs::File::create(&stdout_path)
+        .with_context(|| format!("failed to create {}", stdout_path.display()))?;
+    let stderr_file = fs::File::create(&stderr_path)
+        .with_context(|| format!("failed to create {}", stderr_path.display()))?;
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(stdout_file))
+        .stderr(Stdio::from(stderr_file));
+    #[cfg(windows)]
+    command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
+    let child = command
         .spawn()
         .with_context(|| format!("failed to spawn {}", model_runtime_bin.display()))?;
-    let deadline = Instant::now() + Duration::from_secs(timeout_seconds);
-    loop {
-        if let Some(status) = child.try_wait()? {
-            let output = child.wait_with_output()?;
-            fs::write(&stdout_path, &output.stdout)?;
-            fs::write(&stderr_path, &output.stderr)?;
-            if !status.success() {
-                return Err(anyhow!(
-                    "worker runtime failed for {job_id}: {}{}",
-                    String::from_utf8_lossy(&output.stderr),
-                    String::from_utf8_lossy(&output.stdout)
-                ));
-            }
-            let parsed: Value = serde_json::from_slice(&output.stdout)
-                .context("worker runtime returned invalid JSON")?;
-            return Ok(json!({
-                "status": "completed",
-                "jobId": job_id,
-                "stdout": stdout_path,
-                "stderr": stderr_path,
-                "summary": parsed,
-            }));
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let output = child.wait_with_output()?;
-            fs::write(&stdout_path, &output.stdout)?;
-            fs::write(&stderr_path, &output.stderr)?;
-            return Err(anyhow!(
-                "worker runtime timed out for {job_id} after {timeout_seconds}s"
-            ));
-        }
-        thread::sleep(Duration::from_millis(250));
-    }
+    Ok(json!({
+        "status": "launched",
+        "jobId": job_id,
+        "pid": child.id(),
+        "stdout": stdout_path,
+        "stderr": stderr_path,
+        "note": "Worker runtime is detached; coordinator observes completion through runtime-spine role/reorient result polling.",
+    }))
 }
 
-fn wait_for_role_result(
+fn read_role_result(
     client: &mut status_cli::AppServerClient,
     thread_id: &str,
     role_id: &str,
-    args: &Args,
 ) -> Result<Value> {
-    let deadline = Instant::now() + Duration::from_secs(args.timeout_seconds);
-    let mut latest = Value::Null;
-    while Instant::now() < deadline {
-        latest = client.send(
-            "thread/epiphany/roleResult",
-            Some(json!({"threadId": thread_id, "roleId": role_id})),
-            true,
-        )?;
-        if matches!(
-            latest["status"].as_str(),
-            Some("completed" | "failed" | "cancelled")
-        ) {
-            return Ok(latest);
-        }
-        thread::sleep(Duration::from_secs_f64(args.poll_seconds));
-    }
-    Ok(latest)
+    client.send(
+        "thread/epiphany/roleResult",
+        Some(json!({"threadId": thread_id, "roleId": role_id})),
+        true,
+    )
 }
 
-fn wait_for_reorient_result(
+fn read_reorient_result(
     client: &mut status_cli::AppServerClient,
     thread_id: &str,
-    args: &Args,
 ) -> Result<Value> {
-    let deadline = Instant::now() + Duration::from_secs(args.timeout_seconds);
-    let mut latest = Value::Null;
-    while Instant::now() < deadline {
-        latest = client.send(
-            "thread/epiphany/reorientResult",
-            Some(json!({"threadId": thread_id, "bindingId": REORIENT_BINDING_ID})),
-            true,
-        )?;
-        if matches!(
-            latest["status"].as_str(),
-            Some("completed" | "failed" | "cancelled")
-        ) {
-            return Ok(latest);
-        }
-        thread::sleep(Duration::from_secs_f64(args.poll_seconds));
-    }
-    Ok(latest)
+    client.send(
+        "thread/epiphany/reorientResult",
+        Some(json!({"threadId": thread_id, "bindingId": REORIENT_BINDING_ID})),
+        true,
+    )
 }
 
 fn maybe_apply_role_self_patch(accepted: &Value, agent_memory_dir: &Path) -> Result<Option<Value>> {
@@ -1321,6 +1352,13 @@ fn is_stop_action(action: &str) -> bool {
             | "reviewModelingResult"
             | "reviewVerificationResult"
             | "continueImplementation"
+    )
+}
+
+fn is_result_review_action(action: &str) -> bool {
+    matches!(
+        action,
+        "reviewModelingResult" | "reviewVerificationResult" | "reviewReorientResult"
     )
 }
 

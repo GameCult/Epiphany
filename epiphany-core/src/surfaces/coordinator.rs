@@ -652,6 +652,19 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
+        && !input.modeling_result_accepted
+    {
+        return build(
+            EpiphanyCoordinatorAction::ReviewModelingResult,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            "The modeling/checkpoint worker failed; inspect the failed result before verification or implementation continues.",
+        );
+    }
+
     if matches!(
         input.signals.modeling_result_status,
         EpiphanyCoordinatorRoleResultStatus::Pending | EpiphanyCoordinatorRoleResultStatus::Running
@@ -1160,6 +1173,19 @@ mod tests {
             EpiphanyCoordinatorAction::ReviewModelingResult
         );
         assert!(wait_for_modeling.reason.contains("stale verification"));
+
+        let review_failed_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: EpiphanyCoordinatorSignals {
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            },
+            ..input()
+        });
+        assert_eq!(
+            review_failed_modeling.action,
+            EpiphanyCoordinatorAction::ReviewModelingResult
+        );
+        assert!(!review_failed_modeling.can_auto_run);
 
         let relaunch_unreviewable_modeling =
             recommend_coordinator_action(EpiphanyCoordinatorInput {

@@ -490,6 +490,27 @@ pub fn complete_worker_job_from_assistant_text(
     )
 }
 
+pub fn fail_worker_job(
+    store_path: impl AsRef<Path>,
+    job_id: &str,
+    summary: String,
+    next_safe_move: String,
+) -> Result<epiphany_core::EpiphanyRuntimeJobResult> {
+    complete_runtime_job(
+        store_path,
+        RuntimeSpineJobResultOptions {
+            result_id: format!("result-worker-{job_id}"),
+            job_id: job_id.to_string(),
+            completed_at: now(),
+            verdict: "failed".to_string(),
+            summary,
+            next_safe_move,
+            evidence_refs: Vec::new(),
+            artifact_refs: Vec::new(),
+        },
+    )
+}
+
 pub fn ensure_openai_runtime_ready(options: &EpiphanyOpenAiRuntimeOptions) -> Result<()> {
     let status = runtime_spine_status(&options.store_path)?;
     if status.present {

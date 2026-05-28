@@ -568,4 +568,4 @@ current_status:
     materializes complete MCP-shaped model tool calls as typed tool invocation
     intents, and the Codex MCP spine can consume those intents from the mixed
     runtime-spine store and emit typed success/failure receipts.
-  next_action: Cut the synchronous worker-runtime wait out of `epiphany-mvp-coordinator`: launch model workers as detached runtime-spine jobs with pollable progress/timeout receipts, because live `gpt-5.4` Codex transport can complete but later MVP runs timed out with empty stdout/stderr while the coordinator waited on the child process.
+  next_action: Exercise a normal-timeout live MVP worker pass and harden the next receipt edge that fails: coordinator workers now launch detached, local MVP threads are resumable, worker runtime enforces max-runtime timeout receipts, and failed modeling blocks downstream verification until reviewed.

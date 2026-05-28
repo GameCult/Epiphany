@@ -22,6 +22,7 @@ use epiphany_openai_runtime::complete_worker_job_from_assistant_text;
 use epiphany_openai_runtime::default_codex_home;
 use epiphany_openai_runtime::default_options;
 use epiphany_openai_runtime::ensure_openai_runtime_ready;
+use epiphany_openai_runtime::fail_worker_job;
 use epiphany_openai_runtime::load_worker_launch_request;
 use epiphany_openai_runtime::record_openai_events;
 use epiphany_openai_runtime::run_model_turn;
@@ -73,19 +74,38 @@ async fn main() -> Result<()> {
         "run-worker" => {
             let options = parse_run_worker_options(args.collect())?;
             require_supported_provider(&options.provider)?;
-            let summary = if options.auto_tools {
-                run_worker_launch_with_tool_continuation(options).await?
+            let timeout_seconds = options.max_runtime_seconds;
+            let timeout_store = options.store_path.clone();
+            let timeout_job_id = options.job_id.clone();
+            let summary = if let Some(seconds) = timeout_seconds {
+                match tokio::time::timeout(
+                    std::time::Duration::from_secs(seconds),
+                    run_worker_options(options),
+                )
+                .await
+                {
+                    Ok(result) => result?,
+                    Err(_) => {
+                        let summary = format!("Worker runtime timed out after {seconds} seconds.");
+                        let result = fail_worker_job(
+                            &timeout_store,
+                            &timeout_job_id,
+                            summary.clone(),
+                            "Inspect provider/tool transport before relaunching the worker."
+                                .to_string(),
+                        )?;
+                        json!({
+                            "status": "timeout",
+                            "jobId": timeout_job_id,
+                            "workerResultId": result.result_id,
+                            "verdict": result.verdict,
+                            "summary": summary,
+                            "nextSafeMove": result.next_safe_move,
+                        })
+                    }
+                }
             } else {
-                serde_json::to_value(
-                    run_worker_launch(EpiphanyWorkerRuntimeOptions {
-                        store_path: options.store_path,
-                        codex_home: options.codex_home,
-                        provider: options.provider,
-                        job_id: options.job_id,
-                        model: options.model,
-                    })
-                    .await?,
-                )?
+                run_worker_options(options).await?
             };
             print_json(&summary)?;
         }
@@ -265,6 +285,7 @@ struct SmokeCliOptions {
     codex_home: PathBuf,
 }
 
+#[derive(Clone)]
 struct RunWorkerCliOptions {
     provider: String,
     store_path: PathBuf,
@@ -275,6 +296,7 @@ struct RunWorkerCliOptions {
     tool_adapter_bin: Option<PathBuf>,
     cwd: Option<PathBuf>,
     max_tool_rounds: usize,
+    max_runtime_seconds: Option<u64>,
 }
 
 struct ToolFollowupCliOptions {
@@ -373,6 +395,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut tool_adapter_bin = None;
     let mut cwd = None;
     let mut max_tool_rounds = 4usize;
+    let mut max_runtime_seconds = None;
     let mut iter = args.into_iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -389,6 +412,9 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
             "--max-tool-rounds" => {
                 max_tool_rounds = next_value(&mut iter, "--max-tool-rounds")?.parse()?
             }
+            "--max-runtime-seconds" => {
+                max_runtime_seconds = Some(next_value(&mut iter, "--max-runtime-seconds")?.parse()?)
+            }
             other => return Err(anyhow!("unknown run-worker argument: {other}")),
         }
     }
@@ -402,6 +428,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
         tool_adapter_bin,
         cwd,
         max_tool_rounds,
+        max_runtime_seconds,
     })
 }
 
@@ -533,6 +560,23 @@ async fn run_worker_launch_with_tool_continuation(
         "artifactRefs": worker_result.artifact_refs,
         "toolRounds": tool_rounds,
     }))
+}
+
+async fn run_worker_options(options: RunWorkerCliOptions) -> Result<serde_json::Value> {
+    if options.auto_tools {
+        run_worker_launch_with_tool_continuation(options).await
+    } else {
+        Ok(serde_json::to_value(
+            run_worker_launch(EpiphanyWorkerRuntimeOptions {
+                store_path: options.store_path,
+                codex_home: options.codex_home,
+                provider: options.provider,
+                job_id: options.job_id,
+                model: options.model,
+            })
+            .await?,
+        )?)
+    }
 }
 
 fn run_tool_adapter(
