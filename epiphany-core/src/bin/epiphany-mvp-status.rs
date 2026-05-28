@@ -7,6 +7,7 @@ use epiphany_core::EpiphanyCrrcInput;
 use epiphany_core::EpiphanyCrrcReorientAction;
 use epiphany_core::EpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyCrrcStateStatus;
+use epiphany_core::EpiphanyJobStatus;
 use epiphany_core::EpiphanyJobsInput;
 use epiphany_core::EpiphanyReorientAction;
 use epiphany_core::EpiphanyReorientFreshnessStatus;
@@ -17,6 +18,8 @@ use epiphany_core::EpiphanyRoleBoardInput;
 use epiphany_core::EpiphanyRoleBoardJob;
 use epiphany_core::EpiphanyRoleBoardJobStatus;
 use epiphany_core::EpiphanyRoleBoardPlanningSummary;
+use epiphany_core::EpiphanyRuntimeJobSnapshot;
+use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::EpiphanySceneInput;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::derive_coordinator_finding_signals;
@@ -29,6 +32,8 @@ use epiphany_core::derive_scene;
 use epiphany_core::load_thread_state_entry;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
+use epiphany_core::runtime_job_snapshot;
+use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
 use serde_json::json;
 use std::env;
@@ -230,10 +235,11 @@ fn run_native_status(args: &Args) -> Result<Value> {
             watched_root: Some(cwd.clone()),
         });
     let planning = derive_planning_view(state_ref);
-    let jobs = derive_jobs(EpiphanyJobsInput {
+    let mut jobs = derive_jobs(EpiphanyJobsInput {
         state: state_ref,
         retrieval_override: None,
     });
+    reconcile_native_runtime_jobs(&mut jobs, state_ref, &runtime_store_path);
     let state_status = if state_ref.is_some() {
         EpiphanyCrrcStateStatus::Ready
     } else {
@@ -243,7 +249,12 @@ fn run_native_status(args: &Args) -> Result<Value> {
         EpiphanyReorientAction::Resume => EpiphanyCrrcReorientAction::Resume,
         EpiphanyReorientAction::Regather => EpiphanyCrrcReorientAction::Regather,
     };
-    let result_status = EpiphanyCrrcResultStatus::BackendMissing;
+    let result_status =
+        native_reorient_result_status(state_ref, &runtime_store_path, REORIENT_BINDING_ID);
+    let modeling_result_status =
+        native_role_result_status(state_ref, &runtime_store_path, MODELING_BINDING_ID);
+    let verification_result_status =
+        native_role_result_status(state_ref, &runtime_store_path, VERIFICATION_BINDING_ID);
     let recommendation = recommend_crrc_action(EpiphanyCrrcInput {
         loaded,
         state_status,
@@ -312,8 +323,8 @@ fn run_native_status(args: &Args) -> Result<Value> {
         recommendation: recommendation.clone(),
         roles: roles.clone(),
         reorient_action: reorient_decision.action,
-        modeling_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
-        verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+        modeling_result_status,
+        verification_result_status,
         reorient_result_status: result_status,
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
@@ -397,16 +408,11 @@ fn run_native_status(args: &Args) -> Result<Value> {
         },
         "planning": planning,
         "roleResults": {
-            "imagination": native_role_result(IMAGINATION_BINDING_ID),
-            "modeling": native_role_result(MODELING_BINDING_ID),
-            "verification": native_role_result(VERIFICATION_BINDING_ID),
+            "imagination": native_role_result(state_ref, &runtime_store_path, IMAGINATION_BINDING_ID),
+            "modeling": native_role_result(state_ref, &runtime_store_path, MODELING_BINDING_ID),
+            "verification": native_role_result(state_ref, &runtime_store_path, VERIFICATION_BINDING_ID),
         },
-        "reorientResult": {
-            "source": "native",
-            "status": "backendMissing",
-            "bindingId": REORIENT_BINDING_ID,
-            "note": "Native status is provider-neutral and does not query model-worker runtime results yet.",
-        },
+        "reorientResult": native_reorient_result(state_ref, &runtime_store_path, REORIENT_BINDING_ID),
         "crrc": {
             "threadId": thread_id,
             "source": "native",
@@ -589,13 +595,313 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     })
 }
 
-fn native_role_result(binding_id: &str) -> Value {
-    json!({
-        "source": "native",
-        "status": "backendMissing",
-        "bindingId": binding_id,
-        "note": "Native status is provider-neutral and does not query model-worker runtime results yet.",
-    })
+fn native_role_result(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    binding_id: &str,
+) -> Value {
+    let Some(job_id) = latest_runtime_job_id_for_binding(state, binding_id) else {
+        return json!({
+            "source": "native",
+            "status": "backendMissing",
+            "bindingId": binding_id,
+            "note": "No runtime-spine job is linked to this native role binding.",
+        });
+    };
+    match runtime_job_snapshot(runtime_store, job_id) {
+        Ok(Some(snapshot)) => {
+            let status = map_runtime_role_result_status(&snapshot);
+            let mut result = json!({
+                "source": "native",
+                "status": status,
+                "bindingId": binding_id,
+                "runtimeJobId": job_id,
+                "note": native_role_result_note(status, &snapshot),
+            });
+            if matches!(
+                status,
+                EpiphanyCoordinatorRoleResultStatus::Failed
+                    | EpiphanyCoordinatorRoleResultStatus::Cancelled
+            ) && let Some(receipt) = snapshot.result
+            {
+                result["finding"] = json!({
+                    "verdict": receipt.verdict,
+                    "summary": receipt.summary,
+                    "nextSafeMove": empty_string_as_null(&receipt.next_safe_move),
+                    "runtimeResultId": receipt.result_id,
+                    "runtimeJobId": receipt.job_id,
+                    "evidenceIds": receipt.evidence_refs,
+                    "artifactRefs": receipt.artifact_refs,
+                    "jobError": receipt.summary,
+                });
+            }
+            result
+        }
+        Ok(None) => json!({
+            "source": "native",
+            "status": "backendMissing",
+            "bindingId": binding_id,
+            "runtimeJobId": job_id,
+            "note": "The linked runtime-spine job is missing.",
+        }),
+        Err(error) => json!({
+            "source": "native",
+            "status": "backendUnavailable",
+            "bindingId": binding_id,
+            "runtimeJobId": job_id,
+            "note": format!("Failed to read linked runtime-spine job: {error}"),
+        }),
+    }
+}
+
+fn native_reorient_result(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    binding_id: &str,
+) -> Value {
+    let Some(job_id) = latest_runtime_job_id_for_binding(state, binding_id) else {
+        return json!({
+            "source": "native",
+            "status": "backendMissing",
+            "bindingId": binding_id,
+            "note": "No runtime-spine job is linked to this native reorientation binding.",
+        });
+    };
+    match runtime_job_snapshot(runtime_store, job_id) {
+        Ok(Some(snapshot)) => {
+            let status = map_runtime_reorient_result_status(&snapshot);
+            let mut result = json!({
+                "source": "native",
+                "status": status,
+                "bindingId": binding_id,
+                "runtimeJobId": job_id,
+                "note": native_reorient_result_note(status, &snapshot),
+            });
+            if matches!(
+                status,
+                EpiphanyCrrcResultStatus::Failed | EpiphanyCrrcResultStatus::Cancelled
+            ) && let Some(receipt) = snapshot.result
+            {
+                result["finding"] = json!({
+                    "summary": receipt.summary,
+                    "nextSafeMove": empty_string_as_null(&receipt.next_safe_move),
+                    "runtimeResultId": receipt.result_id,
+                    "runtimeJobId": receipt.job_id,
+                    "evidenceIds": receipt.evidence_refs,
+                    "artifactRefs": receipt.artifact_refs,
+                    "jobError": receipt.summary,
+                });
+            }
+            result
+        }
+        Ok(None) => json!({
+            "source": "native",
+            "status": "backendMissing",
+            "bindingId": binding_id,
+            "runtimeJobId": job_id,
+            "note": "The linked runtime-spine job is missing.",
+        }),
+        Err(error) => json!({
+            "source": "native",
+            "status": "backendUnavailable",
+            "bindingId": binding_id,
+            "runtimeJobId": job_id,
+            "note": format!("Failed to read linked runtime-spine job: {error}"),
+        }),
+    }
+}
+
+fn native_role_result_status(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    binding_id: &str,
+) -> EpiphanyCoordinatorRoleResultStatus {
+    let Some(job_id) = latest_runtime_job_id_for_binding(state, binding_id) else {
+        return EpiphanyCoordinatorRoleResultStatus::BackendMissing;
+    };
+    match runtime_job_snapshot(runtime_store, job_id) {
+        Ok(Some(snapshot)) => map_runtime_role_result_status(&snapshot),
+        Ok(None) => EpiphanyCoordinatorRoleResultStatus::BackendMissing,
+        Err(_) => EpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
+    }
+}
+
+fn native_reorient_result_status(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    binding_id: &str,
+) -> EpiphanyCrrcResultStatus {
+    let Some(job_id) = latest_runtime_job_id_for_binding(state, binding_id) else {
+        return EpiphanyCrrcResultStatus::BackendMissing;
+    };
+    match runtime_job_snapshot(runtime_store, job_id) {
+        Ok(Some(snapshot)) => map_runtime_reorient_result_status(&snapshot),
+        Ok(None) => EpiphanyCrrcResultStatus::BackendMissing,
+        Err(_) => EpiphanyCrrcResultStatus::BackendUnavailable,
+    }
+}
+
+fn reconcile_native_runtime_jobs(
+    jobs: &mut [epiphany_core::EpiphanyJobView],
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+) {
+    for job in jobs {
+        let Some(runtime_job_id) = job
+            .runtime_job_id
+            .clone()
+            .or_else(|| latest_runtime_job_id_for_binding(state, &job.id).map(str::to_string))
+        else {
+            continue;
+        };
+        let Ok(Some(snapshot)) = runtime_job_snapshot(runtime_store, &runtime_job_id) else {
+            continue;
+        };
+        job.runtime_job_id = Some(runtime_job_id);
+        job.status = map_runtime_job_status(snapshot.job.status);
+        job.progress_note = Some(snapshot.job.summary.clone());
+    }
+}
+
+fn latest_runtime_job_id_for_binding<'a>(
+    state: Option<&'a EpiphanyThreadState>,
+    binding_id: &str,
+) -> Option<&'a str> {
+    state?
+        .runtime_links
+        .iter()
+        .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
+        .map(|link| link.runtime_job_id.as_str())
+}
+
+fn map_runtime_role_result_status(
+    snapshot: &EpiphanyRuntimeJobSnapshot,
+) -> EpiphanyCoordinatorRoleResultStatus {
+    match snapshot.job.status {
+        EpiphanyRuntimeJobStatus::Queued => EpiphanyCoordinatorRoleResultStatus::Pending,
+        EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview => {
+            EpiphanyCoordinatorRoleResultStatus::Running
+        }
+        EpiphanyRuntimeJobStatus::Completed => {
+            if snapshot.result.is_some() {
+                EpiphanyCoordinatorRoleResultStatus::Completed
+            } else {
+                EpiphanyCoordinatorRoleResultStatus::Pending
+            }
+        }
+        EpiphanyRuntimeJobStatus::Failed => EpiphanyCoordinatorRoleResultStatus::Failed,
+        EpiphanyRuntimeJobStatus::Cancelled => EpiphanyCoordinatorRoleResultStatus::Cancelled,
+    }
+}
+
+fn map_runtime_reorient_result_status(
+    snapshot: &EpiphanyRuntimeJobSnapshot,
+) -> EpiphanyCrrcResultStatus {
+    match snapshot.job.status {
+        EpiphanyRuntimeJobStatus::Queued => EpiphanyCrrcResultStatus::Pending,
+        EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview => {
+            EpiphanyCrrcResultStatus::Running
+        }
+        EpiphanyRuntimeJobStatus::Completed => {
+            if snapshot.result.is_some() {
+                EpiphanyCrrcResultStatus::Completed
+            } else {
+                EpiphanyCrrcResultStatus::Pending
+            }
+        }
+        EpiphanyRuntimeJobStatus::Failed => EpiphanyCrrcResultStatus::Failed,
+        EpiphanyRuntimeJobStatus::Cancelled => EpiphanyCrrcResultStatus::Cancelled,
+    }
+}
+
+fn map_runtime_job_status(status: EpiphanyRuntimeJobStatus) -> EpiphanyJobStatus {
+    match status {
+        EpiphanyRuntimeJobStatus::Queued => EpiphanyJobStatus::Pending,
+        EpiphanyRuntimeJobStatus::Running | EpiphanyRuntimeJobStatus::WaitingForReview => {
+            EpiphanyJobStatus::Running
+        }
+        EpiphanyRuntimeJobStatus::Completed => EpiphanyJobStatus::Completed,
+        EpiphanyRuntimeJobStatus::Failed => EpiphanyJobStatus::Failed,
+        EpiphanyRuntimeJobStatus::Cancelled => EpiphanyJobStatus::Cancelled,
+    }
+}
+
+fn native_role_result_note(
+    status: EpiphanyCoordinatorRoleResultStatus,
+    snapshot: &EpiphanyRuntimeJobSnapshot,
+) -> String {
+    match status {
+        EpiphanyCoordinatorRoleResultStatus::Failed => {
+            format!("Role runtime job failed: {}", snapshot.job.summary)
+        }
+        EpiphanyCoordinatorRoleResultStatus::Cancelled => {
+            format!("Role runtime job was cancelled: {}", snapshot.job.summary)
+        }
+        EpiphanyCoordinatorRoleResultStatus::Completed => {
+            "Role runtime job has a terminal lifecycle receipt; use typed worker results for reviewable findings.".to_string()
+        }
+        EpiphanyCoordinatorRoleResultStatus::Running => {
+            "Role runtime job is still running.".to_string()
+        }
+        EpiphanyCoordinatorRoleResultStatus::Pending => {
+            "Role runtime job has not produced a terminal receipt yet.".to_string()
+        }
+        EpiphanyCoordinatorRoleResultStatus::BackendUnavailable => {
+            "The bound runtime backend is unavailable.".to_string()
+        }
+        EpiphanyCoordinatorRoleResultStatus::BackendMissing => {
+            "The bound runtime backend job or item is missing.".to_string()
+        }
+        EpiphanyCoordinatorRoleResultStatus::MissingState => {
+            "No authoritative Epiphany state exists for this thread.".to_string()
+        }
+        EpiphanyCoordinatorRoleResultStatus::MissingBinding => {
+            "No matching Epiphany role specialist binding exists.".to_string()
+        }
+    }
+}
+
+fn native_reorient_result_note(
+    status: EpiphanyCrrcResultStatus,
+    snapshot: &EpiphanyRuntimeJobSnapshot,
+) -> String {
+    match status {
+        EpiphanyCrrcResultStatus::Failed => {
+            format!("Reorientation runtime job failed: {}", snapshot.job.summary)
+        }
+        EpiphanyCrrcResultStatus::Cancelled => {
+            format!("Reorientation runtime job was cancelled: {}", snapshot.job.summary)
+        }
+        EpiphanyCrrcResultStatus::Completed => {
+            "Reorientation runtime job has a terminal lifecycle receipt; use typed worker results for reviewable findings.".to_string()
+        }
+        EpiphanyCrrcResultStatus::Running => {
+            "Reorientation runtime job is still running.".to_string()
+        }
+        EpiphanyCrrcResultStatus::Pending => {
+            "Reorientation runtime job has not produced a terminal receipt yet.".to_string()
+        }
+        EpiphanyCrrcResultStatus::BackendUnavailable => {
+            "The bound runtime backend is unavailable.".to_string()
+        }
+        EpiphanyCrrcResultStatus::BackendMissing => {
+            "The bound runtime backend job or item is missing.".to_string()
+        }
+        EpiphanyCrrcResultStatus::MissingState => {
+            "No authoritative Epiphany state exists for this thread.".to_string()
+        }
+        EpiphanyCrrcResultStatus::MissingBinding => {
+            "No matching Epiphany reorientation binding exists.".to_string()
+        }
+    }
+}
+
+fn empty_string_as_null(value: &str) -> Value {
+    if value.trim().is_empty() {
+        Value::Null
+    } else {
+        json!(value)
+    }
 }
 
 fn native_tool_invocation_surface(runtime_store: &Path) -> Result<Value> {

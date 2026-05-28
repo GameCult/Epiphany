@@ -5,6 +5,7 @@ use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleResultRoleId;
+use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::EpiphanyRuntimeJobSnapshot;
 use epiphany_core::EpiphanyRuntimeJobStatus;
 use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
@@ -73,34 +74,43 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
         }
     };
     let status = map_runtime_role_result_status(&snapshot);
-    let finding = if status == CoreEpiphanyCoordinatorRoleResultStatus::Completed {
-        match runtime_role_worker_result(runtime_store_path, job_id) {
-            Ok(Some(result)) => Some(interpret_runtime_role_worker_result(role_id, &result)),
-            Ok(None) => {
-                return EpiphanyRoleResultSnapshot {
-                    status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
-                    finding: None,
-                    note: format!(
-                        "Heartbeat runtime job {:?} completed without an EpiphanyRuntimeRoleWorkerResult typed document; generic lifecycle receipts are not reviewable findings.",
-                        job_id
-                    ),
-                };
-            }
-            Err(err) => {
-                return EpiphanyRoleResultSnapshot {
-                    status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
-                    finding: None,
-                    note: format!(
-                        "Failed to read typed role worker result for heartbeat runtime job {:?}: {err}",
-                        job_id
-                    ),
-                };
+    let finding = match status {
+        CoreEpiphanyCoordinatorRoleResultStatus::Completed => {
+            match runtime_role_worker_result(runtime_store_path, job_id) {
+                Ok(Some(result)) => Some(interpret_runtime_role_worker_result(role_id, &result)),
+                Ok(None) => {
+                    return EpiphanyRoleResultSnapshot {
+                        status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
+                        finding: None,
+                        note: format!(
+                            "Heartbeat runtime job {:?} completed without an EpiphanyRuntimeRoleWorkerResult typed document; generic lifecycle receipts are not reviewable findings.",
+                            job_id
+                        ),
+                    };
+                }
+                Err(err) => {
+                    return EpiphanyRoleResultSnapshot {
+                        status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
+                        finding: None,
+                        note: format!(
+                            "Failed to read typed role worker result for heartbeat runtime job {:?}: {err}",
+                            job_id
+                        ),
+                    };
+                }
             }
         }
-    } else {
-        None
+        CoreEpiphanyCoordinatorRoleResultStatus::Failed
+        | CoreEpiphanyCoordinatorRoleResultStatus::Cancelled => snapshot
+            .result
+            .as_ref()
+            .map(interpret_runtime_role_lifecycle_failure),
+        _ => None,
     };
-    let note = render_core_role_result_note(role_id, status, finding.as_ref(), None);
+    let item_error = finding
+        .as_ref()
+        .and_then(|finding| finding.job_error.as_deref());
+    let note = render_core_role_result_note(role_id, status, finding.as_ref(), item_error);
     EpiphanyRoleResultSnapshot {
         status,
         finding,
@@ -144,39 +154,96 @@ pub fn load_core_epiphany_reorient_result_from_runtime_spine_job(
         }
     };
     let status = map_runtime_reorient_result_status(&snapshot);
-    let finding = if status == CoreEpiphanyCrrcResultStatus::Completed {
-        match runtime_reorient_worker_result(runtime_store_path, job_id) {
-            Ok(Some(result)) => Some(interpret_runtime_reorient_worker_result(&result)),
-            Ok(None) => {
-                return EpiphanyReorientResultSnapshot {
-                    status: CoreEpiphanyCrrcResultStatus::BackendUnavailable,
-                    finding: None,
-                    note: format!(
-                        "Heartbeat runtime job {:?} completed without an EpiphanyRuntimeReorientWorkerResult typed document; generic lifecycle receipts are not reviewable findings.",
-                        job_id
-                    ),
-                };
-            }
-            Err(err) => {
-                return EpiphanyReorientResultSnapshot {
-                    status: CoreEpiphanyCrrcResultStatus::BackendUnavailable,
-                    finding: None,
-                    note: format!(
-                        "Failed to read typed reorientation worker result for heartbeat runtime job {:?}: {err}",
-                        job_id
-                    ),
-                };
+    let finding = match status {
+        CoreEpiphanyCrrcResultStatus::Completed => {
+            match runtime_reorient_worker_result(runtime_store_path, job_id) {
+                Ok(Some(result)) => Some(interpret_runtime_reorient_worker_result(&result)),
+                Ok(None) => {
+                    return EpiphanyReorientResultSnapshot {
+                        status: CoreEpiphanyCrrcResultStatus::BackendUnavailable,
+                        finding: None,
+                        note: format!(
+                            "Heartbeat runtime job {:?} completed without an EpiphanyRuntimeReorientWorkerResult typed document; generic lifecycle receipts are not reviewable findings.",
+                            job_id
+                        ),
+                    };
+                }
+                Err(err) => {
+                    return EpiphanyReorientResultSnapshot {
+                        status: CoreEpiphanyCrrcResultStatus::BackendUnavailable,
+                        finding: None,
+                        note: format!(
+                            "Failed to read typed reorientation worker result for heartbeat runtime job {:?}: {err}",
+                            job_id
+                        ),
+                    };
+                }
             }
         }
-    } else {
-        None
+        CoreEpiphanyCrrcResultStatus::Failed | CoreEpiphanyCrrcResultStatus::Cancelled => snapshot
+            .result
+            .as_ref()
+            .map(interpret_runtime_reorient_lifecycle_failure),
+        _ => None,
     };
-    let note = render_core_reorient_result_note(status, finding.as_ref(), None);
+    let item_error = finding
+        .as_ref()
+        .and_then(|finding| finding.job_error.as_deref());
+    let note = render_core_reorient_result_note(status, finding.as_ref(), item_error);
     EpiphanyReorientResultSnapshot {
         status,
         finding,
         note,
     }
+}
+
+fn interpret_runtime_role_lifecycle_failure(
+    result: &EpiphanyRuntimeJobResult,
+) -> EpiphanyRoleFindingInterpretation {
+    EpiphanyRoleFindingInterpretation {
+        verdict: Some(result.verdict.clone()),
+        summary: Some(result.summary.clone()),
+        next_safe_move: empty_string_as_none(&result.next_safe_move),
+        checkpoint_summary: None,
+        scratch_summary: None,
+        files_inspected: Vec::new(),
+        frontier_node_ids: Vec::new(),
+        evidence_ids: result.evidence_refs.clone(),
+        artifact_refs: result.artifact_refs.clone(),
+        runtime_result_id: Some(result.result_id.clone()),
+        runtime_job_id: Some(result.job_id.clone()),
+        open_questions: Vec::new(),
+        evidence_gaps: Vec::new(),
+        risks: Vec::new(),
+        state_patch: None,
+        self_patch: None,
+        self_persistence: None,
+        job_error: Some(result.summary.clone()),
+        item_error: None,
+    }
+}
+
+fn interpret_runtime_reorient_lifecycle_failure(
+    result: &EpiphanyRuntimeJobResult,
+) -> EpiphanyReorientFindingInterpretation {
+    EpiphanyReorientFindingInterpretation {
+        mode: None,
+        summary: Some(result.summary.clone()),
+        next_safe_move: empty_string_as_none(&result.next_safe_move),
+        checkpoint_still_valid: None,
+        files_inspected: Vec::new(),
+        frontier_node_ids: Vec::new(),
+        evidence_ids: result.evidence_refs.clone(),
+        artifact_refs: result.artifact_refs.clone(),
+        runtime_result_id: Some(result.result_id.clone()),
+        runtime_job_id: Some(result.job_id.clone()),
+        job_error: Some(result.summary.clone()),
+        item_error: None,
+    }
+}
+
+fn empty_string_as_none(value: &str) -> Option<String> {
+    (!value.trim().is_empty()).then(|| value.to_string())
 }
 
 fn map_runtime_role_result_status(
@@ -473,7 +540,7 @@ mod tests {
     #[test]
     fn role_result_requires_typed_worker_document() {
         let store = temp_store_path();
-        seed_completed_lifecycle_result(&store, "role-job", "modeling");
+        seed_lifecycle_result(&store, "role-job", "modeling", "completed");
 
         let result = load_core_epiphany_role_result_from_runtime_spine_job(
             "role-job",
@@ -498,7 +565,7 @@ mod tests {
     #[test]
     fn reorient_result_requires_typed_worker_document() {
         let store = temp_store_path();
-        seed_completed_lifecycle_result(&store, "reorient-job", "reorientation");
+        seed_lifecycle_result(&store, "reorient-job", "reorientation", "completed");
 
         let result = load_core_epiphany_reorient_result_from_runtime_spine_job(
             "reorient-job",
@@ -519,6 +586,59 @@ mod tests {
         let _ = fs::remove_file(store);
     }
 
+    #[test]
+    fn role_result_projects_failed_lifecycle_receipt_as_terminal() {
+        let store = temp_store_path();
+        seed_lifecycle_result(&store, "role-job", "modeling", "failed");
+
+        let result = load_core_epiphany_role_result_from_runtime_spine_job(
+            "role-job",
+            Some(store.as_path()),
+            EpiphanyRoleResultRoleId::Modeling,
+        );
+
+        assert_eq!(
+            result.status,
+            CoreEpiphanyCoordinatorRoleResultStatus::Failed
+        );
+        let finding = result.finding.expect("failed receipt should be visible");
+        assert_eq!(finding.verdict.as_deref(), Some("failed"));
+        assert_eq!(finding.runtime_job_id.as_deref(), Some("role-job"));
+        assert!(
+            finding
+                .job_error
+                .as_deref()
+                .is_some_and(|error| error.contains("generic lifecycle result"))
+        );
+        assert!(result.note.contains("failed"));
+
+        let _ = fs::remove_file(store);
+    }
+
+    #[test]
+    fn reorient_result_projects_failed_lifecycle_receipt_as_terminal() {
+        let store = temp_store_path();
+        seed_lifecycle_result(&store, "reorient-job", "reorientation", "failed");
+
+        let result = load_core_epiphany_reorient_result_from_runtime_spine_job(
+            "reorient-job",
+            Some(store.as_path()),
+        );
+
+        assert_eq!(result.status, CoreEpiphanyCrrcResultStatus::Failed);
+        let finding = result.finding.expect("failed receipt should be visible");
+        assert_eq!(finding.runtime_job_id.as_deref(), Some("reorient-job"));
+        assert!(
+            finding
+                .job_error
+                .as_deref()
+                .is_some_and(|error| error.contains("generic lifecycle result"))
+        );
+        assert!(result.note.contains("failed"));
+
+        let _ = fs::remove_file(store);
+    }
+
     fn temp_store_path() -> PathBuf {
         std::env::temp_dir().join(format!(
             "epiphany-runtime-results-{}.msgpack",
@@ -526,7 +646,7 @@ mod tests {
         ))
     }
 
-    fn seed_completed_lifecycle_result(store: &Path, job_id: &str, role: &str) {
+    fn seed_lifecycle_result(store: &Path, job_id: &str, role: &str, verdict: &str) {
         initialize_runtime_spine(
             store,
             RuntimeSpineInitOptions {
@@ -564,7 +684,7 @@ mod tests {
                 result_id: format!("result-{job_id}"),
                 job_id: job_id.to_string(),
                 completed_at: NOW.to_string(),
-                verdict: "completed".to_string(),
+                verdict: verdict.to_string(),
                 summary: "generic lifecycle result".to_string(),
                 next_safe_move: "do not review generic lifecycle receipts".to_string(),
                 evidence_refs: Vec::new(),

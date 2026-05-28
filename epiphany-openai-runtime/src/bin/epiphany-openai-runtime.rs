@@ -1,7 +1,13 @@
 use std::env;
 use std::fs;
 use std::path::PathBuf;
+use std::process;
 use std::process::Command;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::thread;
+use std::time::Duration;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -74,12 +80,13 @@ async fn main() -> Result<()> {
         "run-worker" => {
             let options = parse_run_worker_options(args.collect())?;
             require_supported_provider(&options.provider)?;
+            let timeout_guard = start_run_worker_timeout_watchdog(&options);
             let timeout_seconds = options.max_runtime_seconds;
             let timeout_store = options.store_path.clone();
             let timeout_job_id = options.job_id.clone();
             let summary = if let Some(seconds) = timeout_seconds {
                 match tokio::time::timeout(
-                    std::time::Duration::from_secs(seconds),
+                    Duration::from_secs(seconds),
                     run_worker_options(options),
                 )
                 .await
@@ -107,6 +114,7 @@ async fn main() -> Result<()> {
             } else {
                 run_worker_options(options).await?
             };
+            timeout_guard.store(true, Ordering::SeqCst);
             print_json(&summary)?;
         }
         "tool-followup" => {
@@ -462,6 +470,31 @@ fn default_worker_model() -> String {
     env::var("EPIPHANY_MODEL")
         .or_else(|_| env::var("CODEX_MODEL"))
         .unwrap_or_else(|_| "gpt-5.4".to_string())
+}
+
+fn start_run_worker_timeout_watchdog(options: &RunWorkerCliOptions) -> Arc<AtomicBool> {
+    let completed = Arc::new(AtomicBool::new(false));
+    let Some(seconds) = options.max_runtime_seconds else {
+        return completed;
+    };
+    let completed_for_thread = Arc::clone(&completed);
+    let store_path = options.store_path.clone();
+    let job_id = options.job_id.clone();
+    thread::spawn(move || {
+        thread::sleep(Duration::from_secs(seconds));
+        if completed_for_thread.load(Ordering::SeqCst) {
+            return;
+        }
+        let summary = format!("Worker runtime timed out after {seconds} seconds.");
+        let _ = fail_worker_job(
+            &store_path,
+            &job_id,
+            summary,
+            "Inspect provider/tool transport before relaunching the worker.".to_string(),
+        );
+        process::exit(124);
+    });
+    completed
 }
 
 async fn run_worker_launch_with_tool_continuation(
