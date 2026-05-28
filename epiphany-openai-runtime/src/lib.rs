@@ -143,10 +143,45 @@ pub async fn run_openai_model_turn(
             summary: format!("Started typed OpenAI request {}.", request.request_id),
         },
     )?;
+    let (input_items, input_chars) = openai_request_input_metrics(&request);
+    append_runtime_event(
+        &options.store_path,
+        RuntimeSpineEventOptions {
+            event_id: format!("event-openai-request-prepared-{}", options.job_id),
+            occurred_at: now(),
+            event_type: "openai.model_turn.request_prepared".to_string(),
+            source: OPENAI_RUNTIME_SOURCE.to_string(),
+            session_id: Some(options.session_id.clone()),
+            job_id: Some(options.job_id.clone()),
+            summary: format!(
+                "Prepared OpenAI request {} for model {}: instructions={} chars, inputItems={}, inputChars={}.",
+                request.request_id,
+                request.model,
+                request.instructions.chars().count(),
+                input_items,
+                input_chars
+            ),
+        },
+    )?;
 
     let status = status_from_auth_manager(&auth_manager, options.default_model.clone(), true).await;
     store_openai_status(&options.store_path, &status)?;
     store_model_status(&options.store_path, &status, DEFAULT_MODEL_PROVIDER)?;
+    append_runtime_event(
+        &options.store_path,
+        RuntimeSpineEventOptions {
+            event_id: format!("event-openai-transport-ready-{}", options.job_id),
+            occurred_at: now(),
+            event_type: "openai.model_turn.transport_ready".to_string(),
+            source: OPENAI_RUNTIME_SOURCE.to_string(),
+            session_id: Some(options.session_id.clone()),
+            job_id: Some(options.job_id.clone()),
+            summary: format!(
+                "Codex/OpenAI transport ready for request {} with auth mode {:?}; opening Responses stream.",
+                request.request_id, status.auth_mode
+            ),
+        },
+    )?;
 
     let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
     let events = match transport.collect_model_events(request.clone()).await {
@@ -164,6 +199,18 @@ pub async fn run_openai_model_turn(
         }
     };
     record_openai_events(&options.store_path, &options, &request, &events)
+}
+
+fn openai_request_input_metrics(request: &EpiphanyOpenAiModelRequest) -> (usize, usize) {
+    let mut chars = 0usize;
+    for item in &request.input {
+        chars += match item {
+            EpiphanyOpenAiInputItem::UserText { text }
+            | EpiphanyOpenAiInputItem::AssistantText { text } => text.chars().count(),
+            EpiphanyOpenAiInputItem::ToolResult { output, .. } => output.chars().count(),
+        };
+    }
+    (request.input.len(), chars)
 }
 
 pub async fn run_model_turn(
@@ -401,6 +448,8 @@ pub fn build_worker_model_request(
             "Execute this Epiphany worker launch document.\n\n```json\n{launch_document_text}\n```"
         ),
     });
+    request.reasoning_effort = Some("low".to_string());
+    request.reasoning_summary = Some("concise".to_string());
     request.output_contract_id = Some(launch_request.output_contract_id.clone());
     Ok(request)
 }
@@ -1405,6 +1454,8 @@ mod tests {
             model_request.output_contract_id.as_deref(),
             Some(epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID)
         );
+        assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
+        assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
             session_id: "openai-worker-session-modeling-checkpoint-worker".to_string(),

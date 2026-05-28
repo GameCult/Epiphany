@@ -2,6 +2,7 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use chrono::SecondsFormat;
+use epiphany_core::EpiphanyRuntimeEvent;
 use epiphany_core::EpiphanyRuntimeJob;
 use epiphany_core::EpiphanyRuntimeJobResult;
 use epiphany_core::RuntimeSpineEventOptions;
@@ -18,6 +19,8 @@ use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
 use epiphany_core::write_runtime_hello_frame;
 use epiphany_core::write_runtime_schema_catalog_json;
+use epiphany_model_adapter::EpiphanyModelInputItem;
+use epiphany_model_adapter::EpiphanyModelRequest;
 use std::env;
 use std::path::PathBuf;
 use uuid::Uuid;
@@ -95,6 +98,51 @@ fn main() -> Result<()> {
                         .map(|result| result.result_id.as_str())
                         .unwrap_or("no-result"),
                     job.summary.replace(['\r', '\n', '\t'], " ")
+                );
+            }
+        }
+        Command::ListModelRequests => {
+            let mut cache = runtime_spine_cache(&args.store)?;
+            cache.pull_all_backing_stores()?;
+            let mut requests = cache.get_all::<EpiphanyModelRequest>()?;
+            requests.sort_by(|left, right| left.request_id.cmp(&right.request_id));
+            println!("model requests");
+            for request in requests {
+                let input_chars = request
+                    .input
+                    .iter()
+                    .map(model_input_item_chars)
+                    .sum::<usize>();
+                println!(
+                    "{}\t{}\t{}\tinstructions={}\tinputItems={}\tinputChars={}\tcontract={}",
+                    request.request_id,
+                    request.provider,
+                    request.model,
+                    request.instructions.chars().count(),
+                    request.input.len(),
+                    input_chars,
+                    request.output_contract_id.as_deref().unwrap_or("none")
+                );
+            }
+        }
+        Command::ListEvents => {
+            let mut cache = runtime_spine_cache(&args.store)?;
+            cache.pull_all_backing_stores()?;
+            let mut events = cache.get_all::<EpiphanyRuntimeEvent>()?;
+            events.sort_by(|left, right| {
+                left.occurred_at
+                    .cmp(&right.occurred_at)
+                    .then_with(|| left.event_id.cmp(&right.event_id))
+            });
+            println!("runtime events");
+            for event in events {
+                println!(
+                    "{}\t{}\t{}\t{}\t{}",
+                    event.occurred_at,
+                    event.event_type,
+                    event.job_id.as_deref().unwrap_or("no-job"),
+                    event.source,
+                    event.summary.replace(['\r', '\n', '\t'], " ")
                 );
             }
         }
@@ -223,6 +271,8 @@ enum Command {
     },
     Status,
     ListJobs,
+    ListModelRequests,
+    ListEvents,
     OpenSession {
         session_id: String,
         objective: String,
@@ -304,6 +354,8 @@ fn parse_command(mut args: Vec<String>) -> Result<Command> {
         }
         "status" => Ok(Command::Status),
         "list-jobs" => Ok(Command::ListJobs),
+        "list-model-requests" => Ok(Command::ListModelRequests),
+        "list-events" => Ok(Command::ListEvents),
         "open-session" => {
             let mut session_id = format!("session-{}", Uuid::new_v4());
             let mut objective = String::new();
@@ -549,5 +601,13 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|open-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
+    "usage: epiphany-runtime-spine [--store path] <init|status|list-jobs|list-model-requests|list-events|open-session|open-job|complete-job|record-event|hello-frame|schema-catalog>"
+}
+
+fn model_input_item_chars(item: &EpiphanyModelInputItem) -> usize {
+    match item {
+        EpiphanyModelInputItem::UserText { text }
+        | EpiphanyModelInputItem::AssistantText { text } => text.chars().count(),
+        EpiphanyModelInputItem::ToolResult { output, .. } => output.chars().count(),
+    }
 }
