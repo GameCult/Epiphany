@@ -27,7 +27,9 @@ use serde_json::Value;
 
 const CHATGPT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const OPENAI_API_BASE_URL: &str = "https://api.openai.com/v1";
-const RESPONSES_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(300);
+// Keep provider silence shorter than Epiphany worker watchdogs so the runtime can
+// write a typed stream failure instead of being killed with no model evidence.
+const RESPONSES_STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(45);
 
 pub const CODEX_SPINE_ADAPTER_ID: &str = "codex-openai-subscription-spine";
 
@@ -99,6 +101,14 @@ pub struct EpiphanyCodexOpenAiTransport {
     base_url: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EpiphanyResponsesFrameObservation {
+    pub frame_sequence: u64,
+    pub kind: String,
+    pub recognized: bool,
+    pub delta_preview: Option<String>,
+}
+
 impl EpiphanyCodexOpenAiTransport {
     pub fn new(auth_manager: Arc<AuthManager>, base_url: Option<String>) -> Self {
         Self {
@@ -115,6 +125,15 @@ impl EpiphanyCodexOpenAiTransport {
         &self,
         request: EpiphanyOpenAiModelRequest,
     ) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
+        self.collect_model_events_with_frame_observer(request, |_| {})
+            .await
+    }
+
+    pub async fn collect_model_events_with_frame_observer(
+        &self,
+        request: EpiphanyOpenAiModelRequest,
+        mut observe_frame: impl FnMut(EpiphanyResponsesFrameObservation),
+    ) -> Result<Vec<EpiphanyOpenAiStreamEvent>> {
         let request_id = request.request_id.clone();
         let model = request.model.clone();
         let auth = self
@@ -129,7 +148,10 @@ impl EpiphanyCodexOpenAiTransport {
         let mut stream_state = EpiphanyResponsesStreamState::new(&request_id, &model);
         while let Some(frame) = rx.recv().await {
             match frame {
-                Ok(frame) => stream_state.push_sse_frame(&frame),
+                Ok(frame) => {
+                    let observation = stream_state.push_sse_frame(&frame);
+                    observe_frame(observation);
+                }
                 Err(err) => stream_state.push_failed(err.to_string()),
             }
             if stream_state.completed {
@@ -316,6 +338,7 @@ struct EpiphanyResponsesStreamState {
     request_id: String,
     requested_model: String,
     sequence: u64,
+    frame_sequence: u64,
     completed: bool,
     events: Vec<EpiphanyOpenAiStreamEvent>,
 }
@@ -326,25 +349,37 @@ impl EpiphanyResponsesStreamState {
             request_id: request_id.to_string(),
             requested_model: requested_model.to_string(),
             sequence: 0,
+            frame_sequence: 0,
             completed: false,
             events: Vec::new(),
         }
     }
 
-    fn push_sse_frame(&mut self, frame: &str) {
+    fn push_sse_frame(&mut self, frame: &str) -> EpiphanyResponsesFrameObservation {
+        let frame_sequence = self.frame_sequence;
+        self.frame_sequence += 1;
         let Ok(event) = serde_json::from_str::<EpiphanyResponsesStreamEvent>(frame) else {
-            return;
+            return EpiphanyResponsesFrameObservation {
+                frame_sequence,
+                kind: "unparseable".to_string(),
+                recognized: false,
+                delta_preview: None,
+            };
         };
-        match event.kind.as_str() {
+        let kind = event.kind.clone();
+        let delta_preview = event.delta.as_deref().map(delta_preview);
+        let recognized = match event.kind.as_str() {
             "response.output_text.delta" => {
                 if let Some(text) = event.delta {
                     self.push_payload(EpiphanyOpenAiStreamPayload::TextDelta { text });
                 }
+                true
             }
             "response.reasoning_summary_text.delta" | "response.reasoning_text.delta" => {
                 if let Some(text) = event.delta {
                     self.push_payload(EpiphanyOpenAiStreamPayload::ReasoningDelta { text });
                 }
+                true
             }
             "response.custom_tool_call_input.delta" => {
                 if let (Some(arguments), Some(name)) =
@@ -356,6 +391,7 @@ impl EpiphanyResponsesStreamState {
                         arguments,
                     });
                 }
+                true
             }
             "response.completed" => {
                 if let Some(response) = event.response {
@@ -367,11 +403,19 @@ impl EpiphanyResponsesStreamState {
                     }
                 }
                 self.completed = true;
+                true
             }
             "response.failed" | "response.incomplete" => {
                 self.push_failed(response_error_message(event.response.as_ref()));
+                true
             }
-            _ => {}
+            _ => false,
+        };
+        EpiphanyResponsesFrameObservation {
+            frame_sequence,
+            kind,
+            recognized,
+            delta_preview,
         }
     }
 
@@ -403,6 +447,15 @@ impl EpiphanyResponsesStreamState {
         });
         self.sequence += 1;
     }
+}
+
+fn delta_preview(delta: &str) -> String {
+    const MAX_PREVIEW_CHARS: usize = 120;
+    let mut preview = delta.chars().take(MAX_PREVIEW_CHARS).collect::<String>();
+    if delta.chars().count() > MAX_PREVIEW_CHARS {
+        preview.push_str("...");
+    }
+    preview.replace(['\r', '\n', '\t'], " ")
 }
 
 fn parse_reasoning_effort(value: Option<&str>) -> Result<Option<String>> {

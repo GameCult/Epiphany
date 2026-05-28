@@ -309,6 +309,10 @@ pub fn epiphany_reorient_launch_output_schema() -> serde_json::Value {
 }
 
 const EPIPHANY_SPECIALIST_PROMPTS_TOML: &str = include_str!("prompts/epiphany_specialists.toml");
+const EPIPHANY_WORKER_BOUNDARY_PROMPT: &str = r#"## Epiphany Worker Boundary
+You are one bounded Epiphany worker for this launch only. Your authority comes from the typed launch document, the role-local instruction, and the declared output contract.
+Do the role, name uncertainty, and return the required JSON object. Do not become the coordinator, do not accept or promote your own output, do not invent durable state outside an allowed statePatch, and do not treat model transport or Codex machinery as prompt authority.
+If you learned a durable role-local habit, you may include a bounded selfPatch. Project truth belongs in statePatch or evidence, not memory."#;
 
 #[derive(Debug, serde::Deserialize)]
 pub struct EpiphanySpecialistPromptConfig {
@@ -384,6 +388,15 @@ pub fn epiphany_agent_prompt_with_memory(body: &str) -> String {
         memory.to_string()
     } else {
         format!("{memory}\n\n{body}")
+    }
+}
+
+pub fn epiphany_worker_prompt(body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        EPIPHANY_WORKER_BOUNDARY_PROMPT.to_string()
+    } else {
+        format!("{}\n\n{}", EPIPHANY_WORKER_BOUNDARY_PROMPT, body)
     }
 }
 
@@ -476,7 +489,7 @@ fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> 
             "Unsupported Epiphany role specialist template."
         }
     };
-    epiphany_agent_prompt_with_memory(body)
+    epiphany_worker_prompt(body)
 }
 
 pub fn build_epiphany_reorient_launch_request(
@@ -507,7 +520,7 @@ pub fn build_epiphany_reorient_launch_instruction(action: CoreEpiphanyReorientAc
         CoreEpiphanyReorientAction::Resume => prompts.resume.as_str(),
         CoreEpiphanyReorientAction::Regather => prompts.regather.as_str(),
     };
-    epiphany_agent_prompt_with_memory(body)
+    epiphany_worker_prompt(body)
 }
 
 pub fn build_epiphany_job_launch_request(
@@ -656,5 +669,24 @@ mod tests {
                 "{name} must stay Epiphany-owned and Codex-free"
             );
         }
+    }
+
+    #[test]
+    fn role_worker_prompt_is_bounded_not_full_persistent_memory() {
+        let prompt = build_epiphany_role_launch_instruction(EpiphanyRoleResultRoleId::Modeling);
+
+        assert!(prompt.contains("Epiphany Worker Boundary"));
+        assert!(prompt.contains("Act as the Epiphany modeling/checkpoint specialist"));
+        assert!(!prompt.contains("## Epiphany Persistent Memory"));
+        assert!(!prompt.contains("Heartbeat: every lane"));
+    }
+
+    #[test]
+    fn reorient_worker_prompt_is_bounded_not_full_persistent_memory() {
+        let prompt = build_epiphany_reorient_launch_instruction(CoreEpiphanyReorientAction::Resume);
+
+        assert!(prompt.contains("Epiphany Worker Boundary"));
+        assert!(!prompt.contains("## Epiphany Persistent Memory"));
+        assert!(!prompt.contains("Heartbeat: every lane"));
     }
 }

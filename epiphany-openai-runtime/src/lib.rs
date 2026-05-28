@@ -34,6 +34,7 @@ use epiphany_openai_adapter::EpiphanyOpenAiModelRequest;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamEvent;
 use epiphany_openai_adapter::EpiphanyOpenAiStreamPayload;
 use epiphany_openai_codex_spine::EpiphanyCodexOpenAiTransport;
+use epiphany_openai_codex_spine::EpiphanyResponsesFrameObservation;
 use epiphany_openai_codex_spine::auth_manager;
 pub use epiphany_openai_codex_spine::default_codex_home;
 use epiphany_openai_codex_spine::status_from_auth_manager;
@@ -184,7 +185,41 @@ pub async fn run_openai_model_turn(
     )?;
 
     let transport = EpiphanyCodexOpenAiTransport::openai(auth_manager);
-    let events = match transport.collect_model_events(request.clone()).await {
+    let store_path_for_frames = options.store_path.clone();
+    let session_id_for_frames = options.session_id.clone();
+    let job_id_for_frames = options.job_id.clone();
+    let mut observed_frame_count = 0u64;
+    let events = match transport
+        .collect_model_events_with_frame_observer(request.clone(), move |observation| {
+            observed_frame_count += 1;
+            if should_record_frame_observation(observed_frame_count, &observation) {
+                let mut summary = format!(
+                    "Observed Responses SSE frame {} kind={} recognized={}.",
+                    observation.frame_sequence, observation.kind, observation.recognized
+                );
+                if let Some(preview) = observation.delta_preview.as_deref() {
+                    summary.push_str(" deltaPreview=");
+                    summary.push_str(preview);
+                }
+                let _ = append_runtime_event(
+                    &store_path_for_frames,
+                    RuntimeSpineEventOptions {
+                        event_id: format!(
+                            "event-openai-stream-frame-{}-{}",
+                            job_id_for_frames, observation.frame_sequence
+                        ),
+                        occurred_at: now(),
+                        event_type: "openai.model_turn.stream_frame".to_string(),
+                        source: OPENAI_RUNTIME_SOURCE.to_string(),
+                        session_id: Some(session_id_for_frames.clone()),
+                        job_id: Some(job_id_for_frames.clone()),
+                        summary,
+                    },
+                );
+            }
+        })
+        .await
+    {
         Ok(events) => events,
         Err(err) => {
             let failure = EpiphanyOpenAiStreamEvent {
@@ -199,6 +234,18 @@ pub async fn run_openai_model_turn(
         }
     };
     record_openai_events(&options.store_path, &options, &request, &events)
+}
+
+fn should_record_frame_observation(
+    observed_frame_count: u64,
+    observation: &EpiphanyResponsesFrameObservation,
+) -> bool {
+    observed_frame_count <= 20
+        || observed_frame_count % 100 == 0
+        || matches!(
+            observation.kind.as_str(),
+            "response.completed" | "response.failed" | "response.incomplete"
+        )
 }
 
 fn openai_request_input_metrics(request: &EpiphanyOpenAiModelRequest) -> (usize, usize) {
@@ -305,6 +352,7 @@ pub fn record_openai_events(
     events: &[EpiphanyOpenAiStreamEvent],
 ) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
     let store_path = store_path.as_ref();
+    let events = compact_openai_events_for_storage(events);
     let mut receipt = None;
     let mut failure = None;
     {
@@ -312,7 +360,7 @@ pub fn record_openai_events(
         cache.pull_all_backing_stores()?;
         let model_request = model_request_from_openai_request(DEFAULT_MODEL_PROVIDER, request);
         cache.put(model_request_key(&model_request.request_id), &model_request)?;
-        for event in events {
+        for event in &events {
             let model_event = model_event_from_openai_event(DEFAULT_MODEL_PROVIDER, event);
             if let Some(intent) = tool_invocation_intent_from_model_event(&model_event) {
                 cache.put(tool_invocation_intent_key(&intent.intent_id), &intent)?;
@@ -339,7 +387,7 @@ pub fn record_openai_events(
         }
     }
 
-    for event in events {
+    for event in &events {
         append_runtime_event(
             store_path,
             RuntimeSpineEventOptions {
@@ -405,11 +453,83 @@ pub fn record_openai_events(
         summary,
         result_id,
         receipt_id: receipt.map(|item| openai_receipt_key(&item.request_id)),
-        tool_intent_ids: tool_invocation_intents_from_openai_events(DEFAULT_MODEL_PROVIDER, events)
-            .into_iter()
-            .map(|intent| intent.intent_id)
-            .collect(),
+        tool_intent_ids: tool_invocation_intents_from_openai_events(
+            DEFAULT_MODEL_PROVIDER,
+            &events,
+        )
+        .into_iter()
+        .map(|intent| intent.intent_id)
+        .collect(),
     })
+}
+
+fn compact_openai_events_for_storage(
+    events: &[EpiphanyOpenAiStreamEvent],
+) -> Vec<EpiphanyOpenAiStreamEvent> {
+    let mut compacted = Vec::new();
+    let mut text_buffer = String::new();
+    let mut reasoning_buffer = String::new();
+    for event in events {
+        match &event.payload {
+            EpiphanyOpenAiStreamPayload::TextDelta { text } => {
+                flush_reasoning_buffer(&mut compacted, event, &mut reasoning_buffer);
+                text_buffer.push_str(text);
+            }
+            EpiphanyOpenAiStreamPayload::ReasoningDelta { text } => {
+                flush_text_buffer(&mut compacted, event, &mut text_buffer);
+                reasoning_buffer.push_str(text);
+            }
+            _ => {
+                flush_text_buffer(&mut compacted, event, &mut text_buffer);
+                flush_reasoning_buffer(&mut compacted, event, &mut reasoning_buffer);
+                push_compacted_event(&mut compacted, event, event.payload.clone());
+            }
+        }
+    }
+    if let Some(last) = events.last() {
+        flush_text_buffer(&mut compacted, last, &mut text_buffer);
+        flush_reasoning_buffer(&mut compacted, last, &mut reasoning_buffer);
+    }
+    compacted
+}
+
+fn flush_text_buffer(
+    compacted: &mut Vec<EpiphanyOpenAiStreamEvent>,
+    source: &EpiphanyOpenAiStreamEvent,
+    buffer: &mut String,
+) {
+    if !buffer.is_empty() {
+        let text = std::mem::take(buffer);
+        push_compacted_event(compacted, source, EpiphanyOpenAiStreamPayload::TextDelta { text });
+    }
+}
+
+fn flush_reasoning_buffer(
+    compacted: &mut Vec<EpiphanyOpenAiStreamEvent>,
+    source: &EpiphanyOpenAiStreamEvent,
+    buffer: &mut String,
+) {
+    if !buffer.is_empty() {
+        let text = std::mem::take(buffer);
+        push_compacted_event(
+            compacted,
+            source,
+            EpiphanyOpenAiStreamPayload::ReasoningDelta { text },
+        );
+    }
+}
+
+fn push_compacted_event(
+    compacted: &mut Vec<EpiphanyOpenAiStreamEvent>,
+    source: &EpiphanyOpenAiStreamEvent,
+    payload: EpiphanyOpenAiStreamPayload,
+) {
+    compacted.push(EpiphanyOpenAiStreamEvent {
+        schema_id: source.schema_id.clone(),
+        request_id: source.request_id.clone(),
+        sequence: compacted.len() as u64,
+        payload,
+    });
 }
 
 pub fn load_worker_launch_request(
@@ -1325,6 +1445,77 @@ mod tests {
     use epiphany_core::runtime_job_snapshot;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use tempfile::tempdir;
+
+    fn test_openai_event(
+        request_id: &str,
+        sequence: u64,
+        payload: EpiphanyOpenAiStreamPayload,
+    ) -> EpiphanyOpenAiStreamEvent {
+        EpiphanyOpenAiStreamEvent {
+            schema_id: epiphany_openai_adapter::OPENAI_ADAPTER_EVENT_SCHEMA_ID.to_string(),
+            request_id: request_id.to_string(),
+            sequence,
+            payload,
+        }
+    }
+
+    #[test]
+    fn compacts_openai_text_and_reasoning_deltas_before_storage() {
+        let events = vec![
+            test_openai_event(
+                "req-1",
+                0,
+                EpiphanyOpenAiStreamPayload::ReasoningDelta {
+                    text: "think".to_string(),
+                },
+            ),
+            test_openai_event(
+                "req-1",
+                1,
+                EpiphanyOpenAiStreamPayload::ReasoningDelta {
+                    text: " small".to_string(),
+                },
+            ),
+            test_openai_event(
+                "req-1",
+                2,
+                EpiphanyOpenAiStreamPayload::TextDelta {
+                    text: "{\"role".to_string(),
+                },
+            ),
+            test_openai_event(
+                "req-1",
+                3,
+                EpiphanyOpenAiStreamPayload::TextDelta {
+                    text: "Id\":\"modeling\"}".to_string(),
+                },
+            ),
+            test_openai_event(
+                "req-1",
+                4,
+                EpiphanyOpenAiStreamPayload::Completed {
+                    receipt: EpiphanyOpenAiModelReceipt::new("req-1", "gpt-5.4"),
+                },
+            ),
+        ];
+
+        let compacted = compact_openai_events_for_storage(&events);
+
+        assert_eq!(compacted.len(), 3);
+        assert_eq!(compacted[0].sequence, 0);
+        assert!(matches!(
+            &compacted[0].payload,
+            EpiphanyOpenAiStreamPayload::ReasoningDelta { text } if text == "think small"
+        ));
+        assert!(matches!(
+            &compacted[1].payload,
+            EpiphanyOpenAiStreamPayload::TextDelta { text } if text == "{\"roleId\":\"modeling\"}"
+        ));
+        assert!(matches!(
+            compacted[2].payload,
+            EpiphanyOpenAiStreamPayload::Completed { .. }
+        ));
+    }
 
     #[test]
     fn records_typed_openai_documents_in_runtime_store() -> Result<()> {
