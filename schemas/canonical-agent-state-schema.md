@@ -3,6 +3,10 @@
 Epiphany uses a Ghostlight-shaped agent dossier as the canonical local memory
 surface for each standing sub-agent.
 
+The current sub-agent/substrate/protocol split is documented in
+[epiphany-anatomy.md](../notes/epiphany-anatomy.md). In particular, Body,
+Mind, Continuity, and Substrate Gate are not role-memory agents.
+
 The executable shape lives in
 [agent_memory.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/agent_memory.rs).
 The wire contract mirrored here is
@@ -38,6 +42,10 @@ Each record in `state/agents.msgpack` is an
 - `modeling` -> `epiphany.proprioception`
 - `implementation` -> `epiphany.hands`
 - `verification` -> `epiphany.soul`
+
+There is intentionally no `reorientation` / `epiphany.continuity` dossier.
+Reorientation is a bounded Continuity worker/procedure, and Continuity records
+typed protocol receipts rather than self-memory.
 
 The top-level shape is:
 

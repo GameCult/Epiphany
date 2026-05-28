@@ -36,7 +36,7 @@ Epiphany has the first typed skeleton for the organ boundaries:
   Codex-compatible routes.
 
 The dependency matrix is explicit in `epiphany-core::organ_dependencies`: every
-standing organ depends on every other standing organ. This is correct, but it
+standing sub-agent depends on every other standing sub-agent. This is correct, but it
 is currently descriptive. It does not yet force every launch packet, prompt, or
 runtime receipt to carry dependency context.
 

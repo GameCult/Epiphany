@@ -1,10 +1,12 @@
 # Organ Dependency Contracts
 
-Objective: every sub-agent depends on all the other sub-agents. No organ is a
-little sovereign state. Each one owns a boundary, and each one must feel the
-pressure of the others before acting.
+Objective: every embodied sub-agent depends on all the other embodied
+sub-agents. No organ is a little sovereign state. Each one owns a boundary, and
+each one must feel the pressure of the others before acting.
 
-## Standing Organs
+For the canonical anatomy split, read [epiphany-anatomy.md](./epiphany-anatomy.md).
+
+## Standing Sub-Agents
 
 - `self`: routing, authority boundaries, and coordination.
 - `face`: public presence and person-shaped conversation.
@@ -15,7 +17,14 @@ pressure of the others before acting.
   checkpoint anatomy.
 - `hands`: edits, commands, and external action.
 - `soul`: verification, ethics, invariants, and falsification.
-- `life`: continuity, compaction, sleep, handoff, and recovery.
+
+## Protocol Surfaces
+
+- `mind`: persistent state and state admission; not a sub-agent.
+- `body`: substrate; not a sub-agent.
+- `continuity`: compaction, sleep, recovery, handoff, stale-turn repair, and
+  reorientation receipts; not a sub-agent.
+- `substrate_gate`: scoped repository/substrate access; not a sub-agent.
 
 ## Dependency Rule
 
@@ -52,8 +61,9 @@ Substrate-Gate-scoped facts + Mind state + social stimulus + organ dependencies
         -> reviewed state effects / side effects / silence
 ```
 
-Mind is the Interpreter and persistent state guardian. Substrate Gate is the
-repository access protocol. Eyes is the evidence ingress guardian.
-Proprioception is the internal model of the Body. Imagination is the Projector.
-Face is the public person. The dependency web is how the machine avoids lonely
-little monarchies in costumes.
+Mind is the Interpreter and persistent state guardian. Body is the substrate.
+Continuity is recovery protocol machinery. Substrate Gate is the repository
+access protocol. Eyes is the evidence ingress guardian. Proprioception is the
+internal model of the Body. Imagination is the Projector. Face is the public
+person. The dependency web is how the machine avoids lonely little monarchies
+in costumes.
