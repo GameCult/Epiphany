@@ -106,8 +106,8 @@ remain relatively vanilla bridge machinery for OpenAI auth/model transport and
 useful Codex-native app-server/runtime affordances.
 
 The older teardown/rebuild pair remains useful source history:
-`notes/epiphany-architectural-teardown.md` names the host-seam rot, and
-`notes/epiphany-ideal-architecture-rebuild-plan.md` records the completed
+`notes/archive/epiphany-architectural-teardown.md` names the host-seam rot, and
+`notes/archive/epiphany-ideal-architecture-rebuild-plan.md` records the completed
 cleanup inside Codex. They no longer authorize outward product work while
 Epiphany still depends on Codex app-server routes, Codex prompt injection, apps,
 skills, marketplace, or generic JSON cargo as internal Epiphany machinery.
@@ -340,8 +340,8 @@ batch/quit/projectPath command wrapper, and writes inspection/command/log
 artifacts. On this machine Aetheria is correctly blocked: only Unity
 `6000.4.2f1` is installed.
 
-The detailed environment plan now lives in
-`notes/epiphany-rider-unity-integration-plan.md`. Its opinionated cut is Rider
+The detailed environment plan is archived at
+`notes/archive/epiphany-rider-unity-integration-plan.md`. Its opinionated cut is Rider
 as the IDE/source-context organ, Unity as the editor/runtime fact organ, and
 Epiphany as the durable coordinator/Self. The product workflow is now framed as
 three integrated surfaces: Rider is the human code view for repo state, source
@@ -359,8 +359,8 @@ EpiphanyGraph React viewer is the preferred seed for GUI graph diagramming
 because it consumes typed `graphs.architecture`, `graphs.dataflow`, and
 `graphs.links` directly.
 
-The detailed planning substrate now lives in
-`notes/epiphany-planning-substrate.md`. Its cut is deliberately separate from
+The detailed planning substrate design is archived at
+`notes/archive/epiphany-planning-substrate.md`. Its cut is deliberately separate from
 the active objective: chat produces captures, captures normalize into backlog
 items, backlog items group into roadmap streams, selected work becomes
 Objective Drafts, and only explicit human adoption turns a draft into

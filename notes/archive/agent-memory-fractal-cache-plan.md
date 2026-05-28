@@ -37,7 +37,7 @@ Keep this note as the role/agent-memory profile plan, but implement shared
 graph/cache primitives first.
 
 This plan applies the same cache discipline as
-`notes/repo-fractal-dataflow-cache-plan.md` to Epiphany's agent memories, using
+`notes/archive/repo-fractal-dataflow-cache-plan.md` to Epiphany's agent memories, using
 VoidBot as source-grounded lineage.
 
 VoidBot's useful lesson is not "store more memories." It is that a mind needs

@@ -1,15 +1,17 @@
 # Notes Index
 
-The notes folder is a working reliquary, not one clean book. Prefer canonical
-docs first; treat campaign ledgers and old plans as source history unless a
-canonical doc points at them.
+The notes folder is a working reliquary, not one clean book. Top-level notes are
+allowed to steer current work. Archived notes are source history: cite them when
+they explain a scar, but do not let them outrank the live map, anatomy, or
+contract docs.
 
 ## Canonical
 
 - `epiphany-anatomy.md`: current organ/sub-agent/substrate/protocol split.
-- `fresh-workspace-handoff.md`: re-entry orientation and current live state.
+- `fresh-workspace-handoff.md`: compact re-entry orientation and current live state.
 - `epiphany-current-algorithmic-map.md`: broad source-grounded machine map.
 - `codex-starvation-and-cultnet-liberation-plan.md`: active foundation campaign.
+- `codex-auth-spine-inventory.md`: retained Codex auth/model transport keeper list.
 - `epiphany-fork-implementation-plan.md`: current campaign plan.
 - `epiphany-safety-architecture.md`: capability, autonomy, and governance boundaries.
 
@@ -28,20 +30,15 @@ canonical doc points at them.
 - `epiphany-memory-graph-unified-plan.md`
 - `epiphany-cultmesh-dreaming-roadmap.md`
 - `epiphany-swarm-readiness-plan.md`
+- `perfect-machine-audit-roadmap.md`
 - `repo-personality-projection-layer-plan.md`
 - `voidbot-routine-adoption-plan.md`
 
-## Bulky Historical Ledgers
+## Archive
 
-These are useful, but should not be the first place to learn current doctrine:
+- `archive/README.md`: quarantined historical ledgers, closed migrations,
+  optional bridge plans, superseded cache splits, and one-off sandbox prompts.
 
-- `epiphany-current-algorithmic-map.md`
-- `fresh-workspace-handoff.md`
-- `epiphany-fork-implementation-plan.md`
-- `repo-fractal-dataflow-cache-plan.md`
-- `agent-memory-fractal-cache-plan.md`
-- `true-epiphany-memory-migration-sandbox-prompt.md`
-
-Cleanup rule: when a current invariant is found only in a bulky ledger, distill
-it into a canonical doc, then leave the ledger as history instead of patching
-the same sentence through thirty scrolls.
+Cleanup rule: if a current invariant is found only in the archive, distill it
+into a canonical doc or active design reference first. Do not patch the same
+sentence through thirty scrolls and call the parchment blessed.

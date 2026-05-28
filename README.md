@@ -141,10 +141,11 @@ verification stop living in the same overworked skull.
 
 If you want the human-readable map of the project, start here:
 
-- `notes/architecture-rationale.md`: why the map/scratch/evidence architecture exists
+- `notes/epiphany-anatomy.md`: current organ/sub-agent/substrate/protocol split
 - `notes/epiphany-current-algorithmic-map.md`: source-grounded control flow of the live machine
 - `notes/epiphany-fork-implementation-plan.md`: distilled forward plan
 - `notes/epiphany-safety-architecture.md`: capability, authority, interruption, and anti-cage doctrine
+- `notes/archive/README.md`: historical ledgers and superseded plans
 - `state/map.yaml`: canonical current project map and accepted design
 
 If you want the code:

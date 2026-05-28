@@ -349,7 +349,7 @@ Tests:
 Files:
 
 - `epiphany-core/src/memory_graph/profiles/repo.rs`
-- `notes/repo-fractal-dataflow-cache-plan.md`
+- `notes/archive/repo-fractal-dataflow-cache-plan.md`
 
 Implements repo domain/node/edge policy on shared graph.
 
@@ -359,7 +359,7 @@ Files:
 
 - `epiphany-core/src/memory_graph/profiles/agent.rs`
 - `epiphany-core/src/agent_memory_model.rs`
-- `notes/agent-memory-fractal-cache-plan.md`
+- `notes/archive/agent-memory-fractal-cache-plan.md`
 
 Implements short-term/durable/incubation/agency/candidate policy on shared
 graph.

@@ -26,7 +26,7 @@ agent-memory graph engine. That is duplicated authority. Build shared typed
 memory graph primitives, then add domain-specific policies.
 
 This note remains the `repo_architecture` / `repo_dataflow` profile plan. The
-agent-memory profile plan lives in `notes/agent-memory-fractal-cache-plan.md`.
+agent-memory profile plan lives in `notes/archive/agent-memory-fractal-cache-plan.md`.
 
 This note applies the lesson from
 `E:\Projects\gamecult-site\GameCult\Blog\fractal-domains-cache-that-bites.md`

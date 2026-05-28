@@ -2,7 +2,7 @@
 
 This is the smallest coherent Epiphany architecture that can satisfy the
 product goals without preserving current abstractions merely because they
-already have names. It complements `notes/epiphany-architectural-teardown.md`:
+already have names. It complements `notes/archive/epiphany-architectural-teardown.md`:
 the teardown names the rot; this note names the replacement machine.
 
 The intent is explicit: rebuild the control-plane foundation. Do not pile

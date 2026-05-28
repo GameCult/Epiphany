@@ -173,7 +173,7 @@ Classify every Epiphany-relevant `serde_json::Value`, `json!`,
 - quarantine experiment
 - heretek internal blob
 
-Output: `notes/json-contamination-ledger.md`.
+Output: `notes/archive/json-contamination-ledger.md`.
 
 Success: each internal blob has a typed document replacement target or a named
 expiration rite.
@@ -296,7 +296,7 @@ First concrete slice:
 
 1. create `notes/codex-auth-spine-inventory.md`
 2. inventory Codex auth/model transport dependencies
-3. create `notes/json-contamination-ledger.md`
+3. create `notes/archive/json-contamination-ledger.md`
 4. classify Epiphany-relevant JSON uses
 5. choose the first typed-document replacement, preferably `selfPatch` or
    worker launch/result cargo
