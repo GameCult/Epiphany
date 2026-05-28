@@ -139,7 +139,7 @@ async fn main() -> Result<()> {
                 "smoke-request",
                 "smoke-conversation",
                 &options.provider,
-                "gpt-5.4",
+                default_worker_model(),
                 "Answer with one sentence.",
             );
             request.input.push(EpiphanyModelInputItem::UserText {
@@ -368,7 +368,7 @@ fn parse_run_worker_options(args: Vec<String>) -> Result<RunWorkerCliOptions> {
     let mut store_path = PathBuf::from(DEFAULT_STORE);
     let mut codex_home = default_codex_home()?;
     let mut job_id = None;
-    let mut model = "gpt-5.4".to_string();
+    let mut model = default_worker_model();
     let mut auto_tools = false;
     let mut tool_adapter_bin = None;
     let mut cwd = None;
@@ -429,6 +429,12 @@ fn parse_tool_followup_options(args: Vec<String>) -> Result<ToolFollowupCliOptio
             .unwrap_or_else(|| format!("tool-followup-{}", Uuid::new_v4())),
         output: output.context("tool-followup requires --output")?,
     })
+}
+
+fn default_worker_model() -> String {
+    env::var("EPIPHANY_MODEL")
+        .or_else(|_| env::var("CODEX_MODEL"))
+        .unwrap_or_else(|_| "gpt-5.4".to_string())
 }
 
 async fn run_worker_launch_with_tool_continuation(
@@ -517,8 +523,14 @@ async fn run_worker_launch_with_tool_continuation(
         "role": launch_request.role,
         "requestId": current_request_id,
         "openaiResultId": openai_summary.result_id,
+        "openaiVerdict": openai_summary.verdict,
+        "openaiSummary": openai_summary.summary,
         "workerResultId": worker_result.result_id,
         "verdict": worker_result.verdict,
+        "summary": worker_result.summary,
+        "nextSafeMove": worker_result.next_safe_move,
+        "evidenceRefs": worker_result.evidence_refs,
+        "artifactRefs": worker_result.artifact_refs,
         "toolRounds": tool_rounds,
     }))
 }

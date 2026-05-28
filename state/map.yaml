@@ -480,8 +480,16 @@ current_status:
     launcher artifacts under `.epiphany-run/` plus coordinator evidence under
     `.epiphany-dogfood/`. `-Mode mvp` is the current Face-front-door wrapper:
     it projects a typed Face character turn, writes a local Face/Aquarium
-    bubble, runs the bridge-equipped coordinator loop with auto-tools, then
-    invokes heartbeat sleep/dream maintenance unless explicitly skipped.
+    bubble, bootstraps a minimal local checkpoint for fresh threads, runs the
+    bridge-equipped coordinator loop with auto-tools, then invokes heartbeat
+    sleep/dream maintenance unless explicitly skipped. That bootstrap now maps
+    both the Face/coordinator/sleep cycle and the coordinator-to-model-runtime
+    transport seam, so model failures are attributed to provider/runtime
+    transport instead of generic missing checkpoint state.
+    Live plan/run/MVP modes use the workspace `state/runtime-spine.msgpack`,
+    because CodexThread job launch writes typed worker requests there; the
+    `.epiphany-dogfood/` runtime store shape is artifact evidence only unless
+    CodexThread learns an explicit runtime-store override.
     This is scaffolding over the current compatibility shell, not a new policy
     owner.
     Native CultMesh operator status is landed too: `epiphany-core` can write,
@@ -520,8 +528,11 @@ current_status:
     and `openai-runtime` executor names remain compatibility aliases. This
     does not make OpenAI generic internally yet: the current provider still
     uses typed OpenAI request/event/receipt documents through the Codex auth
-    reliquary. It does move provider selection out of scheduler/status/state
-    surfaces and into one runtime executable boundary.
+    reliquary. The runtime default is `gpt-5.4` unless `EPIPHANY_MODEL` or
+    `CODEX_MODEL` overrides it; `gpt-5.5` is currently blocked by the retained
+    Codex-compatible transport as requiring a newer Codex client. It does move
+    provider selection out of scheduler/status/state surfaces and into one
+    runtime executable boundary.
     The provider-neutral model document seam is now landed:
     `epiphany-model-adapter` owns `epiphany.model_request.v0`,
     `epiphany.model_stream_event.v0`, `epiphany.model_receipt.v0`, and
@@ -557,4 +568,4 @@ current_status:
     materializes complete MCP-shaped model tool calls as typed tool invocation
     intents, and the Codex MCP spine can consume those intents from the mixed
     runtime-spine store and emit typed success/failure receipts.
-  next_action: Continue Codex starvation and CultNet liberation by exercising the auto-tool worker loop in a live coordinator run, then hardening whichever typed receipt/result edge fails first.
+  next_action: Cut the synchronous worker-runtime wait out of `epiphany-mvp-coordinator`: launch model workers as detached runtime-spine jobs with pollable progress/timeout receipts, because live `gpt-5.4` Codex transport can complete but later MVP runs timed out with empty stdout/stderr while the coordinator waited on the child process.

@@ -107,8 +107,12 @@ Useful variants:
 uses the retained Codex auth/model transport spine. `mvp` is the local product
 cycle: project Face's character turn, write a Face/Aquarium bubble, run the
 bridge-equipped coordinator loop with auto-tools, then run heartbeat sleep/dream
-maintenance. `status`, `plan`, and `smoke` do not spend model calls; `run` and
-`mvp` do.
+maintenance. Fresh `mvp` runs bootstrap a minimal local checkpoint before
+coordination so the first loop does not stall at missing state. Live coordinator
+modes use the workspace `state/runtime-spine.msgpack` for worker lifecycle
+documents; run bundles remain evidence. Live model-worker turns default to a
+600-second timeout because ChatGPT Codex model latency can exceed four minutes.
+`status`, `plan`, and `smoke` do not spend model calls; `run` and `mvp` do.
 
 ## Where This Leads
 

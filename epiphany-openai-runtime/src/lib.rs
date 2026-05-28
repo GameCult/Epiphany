@@ -68,6 +68,7 @@ pub struct EpiphanyOpenAiRuntimeRunSummary {
     pub request_id: String,
     pub event_count: usize,
     pub verdict: String,
+    pub summary: String,
     pub result_id: String,
     pub receipt_id: Option<String>,
     pub tool_intent_ids: Vec<String>,
@@ -93,6 +94,10 @@ pub struct EpiphanyWorkerRuntimeRunSummary {
     pub openai_result_id: String,
     pub worker_result_id: String,
     pub verdict: String,
+    pub summary: String,
+    pub next_safe_move: String,
+    pub evidence_refs: Vec<String>,
+    pub artifact_refs: Vec<String>,
 }
 
 pub async fn run_openai_model_turn(
@@ -238,6 +243,10 @@ pub async fn run_worker_launch(
         openai_result_id: openai_summary.result_id,
         worker_result_id: worker_result.result_id,
         verdict: worker_result.verdict,
+        summary: worker_result.summary,
+        next_safe_move: worker_result.next_safe_move,
+        evidence_refs: worker_result.evidence_refs,
+        artifact_refs: worker_result.artifact_refs,
     })
 }
 
@@ -330,7 +339,7 @@ pub fn record_openai_events(
             job_id: options.job_id.clone(),
             completed_at: now(),
             verdict: verdict.to_string(),
-            summary,
+            summary: summary.clone(),
             next_safe_move: "Review typed OpenAI receipt before accepting downstream state."
                 .to_string(),
             evidence_refs: Vec::new(),
@@ -345,6 +354,7 @@ pub fn record_openai_events(
         request_id: request.request_id.clone(),
         event_count: events.len(),
         verdict: verdict.to_string(),
+        summary,
         result_id,
         receipt_id: receipt.map(|item| openai_receipt_key(&item.request_id)),
         tool_intent_ids: tool_invocation_intents_from_openai_events(DEFAULT_MODEL_PROVIDER, events)
@@ -1380,6 +1390,7 @@ mod tests {
             request_id: model_request.request_id.clone(),
             event_count: 2,
             verdict: "pass".to_string(),
+            summary: "OpenAI model request completed.".to_string(),
             result_id: "result-openai-worker-worker-job-1".to_string(),
             receipt_id: Some(model_request.request_id.clone()),
             tool_intent_ids: Vec::new(),

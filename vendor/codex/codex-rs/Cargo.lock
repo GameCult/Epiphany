@@ -5117,8 +5117,10 @@ dependencies = [
  "cultcache-rs",
  "cultmesh-rs",
  "cultnet-rs",
+ "epiphany-model-adapter",
  "epiphany-openai-adapter",
  "epiphany-state-model",
+ "epiphany-tool-adapter",
  "ignore",
  "postgres",
  "reqwest",
@@ -5128,6 +5130,14 @@ dependencies = [
  "sha1",
  "tracing",
  "uuid",
+]
+
+[[package]]
+name = "epiphany-model-adapter"
+version = "0.1.0"
+dependencies = [
+ "cultcache-rs",
+ "serde",
 ]
 
 [[package]]
@@ -5145,6 +5155,14 @@ dependencies = [
  "schemars 0.8.22",
  "serde",
  "ts-rs",
+]
+
+[[package]]
+name = "epiphany-tool-adapter"
+version = "0.1.0"
+dependencies = [
+ "cultcache-rs",
+ "serde",
 ]
 
 [[package]]

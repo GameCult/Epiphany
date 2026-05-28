@@ -62,6 +62,8 @@ struct Args {
     auto_review: bool,
     auto_tools: bool,
     bootstrap_smoke_state: bool,
+    bootstrap_local_state: bool,
+    bootstrap_objective: Option<String>,
     simulate_high_pressure: bool,
     simulate_source_drift: bool,
     dry_compact: bool,
@@ -87,12 +89,14 @@ impl Args {
             mode: "plan".to_string(),
             max_steps: 4,
             poll_seconds: 5.0,
-            timeout_seconds: 240,
+            timeout_seconds: 600,
             max_runtime_seconds: 180,
             ephemeral: true,
             auto_review: false,
             auto_tools: true,
             bootstrap_smoke_state: false,
+            bootstrap_local_state: false,
+            bootstrap_objective: None,
             simulate_high_pressure: false,
             simulate_source_drift: false,
             dry_compact: false,
@@ -148,6 +152,11 @@ impl Args {
                     ));
                 }
                 "--bootstrap-smoke-state" => parsed.bootstrap_smoke_state = true,
+                "--bootstrap-local-state" => parsed.bootstrap_local_state = true,
+                "--bootstrap-objective" => {
+                    parsed.bootstrap_objective =
+                        Some(take_string(&mut args, "--bootstrap-objective")?);
+                }
                 "--simulate-high-pressure" => parsed.simulate_high_pressure = true,
                 "--simulate-source-drift" => parsed.simulate_source_drift = true,
                 "--dry-compact" => parsed.dry_compact = true,
@@ -288,6 +297,16 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             )?;
             thread::sleep(Duration::from_millis(500));
         }
+    } else if args.bootstrap_local_state {
+        client.send(
+            "thread/epiphany/update",
+            Some(json!({
+                "threadId": thread_id,
+                "expectedRevision": 0,
+                "patch": local_mvp_checkpoint_patch(&cwd, args.bootstrap_objective.as_deref()),
+            })),
+            true,
+        )?;
     }
 
     for index in 0..args.max_steps {
@@ -1065,6 +1084,163 @@ fn reorient_patch() -> Value {
             "unexplained_writes": 0,
         },
     })
+}
+
+fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
+    let objective = objective
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Run the local Epiphany MVP cycle through Face, coordinator, and sleep.");
+    let local_refs = local_mvp_code_refs(cwd);
+    let transport_refs = local_mvp_transport_code_refs(cwd);
+    let mut checkpoint_refs = local_refs.clone();
+    checkpoint_refs.extend(transport_refs.clone());
+    json!({
+        "objective": objective,
+        "activeSubgoalId": "local-mvp-cycle",
+        "subgoals": [{
+            "id": "local-mvp-cycle",
+            "title": "Local MVP cycle",
+            "status": "active",
+            "summary": "Use Face as the human-facing entrypoint, run bounded coordinator/swarm work, and close with heartbeat sleep/dream maintenance.",
+        }],
+        "graphs": {
+            "architecture": {"nodes": [
+                {
+                    "id": "local-mvp-runner",
+                    "title": "Local MVP runner",
+                    "purpose": "One local operator cycle that enters through Face, runs coordinator-owned work, and invokes Life/heartbeat sleep afterward.",
+                    "code_refs": local_refs,
+                },
+                {
+                    "id": "model-runtime-transport",
+                    "title": "Model runtime transport",
+                    "purpose": "Provider-neutral worker execution resolves the model runtime binary and then uses the quarantined Codex/OpenAI transport for model calls.",
+                    "code_refs": transport_refs,
+                },
+            ]},
+            "dataflow": {"nodes": [
+                {
+                    "id": "face-coordinator-sleep-cycle",
+                    "title": "Face to coordinator to sleep",
+                    "purpose": "Face expression is display state; coordinator owns lane routing; heartbeat owns sleep physiology.",
+                },
+                {
+                    "id": "coordinator-model-runtime-cycle",
+                    "title": "Coordinator to model runtime",
+                    "purpose": "Coordinator launches a typed worker request; epiphany-model-runtime chooses the provider/model and the Codex/OpenAI spine only transports the turn.",
+                },
+            ]},
+            "links": [
+                {
+                    "dataflow_node_id": "face-coordinator-sleep-cycle",
+                    "architecture_node_id": "local-mvp-runner",
+                },
+                {
+                    "dataflow_node_id": "coordinator-model-runtime-cycle",
+                    "architecture_node_id": "model-runtime-transport",
+                },
+            ],
+        },
+        "graphFrontier": {
+            "active_node_ids": ["local-mvp-runner", "face-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
+            "dirty_paths": [],
+        },
+        "graphCheckpoint": {
+            "checkpoint_id": "ck-local-mvp-cycle",
+            "graph_revision": 2,
+            "summary": "Local MVP runner checkpoint: Face front door, coordinator run, model runtime transport, sleep maintenance.",
+            "frontier_node_ids": ["local-mvp-runner", "face-coordinator-sleep-cycle", "model-runtime-transport", "coordinator-model-runtime-cycle"],
+        },
+        "investigationCheckpoint": {
+            "checkpoint_id": "ix-local-mvp-cycle",
+            "kind": "source_gathering",
+            "disposition": "resume_ready",
+            "focus": "Continue the local MVP cycle from the typed launcher/coordinator/model-runtime/sleep artifacts.",
+            "summary": "The local MVP path has enough startup state for the coordinator to route bounded work and for worker transport failures to be attributed to the provider/runtime seam instead of generic missing state.",
+            "next_action": "Run the coordinator's recommended bounded lane action, then review generated artifacts before accepting state changes.",
+            "captured_at_turn_id": "local-mvp-bootstrap",
+            "code_refs": checkpoint_refs,
+        },
+        "churn": {
+            "understanding_status": "ready",
+            "diff_pressure": "low",
+            "graph_freshness": "fresh",
+            "unexplained_writes": 0,
+        },
+    })
+}
+
+fn local_mvp_code_refs(cwd: &Path) -> Vec<Value> {
+    let candidates = [
+        (
+            "tools/epiphany_local_run.ps1",
+            1_u64,
+            30_u64,
+            "epiphany_local_run.ps1",
+        ),
+        ("README.md", 82, 111, "Run Locally"),
+        (
+            "notes/fresh-workspace-handoff.md",
+            33,
+            45,
+            "Current Orientation",
+        ),
+        ("state/map.yaml", 477, 487, "Runnability"),
+    ];
+    candidates
+        .into_iter()
+        .filter(|(path, _, _, _)| cwd.join(path).exists())
+        .map(|(path, start_line, end_line, symbol)| {
+            json!({
+                "path": path,
+                "start_line": start_line,
+                "end_line": end_line,
+                "symbol": symbol,
+            })
+        })
+        .collect()
+}
+
+fn local_mvp_transport_code_refs(cwd: &Path) -> Vec<Value> {
+    let candidates = [
+        (
+            "epiphany-core/src/bin/epiphany-mvp-coordinator.rs",
+            719_u64,
+            787_u64,
+            "resolve_model_runtime_bin / run_worker_runtime",
+        ),
+        (
+            "epiphany-openai-runtime/src/bin/epiphany-openai-runtime.rs",
+            431,
+            438,
+            "default_worker_model",
+        ),
+        (
+            "epiphany-openai-codex-spine/src/lib.rs",
+            146,
+            170,
+            "open_responses_stream",
+        ),
+        (
+            "epiphany-openai-codex-spine/src/lib.rs",
+            447,
+            463,
+            "attach_codex_auth_headers",
+        ),
+    ];
+    candidates
+        .into_iter()
+        .filter(|(path, _, _, _)| cwd.join(path).exists())
+        .map(|(path, start_line, end_line, symbol)| {
+            json!({
+                "path": path,
+                "start_line": start_line,
+                "end_line": end_line,
+                "symbol": symbol,
+            })
+        })
+        .collect()
 }
 
 fn prepare_workspace(workspace: &Path) -> Result<()> {

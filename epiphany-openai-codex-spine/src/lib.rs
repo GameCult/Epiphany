@@ -200,7 +200,7 @@ pub fn responses_body_from_epiphany(
             effort: parse_reasoning_effort(request.reasoning_effort.as_deref())?,
             summary: parse_reasoning_summary(request.reasoning_summary.as_deref())?,
         }),
-        store: true,
+        store: false,
         stream: true,
         include: Vec::new(),
         service_tier: parse_service_tier(request.service_tier.as_deref())?,
@@ -460,10 +460,6 @@ fn attach_codex_auth_headers(
     if auth.is_fedramp_account() {
         headers.insert("X-OpenAI-Fedramp", "true".parse().expect("valid header"));
     }
-    headers.insert(
-        "version",
-        env!("CARGO_PKG_VERSION").parse().expect("valid header"),
-    );
     Ok(())
 }
 
@@ -574,6 +570,7 @@ mod tests {
         assert_eq!(responses["previous_response_id"], "resp-1");
         assert_eq!(responses["input"][0]["content"][0]["type"], "input_text");
         assert_eq!(responses["stream"], true);
+        assert_eq!(responses["store"], false);
         assert_eq!(responses["service_tier"], "flex");
         assert_eq!(responses["tools"].as_array().expect("tools").len(), 0);
     }

@@ -7,7 +7,7 @@ param(
     [string]$CodexHome = "",
     [string]$TargetDir = "C:\Users\Meta\.cargo-target-codex",
     [int]$MaxSteps = 4,
-    [int]$TimeoutSeconds = 240,
+    [int]$TimeoutSeconds = 600,
     [string]$FaceInput = "",
     [switch]$SkipBuild,
     [switch]$AutoReview,
@@ -91,6 +91,7 @@ $operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapsh
 $operatorSnapshotId = "$runId-status"
 $agentStore = Join-Path $Root "state\agents.msgpack"
 $heartbeatStore = Join-Path $Root "state\agent-heartbeats.msgpack"
+$runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
@@ -239,7 +240,7 @@ if ($Mode -eq "plan") {
         "--codex-home", $CodexHome,
         "--cwd", $Workspace,
         "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
-        "--runtime-store", (Join-Path $dogfoodRoot "runtime-spine.msgpack"),
+        "--runtime-store", $runtimeStore,
         "--mode", "plan",
         "--max-steps", "1",
         "--timeout-seconds", "$TimeoutSeconds"
@@ -325,13 +326,16 @@ if ($liveRuntimeMode) {
         "--codex-home", $CodexHome,
         "--cwd", $Workspace,
         "--artifact-dir", (Join-Path $dogfoodRoot "coordinator"),
-        "--runtime-store", (Join-Path $dogfoodRoot "runtime-spine.msgpack"),
+        "--runtime-store", $runtimeStore,
         "--mode", "run",
         "--max-steps", "$MaxSteps",
         "--timeout-seconds", "$TimeoutSeconds"
     )
     if ($AutoReview) {
         $runArgs += "--auto-review"
+    }
+    if ($Mode -eq "mvp" -and $ThreadId -eq "") {
+        $runArgs += @("--bootstrap-local-state", "--bootstrap-objective", $FaceInput)
     }
     if ($ThreadId -ne "") {
         $runArgs += @("--thread-id", $ThreadId, "--no-ephemeral")
@@ -403,6 +407,7 @@ $summary = @"
 - operatorSnapshotBinary: $operatorSnapshotExe
 - operatorSnapshotStore: $operatorSnapshotStore
 - coordinatorBinary: $coordinatorExe
+- runtimeStore: $runtimeStore
 - modelRuntimeBinary: $modelRuntimeExe
 - modelProvider: $modelProvider
 - faceBinary: $faceExe

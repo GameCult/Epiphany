@@ -75,6 +75,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
             name: "cold",
             mode: "plan",
             bootstrap_smoke_state: false,
+            bootstrap_local_state: false,
             simulate_high_pressure: false,
             dry_compact: false,
             max_steps: 1,
@@ -87,6 +88,28 @@ fn run_smoke(args: &Args) -> Result<Value> {
     require_artifacts(&cold)?;
     require_operator_safe(&cold, "$")?;
 
+    let local = run_coordinator(
+        &root,
+        &coordinator,
+        &app_server,
+        &artifact_root,
+        RunOptions {
+            name: "local-bootstrap",
+            mode: "plan",
+            bootstrap_smoke_state: false,
+            bootstrap_local_state: true,
+            simulate_high_pressure: false,
+            dry_compact: false,
+            max_steps: 1,
+        },
+    )?;
+    require(
+        local.pointer("/finalAction/action").and_then(Value::as_str) != Some("prepareCheckpoint"),
+        "local bootstrap should provide enough checkpoint state to move past prepareCheckpoint",
+    )?;
+    require_artifacts(&local)?;
+    require_operator_safe(&local, "$")?;
+
     let pressure = run_coordinator(
         &root,
         &coordinator,
@@ -96,6 +119,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
             name: "pressure",
             mode: "run",
             bootstrap_smoke_state: true,
+            bootstrap_local_state: false,
             simulate_high_pressure: true,
             dry_compact: true,
             max_steps: 1,
@@ -132,6 +156,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
     let result = json!({
         "artifactRoot": artifact_root,
         "coldAction": cold["finalAction"]["action"],
+        "localBootstrapAction": local["finalAction"]["action"],
         "pressureAction": pressure["steps"][0]["action"],
         "directBackendCompletionRejected": true,
         "note": "Native smoke does not fake specialist completion by mutating Codex state storage; full completion smoke needs live workers while execution is cauterized into CultNet.",
@@ -147,6 +172,7 @@ struct RunOptions {
     name: &'static str,
     mode: &'static str,
     bootstrap_smoke_state: bool,
+    bootstrap_local_state: bool,
     simulate_high_pressure: bool,
     dry_compact: bool,
     max_steps: usize,
@@ -183,6 +209,12 @@ fn run_coordinator(
         .arg("3");
     if options.bootstrap_smoke_state {
         command.arg("--bootstrap-smoke-state");
+    }
+    if options.bootstrap_local_state {
+        command
+            .arg("--bootstrap-local-state")
+            .arg("--bootstrap-objective")
+            .arg("Smoke the local MVP bootstrap checkpoint.");
     }
     if options.simulate_high_pressure {
         command.arg("--simulate-high-pressure");
