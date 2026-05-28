@@ -48,6 +48,7 @@ use std::time::{Duration, Instant};
 const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_CARGO_TARGET_DIR: &str = r"C:\Users\Meta\.cargo-target-codex";
 const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.msgpack";
+const DEFAULT_RUNTIME_STORE: &str = "state/runtime-spine.msgpack";
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const IMAGINATION_BINDING_ID: &str = "imagination-synthesis-worker";
 const MODELING_BINDING_ID: &str = "modeling-checkpoint-worker";
@@ -107,6 +108,7 @@ struct Args {
     thread_id: Option<String>,
     cwd: PathBuf,
     thread_state_store: PathBuf,
+    runtime_store: PathBuf,
     ephemeral: bool,
     json: bool,
     result: Option<PathBuf>,
@@ -127,6 +129,7 @@ impl Args {
             thread_id: None,
             cwd: root.clone(),
             thread_state_store: PathBuf::from(DEFAULT_THREAD_STATE_STORE),
+            runtime_store: PathBuf::from(DEFAULT_RUNTIME_STORE),
             ephemeral: true,
             json: false,
             result: None,
@@ -148,6 +151,9 @@ impl Args {
                 "--cwd" => parsed.cwd = take_path(&mut args, "--cwd")?,
                 "--thread-state-store" => {
                     parsed.thread_state_store = take_path(&mut args, "--thread-state-store")?
+                }
+                "--runtime-store" => {
+                    parsed.runtime_store = take_path(&mut args, "--runtime-store")?
                 }
                 "--ephemeral" => parsed.ephemeral = true,
                 "--no-ephemeral" => parsed.ephemeral = false,
@@ -172,6 +178,7 @@ fn run_status(args: &Args) -> Result<Value> {
 fn run_native_status(args: &Args) -> Result<Value> {
     let cwd = absolute_path(&args.cwd)?;
     let store_path = absolute_path(&args.thread_state_store)?;
+    let runtime_store_path = absolute_path(&args.runtime_store)?;
     let state_entry = if store_path.exists() {
         load_thread_state_entry(&store_path)
             .with_context(|| format!("failed to load {}", store_path.display()))?
@@ -325,6 +332,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         reorient_finding_accepted: finding_signals.reorient_finding_accepted,
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
+    let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
 
     let root = env::current_dir().context("failed to resolve current directory")?;
     let native_aux = native_auxiliary_status(&root)?;
@@ -359,6 +367,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
                 "recommendation": recommendation,
             },
             "coordinator": coordinator_json,
+            "tools": tool_invocations.clone(),
         },
         "scene": {
             "threadId": thread_id,
@@ -404,6 +413,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
             "recommendation": recommendation,
         },
         "coordinator": coordinator_json,
+        "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
         "face": native_aux.face,
         "voidMemory": native_aux.void_memory,
@@ -500,6 +510,8 @@ fn run_codex_status(args: &Args) -> Result<Value> {
         .get("coordinator")
         .cloned()
         .unwrap_or_else(|| json!(null));
+    let runtime_store_path = absolute_path(&args.runtime_store)?;
+    let tool_invocations = native_tool_invocation_surface(&runtime_store_path)?;
     let root = env::current_dir().context("failed to resolve current directory")?;
     let native_aux = native_auxiliary_status(&root)?;
     let status = json!({
@@ -516,6 +528,7 @@ fn run_codex_status(args: &Args) -> Result<Value> {
         "reorientResult": reorient_result,
         "crrc": crrc,
         "coordinator": coordinator,
+        "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
         "face": native_aux.face,
         "voidMemory": native_aux.void_memory,
@@ -583,6 +596,22 @@ fn native_role_result(binding_id: &str) -> Value {
         "bindingId": binding_id,
         "note": "Native status is provider-neutral and does not query model-worker runtime results yet.",
     })
+}
+
+fn native_tool_invocation_surface(runtime_store: &Path) -> Result<Value> {
+    let spine_status = epiphany_core::runtime_spine_status(runtime_store)?;
+    let invocations = epiphany_core::runtime_tool_invocation_statuses(runtime_store)?;
+    Ok(json!({
+        "source": "native",
+        "runtimeStore": runtime_store.display().to_string(),
+        "summary": {
+            "present": spine_status.present,
+            "intentCount": spine_status.tool_invocation_intents,
+            "pendingCount": spine_status.pending_tool_invocations,
+            "receiptCount": spine_status.tool_invocation_receipts,
+        },
+        "invocations": invocations,
+    }))
 }
 
 fn coordinator_status_json(status: &epiphany_core::EpiphanyCoordinatorStatus) -> Result<Value> {
@@ -1039,6 +1068,35 @@ pub fn render_status(status: &Value) -> String {
                     text(&job["kind"]),
                     text(&job["ownerRole"]),
                     text(&job["scope"])
+                ));
+            }
+        }
+    }
+    let tools = &status["tools"];
+    let tool_summary = &tools["summary"];
+    lines.extend([
+        String::new(),
+        "Tools".to_string(),
+        format!(
+            "- intents: {} pending: {} receipts: {}",
+            maybe(&tool_summary["intentCount"], "0"),
+            maybe(&tool_summary["pendingCount"], "0"),
+            maybe(&tool_summary["receiptCount"], "0")
+        ),
+        format!("- runtime store: {}", maybe(&tools["runtimeStore"], "none")),
+    ]);
+    if let Some(invocations) = tools["invocations"].as_array() {
+        if invocations.is_empty() {
+            lines.push("- latest: none".to_string());
+        } else {
+            for invocation in invocations.iter().rev().take(5) {
+                lines.push(format!(
+                    "- {}: {} {}/{} ({})",
+                    maybe(&invocation["intentId"], "unknown"),
+                    maybe(&invocation["status"], "unknown"),
+                    maybe(&invocation["server"], "unknown"),
+                    maybe(&invocation["toolName"], "unknown"),
+                    maybe(&invocation["adapter"], "unknown")
                 ));
             }
         }

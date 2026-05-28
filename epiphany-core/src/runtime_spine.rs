@@ -89,6 +89,7 @@ use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -535,7 +536,26 @@ pub struct EpiphanyRuntimeSpineStatus {
     pub open_jobs: usize,
     pub job_results: usize,
     pub events: usize,
+    pub tool_invocation_intents: usize,
+    pub tool_invocation_receipts: usize,
+    pub pending_tool_invocations: usize,
     pub supported_document_types: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyToolInvocationStatus {
+    pub intent_id: String,
+    pub adapter: String,
+    pub server: String,
+    pub tool_name: String,
+    pub caller: String,
+    pub reason: String,
+    pub created_at: String,
+    pub status: String,
+    pub receipt_id: Option<String>,
+    pub completed_at: Option<String>,
+    pub error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1240,6 +1260,9 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
             open_jobs: 0,
             job_results: 0,
             events: 0,
+            tool_invocation_intents: 0,
+            tool_invocation_receipts: 0,
+            pending_tool_invocations: 0,
             supported_document_types: Vec::new(),
         });
     }
@@ -1252,6 +1275,12 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
     let jobs = cache.get_all::<EpiphanyRuntimeJob>()?;
     let job_results = cache.get_all::<EpiphanyRuntimeJobResult>()?;
     let events = cache.get_all::<EpiphanyRuntimeEvent>()?;
+    let tool_intents = cache.get_all::<EpiphanyToolInvocationIntent>()?;
+    let tool_receipts = cache.get_all::<EpiphanyToolInvocationReceipt>()?;
+    let receipt_intent_ids = tool_receipts
+        .iter()
+        .map(|receipt| receipt.intent_id.as_str())
+        .collect::<BTreeSet<_>>();
     let active_sessions = sessions
         .iter()
         .filter(|session| {
@@ -1284,10 +1313,63 @@ pub fn runtime_spine_status(store_path: impl AsRef<Path>) -> Result<EpiphanyRunt
         open_jobs,
         job_results: job_results.len(),
         events: events.len(),
+        tool_invocation_intents: tool_intents.len(),
+        tool_invocation_receipts: tool_receipts.len(),
+        pending_tool_invocations: tool_intents
+            .iter()
+            .filter(|intent| !receipt_intent_ids.contains(intent.intent_id.as_str()))
+            .count(),
         supported_document_types: identity
             .map(|item| item.supported_document_types)
             .unwrap_or_default(),
     })
+}
+
+pub fn runtime_tool_invocation_statuses(
+    store_path: impl AsRef<Path>,
+) -> Result<Vec<EpiphanyToolInvocationStatus>> {
+    let store_path = store_path.as_ref();
+    if !store_path.exists() {
+        return Ok(Vec::new());
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache
+        .pull_all_backing_stores()
+        .with_context(|| format!("failed to read runtime spine {}", store_path.display()))?;
+    let mut receipts = cache
+        .get_all::<EpiphanyToolInvocationReceipt>()?
+        .into_iter()
+        .map(|receipt| (receipt.intent_id.clone(), receipt))
+        .collect::<BTreeMap<_, _>>();
+    let mut statuses = cache
+        .get_all::<EpiphanyToolInvocationIntent>()?
+        .into_iter()
+        .map(|intent| {
+            let receipt = receipts.remove(&intent.intent_id);
+            EpiphanyToolInvocationStatus {
+                intent_id: intent.intent_id,
+                adapter: intent.adapter,
+                server: intent.server,
+                tool_name: intent.tool_name,
+                caller: intent.caller,
+                reason: intent.reason,
+                created_at: intent.created_at,
+                status: receipt
+                    .as_ref()
+                    .map(|receipt| receipt.status.clone())
+                    .unwrap_or_else(|| "pending".to_string()),
+                receipt_id: receipt.as_ref().map(|receipt| receipt.receipt_id.clone()),
+                completed_at: receipt.as_ref().map(|receipt| receipt.completed_at.clone()),
+                error: receipt.and_then(|receipt| receipt.error),
+            }
+        })
+        .collect::<Vec<_>>();
+    statuses.sort_by(|left, right| {
+        left.created_at
+            .cmp(&right.created_at)
+            .then_with(|| left.intent_id.cmp(&right.intent_id))
+    });
+    Ok(statuses)
 }
 
 pub fn runtime_hello_frame(store_path: impl AsRef<Path>) -> Result<Vec<u8>> {
@@ -2803,6 +2885,73 @@ mod tests {
                 .get::<EpiphanyCoordinatorRunReceipt>("coordinator-receipt-1")?
                 .is_some()
         );
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_spine_derives_tool_invocation_statuses() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-05-06T00:00:00Z".to_string(),
+            },
+        )?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.put(
+            "intent:done",
+            &EpiphanyToolInvocationIntent::new(
+                "done",
+                "codex-mcp",
+                "smoke-server",
+                "smoke_tool",
+                "{}",
+                "model-request-1",
+                "Test completed tool call.",
+                "2026-05-06T00:01:00Z",
+            ),
+        )?;
+        cache.put(
+            "intent:pending",
+            &EpiphanyToolInvocationIntent::new(
+                "pending",
+                "codex-mcp",
+                "smoke-server",
+                "waiting_tool",
+                "{}",
+                "model-request-2",
+                "Test pending tool call.",
+                "2026-05-06T00:02:00Z",
+            ),
+        )?;
+        let mut failed_receipt = EpiphanyToolInvocationReceipt::new(
+            "receipt-done",
+            "done",
+            "codex-mcp",
+            "smoke-server",
+            "smoke_tool",
+            "failed",
+            "2026-05-06T00:03:00Z",
+        );
+        failed_receipt.error = Some("smoke server absent".to_string());
+        cache.put("receipt:done", &failed_receipt)?;
+
+        let status = runtime_spine_status(&store)?;
+        assert_eq!(status.tool_invocation_intents, 2);
+        assert_eq!(status.tool_invocation_receipts, 1);
+        assert_eq!(status.pending_tool_invocations, 1);
+
+        let invocations = runtime_tool_invocation_statuses(&store)?;
+        assert_eq!(invocations.len(), 2);
+        assert_eq!(invocations[0].intent_id, "done");
+        assert_eq!(invocations[0].status, "failed");
+        assert_eq!(invocations[0].error.as_deref(), Some("smoke server absent"));
+        assert_eq!(invocations[1].intent_id, "pending");
+        assert_eq!(invocations[1].status, "pending");
+        assert!(invocations[1].receipt_id.is_none());
         Ok(())
     }
 

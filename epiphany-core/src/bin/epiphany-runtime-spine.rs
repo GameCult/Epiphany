@@ -64,6 +64,12 @@ fn main() -> Result<()> {
             println!("jobs: {} open: {}", status.jobs, status.open_jobs);
             println!("job results: {}", status.job_results);
             println!("events: {}", status.events);
+            println!(
+                "tool invocations: {} pending: {} receipts: {}",
+                status.tool_invocation_intents,
+                status.pending_tool_invocations,
+                status.tool_invocation_receipts
+            );
             if !status.supported_document_types.is_empty() {
                 println!("documents: {}", status.supported_document_types.join(", "));
             }
