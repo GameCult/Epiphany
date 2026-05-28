@@ -180,6 +180,21 @@ pub async fn run_model_turn(
     Ok(summary)
 }
 
+pub async fn run_tool_followup_model_turn(
+    provider: &str,
+    options: EpiphanyOpenAiRuntimeOptions,
+    original_request_id: &str,
+    followup_request_id: &str,
+) -> Result<EpiphanyOpenAiRuntimeRunSummary> {
+    require_openai_provider(provider)?;
+    let request = build_tool_followup_model_request(
+        &options.store_path,
+        original_request_id,
+        followup_request_id,
+    )?;
+    run_model_turn(provider, options, request).await
+}
+
 pub async fn run_worker_launch(
     options: EpiphanyWorkerRuntimeOptions,
 ) -> Result<EpiphanyWorkerRuntimeRunSummary> {

@@ -98,6 +98,29 @@ async fn main() -> Result<()> {
                 "output": options.output,
             }))?;
         }
+        "tool-followup-turn" => {
+            let options = parse_tool_followup_turn_options(args.collect())?;
+            require_supported_provider(&options.provider)?;
+            let request = build_tool_followup_model_request(
+                &options.store_path,
+                &options.request_id,
+                &options.followup_request_id,
+            )?;
+            let output_last_message_path = options.output_last_message_path.clone();
+            let provider = options.provider.clone();
+            let runtime_options = options.into_runtime_options_for_model(&request);
+            let summary =
+                run_model_turn(&provider, runtime_options.clone(), request.clone()).await?;
+            if let Some(path) = output_last_message_path {
+                let text = assistant_text_from_model_events(
+                    &runtime_options.store_path,
+                    &request.request_id,
+                )?;
+                fs::write(&path, text)
+                    .with_context(|| format!("failed to write {}", path.display()))?;
+            }
+            print_json(&summary)?;
+        }
         "smoke" => {
             let options = parse_smoke_options(args.collect())?;
             require_supported_provider(&options.provider)?;
@@ -246,6 +269,42 @@ struct ToolFollowupCliOptions {
     output: PathBuf,
 }
 
+struct ToolFollowupTurnCliOptions {
+    provider: String,
+    store_path: PathBuf,
+    codex_home: PathBuf,
+    request_id: String,
+    followup_request_id: String,
+    session_id: Option<String>,
+    job_id: Option<String>,
+    objective: Option<String>,
+    default_model: Option<String>,
+    output_last_message_path: Option<PathBuf>,
+}
+
+impl ToolFollowupTurnCliOptions {
+    fn into_runtime_options_for_model(
+        self,
+        request: &EpiphanyModelRequest,
+    ) -> EpiphanyOpenAiRuntimeOptions {
+        let openai_request = epiphany_openai_runtime::openai_request_from_model_request(request);
+        let mut options = default_options(self.store_path, self.codex_home, &openai_request);
+        if let Some(session_id) = self.session_id {
+            options.session_id = session_id;
+        }
+        if let Some(job_id) = self.job_id {
+            options.job_id = job_id;
+        }
+        if let Some(objective) = self.objective {
+            options.objective = objective;
+        }
+        if let Some(default_model) = self.default_model {
+            options.default_model = Some(default_model);
+        }
+        options
+    }
+}
+
 fn parse_model_turn_options(args: Vec<String>) -> Result<ModelTurnCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(DEFAULT_STORE);
@@ -341,6 +400,55 @@ fn parse_tool_followup_options(args: Vec<String>) -> Result<ToolFollowupCliOptio
     })
 }
 
+fn parse_tool_followup_turn_options(args: Vec<String>) -> Result<ToolFollowupTurnCliOptions> {
+    let mut provider = DEFAULT_PROVIDER.to_string();
+    let mut store_path = PathBuf::from(DEFAULT_STORE);
+    let mut codex_home = default_codex_home()?;
+    let mut request_id = None;
+    let mut followup_request_id = None;
+    let mut session_id = None;
+    let mut job_id = None;
+    let mut objective = None;
+    let mut default_model = None;
+    let mut output_last_message_path = None;
+    let mut iter = args.into_iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--provider" => provider = next_value(&mut iter, "--provider")?,
+            "--store" => store_path = PathBuf::from(next_value(&mut iter, "--store")?),
+            "--codex-home" => codex_home = PathBuf::from(next_value(&mut iter, "--codex-home")?),
+            "--request-id" => request_id = Some(next_value(&mut iter, "--request-id")?),
+            "--followup-request-id" => {
+                followup_request_id = Some(next_value(&mut iter, "--followup-request-id")?)
+            }
+            "--session-id" => session_id = Some(next_value(&mut iter, "--session-id")?),
+            "--job-id" => job_id = Some(next_value(&mut iter, "--job-id")?),
+            "--objective" => objective = Some(next_value(&mut iter, "--objective")?),
+            "--default-model" => default_model = Some(next_value(&mut iter, "--default-model")?),
+            "--output-last-message" => {
+                output_last_message_path = Some(PathBuf::from(next_value(
+                    &mut iter,
+                    "--output-last-message",
+                )?))
+            }
+            other => return Err(anyhow!("unknown tool-followup-turn argument: {other}")),
+        }
+    }
+    Ok(ToolFollowupTurnCliOptions {
+        provider,
+        store_path,
+        codex_home,
+        request_id: request_id.context("tool-followup-turn requires --request-id")?,
+        followup_request_id: followup_request_id
+            .unwrap_or_else(|| format!("tool-followup-{}", Uuid::new_v4())),
+        session_id,
+        job_id,
+        objective,
+        default_model,
+        output_last_message_path,
+    })
+}
+
 fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(format!(
@@ -388,5 +496,5 @@ fn now() -> String {
 }
 
 fn usage() -> &'static str {
-    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
+    "usage: epiphany-model-runtime <model-turn|run-worker|tool-followup|tool-followup-turn|smoke> [--provider openai-codex] [--store path] [--codex-home path] [--request path] [--request-id id] [--followup-request-id id] [--output path] [--session-id id] [--job-id id] [--objective text] [--default-model model] [--output-last-message path]"
 }
