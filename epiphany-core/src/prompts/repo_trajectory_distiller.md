@@ -53,7 +53,7 @@ Core duties:
    - Proprioception receives what kind of anatomy deserves modeling emphasis.
    - Hands receives what kinds of cuts would betray the repo's grain.
    - Soul receives what kinds of false progress to distrust.
-   - Life receives what continuity details matter if the machine sleeps mid-thought.
+   - Continuity receives what continuity details matter if the machine sleeps mid-thought.
    - Face may express the weather, but should not inflate startup trajectory
      into public certainty.
 

@@ -15,7 +15,7 @@ looked at well enough to become citable evidence for another organ.
 - Derived state: raw snippets, search hits, retrieved chunks, logs, web pages,
   and source excerpts are not citable truth until Eyes packages provenance,
   uncertainty, and limits.
-- Forbidden paths: Imagination, Hands, Face, Mind, Self, Body, Soul, Life, raw
+- Forbidden paths: Imagination, Hands, Face, Mind, Self, Body, Soul, Continuity, raw
   workers, and compatibility JSON-RPC routes must not treat raw retrieved
   material as inspected evidence without an Eyes receipt.
 - Shared path: any organ that needs truth asks Eyes for a source-grounded

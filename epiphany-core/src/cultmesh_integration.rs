@@ -1,6 +1,6 @@
 use crate::default_eyes_cultnet_contracts;
 use crate::default_hands_cultnet_contracts;
-use crate::default_life_cultnet_contracts;
+use crate::default_continuity_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
@@ -59,9 +59,9 @@ pub const EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION: &str =
 pub const EPIPHANY_CULTMESH_SOUL_CONTRACT_TYPE: &str = "epiphany.cultmesh.soul_contract";
 pub const EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.soul_contract.v0";
-pub const EPIPHANY_CULTMESH_LIFE_CONTRACT_TYPE: &str = "epiphany.cultmesh.life_contract";
-pub const EPIPHANY_CULTMESH_LIFE_CONTRACT_SCHEMA_VERSION: &str =
-    "epiphany.cultmesh.life_contract.v0";
+pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_TYPE: &str = "epiphany.cultmesh.continuity_contract";
+pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.continuity_contract.v0";
 pub const EPIPHANY_CULTMESH_INTERNAL_VERSE_ID: &str = "epiphany-internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID: &str = "gamecult-local";
 pub const EPIPHANY_CULTMESH_GLOBAL_VERSE_ID: &str = "epiphany-global";
@@ -437,10 +437,10 @@ pub struct EpiphanyCultMeshSoulContractEntry {
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
 #[cultcache(
-    type = "epiphany.cultmesh.life_contract",
-    schema = "EpiphanyCultMeshLifeContractEntry"
+    type = "epiphany.cultmesh.continuity_contract",
+    schema = "EpiphanyCultMeshContinuityContractEntry"
 )]
-pub struct EpiphanyCultMeshLifeContractEntry {
+pub struct EpiphanyCultMeshContinuityContractEntry {
     #[cultcache(key = 0)]
     pub schema_version: String,
     #[cultcache(key = 1)]
@@ -476,7 +476,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshEyesContractEntry => EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshHandsContractEntry => EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshSoulContractEntry => EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION,
-    EpiphanyCultMeshLifeContractEntry => EPIPHANY_CULTMESH_LIFE_CONTRACT_SCHEMA_VERSION,
+    EpiphanyCultMeshContinuityContractEntry => EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION,
 });
 
 pub fn open_epiphany_cultmesh_node(
@@ -990,11 +990,11 @@ pub fn write_epiphany_cultmesh_soul_contracts(
     Ok(written)
 }
 
-pub fn epiphany_cultmesh_life_contracts() -> Vec<EpiphanyCultMeshLifeContractEntry> {
-    default_life_cultnet_contracts()
+pub fn epiphany_cultmesh_continuity_contracts() -> Vec<EpiphanyCultMeshContinuityContractEntry> {
+    default_continuity_cultnet_contracts()
         .into_iter()
-        .map(|contract| EpiphanyCultMeshLifeContractEntry {
-            schema_version: EPIPHANY_CULTMESH_LIFE_CONTRACT_SCHEMA_VERSION.to_string(),
+        .map(|contract| EpiphanyCultMeshContinuityContractEntry {
+            schema_version: EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION.to_string(),
             contract_id: contract.contract_id,
             verse_id: contract.verse_id,
             document_type: contract.document_type,
@@ -1008,13 +1008,13 @@ pub fn epiphany_cultmesh_life_contracts() -> Vec<EpiphanyCultMeshLifeContractEnt
         .collect()
 }
 
-pub fn write_epiphany_cultmesh_life_contracts(
+pub fn write_epiphany_cultmesh_continuity_contracts(
     store_path: impl AsRef<Path>,
     runtime_id: impl Into<String>,
-) -> Result<Vec<EpiphanyCultMeshLifeContractEntry>> {
+) -> Result<Vec<EpiphanyCultMeshContinuityContractEntry>> {
     let mut node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     let mut written = Vec::new();
-    for contract in epiphany_cultmesh_life_contracts() {
+    for contract in epiphany_cultmesh_continuity_contracts() {
         written.push(node.put(contract.contract_id.clone(), &contract)?);
     }
     node.flush()?;
@@ -1371,23 +1371,23 @@ mod tests {
     }
 
     #[test]
-    fn life_contracts_use_verses_to_keep_continuity_guarded() -> Result<()> {
+    fn continuity_contracts_use_verses_to_keep_continuity_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-life-contracts.ccmp");
-        let written = write_epiphany_cultmesh_life_contracts(&store, "epiphany-test")?;
+        let store = temp.path().join("epiphany-continuity-contracts.ccmp");
+        let written = write_epiphany_cultmesh_continuity_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 5);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
         let continuity = node
-            .get_required::<EpiphanyCultMeshLifeContractEntry>("epiphany.life.continuity.review")?;
+            .get_required::<EpiphanyCultMeshContinuityContractEntry>("epiphany.continuity.review")?;
 
         assert_eq!(continuity.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
-        assert_eq!(continuity.authority, "life");
+        assert_eq!(continuity.authority, "continuity");
         assert!(
             continuity
                 .notes
                 .iter()
-                .any(|note| note.contains("continuity organ"))
+                .any(|note| note.contains("deterministic protocol surface"))
         );
         Ok(())
     }

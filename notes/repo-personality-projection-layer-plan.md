@@ -26,7 +26,7 @@ The shared conclusion is that repo personality should combine three projections:
 3. **Memory doctrine:** how the repo preserves intention, evidence, and identity.
 
 Only after those three are scored should Epiphany modulate Self, Face,
-Imagination, Eyes, Proprioception, Hands, Soul, and Life.
+Imagination, Eyes, Proprioception, Hands, Soul, and Continuity.
 
 ## Source Families
 
@@ -207,7 +207,7 @@ with an explanation and source evidence.
   evidence, organism-like UI.
 - `editorial_restraint`: emotionally salient prose with canon/source discipline.
 
-### Ghostlight-Derived Inner Life
+### Ghostlight-Derived Inner State
 
 - `speech_pressure`: how readily Face should speak instead of emitting silence
   or a local bubble.
@@ -333,7 +333,7 @@ Projection:
 - Selects verification style: formal tests, visual smoke, live provider checks,
   Unity probes, DOM inspection, lore/canon review, or artifact review.
 
-### Life
+### Continuity
 
 Primary inputs:
 
@@ -540,7 +540,7 @@ The `memory-packet` command renders a dedicated Repo Memory Distiller packet.
 It uses the same typed terrain/profile/projection store, then adds a bounded
 source inventory from instruction, documentation, state, research, contract,
 verification, runtime, and code surfaces. The packet includes one role-specific
-distiller brief for each standing organ:
+distiller brief for each standing sub-agent, plus Continuity protocol pressure:
 
 - Self receives routing, authority, review-gate, and cross-swarm boundary memory.
 - Face receives public-surface, Aquarium, Discord, voice, and sealed-thought boundary memory.
@@ -549,7 +549,7 @@ distiller brief for each standing organ:
 - Proprioception receives architecture, graph, control/data-flow, invariant, and checkpoint memory.
 - Hands receives implementation conventions, build/edit constraints, dependency habits, and common patch traps.
 - Soul receives verification commands, evidence standards, invariant checks, and truth-refusal memory.
-- Life receives compaction, scratch, checkpoint, heartbeat, sleep, and continuity memory.
+- Continuity receives compaction, scratch, checkpoint, heartbeat, sleep, and continuity protocol pressure, not role memory.
 
 The memory distiller petitions Self with Ghostlight-shaped `selfPatch`
 candidates. It must not mutate memory directly, adopt objectives, copy raw file
@@ -560,8 +560,8 @@ filling the newborn with pasteboard certainty.
 Smoke coverage lives in
 `epiphany-core/src/bin/epiphany-repo-personality-smoke.rs`. The smoke creates two
 tiny git repos, scouts them into a baseline store, projects one repo, and proves
-the projection store contains one terrain report, one profile, all eight
-standing role projections, a rendered personality distiller packet plus prompt,
+the projection store contains one terrain report, one profile, embodied
+sub-agent role projections, a rendered personality distiller packet plus prompt,
 and a rendered role-specific memory distiller packet plus prompt. It also
 proves `epiphany-repo-birth-runner --mode plan` turns missing birth packets into
 startup-only typed runtime execution artifacts and accept commands without creating

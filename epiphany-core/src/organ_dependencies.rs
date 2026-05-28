@@ -6,7 +6,7 @@ use crate::hands_gateway::{
     HANDS_ACTION_REFUSAL_RECEIPT_TYPE, HANDS_COMMIT_RECEIPT_TYPE, HANDS_PATCH_RECEIPT_TYPE,
     HANDS_ROLLBACK_RECEIPT_TYPE,
 };
-use crate::life_gateway::{LIFE_CONTINUITY_REFUSAL_RECEIPT_TYPE, LIFE_RECOVERY_RECEIPT_TYPE};
+use crate::continuity_gateway::{CONTINUITY_RECOVERY_RECEIPT_TYPE, CONTINUITY_REFUSAL_RECEIPT_TYPE};
 use crate::mind_gateway::{
     MIND_GATEWAY_REVIEW_TYPE, MIND_STATE_COMMIT_RECEIPT_TYPE, MIND_STATE_REJECTION_RECEIPT_TYPE,
 };
@@ -22,7 +22,7 @@ use crate::substrate_gate::{
 pub const EPIPHANY_ORGAN_DEPENDENCY_SCHEMA_VERSION: &str = "epiphany.organ_dependency.v0";
 pub const EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION: &str = "epiphany.launch_organ_contract.v0";
 
-pub const EPIPHANY_STANDING_ORGANS: [&str; 8] = [
+pub const EPIPHANY_STANDING_ORGANS: [&str; 7] = [
     "self",
     "face",
     "imagination",
@@ -30,7 +30,6 @@ pub const EPIPHANY_STANDING_ORGANS: [&str; 8] = [
     "proprioception",
     "hands",
     "soul",
-    "life",
 ];
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,7 +64,7 @@ pub fn default_organ_dependencies_for(organ_id: &str) -> EpiphanyOrganDependency
             .filter(|candidate| **candidate != normalized)
             .map(|candidate| (*candidate).to_string())
             .collect(),
-        contract: "Every sub-agent depends on the other organs: Self routes, Face speaks, Imagination projects futures/scenes, Eyes seeks evidence, Proprioception models the Body, Hands acts through Substrate Gate grants, Soul verifies, and Life preserves continuity.".to_string(),
+        contract: "Every sub-agent depends on the other sub-agents: Self routes, Face speaks, Imagination projects futures/scenes, Eyes seeks evidence, Proprioception models the Body, Hands acts through Substrate Gate grants, and Soul verifies. Continuity is protocol machinery, not a sub-agent identity.".to_string(),
     }
 }
 
@@ -89,7 +88,7 @@ pub fn default_launch_organ_contract(
         owner_organ: owner_organ_for_authority_scope(authority_scope).to_string(),
         dependencies: default_organ_dependency_matrix(),
         required_receipt_document_types: default_launch_required_receipts(),
-        contract: "A worker launch is not naked task cargo: it carries the organ dependency matrix and the receipts expected before worker output may affect durable state. Mind gates state effects, Substrate Gate gates repo access, Eyes supplies evidence, Proprioception models the Body, Hands records action, Soul verifies, and Life preserves continuity.".to_string(),
+        contract: "A worker launch is not naked task cargo: it carries the sub-agent dependency matrix and the receipts expected before worker output may affect durable state. Mind gates state effects, Substrate Gate gates repo access, Eyes supplies evidence, Proprioception models the Body, Hands records action, Soul verifies, and Continuity protocols preserve recovery across rupture.".to_string(),
     }
 }
 
@@ -112,8 +111,8 @@ pub fn default_launch_required_receipts() -> Vec<String> {
         SOUL_REGRESSION_RECEIPT_TYPE,
         SOUL_REVIEW_RECEIPT_TYPE,
         SOUL_VERIFICATION_REFUSAL_RECEIPT_TYPE,
-        LIFE_RECOVERY_RECEIPT_TYPE,
-        LIFE_CONTINUITY_REFUSAL_RECEIPT_TYPE,
+        CONTINUITY_RECOVERY_RECEIPT_TYPE,
+        CONTINUITY_REFUSAL_RECEIPT_TYPE,
     ])
 }
 
@@ -159,8 +158,8 @@ fn owner_organ_for_authority_scope(authority_scope: &str) -> &'static str {
         "hands"
     } else if normalized.contains("verification") || normalized.contains("soul") {
         "soul"
-    } else if normalized.contains("reorient") || normalized.contains("life") {
-        "life"
+    } else if normalized.contains("reorient") || normalized.contains("continuity") {
+        "continuity"
     } else {
         "self"
     }

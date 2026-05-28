@@ -18,7 +18,7 @@ Convert useful doctrine, durable lessons, and repo-local planning/modeling surfa
 - Proprioception / modeling, graph, checkpoint, source anatomy
 - Hands / implementation actuator
 - Soul / verification, evidence, objective truth
-- Life / continuity, CRRC, compaction, reorientation
+- Continuity / reorientation, CRRC, compaction, reorientation
 
 The result should preserve as much useful typed state as the source repos justify, while clearly separating active truth from candidates. Discard what is only project-local trivia, stale activity logging, duplicate status, or repo-specific prose flavor.
 
@@ -220,7 +220,7 @@ Good memories for Soul sound like:
 - "Visual, runtime, and live-provider claims need receipts from the actual environment."
 - "Draft/reference material must not be promoted into accepted training or implementation truth without the matching review."
 
-### Life / Reorientation
+### Continuity / Reorientation
 
 Look for lessons about rehydration, compaction, handoff, operational recovery, continuity, and state hygiene.
 
@@ -231,7 +231,7 @@ Likely sources:
 - gamecult-ops startup/recovery runbooks.
 - VoidBot's scheduler/logon/stack resurrection fixes.
 
-Good memories for Life sound like:
+Good memories for Continuity sound like:
 
 - "Persistent state should be a small waking mind, not a museum."
 - "Scratch is disposable; distilled evidence changes future belief; handoff gives re-entry."
@@ -410,7 +410,7 @@ Write these files:
    - `modeling.selfPatch.json`
    - `implementation.selfPatch.json`
    - `verification.selfPatch.json`
-   - `reorientation.selfPatch.json`
+   - `continuity-protocol-patch.json`
 
    Each file must be a single bounded `selfPatch` object:
 

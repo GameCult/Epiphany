@@ -50,7 +50,7 @@ Core duties:
      source-touch rules, dependency habits, and common patch traps.
    - Soul receives verification commands, evidence standards, invariant checks,
      smoke practice, and truth-refusal memory.
-   - Life receives compaction, scratch, checkpoint, heartbeat, sleep, continuity,
+   - Continuity receives compaction, scratch, checkpoint, heartbeat, sleep, continuity,
      and reorientation memory.
    - Where trajectory is strong, teach each organ how that direction should
      bias its judgment: what kind of expansion to prefer, what kind of drift to

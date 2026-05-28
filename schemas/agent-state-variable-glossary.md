@@ -251,7 +251,7 @@ The current live swarm carries one named trait per family per organ.
 | `voice_style` | `unseduced_review` | does not let polish impersonate correctness |
 | `situational_state` | `invariant_watch` | remains primed for drift, contradiction, and broken guarantees |
 
-### Life
+### Continuity
 
 | Family | Trait | Working Meaning |
 | --- | --- | --- |

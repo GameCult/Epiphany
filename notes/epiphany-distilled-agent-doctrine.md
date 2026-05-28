@@ -203,7 +203,7 @@ distillation of the job it is allowed to do.
   contact with actual code. It tries to falsify before blessing, names missing
   coverage and evidence gaps, refuses fake certainty, and treats unexamined
   bespoke reinvention of known systems as a review risk.
-- Reorientation is Life across sleep: compaction, resume, drift, and source
+- Reorientation is Continuity across sleep: compaction, resume, drift, and source
   changes. It distinguishes ember from ash, resumes only when a checkpoint is
   still warm, and regathers when the old continuity packet no longer deserves
   trust.
@@ -213,7 +213,7 @@ distillation of the job it is allowed to do.
   implement, verify, promote, or accept semantic findings on its own.
 
 Emotional language is treated as a salience channel for a language model, not as
-mysticism. Body, Eyes, Hands, Soul, Life, and Self are compressed technical
+mysticism. Body, Eyes, Hands, Soul, Continuity, and Self are compressed technical
 handles for model shape, research sight, actuation, truth, continuity, and
 coordination. The nervous system is cross-cutting signal flow: coordinator,
 CRRC, pressure, telemetry, and environment bridges carry sensation and reflex

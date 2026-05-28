@@ -57,7 +57,6 @@ const ROLES: &[&str] = &[
     "modeling",
     "implementation",
     "verification",
-    "reorientation",
 ];
 
 const AXES: &[&str] = &[
@@ -2234,7 +2233,6 @@ fn role_id_for_agent_id(agent_id: &str) -> Option<&'static str> {
         "epiphany.proprioception" => Some("modeling"),
         "epiphany.hands" => Some("implementation"),
         "epiphany.soul" => Some("verification"),
-        "epiphany.life" => Some("reorientation"),
         _ => None,
     }
 }
@@ -2441,9 +2439,6 @@ fn memory_role_filter(role_id: &str) -> &'static str {
         }
         "verification" => {
             "Distill tests, smoke commands, evidence standards, invariants, user-facing truth checks, and what Soul should refuse to bless."
-        }
-        "reorientation" => {
-            "Distill compaction, scratch, checkpoint, sleep, heartbeat, and continuity doctrine that Life must preserve across rupture."
         }
         _ => "Distill only durable role-relevant memory with source refs and uncertainty.",
     }
@@ -3952,7 +3947,6 @@ fn role_display(role_id: &str) -> &'static str {
         "modeling" => "Proprioception",
         "implementation" => "Hands",
         "verification" => "Soul",
-        "reorientation" => "Life",
         _ => "Lane",
     }
 }

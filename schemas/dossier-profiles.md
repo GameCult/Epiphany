@@ -19,7 +19,6 @@ Intended for:
 - Body
 - Hands
 - Soul
-- Life
 
 These organs need:
 

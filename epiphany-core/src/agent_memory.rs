@@ -27,7 +27,6 @@ const ROLE_TARGETS: &[(&str, &str, &str)] = &[
     ),
     ("verification", "epiphany.soul", "soul.agent-state.json"),
     ("implementation", "epiphany.hands", "hands.agent-state.json"),
-    ("reorientation", "epiphany.life", "life.agent-state.json"),
     ("research", "epiphany.eyes", "eyes.agent-state.json"),
     ("face", "epiphany.face", "face.agent-state.json"),
     ("coordinator", "epiphany.self", "self.agent-state.json"),

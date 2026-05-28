@@ -21,7 +21,7 @@ use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::hands_gateway::*;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
-use crate::life_gateway::*;
+use crate::continuity_gateway::*;
 use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
 use crate::memory_graph::MEMORY_GRAPH_TYPE;
 use crate::mind_gateway::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
@@ -2116,30 +2116,30 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            LIFE_CONTINUITY_PACKET_TYPE,
-            LIFE_CONTINUITY_PACKET_SCHEMA_VERSION,
+            CONTINUITY_PACKET_TYPE,
+            CONTINUITY_PACKET_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::IntentSubmit,
                 CultNetDocumentOperation::ReceiptWatch,
             ],
             CultNetMutationAuthority::Coordinator,
-            vec![LIFE_CONTINUITY_PACKET_TYPE],
+            vec![CONTINUITY_PACKET_TYPE],
             vec![
-                LIFE_COMPACTION_CHECKPOINT_TYPE,
-                LIFE_SLEEP_DISTILLATION_TYPE,
-                LIFE_RECOVERY_RECEIPT_TYPE,
-                LIFE_STALE_TURN_REPAIR_TYPE,
-                LIFE_CONTINUITY_REFUSAL_RECEIPT_TYPE,
+                CONTINUITY_COMPACTION_CHECKPOINT_TYPE,
+                CONTINUITY_SLEEP_DISTILLATION_TYPE,
+                CONTINUITY_RECOVERY_RECEIPT_TYPE,
+                CONTINUITY_STALE_TURN_REPAIR_TYPE,
+                CONTINUITY_REFUSAL_RECEIPT_TYPE,
             ],
             vec![
-                "Life is the continuity organ: compaction, sleep, recovery, stale-turn repair, and handoff packets enter here.",
-                "Life preserves survival across rupture; Mind admits durable state.",
+                "Continuity is deterministic protocol machinery: compaction, sleep, recovery, stale-turn repair, and handoff packets enter here.",
+                "Continuity preserves survival across rupture; Mind admits durable state.",
             ],
         ),
         mutation_contract(
-            LIFE_COMPACTION_CHECKPOINT_TYPE,
-            LIFE_COMPACTION_CHECKPOINT_SCHEMA_VERSION,
+            CONTINUITY_COMPACTION_CHECKPOINT_TYPE,
+            CONTINUITY_COMPACTION_CHECKPOINT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -2150,8 +2150,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Compaction checkpoints preserve hot context before rupture."],
         ),
         mutation_contract(
-            LIFE_SLEEP_DISTILLATION_TYPE,
-            LIFE_SLEEP_DISTILLATION_SCHEMA_VERSION,
+            CONTINUITY_SLEEP_DISTILLATION_TYPE,
+            CONTINUITY_SLEEP_DISTILLATION_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -2162,8 +2162,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Sleep distillation receipts separate durable lessons from rumination residue."],
         ),
         mutation_contract(
-            LIFE_RECOVERY_RECEIPT_TYPE,
-            LIFE_RECOVERY_RECEIPT_SCHEMA_VERSION,
+            CONTINUITY_RECOVERY_RECEIPT_TYPE,
+            CONTINUITY_RECOVERY_RECEIPT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -2174,8 +2174,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             vec!["Recovery receipts explain what survived and what must be regathered."],
         ),
         mutation_contract(
-            LIFE_STALE_TURN_REPAIR_TYPE,
-            LIFE_STALE_TURN_REPAIR_SCHEMA_VERSION,
+            CONTINUITY_STALE_TURN_REPAIR_TYPE,
+            CONTINUITY_STALE_TURN_REPAIR_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -2188,8 +2188,8 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             ],
         ),
         mutation_contract(
-            LIFE_CONTINUITY_REFUSAL_RECEIPT_TYPE,
-            LIFE_CONTINUITY_REFUSAL_RECEIPT_SCHEMA_VERSION,
+            CONTINUITY_REFUSAL_RECEIPT_TYPE,
+            CONTINUITY_REFUSAL_RECEIPT_SCHEMA_VERSION,
             vec![
                 CultNetDocumentOperation::Snapshot,
                 CultNetDocumentOperation::ReceiptWatch,
@@ -2197,7 +2197,7 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["Life refusal receipts preserve why a continuity packet could not be trusted."],
+            vec!["Continuity refusal receipts preserve why a continuity packet could not be trusted."],
         ),
         mutation_contract(
             RUNTIME_EVENT_TYPE,

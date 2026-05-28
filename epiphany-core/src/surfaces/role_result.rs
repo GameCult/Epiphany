@@ -416,25 +416,27 @@ pub fn build_reorient_acceptance_bundle(
     })
 }
 
-pub fn role_self_memory_target(role_id: EpiphanyRoleResultRoleId) -> (&'static str, &'static str) {
+pub fn role_self_memory_target(
+    role_id: EpiphanyRoleResultRoleId,
+) -> Option<(&'static str, &'static str)> {
     match role_id {
-        EpiphanyRoleResultRoleId::Imagination => (
+        EpiphanyRoleResultRoleId::Imagination => Some((
             "epiphany.imagination",
             "state/agents/imagination.agent-state.json",
-        ),
-        EpiphanyRoleResultRoleId::Modeling => (
+        )),
+        EpiphanyRoleResultRoleId::Modeling => Some((
             "epiphany.proprioception",
             "state/agents/proprioception.agent-state.json",
-        ),
-        EpiphanyRoleResultRoleId::Verification => {
-            ("epiphany.soul", "state/agents/soul.agent-state.json")
-        }
-        EpiphanyRoleResultRoleId::Implementation => {
-            ("epiphany.hands", "state/agents/hands.agent-state.json")
-        }
-        EpiphanyRoleResultRoleId::Reorientation => {
-            ("epiphany.life", "state/agents/life.agent-state.json")
-        }
+        )),
+        EpiphanyRoleResultRoleId::Verification => Some((
+            "epiphany.soul",
+            "state/agents/soul.agent-state.json",
+        )),
+        EpiphanyRoleResultRoleId::Implementation => Some((
+            "epiphany.hands",
+            "state/agents/hands.agent-state.json",
+        )),
+        EpiphanyRoleResultRoleId::Reorientation => None,
     }
 }
 
@@ -468,7 +470,17 @@ fn review_role_self_patch(
     match decode_agent_self_patch(patch) {
         Ok(patch) => review_role_self_patch_document(role_id, &patch),
         Err(reason) => {
-            let (expected_agent_id, target_path) = role_self_memory_target(role_id);
+            let Some((expected_agent_id, target_path)) = role_self_memory_target(role_id) else {
+                return EpiphanyRoleSelfPersistenceReview {
+                    status: EpiphanyRoleSelfPersistenceStatus::Rejected,
+                    target_agent_id: None,
+                    target_path: None,
+                    reasons: vec![
+                        "reorientation is Continuity protocol machinery and cannot persist role self-memory".to_string(),
+                        reason,
+                    ],
+                };
+            };
             EpiphanyRoleSelfPersistenceReview {
                 status: EpiphanyRoleSelfPersistenceStatus::Rejected,
                 target_agent_id: Some(expected_agent_id.to_string()),
@@ -483,7 +495,17 @@ pub fn review_role_self_patch_document(
     role_id: EpiphanyRoleResultRoleId,
     patch: &AgentSelfPatch,
 ) -> EpiphanyRoleSelfPersistenceReview {
-    let (expected_agent_id, target_path) = role_self_memory_target(role_id);
+    let Some((expected_agent_id, target_path)) = role_self_memory_target(role_id) else {
+        return EpiphanyRoleSelfPersistenceReview {
+            status: EpiphanyRoleSelfPersistenceStatus::Rejected,
+            target_agent_id: None,
+            target_path: None,
+            reasons: vec![
+                "reorientation is Continuity protocol machinery and cannot persist role self-memory"
+                    .to_string(),
+            ],
+        };
+    };
     let reasons = review_agent_self_patch_contract(expected_agent_id, patch);
 
     EpiphanyRoleSelfPersistenceReview {

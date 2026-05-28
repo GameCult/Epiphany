@@ -1140,7 +1140,7 @@ fn local_mvp_checkpoint_patch(cwd: &Path, objective: Option<&str>) -> Value {
                 {
                     "id": "local-mvp-runner",
                     "title": "Local MVP runner",
-                    "purpose": "One local operator cycle that enters through Face, runs coordinator-owned work, and invokes Life/heartbeat sleep afterward.",
+                    "purpose": "One local operator cycle that enters through Face, runs coordinator-owned work, and invokes Continuity/heartbeat sleep afterward.",
                     "code_refs": local_refs,
                 },
                 {

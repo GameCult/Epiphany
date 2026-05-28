@@ -22,7 +22,6 @@ pub(super) const ROLE_ORDER: &[&str] = &[
     "modeling",
     "implementation",
     "verification",
-    "reorientation",
 ];
 
 pub fn default_heartbeat_state(target_heartbeat_rate: f64) -> EpiphanyHeartbeatStateEntry {
@@ -195,7 +194,6 @@ pub(super) fn agent_id_for_role(role_id: &str) -> &'static str {
         "modeling" => "epiphany.proprioception",
         "implementation" => "epiphany.hands",
         "verification" => "epiphany.soul",
-        "reorientation" => "epiphany.life",
         _ => "epiphany.unknown",
     }
 }
@@ -209,7 +207,6 @@ pub(super) fn display_name_for_role(role_id: &str) -> &'static str {
         "modeling" => "Proprioception",
         "implementation" => "Hands",
         "verification" => "Soul",
-        "reorientation" => "Life",
         _ => "Unknown",
     }
 }
@@ -223,7 +220,6 @@ fn initiative_speed_for_role(role_id: &str) -> f64 {
         "modeling" => 0.92,
         "implementation" => 0.74,
         "verification" => 0.88,
-        "reorientation" => 1.04,
         _ => 1.0,
     }
 }
@@ -237,7 +233,6 @@ fn reaction_bias_for_role(role_id: &str) -> f64 {
         "modeling" => 0.74,
         "implementation" => 0.58,
         "verification" => 0.82,
-        "reorientation" => 0.86,
         _ => 0.5,
     }
 }
@@ -251,7 +246,6 @@ fn interrupt_threshold_for_role(role_id: &str) -> f64 {
         "modeling" => 0.5,
         "implementation" => 0.5,
         "verification" => 0.48,
-        "reorientation" => 0.44,
         _ => 0.5,
     }
 }
@@ -273,7 +267,6 @@ fn participant_constraints(role_id: &str) -> Vec<&'static str> {
             "Touches source only with accepted guidance and verifier-readable evidence."
         }
         "verification" => "Falsifies promises; must not bless theater.",
-        "reorientation" => "Protects continuity; must not fake survived context.",
         _ => "Unknown role.",
     };
     vec![

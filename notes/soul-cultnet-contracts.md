@@ -37,6 +37,6 @@ polish from impersonating truth.
 
 Eyes says what was looked at. Hands says what changed. Soul says whether the
 change and claim survive inspection. Mind decides what verification means for
-durable state. Life preserves the verdict across rupture.
+durable state. Continuity preserves the verdict across rupture.
 
 Soul is not vibes with a test log. It is the refusal to let the machine lie.

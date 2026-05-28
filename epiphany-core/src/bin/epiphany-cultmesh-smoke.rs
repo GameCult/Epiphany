@@ -11,7 +11,7 @@ use epiphany_core::load_latest_epiphany_cultmesh_operator_snapshot;
 use epiphany_core::write_epiphany_cultmesh_eyes_contracts;
 use epiphany_core::write_epiphany_cultmesh_global_room_policies;
 use epiphany_core::write_epiphany_cultmesh_hands_contracts;
-use epiphany_core::write_epiphany_cultmesh_life_contracts;
+use epiphany_core::write_epiphany_cultmesh_continuity_contracts;
 use epiphany_core::write_epiphany_cultmesh_mind_contracts;
 use epiphany_core::write_epiphany_cultmesh_operator_snapshot;
 use epiphany_core::write_epiphany_cultmesh_operator_status;
@@ -44,7 +44,7 @@ fn main() -> Result<()> {
     write_epiphany_cultmesh_eyes_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_hands_contracts(&store, "epiphany-cultmesh-smoke")?;
     write_epiphany_cultmesh_soul_contracts(&store, "epiphany-cultmesh-smoke")?;
-    write_epiphany_cultmesh_life_contracts(&store, "epiphany-cultmesh-smoke")?;
+    write_epiphany_cultmesh_continuity_contracts(&store, "epiphany-cultmesh-smoke")?;
     let operator_status = default_epiphany_cultmesh_operator_status(
         "epiphany-cultmesh-smoke",
         "2026-05-27T00:00:00Z",

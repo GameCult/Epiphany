@@ -19,16 +19,16 @@ pressure of the others before acting.
 
 ## Dependency Rule
 
-For every standing organ `X`, `X.dependsOn` is every other standing organ.
+For every standing sub-agent `X`, `X.dependsOn` is every other standing sub-agent.
 
 That does not mean every organ owns every decision. It means every organ's turn
 must be projected with awareness of the whole organism:
 
-- Face speaks with Body substrate facts, Mind-reviewed memory, Soul constraints, Life
-  continuity, Self routing pressure, Eyes uncertainty, Hands consequence, and
+- Face speaks with Body substrate facts, Mind-reviewed memory, Soul constraints,
+  Continuity pressure, Self routing pressure, Eyes uncertainty, Hands consequence, and
   Imagination scene.
 - Hands acts only after Substrate Gate grants substrate access, Eyes supplies enough
-  evidence, Soul keeps the invariant visible, Self routes authority, Life keeps
+  evidence, Soul keeps the invariant visible, Self routes authority, Continuity keeps
   continuity recoverable, Face preserves public dignity when relevant, and
   Imagination models the future shape.
 - Mind admits state only after it can see which organ produced the thought and

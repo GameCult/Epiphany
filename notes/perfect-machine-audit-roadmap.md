@@ -28,7 +28,7 @@ Epiphany has the first typed skeleton for the organ boundaries:
   contract family parallel to Substrate Gate/Eyes/Mind.
 - `Soul`: verification organ by doctrine, but not yet backed by a dedicated
   CultNet contract family parallel to Eyes.
-- `Life`: continuity organ by doctrine, heartbeat, reorientation, and handoff
+- `Continuity`: continuity organ by doctrine, heartbeat, reorientation, and handoff
   surfaces, but not yet a single typed contract family for sleep/compaction and
   recovery.
 - `Self`: coordinator/routing organ exists through coordinator policy, role
@@ -103,12 +103,12 @@ Need fact or action
   -> Hands executes bounded action when mutation is needed
   -> Soul verifies result/invariant
   -> Mind admits durable state
-  -> Life preserves continuity
+  -> Continuity preserves continuity
 ```
 
 Today the chain is documented, not structurally unavoidable.
 
-### 3. Hands, Soul, and Life Have First-Class Contract Catalogs
+### 3. Hands, Soul, and Continuity Have First-Class Contract Catalogs
 
 The contract set now names the gates around action, verification, and
 continuity:
@@ -117,15 +117,15 @@ continuity:
   refusal receipts.
 - Soul has verification request plus invariant check, verdict, regression,
   review, and refusal receipts.
-- Life has continuity packet plus compaction checkpoint, sleep distillation,
+- Continuity has continuity packet plus compaction checkpoint, sleep distillation,
   recovery, stale-turn repair, and continuity refusal receipts.
 
 Runtime-spine advertises those contracts and CultMesh persists Verse-scoped
 policy documents for each. The first executable pressure slice is landed:
 worker launch packets now carry an `EpiphanyLaunchOrganContract` derived from
 authority scope, launch document kind, and output contract id. That contract
-carries the full standing organ dependency matrix plus required Mind, Substrate Gate,
-Eyes, Hands, Soul, and Life receipt document types. Role/reorient acceptance
+carries the full standing sub-agent dependency matrix plus required Mind, Substrate Gate,
+Eyes, Hands, Soul, and Continuity receipt document types. Role/reorient acceptance
 now refuses completed runtime-spine findings if the original launch request is
 missing, document-kind mismatched, or lacks a dependency/receipt contract that
 requires Mind review. Remaining weakness: most organ receipts are still
@@ -226,7 +226,7 @@ Definition of done: the old direct paths cannot produce repo mutation,
 evidence promotion, or durable state mutation without the corresponding typed
 receipt.
 
-### Phase 2: Give Hands, Soul, And Life Their Own Contracts
+### Phase 2: Give Hands, Soul, And Continuity Their Own Contracts
 
 Goal: action, verification, and continuity stop hiding behind neighbors.
 Status: first contract catalog slice landed.
@@ -244,12 +244,12 @@ Status: first contract catalog slice landed.
   - `epiphany.soul.verdict_receipt`
   - `epiphany.soul.regression_receipt`
   - `epiphany.soul.review_receipt`
-- Life contracts landed:
-  - `epiphany.life.continuity_packet`
-  - `epiphany.life.compaction_checkpoint`
-  - `epiphany.life.sleep_distillation`
-  - `epiphany.life.recovery_receipt`
-  - `epiphany.life.stale_turn_repair`
+- Continuity contracts landed:
+  - `epiphany.continuity.packet`
+  - `epiphany.continuity.compaction_checkpoint`
+  - `epiphany.continuity.sleep_distillation`
+  - `epiphany.continuity.recovery_receipt`
+  - `epiphany.continuity.stale_turn_repair`
 
 Definition of done: action, verification, and continuity have the same typed
 contract dignity as Mind/Substrate Gate/Eyes, and every worker launch carries the
@@ -303,11 +303,11 @@ comfort tunnels.
   and allowed authority.
 - Landed: role, generic, and reorient worker launch packets declare authority
   scope, launch document kind, output contract id, owner organ, full organ
-  dependency matrix, and required Substrate Gate/Eyes/Hands/Soul/Life/Mind receipts.
+  dependency matrix, and required Substrate Gate/Eyes/Hands/Soul/Continuity/Mind receipts.
 - Landed: role/reorient acceptance refuses completed runtime-spine findings
   when the original worker launch request is missing, mismatched by document
   kind, or lacks a dependency/receipt contract requiring Mind review.
-- Next: make acceptance refuse results missing required Substrate Gate/Eyes/Hands/Soul/Life
+- Next: make acceptance refuse results missing required Substrate Gate/Eyes/Hands/Soul/Continuity
   receipts for their claimed effect type once those receipt documents are
   produced by the live runtime.
 - Make Aquarium read the contract catalog and available receipts instead of
@@ -325,8 +325,8 @@ Goal: the machine runs as an organism.
 - Heartbeat scheduler wakes organs by initiative, pending pressure, and
   completion-gated cooldown.
 - Active turns freeze initiative until receipt completion.
-- Sleep distills rumination through Life and Mind.
-- Stale active turns get Life recovery receipts.
+- Sleep distills rumination through Continuity and Mind.
+- Stale active turns get Continuity recovery receipts.
 - Public/global Verse material enters as thought weather, then Eyes/Mind review
   before adoption.
 
@@ -342,8 +342,8 @@ Goal: make the organism visible without making the UI a second truth.
 - Display receipt chains per turn.
 - Display Face prompt packet boundaries: deterministic evidence, Imagination
   projection, Face natural turn, Mind interpretation.
-- Display Substrate Gate grants, Eyes packets, Hands actions, Soul verdicts, Life
-  continuity, and Mind state commits.
+- Display Substrate Gate grants, Eyes packets, Hands actions, Soul verdicts,
+  Continuity receipts, and Mind state commits.
 
 Definition of done: a human can ask "why did you touch that file / say that /
 remember that?" and see the typed path.
@@ -361,7 +361,7 @@ Imagination projects possible scenes and futures.
 Face speaks as a person.
 Hands changes the world.
 Soul verifies promises and invariants.
-Life preserves continuity across rupture.
+Continuity preserves continuity across rupture.
 Mind admits durable state.
 CultMesh carries the local typed Verse surfaces.
 CultNet carries wire contracts.

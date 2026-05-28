@@ -1,7 +1,7 @@
 # Canonical Agent State Schema
 
 Epiphany uses a Ghostlight-shaped agent dossier as the canonical local memory
-surface for each standing organ.
+surface for each standing sub-agent.
 
 The executable shape lives in
 [agent_memory.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/agent_memory.rs).
@@ -38,7 +38,6 @@ Each record in `state/agents.msgpack` is an
 - `modeling` -> `epiphany.proprioception`
 - `implementation` -> `epiphany.hands`
 - `verification` -> `epiphany.soul`
-- `reorientation` -> `epiphany.life`
 
 The top-level shape is:
 
@@ -104,7 +103,7 @@ The important distinction is:
 So the schema stays shared, but the expected population density changes by
 profile.
 
-Epiphany does **not** currently require every standing organ to populate the
+Epiphany does **not** currently require every standing sub-agent to populate the
 full old Ghostlight trait inventory. That would be fake precision. But the
 full embodied Ghostlight families remain canonical, available, and appropriate
 for Face and character-grade agents.

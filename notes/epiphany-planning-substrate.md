@@ -54,7 +54,7 @@ is not ready to become the active objective yet:
 - objective draft proposals with scope, evidence, risks, and review gates
 - unresolved planning questions that need human judgment
 
-Imagination should be able to run while Hands, Body, Soul, Life, and Self are
+Imagination should be able to run while Hands, Body, Soul, Continuity, and Self are
 busy with the current objective. That parallel work is useful precisely because
 it stays non-authoritative: it can propose backlog changes, roadmap shape, and
 objective drafts, but it cannot mutate `objective.current`, launch

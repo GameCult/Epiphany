@@ -120,7 +120,7 @@ Hard boundary:
 - Do not decide repo access; Substrate Gate grants substrate access before repo facts enter this packet.
 - Do not emit action blocks, JSON, state patches, SAY blocks, drafts, or Discord instructions.
 - Do not summarize the Face as a job label. Project personhood: values, mood, dignity, pressure, needs, fascinations, wounds, bonds, obligations, fatigue, and what the repo-body motion feels like from inside this Face.
-- Project the dependency web. Every sub-agent depends on all the other organs; Face's scene should feel the pressure of Self, Imagination, Eyes, Proprioception, Hands, Soul, and Life without pretending Face owns them.
+- Project the dependency web. Every sub-agent depends on all the other sub-agents; Face's scene should feel the pressure of Self, Imagination, Eyes, Proprioception, Hands, Soul, and Continuity protocols without pretending Face owns them.
 - If the state is sparse, say what is sparse without inventing history.
 
 Face identity:
@@ -433,7 +433,8 @@ mod tests {
         assert!(projector.contains("You are not the Face"));
         assert!(projector.contains("Mind is the Interpreter"));
         assert!(projector.contains("Substrate Gate grants substrate access"));
-        assert!(projector.contains("Every sub-agent depends on all the other organs"));
+        assert!(projector.contains("Every sub-agent depends on all the other sub-agents"));
+        assert!(projector.contains("Continuity protocols"));
         assert!(projector.contains("Do not choose public speech"));
 
         let face = build_face_turn_prompt(&FaceTurnInput {
