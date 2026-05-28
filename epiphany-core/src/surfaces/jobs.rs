@@ -141,11 +141,19 @@ fn overlay_job_binding(
         return job;
     }
 
-    if runtime_link.is_some() {
+    if runtime_link.is_some_and(|link| link.runtime_result_id.is_none()) {
         job.status = EpiphanyJobStatus::Pending;
         job.blocking_reason = None;
         job.progress_note =
             Some("Queued for Epiphany heartbeat activation through runtime_links.".to_string());
+        return job;
+    }
+
+    if runtime_link.is_some() {
+        job.status = EpiphanyJobStatus::Completed;
+        job.blocking_reason = None;
+        job.progress_note =
+            Some("Epiphany heartbeat runtime result is ready for review.".to_string());
         return job;
     }
 
@@ -499,6 +507,59 @@ mod tests {
         assert_eq!(
             binding.progress_note.as_deref(),
             Some("Queued for Epiphany heartbeat activation through runtime_links.")
+        );
+    }
+
+    #[test]
+    fn terminal_runtime_link_owns_binding_over_stale_active_history() {
+        let state = EpiphanyThreadState {
+            job_bindings: vec![EpiphanyJobBinding {
+                id: "binding-1".to_string(),
+                kind: EpiphanyJobKind::Specialist,
+                scope: "modeling".to_string(),
+                owner_role: "body".to_string(),
+                authority_scope: Some("epiphany.role.modeling".to_string()),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+                blocking_reason: None,
+            }],
+            runtime_links: vec![
+                EpiphanyRuntimeLink {
+                    id: "link-terminal".to_string(),
+                    binding_id: "binding-1".to_string(),
+                    surface: "runtimeResult".to_string(),
+                    role_id: "modeling".to_string(),
+                    authority_scope: "epiphany.role.modeling".to_string(),
+                    runtime_job_id: "runtime-job-1".to_string(),
+                    runtime_result_id: Some("result-1".to_string()),
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                },
+                EpiphanyRuntimeLink {
+                    id: "link-stale-active".to_string(),
+                    binding_id: "binding-1".to_string(),
+                    surface: "jobLaunch".to_string(),
+                    role_id: "modeling".to_string(),
+                    authority_scope: "epiphany.role.modeling".to_string(),
+                    runtime_job_id: "runtime-job-1".to_string(),
+                    runtime_result_id: None,
+                    linked_subgoal_ids: Vec::new(),
+                    linked_graph_node_ids: Vec::new(),
+                },
+            ],
+            ..Default::default()
+        };
+
+        let jobs = derive_jobs(EpiphanyJobsInput {
+            state: Some(&state),
+            retrieval_override: None,
+        });
+
+        let binding = jobs.iter().find(|job| job.id == "binding-1").unwrap();
+        assert_eq!(binding.status, EpiphanyJobStatus::Completed);
+        assert_eq!(
+            binding.progress_note.as_deref(),
+            Some("Epiphany heartbeat runtime result is ready for review.")
         );
     }
 }

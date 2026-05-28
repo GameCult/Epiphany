@@ -27,9 +27,11 @@ use epiphany_core::evaluate_promotion;
 use epiphany_core::open_runtime_spine_heartbeat_job;
 use epiphany_core::plan_runtime_spine_heartbeat_launch;
 use epiphany_core::replace_or_append_epiphany_job_binding;
+use epiphany_core::runtime_job_snapshot;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
+use epiphany_state_model::EpiphanyRuntimeLink;
 use epiphany_state_model::EpiphanyThreadState;
 
 use crate::cultnet::EpiphanySurfaceSource;
@@ -205,11 +207,21 @@ pub async fn launch_epiphany_job_on_thread(
     // documents into Codex's JSON-RPC thread shell until CultNet owns the route.
     let current_state = thread.epiphany_state().await.unwrap_or_default();
     validate_expected_revision(request.expected_revision, current_state.revision)?;
+    let runtime_store = thread.epiphany_runtime_spine_store_path().await;
+    let completed_prior_link = terminal_runtime_link_for_binding(
+        &current_state,
+        request.binding_id.as_str(),
+        runtime_store.as_path(),
+    )?;
+    let mut planning_state = current_state.clone();
+    if let Some(link) = completed_prior_link.clone() {
+        planning_state.runtime_links.insert(0, link);
+    }
 
     let launcher_job_id = format!("epiphany-heartbeat-launch-{}", Uuid::new_v4());
     let backend_job_id = Uuid::new_v4().to_string();
     let launch_plan = plan_runtime_spine_heartbeat_launch(
-        &current_state,
+        &planning_state,
         RuntimeSpineHeartbeatLaunchPlanOptions {
             binding_id: request.binding_id.clone(),
             kind: request.kind,
@@ -227,23 +239,22 @@ pub async fn launch_epiphany_job_on_thread(
         },
     )
     .map_err(|err| EpiphanyBridgeError::InvalidRequest(err.to_string()))?;
-    let runtime_store = thread.epiphany_runtime_spine_store_path().await;
-    open_epiphany_runtime_spine_job(
-        runtime_store.as_path(),
-        &current_state,
-        &request,
-        backend_job_id.as_str(),
-    )?;
     let next_job_bindings = replace_or_append_epiphany_job_binding(
         current_state.job_bindings.clone(),
         launch_plan.binding,
     );
 
+    let mut runtime_links = Vec::new();
+    runtime_links.push(launch_plan.runtime_link.clone());
+    if let Some(link) = completed_prior_link {
+        runtime_links.push(link);
+    }
+
     let validation_errors = epiphany_state_update_validation_errors(
         &current_state,
         &EpiphanyStateUpdate {
             job_bindings: Some(next_job_bindings.clone()),
-            runtime_links: vec![launch_plan.runtime_link.clone()],
+            runtime_links: runtime_links.clone(),
             ..Default::default()
         },
     );
@@ -253,13 +264,19 @@ pub async fn launch_epiphany_job_on_thread(
             validation_errors.join("; ")
         )));
     }
+    open_epiphany_runtime_spine_job(
+        runtime_store.as_path(),
+        &planning_state,
+        &request,
+        backend_job_id.as_str(),
+    )?;
 
     let epiphany_state = apply_epiphany_state_update_to_thread(
         thread,
         EpiphanyStateUpdate {
             expected_revision: request.expected_revision,
             job_bindings: Some(next_job_bindings),
-            runtime_links: vec![launch_plan.runtime_link],
+            runtime_links,
             ..Default::default()
         },
     )
@@ -271,6 +288,36 @@ pub async fn launch_epiphany_job_on_thread(
         launcher_job_id,
         backend_job_id,
     })
+}
+
+fn terminal_runtime_link_for_binding(
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+    runtime_store: &Path,
+) -> BridgeResult<Option<EpiphanyRuntimeLink>> {
+    let Some(link) = state
+        .runtime_links
+        .iter()
+        .find(|link| link.binding_id == binding_id && !link.runtime_job_id.trim().is_empty())
+    else {
+        return Ok(None);
+    };
+    if link.runtime_result_id.is_some() {
+        return Ok(None);
+    }
+    let Some(snapshot) = runtime_job_snapshot(runtime_store, link.runtime_job_id.as_str())
+        .map_err(|err| EpiphanyBridgeError::Fatal(err.to_string()))?
+    else {
+        return Ok(None);
+    };
+    let Some(result) = snapshot.result else {
+        return Ok(None);
+    };
+    let mut terminal = link.clone();
+    terminal.id = format!("{}-{}", link.id, result.result_id);
+    terminal.surface = "runtimeResult".to_string();
+    terminal.runtime_result_id = Some(result.result_id);
+    Ok(Some(terminal))
 }
 
 pub async fn interrupt_epiphany_job_on_thread(

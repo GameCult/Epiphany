@@ -634,12 +634,12 @@ pub fn recommend_coordinator_action(
     {
         if !input.modeling_result_reviewable {
             return build(
-                EpiphanyCoordinatorAction::LaunchModeling,
+                EpiphanyCoordinatorAction::ReviewModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
-                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                Some(EpiphanyCoordinatorSceneAction::RoleResult),
                 false,
-                true,
-                "The completed modeling/checkpoint finding is not reviewable because it has no acceptable statePatch; relaunch modeling with the typed patch contract before verification or implementation continues.",
+                false,
+                "The completed modeling/checkpoint finding has no acceptable statePatch; inspect the finding instead of relaunching the same lane.",
             );
         }
         return build(
@@ -1187,18 +1187,18 @@ mod tests {
         );
         assert!(!review_failed_modeling.can_auto_run);
 
-        let relaunch_unreviewable_modeling =
-            recommend_coordinator_action(EpiphanyCoordinatorInput {
-                signals: EpiphanyCoordinatorSignals {
-                    modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
-                    verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
-                },
-                ..input()
-            });
+        let review_unreviewable_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: EpiphanyCoordinatorSignals {
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            },
+            ..input()
+        });
         assert_eq!(
-            relaunch_unreviewable_modeling.action,
-            EpiphanyCoordinatorAction::LaunchModeling
+            review_unreviewable_modeling.action,
+            EpiphanyCoordinatorAction::ReviewModelingResult
         );
+        assert!(!review_unreviewable_modeling.can_auto_run);
 
         let launch_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {

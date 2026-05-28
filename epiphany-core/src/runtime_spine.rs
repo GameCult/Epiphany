@@ -2780,10 +2780,10 @@ fn validate_heartbeat_launch_options(
         .job_bindings
         .iter()
         .find(|binding| binding.id == options.binding_id);
-    let existing_runtime_link = state.runtime_links.iter().find(|link| {
+    let latest_runtime_link = state.runtime_links.iter().find(|link| {
         link.binding_id == options.binding_id && !link.runtime_job_id.trim().is_empty()
     });
-    if existing_runtime_link.is_some()
+    if latest_runtime_link.is_some_and(|link| link.runtime_result_id.is_none())
         && existing_binding.is_none_or(|binding| binding.blocking_reason.is_none())
     {
         return Err(anyhow!(
@@ -3163,6 +3163,79 @@ mod tests {
         assert_eq!(launch_plan.runtime_link.runtime_job_id, "turn-1");
         assert_eq!(launch_plan.runtime_link.runtime_result_id, None);
         assert_eq!(launch_plan.runtime_link.role_id, "epiphany-modeler");
+    }
+
+    #[test]
+    fn heartbeat_launch_allows_replacement_after_terminal_runtime_link() {
+        let mut state = EpiphanyThreadState::default();
+        state.runtime_links.push(EpiphanyRuntimeLink {
+            id: "runtime-link-modeling-checkpoint-worker-old".to_string(),
+            binding_id: "modeling-checkpoint-worker".to_string(),
+            surface: "runtimeResult".to_string(),
+            role_id: "epiphany-modeler".to_string(),
+            authority_scope: "epiphany.role.modeling".to_string(),
+            runtime_job_id: "old-turn".to_string(),
+            runtime_result_id: Some("result-old-turn".to_string()),
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+        });
+        state.runtime_links.push(EpiphanyRuntimeLink {
+            id: "runtime-link-modeling-checkpoint-worker-stale-active".to_string(),
+            binding_id: "modeling-checkpoint-worker".to_string(),
+            surface: "jobLaunch".to_string(),
+            role_id: "epiphany-modeler".to_string(),
+            authority_scope: "epiphany.role.modeling".to_string(),
+            runtime_job_id: "stale-turn".to_string(),
+            runtime_result_id: None,
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+        });
+
+        let launch_plan = plan_runtime_spine_heartbeat_launch(
+            &state,
+            RuntimeSpineHeartbeatLaunchPlanOptions {
+                binding_id: "modeling-checkpoint-worker".to_string(),
+                kind: EpiphanyJobKind::Specialist,
+                scope: "role-scoped modeling/checkpoint maintenance".to_string(),
+                owner_role: "epiphany-modeler".to_string(),
+                authority_scope: "epiphany.role.modeling".to_string(),
+                linked_subgoal_ids: Vec::new(),
+                linked_graph_node_ids: Vec::new(),
+                instruction: "Model the target before implementation.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    crate::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "modeling".to_string(),
+                        state_revision: 7,
+                        objective: None,
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: Vec::new(),
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: crate::default_launch_organ_contract(
+                    "epiphany.role.modeling",
+                    "role",
+                    crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
+                max_runtime_seconds: Some(60),
+                runtime_job_id: "new-turn".to_string(),
+            },
+        )
+        .expect("terminal runtime links should not block replacement launch");
+
+        assert_eq!(launch_plan.runtime_link.runtime_job_id, "new-turn");
     }
 
     #[test]
