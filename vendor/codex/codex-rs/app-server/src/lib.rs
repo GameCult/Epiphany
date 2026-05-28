@@ -130,6 +130,59 @@ enum OutboundControlEvent {
     DisconnectAll,
 }
 
+#[cfg(test)]
+mod epiphany_prompt_tests {
+    use epiphany_codex_bridge::launch::epiphany_specialist_prompt_config;
+
+    #[test]
+    fn bundled_epiphany_agent_prompts_do_not_name_codex_as_prompt_authority() {
+        let prompts = epiphany_specialist_prompt_config();
+        let rendered = [
+            (
+                "shared.persistent_memory",
+                prompts.shared.persistent_memory.as_str(),
+            ),
+            ("roles.imagination", prompts.roles.imagination.as_str()),
+            ("roles.modeling", prompts.roles.modeling.as_str()),
+            ("roles.verification", prompts.roles.verification.as_str()),
+            ("roles.research", prompts.roles.research.as_str()),
+            (
+                "roles.repo_personality",
+                prompts.roles.repo_personality.as_str(),
+            ),
+            ("roles.repo_memory", prompts.roles.repo_memory.as_str()),
+            ("roles.face", prompts.roles.face.as_str()),
+            (
+                "implementation.continue_template",
+                prompts.implementation.continue_template.as_str(),
+            ),
+            (
+                "reorientation.resume",
+                prompts.reorientation.resume.as_str(),
+            ),
+            (
+                "reorientation.regather",
+                prompts.reorientation.regather.as_str(),
+            ),
+            (
+                "coordinator.note_template",
+                prompts.coordinator.note_template.as_str(),
+            ),
+            (
+                "crrc.pre_compaction_checkpoint_intervention",
+                prompts.crrc.pre_compaction_checkpoint_intervention.as_str(),
+            ),
+        ];
+
+        for (name, prompt) in rendered {
+            assert!(
+                !prompt.contains("Codex"),
+                "{name} must stay Epiphany-owned and Codex-free"
+            );
+        }
+    }
+}
+
 #[derive(Default)]
 struct ShutdownState {
     requested: bool,

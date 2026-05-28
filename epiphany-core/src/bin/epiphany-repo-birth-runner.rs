@@ -6,7 +6,6 @@ use serde_json::Value;
 use serde_json::json;
 use std::env;
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::process::Command;
@@ -14,7 +13,6 @@ use std::process::Stdio;
 use std::thread;
 use std::time::{Duration, Instant};
 
-const DEFAULT_CODEX_BIN: &str = "codex";
 const DEFAULT_MODEL_RUNTIME_BIN: &str = "epiphany-model-runtime";
 const DEFAULT_TIMEOUT_SECONDS: u64 = 900;
 
@@ -34,7 +32,6 @@ struct Args {
     agent_store: PathBuf,
     heartbeat_store: PathBuf,
     runtime_store: PathBuf,
-    codex_bin: String,
     model_runtime_bin: String,
     model_provider: String,
     executor: String,
@@ -59,7 +56,6 @@ impl Args {
             agent_store: root.join("state").join("agents.msgpack"),
             heartbeat_store: root.join("state").join("agent-heartbeats.msgpack"),
             runtime_store: root.join("state").join("runtime-spine.msgpack"),
-            codex_bin: DEFAULT_CODEX_BIN.to_string(),
             model_runtime_bin: DEFAULT_MODEL_RUNTIME_BIN.to_string(),
             model_provider: "openai-codex".to_string(),
             executor: "model-runtime".to_string(),
@@ -81,7 +77,6 @@ impl Args {
                 "--runtime-store" => {
                     parsed.runtime_store = take_path(&mut args, "--runtime-store")?
                 }
-                "--codex-bin" => parsed.codex_bin = take_string(&mut args, "--codex-bin")?,
                 "--model-runtime-bin" => {
                     parsed.model_runtime_bin = take_string(&mut args, "--model-runtime-bin")?;
                 }
@@ -108,8 +103,10 @@ impl Args {
         if parsed.executor == "openai-runtime" {
             parsed.executor = "model-runtime".to_string();
         }
-        if !matches!(parsed.executor.as_str(), "model-runtime" | "codex-exec") {
-            return Err(anyhow!("--executor must be model-runtime or codex-exec"));
+        if parsed.executor != "model-runtime" {
+            return Err(anyhow!(
+                "--executor must be model-runtime; Codex CLI execution is not an Epiphany agent prompt path"
+            ));
         }
         Ok(parsed)
     }
@@ -173,28 +170,17 @@ fn run(args: Args) -> Result<Value> {
             "acceptCommand": accept_command(kind, &args, &packet_path, &result_path),
         });
         if args.mode == "run" {
-            let run_result = if args.executor == "codex-exec" {
-                run_codex_specialist(
-                    &args,
-                    &prompt,
-                    &schema_path,
-                    &result_path,
-                    &stdout_path,
-                    &stderr_path,
-                )?
-            } else {
-                run_openai_runtime_specialist(
-                    &args,
-                    kind,
-                    &prompt,
-                    &schema_path,
-                    &request_path,
-                    &result_path,
-                    &runtime_summary_path,
-                    &stdout_path,
-                    &stderr_path,
-                )?
-            };
+            let run_result = run_openai_runtime_specialist(
+                &args,
+                kind,
+                &prompt,
+                &schema_path,
+                &request_path,
+                &result_path,
+                &runtime_summary_path,
+                &stdout_path,
+                &stderr_path,
+            )?;
             execution["status"] = run_result["status"].clone();
             execution["exitCode"] = run_result["exitCode"].clone();
             execution["timedOut"] = run_result["timedOut"].clone();
@@ -249,67 +235,6 @@ fn run(args: Args) -> Result<Value> {
         &summary,
     )?;
     Ok(summary)
-}
-
-fn run_codex_specialist(
-    args: &Args,
-    prompt: &str,
-    schema_path: &Path,
-    result_path: &Path,
-    stdout_path: &Path,
-    stderr_path: &Path,
-) -> Result<Value> {
-    let mut command = Command::new(&args.codex_bin);
-    command
-        .arg("exec")
-        .arg("--cd")
-        .arg(&args.repo)
-        .arg("--sandbox")
-        .arg("read-only")
-        .arg("--skip-git-repo-check")
-        .arg("--output-schema")
-        .arg(schema_path)
-        .arg("--output-last-message")
-        .arg(result_path);
-    if let Some(model) = &args.model {
-        command.arg("--model").arg(model);
-    }
-    command.arg("-");
-    command
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    let mut child = command.spawn().context("failed to spawn codex exec")?;
-    child
-        .stdin
-        .as_mut()
-        .ok_or_else(|| anyhow!("failed to open codex stdin"))?
-        .write_all(prompt.as_bytes())?;
-    let deadline = Instant::now() + Duration::from_secs(args.timeout_seconds);
-    loop {
-        if let Some(status) = child.try_wait()? {
-            let output = child.wait_with_output()?;
-            write_bytes(stdout_path, &output.stdout)?;
-            write_bytes(stderr_path, &output.stderr)?;
-            return Ok(json!({
-                "status": if status.success() { "completed" } else { "failed" },
-                "exitCode": status.code(),
-                "timedOut": false,
-            }));
-        }
-        if Instant::now() >= deadline {
-            let _ = child.kill();
-            let output = child.wait_with_output()?;
-            write_bytes(stdout_path, &output.stdout)?;
-            write_bytes(stderr_path, &output.stderr)?;
-            return Ok(json!({
-                "status": "timeout",
-                "exitCode": Value::Null,
-                "timedOut": true,
-            }));
-        }
-        thread::sleep(Duration::from_millis(250));
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
