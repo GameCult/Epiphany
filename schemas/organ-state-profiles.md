@@ -78,20 +78,38 @@ Intended for:
 Persona state needs:
 
 - public identity
+- provenance: source system, source document, export time, and whether the
+  document is canonical, a projection, or an import
+- public presentation surface: avatar URI, pronouns, voice summary, renderer,
+  home context/jurisdiction, and public handles where available
 - values and private notes
 - activation/personality vectors
 - voice and presentation constraints
 - thought memory
 - agency pressure
-- candidate interventions
-- affect: needs, social bonds, status reads, mood dimensions, social biases,
-  and doctrine stances
+- candidate actions
+- affect: needs, typed social bonds, typed status reads, mood dimensions,
+  social biases, and typed doctrine stances
 - perceived-state overlays or equivalent fallible social/world reads
 
 The portable schema is
 [`gamecult.persona_state.v0`](./cultnet/gamecult.persona_state.v0.schema.json).
 It is deliberately close to VoidBot's mature repo Face state while remaining
 usable by Ghostlight and Epiphany Face.
+
+The generic action surface is `candidateActions`. VoidBot may project those
+actions back into `voidbotProjection.candidateInterventions` for repo-Face
+routine compatibility, but that projection does not own the portable contract.
+
+`anchoredThought.extensions` is a quarantine bag for source-specific fields.
+Portable consumers may preserve those fields, but they are not authoritative
+PersonaState unless the consumer explicitly understands the source contract.
+
+The affect surface is not one flat thought bucket. Needs still use
+`anchoredThought`, but bonds carry subject/object/kind/trust/tension, status
+reads carry target/kind/confidence, and doctrine stances carry
+principle/stance/action implication. The schema is still v0, but it no longer
+pretends every social fact has the same bones.
 
 Failure mode if underbuilt:
 

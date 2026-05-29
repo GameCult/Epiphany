@@ -134,6 +134,24 @@ That means Epiphany Face, VoidBot repo Faces, and Ghostlight characters can
 exchange Persona state without turning every Epiphany work organ into a public
 personality simulation.
 
+The shared contract uses `candidateActions` for generic forward pressure.
+VoidBot can expose the same list as `voidbotProjection.candidateInterventions`
+when repo-Face routine language wants that noun, but the projection does not own
+the portable Persona contract. Persona documents also carry provenance and a
+public presentation surface so imported state can say where it came from, when
+it was exported, whether it is canonical/projection/import data, and how the
+public person should be rendered.
+
+Source-specific fields belong in `anchoredThought.extensions`. That bag is
+preservation glue, not authority. Consumers may keep it round-tripped, but they
+must not let it steer shared Persona behavior unless they explicitly understand
+the originating contract.
+
+The affect layer keeps semantic bones where they matter: social bonds name
+subject/object/kind/trust/tension, status reads name target/kind/confidence,
+and doctrine stances name principle/stance/action implication. Needs remain
+anchored thoughts because they behave like pressure records.
+
 CultNet is not just ergonomic framing. It also carries CultLib-style auth and
 session semantics:
 

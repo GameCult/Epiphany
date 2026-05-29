@@ -149,6 +149,25 @@ appraisal, affect, and distillation flows. The current narrow `selfPatch`
 contract is enough for work-organ growth, but it is not the end of the story
 for portable Personas.
 
+Portable Persona documents must carry provenance and presentation metadata.
+`provenance` says which source system/document produced the state, when it was
+updated/exported, and whether the document is canonical, a projection, or an
+import. `presentation` carries the public surface: voice summary, optional
+avatar/pronouns/renderer, home context or jurisdiction, and public handles.
+
+The generic forward-pressure field is `candidateActions`. VoidBot-flavored
+`candidateInterventions` may exist under `voidbotProjection`, but it is a
+projection of the generic action surface rather than the shared contract's
+authority. Likewise, `anchoredThought.extensions` may preserve source-specific
+data, but extension fields are non-authoritative unless a consumer explicitly
+opts into that source contract.
+
+Persona affect uses typed subshapes where the semantics matter: social bonds
+carry subject/object/kind/trust/tension, status reads carry target/kind and
+confidence, and doctrine stances carry principle/stance/action implication.
+Needs remain anchored thoughts because they are closer to pressure records than
+relationship facts.
+
 ## Project Truth Versus Self Truth
 
 These organ-state records are not the same thing as thread state.

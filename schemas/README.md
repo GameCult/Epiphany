@@ -14,7 +14,10 @@ developer's damp recollection.
   source-lineage JSON Schema for dense Ghostlight character state.
 - [cultnet/gamecult.persona_state.v0.schema.json](./cultnet/gamecult.persona_state.v0.schema.json):
   portable Persona state contract for Epiphany Face, VoidBot repo Faces, and
-  Ghostlight characters.
+  Ghostlight characters. It carries explicit provenance, public presentation
+  metadata, generic `candidateActions`, and a non-authoritative extension bag
+  for source-specific fields; social bonds, status reads, and doctrine stances
+  are typed affect records rather than generic thought blobs.
 - [cultnet/epiphany.work_organ_state.v0.schema.json](./cultnet/epiphany.work_organ_state.v0.schema.json):
   light function-shaped state for Epiphany internal work organs.
 - [canonical-agent-state-schema.md](./canonical-agent-state-schema.md):
