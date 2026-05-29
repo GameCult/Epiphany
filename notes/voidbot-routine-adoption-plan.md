@@ -154,10 +154,12 @@ anchored thoughts because they behave like pressure records.
 
 The baseline also requires a public `presentation` block, annotates timestamps
 as JSON Schema `date-time`, and gives every `custom` enum path a companion
-custom-label field. `candidateActions.actions` and `privateNotes` stay simple
-for v0 interchange; if either begins carrying routing, readiness, expiry,
-provenance, or action authority, promote it into a typed v1 record instead of
-letting raw strings or generic thoughts grow a steering wheel.
+custom-label field. `candidateActions.actions` are typed action records now:
+action type, target, optional delivery target, readiness, risk, urgency,
+confidence, evidence, timestamps, and expiry. `privateNotes` stay simple for v0
+interchange; if they begin carrying provenance or authority, promote them into
+typed private-note records instead of letting raw strings grow a steering
+wheel.
 
 CultNet is not just ergonomic framing. It also carries CultLib-style auth and
 session semantics:

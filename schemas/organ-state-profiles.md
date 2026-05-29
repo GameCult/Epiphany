@@ -100,9 +100,10 @@ usable by Ghostlight and Epiphany Face.
 The generic action surface is `candidateActions`. VoidBot may project those
 actions back into `voidbotProjection.candidateInterventions` for repo-Face
 routine compatibility, but that projection does not own the portable contract.
-In v0, candidate actions remain anchored thoughts. That is enough for shared
-pressure and intention exchange, but richer action records with action type,
-delivery target, risk, readiness, and expiry are the obvious v1 pressure.
+Candidate actions are typed records with action type, target, optional delivery
+target, readiness, risk level, urgency, confidence, evidence, and expiry. They
+may point back to anchored thoughts as evidence, but they are not themselves
+generic thoughts wearing an action hat.
 
 `anchoredThought.extensions` is a quarantine bag for source-specific fields.
 Portable consumers may preserve those fields, but they are not authoritative

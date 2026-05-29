@@ -484,13 +484,147 @@
         "actions": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/anchoredThought"
+            "$ref": "#/definitions/candidateAction"
           },
           "default": []
         }
       },
       "required": [
         "actions"
+      ]
+    },
+    "candidateAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/thoughtStatus"
+        },
+        "actionType": {
+          "type": "string",
+          "enum": [
+            "speak",
+            "draft",
+            "ask",
+            "propose",
+            "inspect",
+            "notify",
+            "wait",
+            "remember",
+            "handoff",
+            "render",
+            "external_action",
+            "custom"
+          ]
+        },
+        "customActionType": {
+          "type": "string"
+        },
+        "readiness": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "ready",
+            "blocked",
+            "waiting",
+            "expired"
+          ]
+        },
+        "riskLevel": {
+          "type": "string",
+          "enum": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "severe",
+            "unknown"
+          ]
+        },
+        "target": {
+          "$ref": "#/definitions/target"
+        },
+        "deliveryTarget": {
+          "$ref": "#/definitions/target"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "rationale": {
+          "type": "string"
+        },
+        "urgency": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "extensions": {
+          "$ref": "#/definitions/extensions"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "actionType",
+        "readiness",
+        "riskLevel",
+        "target",
+        "summary",
+        "createdAt",
+        "updatedAt"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "actionType": {
+                "const": "custom"
+              }
+            },
+            "required": [
+              "actionType"
+            ]
+          },
+          "then": {
+            "required": [
+              "customActionType"
+            ]
+          }
+        }
       ]
     },
     "voidbotProjection": {
@@ -501,7 +635,7 @@
           "type": "array",
           "description": "VoidBot-flavored projection of candidateActions for repo Face routines. This is not the generic PersonaState action authority.",
           "items": {
-            "$ref": "#/definitions/anchoredThought"
+            "$ref": "#/definitions/candidateAction"
           },
           "default": []
         }

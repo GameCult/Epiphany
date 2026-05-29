@@ -171,12 +171,13 @@ Needs remain anchored thoughts because they are closer to pressure records than
 relationship facts.
 
 Every enum that allows `custom` has a companion custom-label field, so custom
-does not become a stringly-typed category leak. `candidateActions.actions`
-remain anchored thoughts in v0; richer action records with action type,
-delivery target, risk, readiness, and expiry belong in the next version if the
-shared contract starts carrying executable action pressure. `privateNotes` are
-raw strings for v0 interchange only and must not become portable state
-authority without being promoted into typed private-note records.
+does not become a stringly-typed category leak. `candidateActions.actions` are
+typed candidate-action records with action type, target, optional delivery
+target, readiness, risk level, urgency, confidence, evidence, and expiry. They
+may cite anchored thoughts as evidence, but they are not generic thoughts
+pretending to be actions. `privateNotes` are raw strings for v0 interchange
+only and must not become portable state authority without being promoted into
+typed private-note records.
 
 ## Project Truth Versus Self Truth
 
