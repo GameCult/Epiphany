@@ -17,7 +17,9 @@ developer's damp recollection.
   Ghostlight characters. It carries explicit provenance, public presentation
   metadata, generic `candidateActions`, and a non-authoritative extension bag
   for source-specific fields; social bonds, status reads, and doctrine stances
-  are typed affect records rather than generic thought blobs.
+  are typed affect records rather than generic thought blobs. Timestamps use
+  JSON Schema `date-time`, `presentation` is required, and `custom` enum values
+  have companion custom-label fields.
 - [cultnet/epiphany.work_organ_state.v0.schema.json](./cultnet/epiphany.work_organ_state.v0.schema.json):
   light function-shaped state for Epiphany internal work organs.
 - [canonical-agent-state-schema.md](./canonical-agent-state-schema.md):

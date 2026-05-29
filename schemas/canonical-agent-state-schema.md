@@ -152,8 +152,10 @@ for portable Personas.
 Portable Persona documents must carry provenance and presentation metadata.
 `provenance` says which source system/document produced the state, when it was
 updated/exported, and whether the document is canonical, a projection, or an
-import. `presentation` carries the public surface: voice summary, optional
-avatar/pronouns/renderer, home context or jurisdiction, and public handles.
+import. Timestamps use JSON Schema `date-time` format. `presentation` is
+required for public Personas and carries the public surface: voice summary,
+optional avatar/pronouns/renderer, home context or jurisdiction, and public
+handles.
 
 The generic forward-pressure field is `candidateActions`. VoidBot-flavored
 `candidateInterventions` may exist under `voidbotProjection`, but it is a
@@ -167,6 +169,14 @@ carry subject/object/kind/trust/tension, status reads carry target/kind and
 confidence, and doctrine stances carry principle/stance/action implication.
 Needs remain anchored thoughts because they are closer to pressure records than
 relationship facts.
+
+Every enum that allows `custom` has a companion custom-label field, so custom
+does not become a stringly-typed category leak. `candidateActions.actions`
+remain anchored thoughts in v0; richer action records with action type,
+delivery target, risk, readiness, and expiry belong in the next version if the
+shared contract starts carrying executable action pressure. `privateNotes` are
+raw strings for v0 interchange only and must not become portable state
+authority without being promoted into typed private-note records.
 
 ## Project Truth Versus Self Truth
 

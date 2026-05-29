@@ -57,7 +57,8 @@
       "$ref": "#/definitions/personaAffect"
     },
     "updatedAt": {
-      "type": "string"
+      "type": "string",
+      "format": "date-time"
     }
   },
   "required": [
@@ -65,6 +66,7 @@
     "provenance",
     "personaId",
     "publicName",
+    "presentation",
     "activationProfile",
     "thoughtMemory",
     "agencyPressure",
@@ -84,10 +86,12 @@
           "type": "string"
         },
         "sourceUpdatedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "exportedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "authority": {
           "type": "string",
@@ -117,7 +121,8 @@
           "type": "string"
         },
         "uri": {
-          "type": "string"
+          "type": "string",
+          "format": "uri"
         }
       },
       "required": [
@@ -130,7 +135,8 @@
       "additionalProperties": false,
       "properties": {
         "avatarUri": {
-          "type": "string"
+          "type": "string",
+          "format": "uri"
         },
         "pronouns": {
           "type": "string"
@@ -150,6 +156,9 @@
             "custom"
           ]
         },
+        "customRenderer": {
+          "type": "string"
+        },
         "homeContext": {
           "$ref": "#/definitions/target"
         },
@@ -166,6 +175,25 @@
       },
       "required": [
         "voiceSummary"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "defaultRenderer": {
+                "const": "custom"
+              }
+            },
+            "required": [
+              "defaultRenderer"
+            ]
+          },
+          "then": {
+            "required": [
+              "customRenderer"
+            ]
+          }
+        }
       ]
     },
     "traitVector": {
@@ -285,11 +313,33 @@
         },
         "label": {
           "type": "string"
+        },
+        "customKind": {
+          "type": "string"
         }
       },
       "required": [
         "kind",
         "id"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "custom"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "customKind"
+            ]
+          }
+        }
       ]
     },
     "thoughtStatus": {
@@ -347,13 +397,16 @@
           "maximum": 1
         },
         "createdAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "updatedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "retiredAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "tags": {
           "type": "array",
@@ -473,7 +526,8 @@
           "type": "string"
         },
         "updatedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         }
       },
       "required": [
@@ -501,7 +555,8 @@
           "type": "string"
         },
         "updatedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         }
       },
       "required": [
@@ -544,6 +599,9 @@
             "custom"
           ]
         },
+        "customRelationshipKind": {
+          "type": "string"
+        },
         "summary": {
           "type": "string"
         },
@@ -566,7 +624,8 @@
           "$ref": "#/definitions/anchoredThought"
         },
         "updatedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "extensions": {
           "$ref": "#/definitions/extensions"
@@ -582,6 +641,25 @@
         "trust",
         "tension",
         "updatedAt"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "relationshipKind": {
+                "const": "custom"
+              }
+            },
+            "required": [
+              "relationshipKind"
+            ]
+          },
+          "then": {
+            "required": [
+              "customRelationshipKind"
+            ]
+          }
+        }
       ]
     },
     "statusRead": {
@@ -612,6 +690,9 @@
             "custom"
           ]
         },
+        "customStatusKind": {
+          "type": "string"
+        },
         "summary": {
           "type": "string"
         },
@@ -634,7 +715,8 @@
           "$ref": "#/definitions/anchoredThought"
         },
         "updatedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "extensions": {
           "$ref": "#/definitions/extensions"
@@ -648,6 +730,25 @@
         "summary",
         "confidence",
         "updatedAt"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "statusKind": {
+                "const": "custom"
+              }
+            },
+            "required": [
+              "statusKind"
+            ]
+          },
+          "then": {
+            "required": [
+              "customStatusKind"
+            ]
+          }
+        }
       ]
     },
     "doctrineStance": {
@@ -674,6 +775,9 @@
             "custom"
           ]
         },
+        "customStanceKind": {
+          "type": "string"
+        },
         "principle": {
           "type": "string"
         },
@@ -689,7 +793,8 @@
           "maximum": 1
         },
         "updatedAt": {
-          "type": "string"
+          "type": "string",
+          "format": "date-time"
         },
         "extensions": {
           "$ref": "#/definitions/extensions"
@@ -704,6 +809,25 @@
         "summary",
         "actionImplication",
         "updatedAt"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "stanceKind": {
+                "const": "custom"
+              }
+            },
+            "required": [
+              "stanceKind"
+            ]
+          },
+          "then": {
+            "required": [
+              "customStanceKind"
+            ]
+          }
+        }
       ]
     },
     "personaAffect": {

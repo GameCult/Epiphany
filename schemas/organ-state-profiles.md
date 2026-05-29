@@ -100,10 +100,21 @@ usable by Ghostlight and Epiphany Face.
 The generic action surface is `candidateActions`. VoidBot may project those
 actions back into `voidbotProjection.candidateInterventions` for repo-Face
 routine compatibility, but that projection does not own the portable contract.
+In v0, candidate actions remain anchored thoughts. That is enough for shared
+pressure and intention exchange, but richer action records with action type,
+delivery target, risk, readiness, and expiry are the obvious v1 pressure.
 
 `anchoredThought.extensions` is a quarantine bag for source-specific fields.
 Portable consumers may preserve those fields, but they are not authoritative
 PersonaState unless the consumer explicitly understands the source contract.
+Timestamp fields use JSON Schema `date-time` format, public Persona documents
+must include `presentation`, and any `custom` enum value must carry a companion
+custom-label field rather than leaving consumers with a shrug in a hat.
+
+`privateNotes` are still raw strings in v0 for simple interchange. They should
+not become portable authority; if private notes start needing provenance,
+lifecycle, or routing semantics, promote them into typed private-note records or
+drop them from the shared interchange surface.
 
 The affect surface is not one flat thought bucket. Needs still use
 `anchoredThought`, but bonds carry subject/object/kind/trust/tension, status
