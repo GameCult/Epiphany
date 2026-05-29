@@ -1,7 +1,11 @@
 # Canonical Agent State Schema
 
-Epiphany uses a Ghostlight-shaped agent dossier as the canonical local memory
-surface for each standing sub-agent.
+Epiphany separates three state layers:
+
+- `OrganState`: lean, function-shaped state for resident work organs.
+- `PersonaState`: full Face/character kernel for public person-shaped agents.
+- `SwarmState`: scheduler and coordination physiology across organs and
+  Personas.
 
 The current sub-agent/substrate/protocol split is documented in
 [epiphany-anatomy.md](../notes/epiphany-anatomy.md). In particular, Body,
@@ -9,26 +13,30 @@ Mind, Continuity, and Substrate Gate are not role-memory agents.
 
 The executable shape lives in
 [agent_memory.rs](/E:/Projects/EpiphanyAgent/epiphany-core/src/agent_memory.rs).
-The wire contract mirrored here is
-[ghostlight.agent-state.schema.json](./ghostlight.agent-state.schema.json).
+The local work-organ store still uses the `EpiphanyAgentMemoryEntry` Rust
+shape, but the full Ghostlight-style state is no longer required for every
+organ. The portable light organ contract is
+[`epiphany.work_organ_state.v0`](./cultnet/epiphany.work_organ_state.v0.schema.json).
+The portable person-state contract is
+[`gamecult.persona_state.v0`](./cultnet/gamecult.persona_state.v0.schema.json).
 
 ## Objective
 
-The point of this schema is not theatrical anthropology. It is to give the
-machine a stable embodied memory surface that can survive compaction, role
-handoff, heartbeat rumination, and birth-time initialization without smuggling
-project truth into the wrong compartment.
+The point of this schema is not theatrical anthropology. It is to give each
+organ enough durable state to do its job without smuggling project truth into
+the wrong compartment or making every lane pretend to be a public person.
 
-Epiphany stores:
+Work-organ state stores:
 
 - who an organ is
-- how it tends to behave
+- what authority boundary it must not cross
 - what it is trying to protect
 - what it remembers
+- what inputs, outputs, constraints, and receipts steer the current turn
 - how it is currently activated
 
-It does not store the whole project map in personality memory. That way lies a
-small cult of confused blobs.
+It does not store affect, social bonds, status reads, or the whole project map
+in personality memory. That way lies a small cult of confused blobs.
 
 ## Stored Shape
 
@@ -43,11 +51,11 @@ Each record in `state/agents.msgpack` is an
 - `implementation` -> `epiphany.hands`
 - `verification` -> `epiphany.soul`
 
-There is intentionally no `reorientation` / `epiphany.continuity` dossier.
+There is intentionally no `reorientation` / `epiphany.continuity` organ-state record.
 Reorientation is a bounded Continuity worker/procedure, and Continuity records
 typed protocol receipts rather than self-memory.
 
-The top-level shape is:
+The local top-level shape is:
 
 - `schema_version`
 - `role_id`
@@ -57,7 +65,7 @@ The top-level shape is:
 - `events`
 - `scenes`
 
-The `agent` bundle contains:
+The local `agent` bundle contains:
 
 - `agent_id`
 - `identity`
@@ -93,28 +101,29 @@ Current activation is how hot it is right now.
 
 ## Epiphany-Specific Policy
 
-Epiphany now treats the wire schema as one shared body shape with two explicit
-profiles layered over it:
+Epiphany treats local role memory as two explicit profiles:
 
-1. `lane_core`
-2. `embodied_actor`
+1. `work_organ`
+2. `persona`
 
-See [dossier-profiles.md](./dossier-profiles.md).
+See [organ-state-profiles.md](./organ-state-profiles.md).
 
 The important distinction is:
 
-- most standing Epiphany organs want a lean role lattice with room to grow
-  through memory, rumination, and distillation
-- Face and Ghostlight-style characters want a denser, more fallible, more
-  relationship-heavy personality surface
+- Self, Imagination, Eyes, Proprioception, Hands, and Soul want a lean role
+  lattice with room to grow through memory, rumination, and distillation
+- Epiphany Face, VoidBot repo Faces, and Ghostlight-style characters want the
+  denser, more fallible, relationship-heavy `Persona` surface
+- Heartbeat/swarm state owns scheduling, initiative, cooldown, active-turn
+  freeze, and sleep/rumination physiology
 
-So the schema stays shared, but the expected population density changes by
-profile.
+So the local store remains compatible with existing role memory, but the
+authority split is explicit: work-organ state is not Persona state.
 
-Epiphany does **not** currently require every standing sub-agent to populate the
-full old Ghostlight trait inventory. That would be fake precision. But the
-full embodied Ghostlight families remain canonical, available, and appropriate
-for Face and character-grade agents.
+Epiphany does **not** require every standing sub-agent to populate the full old
+Ghostlight trait inventory. That would be fake precision. The dense personality
+families, affect, relationship pressure, perceived overlays, and social-read
+machinery belong to `persona`.
 
 ## Mutation Boundaries
 
@@ -135,14 +144,14 @@ Canonical trait bundles currently change through two sanctioned paths:
 That birth-time route is documented in
 [repo-personality-birth-projection.md](./repo-personality-birth-projection.md).
 
-Face and future embodied actors are still expected to evolve through richer
-event, relationship, appraisal, and distillation flows. The current narrow
-`selfPatch` contract is enough for lane-core growth, but it is not the end of
-the story for fully embodied personalities.
+Persona state is expected to evolve through richer event, relationship,
+appraisal, affect, and distillation flows. The current narrow `selfPatch`
+contract is enough for work-organ growth, but it is not the end of the story
+for portable Personas.
 
 ## Project Truth Versus Self Truth
 
-These dossiers are not the same thing as thread state.
+These organ-state records are not the same thing as thread state.
 
 Project truth belongs in typed Epiphany state such as:
 
@@ -153,12 +162,12 @@ Project truth belongs in typed Epiphany state such as:
 - evidence ledgers
 - runtime-spine receipts
 
-Dossiers hold role-local durable judgment, not the whole machine's current
-world model.
+Organ-state records hold role-local durable judgment, not the whole machine's
+current world model.
 
 ## Related Contracts
 
 - [agent-state-variable-glossary.md](./agent-state-variable-glossary.md)
-- [dossier-profiles.md](./dossier-profiles.md)
+- [organ-state-profiles.md](./organ-state-profiles.md)
 - [heartbeat-state-schema.md](./heartbeat-state-schema.md)
 - [repo-personality-birth-projection.md](./repo-personality-birth-projection.md)

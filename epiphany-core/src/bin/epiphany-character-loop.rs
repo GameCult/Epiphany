@@ -14,8 +14,8 @@ use epiphany_core::HeartbeatParticipant;
 use epiphany_core::HeartbeatParticipantLocalContext;
 use epiphany_core::HeartbeatPersonalityProjection;
 use epiphany_core::derive_agent_utterance_state;
-use epiphany_core::dossier_profile_for_role;
 use epiphany_core::load_agent_memory_entry_for_role;
+use epiphany_core::organ_state_profile_for_role;
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -129,7 +129,7 @@ fn character_turn_packet(
     status: &str,
     mood: &str,
 ) -> Value {
-    let dossier_profile = dossier_profile_for_role(&entry.role_id);
+    let organ_state_profile = organ_state_profile_for_role(&entry.role_id);
     let participant = character_loop_participant(entry, status);
     let utterance_state =
         derive_agent_utterance_state(entry, Some(&participant), Some(mood), source);
@@ -145,7 +145,7 @@ fn character_turn_packet(
             "mode": mode,
             "roleId": entry.role_id,
             "agentId": entry.agent.agent_id,
-            "dossierProfile": dossier_profile,
+            "organStateProfile": organ_state_profile,
             "turnKind": "stimulus_response",
             "responseContract": "Respond from projected local state and visible stimulus; do not leak hidden agent streams or invent omniscient truth.",
         },
@@ -171,7 +171,7 @@ fn character_turn_packet(
                 "time": entry.world.time.label,
                 "canonContext": entry.world.canon_context,
             },
-            "dossierProfile": dossier_profile_for_role(&entry.role_id),
+            "organStateProfile": organ_state_profile_for_role(&entry.role_id),
             "activeGoals": entry.agent.goals.iter().map(|goal| serde_json::json!({
                 "goalId": goal.goal_id,
                 "description": goal.description,
@@ -232,7 +232,7 @@ fn character_turn_packet(
         },
         "guardrails": [
             "Humans talk to Face; other organs expose internals through Aquarium and typed artifacts rather than becoming direct chats.",
-            "Use character-local projection: the actor receives its own dossier and visible stimulus, not omniscient hidden state.",
+            "Use character-local projection: the actor receives its own organ or Persona state and visible stimulus, not omniscient hidden state.",
             "Run both cognition lanes before choosing an output: analytic keeps the promise honest, associative keeps the living signal from going flat.",
             "Appraise the thought cluster through this role's personality before reacting; do not use a global mood knob as a substitute for participant-local appraisal.",
             "If speech or action would be noise, return silence plus bounded rumination or selfPatch.",
@@ -782,8 +782,8 @@ fn run_smoke() -> Result<Value> {
     let ok = packet["schema_version"] == CHARACTER_TURN_SCHEMA_VERSION
         && packet["protocol"]["bundle"] == "epiphany.character_loop"
         && packet["protocol"]["roleId"] == "face"
-        && packet["protocol"]["dossierProfile"]["profileKind"] == "embodied_actor"
-        && packet["projectedLocalContext"]["dossierProfile"]["profileKind"] == "embodied_actor"
+        && packet["protocol"]["organStateProfile"]["profileKind"] == "persona"
+        && packet["projectedLocalContext"]["organStateProfile"]["profileKind"] == "persona"
         && packet["utteranceState"]["schemaVersion"] == "epiphany.agent_utterance_state.v0"
         && packet["utteranceState"]["identity"]["name"]
             == packet["projectedLocalContext"]["identity"]["name"]
@@ -823,7 +823,7 @@ fn run_smoke() -> Result<Value> {
             "bundle": packet["protocol"]["bundle"],
             "roleId": packet["protocol"]["roleId"],
             "agentId": packet["protocol"]["agentId"],
-            "dossierProfile": packet["protocol"]["dossierProfile"]["profileKind"],
+            "organStateProfile": packet["protocol"]["organStateProfile"]["profileKind"],
             "projectionSchema": packet["projectionSeed"]["schema_version"],
             "appraisalSchema": packet["appraisalSeed"]["schema_version"],
             "reactionSchema": packet["reactionSeed"]["schema_version"],

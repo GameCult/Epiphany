@@ -1,6 +1,6 @@
+use crate::default_continuity_cultnet_contracts;
 use crate::default_eyes_cultnet_contracts;
 use crate::default_hands_cultnet_contracts;
-use crate::default_continuity_cultnet_contracts;
 use crate::default_mind_cultnet_contracts;
 use crate::default_soul_cultnet_contracts;
 use crate::default_substrate_gate_cultnet_contracts;
@@ -59,7 +59,8 @@ pub const EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION: &str =
 pub const EPIPHANY_CULTMESH_SOUL_CONTRACT_TYPE: &str = "epiphany.cultmesh.soul_contract";
 pub const EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.soul_contract.v0";
-pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_TYPE: &str = "epiphany.cultmesh.continuity_contract";
+pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_TYPE: &str =
+    "epiphany.cultmesh.continuity_contract";
 pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.continuity_contract.v0";
 pub const EPIPHANY_CULTMESH_INTERNAL_VERSE_ID: &str = "epiphany-internal";
@@ -726,7 +727,7 @@ pub fn epiphany_cultmesh_verse_policies() -> Vec<EpiphanyCultMeshVersePolicyEntr
             schema_version: EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION.to_string(),
             verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
             tier: EPIPHANY_CULTMESH_INTERNAL_TIER.to_string(),
-            purpose: "Sub-agent typed state: heartbeat, role dossiers, runtime-spine jobs, private receipts, and other Epiphany-owned organs.".to_string(),
+            purpose: "Sub-agent typed state: heartbeat, organ-state records, runtime-spine jobs, private receipts, and other Epiphany-owned organs.".to_string(),
             transport_scope: "single-host or trusted localhost mesh".to_string(),
             trust_boundary: "private Epiphany instance boundary".to_string(),
             private_state_allowed: true,
@@ -1378,8 +1379,9 @@ mod tests {
         assert!(written.len() >= 5);
 
         let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
-        let continuity = node
-            .get_required::<EpiphanyCultMeshContinuityContractEntry>("epiphany.continuity.review")?;
+        let continuity = node.get_required::<EpiphanyCultMeshContinuityContractEntry>(
+            "epiphany.continuity.review",
+        )?;
 
         assert_eq!(continuity.verse_id, EPIPHANY_CULTMESH_INTERNAL_VERSE_ID);
         assert_eq!(continuity.authority, "continuity");

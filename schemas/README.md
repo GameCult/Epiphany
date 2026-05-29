@@ -3,7 +3,7 @@
 This folder is the canonical paperwork shrine for Epiphany's shared state
 contracts.
 
-If a trait name, dossier field, birth-time projection rule, or heartbeat
+If a trait name, organ-state field, Persona field, birth-time projection rule, or heartbeat
 surface matters enough to steer the machine, it should have a receipt here
 instead of living only in one Rust struct, one stale memory store, or one
 developer's damp recollection.
@@ -11,16 +11,19 @@ developer's damp recollection.
 ## Canonical Surfaces
 
 - [ghostlight.agent-state.schema.json](./ghostlight.agent-state.schema.json):
-  wire-shape JSON Schema for Ghostlight-shaped agent state, now canonically
-  owned by Epiphany.
+  source-lineage JSON Schema for dense Ghostlight character state.
+- [cultnet/gamecult.persona_state.v0.schema.json](./cultnet/gamecult.persona_state.v0.schema.json):
+  portable Persona state contract for Epiphany Face, VoidBot repo Faces, and
+  Ghostlight characters.
+- [cultnet/epiphany.work_organ_state.v0.schema.json](./cultnet/epiphany.work_organ_state.v0.schema.json):
+  light function-shaped state for Epiphany internal work organs.
 - [canonical-agent-state-schema.md](./canonical-agent-state-schema.md):
-  human-facing explanation of how Epiphany uses the Ghostlight agent-state
-  shape.
+  human-facing explanation of Epiphany's lean work-organ state and Persona split.
 - [agent-state-variable-glossary.md](./agent-state-variable-glossary.md):
-  full Ghostlight-family glossary plus current Epiphany role-lattice receipts.
-- [dossier-profiles.md](./dossier-profiles.md):
-  explicit split between lean Epiphany work-organ dossiers and embodied
-  Ghostlight/Face personalities.
+  full Persona-family glossary plus current Epiphany work-organ lattice receipts.
+- [organ-state-profiles.md](./organ-state-profiles.md):
+  explicit split between lean Epiphany work-organ state and portable Persona
+  state.
 - [agent-utterance-state-schema.md](./agent-utterance-state-schema.md):
   derived speech-conditioning subset for Weks, Aquarium, and other utterance
   surfaces; it carries identity, trait vectors, mood, and activation without
@@ -53,7 +56,7 @@ The rule is simple:
 
 When changing any of the following, update this folder in the same pass:
 
-- canonical agent-state family names
+- canonical organ-state or Persona family names
 - standing role trait names
 - heartbeat store shape or pacing semantics
 - repo-personality birth-time projection math or routing

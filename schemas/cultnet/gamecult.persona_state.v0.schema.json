@@ -1,0 +1,415 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/cultnet/gamecult.persona_state.v0.schema.json",
+  "title": "GameCult Persona State v0",
+  "description": "Portable person-state contract for Epiphany Face, VoidBot repo Faces, and Ghostlight characters. Epiphany work organs should not use this unless they are acting as a public Persona.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "gamecult.persona_state.v0"
+    },
+    "personaId": {
+      "type": "string"
+    },
+    "publicName": {
+      "type": "string"
+    },
+    "publicDescription": {
+      "type": "string"
+    },
+    "privateNotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "values": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/value"
+      },
+      "default": []
+    },
+    "activationProfile": {
+      "$ref": "#/definitions/activationProfile"
+    },
+    "thoughtMemory": {
+      "$ref": "#/definitions/thoughtMemory"
+    },
+    "agencyPressure": {
+      "$ref": "#/definitions/agencyPressure"
+    },
+    "candidateInterventions": {
+      "$ref": "#/definitions/candidateInterventions"
+    },
+    "affect": {
+      "$ref": "#/definitions/personaAffect"
+    },
+    "updatedAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "personaId",
+    "publicName",
+    "activationProfile",
+    "thoughtMemory",
+    "agencyPressure",
+    "candidateInterventions",
+    "affect",
+    "updatedAt"
+  ],
+  "definitions": {
+    "traitVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mean": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "plasticity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "currentActivation": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": [
+        "mean",
+        "plasticity",
+        "currentActivation"
+      ]
+    },
+    "traitMap": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/traitVector"
+      }
+    },
+    "activationProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "underlyingOrganization": {
+          "$ref": "#/definitions/traitMap"
+        },
+        "stableDispositions": {
+          "$ref": "#/definitions/traitMap"
+        },
+        "behavioralDimensions": {
+          "$ref": "#/definitions/traitMap"
+        },
+        "presentationStrategy": {
+          "$ref": "#/definitions/traitMap"
+        },
+        "voiceStyle": {
+          "$ref": "#/definitions/traitMap"
+        },
+        "situationalState": {
+          "$ref": "#/definitions/traitMap"
+        }
+      },
+      "required": [
+        "underlyingOrganization",
+        "stableDispositions",
+        "behavioralDimensions",
+        "presentationStrategy",
+        "voiceStyle",
+        "situationalState"
+      ]
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "priority"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "id"
+      ]
+    },
+    "anchoredThought": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "target": {
+          "$ref": "#/definitions/target"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "claim": {
+          "type": "string"
+        },
+        "question": {
+          "type": "string"
+        },
+        "tension": {
+          "type": "string"
+        },
+        "actionImplication": {
+          "type": "string"
+        },
+        "intensity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "valence": {
+          "type": "number",
+          "minimum": -1,
+          "maximum": 1
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        },
+        "retiredAt": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "target",
+        "summary",
+        "tension",
+        "actionImplication",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "thoughtMemory": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shortTerm": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        },
+        "memories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        },
+        "incubation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "shortTerm",
+        "memories",
+        "incubation"
+      ]
+    },
+    "agencyPressure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pressures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "pressures"
+      ]
+    },
+    "candidateInterventions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "interventions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "interventions"
+      ]
+    },
+    "moodDimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "source": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "updatedAt"
+      ]
+    },
+    "socialBias": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "summary": {
+          "type": "string"
+        },
+        "behavioralPull": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "summary",
+        "behavioralPull",
+        "updatedAt"
+      ]
+    },
+    "personaAffect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "needs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        },
+        "socialBonds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        },
+        "statusReads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        },
+        "moodDimensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/moodDimension"
+          },
+          "default": []
+        },
+        "socialBiases": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/socialBias"
+          },
+          "default": []
+        },
+        "doctrineStances": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/anchoredThought"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "needs",
+        "socialBonds",
+        "statusReads",
+        "moodDimensions",
+        "socialBiases",
+        "doctrineStances"
+      ]
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-utterance-state.schema.json",
   "title": "Epiphany Agent Utterance State",
-  "description": "Derived speech-conditioning subset of a Ghostlight agent dossier plus heartbeat mood/activation. Excludes memories.",
+  "description": "Derived speech-conditioning subset of Epiphany organ state plus heartbeat mood/activation. Excludes memories; portable Persona state remains a separate contract.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -18,20 +18,26 @@
     "agentId": {
       "type": "string"
     },
-    "dossierProfile": {
+    "organStateProfile": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "profileKind": {
           "enum": [
-            "lane_core",
-            "embodied_actor"
+            "work_organ",
+            "persona"
           ]
         },
-        "canonicalDensity": {
+        "stateDensity": {
+          "type": "string"
+        },
+        "portableContract": {
           "type": "string"
         },
         "relationshipModel": {
+          "type": "string"
+        },
+        "affectModel": {
           "type": "string"
         },
         "perceivedOverlayMode": {
@@ -52,8 +58,10 @@
       },
       "required": [
         "profileKind",
-        "canonicalDensity",
+        "stateDensity",
+        "portableContract",
         "relationshipModel",
+        "affectModel",
         "perceivedOverlayMode",
         "growthChannels",
         "notes"
@@ -378,7 +386,7 @@
     "source",
     "roleId",
     "agentId",
-    "dossierProfile",
+    "organStateProfile",
     "identity",
     "personalityVectors",
     "values",

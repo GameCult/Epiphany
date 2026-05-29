@@ -1,7 +1,7 @@
 # Agent State Variable Glossary
 
-This is the current human-facing glossary for Epiphany's Ghostlight-shaped
-state surface.
+This is the current human-facing glossary for Epiphany's organ and Persona
+state surfaces.
 
 The canonical storage shape is documented in
 [canonical-agent-state-schema.md](./canonical-agent-state-schema.md). The live
@@ -10,8 +10,9 @@ Rust structures live in
 
 This document now covers two things:
 
-1. the dense Ghostlight family vocabulary used by embodied actors
-2. the current standing Epiphany role lattice used by the resident organs
+1. the dense Persona vocabulary used by Face, Ghostlight characters, and
+   VoidBot-style repo Faces
+2. the lean standing Epiphany role lattice used by resident work organs
 
 Those are related, not identical.
 
@@ -40,8 +41,8 @@ This is enough to separate character from moment, which is a small mercy.
 
 ## Dense Embodied Profile Vocabulary
 
-These are the canonical Ghostlight-family labels appropriate for
-`embodied_actor` dossiers such as Face and scene characters.
+These are the canonical Persona-family labels appropriate for Epiphany Face,
+VoidBot repo Faces, and Ghostlight scene characters.
 
 ### Underlying Organization
 
@@ -218,7 +219,7 @@ The current live swarm carries one named trait per family per organ.
 | `voice_style` | `clear_scout_report` | crisp evidence-forward research voice |
 | `situational_state` | `unknowns_visible` | keeps uncertainty in frame instead of pretending it solved itself |
 
-### Body
+### Proprioception
 
 | Family | Trait | Working Meaning |
 | --- | --- | --- |
@@ -251,19 +252,9 @@ The current live swarm carries one named trait per family per organ.
 | `voice_style` | `unseduced_review` | does not let polish impersonate correctness |
 | `situational_state` | `invariant_watch` | remains primed for drift, contradiction, and broken guarantees |
 
-### Continuity
-
-| Family | Trait | Working Meaning |
-| --- | --- | --- |
-| `underlying_organization` | `continuity_triage` | stabilizes continuity first when rupture hits |
-| `stable_dispositions` | `loss_honesty` | does not lie about what was lost in compaction or drift |
-| `behavioral_dimensions` | `regather_precision` | regathers only the context that actually matters |
-| `presentation_strategy` | `survived_died_next` | reports what survived, what died, and what follows |
-| `voice_style` | `calm_after_rupture` | steady continuity voice under pressure |
-| `situational_state` | `ember_watch` | watches the remaining hot context before it goes dark |
-
 ## Status Note
 
 These standing names are current live Epiphany doctrine, not a replacement for
-the dense Ghostlight family vocabulary above. If they change in code or in the
+the dense Persona vocabulary above. Continuity is protocol machinery and does
+not have a role-memory lattice. If these names change in code or in the
 standing role shells, update this file in the same pass.

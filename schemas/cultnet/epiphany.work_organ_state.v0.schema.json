@@ -1,0 +1,196 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.work_organ_state.v0.schema.json",
+  "title": "Epiphany Work Organ State v0",
+  "description": "Light function-shaped state for Epiphany internal organs. This is not Persona/FaceState and does not carry full affect, social-bond, or status-read machinery.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "epiphany.work_organ_state.v0"
+    },
+    "organId": {
+      "type": "string"
+    },
+    "roleIdentity": {
+      "$ref": "#/definitions/roleIdentity"
+    },
+    "authorityBoundary": {
+      "type": "string"
+    },
+    "currentTaskContext": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/note"
+      },
+      "default": []
+    },
+    "workingMemory": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/note"
+      },
+      "default": []
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/surface"
+      },
+      "default": []
+    },
+    "outputs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/surface"
+      },
+      "default": []
+    },
+    "activeConstraints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/note"
+      },
+      "default": []
+    },
+    "receipts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/receiptRef"
+      },
+      "default": []
+    },
+    "selfImprovementNotes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/note"
+      },
+      "default": []
+    },
+    "skillCapabilityProfile": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/note"
+      },
+      "default": []
+    },
+    "updatedAt": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "organId",
+    "roleIdentity",
+    "authorityBoundary",
+    "currentTaskContext",
+    "workingMemory",
+    "inputs",
+    "outputs",
+    "activeConstraints",
+    "receipts",
+    "selfImprovementNotes",
+    "skillCapabilityProfile",
+    "updatedAt"
+  ],
+  "definitions": {
+    "roleIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "organKind": {
+          "enum": [
+            "self",
+            "imagination",
+            "eyes",
+            "proprioception",
+            "hands",
+            "soul"
+          ]
+        },
+        "mission": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "organKind",
+        "mission"
+      ]
+    },
+    "note": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "evidenceRefs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        },
+        "status": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "summary",
+        "status",
+        "updatedAt"
+      ]
+    },
+    "surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentType": {
+          "type": "string"
+        },
+        "authority": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "documentType",
+        "authority",
+        "summary"
+      ]
+    },
+    "receiptRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "documentType": {
+          "type": "string"
+        },
+        "receiptId": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "documentType",
+        "receiptId",
+        "summary"
+      ]
+    }
+  }
+}

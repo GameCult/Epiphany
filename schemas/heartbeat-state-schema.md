@@ -106,16 +106,16 @@ The important semantics are:
 - saturation and refractory cooling exist to keep one rewarding theme from
   annexing the whole machine
 
-## Relation To Agent Dossiers
+## Relation To Organ State
 
 Heartbeat is physiology, not identity.
 
-Role dossiers describe what an organ is. Heartbeat describes how often it gets
+Organ-state records describe what an organ is. Heartbeat describes how often it gets
 the floor, how reactive it is, and how current pressure bends that timing.
 
 Current emotional state is heartbeat physiology. Appraisals write a bounded
 named affect vector into `mood_timing`; utterance state consumes that live vector
-before falling back to slower dossier traits. If anger, despair, annoyance,
+before falling back to slower organ-state traits. If anger, despair, annoyance,
 dismissal, flippancy, or any other speech-relevant feeling is meant to color a
 voice, it must exist here or in the typed appraisal feeding this field, not only
 as prose in a prompt.

@@ -2,13 +2,13 @@
 
 `epiphany.agent_utterance_state.v0` is the compact speech-conditioning view for
 Weks, Aquarium, Discord/voice bridges, and any other surface that needs an agent
-to sound like itself without ingesting the whole Ghostlight dossier.
+to sound like itself without ingesting the whole organ or Persona state.
 
 It is a derived document. The durable source of truth stays split where it
 belongs:
 
-- canonical identity, values, and trait vectors live in the Ghostlight-shaped
-  role dossier (`EpiphanyAgentMemoryEntry`)
+- canonical identity, values, and trait vectors live in local organ state
+  (`EpiphanyAgentMemoryEntry`)
 - current load, heartbeat heat, cooldown multipliers, pending-turn state, and
   mood pressure live in heartbeat participant state
 - utterance systems consume the derived subset and do not read memories,
@@ -19,6 +19,8 @@ belongs:
 The document carries:
 
 - `identity`: public name, roles, origin, and public description only
+- `organStateProfile`: whether this is a lean `work_organ` or portable
+  `persona`
 - `personalityVectors`: the six canonical trait-vector families used for voice
   and behavior projection
 - `values`: value labels and priorities that should bend speech tone
@@ -61,7 +63,7 @@ vector widths are fixed:
 - `phonetic_realization_vector`: 256 floats from Weksa/PanPhon-style phonetic
   realization; IPA/phone/speech-shape evidence, not text meaning.
 - `prosody_emphasis_hints`: 32 floats; Weksa-owned delivery hints.
-- `character_state_vector`: 64 floats; Epiphany/Ghostlight-shaped speaker
+- `character_state_vector`: 64 floats; Epiphany organ or Persona speaker
   state from this document.
 - `utterance_embedding`: 64 floats; AquaSynth-owned learned output, not an
   Epiphany input.
@@ -140,5 +142,5 @@ vector widths are fixed:
 
 If a caller needs autobiographical recall, it should ask the memory graph for a
 separate context cut. Do not fatten this document until it becomes a second
-dossier wearing stage makeup. That is how the old machine learned to lie
+state wearing stage makeup. That is how the old machine learned to lie
 politely.

@@ -123,7 +123,7 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         },
         "selfPatch": {
             "type": "object",
-            "description": "Optional bounded request to update this role's Ghostlight-shaped persistent memory file. This is for lane habits, durable lessons, personality pressure, goals, or values only. It must not contain project truth, code edits, job authority, graph/frontier/checkpoint/planning changes, or objective changes.",
+            "description": "Optional bounded request to update this role's persistent organ memory. Work organs may update lane habits, durable lessons, goals, values, or private notes; Persona affect/social state belongs only to Face-style Persona surfaces. It must not contain project truth, code edits, job authority, graph/frontier/checkpoint/planning changes, or objective changes.",
             "required": ["agentId", "reason"],
             "properties": {
                 "agentId": {

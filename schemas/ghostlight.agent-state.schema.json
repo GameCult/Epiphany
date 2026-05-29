@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/GameCult/Epiphany/blob/main/schemas/ghostlight.agent-state.schema.json",
   "title": "Epiphany Ghostlight Agent State Schema",
-  "description": "Canonical Epiphany-owned Ghostlight-shaped contract for agent, perception, relationship, event, scene, and dialogue-context state.",
+  "description": "Source-lineage Ghostlight contract for dense character agent, perception, relationship, event, scene, and dialogue-context state.",
   "type": "object",
   "required": [
     "schema_version",

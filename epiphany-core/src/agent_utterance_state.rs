@@ -1,8 +1,8 @@
 use crate::agent_memory::EpiphanyAgentMemoryEntry;
-use crate::agent_memory::EpiphanyDossierProfile;
+use crate::agent_memory::EpiphanyOrganStateProfile;
 use crate::agent_memory::GhostlightCanonicalState;
 use crate::agent_memory::GhostlightTraitVector;
-use crate::agent_memory::dossier_profile_for_role;
+use crate::agent_memory::organ_state_profile_for_role;
 use crate::heartbeat_state::HeartbeatParticipant;
 use serde::Deserialize;
 use serde::Serialize;
@@ -19,7 +19,7 @@ pub struct AgentUtteranceState {
     pub source: String,
     pub role_id: String,
     pub agent_id: String,
-    pub dossier_profile: EpiphanyDossierProfile,
+    pub organ_state_profile: EpiphanyOrganStateProfile,
     pub identity: AgentUtteranceIdentity,
     pub personality_vectors: AgentUtterancePersonalityVectors,
     pub values: Vec<AgentUtteranceValue>,
@@ -198,7 +198,7 @@ pub fn derive_agent_utterance_state(
         source: vector_source,
         role_id: entry.role_id.clone(),
         agent_id: entry.agent.agent_id.clone(),
-        dossier_profile: dossier_profile_for_role(&entry.role_id),
+        organ_state_profile: organ_state_profile_for_role(&entry.role_id),
         identity,
         personality_vectors,
         values,
@@ -1188,7 +1188,7 @@ fn trait_weight(vector: &GhostlightTraitVector) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_memory::EpiphanyDossierProfileKind;
+    use crate::agent_memory::EpiphanyOrganStateProfileKind;
     use crate::agent_memory::GhostlightAgent;
     use crate::agent_memory::GhostlightIdentity;
     use crate::agent_memory::GhostlightMemories;
@@ -1308,8 +1308,8 @@ mod tests {
             AGENT_UTTERANCE_STATE_SCHEMA_VERSION
         );
         assert_eq!(
-            utterance.dossier_profile.profile_kind,
-            EpiphanyDossierProfileKind::EmbodiedActor
+            utterance.organ_state_profile.profile_kind,
+            EpiphanyOrganStateProfileKind::Persona
         );
         assert_eq!(utterance.identity.name, "Epiphany");
         assert_eq!(utterance.current_mood.label, "sparkly-urgent");

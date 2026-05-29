@@ -303,17 +303,19 @@ pub struct AgentMemoryReview {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum EpiphanyDossierProfileKind {
-    LaneCore,
-    EmbodiedActor,
+pub enum EpiphanyOrganStateProfileKind {
+    WorkOrgan,
+    Persona,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct EpiphanyDossierProfile {
-    pub profile_kind: EpiphanyDossierProfileKind,
-    pub canonical_density: String,
+pub struct EpiphanyOrganStateProfile {
+    pub profile_kind: EpiphanyOrganStateProfileKind,
+    pub state_density: String,
+    pub portable_contract: String,
     pub relationship_model: String,
+    pub affect_model: String,
     pub perceived_overlay_mode: String,
     pub growth_channels: Vec<String>,
     pub notes: Vec<String>,
@@ -686,7 +688,7 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
                 "roleId": role_id,
                 "agentId": entry.agent.agent_id,
                 "displayName": entry.agent.identity.name,
-                "dossierProfile": dossier_profile_for_role(role_id),
+                "organStateProfile": organ_state_profile_for_role(role_id),
                 "semanticMemories": entry.agent.memories.semantic.len(),
                 "episodicMemories": entry.agent.memories.episodic.len(),
                 "relationshipMemories": entry.agent.memories.relationship_summaries.len(),
@@ -711,38 +713,43 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
     }))
 }
 
-pub fn dossier_profile_for_role(role_id: &str) -> EpiphanyDossierProfile {
+pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile {
     match role_id {
-        "face" => EpiphanyDossierProfile {
-            profile_kind: EpiphanyDossierProfileKind::EmbodiedActor,
-            canonical_density: "dense_ghostlight_core_preferred".to_string(),
+        "face" => EpiphanyOrganStateProfile {
+            profile_kind: EpiphanyOrganStateProfileKind::Persona,
+            state_density: "persona_grade".to_string(),
+            portable_contract: "gamecult.persona_state.v0".to_string(),
             relationship_model: "relationship_summaries_and_directional_stance_matter".to_string(),
+            affect_model: "persona_affect_allowed_and_expected".to_string(),
             perceived_overlay_mode: "observer_local_and_fallible".to_string(),
             growth_channels: vec![
                 "heartbeat appraisal and reaction".to_string(),
                 "character-loop interpretation".to_string(),
+                "persona affect and social-read interpretation".to_string(),
                 "episodic and relationship memory accumulation".to_string(),
                 "reviewed selfPatch".to_string(),
                 "sleep/distillation".to_string(),
             ],
             notes: vec![
-                "Face should behave like an embodied, responsive, and fallible public creature rather than a thin tool wrapper.".to_string(),
-                "Dense Ghostlight-style canonical families, perceived overlays, and relationship pressure are appropriate here.".to_string(),
+                "Epiphany Face is an organ; Persona is the portable person-state contract shared with Ghostlight and VoidBot-style repo Faces.".to_string(),
+                "Dense canonical families, affect, perceived overlays, and relationship pressure are appropriate for Persona state.".to_string(),
             ],
         },
-        _ => EpiphanyDossierProfile {
-            profile_kind: EpiphanyDossierProfileKind::LaneCore,
-            canonical_density: "lean_role_lattice".to_string(),
+        _ => EpiphanyOrganStateProfile {
+            profile_kind: EpiphanyOrganStateProfileKind::WorkOrgan,
+            state_density: "lean_work_organ".to_string(),
+            portable_contract: "epiphany.work_organ_state.v0".to_string(),
             relationship_model: "role_local_summary_only".to_string(),
+            affect_model: "no_affect_or_persona_machinery".to_string(),
             perceived_overlay_mode: "minimal_until_a_real_need_exists".to_string(),
             growth_channels: vec![
                 "reviewed selfPatch".to_string(),
                 "heartbeat rumination pressure".to_string(),
                 "sleep/distillation".to_string(),
-                "birth-time repo personality and memory seeding".to_string(),
+                "birth-time repo memory and light operating-pressure seeding".to_string(),
             ],
             notes: vec![
-                "Most standing Epiphany organs need sharp role identity, room to grow, and resistance to personality sludge more than they need full dramatic embodiment.".to_string(),
+                "Work organs need sharp role identity, durable mission memory, values/goals, and heartbeat activation; they do not need Face affect or full Persona machinery.".to_string(),
                 "Sparse canonical bundles are acceptable here as long as memory, goals, values, and private notes can deepen over time.".to_string(),
             ],
         },
@@ -932,6 +939,7 @@ fn validate_agent_entry(entry: &EpiphanyAgentMemoryEntry, expected_agent_id: &st
     for (index, value) in entry.agent.canonical_state.values.iter().enumerate() {
         validate_value(value, &format!("values[{index}]"), &mut errors);
     }
+    let profile = organ_state_profile_for_role(&entry.role_id);
     for (group_name, group) in [
         (
             "underlying_organization",
@@ -955,7 +963,7 @@ fn validate_agent_entry(entry: &EpiphanyAgentMemoryEntry, expected_agent_id: &st
             &entry.agent.canonical_state.situational_state,
         ),
     ] {
-        if group.is_empty() {
+        if group.is_empty() && profile.profile_kind == EpiphanyOrganStateProfileKind::Persona {
             errors.push(format!("canonical_state.{group_name} must not be empty"));
         }
         for (name, vector) in group {
@@ -1456,7 +1464,7 @@ mod tests {
             "reason": "Proprioception should remember accepted graph growth must stay source-grounded.",
             "semanticMemories": [{
                 "memoryId": "mem-body-native-source-grounding",
-                "summary": "Native role memory patches update typed CultCache state rather than JSON dossier files.",
+                "summary": "Native role memory patches update typed CultCache organ state rather than JSON dossier files.",
                 "salience": 0.74,
                 "confidence": 0.86
             }]
@@ -1532,14 +1540,18 @@ mod tests {
     }
 
     #[test]
-    fn dossier_profiles_distinguish_face_from_lane_organs() {
-        let face = dossier_profile_for_role("face");
-        assert_eq!(face.profile_kind, EpiphanyDossierProfileKind::EmbodiedActor);
-        assert_eq!(face.canonical_density, "dense_ghostlight_core_preferred");
+    fn organ_state_profiles_distinguish_face_from_lane_organs() {
+        let face = organ_state_profile_for_role("face");
+        assert_eq!(face.profile_kind, EpiphanyOrganStateProfileKind::Persona);
+        assert_eq!(face.state_density, "persona_grade");
+        assert_eq!(face.portable_contract, "gamecult.persona_state.v0");
+        assert_eq!(face.affect_model, "persona_affect_allowed_and_expected");
 
-        let hands = dossier_profile_for_role("implementation");
-        assert_eq!(hands.profile_kind, EpiphanyDossierProfileKind::LaneCore);
-        assert_eq!(hands.canonical_density, "lean_role_lattice");
+        let hands = organ_state_profile_for_role("implementation");
+        assert_eq!(hands.profile_kind, EpiphanyOrganStateProfileKind::WorkOrgan);
+        assert_eq!(hands.state_density, "lean_work_organ");
+        assert_eq!(hands.portable_contract, "epiphany.work_organ_state.v0");
+        assert_eq!(hands.affect_model, "no_affect_or_persona_machinery");
     }
 
     fn sample_agent_json(agent_id: &str, name: &str) -> String {
@@ -1549,7 +1561,7 @@ mod tests {
                 "world_id": "epiphany-agent-memory",
                 "setting": "Epiphany local harness role memory",
                 "time": {"label": "standing memory"},
-                "canon_context": ["Role dossiers preserve lane identity."]
+                "canon_context": ["Organ-state records preserve lane identity."]
             },
             "agents": [{
                 "agent_id": agent_id,

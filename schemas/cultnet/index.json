@@ -211,6 +211,28 @@
       "path": "epiphany.agent-utterance-state.schema.json"
     },
     {
+      "schemaId": "https://gamecult.dev/cultnet/gamecult.persona_state.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "gamecult.persona_state.v0",
+      "documentType": "gamecult.persona_state.v0",
+      "title": "GameCult Persona State v0",
+      "path": "gamecult.persona_state.v0.schema.json"
+    },
+    {
+      "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.work_organ_state.v0.schema.json",
+      "kind": "document_payload",
+      "wireContracts": [
+        "cultnet.schema.v0"
+      ],
+      "schemaVersion": "epiphany.work_organ_state.v0",
+      "documentType": "epiphany.work_organ_state.v0",
+      "title": "Epiphany Work Organ State v0",
+      "path": "epiphany.work_organ_state.v0.schema.json"
+    },
+    {
       "schemaId": "https://gamecult.dev/epiphany/cultnet/epiphany.agent-heartbeat.schema.json",
       "kind": "document_payload",
       "wireContracts": [

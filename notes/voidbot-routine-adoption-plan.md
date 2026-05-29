@@ -116,22 +116,23 @@ The schema should live in annotated Rust structs using serde plus generated JSON
 Schema where useful. MessagePack is canonical. JSON is the window, not the
 house.
 
-## Shared Agent-State Contract
+## Shared Persona-State Contract
 
-Epiphany should not invent its own rival dossier ontology.
+Epiphany should not invent its own rival Persona ontology.
 
-The first shared cross-runtime agent-state payload contract is Ghostlight's
-existing schema:
+The shared cross-runtime public/person-shaped payload contract is now the
+GameCult Persona state shape, with Ghostlight and VoidBot as source lineage:
 
 - payload schema id:
-  `https://github.com/GameCult/Ghostlight/schemas/agent-state.schema.json`
+  `https://gamecult.dev/cultnet/gamecult.persona_state.v0.schema.json`
 - payload schema version:
-  `ghostlight.agent_state.v0`
+  `gamecult.persona_state.v0`
 - intended CultNet document type:
-  `ghostlight.agent-state`
+  `gamecult.persona_state.v0`
 
-That means role dossiers can travel over CultNet as typed document envelopes
-without translating the inner payload into a second bespoke shape first.
+That means Epiphany Face, VoidBot repo Faces, and Ghostlight characters can
+exchange Persona state without turning every Epiphany work organ into a public
+personality simulation.
 
 CultNet is not just ergonomic framing. It also carries CultLib-style auth and
 session semantics:
@@ -143,20 +144,20 @@ session semantics:
 
 So the target shape is:
 
-- canonical role/agent state in MessagePack through CultCache-compatible
+- canonical work-organ state in MessagePack through CultCache-compatible
   storage
 - typed CultNet document replication for live exchange
-- Ghostlight payload unchanged inside the replicated envelope
+- Persona payloads for public/person-shaped agents
 
-If Epiphany later wants narrower working views or role-local projections, those
-should be derived contracts. The shared dossier truth stays Ghostlight-shaped.
+Narrow work-organ views stay derived and local. The shared person-state truth is
+Persona-shaped.
 
 Initial document types:
 
 - `epiphany.thread_state`
-- `epiphany.role_agent_state`
+- `epiphany.agent_memory`
 - `epiphany.heartbeat_state`
-- `epiphany.face_state`
+- `gamecult.persona_state.v0`
 - `epiphany.swarm_message`
 - later: planning, graph checkpoint, memory resonance, incubation, dreams
 
@@ -191,8 +192,9 @@ rumination, Face surfacing, and sleep consolidation.
    - Add `sleep_cycle`, `memory_resonance`, and `incubation` fields.
    - Keep the current CLI contract stable while the backing store changes.
 
-3. **Role memory migration**
-   - Store each Ghostlight-shaped role dossier as `epiphany.role_agent_state`.
+3. **Organ and Persona memory migration**
+   - Store lean Epiphany work-organ memory as `epiphany.agent_memory`.
+   - Store public/person-shaped Face state as `gamecult.persona_state.v0`.
    - Use CultLib/CultCache inspection tools for human/debug review instead of
      preserving per-role JSON as a parallel source of truth.
    - Attach semantic vector metadata to episodic, semantic, relationship, goal,

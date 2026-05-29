@@ -31,7 +31,7 @@ pub fn memory_graph_from_agent_memories(
             profile: EpiphanyMemoryProfile::RoleSelf,
             title: format!("{} role self-memory", entry.role_id),
             description: Some(
-                "Reviewed role dossier memory imported into the shared memory graph.".to_string(),
+                "Reviewed organ-state memory imported into the shared memory graph.".to_string(),
             ),
             lifecycle: EpiphanyMemoryLifecycle::Accepted,
         });
@@ -99,7 +99,7 @@ pub fn memory_graph_from_agent_memories(
         summaries,
         freshness: Some(crate::memory_graph::EpiphanyMemoryFreshness {
             status: crate::memory_graph::EpiphanyMemoryFreshnessStatus::Ready,
-            note: Some("Imported from reviewed role dossier memory.".to_string()),
+            note: Some("Imported from reviewed organ-state memory.".to_string()),
             ..Default::default()
         }),
         ..Default::default()

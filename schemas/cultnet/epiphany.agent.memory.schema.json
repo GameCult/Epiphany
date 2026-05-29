@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.agent.memory.schema.json",
   "title": "Epiphany Agent Memory",
-  "description": "Ghostlight-shaped role dossier entry used by Epiphany lanes and Face.",
+  "description": "Local Epiphany organ memory entry. Work organs use this as lean role state; Face may project/adopt portable Persona state separately.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

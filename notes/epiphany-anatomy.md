@@ -20,14 +20,15 @@ Only thinking lanes get embodiment titles.
   actuators.
 - `Soul`: verification, invariants, ethics, falsification, and promise-keeping.
 
-Each embodied sub-agent may have Ghostlight-shaped role memory in
-`state/agents.msgpack`, may be represented as a heartbeat participant, and may
-request reviewed `selfPatch` changes to its own lane memory.
+Each embodied sub-agent may have lean work-organ state in `state/agents.msgpack`,
+may be represented as a heartbeat participant, and may request reviewed
+`selfPatch` changes to its own lane memory. Face may additionally project or
+adopt portable `Persona` state because public personhood is part of its job.
 
 ## Not Sub-Agents
 
 These are machinery, substrate, or state surfaces. Do not give them fancy
-embodiment titles, role-memory diaries, or heartbeat personas.
+embodiment titles, role-memory diaries, or Persona state.
 
 - `Body`: the substrate Epiphany acts through and senses: repository, tools,
   runtime, prompts, logs, state files, permissions, interfaces, hosted systems,
