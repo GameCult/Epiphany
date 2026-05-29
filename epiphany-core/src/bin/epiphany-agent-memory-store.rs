@@ -5,6 +5,7 @@ use epiphany_core::agent_memory_status;
 use epiphany_core::apply_agent_self_patch_document;
 use epiphany_core::migrate_agent_memory_json_dir_to_cultcache;
 use epiphany_core::project_agent_memory_to_json_dir;
+use epiphany_core::project_persona_state_for_role;
 use epiphany_core::review_agent_self_patch_document;
 use epiphany_core::validate_agent_memory_store;
 use std::env;
@@ -31,6 +32,11 @@ fn main() -> Result<()> {
             let store = require_path_arg(&mut args, "--store")?;
             let output_dir = require_path_arg(&mut args, "--output-dir")?;
             print_json(&project_agent_memory_to_json_dir(store, output_dir)?)?;
+        }
+        "project-persona" => {
+            let store = require_path_arg(&mut args, "--store")?;
+            let role_id = require_string_arg(&mut args, "--role-id")?;
+            print_json(&project_persona_state_for_role(store, &role_id)?)?;
         }
         "status" => {
             let store = require_path_arg(&mut args, "--store")?;
@@ -130,7 +136,7 @@ fn print_json<T: serde::Serialize>(value: &T) -> Result<()> {
 
 fn print_usage() {
     eprintln!(
-        "usage: epiphany-agent-memory-store <migrate-json-dir|project-json-dir|status|validate|review-patch|apply-patch|smoke> ..."
+        "usage: epiphany-agent-memory-store <migrate-json-dir|project-json-dir|project-persona|status|validate|review-patch|apply-patch|smoke> ..."
     );
 }
 
@@ -185,7 +191,9 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
         && wrong_role.status == "rejected"
         && forbidden.status == "rejected"
         && applied.status == "accepted"
-        && temp_validation_errors.is_empty();
+        && temp_validation_errors.is_empty()
+        && project_persona_state_for_role(store, "face")?["schemaVersion"]
+            == epiphany_core::PERSONA_STATE_SCHEMA_VERSION;
     Ok(serde_json::json!({
         "ok": ok,
         "accepted": accepted,

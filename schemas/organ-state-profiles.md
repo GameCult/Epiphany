@@ -143,8 +143,16 @@ The distinction is visible to tools through `organStateProfile`:
 Current typed surfaces expose profile classification through:
 
 - `epiphany-agent-memory-store status`
+- `epiphany-agent-memory-store project-persona --role-id face`
 - `epiphany-character-loop` packets
 - `epiphany.agent_utterance_state.v0`
 
 If a surface consumes local organ state without surfacing the profile kind, it
 is already drifting back toward folklore.
+
+`project-persona` is the current Epiphany Face bridge into
+`gamecult.persona_state.v0`: it reads the local Face organ-state record from
+`state/agents.msgpack` and emits the portable Persona document with provenance,
+presentation, activation profile, memories, agency pressure, typed candidate
+actions, typed affect projections, and the VoidBot projection slot. The local
+store remains Epiphany-owned; the Persona document is the interchange nerve.

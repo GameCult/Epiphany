@@ -19,6 +19,12 @@ organ. The portable light organ contract is
 [`epiphany.work_organ_state.v0`](./cultnet/epiphany.work_organ_state.v0.schema.json).
 The portable person-state contract is
 [`gamecult.persona_state.v0`](./cultnet/gamecult.persona_state.v0.schema.json).
+Epiphany Face projects its local organ-state record into the portable Persona
+contract with:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- project-persona --store .\state\agents.msgpack --role-id face
+```
 
 ## Objective
 

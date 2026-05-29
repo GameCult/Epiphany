@@ -1,6 +1,8 @@
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
+use chrono::SecondsFormat;
+use chrono::Utc;
 use cultcache_rs::CultCache;
 use cultcache_rs::DatabaseEntry;
 use cultcache_rs::SingleFileMessagePackBackingStore;
@@ -333,6 +335,8 @@ pub struct AgentCanonicalTraitSeed {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
 }
+
+pub const PERSONA_STATE_SCHEMA_VERSION: &str = "gamecult.persona_state.v0";
 
 pub fn migrate_agent_memory_json_dir_to_cultcache(
     agent_dir: impl AsRef<Path>,
@@ -711,6 +715,223 @@ pub fn agent_memory_status(store_path: impl AsRef<Path>) -> Result<Value> {
         "errors": errors,
         "roles": roles,
     }))
+}
+
+pub fn project_persona_state_for_role(
+    store_path: impl AsRef<Path>,
+    role_id: &str,
+) -> Result<Value> {
+    let store_path = store_path.as_ref();
+    let profile = organ_state_profile_for_role(role_id);
+    if profile.profile_kind != EpiphanyOrganStateProfileKind::Persona {
+        return Err(anyhow!(
+            "{role_id:?} is {:?}, not persona; use epiphany.work_organ_state.v0 for work organs",
+            profile.profile_kind
+        ));
+    }
+    let entry = load_agent_memory_entry_for_role(store_path, role_id)?
+        .ok_or_else(|| anyhow!("CultCache has no role memory entry for {role_id:?}"))?;
+    Ok(project_persona_state_from_entry(&entry, store_path))
+}
+
+pub fn project_persona_state_from_entry(
+    entry: &EpiphanyAgentMemoryEntry,
+    store_path: &Path,
+) -> Value {
+    let exported_at = now_rfc3339();
+    let persona_id = entry.agent.agent_id.clone();
+    let repo_name = "EpiphanyAgent";
+    serde_json::json!({
+        "schemaVersion": PERSONA_STATE_SCHEMA_VERSION,
+        "provenance": {
+            "sourceSystem": "epiphany",
+            "sourceDocumentId": format!("{}#{}", store_path.display(), entry.role_id),
+            "sourceUpdatedAt": exported_at,
+            "exportedAt": exported_at,
+            "authority": "projection",
+        },
+        "personaId": persona_id,
+        "publicName": &entry.agent.identity.name,
+        "publicDescription": &entry.agent.identity.public_description,
+        "presentation": {
+            "voiceSummary": &entry.agent.identity.public_description,
+            "defaultRenderer": "chat",
+            "homeContext": {
+                "kind": "repo",
+                "id": repo_name,
+                "label": repo_name,
+            },
+            "jurisdiction": entry
+                .agent
+                .identity
+                .roles
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+                .join(", "),
+            "publicHandles": [],
+        },
+        "privateNotes": &entry.agent.identity.private_notes,
+        "values": entry.agent.canonical_state.values.iter().map(persona_value).collect::<Vec<_>>(),
+        "activationProfile": {
+            "underlyingOrganization": persona_trait_map(&entry.agent.canonical_state.underlying_organization),
+            "stableDispositions": persona_trait_map(&entry.agent.canonical_state.stable_dispositions),
+            "behavioralDimensions": persona_trait_map(&entry.agent.canonical_state.behavioral_dimensions),
+            "presentationStrategy": persona_trait_map(&entry.agent.canonical_state.presentation_strategy),
+            "voiceStyle": persona_trait_map(&entry.agent.canonical_state.voice_style),
+            "situationalState": persona_trait_map(&entry.agent.canonical_state.situational_state),
+        },
+        "thoughtMemory": {
+            "shortTerm": [],
+            "memories": entry
+                .agent
+                .memories
+                .semantic
+                .iter()
+                .chain(entry.agent.memories.episodic.iter())
+                .chain(entry.agent.memories.relationship_summaries.iter())
+                .map(|memory| persona_memory_thought(memory, &persona_id, &exported_at))
+                .collect::<Vec<_>>(),
+            "incubation": [],
+        },
+        "agencyPressure": {
+            "pressures": entry.agent.goals.iter().map(|goal| persona_goal_thought(goal, &persona_id, &exported_at)).collect::<Vec<_>>(),
+        },
+        "candidateActions": {
+            "actions": [],
+        },
+        "voidbotProjection": {
+            "candidateInterventions": [],
+        },
+        "affect": {
+            "needs": [],
+            "socialBonds": [],
+            "statusReads": entry.agent.perceived_state_overlays.iter().map(|overlay| persona_status_read(overlay, &persona_id, &exported_at)).collect::<Vec<_>>(),
+            "moodDimensions": [],
+            "socialBiases": [],
+            "doctrineStances": entry.agent.canonical_state.values.iter().map(|value| persona_doctrine_stance(value, &persona_id, &exported_at)).collect::<Vec<_>>(),
+        },
+        "updatedAt": exported_at,
+    })
+}
+
+fn persona_trait_map(vectors: &BTreeMap<String, GhostlightTraitVector>) -> Value {
+    let mut map = serde_json::Map::new();
+    for (name, vector) in vectors {
+        map.insert(
+            name.clone(),
+            serde_json::json!({
+                "mean": vector.mean,
+                "plasticity": vector.plasticity,
+                "currentActivation": vector.current_activation,
+            }),
+        );
+    }
+    Value::Object(map)
+}
+
+fn persona_value(value: &GhostlightValue) -> Value {
+    serde_json::json!({
+        "id": value.value_id,
+        "label": value.label,
+        "priority": value.priority,
+        "summary": if value.unforgivable_if_betrayed {
+            "Protected value; betrayal is marked as unforgivable in local Face state."
+        } else {
+            "Value projected from local Face organ memory."
+        },
+    })
+}
+
+fn persona_target(kind: &str, id: &str, label: &str) -> Value {
+    serde_json::json!({
+        "kind": kind,
+        "id": id,
+        "label": label,
+    })
+}
+
+fn persona_memory_thought(memory: &GhostlightMemory, persona_id: &str, timestamp: &str) -> Value {
+    serde_json::json!({
+        "id": memory.memory_id,
+        "status": "crystallized",
+        "target": persona_target("self", persona_id, persona_id),
+        "summary": memory.summary,
+        "claim": memory.summary,
+        "tension": "Projected from local Face memory; consumers should preserve provenance and avoid treating this as omniscient project truth.",
+        "actionImplication": "Use as Persona memory pressure, not as direct action authority.",
+        "intensity": memory.salience,
+        "valence": 0,
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
+        "tags": ["epiphany", "face-memory"],
+    })
+}
+
+fn persona_goal_thought(goal: &GhostlightGoal, persona_id: &str, timestamp: &str) -> Value {
+    serde_json::json!({
+        "id": goal.goal_id,
+        "status": persona_goal_status(&goal.status),
+        "target": persona_target("self", persona_id, persona_id),
+        "summary": goal.description,
+        "claim": goal.description,
+        "tension": goal.emotional_stake,
+        "actionImplication": "This goal may create Face agency pressure, but action still requires the caller's review path.",
+        "intensity": goal.priority,
+        "createdAt": timestamp,
+        "updatedAt": timestamp,
+        "tags": ["epiphany", "face-goal", &goal.scope],
+    })
+}
+
+fn persona_status_read(
+    overlay: &GhostlightPerceivedStateOverlay,
+    persona_id: &str,
+    timestamp: &str,
+) -> Value {
+    serde_json::json!({
+        "id": overlay.overlay_id,
+        "status": "active",
+        "target": persona_target("self", persona_id, &overlay.label),
+        "statusKind": "uncertainty",
+        "summary": overlay.summary,
+        "confidence": overlay.confidence,
+        "intensity": overlay.salience,
+        "valence": 0,
+        "updatedAt": timestamp,
+        "extensions": {
+            "source": overlay.source,
+            "linkedMemoryIds": overlay.linked_memory_ids,
+        },
+    })
+}
+
+fn persona_doctrine_stance(value: &GhostlightValue, persona_id: &str, timestamp: &str) -> Value {
+    serde_json::json!({
+        "id": format!("stance-{}", value.value_id),
+        "status": "active",
+        "target": persona_target("self", persona_id, persona_id),
+        "stanceKind": "aligned",
+        "principle": value.label,
+        "summary": value.label,
+        "actionImplication": "Let this value bend Face speech and interpretation without granting automatic action authority.",
+        "intensity": value.priority,
+        "updatedAt": timestamp,
+    })
+}
+
+fn persona_goal_status(status: &str) -> &'static str {
+    match status {
+        "active" => "active",
+        "blocked" | "dormant" => "cooling",
+        "resolved" => "resolved",
+        "abandoned" => "retired",
+        _ => "draft",
+    }
+}
+
+fn now_rfc3339() -> String {
+    Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true)
 }
 
 pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile {
