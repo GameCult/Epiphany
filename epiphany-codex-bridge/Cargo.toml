@@ -14,6 +14,10 @@ anyhow = "1"
 chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 codex-app-server-protocol = { path = "../vendor/codex/codex-rs/app-server-protocol" }
 codex-utils-absolute-path = { path = "../vendor/codex/codex-rs/utils/absolute-path" }
+# Keep standalone bridge checks aligned with the vendored Codex workspace lock.
+# `starlark_map 0.13.0` does not compile against newer allocative/hashbrown
+# resolver choices on this machine.
+allocative = "=0.3.4"
 epiphany-core = { path = "../epiphany-core" }
 epiphany-state-model = { path = "../epiphany-state-model" }
 notify = "8.2.0"
