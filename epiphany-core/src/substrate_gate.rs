@@ -1,3 +1,5 @@
+use crate::EpiphanyJobLaunchRequest;
+use cultcache_rs::DatabaseEntry;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -25,6 +27,34 @@ pub const SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.substrate_gate.repo_snapshot_receipt.v0";
 pub const SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.substrate_gate.repo_mutation_receipt.v0";
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.substrate_gate.repo_access_grant_receipt",
+    schema = "SubstrateGateRepoAccessGrantReceipt"
+)]
+pub struct SubstrateGateRepoAccessGrantReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub runtime_job_id: String,
+    #[cultcache(key = 3)]
+    pub binding_id: String,
+    #[cultcache(key = 4)]
+    pub role: String,
+    #[cultcache(key = 5)]
+    pub authority_scope: String,
+    #[cultcache(key = 6)]
+    pub granted_operations: Vec<String>,
+    #[cultcache(key = 7)]
+    pub granted_paths: Vec<String>,
+    #[cultcache(key = 8)]
+    pub granted_at: String,
+    #[cultcache(key = 9)]
+    pub contract: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -106,6 +136,26 @@ pub fn default_substrate_gate_cultnet_contracts() -> Vec<SubstrateGateCultNetCon
     ]
 }
 
+pub fn substrate_gate_repo_access_grant_for_launch(
+    receipt_id: String,
+    runtime_job_id: String,
+    request: &EpiphanyJobLaunchRequest,
+    granted_at: String,
+) -> SubstrateGateRepoAccessGrantReceipt {
+    SubstrateGateRepoAccessGrantReceipt {
+        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        runtime_job_id,
+        binding_id: request.binding_id.clone(),
+        role: request.owner_role.clone(),
+        authority_scope: request.authority_scope.clone(),
+        granted_operations: vec!["read".to_string(), "snapshot".to_string()],
+        granted_paths: vec![".".to_string()],
+        granted_at,
+        contract: "Substrate Gate granted scoped repository read/snapshot access for this worker launch; mutation remains forbidden without a separate mutation receipt.".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,5 +181,57 @@ mod tests {
                 .receipt_document_types
                 .contains(&SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string())
         );
+    }
+
+    #[test]
+    fn substrate_gate_grant_for_launch_is_read_only() {
+        let request = EpiphanyJobLaunchRequest {
+            expected_revision: Some(7),
+            binding_id: "research-source-gather-worker".to_string(),
+            kind: epiphany_state_model::EpiphanyJobKind::Specialist,
+            scope: "research".to_string(),
+            owner_role: "epiphany-eyes".to_string(),
+            authority_scope: "epiphany.role.research".to_string(),
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+            instruction: "Gather source evidence.".to_string(),
+            launch_document: crate::EpiphanyWorkerLaunchDocument::Role(
+                crate::EpiphanyRoleWorkerLaunchDocument {
+                    thread_id: "thread-1".to_string(),
+                    role_id: "research".to_string(),
+                    state_revision: 7,
+                    objective: None,
+                    active_subgoal_id: None,
+                    active_subgoals: Vec::new(),
+                    active_graph_node_ids: Vec::new(),
+                    investigation_checkpoint: None,
+                    scratch: None,
+                    invariants: Vec::new(),
+                    graphs: None,
+                    recent_evidence: Vec::new(),
+                    recent_observations: Vec::new(),
+                    graph_frontier: None,
+                    graph_checkpoint: None,
+                    planning: None,
+                    churn: None,
+                },
+            ),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "epiphany.role.research",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            max_runtime_seconds: None,
+        };
+        let grant = substrate_gate_repo_access_grant_for_launch(
+            "grant-1".to_string(),
+            "job-1".to_string(),
+            &request,
+            "2026-05-30T00:00:00Z".to_string(),
+        );
+        assert!(grant.granted_operations.contains(&"read".to_string()));
+        assert!(!grant.granted_operations.contains(&"write".to_string()));
+        assert!(grant.contract.contains("mutation remains forbidden"));
     }
 }

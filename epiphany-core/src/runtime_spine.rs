@@ -55,6 +55,7 @@ use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_SCHEMA_VERSION;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_SCHEMA_VERSION;
 use crate::substrate_gate::SUBSTRATE_GATE_REPO_SNAPSHOT_RECEIPT_TYPE;
+use crate::substrate_gate::SubstrateGateRepoAccessGrantReceipt;
 use crate::thread_state_store::THREAD_STATE_SCHEMA_VERSION;
 use crate::thread_state_store::THREAD_STATE_TYPE;
 use anyhow::Context;
@@ -713,6 +714,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
+    cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
@@ -1204,6 +1206,47 @@ pub fn runtime_eyes_evidence_packet(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<EyesEvidencePacket>(packet_id)
+}
+
+pub fn put_substrate_gate_repo_access_grant_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &SubstrateGateRepoAccessGrantReceipt,
+) -> Result<()> {
+    validate_non_empty(
+        &receipt.receipt_id,
+        "Substrate Gate access grant receipt id",
+    )?;
+    validate_non_empty(
+        &receipt.runtime_job_id,
+        "Substrate Gate access grant runtime job",
+    )?;
+    validate_non_empty(&receipt.binding_id, "Substrate Gate access grant binding")?;
+    validate_non_empty(&receipt.role, "Substrate Gate access grant role")?;
+    validate_non_empty(
+        &receipt.authority_scope,
+        "Substrate Gate access grant authority scope",
+    )?;
+    validate_non_empty(&receipt.granted_at, "Substrate Gate access grant timestamp")?;
+    if receipt.granted_operations.is_empty() {
+        return Err(anyhow!(
+            "Substrate Gate access grant must name granted operations"
+        ));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_substrate_gate_repo_access_grant_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<SubstrateGateRepoAccessGrantReceipt>> {
+    validate_non_empty(receipt_id, "Substrate Gate access grant receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<SubstrateGateRepoAccessGrantReceipt>(receipt_id)
 }
 
 pub fn put_coordinator_run_receipt(
@@ -3169,6 +3212,20 @@ mod tests {
             contract: "Eyes packet persists as runtime-spine proof.".to_string(),
         };
         put_eyes_evidence_packet(&store, &eyes_packet)?;
+        let substrate_grant = SubstrateGateRepoAccessGrantReceipt {
+            schema_version: crate::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
+                .to_string(),
+            receipt_id: "substrate-grant-1".to_string(),
+            runtime_job_id: "job-1".to_string(),
+            binding_id: "research-source-gather-worker".to_string(),
+            role: "epiphany-eyes".to_string(),
+            authority_scope: "epiphany.role.research".to_string(),
+            granted_operations: vec!["read".to_string(), "snapshot".to_string()],
+            granted_paths: vec![".".to_string()],
+            granted_at: "2026-05-06T00:06:00Z".to_string(),
+            contract: "Substrate Gate grant persists as runtime-spine proof.".to_string(),
+        };
+        put_substrate_gate_repo_access_grant_receipt(&store, &substrate_grant)?;
 
         let stored = runtime_mind_gateway_review(&store, "mind-role-modeling-job-1")?
             .expect("Mind review receipt should persist");
@@ -3179,6 +3236,10 @@ mod tests {
         let stored_packet = runtime_eyes_evidence_packet(&store, "eyes-packet-1")?
             .expect("Eyes evidence packet should persist");
         assert_eq!(stored_packet, eyes_packet);
+        let stored_grant =
+            runtime_substrate_gate_repo_access_grant_receipt(&store, "substrate-grant-1")?
+                .expect("Substrate Gate grant should persist");
+        assert_eq!(stored_grant, substrate_grant);
         Ok(())
     }
 

@@ -4,6 +4,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
+use epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
@@ -19,6 +20,8 @@ use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
+use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::put_mind_gateway_review;
 use epiphany_core::put_mind_state_commit_receipt;
@@ -41,10 +44,12 @@ use epiphany_core::plan_runtime_spine_heartbeat_launch;
 use epiphany_core::put_eyes_evidence_packet;
 use epiphany_core::receipt_proof_evaluation_errors;
 use epiphany_core::replace_or_append_epiphany_job_binding;
+use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_eyes_evidence_packet;
 use epiphany_core::runtime_mind_gateway_review;
-use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
+use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
+use epiphany_core::substrate_gate_repo_access_grant_for_launch;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -285,6 +290,11 @@ pub async fn launch_epiphany_job_on_thread(
         &request,
         backend_job_id.as_str(),
     )?;
+    maybe_put_substrate_gate_launch_grant(
+        runtime_store.as_path(),
+        &request,
+        backend_job_id.as_str(),
+    )?;
 
     let epiphany_state = apply_epiphany_state_update_to_thread(
         thread,
@@ -506,6 +516,11 @@ pub async fn apply_thread_epiphany_role_accept(
         available_document_types.extend(persisted_eyes_evidence_packet_types(
             runtime_store_path.as_path(),
             packet.packet_id.as_str(),
+        )?);
+        available_document_types.extend(persisted_substrate_gate_grant_types(
+            runtime_store_path.as_path(),
+            substrate_gate_grant_receipt_id(finding.runtime_job_id.as_deref().unwrap_or_default())
+                .as_str(),
         )?);
     }
     enforce_current_receipt_proofs(
@@ -933,6 +948,48 @@ fn persisted_eyes_evidence_packet_types(
         .unwrap_or_default())
 }
 
+fn maybe_put_substrate_gate_launch_grant(
+    runtime_store_path: &Path,
+    request: &EpiphanyJobLaunchRequest,
+    backend_job_id: &str,
+) -> BridgeResult<()> {
+    if request.binding_id != EPIPHANY_RESEARCH_ROLE_BINDING_ID {
+        return Ok(());
+    }
+    let grant = substrate_gate_repo_access_grant_for_launch(
+        substrate_gate_grant_receipt_id(backend_job_id),
+        backend_job_id.to_string(),
+        request,
+        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    );
+    put_substrate_gate_repo_access_grant_receipt(runtime_store_path, &grant).map_err(|err| {
+        EpiphanyBridgeError::Fatal(format!(
+            "failed to persist Substrate Gate access grant for research launch: {err}"
+        ))
+    })
+}
+
+fn persisted_substrate_gate_grant_types(
+    runtime_store_path: &Path,
+    receipt_id: &str,
+) -> BridgeResult<Vec<String>> {
+    let grant = runtime_substrate_gate_repo_access_grant_receipt(runtime_store_path, receipt_id)
+        .map_err(|err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to verify persisted Substrate Gate grant {:?}: {err}",
+                receipt_id
+            ))
+        })?;
+    Ok(grant
+        .is_some()
+        .then(|| vec![SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string()])
+        .unwrap_or_default())
+}
+
+fn substrate_gate_grant_receipt_id(runtime_job_id: &str) -> String {
+    format!("substrate-grant-{runtime_job_id}")
+}
+
 fn role_acceptance_claimed_effects(
     role_id: EpiphanyRoleResultRoleId,
     changed_fields: &[EpiphanyStateUpdatedField],
@@ -955,6 +1012,7 @@ fn role_acceptance_claimed_effects(
 fn role_acceptance_enforceable_receipts(role_id: EpiphanyRoleResultRoleId) -> Vec<String> {
     let mut receipts = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
     if role_id == EpiphanyRoleResultRoleId::Research {
+        receipts.push(SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string());
         receipts.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
     }
     receipts

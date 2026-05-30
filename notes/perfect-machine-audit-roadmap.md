@@ -139,10 +139,12 @@ admission and `epiphany.mind.state_commit_receipt` after admission with the
 resulting state revision. Research acceptance also emits a typed
 `epiphany.eyes.evidence_packet` from its accepted Eyes-shaped statePatch,
 persists it in runtime-spine, rereads it, and enforces Eyes packet proof for the
-evidence-promotion profile. Remaining weakness: Substrate Gate, Hands, Soul, and
-Continuity receipts are still mostly launch-carried expectations, not enforced
-proof chains before state/action promotion, and the current Mind state mutation
-plus post-commit receipt is not a single transaction yet.
+evidence-promotion profile. Research launches now also persist a typed
+Substrate Gate read/snapshot access grant, and Research acceptance enforces that
+grant before admitting evidence-shaped state. Remaining weakness: Hands, Soul,
+and Continuity receipts are still mostly launch-carried expectations, not
+enforced proof chains before state/action promotion, and the current Mind state
+mutation plus post-commit receipt is not a single transaction yet.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
 
@@ -334,9 +336,11 @@ comfort tunnels.
   blockers.
 - Landed: accepted Research findings produce and enforce typed Eyes evidence
   packets for the evidence-promotion proof profile.
-- Next: add Substrate Gate access/snapshot receipts for Research launches or
-  Soul verdict receipts for Verification findings, then make that profile proof
-  enforceable.
+- Landed: Research launches produce and enforce typed Substrate Gate
+  read/snapshot grants, closing the Research evidence-promotion chain through
+  Substrate Gate -> Eyes -> Mind.
+- Next: add Soul verdict receipts for Verification findings, then make that
+  profile proof enforceable.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and
