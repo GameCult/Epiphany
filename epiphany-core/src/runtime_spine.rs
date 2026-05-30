@@ -40,6 +40,7 @@ use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
 use crate::mind_gateway::MindGatewayReview;
 use crate::mind_gateway::MindStateCommitReceipt;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
+use crate::soul_gateway::SoulVerdictReceipt;
 use crate::soul_gateway::*;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
 use crate::state_ledger::STATE_LEDGER_STORE_TYPE;
@@ -715,6 +716,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
+    cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
@@ -1247,6 +1249,32 @@ pub fn runtime_substrate_gate_repo_access_grant_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<SubstrateGateRepoAccessGrantReceipt>(receipt_id)
+}
+
+pub fn put_soul_verdict_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &SoulVerdictReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Soul verdict receipt id")?;
+    validate_non_empty(&receipt.source_result_id, "Soul verdict source result")?;
+    validate_non_empty(&receipt.source_job_id, "Soul verdict source job")?;
+    validate_non_empty(&receipt.verdict, "Soul verdict")?;
+    validate_non_empty(&receipt.emitted_at, "Soul verdict timestamp")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_soul_verdict_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<SoulVerdictReceipt>> {
+    validate_non_empty(receipt_id, "Soul verdict receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<SoulVerdictReceipt>(receipt_id)
 }
 
 pub fn put_coordinator_run_receipt(
@@ -3226,6 +3254,19 @@ mod tests {
             contract: "Substrate Gate grant persists as runtime-spine proof.".to_string(),
         };
         put_substrate_gate_repo_access_grant_receipt(&store, &substrate_grant)?;
+        let soul_verdict = SoulVerdictReceipt {
+            schema_version: crate::SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "soul-verdict-1".to_string(),
+            source_result_id: "result-verify-1".to_string(),
+            source_job_id: "job-verify-1".to_string(),
+            verdict: "passed".to_string(),
+            summary: "Verification passed.".to_string(),
+            evidence_ids: vec!["ev-check".to_string()],
+            risks: Vec::new(),
+            emitted_at: "2026-05-06T00:07:00Z".to_string(),
+            contract: "Soul verdict persists as runtime-spine proof.".to_string(),
+        };
+        put_soul_verdict_receipt(&store, &soul_verdict)?;
 
         let stored = runtime_mind_gateway_review(&store, "mind-role-modeling-job-1")?
             .expect("Mind review receipt should persist");
@@ -3240,6 +3281,9 @@ mod tests {
             runtime_substrate_gate_repo_access_grant_receipt(&store, "substrate-grant-1")?
                 .expect("Substrate Gate grant should persist");
         assert_eq!(stored_grant, substrate_grant);
+        let stored_verdict = runtime_soul_verdict_receipt(&store, "soul-verdict-1")?
+            .expect("Soul verdict should persist");
+        assert_eq!(stored_verdict, soul_verdict);
         Ok(())
     }
 

@@ -1,3 +1,5 @@
+use crate::EpiphanyRoleFindingInterpretation;
+use cultcache_rs::DatabaseEntry;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -15,6 +17,31 @@ pub const SOUL_REGRESSION_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.regressi
 pub const SOUL_REVIEW_RECEIPT_SCHEMA_VERSION: &str = "epiphany.soul.review_receipt.v0";
 pub const SOUL_VERIFICATION_REFUSAL_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.soul.verification_refusal_receipt.v0";
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "epiphany.soul.verdict_receipt", schema = "SoulVerdictReceipt")]
+pub struct SoulVerdictReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub source_result_id: String,
+    #[cultcache(key = 3)]
+    pub source_job_id: String,
+    #[cultcache(key = 4)]
+    pub verdict: String,
+    #[cultcache(key = 5)]
+    pub summary: String,
+    #[cultcache(key = 6)]
+    pub evidence_ids: Vec<String>,
+    #[cultcache(key = 7)]
+    pub risks: Vec<String>,
+    #[cultcache(key = 8)]
+    pub emitted_at: String,
+    #[cultcache(key = 9)]
+    pub contract: String,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -111,6 +138,25 @@ pub fn default_soul_cultnet_contracts() -> Vec<SoulCultNetContract> {
     ]
 }
 
+pub fn soul_verdict_receipt_from_verification_finding(
+    receipt_id: String,
+    finding: &EpiphanyRoleFindingInterpretation,
+    emitted_at: String,
+) -> SoulVerdictReceipt {
+    SoulVerdictReceipt {
+        schema_version: SOUL_VERDICT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        source_result_id: finding.runtime_result_id.clone().unwrap_or_default(),
+        source_job_id: finding.runtime_job_id.clone().unwrap_or_default(),
+        verdict: finding.verdict.clone().unwrap_or_else(|| "unknown".to_string()),
+        summary: finding.summary.clone().unwrap_or_default(),
+        evidence_ids: finding.evidence_ids.clone(),
+        risks: finding.risks.clone(),
+        emitted_at,
+        contract: "Soul verdict emitted from a reviewed Verification lane finding; it is proof of verification judgment before Mind admission.".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +182,37 @@ mod tests {
                 .receipt_document_types
                 .contains(&SOUL_VERDICT_RECEIPT_TYPE.to_string())
         );
+    }
+
+    #[test]
+    fn verification_finding_builds_soul_verdict_receipt() {
+        let finding = EpiphanyRoleFindingInterpretation {
+            verdict: Some("passed".to_string()),
+            summary: Some("Checks passed.".to_string()),
+            next_safe_move: Some("Proceed.".to_string()),
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: vec!["src/lib.rs".to_string()],
+            frontier_node_ids: Vec::new(),
+            evidence_ids: vec!["ev-check".to_string()],
+            artifact_refs: Vec::new(),
+            runtime_result_id: Some("result-1".to_string()),
+            runtime_job_id: Some("job-1".to_string()),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch: None,
+            self_patch: None,
+            self_persistence: None,
+            job_error: None,
+            item_error: None,
+        };
+        let receipt = soul_verdict_receipt_from_verification_finding(
+            "soul-verdict-1".to_string(),
+            &finding,
+            "2026-05-30T00:00:00Z".to_string(),
+        );
+        assert_eq!(receipt.verdict, "passed");
+        assert!(receipt.evidence_ids.contains(&"ev-check".to_string()));
     }
 }

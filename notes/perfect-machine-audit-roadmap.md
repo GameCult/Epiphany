@@ -141,10 +141,13 @@ resulting state revision. Research acceptance also emits a typed
 persists it in runtime-spine, rereads it, and enforces Eyes packet proof for the
 evidence-promotion profile. Research launches now also persist a typed
 Substrate Gate read/snapshot access grant, and Research acceptance enforces that
-grant before admitting evidence-shaped state. Remaining weakness: Hands, Soul,
-and Continuity receipts are still mostly launch-carried expectations, not
-enforced proof chains before state/action promotion, and the current Mind state
-mutation plus post-commit receipt is not a single transaction yet.
+grant before admitting evidence-shaped state. Verification acceptance emits a
+typed `epiphany.soul.verdict_receipt`, persists/rereads it through
+runtime-spine, and enforces Soul verdict proof before Mind admits
+verification-shaped state. Remaining weakness: Hands and Continuity receipts are
+still mostly launch-carried expectations, not enforced proof chains before
+state/action promotion, and the current Mind state mutation plus post-commit
+receipt is not a single transaction yet.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
 
@@ -339,8 +342,10 @@ comfort tunnels.
 - Landed: Research launches produce and enforce typed Substrate Gate
   read/snapshot grants, closing the Research evidence-promotion chain through
   Substrate Gate -> Eyes -> Mind.
-- Next: add Soul verdict receipts for Verification findings, then make that
-  profile proof enforceable.
+- Landed: Verification acceptance produces and enforces typed Soul verdict
+  receipts before Mind admission.
+- Next: add Continuity recovery receipts for reorient acceptance or Hands action
+  receipts when action lanes become live.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and

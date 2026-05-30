@@ -22,6 +22,7 @@ use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
 use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
+use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::put_mind_gateway_review;
 use epiphany_core::put_mind_state_commit_receipt;
@@ -45,10 +46,13 @@ use epiphany_core::put_eyes_evidence_packet;
 use epiphany_core::receipt_proof_evaluation_errors;
 use epiphany_core::replace_or_append_epiphany_job_binding;
 use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
+use epiphany_core::put_soul_verdict_receipt;
 use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_eyes_evidence_packet;
 use epiphany_core::runtime_mind_gateway_review;
 use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
+use epiphany_core::runtime_soul_verdict_receipt;
+use epiphany_core::soul_verdict_receipt_from_verification_finding;
 use epiphany_core::substrate_gate_repo_access_grant_for_launch;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
@@ -522,6 +526,21 @@ pub async fn apply_thread_epiphany_role_accept(
             substrate_gate_grant_receipt_id(finding.runtime_job_id.as_deref().unwrap_or_default())
                 .as_str(),
         )?);
+    } else if role_id == EpiphanyRoleResultRoleId::Verification {
+        let verdict = soul_verdict_receipt_from_verification_finding(
+            format!("soul-verdict-{accepted_receipt_id}"),
+            &finding,
+            Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        );
+        put_soul_verdict_receipt(runtime_store_path.as_path(), &verdict).map_err(|err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to persist Soul verdict receipt before verification state admission: {err}"
+            ))
+        })?;
+        available_document_types.extend(persisted_soul_verdict_types(
+            runtime_store_path.as_path(),
+            verdict.receipt_id.as_str(),
+        )?);
     }
     enforce_current_receipt_proofs(
         &organ_contract,
@@ -986,6 +1005,22 @@ fn persisted_substrate_gate_grant_types(
         .unwrap_or_default())
 }
 
+fn persisted_soul_verdict_types(
+    runtime_store_path: &Path,
+    receipt_id: &str,
+) -> BridgeResult<Vec<String>> {
+    let verdict = runtime_soul_verdict_receipt(runtime_store_path, receipt_id).map_err(|err| {
+        EpiphanyBridgeError::Fatal(format!(
+            "failed to verify persisted Soul verdict {:?}: {err}",
+            receipt_id
+        ))
+    })?;
+    Ok(verdict
+        .is_some()
+        .then(|| vec![SOUL_VERDICT_RECEIPT_TYPE.to_string()])
+        .unwrap_or_default())
+}
+
 fn substrate_gate_grant_receipt_id(runtime_job_id: &str) -> String {
     format!("substrate-grant-{runtime_job_id}")
 }
@@ -1014,6 +1049,8 @@ fn role_acceptance_enforceable_receipts(role_id: EpiphanyRoleResultRoleId) -> Ve
     if role_id == EpiphanyRoleResultRoleId::Research {
         receipts.push(SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string());
         receipts.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
+    } else if role_id == EpiphanyRoleResultRoleId::Verification {
+        receipts.push(SOUL_VERDICT_RECEIPT_TYPE.to_string());
     }
     receipts
 }
