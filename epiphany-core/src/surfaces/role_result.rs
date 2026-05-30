@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub enum EpiphanyRoleResultRoleId {
     Implementation,
     Imagination,
+    Research,
     Modeling,
     Verification,
     Reorientation,
@@ -156,6 +157,14 @@ fn interpret_role_finding(
                 state_patch_parse_error,
             ),
         ),
+        EpiphanyRoleResultRoleId::Research => merge_item_error(
+            item_error,
+            research_role_state_patch_error(
+                raw_result.get("statePatch").is_some(),
+                state_patch.as_ref(),
+                state_patch_parse_error,
+            ),
+        ),
         EpiphanyRoleResultRoleId::Implementation
         | EpiphanyRoleResultRoleId::Verification
         | EpiphanyRoleResultRoleId::Reorientation => item_error,
@@ -261,6 +270,14 @@ pub fn interpret_runtime_role_worker_result(
             EpiphanyRoleResultRoleId::Imagination => merge_item_error(
                 item_error,
                 imagination_role_state_patch_error(
+                    result.state_patch_msgpack.is_some(),
+                    state_patch.as_ref(),
+                    None,
+                ),
+            ),
+            EpiphanyRoleResultRoleId::Research => merge_item_error(
+                item_error,
+                research_role_state_patch_error(
                     result.state_patch_msgpack.is_some(),
                     state_patch.as_ref(),
                     None,
@@ -428,14 +445,15 @@ pub fn role_self_memory_target(
             "epiphany.proprioception",
             "state/agents/proprioception.agent-state.json",
         )),
-        EpiphanyRoleResultRoleId::Verification => Some((
-            "epiphany.soul",
-            "state/agents/soul.agent-state.json",
-        )),
-        EpiphanyRoleResultRoleId::Implementation => Some((
-            "epiphany.hands",
-            "state/agents/hands.agent-state.json",
-        )),
+        EpiphanyRoleResultRoleId::Research => {
+            Some(("epiphany.eyes", "state/agents/eyes.agent-state.json"))
+        }
+        EpiphanyRoleResultRoleId::Verification => {
+            Some(("epiphany.soul", "state/agents/soul.agent-state.json"))
+        }
+        EpiphanyRoleResultRoleId::Implementation => {
+            Some(("epiphany.hands", "state/agents/hands.agent-state.json"))
+        }
         EpiphanyRoleResultRoleId::Reorientation => None,
     }
 }
@@ -443,6 +461,7 @@ pub fn role_self_memory_target(
 pub fn role_accepted_kind(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
         EpiphanyRoleResultRoleId::Imagination => Ok("planning_synthesis"),
+        EpiphanyRoleResultRoleId::Research => Ok("research_result"),
         EpiphanyRoleResultRoleId::Modeling => Ok("modeling_result"),
         EpiphanyRoleResultRoleId::Verification => Ok("verification_result"),
         EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => Err(
@@ -454,6 +473,7 @@ pub fn role_accepted_kind(role_id: EpiphanyRoleResultRoleId) -> Result<&'static 
 pub fn role_label(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
         EpiphanyRoleResultRoleId::Imagination => Ok("imagination"),
+        EpiphanyRoleResultRoleId::Research => Ok("research"),
         EpiphanyRoleResultRoleId::Modeling => Ok("modeling"),
         EpiphanyRoleResultRoleId::Verification => Ok("verification"),
         EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => Err(
@@ -680,6 +700,74 @@ pub fn imagination_role_state_patch_policy_errors(
     errors
 }
 
+pub fn research_role_state_patch_policy_errors(
+    patch: &EpiphanyRoleStatePatchDocument,
+) -> Vec<String> {
+    let mut errors = Vec::new();
+    if patch.objective.is_some() {
+        errors
+            .push("objective changes are not allowed through research role acceptance".to_string());
+    }
+    if patch.active_subgoal_id.is_some() || patch.subgoals.is_some() {
+        errors.push("subgoal changes are not allowed through research role acceptance".to_string());
+    }
+    if patch.invariants.is_some() {
+        errors
+            .push("invariant changes are not allowed through research role acceptance".to_string());
+    }
+    if patch.graphs.is_some() || patch.graph_frontier.is_some() || patch.graph_checkpoint.is_some()
+    {
+        errors.push(
+            "graph modeling changes are not allowed through research role acceptance".to_string(),
+        );
+    }
+    if patch.job_bindings.is_some() {
+        errors.push(
+            "job binding changes are not allowed through research role acceptance".to_string(),
+        );
+    }
+    if !patch.acceptance_receipts.is_empty() {
+        errors.push(
+            "acceptance receipt changes are owned by roleAccept, not worker statePatch".to_string(),
+        );
+    }
+    if !patch.runtime_links.is_empty() {
+        errors.push(
+            "runtime link changes are owned by launch/read-back surfaces, not worker statePatch"
+                .to_string(),
+        );
+    }
+    if patch.planning.is_some() {
+        errors
+            .push("planning changes are not allowed through research role acceptance".to_string());
+    }
+    if patch.churn.is_some() || patch.mode.is_some() {
+        errors.push(
+            "churn or mode changes are not allowed through research role acceptance".to_string(),
+        );
+    }
+    if patch.evidence.is_empty() {
+        errors.push("research statePatch must include at least one evidence record".to_string());
+    }
+    if patch.observations.is_empty() {
+        errors.push("research statePatch must include at least one observation".to_string());
+    }
+    for observation in &patch.observations {
+        if observation.evidence_ids.is_empty() {
+            errors.push(format!(
+                "research observation {:?} must cite at least one evidence id",
+                observation.id
+            ));
+        }
+    }
+    if patch.scratch.is_none() && patch.investigation_checkpoint.is_none() {
+        errors.push(
+            "research statePatch must include scratch or an investigationCheckpoint to bank the source-gathering seam".to_string(),
+        );
+    }
+    errors
+}
+
 fn modeling_role_state_patch_error(
     state_patch_present: bool,
     state_patch: Option<&EpiphanyRoleStatePatchDocument>,
@@ -702,6 +790,33 @@ fn modeling_role_state_patch_error(
     } else {
         Some(format!(
             "modeling result is not reviewable: {}",
+            errors.join("; ")
+        ))
+    }
+}
+
+fn research_role_state_patch_error(
+    state_patch_present: bool,
+    state_patch: Option<&EpiphanyRoleStatePatchDocument>,
+    parse_error: Option<String>,
+) -> Option<String> {
+    if !state_patch_present {
+        return Some("research result is not reviewable: missing required statePatch".to_string());
+    };
+    if let Some(error) = parse_error {
+        return Some(format!(
+            "research result is not reviewable: invalid statePatch ({error})"
+        ));
+    }
+    let Some(state_patch) = state_patch else {
+        return Some("research result is not reviewable: invalid statePatch".to_string());
+    };
+    let errors = research_role_state_patch_policy_errors(state_patch);
+    if errors.is_empty() {
+        None
+    } else {
+        Some(format!(
+            "research result is not reviewable: {}",
             errors.join("; ")
         ))
     }

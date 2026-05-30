@@ -2153,6 +2153,7 @@
       "enum": [
         "implementation",
         "imagination",
+        "research",
         "modeling",
         "verification",
         "reorientation"
@@ -9016,6 +9017,8 @@
         "waitForReorientWorker",
         "reviewReorientResult",
         "regatherManually",
+        "launchResearch",
+        "reviewResearchResult",
         "launchModeling",
         "reviewModelingResult",
         "launchVerification",
@@ -9029,6 +9032,7 @@
         "crrcAction",
         "modelingResultStatus",
         "pressureLevel",
+        "researchResultStatus",
         "reorientAction",
         "reorientResultStatus",
         "shouldPrepareCompaction",
@@ -9043,6 +9047,9 @@
         },
         "pressureLevel": {
           "$ref": "#/definitions/ThreadEpiphanyPressureLevel"
+        },
+        "researchResultStatus": {
+          "$ref": "#/definitions/ThreadEpiphanyRoleResultStatus"
         },
         "reorientAction": {
           "$ref": "#/definitions/ThreadEpiphanyReorientAction"

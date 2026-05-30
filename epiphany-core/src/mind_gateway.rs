@@ -371,6 +371,7 @@ fn role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
     match role_id {
         EpiphanyRoleResultRoleId::Implementation => "implementation",
         EpiphanyRoleResultRoleId::Imagination => "imagination",
+        EpiphanyRoleResultRoleId::Research => "research",
         EpiphanyRoleResultRoleId::Modeling => "modeling",
         EpiphanyRoleResultRoleId::Verification => "verification",
         EpiphanyRoleResultRoleId::Reorientation => "reorientation",

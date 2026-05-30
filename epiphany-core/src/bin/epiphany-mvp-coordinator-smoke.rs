@@ -52,6 +52,7 @@ impl Args {
 fn run_smoke(args: &Args) -> Result<Value> {
     let root = env::current_dir().context("failed to resolve current dir")?;
     let app_server = absolute_path(&args.app_server)?;
+    ensure_default_app_server_built(&root, &app_server)?;
     if !app_server.exists() {
         return Err(anyhow!(
             "codex app-server binary not found: {}",
@@ -332,9 +333,6 @@ fn sibling_exe(name: &str) -> Result<PathBuf> {
 }
 
 fn ensure_coordinator_built(root: &Path, coordinator: &Path) -> Result<()> {
-    if coordinator.exists() {
-        return Ok(());
-    }
     let status = Command::new("cargo")
         .current_dir(root)
         .arg("build")
@@ -349,6 +347,37 @@ fn ensure_coordinator_built(root: &Path, coordinator: &Path) -> Result<()> {
         &format!(
             "native coordinator binary was not built: {}",
             coordinator.display()
+        ),
+    )
+}
+
+fn ensure_default_app_server_built(root: &Path, app_server: &Path) -> Result<()> {
+    let default_app_server = PathBuf::from(DEFAULT_APP_SERVER);
+    if app_server != default_app_server {
+        return Ok(());
+    }
+    let status = Command::new("cargo")
+        .current_dir(root)
+        .env("CARGO_TARGET_DIR", r"C:\Users\Meta\.cargo-target-codex")
+        .arg("build")
+        .arg("--manifest-path")
+        .arg(
+            root.join("vendor")
+                .join("codex")
+                .join("codex-rs")
+                .join("Cargo.toml"),
+        )
+        .arg("-p")
+        .arg("codex-app-server")
+        .arg("--bin")
+        .arg("codex-app-server")
+        .status()
+        .context("failed to build default codex-app-server")?;
+    require(
+        status.success() && app_server.exists(),
+        &format!(
+            "default codex-app-server binary was not built: {}",
+            app_server.display()
         ),
     )
 }

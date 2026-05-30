@@ -17,6 +17,7 @@ use std::collections::HashSet;
 pub enum EpiphanyCoordinatorRoleId {
     Implementation,
     Imagination,
+    Research,
     Modeling,
     Verification,
     Reorientation,
@@ -58,6 +59,8 @@ pub enum EpiphanyCoordinatorAction {
     WaitForReorientWorker,
     ReviewReorientResult,
     RegatherManually,
+    LaunchResearch,
+    ReviewResearchResult,
     LaunchModeling,
     ReviewModelingResult,
     LaunchVerification,
@@ -95,6 +98,7 @@ pub struct EpiphanyCoordinatorCrrcRecommendation {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyCoordinatorSignals {
+    pub research_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
 }
@@ -106,6 +110,7 @@ pub struct EpiphanyCoordinatorSourceSignals {
     pub should_prepare_compaction: bool,
     pub reorient_action: EpiphanyReorientAction,
     pub crrc_action: EpiphanyCrrcAction,
+    pub research_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub reorient_result_status: super::EpiphanyCrrcResultStatus,
@@ -126,6 +131,9 @@ pub struct EpiphanyCoordinatorInput {
     pub recommendation: EpiphanyCoordinatorCrrcRecommendation,
     pub roles: Vec<EpiphanyCoordinatorRoleLane>,
     pub signals: EpiphanyCoordinatorSignals,
+    pub research_result_accepted: bool,
+    pub research_result_reviewable: bool,
+    pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
     pub modeling_result_accepted_after_verification: bool,
@@ -157,9 +165,13 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub recommendation: super::EpiphanyCrrcRecommendation,
     pub roles: Vec<EpiphanyRoleBoardLane>,
     pub reorient_action: EpiphanyReorientAction,
+    pub research_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub reorient_result_status: super::EpiphanyCrrcResultStatus,
+    pub research_result_accepted: bool,
+    pub research_result_reviewable: bool,
+    pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
     pub modeling_result_accepted_after_verification: bool,
@@ -182,6 +194,9 @@ pub struct EpiphanyCoordinatorStatus {
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EpiphanyCoordinatorFindingSignals {
+    pub research_result_accepted: bool,
+    pub research_result_reviewable: bool,
+    pub modeling_result_requests_regather: bool,
     pub modeling_result_accepted: bool,
     pub modeling_result_reviewable: bool,
     pub modeling_result_accepted_after_verification: bool,
@@ -214,6 +229,7 @@ pub fn derive_coordinator_status(
         should_prepare_compaction: input.pressure.should_prepare_compaction,
         reorient_action: input.reorient_action,
         crrc_action: input.recommendation.action,
+        research_result_status: input.research_result_status,
         modeling_result_status: input.modeling_result_status,
         verification_result_status: input.verification_result_status,
         reorient_result_status: input.reorient_result_status,
@@ -236,9 +252,13 @@ pub fn derive_coordinator_status(
         },
         roles: coordinator_roles,
         signals: EpiphanyCoordinatorSignals {
+            research_result_status: input.research_result_status,
             modeling_result_status: input.modeling_result_status,
             verification_result_status: input.verification_result_status,
         },
+        research_result_accepted: input.research_result_accepted,
+        research_result_reviewable: input.research_result_reviewable,
+        modeling_result_requests_regather: input.modeling_result_requests_regather,
         modeling_result_accepted: input.modeling_result_accepted,
         modeling_result_reviewable: input.modeling_result_reviewable,
         modeling_result_accepted_after_verification: input
@@ -263,10 +283,18 @@ pub fn derive_coordinator_status(
 
 pub fn derive_coordinator_finding_signals(
     state: Option<&EpiphanyThreadState>,
+    research_finding: Option<&EpiphanyRoleFindingInterpretation>,
     modeling_finding: Option<&EpiphanyRoleFindingInterpretation>,
     verification_finding: Option<&EpiphanyRoleFindingInterpretation>,
     reorient_finding: Option<&EpiphanyReorientFindingInterpretation>,
 ) -> EpiphanyCoordinatorFindingSignals {
+    let research_result_accepted = research_finding.as_ref().is_some_and(|finding| {
+        state.is_some_and(|state| {
+            role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Research, finding)
+        })
+    });
+    let research_result_reviewable =
+        research_finding.is_some_and(research_finding_has_reviewable_state_patch);
     let modeling_result_accepted = modeling_finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| {
             role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Modeling, finding)
@@ -274,6 +302,8 @@ pub fn derive_coordinator_finding_signals(
     });
     let modeling_result_reviewable =
         modeling_finding.is_some_and(modeling_finding_has_reviewable_state_patch);
+    let modeling_result_requests_regather =
+        modeling_finding.is_some_and(modeling_finding_requests_regather);
     let verification_result_accepted = verification_finding.as_ref().is_some_and(|finding| {
         state.is_some_and(|state| {
             role_finding_already_accepted(state, EpiphanyCoordinatorRoleId::Verification, finding)
@@ -315,6 +345,9 @@ pub fn derive_coordinator_finding_signals(
     });
 
     EpiphanyCoordinatorFindingSignals {
+        research_result_accepted,
+        research_result_reviewable,
+        modeling_result_requests_regather,
         modeling_result_accepted,
         modeling_result_reviewable,
         modeling_result_accepted_after_verification,
@@ -352,6 +385,22 @@ fn modeling_finding_has_reviewable_state_patch(
         .state_patch
         .as_ref()
         .is_some_and(|patch| super::modeling_role_state_patch_policy_errors(patch).is_empty())
+}
+
+fn research_finding_has_reviewable_state_patch(
+    finding: &EpiphanyRoleFindingInterpretation,
+) -> bool {
+    finding
+        .state_patch
+        .as_ref()
+        .is_some_and(|patch| super::research_role_state_patch_policy_errors(patch).is_empty())
+}
+
+fn modeling_finding_requests_regather(finding: &EpiphanyRoleFindingInterpretation) -> bool {
+    finding
+        .verdict
+        .as_deref()
+        .is_some_and(|verdict| verdict.eq_ignore_ascii_case("regather-needed"))
 }
 
 fn role_finding_already_accepted(
@@ -520,6 +569,7 @@ fn coordinator_role_label(role_id: EpiphanyCoordinatorRoleId) -> &'static str {
     match role_id {
         EpiphanyCoordinatorRoleId::Implementation => "implementation",
         EpiphanyCoordinatorRoleId::Imagination => "imagination",
+        EpiphanyCoordinatorRoleId::Research => "research",
         EpiphanyCoordinatorRoleId::Modeling => "modeling",
         EpiphanyCoordinatorRoleId::Verification => "verification",
         EpiphanyCoordinatorRoleId::Reorientation => "reorientation",
@@ -629,10 +679,70 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
+        && !input.research_result_accepted
+    {
+        return build(
+            EpiphanyCoordinatorAction::ReviewResearchResult,
+            Some(EpiphanyCoordinatorRoleId::Research),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            input.research_result_reviewable,
+            false,
+            "An Eyes/source-gathering finding is complete and must be reviewed before modeling or implementation can cite it.",
+        );
+    }
+
+    if input.signals.research_result_status == EpiphanyCoordinatorRoleResultStatus::Failed
+        && !input.research_result_accepted
+    {
+        return build(
+            EpiphanyCoordinatorAction::ReviewResearchResult,
+            Some(EpiphanyCoordinatorRoleId::Research),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            "The Eyes/source-gathering worker failed; inspect the failed result before routing another lane from stale evidence.",
+        );
+    }
+
+    if matches!(
+        input.signals.research_result_status,
+        EpiphanyCoordinatorRoleResultStatus::Pending | EpiphanyCoordinatorRoleResultStatus::Running
+    ) {
+        return build(
+            EpiphanyCoordinatorAction::ReviewResearchResult,
+            Some(EpiphanyCoordinatorRoleId::Research),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
+            false,
+            false,
+            "An Eyes/source-gathering specialist is already running; wait for its evidence packet before relaunching modeling.",
+        );
+    }
+
     if input.signals.modeling_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.modeling_result_accepted
     {
         if !input.modeling_result_reviewable {
+            if input.modeling_result_requests_regather
+                && !input.research_result_accepted
+                && matches!(
+                    input.signals.research_result_status,
+                    EpiphanyCoordinatorRoleResultStatus::MissingBinding
+                        | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
+                        | EpiphanyCoordinatorRoleResultStatus::BackendMissing
+                        | EpiphanyCoordinatorRoleResultStatus::Cancelled
+                        | EpiphanyCoordinatorRoleResultStatus::Failed
+                )
+            {
+                return build(
+                    EpiphanyCoordinatorAction::LaunchResearch,
+                    Some(EpiphanyCoordinatorRoleId::Research),
+                    Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                    false,
+                    true,
+                    "The modeling/checkpoint lane requested source regather and returned no acceptable modeling patch; launch Eyes to gather citable source evidence instead of relaunching the blind modeler.",
+                );
+            }
             return build(
                 EpiphanyCoordinatorAction::ReviewModelingResult,
                 Some(EpiphanyCoordinatorRoleId::Modeling),
@@ -720,13 +830,32 @@ pub fn recommend_coordinator_action(
         && role_status(&input.roles, EpiphanyCoordinatorRoleId::Implementation)
             == Some(EpiphanyCoordinatorRoleStatus::Blocked)
     {
+        if !input.research_result_accepted
+            && matches!(
+                input.signals.research_result_status,
+                EpiphanyCoordinatorRoleResultStatus::MissingBinding
+                    | EpiphanyCoordinatorRoleResultStatus::BackendUnavailable
+                    | EpiphanyCoordinatorRoleResultStatus::BackendMissing
+                    | EpiphanyCoordinatorRoleResultStatus::Cancelled
+                    | EpiphanyCoordinatorRoleResultStatus::Failed
+            )
+        {
+            return build(
+                EpiphanyCoordinatorAction::LaunchResearch,
+                Some(EpiphanyCoordinatorRoleId::Research),
+                Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+                false,
+                true,
+                "CRRC says regather is required; launch Eyes to rebuild citable source evidence before another coding turn.",
+            );
+        }
         return build(
             EpiphanyCoordinatorAction::RegatherManually,
-            Some(EpiphanyCoordinatorRoleId::Reorientation),
-            input.recommendation.recommended_scene_action,
+            Some(EpiphanyCoordinatorRoleId::Research),
+            Some(EpiphanyCoordinatorSceneAction::RoleResult),
             true,
             false,
-            "CRRC says regather is required and the implementation lane is blocked; repair continuity before another coding turn.",
+            "CRRC says regather is required and the implementation lane is blocked; review or repair Eyes evidence before another coding turn.",
         );
     }
 
@@ -855,12 +984,12 @@ pub fn recommend_coordinator_action(
 
     if input.recommendation.action == EpiphanyCrrcAction::RegatherManually {
         return build(
-            EpiphanyCoordinatorAction::RegatherManually,
-            Some(EpiphanyCoordinatorRoleId::Reorientation),
-            input.recommendation.recommended_scene_action,
-            true,
+            EpiphanyCoordinatorAction::LaunchResearch,
+            Some(EpiphanyCoordinatorRoleId::Research),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
             false,
-            "CRRC cannot safely continue automatically and no fixed specialist lane is currently able to advance the regather.",
+            true,
+            "CRRC requires regather; Eyes is the fixed specialist lane that can advance source gathering.",
         );
     }
 
@@ -891,6 +1020,8 @@ pub fn coordinator_automation_action(
         | EpiphanyCoordinatorAction::WaitForReorientWorker
         | EpiphanyCoordinatorAction::ReviewReorientResult
         | EpiphanyCoordinatorAction::RegatherManually
+        | EpiphanyCoordinatorAction::LaunchResearch
+        | EpiphanyCoordinatorAction::ReviewResearchResult
         | EpiphanyCoordinatorAction::LaunchModeling
         | EpiphanyCoordinatorAction::ReviewModelingResult
         | EpiphanyCoordinatorAction::LaunchVerification
@@ -936,6 +1067,10 @@ mod tests {
                 EpiphanyCoordinatorRoleStatus::Ready,
             ),
             role(
+                EpiphanyCoordinatorRoleId::Research,
+                EpiphanyCoordinatorRoleStatus::Ready,
+            ),
+            role(
                 EpiphanyCoordinatorRoleId::Modeling,
                 EpiphanyCoordinatorRoleStatus::Ready,
             ),
@@ -972,9 +1107,13 @@ mod tests {
             recommendation: recommendation(EpiphanyCrrcAction::Continue),
             roles: base_roles(),
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
+            research_result_accepted: false,
+            research_result_reviewable: false,
+            modeling_result_requests_regather: false,
             modeling_result_accepted: false,
             modeling_result_reviewable: false,
             modeling_result_accepted_after_verification: false,
@@ -1030,6 +1169,7 @@ mod tests {
             should_prepare_compaction: true,
             roles: Vec::new(),
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::BackendMissing,
             },
@@ -1086,6 +1226,7 @@ mod tests {
         let launch_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
@@ -1100,6 +1241,7 @@ mod tests {
         let review_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
             recommendation: recommendation(EpiphanyCrrcAction::RegatherManually),
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
@@ -1119,6 +1261,7 @@ mod tests {
                 EpiphanyCoordinatorRoleStatus::Blocked,
             )],
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
             },
@@ -1131,8 +1274,29 @@ mod tests {
         });
         assert_eq!(
             blocked_regather.action,
-            EpiphanyCoordinatorAction::RegatherManually
+            EpiphanyCoordinatorAction::LaunchResearch
         );
+    }
+
+    #[test]
+    fn routes_regather_needed_modeling_to_eyes() {
+        let decision = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+                modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
+                verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
+            },
+            modeling_result_requests_regather: true,
+            modeling_result_reviewable: false,
+            ..input()
+        });
+
+        assert_eq!(decision.action, EpiphanyCoordinatorAction::LaunchResearch);
+        assert_eq!(
+            decision.target_role,
+            Some(EpiphanyCoordinatorRoleId::Research)
+        );
+        assert!(decision.reason.contains("source regather"));
     }
 
     #[test]
@@ -1149,6 +1313,7 @@ mod tests {
 
         let review_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
@@ -1163,6 +1328,7 @@ mod tests {
 
         let wait_for_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Running,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
             },
@@ -1176,6 +1342,7 @@ mod tests {
 
         let review_failed_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Failed,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
@@ -1189,6 +1356,7 @@ mod tests {
 
         let review_unreviewable_modeling = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
@@ -1202,6 +1370,7 @@ mod tests {
 
         let launch_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {
             signals: EpiphanyCoordinatorSignals {
+                research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
                 modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
                 verification_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             },
@@ -1215,6 +1384,7 @@ mod tests {
         );
 
         let verification_done = EpiphanyCoordinatorSignals {
+            research_result_status: EpiphanyCoordinatorRoleResultStatus::MissingBinding,
             modeling_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
             verification_result_status: EpiphanyCoordinatorRoleResultStatus::Completed,
         };

@@ -6508,6 +6508,7 @@
       "enum": [
         "implementation",
         "imagination",
+        "research",
         "modeling",
         "verification",
         "reorientation"

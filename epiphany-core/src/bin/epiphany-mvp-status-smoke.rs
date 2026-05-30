@@ -245,11 +245,12 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
             == [
                 "implementation",
                 "imagination",
+                "research",
                 "modeling",
                 "verification",
                 "reorientation",
             ],
-        "roles surface should expose the five MVP role lanes",
+        "roles surface should expose the six MVP role lanes",
     )?;
     require(
         status
@@ -281,6 +282,10 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
         rendered.contains("Role Findings")
             && status
                 .pointer("/roleResults/imagination/status")
+                .and_then(Value::as_str)
+                == Some("missingState")
+            && status
+                .pointer("/roleResults/research/status")
                 .and_then(Value::as_str)
                 == Some("missingState")
             && status

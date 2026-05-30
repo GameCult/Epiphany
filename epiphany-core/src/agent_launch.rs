@@ -21,6 +21,8 @@ use epiphany_state_model::EpiphanyThreadState;
 
 pub const EPIPHANY_IMAGINATION_ROLE_BINDING_ID: &str = "planning-synthesis-worker";
 pub const EPIPHANY_IMAGINATION_OWNER_ROLE: &str = "epiphany-imagination";
+pub const EPIPHANY_RESEARCH_ROLE_BINDING_ID: &str = "research-source-gather-worker";
+pub const EPIPHANY_RESEARCH_OWNER_ROLE: &str = "epiphany-eyes";
 pub const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker";
 pub const EPIPHANY_MODELING_OWNER_ROLE: &str = "epiphany-modeler";
 pub const EPIPHANY_VERIFICATION_ROLE_BINDING_ID: &str = "verification-review-worker";
@@ -31,6 +33,7 @@ pub const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 pub fn epiphany_role_binding_id(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
         EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_ROLE_BINDING_ID),
+        EpiphanyRoleResultRoleId::Research => Ok(EPIPHANY_RESEARCH_ROLE_BINDING_ID),
         EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
         EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
         EpiphanyRoleResultRoleId::Implementation => Err(
@@ -47,6 +50,7 @@ pub fn epiphany_role_binding_id(role_id: EpiphanyRoleResultRoleId) -> Result<&'s
 pub fn epiphany_role_owner(role_id: EpiphanyRoleResultRoleId) -> Result<&'static str, String> {
     match role_id {
         EpiphanyRoleResultRoleId::Imagination => Ok(EPIPHANY_IMAGINATION_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Research => Ok(EPIPHANY_RESEARCH_OWNER_ROLE),
         EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
         EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
         EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
@@ -59,6 +63,7 @@ pub fn epiphany_role_label(role_id: EpiphanyRoleResultRoleId) -> &'static str {
     match role_id {
         EpiphanyRoleResultRoleId::Implementation => "implementation",
         EpiphanyRoleResultRoleId::Imagination => "imagination",
+        EpiphanyRoleResultRoleId::Research => "research",
         EpiphanyRoleResultRoleId::Modeling => "modeling",
         EpiphanyRoleResultRoleId::Verification => "verification",
         EpiphanyRoleResultRoleId::Reorientation => "reorientation",
@@ -69,6 +74,9 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
     let verdict_enum = match role_id {
         EpiphanyRoleResultRoleId::Imagination => {
             vec!["draft-ready", "planning-update-needed", "blocked"]
+        }
+        EpiphanyRoleResultRoleId::Research => {
+            vec!["evidence-ready", "source-gap", "blocked"]
         }
         EpiphanyRoleResultRoleId::Modeling => {
             vec![
@@ -226,6 +234,43 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
                             "additionalProperties": true
                         }
                     },
+                    "additionalProperties": true
+                }),
+            );
+        }
+        required.push("statePatch");
+    } else if role_id == EpiphanyRoleResultRoleId::Research {
+        if let Some(map) = properties.as_object_mut() {
+            map.insert(
+                "statePatch".to_string(),
+                serde_json::json!({
+                    "type": "object",
+                    "description": "Required reviewable thread/epiphany/update patch for research/Eyes. Use only observations, evidence, scratch, and optional investigationCheckpoint. The patch must include at least one evidence record and one observation that cites it.",
+                    "required": ["observations", "evidence"],
+                    "properties": {
+                        "observations": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "required": ["id", "summary", "source_kind", "status", "evidence_ids"],
+                                "additionalProperties": true
+                            }
+                        },
+                        "evidence": {
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "object",
+                                "required": ["id", "kind", "status", "summary"],
+                                "additionalProperties": true
+                            }
+                        }
+                    },
+                    "anyOf": [
+                        {"required": ["scratch"]},
+                        {"required": ["investigationCheckpoint"]}
+                    ],
                     "additionalProperties": true
                 }),
             );
@@ -418,6 +463,11 @@ pub fn build_epiphany_role_launch_request(
             "epiphany.role.imagination",
             build_epiphany_role_launch_instruction(role_id),
         ),
+        EpiphanyRoleResultRoleId::Research => (
+            "role-scoped source gathering",
+            "epiphany.role.research",
+            build_epiphany_role_launch_instruction(role_id),
+        ),
         EpiphanyRoleResultRoleId::Modeling => (
             "role-scoped modeling/checkpoint maintenance",
             "epiphany.role.modeling",
@@ -484,6 +534,7 @@ fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> 
     let prompts = &epiphany_specialist_prompt_config().roles;
     let body = match role_id {
         EpiphanyRoleResultRoleId::Imagination => prompts.imagination.as_str(),
+        EpiphanyRoleResultRoleId::Research => prompts.research.as_str(),
         EpiphanyRoleResultRoleId::Modeling => prompts.modeling.as_str(),
         EpiphanyRoleResultRoleId::Verification => prompts.verification.as_str(),
         EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {

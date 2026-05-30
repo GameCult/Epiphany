@@ -1,6 +1,7 @@
 use epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE;
 use epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID;
+use epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EPIPHANY_REORIENT_OWNER_ROLE;
 use epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
@@ -122,6 +123,18 @@ pub async fn derive_epiphany_coordinator_status(
     } else {
         (CoreEpiphanyCoordinatorRoleResultStatus::MissingState, None)
     };
+    let (research_result_status, research_finding) = if let Some(state) = state {
+        let snapshot = load_core_epiphany_role_result_snapshot(
+            state,
+            runtime_store_path,
+            EpiphanyRoleResultRoleId::Research,
+            EPIPHANY_RESEARCH_ROLE_BINDING_ID,
+        )
+        .await;
+        (snapshot.status, snapshot.finding)
+    } else {
+        (CoreEpiphanyCoordinatorRoleResultStatus::MissingState, None)
+    };
     let (verification_result_status, verification_finding) = if let Some(state) = state {
         let snapshot = load_core_epiphany_role_result_snapshot(
             state,
@@ -136,6 +149,7 @@ pub async fn derive_epiphany_coordinator_status(
     };
     let finding_signals = derive_coordinator_finding_signals(
         state,
+        research_finding.as_ref(),
         modeling_finding.as_ref(),
         verification_finding.as_ref(),
         reorient_finding,
@@ -149,9 +163,13 @@ pub async fn derive_epiphany_coordinator_status(
         reorient_action: reorient_decision
             .map(|decision| decision.action)
             .unwrap_or(CoreEpiphanyReorientAction::Resume),
+        research_result_status,
         modeling_result_status,
         verification_result_status,
         reorient_result_status,
+        research_result_accepted: finding_signals.research_result_accepted,
+        research_result_reviewable: finding_signals.research_result_reviewable,
+        modeling_result_requests_regather: finding_signals.modeling_result_requests_regather,
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
         modeling_result_accepted_after_verification: finding_signals
@@ -363,10 +381,12 @@ pub fn map_epiphany_roles(
         reorient_result_status: result_status,
         reorient_job: reorient_job.map(map_core_role_board_job),
         imagination_binding_id: EPIPHANY_IMAGINATION_ROLE_BINDING_ID.to_string(),
+        research_binding_id: EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string(),
         modeling_binding_id: EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
         verification_binding_id: EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
         reorient_owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
         imagination_owner_role: EPIPHANY_IMAGINATION_OWNER_ROLE.to_string(),
+        research_owner_role: epiphany_core::EPIPHANY_RESEARCH_OWNER_ROLE.to_string(),
     });
 
     EpiphanyRoleBoardStatus { roles, source_jobs }

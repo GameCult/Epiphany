@@ -366,12 +366,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
 
         let revision = state_revision(&status);
         match action.as_str() {
-            "reviewModelingResult" | "reviewVerificationResult" => {
-                let role_id = if action == "reviewModelingResult" {
-                    "modeling"
-                } else {
-                    "verification"
-                };
+            "reviewResearchResult" | "reviewModelingResult" | "reviewVerificationResult" => {
+                let role_id = role_id_for_coordinator_action(&action)
+                    .ok_or_else(|| anyhow!("unsupported review action {action}"))?;
                 let result = client.send(
                     "thread/epiphany/roleResult",
                     Some(json!({"threadId": thread_id, "roleId": role_id})),
@@ -386,7 +383,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     Some("completed" | "failed" | "cancelled")
                 ) {
                     final_action = json!({
-                        "action": if role_id == "modeling" { "waitForModelingResult" } else { "waitForVerificationResult" },
+                        "action": wait_action_for_role(role_id),
                         "reason": result["note"],
                     });
                     append_jsonl(&steps_path, &step)?;
@@ -398,7 +395,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     && revision.is_some();
                 if !can_accept {
                     final_action = json!({
-                        "action": if role_id == "modeling" { "reviewModelingResult" } else { "reviewVerificationResult" },
+                        "action": review_action_for_role(role_id),
                         "reason": result["note"]
                     });
                     append_jsonl(&steps_path, &step)?;
@@ -446,12 +443,9 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 steps.push(step);
                 break;
             }
-            "launchModeling" | "launchVerification" => {
-                let role_id = if action == "launchModeling" {
-                    "modeling"
-                } else {
-                    "verification"
-                };
+            "launchResearch" | "launchModeling" | "launchVerification" => {
+                let role_id = role_id_for_coordinator_action(&action)
+                    .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
                 let launch = launch_role(
                     &mut client,
                     &thread_id,
@@ -493,7 +487,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     Some("completed" | "failed" | "cancelled")
                 ) {
                     final_action = json!({
-                        "action": if role_id == "modeling" { "waitForModelingResult" } else { "waitForVerificationResult" },
+                        "action": wait_action_for_role(role_id),
                         "reason": result["note"],
                     });
                     append_jsonl(&steps_path, &step)?;
@@ -502,7 +496,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 }
                 if !args.auto_review {
                     final_action = json!({
-                        "action": if role_id == "modeling" { "reviewModelingResult" } else { "reviewVerificationResult" },
+                        "action": review_action_for_role(role_id),
                         "reason": result["note"],
                     });
                     append_jsonl(&steps_path, &step)?;
@@ -723,6 +717,7 @@ fn collect_coordinator_status(
     let planning = view.get("planning").cloned().unwrap_or_else(|| json!(null));
     let role_results = json!({
         "imagination": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "imagination"})), true)?,
+        "research": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "research"})), true)?,
         "modeling": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "modeling"})), true)?,
         "verification": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "verification"})), true)?,
     });
@@ -825,6 +820,33 @@ fn launch_role(
         payload["expectedRevision"] = json!(revision);
     }
     client.send("thread/epiphany/roleLaunch", Some(payload), true)
+}
+
+fn role_id_for_coordinator_action(action: &str) -> Option<&'static str> {
+    match action {
+        "launchResearch" | "reviewResearchResult" => Some("research"),
+        "launchModeling" | "reviewModelingResult" => Some("modeling"),
+        "launchVerification" | "reviewVerificationResult" => Some("verification"),
+        _ => None,
+    }
+}
+
+fn wait_action_for_role(role_id: &str) -> &'static str {
+    match role_id {
+        "research" => "waitForResearchResult",
+        "modeling" => "waitForModelingResult",
+        "verification" => "waitForVerificationResult",
+        _ => "waitForRoleResult",
+    }
+}
+
+fn review_action_for_role(role_id: &str) -> &'static str {
+    match role_id {
+        "research" => "reviewResearchResult",
+        "modeling" => "reviewModelingResult",
+        "verification" => "reviewVerificationResult",
+        _ => "reviewRoleResult",
+    }
 }
 
 fn launch_reorient(

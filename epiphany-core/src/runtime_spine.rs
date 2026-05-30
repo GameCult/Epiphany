@@ -1,5 +1,6 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::agent_memory::AGENT_MEMORY_TYPE;
+use crate::continuity_gateway::*;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION;
@@ -21,7 +22,6 @@ use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
 use crate::hands_gateway::*;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
-use crate::continuity_gateway::*;
 use crate::memory_graph::MEMORY_GRAPH_SCHEMA_VERSION;
 use crate::memory_graph::MEMORY_GRAPH_TYPE;
 use crate::mind_gateway::MIND_GATEWAY_REVIEW_SCHEMA_VERSION;
@@ -2197,7 +2197,9 @@ fn epiphany_mutation_contracts() -> Vec<CultNetDocumentMutationContract> {
             CultNetMutationAuthority::ReadOnly,
             vec![],
             vec![],
-            vec!["Continuity refusal receipts preserve why a continuity packet could not be trusted."],
+            vec![
+                "Continuity refusal receipts preserve why a continuity packet could not be trusted.",
+            ],
         ),
         mutation_contract(
             RUNTIME_EVENT_TYPE,

@@ -56,6 +56,7 @@ const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.msgpack";
 const DEFAULT_RUNTIME_STORE: &str = "state/runtime-spine.msgpack";
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const IMAGINATION_BINDING_ID: &str = "imagination-synthesis-worker";
+const RESEARCH_BINDING_ID: &str = "research-source-gather-worker";
 const MODELING_BINDING_ID: &str = "modeling-checkpoint-worker";
 const VERIFICATION_BINDING_ID: &str = "verification-review-worker";
 const SEALED_DIRECT_THOUGHT_KEYS: &[&str] = &[
@@ -253,6 +254,8 @@ fn run_native_status(args: &Args) -> Result<Value> {
         native_reorient_result_status(state_ref, &runtime_store_path, REORIENT_BINDING_ID);
     let modeling_result_status =
         native_role_result_status(state_ref, &runtime_store_path, MODELING_BINDING_ID);
+    let research_result_status =
+        native_role_result_status(state_ref, &runtime_store_path, RESEARCH_BINDING_ID);
     let verification_result_status =
         native_role_result_status(state_ref, &runtime_store_path, VERIFICATION_BINDING_ID);
     let recommendation = recommend_crrc_action(EpiphanyCrrcInput {
@@ -308,12 +311,14 @@ fn run_native_status(args: &Args) -> Result<Value> {
             .find(|job| job.id == REORIENT_BINDING_ID)
             .cloned(),
         imagination_binding_id: IMAGINATION_BINDING_ID.to_string(),
+        research_binding_id: RESEARCH_BINDING_ID.to_string(),
         modeling_binding_id: MODELING_BINDING_ID.to_string(),
         verification_binding_id: VERIFICATION_BINDING_ID.to_string(),
         reorient_owner_role: "epiphany-reorienter".to_string(),
         imagination_owner_role: "epiphany-imagination".to_string(),
+        research_owner_role: "epiphany-eyes".to_string(),
     });
-    let finding_signals = derive_coordinator_finding_signals(state_ref, None, None, None);
+    let finding_signals = derive_coordinator_finding_signals(state_ref, None, None, None, None);
     let coordinator = derive_coordinator_status(EpiphanyCoordinatorStatusInput {
         state_status,
         checkpoint_present: state_ref
@@ -323,9 +328,13 @@ fn run_native_status(args: &Args) -> Result<Value> {
         recommendation: recommendation.clone(),
         roles: roles.clone(),
         reorient_action: reorient_decision.action,
+        research_result_status,
         modeling_result_status,
         verification_result_status,
         reorient_result_status: result_status,
+        research_result_accepted: finding_signals.research_result_accepted,
+        research_result_reviewable: finding_signals.research_result_reviewable,
+        modeling_result_requests_regather: finding_signals.modeling_result_requests_regather,
         modeling_result_accepted: finding_signals.modeling_result_accepted,
         modeling_result_reviewable: finding_signals.modeling_result_reviewable,
         modeling_result_accepted_after_verification: finding_signals
@@ -409,6 +418,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         "planning": planning,
         "roleResults": {
             "imagination": native_role_result(state_ref, &runtime_store_path, IMAGINATION_BINDING_ID),
+            "research": native_role_result(state_ref, &runtime_store_path, RESEARCH_BINDING_ID),
             "modeling": native_role_result(state_ref, &runtime_store_path, MODELING_BINDING_ID),
             "verification": native_role_result(state_ref, &runtime_store_path, VERIFICATION_BINDING_ID),
         },
@@ -503,6 +513,7 @@ fn run_codex_status(args: &Args) -> Result<Value> {
     let planning = view.get("planning").cloned().unwrap_or_else(|| json!(null));
     let role_results = json!({
         "imagination": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "imagination"})), true)?,
+        "research": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "research"})), true)?,
         "modeling": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "modeling"})), true)?,
         "verification": client.send("thread/epiphany/roleResult", Some(json!({"threadId": thread_id, "roleId": "verification"})), true)?,
     });
@@ -1338,6 +1349,7 @@ pub fn render_status(status: &Value) -> String {
     lines.extend([String::new(), "Role Findings".to_string()]);
     for (role_id, label) in [
         ("imagination", "Imagination / Planning"),
+        ("research", "Eyes / Research"),
         ("modeling", "Modeling / Checkpoint"),
         ("verification", "Verification / Review"),
     ] {

@@ -111,6 +111,7 @@ The Eyes improve themselves by seeing earlier and hallucinating less. Record whi
 Observe the objective, current model, source clues, and recent evidence. Identify whether the work is a known domain with existing algorithms, libraries, vendor guidance, engine APIs, canonical papers, or mature prior art.
 Search local source/docs first. Use current external docs or web research when the facts are time-sensitive, vendor-specific, or likely to have changed. Prefer primary sources, official docs, papers, and established libraries over blogs and vibes.
 Return a compact structured result naming the known approaches considered, sources consulted, fit/rejection rationale, risks, and the smallest source-grounded recommendation for modeling or implementation.
+`statePatch` is part of the Eyes job. Include a reviewable `thread/epiphany/update` patch using only `observations`, `evidence`, `scratch`, and optional `investigationCheckpoint`. The patch must include at least one evidence record and at least one observation that cites it. Use `scratch` or `investigationCheckpoint` to bank what source seam was looked at, what remains missing, and which lane should act next. Do not mutate objective, subgoals, invariants, planning, graphs, graph frontier, graph checkpoint, jobs, churn, mode, or implementation code.
 Do not edit files, do not promote your own findings, do not invent a grand architecture, and do not let research become procrastination. The Eyes open the path; Proprioception maps it, the Hands build it, and the Soul tests it.
 '''
 

@@ -102,6 +102,17 @@ pub fn build_role_acceptance_update(
             }
             patch
         }
+        EpiphanyRoleResultRoleId::Research => {
+            let patch = parse_core_role_finding_state_patch(finding)?;
+            let patch_errors = epiphany_core::research_role_state_patch_policy_errors(&patch);
+            if !patch_errors.is_empty() {
+                return Err(format!(
+                    "research role state patch is not acceptable: {}",
+                    patch_errors.join("; ")
+                ));
+            }
+            patch
+        }
         EpiphanyRoleResultRoleId::Verification => EpiphanyRoleStatePatchDocument::default(),
         EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
             return Err(format!(

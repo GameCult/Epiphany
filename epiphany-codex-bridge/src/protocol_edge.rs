@@ -237,6 +237,7 @@ pub fn protocol_role_id_to_core(role_id: ThreadEpiphanyRoleId) -> EpiphanyRoleRe
     match role_id {
         ThreadEpiphanyRoleId::Implementation => EpiphanyRoleResultRoleId::Implementation,
         ThreadEpiphanyRoleId::Imagination => EpiphanyRoleResultRoleId::Imagination,
+        ThreadEpiphanyRoleId::Research => EpiphanyRoleResultRoleId::Research,
         ThreadEpiphanyRoleId::Modeling => EpiphanyRoleResultRoleId::Modeling,
         ThreadEpiphanyRoleId::Verification => EpiphanyRoleResultRoleId::Verification,
         ThreadEpiphanyRoleId::Reorientation => EpiphanyRoleResultRoleId::Reorientation,
@@ -247,6 +248,7 @@ pub fn protocol_role_id_from_core(role_id: EpiphanyRoleResultRoleId) -> ThreadEp
     match role_id {
         EpiphanyRoleResultRoleId::Implementation => ThreadEpiphanyRoleId::Implementation,
         EpiphanyRoleResultRoleId::Imagination => ThreadEpiphanyRoleId::Imagination,
+        EpiphanyRoleResultRoleId::Research => ThreadEpiphanyRoleId::Research,
         EpiphanyRoleResultRoleId::Modeling => ThreadEpiphanyRoleId::Modeling,
         EpiphanyRoleResultRoleId::Verification => ThreadEpiphanyRoleId::Verification,
         EpiphanyRoleResultRoleId::Reorientation => ThreadEpiphanyRoleId::Reorientation,

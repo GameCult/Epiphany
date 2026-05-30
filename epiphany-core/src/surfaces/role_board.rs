@@ -61,10 +61,12 @@ pub struct EpiphanyRoleBoardInput {
     pub reorient_result_status: EpiphanyCrrcResultStatus,
     pub reorient_job: Option<EpiphanyRoleBoardJob>,
     pub imagination_binding_id: String,
+    pub research_binding_id: String,
     pub modeling_binding_id: String,
     pub verification_binding_id: String,
     pub reorient_owner_role: String,
     pub imagination_owner_role: String,
+    pub research_owner_role: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,6 +124,34 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
         modeling_bound_job.or_else(|| modeling_jobs.first()),
     );
     let modeling_recommended_action = if modeling_has_bound_job {
+        Some(EpiphanyCoordinatorSceneAction::RoleResult)
+    } else if state_present {
+        Some(EpiphanyCoordinatorSceneAction::RoleLaunch)
+    } else {
+        Some(EpiphanyCoordinatorSceneAction::Update)
+    };
+
+    let research_jobs = input
+        .jobs
+        .iter()
+        .filter(|job| job.id == input.research_binding_id)
+        .cloned()
+        .collect::<Vec<_>>();
+    let research_bound_job = research_jobs
+        .iter()
+        .find(|job| job.id == input.research_binding_id);
+    let research_has_bound_job = research_bound_job.is_some();
+    let research_status = research_bound_job
+        .map(|job| role_board_job_status_to_role_status(job.status))
+        .unwrap_or(if state_present {
+            EpiphanyCoordinatorRoleStatus::Ready
+        } else {
+            EpiphanyCoordinatorRoleStatus::Blocked
+        });
+    let research_note = research_bound_job.and_then(job_note).unwrap_or_else(|| {
+        "Gather citable source evidence before Proprioception models from it.".to_string()
+    });
+    let research_recommended_action = if research_has_bound_job {
         Some(EpiphanyCoordinatorSceneAction::RoleResult)
     } else if state_present {
         Some(EpiphanyCoordinatorSceneAction::RoleLaunch)
@@ -204,6 +234,21 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                 "thread/epiphany/update".to_string(),
             ],
             recommended_action: imagination_recommended_action,
+        },
+        EpiphanyRoleBoardLane {
+            id: EpiphanyCoordinatorRoleId::Research,
+            title: "Eyes / Research".to_string(),
+            owner_role: input.research_owner_role,
+            status: research_status,
+            note: research_note,
+            jobs: research_jobs,
+            authority_scopes: vec![
+                "thread/epiphany/roleLaunch".to_string(),
+                "thread/epiphany/roleResult".to_string(),
+                "thread/epiphany/roleAccept".to_string(),
+                "thread/epiphany/update".to_string(),
+            ],
+            recommended_action: research_recommended_action,
         },
         EpiphanyRoleBoardLane {
             id: EpiphanyCoordinatorRoleId::Modeling,
@@ -434,10 +479,12 @@ mod tests {
             reorient_result_status: EpiphanyCrrcResultStatus::MissingBinding,
             reorient_job: None,
             imagination_binding_id: "imagination-synthesis-worker".to_string(),
+            research_binding_id: "research-source-gather-worker".to_string(),
             modeling_binding_id: "modeling-checkpoint-worker".to_string(),
             verification_binding_id: "verification-review-worker".to_string(),
             reorient_owner_role: "epiphany-reorienter".to_string(),
             imagination_owner_role: "epiphany-imagination".to_string(),
+            research_owner_role: "epiphany-eyes".to_string(),
         }
     }
 
@@ -454,13 +501,14 @@ mod tests {
             ..input()
         });
 
-        assert_eq!(roles.len(), 5);
+        assert_eq!(roles.len(), 6);
         assert_eq!(roles[0].id, EpiphanyCoordinatorRoleId::Implementation);
         assert_eq!(roles[0].status, EpiphanyCoordinatorRoleStatus::Ready);
         assert_eq!(roles[1].status, EpiphanyCoordinatorRoleStatus::Needed);
         assert_eq!(roles[2].status, EpiphanyCoordinatorRoleStatus::Ready);
-        assert_eq!(roles[3].status, EpiphanyCoordinatorRoleStatus::Needed);
-        assert_eq!(roles[4].status, EpiphanyCoordinatorRoleStatus::Ready);
+        assert_eq!(roles[3].status, EpiphanyCoordinatorRoleStatus::Ready);
+        assert_eq!(roles[4].status, EpiphanyCoordinatorRoleStatus::Needed);
+        assert_eq!(roles[5].status, EpiphanyCoordinatorRoleStatus::Ready);
     }
 
     #[test]

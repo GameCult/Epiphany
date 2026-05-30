@@ -43,6 +43,7 @@ fn protocol_coordinator_source_signals(
         should_prepare_compaction: signals.should_prepare_compaction,
         reorient_action: protocol_reorient_action(signals.reorient_action),
         crrc_action: protocol_crrc_action(signals.crrc_action),
+        research_result_status: protocol_role_result_status(signals.research_result_status),
         modeling_result_status: protocol_role_result_status(signals.modeling_result_status),
         verification_result_status: protocol_role_result_status(signals.verification_result_status),
         reorient_result_status: protocol_reorient_result_status(signals.reorient_result_status),
@@ -139,6 +140,7 @@ fn protocol_coordinator_role_id(role_id: CoreEpiphanyCoordinatorRoleId) -> Threa
     match role_id {
         CoreEpiphanyCoordinatorRoleId::Implementation => ThreadEpiphanyRoleId::Implementation,
         CoreEpiphanyCoordinatorRoleId::Imagination => ThreadEpiphanyRoleId::Imagination,
+        CoreEpiphanyCoordinatorRoleId::Research => ThreadEpiphanyRoleId::Research,
         CoreEpiphanyCoordinatorRoleId::Modeling => ThreadEpiphanyRoleId::Modeling,
         CoreEpiphanyCoordinatorRoleId::Verification => ThreadEpiphanyRoleId::Verification,
         CoreEpiphanyCoordinatorRoleId::Reorientation => ThreadEpiphanyRoleId::Reorientation,
@@ -186,6 +188,12 @@ fn protocol_coordinator_action(
         }
         CoreEpiphanyCoordinatorAction::RegatherManually => {
             ThreadEpiphanyCoordinatorAction::RegatherManually
+        }
+        CoreEpiphanyCoordinatorAction::LaunchResearch => {
+            ThreadEpiphanyCoordinatorAction::LaunchResearch
+        }
+        CoreEpiphanyCoordinatorAction::ReviewResearchResult => {
+            ThreadEpiphanyCoordinatorAction::ReviewResearchResult
         }
         CoreEpiphanyCoordinatorAction::LaunchModeling => {
             ThreadEpiphanyCoordinatorAction::LaunchModeling
