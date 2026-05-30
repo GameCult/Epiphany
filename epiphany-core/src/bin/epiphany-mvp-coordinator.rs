@@ -354,12 +354,12 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         final_action = coordinator.clone();
 
         if args.mode == "plan" {
-            append_jsonl(&steps_path, &step)?;
+            append_operator_step_jsonl(&steps_path, &step)?;
             steps.push(step);
             break;
         }
         if is_stop_action(&action) && !args.auto_review && !is_result_review_action(&action) {
-            append_jsonl(&steps_path, &step)?;
+            append_operator_step_jsonl(&steps_path, &step)?;
             steps.push(step);
             break;
         }
@@ -386,7 +386,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         "action": wait_action_for_role(role_id),
                         "reason": result["note"],
                     });
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
@@ -398,7 +398,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         "action": review_action_for_role(role_id),
                         "reason": result["note"]
                     });
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
@@ -434,12 +434,12 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 ) {
                     final_action =
                         json!({"action": "waitForReorientResult", "reason": result["note"]});
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
                 final_action = json!({"action": "reviewReorientResult", "reason": result["note"]});
-                append_jsonl(&steps_path, &step)?;
+                append_operator_step_jsonl(&steps_path, &step)?;
                 steps.push(step);
                 break;
             }
@@ -490,7 +490,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         "action": wait_action_for_role(role_id),
                         "reason": result["note"],
                     });
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
@@ -499,7 +499,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         "action": review_action_for_role(role_id),
                         "reason": result["note"],
                     });
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
@@ -542,14 +542,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 ) {
                     final_action =
                         json!({"action": "waitForReorientResult", "reason": result["note"]});
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
                 if !args.auto_review {
                     final_action =
                         json!({"action": "reviewReorientResult", "reason": result["note"]});
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     break;
                 }
@@ -560,7 +560,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                         &mut step,
                         json!({"type": "dryCompact", "threadId": thread_id}),
                     );
-                    append_jsonl(&steps_path, &step)?;
+                    append_operator_step_jsonl(&steps_path, &step)?;
                     steps.push(step);
                     continue;
                 }
@@ -571,7 +571,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             }
             _ => {}
         }
-        append_jsonl(&steps_path, &step)?;
+        append_operator_step_jsonl(&steps_path, &step)?;
         steps.push(step);
     }
 
@@ -1403,6 +1403,10 @@ fn append_jsonl(path: &Path, value: &Value) -> Result<()> {
         .open(path)?;
     writeln!(file, "{}", serde_json::to_string(value)?)?;
     Ok(())
+}
+
+fn append_operator_step_jsonl(path: &Path, step: &Value) -> Result<()> {
+    append_jsonl(path, &status_cli::sanitize_for_operator(step.clone()))
 }
 
 fn text_at(value: &Value, path: &[&str]) -> Result<String> {

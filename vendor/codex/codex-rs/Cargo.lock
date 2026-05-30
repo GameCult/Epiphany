@@ -5092,6 +5092,7 @@ dependencies = [
 name = "epiphany-codex-bridge"
 version = "0.1.0"
 dependencies = [
+ "allocative",
  "anyhow",
  "chrono",
  "codex-app-server-protocol",
