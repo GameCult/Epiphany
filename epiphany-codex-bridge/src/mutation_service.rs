@@ -18,6 +18,9 @@ use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
+use epiphany_core::mind_state_commit_receipt;
+use epiphany_core::put_mind_gateway_review;
+use epiphany_core::put_mind_state_commit_receipt;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
@@ -464,8 +467,32 @@ pub async fn apply_thread_epiphany_role_accept(
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
     let applied_patch = acceptance_update.applied_patch.clone();
+    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review)
+        .map_err(|err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to persist Mind review receipt before role state admission: {err}"
+            ))
+        })?;
+    let mind_review = acceptance_update.mind_review.clone();
     let epiphany_state =
         apply_epiphany_state_update_to_thread(thread, acceptance_update.state_update).await?;
+    let commit_receipt = mind_state_commit_receipt(
+        format!("mind-commit-{accepted_receipt_id}"),
+        &mind_review,
+        epiphany_state.revision,
+        changed_fields
+            .iter()
+            .map(|field| format!("{field:?}"))
+            .collect(),
+        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    );
+    put_mind_state_commit_receipt(runtime_store_path.as_path(), &commit_receipt).map_err(
+        |err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to persist Mind state-commit receipt after role state admission: {err}"
+            ))
+        },
+    )?;
     let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
 
     Ok(EpiphanyRoleAcceptApplied {
@@ -524,8 +551,32 @@ pub async fn apply_thread_epiphany_reorient_accept(
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
+    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review)
+        .map_err(|err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to persist Mind review receipt before reorientation state admission: {err}"
+            ))
+        })?;
+    let mind_review = acceptance_update.mind_review.clone();
     let epiphany_state =
         apply_epiphany_state_update_to_thread(thread, acceptance_update.state_update).await?;
+    let commit_receipt = mind_state_commit_receipt(
+        format!("mind-commit-{accepted_receipt_id}"),
+        &mind_review,
+        epiphany_state.revision,
+        changed_fields
+            .iter()
+            .map(|field| format!("{field:?}"))
+            .collect(),
+        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    );
+    put_mind_state_commit_receipt(runtime_store_path.as_path(), &commit_receipt).map_err(
+        |err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to persist Mind state-commit receipt after reorientation state admission: {err}"
+            ))
+        },
+    )?;
     let epiphany_state = thread.client_visible_epiphany_state(epiphany_state).await;
 
     Ok(EpiphanyReorientAcceptApplied {

@@ -2,6 +2,8 @@
 
 Date: 2026-05-27
 
+Updated: 2026-05-30
+
 Objective: audit Epiphany's current organ shape and map the path from named
 contracts to the Perfect Machine: a coherent organism where repository access,
 evidence, projection, public speech, action, verification, continuity, and
@@ -128,9 +130,13 @@ carries the full standing sub-agent dependency matrix plus required Mind, Substr
 Eyes, Hands, Soul, and Continuity receipt document types. Role/reorient acceptance
 now refuses completed runtime-spine findings if the original launch request is
 missing, document-kind mismatched, or lacks a dependency/receipt contract that
-requires Mind review. Remaining weakness: most organ receipts are still
+requires Mind review. Mind's first executable proof chain is now persisted:
+acceptance writes `epiphany.mind.gateway_review` before state admission and
+`epiphany.mind.state_commit_receipt` after admission with the resulting state
+revision. Remaining weakness: the non-Mind organ receipts are still
 launch-carried expectations, not enforced proof chains before state/action
-promotion.
+promotion, and the current Mind state mutation plus post-commit receipt is not a
+single transaction yet.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
 
@@ -219,8 +225,12 @@ organ.
 - Implement Eyes evidence request/review/packet/refusal documents in CultCache.
 - Require Eyes packets for claims promoted into Mind state proposals when the
   claim depends on inspected source.
-- Convert existing role/reorient acceptance to create Mind state-effect
-  proposals before state mutation, not merely a review attached to the old path.
+- Landed first slice: role/reorient acceptance persists Mind gateway reviews
+  before state mutation and Mind state-commit receipts after state mutation.
+  This is proof, not yet a single transactional admission primitive.
+- Convert existing role/reorient acceptance to one Mind-owned state-admission
+  primitive when the storage layer can atomically pair mutation and commit
+  receipt.
 
 Definition of done: the old direct paths cannot produce repo mutation,
 evidence promotion, or durable state mutation without the corresponding typed
@@ -307,9 +317,12 @@ comfort tunnels.
 - Landed: role/reorient acceptance refuses completed runtime-spine findings
   when the original worker launch request is missing, mismatched by document
   kind, or lacks a dependency/receipt contract requiring Mind review.
-- Next: make acceptance refuse results missing required Substrate Gate/Eyes/Hands/Soul/Continuity
-  receipts for their claimed effect type once those receipt documents are
-  produced by the live runtime.
+- Landed: role/reorient acceptance persists Mind review/commit receipts around
+  durable state admission.
+- Next: split launch-carried receipt expectations into effect-specific proof
+  profiles, then make acceptance refuse results missing required Substrate
+  Gate/Eyes/Hands/Soul/Continuity receipts for the claimed effect type once
+  those receipt documents are produced by the live runtime.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and

@@ -2,6 +2,7 @@ use crate::EpiphanyReorientAcceptanceFinding;
 use crate::EpiphanyRoleFindingInterpretation;
 use crate::EpiphanyRoleResultRoleId;
 use crate::EpiphanyRoleStatePatchDocument;
+use cultcache_rs::DatabaseEntry;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -30,18 +31,73 @@ pub enum MindGatewayDecision {
     Hold,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "epiphany.mind.gateway_review", schema = "MindGatewayReview")]
 pub struct MindGatewayReview {
+    #[cultcache(key = 0)]
     pub schema_version: String,
+    #[cultcache(key = 1)]
     pub gateway_id: String,
+    #[cultcache(key = 2)]
     pub source_kind: String,
+    #[cultcache(key = 3)]
     pub source_role_id: String,
+    #[cultcache(key = 4)]
     pub decision: MindGatewayDecision,
+    #[cultcache(key = 5)]
     pub allowed_effects: Vec<String>,
+    #[cultcache(key = 6)]
     pub refused_effects: Vec<String>,
+    #[cultcache(key = 7)]
     pub reasons: Vec<String>,
+    #[cultcache(key = 8)]
     pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.mind.state_commit_receipt",
+    schema = "MindStateCommitReceipt"
+)]
+pub struct MindStateCommitReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub gateway_id: String,
+    #[cultcache(key = 3)]
+    pub source_kind: String,
+    #[cultcache(key = 4)]
+    pub source_role_id: String,
+    #[cultcache(key = 5)]
+    pub state_revision: u64,
+    #[cultcache(key = 6)]
+    pub changed_fields: Vec<String>,
+    #[cultcache(key = 7)]
+    pub committed_at: String,
+    #[cultcache(key = 8)]
+    pub contract: String,
+}
+
+pub fn mind_state_commit_receipt(
+    receipt_id: String,
+    review: &MindGatewayReview,
+    state_revision: u64,
+    changed_fields: Vec<String>,
+    committed_at: String,
+) -> MindStateCommitReceipt {
+    MindStateCommitReceipt {
+        schema_version: MIND_STATE_COMMIT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        gateway_id: review.gateway_id.clone(),
+        source_kind: review.source_kind.clone(),
+        source_role_id: review.source_role_id.clone(),
+        state_revision,
+        changed_fields,
+        committed_at,
+        contract: "Mind admitted reviewed state effects into durable Epiphany state; this receipt is the state-commit proof paired with the gateway review.".to_string(),
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,7 +287,15 @@ pub fn mind_review_role_acceptance(
     }
     MindGatewayReview {
         schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
-        gateway_id: format!("mind-role-{binding_id}"),
+        gateway_id: format!(
+            "mind-role-{}-{}",
+            binding_id,
+            finding
+                .runtime_job_id
+                .as_deref()
+                .filter(|job_id| !job_id.trim().is_empty())
+                .unwrap_or("missing-job")
+        ),
         source_kind: "roleWorkerResult".to_string(),
         source_role_id: role_label(role_id).to_string(),
         decision: if reasons.is_empty() {
@@ -293,7 +357,15 @@ pub fn mind_review_reorient_acceptance(
     }
     MindGatewayReview {
         schema_version: MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
-        gateway_id: format!("mind-reorient-{binding_id}"),
+        gateway_id: format!(
+            "mind-reorient-{}-{}",
+            binding_id,
+            finding
+                .runtime_job_id
+                .as_deref()
+                .filter(|job_id| !job_id.trim().is_empty())
+                .unwrap_or("missing-job")
+        ),
         source_kind: "reorientWorkerResult".to_string(),
         source_role_id: "reorientation".to_string(),
         decision: if reasons.is_empty() {

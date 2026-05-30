@@ -36,6 +36,8 @@ use crate::mind_gateway::MIND_THOUGHT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_THOUGHT_TYPE;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_SCHEMA_VERSION;
 use crate::mind_gateway::MIND_VERSE_ADOPTION_RECEIPT_TYPE;
+use crate::mind_gateway::MindGatewayReview;
+use crate::mind_gateway::MindStateCommitReceipt;
 use crate::organ_dependencies::EpiphanyLaunchOrganContract;
 use crate::soul_gateway::*;
 use crate::state_ledger::STATE_LEDGER_SCHEMA_VERSION;
@@ -707,6 +709,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyRuntimeJobResult>()?;
     cache.register_entry_type::<EpiphanyRuntimeEvent>()?;
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
+    cache.register_entry_type::<MindGatewayReview>()?;
+    cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
@@ -1116,6 +1120,56 @@ pub fn runtime_reorient_worker_result(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<EpiphanyRuntimeReorientWorkerResult>(job_id)
+}
+
+pub fn put_mind_gateway_review(
+    store_path: impl AsRef<Path>,
+    review: &MindGatewayReview,
+) -> Result<()> {
+    validate_non_empty(&review.gateway_id, "Mind gateway review id")?;
+    validate_non_empty(&review.source_kind, "Mind gateway review source kind")?;
+    validate_non_empty(&review.source_role_id, "Mind gateway review source role")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&review.gateway_id, review)?;
+    Ok(())
+}
+
+pub fn runtime_mind_gateway_review(
+    store_path: impl AsRef<Path>,
+    gateway_id: &str,
+) -> Result<Option<MindGatewayReview>> {
+    validate_non_empty(gateway_id, "Mind gateway review id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<MindGatewayReview>(gateway_id)
+}
+
+pub fn put_mind_state_commit_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &MindStateCommitReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Mind state commit receipt id")?;
+    validate_non_empty(&receipt.gateway_id, "Mind state commit gateway id")?;
+    validate_non_empty(&receipt.source_kind, "Mind state commit source kind")?;
+    validate_non_empty(&receipt.source_role_id, "Mind state commit source role")?;
+    validate_non_empty(&receipt.committed_at, "Mind state commit timestamp")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_mind_state_commit_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<MindStateCommitReceipt>> {
+    validate_non_empty(receipt_id, "Mind state commit receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<MindStateCommitReceipt>(receipt_id)
 }
 
 pub fn put_coordinator_run_receipt(
@@ -3025,6 +3079,49 @@ mod tests {
                 .map(|result| result.result_id.as_str()),
             Some("result-1")
         );
+        Ok(())
+    }
+
+    #[test]
+    fn runtime_spine_persists_mind_gateway_review_receipts() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-05-06T00:00:00Z".to_string(),
+            },
+        )?;
+        let review = MindGatewayReview {
+            schema_version: crate::MIND_GATEWAY_REVIEW_SCHEMA_VERSION.to_string(),
+            gateway_id: "mind-role-modeling-job-1".to_string(),
+            source_kind: "roleWorkerResult".to_string(),
+            source_role_id: "modeling".to_string(),
+            decision: crate::mind_gateway::MindGatewayDecision::Accept,
+            allowed_effects: vec!["statePatch".to_string()],
+            refused_effects: Vec::new(),
+            reasons: Vec::new(),
+            contract: "Mind review is persisted before state admission.".to_string(),
+        };
+
+        put_mind_gateway_review(&store, &review)?;
+        let commit = crate::mind_state_commit_receipt(
+            "mind-commit-1".to_string(),
+            &review,
+            42,
+            vec!["GraphCheckpoint".to_string()],
+            "2026-05-06T00:04:00Z".to_string(),
+        );
+        put_mind_state_commit_receipt(&store, &commit)?;
+
+        let stored = runtime_mind_gateway_review(&store, "mind-role-modeling-job-1")?
+            .expect("Mind review receipt should persist");
+        assert_eq!(stored, review);
+        let stored_commit = runtime_mind_state_commit_receipt(&store, "mind-commit-1")?
+            .expect("Mind state commit receipt should persist");
+        assert_eq!(stored_commit, commit);
         Ok(())
     }
 
