@@ -79,6 +79,15 @@ pub struct EpiphanyReceiptProofProfile {
     pub contract: String,
 }
 
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyReceiptProofEvaluation {
+    pub effect_kind: EpiphanyReceiptEffectKind,
+    pub satisfied_document_types: Vec<String>,
+    pub missing_enforced_document_types: Vec<String>,
+    pub missing_deferred_document_types: Vec<String>,
+}
+
 pub fn default_organ_dependencies_for(organ_id: &str) -> EpiphanyOrganDependency {
     let normalized = organ_id.trim().to_ascii_lowercase();
     EpiphanyOrganDependency {
@@ -223,6 +232,64 @@ pub fn default_launch_required_receipts() -> Vec<String> {
     ])
 }
 
+pub fn evaluate_receipt_proof_profiles(
+    contract: &EpiphanyLaunchOrganContract,
+    claimed_effects: &[EpiphanyReceiptEffectKind],
+    available_document_types: &[String],
+    enforceable_document_types: &[String],
+) -> Vec<EpiphanyReceiptProofEvaluation> {
+    let mut evaluations = Vec::new();
+    for effect_kind in claimed_effects {
+        let Some(profile) = contract
+            .receipt_proof_profiles
+            .iter()
+            .find(|profile| profile.effect_kind == *effect_kind)
+        else {
+            evaluations.push(EpiphanyReceiptProofEvaluation {
+                effect_kind: *effect_kind,
+                missing_enforced_document_types: vec!["missing-proof-profile".to_string()],
+                ..Default::default()
+            });
+            continue;
+        };
+        let mut satisfied_document_types = Vec::new();
+        let mut missing_enforced_document_types = Vec::new();
+        let mut missing_deferred_document_types = Vec::new();
+        for document_type in &profile.required_before_promotion_document_types {
+            if available_document_types.contains(document_type) {
+                push_unique_string(&mut satisfied_document_types, document_type);
+            } else if enforceable_document_types.contains(document_type) {
+                push_unique_string(&mut missing_enforced_document_types, document_type);
+            } else {
+                push_unique_string(&mut missing_deferred_document_types, document_type);
+            }
+        }
+        evaluations.push(EpiphanyReceiptProofEvaluation {
+            effect_kind: *effect_kind,
+            satisfied_document_types,
+            missing_enforced_document_types,
+            missing_deferred_document_types,
+        });
+    }
+    evaluations
+}
+
+pub fn receipt_proof_evaluation_errors(
+    evaluations: &[EpiphanyReceiptProofEvaluation],
+) -> Vec<String> {
+    evaluations
+        .iter()
+        .filter(|evaluation| !evaluation.missing_enforced_document_types.is_empty())
+        .map(|evaluation| {
+            format!(
+                "{:?} is missing enforced receipt proofs: {}",
+                evaluation.effect_kind,
+                evaluation.missing_enforced_document_types.join(", ")
+            )
+        })
+        .collect()
+}
+
 pub fn render_organ_dependency(dependency: &EpiphanyOrganDependency) -> String {
     let depends_on = if dependency.depends_on.is_empty() {
         "- none".to_string()
@@ -275,12 +342,16 @@ fn owner_organ_for_authority_scope(authority_scope: &str) -> &'static str {
 fn unique_strings(items: Vec<&'static str>) -> Vec<String> {
     let mut out = Vec::new();
     for item in items {
-        let item = item.to_string();
-        if !out.contains(&item) {
-            out.push(item);
-        }
+        push_unique_string(&mut out, item);
     }
     out
+}
+
+fn push_unique_string(out: &mut Vec<String>, item: &str) {
+    let item = item.to_string();
+    if !out.contains(&item) {
+        out.push(item);
+    }
 }
 
 #[cfg(test)]
@@ -348,5 +419,48 @@ mod tests {
                     .contains(&SOUL_VERDICT_RECEIPT_TYPE.to_string())
         }));
         assert!(contract.contract.contains("not naked task cargo"));
+    }
+
+    #[test]
+    fn receipt_profile_evaluation_enforces_only_available_producers() {
+        let contract = default_launch_organ_contract(
+            "epiphany.role.research",
+            "role",
+            "epiphany.worker.role_result.v0",
+        );
+        let evaluations = evaluate_receipt_proof_profiles(
+            &contract,
+            &[
+                EpiphanyReceiptEffectKind::StateAdmission,
+                EpiphanyReceiptEffectKind::EvidencePromotion,
+            ],
+            &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
+            &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
+        );
+        assert!(receipt_proof_evaluation_errors(&evaluations).is_empty());
+        let evidence = evaluations
+            .iter()
+            .find(|evaluation| {
+                evaluation.effect_kind == EpiphanyReceiptEffectKind::EvidencePromotion
+            })
+            .expect("evidence promotion should be evaluated");
+        assert!(
+            evidence
+                .missing_deferred_document_types
+                .contains(&SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string())
+        );
+        assert!(
+            evidence
+                .missing_deferred_document_types
+                .contains(&EYES_EVIDENCE_PACKET_TYPE.to_string())
+        );
+
+        let missing_mind = evaluate_receipt_proof_profiles(
+            &contract,
+            &[EpiphanyReceiptEffectKind::StateAdmission],
+            &[],
+            &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
+        );
+        assert_eq!(receipt_proof_evaluation_errors(&missing_mind).len(), 1);
     }
 }

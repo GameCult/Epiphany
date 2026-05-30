@@ -2,6 +2,7 @@ use std::path::Path;
 
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
 use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
+use epiphany_core::EpiphanyLaunchOrganContract;
 use epiphany_core::EpiphanyReceiptEffectKind;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
@@ -463,6 +464,15 @@ fn require_launch_organ_contract(
     job_id: &str,
     expected_document_kind: &str,
 ) -> BridgeResult<()> {
+    load_launch_organ_contract_for_runtime_job(runtime_store_path, job_id, expected_document_kind)
+        .map(|_| ())
+}
+
+pub fn load_launch_organ_contract_for_runtime_job(
+    runtime_store_path: &Path,
+    job_id: &str,
+    expected_document_kind: &str,
+) -> BridgeResult<EpiphanyLaunchOrganContract> {
     let request = runtime_worker_launch_request(runtime_store_path, job_id).map_err(|err| {
         EpiphanyBridgeError::Fatal(format!(
             "failed to read worker launch request for runtime job {:?}: {err}",
@@ -506,7 +516,7 @@ fn require_launch_organ_contract(
             job_id
         )));
     }
-    Ok(())
+    Ok(request.organ_launch_contract)
 }
 
 pub fn latest_epiphany_runtime_link_for_binding<'a>(

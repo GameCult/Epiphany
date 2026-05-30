@@ -18,9 +18,12 @@ use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
+use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
 use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::put_mind_gateway_review;
 use epiphany_core::put_mind_state_commit_receipt;
+use epiphany_core::EpiphanyLaunchOrganContract;
+use epiphany_core::EpiphanyReceiptEffectKind;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
@@ -30,11 +33,14 @@ use epiphany_core::build_epiphany_role_launch_request;
 use epiphany_core::clear_epiphany_job_binding_backend;
 use epiphany_core::epiphany_role_label;
 use epiphany_core::epiphany_state_update_validation_errors;
+use epiphany_core::evaluate_receipt_proof_profiles;
 use epiphany_core::evaluate_promotion;
 use epiphany_core::open_runtime_spine_heartbeat_job;
 use epiphany_core::plan_runtime_spine_heartbeat_launch;
+use epiphany_core::receipt_proof_evaluation_errors;
 use epiphany_core::replace_or_append_epiphany_job_binding;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_mind_gateway_review;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -60,6 +66,8 @@ use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
 use crate::runtime_results::load_completed_core_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_core_epiphany_role_finding;
+use crate::runtime_results::load_launch_organ_contract_for_runtime_job;
+use crate::runtime_results::latest_epiphany_runtime_link_for_binding;
 use uuid::Uuid;
 
 #[allow(async_fn_in_trait)]
@@ -461,6 +469,8 @@ pub async fn apply_thread_epiphany_role_accept(
         Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
     )
     .map_err(EpiphanyBridgeError::InvalidRequest)?;
+    let organ_contract =
+        launch_contract_for_binding(runtime_store_path.as_path(), &state, binding_id, "role")?;
 
     let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
@@ -473,6 +483,15 @@ pub async fn apply_thread_epiphany_role_accept(
                 "failed to persist Mind review receipt before role state admission: {err}"
             ))
         })?;
+    let available_document_types = persisted_mind_review_receipt_types(
+        runtime_store_path.as_path(),
+        acceptance_update.mind_review.gateway_id.as_str(),
+    )?;
+    enforce_current_receipt_proofs(
+        &organ_contract,
+        &role_acceptance_claimed_effects(role_id, &changed_fields),
+        &available_document_types,
+    )?;
     let mind_review = acceptance_update.mind_review.clone();
     let epiphany_state =
         apply_epiphany_state_update_to_thread(thread, acceptance_update.state_update).await?;
@@ -546,6 +565,8 @@ pub async fn apply_thread_epiphany_reorient_accept(
         state.investigation_checkpoint.clone(),
     )
     .map_err(EpiphanyBridgeError::InvalidRequest)?;
+    let organ_contract =
+        launch_contract_for_binding(runtime_store_path.as_path(), &state, binding_id, "reorient")?;
 
     let accepted_receipt_id = acceptance_update.accepted_receipt_id.clone();
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
@@ -557,6 +578,15 @@ pub async fn apply_thread_epiphany_reorient_accept(
                 "failed to persist Mind review receipt before reorientation state admission: {err}"
             ))
         })?;
+    let available_document_types = persisted_mind_review_receipt_types(
+        runtime_store_path.as_path(),
+        acceptance_update.mind_review.gateway_id.as_str(),
+    )?;
+    enforce_current_receipt_proofs(
+        &organ_contract,
+        &reorient_acceptance_claimed_effects(),
+        &available_document_types,
+    )?;
     let mind_review = acceptance_update.mind_review.clone();
     let epiphany_state =
         apply_epiphany_state_update_to_thread(thread, acceptance_update.state_update).await?;
@@ -804,4 +834,88 @@ fn validate_expected_revision(
         )));
     }
     Ok(())
+}
+
+fn launch_contract_for_binding(
+    runtime_store_path: &Path,
+    state: &EpiphanyThreadState,
+    binding_id: &str,
+    expected_document_kind: &str,
+) -> BridgeResult<EpiphanyLaunchOrganContract> {
+    let link = latest_epiphany_runtime_link_for_binding(state, binding_id).ok_or_else(|| {
+        EpiphanyBridgeError::InvalidRequest(format!(
+            "cannot prove receipt profile for binding {:?}: no runtime link exists",
+            binding_id
+        ))
+    })?;
+    load_launch_organ_contract_for_runtime_job(
+        runtime_store_path,
+        link.runtime_job_id.as_str(),
+        expected_document_kind,
+    )
+}
+
+fn enforce_current_receipt_proofs(
+    contract: &EpiphanyLaunchOrganContract,
+    claimed_effects: &[EpiphanyReceiptEffectKind],
+    available_document_types: &[String],
+) -> BridgeResult<()> {
+    let enforceable_document_types = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
+    let evaluations = evaluate_receipt_proof_profiles(
+        contract,
+        claimed_effects,
+        &available_document_types,
+        &enforceable_document_types,
+    );
+    let errors = receipt_proof_evaluation_errors(&evaluations);
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(EpiphanyBridgeError::InvalidRequest(format!(
+            "receipt proof profile rejected state admission: {}",
+            errors.join("; ")
+        )))
+    }
+}
+
+fn persisted_mind_review_receipt_types(
+    runtime_store_path: &Path,
+    gateway_id: &str,
+) -> BridgeResult<Vec<String>> {
+    let review = runtime_mind_gateway_review(runtime_store_path, gateway_id).map_err(|err| {
+        EpiphanyBridgeError::Fatal(format!(
+            "failed to verify persisted Mind review receipt {:?}: {err}",
+            gateway_id
+        ))
+    })?;
+    Ok(review
+        .is_some()
+        .then(|| vec![MIND_GATEWAY_REVIEW_TYPE.to_string()])
+        .unwrap_or_default())
+}
+
+fn role_acceptance_claimed_effects(
+    role_id: EpiphanyRoleResultRoleId,
+    changed_fields: &[EpiphanyStateUpdatedField],
+) -> Vec<EpiphanyReceiptEffectKind> {
+    let mut effects = vec![EpiphanyReceiptEffectKind::StateAdmission];
+    if changed_fields.iter().any(|field| {
+        matches!(
+            field,
+            EpiphanyStateUpdatedField::Evidence | EpiphanyStateUpdatedField::Observations
+        )
+    }) {
+        effects.push(EpiphanyReceiptEffectKind::EvidencePromotion);
+    }
+    if matches!(role_id, EpiphanyRoleResultRoleId::Verification) {
+        effects.push(EpiphanyReceiptEffectKind::Verification);
+    }
+    effects
+}
+
+fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
+    vec![
+        EpiphanyReceiptEffectKind::StateAdmission,
+        EpiphanyReceiptEffectKind::ContinuityRecovery,
+    ]
 }

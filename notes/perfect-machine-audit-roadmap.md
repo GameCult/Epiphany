@@ -131,7 +131,9 @@ catalogue, and effect-specific proof profiles for state admission, evidence
 promotion, repo action, verification, and continuity recovery. Role/reorient
 acceptance now refuses completed runtime-spine findings if the original launch
 request is missing, document-kind mismatched, or lacks a state-admission proof
-profile requiring Mind review. Mind's first executable proof chain is now
+profile requiring Mind review. Acceptance now evaluates claimed effects through
+those profiles, rereads the persisted Mind gateway review from runtime-spine,
+and enforces that available proof. Mind's first executable proof chain is now
 persisted: acceptance writes `epiphany.mind.gateway_review` before state
 admission and `epiphany.mind.state_commit_receipt` after admission with the
 resulting state revision. Remaining weakness: the non-Mind organ receipts are
@@ -323,9 +325,13 @@ comfort tunnels.
 - Landed: launch contracts split the broad receipt catalogue from effect-specific
   proof profiles, so the machine does not demand every organ receipt for every
   result.
-- Next: make acceptance evaluate claimed effect types against available
-  runtime-spine receipts without pretending unavailable Substrate
-  Gate/Eyes/Hands/Soul/Continuity producers already exist.
+- Landed: acceptance evaluates claimed effect types against runtime-spine
+  receipt availability, enforces the currently live Mind gateway-review proof,
+  and defers unavailable non-Mind producer gaps instead of using them as false
+  blockers.
+- Next: create the first non-Mind receipt producer, preferably Eyes evidence
+  packets for Research findings or Soul verdict receipts for Verification
+  findings, then make that profile proof enforceable.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and
