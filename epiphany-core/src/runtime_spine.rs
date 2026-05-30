@@ -19,6 +19,7 @@ use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_EVIDENCE_REVIEW_TYPE;
 use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_SCHEMA_VERSION;
 use crate::eyes_gateway::EYES_SOURCE_LOOKUP_RECEIPT_TYPE;
+use crate::eyes_gateway::EyesEvidencePacket;
 use crate::hands_gateway::*;
 use crate::heartbeat_state::HEARTBEAT_STATE_SCHEMA_VERSION;
 use crate::heartbeat_state::HEARTBEAT_STATE_TYPE;
@@ -711,6 +712,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EpiphanyCoordinatorRunReceipt>()?;
     cache.register_entry_type::<MindGatewayReview>()?;
     cache.register_entry_type::<MindStateCommitReceipt>()?;
+    cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
@@ -1170,6 +1172,38 @@ pub fn runtime_mind_state_commit_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<MindStateCommitReceipt>(receipt_id)
+}
+
+pub fn put_eyes_evidence_packet(
+    store_path: impl AsRef<Path>,
+    packet: &EyesEvidencePacket,
+) -> Result<()> {
+    validate_non_empty(&packet.packet_id, "Eyes evidence packet id")?;
+    validate_non_empty(
+        &packet.source_result_id,
+        "Eyes evidence packet source result",
+    )?;
+    validate_non_empty(&packet.source_job_id, "Eyes evidence packet source job")?;
+    validate_non_empty(&packet.source_role_id, "Eyes evidence packet source role")?;
+    validate_non_empty(&packet.emitted_at, "Eyes evidence packet timestamp")?;
+    if packet.evidence_ids.is_empty() {
+        return Err(anyhow!("Eyes evidence packet must reference evidence ids"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&packet.packet_id, packet)?;
+    Ok(())
+}
+
+pub fn runtime_eyes_evidence_packet(
+    store_path: impl AsRef<Path>,
+    packet_id: &str,
+) -> Result<Option<EyesEvidencePacket>> {
+    validate_non_empty(packet_id, "Eyes evidence packet id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<EyesEvidencePacket>(packet_id)
 }
 
 pub fn put_coordinator_run_receipt(
@@ -3120,6 +3154,21 @@ mod tests {
             "2026-05-06T00:04:00Z".to_string(),
         );
         put_mind_state_commit_receipt(&store, &commit)?;
+        let eyes_packet = EyesEvidencePacket {
+            schema_version: crate::EYES_EVIDENCE_PACKET_SCHEMA_VERSION.to_string(),
+            packet_id: "eyes-packet-1".to_string(),
+            source_result_id: "result-1".to_string(),
+            source_job_id: "job-1".to_string(),
+            source_role_id: "research".to_string(),
+            evidence_ids: vec!["ev-1".to_string()],
+            observation_ids: vec!["obs-1".to_string()],
+            source_refs: vec!["src/lib.rs:1".to_string()],
+            summary: "Evidence packet.".to_string(),
+            uncertainty: "none declared".to_string(),
+            emitted_at: "2026-05-06T00:05:00Z".to_string(),
+            contract: "Eyes packet persists as runtime-spine proof.".to_string(),
+        };
+        put_eyes_evidence_packet(&store, &eyes_packet)?;
 
         let stored = runtime_mind_gateway_review(&store, "mind-role-modeling-job-1")?
             .expect("Mind review receipt should persist");
@@ -3127,6 +3176,9 @@ mod tests {
         let stored_commit = runtime_mind_state_commit_receipt(&store, "mind-commit-1")?
             .expect("Mind state commit receipt should persist");
         assert_eq!(stored_commit, commit);
+        let stored_packet = runtime_eyes_evidence_packet(&store, "eyes-packet-1")?
+            .expect("Eyes evidence packet should persist");
+        assert_eq!(stored_packet, eyes_packet);
         Ok(())
     }
 

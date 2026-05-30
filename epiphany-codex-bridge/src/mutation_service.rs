@@ -33,14 +33,18 @@ use epiphany_core::build_epiphany_role_launch_request;
 use epiphany_core::clear_epiphany_job_binding_backend;
 use epiphany_core::epiphany_role_label;
 use epiphany_core::epiphany_state_update_validation_errors;
+use epiphany_core::eyes_evidence_packet_from_research_finding;
 use epiphany_core::evaluate_receipt_proof_profiles;
 use epiphany_core::evaluate_promotion;
 use epiphany_core::open_runtime_spine_heartbeat_job;
 use epiphany_core::plan_runtime_spine_heartbeat_launch;
+use epiphany_core::put_eyes_evidence_packet;
 use epiphany_core::receipt_proof_evaluation_errors;
 use epiphany_core::replace_or_append_epiphany_job_binding;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_eyes_evidence_packet;
 use epiphany_core::runtime_mind_gateway_review;
+use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -483,14 +487,32 @@ pub async fn apply_thread_epiphany_role_accept(
                 "failed to persist Mind review receipt before role state admission: {err}"
             ))
         })?;
-    let available_document_types = persisted_mind_review_receipt_types(
+    let mut available_document_types = persisted_mind_review_receipt_types(
         runtime_store_path.as_path(),
         acceptance_update.mind_review.gateway_id.as_str(),
     )?;
+    if role_id == EpiphanyRoleResultRoleId::Research {
+        let packet = eyes_evidence_packet_from_research_finding(
+            format!("eyes-packet-{accepted_receipt_id}"),
+            &finding,
+            &applied_patch,
+            Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        );
+        put_eyes_evidence_packet(runtime_store_path.as_path(), &packet).map_err(|err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to persist Eyes evidence packet before research state admission: {err}"
+            ))
+        })?;
+        available_document_types.extend(persisted_eyes_evidence_packet_types(
+            runtime_store_path.as_path(),
+            packet.packet_id.as_str(),
+        )?);
+    }
     enforce_current_receipt_proofs(
         &organ_contract,
         &role_acceptance_claimed_effects(role_id, &changed_fields),
         &available_document_types,
+        &role_acceptance_enforceable_receipts(role_id),
     )?;
     let mind_review = acceptance_update.mind_review.clone();
     let epiphany_state =
@@ -586,6 +608,7 @@ pub async fn apply_thread_epiphany_reorient_accept(
         &organ_contract,
         &reorient_acceptance_claimed_effects(),
         &available_document_types,
+        &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
     )?;
     let mind_review = acceptance_update.mind_review.clone();
     let epiphany_state =
@@ -859,13 +882,13 @@ fn enforce_current_receipt_proofs(
     contract: &EpiphanyLaunchOrganContract,
     claimed_effects: &[EpiphanyReceiptEffectKind],
     available_document_types: &[String],
+    enforceable_document_types: &[String],
 ) -> BridgeResult<()> {
-    let enforceable_document_types = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
     let evaluations = evaluate_receipt_proof_profiles(
         contract,
         claimed_effects,
-        &available_document_types,
-        &enforceable_document_types,
+        available_document_types,
+        enforceable_document_types,
     );
     let errors = receipt_proof_evaluation_errors(&evaluations);
     if errors.is_empty() {
@@ -894,6 +917,22 @@ fn persisted_mind_review_receipt_types(
         .unwrap_or_default())
 }
 
+fn persisted_eyes_evidence_packet_types(
+    runtime_store_path: &Path,
+    packet_id: &str,
+) -> BridgeResult<Vec<String>> {
+    let packet = runtime_eyes_evidence_packet(runtime_store_path, packet_id).map_err(|err| {
+        EpiphanyBridgeError::Fatal(format!(
+            "failed to verify persisted Eyes evidence packet {:?}: {err}",
+            packet_id
+        ))
+    })?;
+    Ok(packet
+        .is_some()
+        .then(|| vec![EYES_EVIDENCE_PACKET_TYPE.to_string()])
+        .unwrap_or_default())
+}
+
 fn role_acceptance_claimed_effects(
     role_id: EpiphanyRoleResultRoleId,
     changed_fields: &[EpiphanyStateUpdatedField],
@@ -911,6 +950,14 @@ fn role_acceptance_claimed_effects(
         effects.push(EpiphanyReceiptEffectKind::Verification);
     }
     effects
+}
+
+fn role_acceptance_enforceable_receipts(role_id: EpiphanyRoleResultRoleId) -> Vec<String> {
+    let mut receipts = vec![MIND_GATEWAY_REVIEW_TYPE.to_string()];
+    if role_id == EpiphanyRoleResultRoleId::Research {
+        receipts.push(EYES_EVIDENCE_PACKET_TYPE.to_string());
+    }
+    receipts
 }
 
 fn reorient_acceptance_claimed_effects() -> Vec<EpiphanyReceiptEffectKind> {
