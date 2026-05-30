@@ -3,14 +3,18 @@ use chrono::Utc;
 use std::path::Path;
 use std::path::PathBuf;
 
+use epiphany_core::CONTINUITY_RECOVERY_RECEIPT_TYPE;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID;
+use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
 use epiphany_core::EpiphanyJobInterruptRequest;
 use epiphany_core::EpiphanyJobInterruptResult;
 use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyJobLaunchResult;
 use epiphany_core::EpiphanyJobView;
+use epiphany_core::EpiphanyLaunchOrganContract;
 use epiphany_core::EpiphanyPromotionInput;
+use epiphany_core::EpiphanyReceiptEffectKind;
 use epiphany_core::EpiphanyReorientDecision;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyReorientStateStatus;
@@ -19,39 +23,39 @@ use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyRoleStatePatchDocument;
 use epiphany_core::EpiphanyStateUpdate;
 use epiphany_core::EpiphanyStateUpdatedField;
-use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
-use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
-use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
-use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
-use epiphany_core::mind_state_commit_receipt;
-use epiphany_core::put_mind_gateway_review;
-use epiphany_core::put_mind_state_commit_receipt;
-use epiphany_core::EpiphanyLaunchOrganContract;
-use epiphany_core::EpiphanyReceiptEffectKind;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
+use epiphany_core::MIND_GATEWAY_REVIEW_TYPE;
 use epiphany_core::RuntimeSpineHeartbeatJobOptions;
 use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
+use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
 use epiphany_core::apply_epiphany_state_update;
 use epiphany_core::build_epiphany_reorient_launch_request;
 use epiphany_core::build_epiphany_role_launch_request;
 use epiphany_core::clear_epiphany_job_binding_backend;
+use epiphany_core::continuity_recovery_receipt_from_reorient_finding;
 use epiphany_core::epiphany_role_label;
 use epiphany_core::epiphany_state_update_validation_errors;
-use epiphany_core::eyes_evidence_packet_from_research_finding;
-use epiphany_core::evaluate_receipt_proof_profiles;
 use epiphany_core::evaluate_promotion;
+use epiphany_core::evaluate_receipt_proof_profiles;
+use epiphany_core::eyes_evidence_packet_from_research_finding;
+use epiphany_core::mind_state_commit_receipt;
 use epiphany_core::open_runtime_spine_heartbeat_job;
 use epiphany_core::plan_runtime_spine_heartbeat_launch;
+use epiphany_core::put_continuity_recovery_receipt;
 use epiphany_core::put_eyes_evidence_packet;
+use epiphany_core::put_mind_gateway_review;
+use epiphany_core::put_mind_state_commit_receipt;
+use epiphany_core::put_soul_verdict_receipt;
+use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::receipt_proof_evaluation_errors;
 use epiphany_core::replace_or_append_epiphany_job_binding;
-use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
-use epiphany_core::put_soul_verdict_receipt;
-use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_continuity_recovery_receipt;
 use epiphany_core::runtime_eyes_evidence_packet;
+use epiphany_core::runtime_job_snapshot;
 use epiphany_core::runtime_mind_gateway_review;
-use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_soul_verdict_receipt;
+use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::soul_verdict_receipt_from_verification_finding;
 use epiphany_core::substrate_gate_repo_access_grant_for_launch;
 use epiphany_state_model::EpiphanyEvidenceRecord;
@@ -77,10 +81,10 @@ use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
+use crate::runtime_results::latest_epiphany_runtime_link_for_binding;
 use crate::runtime_results::load_completed_core_epiphany_reorient_finding;
 use crate::runtime_results::load_completed_core_epiphany_role_finding;
 use crate::runtime_results::load_launch_organ_contract_for_runtime_job;
-use crate::runtime_results::latest_epiphany_runtime_link_for_binding;
 use uuid::Uuid;
 
 #[allow(async_fn_in_trait)]
@@ -495,12 +499,13 @@ pub async fn apply_thread_epiphany_role_accept(
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
     let applied_patch = acceptance_update.applied_patch.clone();
-    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review)
-        .map_err(|err| {
+    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review).map_err(
+        |err| {
             EpiphanyBridgeError::Fatal(format!(
                 "failed to persist Mind review receipt before role state admission: {err}"
             ))
-        })?;
+        },
+    )?;
     let mut available_document_types = persisted_mind_review_receipt_types(
         runtime_store_path.as_path(),
         acceptance_update.mind_review.gateway_id.as_str(),
@@ -628,21 +633,42 @@ pub async fn apply_thread_epiphany_reorient_accept(
     let accepted_observation_id = acceptance_update.accepted_observation_id.clone();
     let accepted_evidence_id = acceptance_update.accepted_evidence_id.clone();
     let changed_fields = acceptance_update.changed_fields.clone();
-    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review)
-        .map_err(|err| {
+    put_mind_gateway_review(runtime_store_path.as_path(), &acceptance_update.mind_review).map_err(
+        |err| {
             EpiphanyBridgeError::Fatal(format!(
                 "failed to persist Mind review receipt before reorientation state admission: {err}"
             ))
-        })?;
-    let available_document_types = persisted_mind_review_receipt_types(
+        },
+    )?;
+    let mut available_document_types = persisted_mind_review_receipt_types(
         runtime_store_path.as_path(),
         acceptance_update.mind_review.gateway_id.as_str(),
     )?;
+    let recovery_receipt = continuity_recovery_receipt_from_reorient_finding(
+        format!("continuity-recovery-{accepted_receipt_id}"),
+        binding_id.to_string(),
+        &finding,
+        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+    );
+    put_continuity_recovery_receipt(runtime_store_path.as_path(), &recovery_receipt).map_err(
+        |err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to persist Continuity recovery receipt before reorientation state admission: {err}"
+            ))
+        },
+    )?;
+    available_document_types.extend(persisted_continuity_recovery_types(
+        runtime_store_path.as_path(),
+        recovery_receipt.receipt_id.as_str(),
+    )?);
     enforce_current_receipt_proofs(
         &organ_contract,
         &reorient_acceptance_claimed_effects(),
         &available_document_types,
-        &[MIND_GATEWAY_REVIEW_TYPE.to_string()],
+        &[
+            MIND_GATEWAY_REVIEW_TYPE.to_string(),
+            CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string(),
+        ],
     )?;
     let mind_review = acceptance_update.mind_review.clone();
     let epiphany_state =
@@ -1018,6 +1044,23 @@ fn persisted_soul_verdict_types(
     Ok(verdict
         .is_some()
         .then(|| vec![SOUL_VERDICT_RECEIPT_TYPE.to_string()])
+        .unwrap_or_default())
+}
+
+fn persisted_continuity_recovery_types(
+    runtime_store_path: &Path,
+    receipt_id: &str,
+) -> BridgeResult<Vec<String>> {
+    let recovery =
+        runtime_continuity_recovery_receipt(runtime_store_path, receipt_id).map_err(|err| {
+            EpiphanyBridgeError::Fatal(format!(
+                "failed to verify persisted Continuity recovery receipt {:?}: {err}",
+                receipt_id
+            ))
+        })?;
+    Ok(recovery
+        .is_some()
+        .then(|| vec![CONTINUITY_RECOVERY_RECEIPT_TYPE.to_string()])
         .unwrap_or_default())
 }
 

@@ -1,5 +1,6 @@
 use crate::EpiphanyWorkerLaunchDocument;
 use crate::agent_memory::AGENT_MEMORY_TYPE;
+use crate::continuity_gateway::ContinuityRecoveryReceipt;
 use crate::continuity_gateway::*;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION;
 use crate::cultmesh_integration::EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_TYPE;
@@ -717,6 +718,7 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
+    cache.register_entry_type::<ContinuityRecoveryReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
     cache.register_entry_type::<EpiphanyOpenAiModelRequest>()?;
     cache.register_entry_type::<EpiphanyOpenAiStreamEvent>()?;
@@ -1275,6 +1277,40 @@ pub fn runtime_soul_verdict_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<SoulVerdictReceipt>(receipt_id)
+}
+
+pub fn put_continuity_recovery_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &ContinuityRecoveryReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Continuity recovery receipt id")?;
+    validate_non_empty(
+        &receipt.source_result_id,
+        "Continuity recovery source result",
+    )?;
+    validate_non_empty(&receipt.source_job_id, "Continuity recovery source job")?;
+    validate_non_empty(&receipt.binding_id, "Continuity recovery binding")?;
+    validate_non_empty(&receipt.mode, "Continuity recovery mode")?;
+    validate_non_empty(
+        &receipt.checkpoint_still_valid,
+        "Continuity recovery checkpoint validity",
+    )?;
+    validate_non_empty(&receipt.emitted_at, "Continuity recovery timestamp")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_continuity_recovery_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<ContinuityRecoveryReceipt>> {
+    validate_non_empty(receipt_id, "Continuity recovery receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<ContinuityRecoveryReceipt>(receipt_id)
 }
 
 pub fn put_coordinator_run_receipt(
@@ -3267,6 +3303,21 @@ mod tests {
             contract: "Soul verdict persists as runtime-spine proof.".to_string(),
         };
         put_soul_verdict_receipt(&store, &soul_verdict)?;
+        let continuity_recovery = ContinuityRecoveryReceipt {
+            schema_version: crate::CONTINUITY_RECOVERY_RECEIPT_SCHEMA_VERSION.to_string(),
+            receipt_id: "continuity-recovery-1".to_string(),
+            source_result_id: "result-reorient-1".to_string(),
+            source_job_id: "job-reorient-1".to_string(),
+            binding_id: "reorientation-worker".to_string(),
+            mode: "resume".to_string(),
+            checkpoint_still_valid: "true".to_string(),
+            summary: "Checkpoint survives.".to_string(),
+            next_safe_move: "Continue.".to_string(),
+            files_inspected: vec!["state/map.yaml".to_string()],
+            emitted_at: "2026-05-06T00:08:00Z".to_string(),
+            contract: "Continuity recovery persists as runtime-spine proof.".to_string(),
+        };
+        put_continuity_recovery_receipt(&store, &continuity_recovery)?;
 
         let stored = runtime_mind_gateway_review(&store, "mind-role-modeling-job-1")?
             .expect("Mind review receipt should persist");
@@ -3284,6 +3335,9 @@ mod tests {
         let stored_verdict = runtime_soul_verdict_receipt(&store, "soul-verdict-1")?
             .expect("Soul verdict should persist");
         assert_eq!(stored_verdict, soul_verdict);
+        let stored_recovery = runtime_continuity_recovery_receipt(&store, "continuity-recovery-1")?
+            .expect("Continuity recovery should persist");
+        assert_eq!(stored_recovery, continuity_recovery);
         Ok(())
     }
 
