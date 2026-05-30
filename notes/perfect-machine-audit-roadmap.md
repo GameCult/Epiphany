@@ -126,15 +126,16 @@ Runtime-spine advertises those contracts and CultMesh persists Verse-scoped
 policy documents for each. The first executable pressure slice is landed:
 worker launch packets now carry an `EpiphanyLaunchOrganContract` derived from
 authority scope, launch document kind, and output contract id. That contract
-carries the full standing sub-agent dependency matrix plus required Mind, Substrate Gate,
-Eyes, Hands, Soul, and Continuity receipt document types. Role/reorient acceptance
-now refuses completed runtime-spine findings if the original launch request is
-missing, document-kind mismatched, or lacks a dependency/receipt contract that
-requires Mind review. Mind's first executable proof chain is now persisted:
-acceptance writes `epiphany.mind.gateway_review` before state admission and
-`epiphany.mind.state_commit_receipt` after admission with the resulting state
-revision. Remaining weakness: the non-Mind organ receipts are still
-launch-carried expectations, not enforced proof chains before state/action
+carries the full standing sub-agent dependency matrix, a receipt document
+catalogue, and effect-specific proof profiles for state admission, evidence
+promotion, repo action, verification, and continuity recovery. Role/reorient
+acceptance now refuses completed runtime-spine findings if the original launch
+request is missing, document-kind mismatched, or lacks a state-admission proof
+profile requiring Mind review. Mind's first executable proof chain is now
+persisted: acceptance writes `epiphany.mind.gateway_review` before state
+admission and `epiphany.mind.state_commit_receipt` after admission with the
+resulting state revision. Remaining weakness: the non-Mind organ receipts are
+still launch-carried expectations, not enforced proof chains before state/action
 promotion, and the current Mind state mutation plus post-commit receipt is not a
 single transaction yet.
 
@@ -316,13 +317,15 @@ comfort tunnels.
   dependency matrix, and required Substrate Gate/Eyes/Hands/Soul/Continuity/Mind receipts.
 - Landed: role/reorient acceptance refuses completed runtime-spine findings
   when the original worker launch request is missing, mismatched by document
-  kind, or lacks a dependency/receipt contract requiring Mind review.
+  kind, or lacks a state-admission proof profile requiring Mind review.
 - Landed: role/reorient acceptance persists Mind review/commit receipts around
   durable state admission.
-- Next: split launch-carried receipt expectations into effect-specific proof
-  profiles, then make acceptance refuse results missing required Substrate
-  Gate/Eyes/Hands/Soul/Continuity receipts for the claimed effect type once
-  those receipt documents are produced by the live runtime.
+- Landed: launch contracts split the broad receipt catalogue from effect-specific
+  proof profiles, so the machine does not demand every organ receipt for every
+  result.
+- Next: make acceptance evaluate claimed effect types against available
+  runtime-spine receipts without pretending unavailable Substrate
+  Gate/Eyes/Hands/Soul/Continuity producers already exist.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and

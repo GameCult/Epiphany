@@ -2,6 +2,7 @@ use std::path::Path;
 
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus as CoreEpiphanyCoordinatorRoleResultStatus;
 use epiphany_core::EpiphanyCrrcResultStatus as CoreEpiphanyCrrcResultStatus;
+use epiphany_core::EpiphanyReceiptEffectKind;
 use epiphany_core::EpiphanyReorientFindingInterpretation;
 use epiphany_core::EpiphanyRoleFindingInterpretation;
 use epiphany_core::EpiphanyRoleResultRoleId;
@@ -481,24 +482,27 @@ fn require_launch_organ_contract(
         )));
     }
     if request.organ_launch_contract.dependencies.is_empty()
-        || request
-            .organ_launch_contract
-            .required_receipt_document_types
-            .is_empty()
+        || request.organ_launch_contract.receipt_proof_profiles.is_empty()
     {
         return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "cannot accept runtime job {:?}: worker launch request has no organ dependency/receipt contract",
+            "cannot accept runtime job {:?}: worker launch request has no organ dependency/proof-profile contract",
             job_id
         )));
     }
     if !request
         .organ_launch_contract
-        .required_receipt_document_types
+        .receipt_proof_profiles
         .iter()
-        .any(|document_type| document_type == MIND_GATEWAY_REVIEW_TYPE)
+        .any(|profile| {
+            profile.effect_kind == EpiphanyReceiptEffectKind::StateAdmission
+                && profile
+                    .required_before_promotion_document_types
+                    .iter()
+                    .any(|document_type| document_type == MIND_GATEWAY_REVIEW_TYPE)
+        })
     {
         return Err(EpiphanyBridgeError::InvalidRequest(format!(
-            "cannot accept runtime job {:?}: worker launch contract does not require Mind review",
+            "cannot accept runtime job {:?}: worker launch contract has no state-admission proof profile requiring Mind review",
             job_id
         )));
     }

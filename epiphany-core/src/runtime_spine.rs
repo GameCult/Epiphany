@@ -2768,6 +2768,11 @@ fn validate_launch_organ_contract(
             "epiphany launch organ contract must carry required receipt document types"
         ));
     }
+    if contract.receipt_proof_profiles.is_empty() {
+        return Err(anyhow!(
+            "epiphany launch organ contract must carry effect-specific receipt proof profiles"
+        ));
+    }
     Ok(())
 }
 
@@ -3203,6 +3208,17 @@ mod tests {
                 .organ_launch_contract
                 .required_receipt_document_types
                 .contains(&crate::MIND_GATEWAY_REVIEW_TYPE.to_string())
+        );
+        assert!(
+            launch_request
+                .organ_launch_contract
+                .receipt_proof_profiles
+                .iter()
+                .any(|profile| profile.effect_kind
+                    == crate::EpiphanyReceiptEffectKind::StateAdmission
+                    && profile
+                        .required_before_promotion_document_types
+                        .contains(&crate::MIND_GATEWAY_REVIEW_TYPE.to_string()))
         );
         Ok(())
     }
