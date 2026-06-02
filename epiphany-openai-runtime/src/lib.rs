@@ -9,6 +9,7 @@ use epiphany_core::EpiphanyRuntimeReorientWorkerResult;
 use epiphany_core::EpiphanyRuntimeRoleWorkerResult;
 use epiphany_core::EpiphanyRuntimeWorkerLaunchRequest;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::HandsActionIntent;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineJobOptions;
@@ -18,11 +19,19 @@ use epiphany_core::append_runtime_event;
 use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
 use epiphany_core::ensure_runtime_session;
+use epiphany_core::hands_action_review_for_intent;
+use epiphany_core::hands_commit_receipt_for_review;
+use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
+use epiphany_core::put_hands_action_intent;
+use epiphany_core::put_hands_action_review;
+use epiphany_core::put_hands_commit_receipt;
+use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_runtime_reorient_worker_result;
 use epiphany_core::put_runtime_role_worker_result;
 use epiphany_core::runtime_spine_cache;
 use epiphany_core::runtime_spine_status;
+use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
 use epiphany_model_adapter::EpiphanyModelInputItem;
 use epiphany_model_adapter::EpiphanyModelReceipt;
 use epiphany_model_adapter::EpiphanyModelRequest;
@@ -621,16 +630,25 @@ pub fn complete_worker_job_from_assistant_text(
         .unwrap_or_default();
     artifact_refs.push(format!("openai-result:{}", openai_summary.result_id));
     let result_id = format!("result-worker-{}", launch_request.job_id);
+    let mut hands_receipt_ids = Vec::new();
     if let Some(parsed) = parsed.as_ref() {
         match (&launch_document, parsed) {
             (EpiphanyWorkerLaunchDocument::Role(document), WorkerResultIngress::Role(parsed)) => {
-                let typed_result = role_worker_result_from_ingress(
+                let mut typed_result = role_worker_result_from_ingress(
                     launch_request,
                     &document.role_id,
                     &result_id,
                     parsed,
                     artifact_refs.clone(),
                 );
+                if typed_result.role_id == "implementation" {
+                    hands_receipt_ids = persist_hands_receipts_for_implementation_result(
+                        store_path.as_ref(),
+                        launch_request,
+                        parsed,
+                        &mut typed_result,
+                    )?;
+                }
                 put_runtime_role_worker_result(store_path.as_ref(), &typed_result)?;
             }
             (EpiphanyWorkerLaunchDocument::Reorient(_), WorkerResultIngress::Reorient(parsed)) => {
@@ -649,6 +667,11 @@ pub fn complete_worker_job_from_assistant_text(
             }
         }
     }
+    evidence_refs.extend(
+        hands_receipt_ids
+            .iter()
+            .map(|receipt_id| format!("hands-receipt:{receipt_id}")),
+    );
     complete_runtime_job(
         store_path,
         RuntimeSpineJobResultOptions {
@@ -1193,7 +1216,7 @@ fn worker_instructions(
 fn worker_output_contract_text(document: &EpiphanyWorkerLaunchDocument) -> &'static str {
     match document {
         EpiphanyWorkerLaunchDocument::Role(_) => {
-            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, and artifactRefs when present."
+            "Required role-result fields: roleId, verdict, summary, nextSafeMove, filesInspected. Modeling and Imagination workers must include their required statePatch. Implementation workers must include branchName, changedPaths, and when a commit was created commitSha plus commandsRun when commands were executed. Use arrays for frontierNodeIds, evidenceIds, openQuestions, evidenceGaps, risks, artifactRefs, changedPaths, and commandsRun when present."
         }
         EpiphanyWorkerLaunchDocument::Reorient(_) => {
             "Required reorient-result fields: mode, summary, nextSafeMove. Include checkpointStillValid, filesInspected, frontierNodeIds, evidenceIds, openQuestions, and continuityRisks when present."
@@ -1217,6 +1240,11 @@ struct RoleWorkerResultIngress {
     open_questions: Vec<String>,
     evidence_gaps: Vec<String>,
     risks: Vec<String>,
+    branch_name: Option<String>,
+    commit_sha: Option<String>,
+    changed_paths: Vec<String>,
+    commands_run: Vec<String>,
+    hands_receipt_ids: Vec<String>,
     state_patch: Option<epiphany_core::EpiphanyRoleStatePatchDocument>,
     self_patch: Option<epiphany_core::AgentSelfPatch>,
 }
@@ -1341,6 +1369,157 @@ fn role_worker_result_from_ingress(
     }
 }
 
+fn persist_hands_receipts_for_implementation_result(
+    store_path: &Path,
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    result: &RoleWorkerResultIngress,
+    typed_result: &mut EpiphanyRuntimeRoleWorkerResult,
+) -> Result<Vec<String>> {
+    let branch = clean_optional_string(result.branch_name.as_deref());
+    let commit_sha = clean_optional_string(result.commit_sha.as_deref());
+    let changed_paths = clean_string_vec(&result.changed_paths);
+    let commands_run = clean_string_vec(&result.commands_run);
+    let model_reported_receipts = clean_string_vec(&result.hands_receipt_ids);
+    let grant_receipt_id = substrate_gate_grant_receipt_id(&launch_request.job_id);
+
+    if let Some(branch) = branch.as_ref() {
+        typed_result
+            .metadata
+            .insert("hands.branchName".to_string(), branch.clone());
+    }
+    if let Some(commit_sha) = commit_sha.as_ref() {
+        typed_result
+            .metadata
+            .insert("hands.commitSha".to_string(), commit_sha.clone());
+    }
+    if !changed_paths.is_empty() {
+        typed_result.metadata.insert(
+            "hands.changedPaths".to_string(),
+            serde_json::to_string(&changed_paths)?,
+        );
+    }
+    if !commands_run.is_empty() {
+        typed_result.metadata.insert(
+            "hands.commandsRun.reported".to_string(),
+            serde_json::to_string(&commands_run)?,
+        );
+        typed_result.metadata.insert(
+            "hands.commandsRun.receiptGap".to_string(),
+            "command strings were reported by the worker result; command receipts require tool execution receipts and are not synthesized here".to_string(),
+        );
+    }
+    if !model_reported_receipts.is_empty() {
+        typed_result.metadata.insert(
+            "hands.reportedReceiptIds".to_string(),
+            serde_json::to_string(&model_reported_receipts)?,
+        );
+    }
+
+    if changed_paths.is_empty() && commit_sha.is_none() {
+        typed_result.metadata.insert(
+            "hands.receiptStatus".to_string(),
+            "no patch or commit receipt emitted because the implementation result reported no changedPaths and no commitSha".to_string(),
+        );
+        return Ok(model_reported_receipts);
+    }
+    if commit_sha.is_some() && branch.is_none() {
+        return Err(anyhow!(
+            "implementation worker result reported commitSha but no branchName; refusing to emit a Hands commit receipt"
+        ));
+    }
+    if commit_sha.is_some() && changed_paths.is_empty() {
+        return Err(anyhow!(
+            "implementation worker result reported commitSha but no changedPaths; refusing to emit a Hands commit receipt"
+        ));
+    }
+
+    if runtime_substrate_gate_repo_access_grant_receipt(store_path, &grant_receipt_id)?.is_none() {
+        return Err(anyhow!(
+            "implementation worker result cannot emit Hands receipts without Substrate Gate grant {grant_receipt_id}"
+        ));
+    }
+
+    let requested_paths = if changed_paths.is_empty() {
+        vec![".".to_string()]
+    } else {
+        changed_paths.clone()
+    };
+    let intent_id = format!("hands-intent-{}", launch_request.job_id);
+    let review_id = format!("hands-review-{}", launch_request.job_id);
+    let mut allowed_operations = Vec::new();
+    if !changed_paths.is_empty() {
+        allowed_operations.push("patch".to_string());
+    }
+    if commit_sha.is_some() {
+        allowed_operations.push("commit".to_string());
+    }
+    let intent = HandsActionIntent {
+        schema_version: epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+        intent_id: intent_id.clone(),
+        runtime_job_id: launch_request.job_id.clone(),
+        binding_id: launch_request.binding_id.clone(),
+        role: launch_request.role.clone(),
+        authority_scope: launch_request.authority_scope.clone(),
+        requested_action: "implementation branch-turn".to_string(),
+        requested_paths,
+        substrate_gate_grant_receipt_id: grant_receipt_id,
+        requested_at: now(),
+        contract: "Hands action intent synthesized from a completed implementation branch-turn worker result; it records the bounded repo action and still requires Soul verification plus Mind admission.".to_string(),
+    };
+    let review = hands_action_review_for_intent(
+        review_id,
+        &intent,
+        "approved".to_string(),
+        allowed_operations,
+        vec![
+            "Implementation worker completed through the fixed Hands branch-turn lane.".to_string(),
+            "Substrate Gate mutation grant was present for this runtime job.".to_string(),
+        ],
+        now(),
+    );
+
+    put_hands_action_intent(store_path, &intent)?;
+    put_hands_action_review(store_path, &review)?;
+
+    let mut receipt_ids = vec![intent.intent_id.clone(), review.review_id.clone()];
+    if !changed_paths.is_empty() {
+        let patch = hands_patch_receipt_for_review(
+            format!("hands-patch-{}", launch_request.job_id),
+            &intent,
+            &review,
+            changed_paths.clone(),
+            typed_result.summary.clone(),
+            now(),
+        );
+        put_hands_patch_receipt(store_path, &patch)?;
+        receipt_ids.push(patch.receipt_id);
+    }
+    if let (Some(commit_sha), Some(branch)) = (commit_sha, branch) {
+        let commit = hands_commit_receipt_for_review(
+            format!("hands-commit-{}", launch_request.job_id),
+            &intent,
+            &review,
+            commit_sha,
+            branch,
+            changed_paths,
+            typed_result.summary.clone(),
+            now(),
+        );
+        put_hands_commit_receipt(store_path, &commit)?;
+        receipt_ids.push(commit.receipt_id);
+    }
+    receipt_ids.extend(model_reported_receipts);
+    typed_result.metadata.insert(
+        "hands.persistedReceiptIds".to_string(),
+        serde_json::to_string(&receipt_ids)?,
+    );
+    Ok(receipt_ids)
+}
+
+fn substrate_gate_grant_receipt_id(runtime_job_id: &str) -> String {
+    format!("substrate-grant-{runtime_job_id}")
+}
+
 fn reorient_worker_result_from_ingress(
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     result_id: &str,
@@ -1450,6 +1629,7 @@ mod tests {
     use epiphany_core::EpiphanyWorkerLaunchDocument;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
     use epiphany_core::open_runtime_spine_heartbeat_job;
+    use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
     use epiphany_core::runtime_job_snapshot;
     use epiphany_openai_adapter::EpiphanyOpenAiModelReceipt;
     use tempfile::tempdir;
@@ -1708,6 +1888,160 @@ mod tests {
                 .expect("snapshot")
                 .result
                 .is_some()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn implementation_worker_completion_emits_hands_patch_and_commit_receipts() -> Result<()> {
+        let temp = tempdir()?;
+        let store = temp.path().join("runtime.msgpack");
+        open_runtime_spine_heartbeat_job(
+            &store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Run typed Hands worker.".to_string(),
+                coordinator_note: "test".to_string(),
+                job_id: "worker-job-impl".to_string(),
+                role: "epiphany-hands".to_string(),
+                binding_id: "implementation-branch-turn-worker".to_string(),
+                authority_scope: "epiphany.role.implementation".to_string(),
+                instruction: "Return the required implementation role-result JSON.".to_string(),
+                launch_document: EpiphanyWorkerLaunchDocument::Role(
+                    epiphany_core::EpiphanyRoleWorkerLaunchDocument {
+                        thread_id: "thread-1".to_string(),
+                        role_id: "implementation".to_string(),
+                        state_revision: 1,
+                        objective: Some("Cut one Hands branch turn.".to_string()),
+                        dynamic_prompt_context: Some(
+                            "Proprioception context: branch map is current.".to_string(),
+                        ),
+                        active_subgoal_id: None,
+                        active_subgoals: Vec::new(),
+                        active_graph_node_ids: Vec::new(),
+                        investigation_checkpoint: None,
+                        scratch: None,
+                        invariants: Vec::new(),
+                        graphs: None,
+                        recent_evidence: Vec::new(),
+                        recent_observations: Vec::new(),
+                        graph_frontier: None,
+                        graph_checkpoint: None,
+                        planning: None,
+                        churn: None,
+                    },
+                ),
+                output_contract_id: epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+                organ_launch_contract: epiphany_core::default_launch_organ_contract(
+                    "epiphany.role.implementation",
+                    "role",
+                    epiphany_core::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+                ),
+                created_at: now(),
+            },
+        )?;
+        put_substrate_gate_repo_access_grant_receipt(
+            &store,
+            &epiphany_core::SubstrateGateRepoAccessGrantReceipt {
+                schema_version:
+                    epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION
+                        .to_string(),
+                receipt_id: "substrate-grant-worker-job-impl".to_string(),
+                runtime_job_id: "worker-job-impl".to_string(),
+                binding_id: "implementation-branch-turn-worker".to_string(),
+                role: "epiphany-hands".to_string(),
+                authority_scope: "epiphany.role.implementation".to_string(),
+                granted_operations: vec![
+                    "read".to_string(),
+                    "snapshot".to_string(),
+                    "patch".to_string(),
+                    "commit".to_string(),
+                ],
+                granted_paths: vec![".".to_string()],
+                granted_at: now(),
+                contract: "Test mutation grant for one Hands branch-turn.".to_string(),
+            },
+        )?;
+        let launch_request = load_worker_launch_request(&store, "worker-job-impl")?;
+        let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
+            store: store.display().to_string(),
+            session_id: "openai-worker-session-implementation".to_string(),
+            job_id: "openai-worker-worker-job-impl".to_string(),
+            request_id: "req-implementation".to_string(),
+            event_count: 2,
+            verdict: "pass".to_string(),
+            summary: "OpenAI model request completed.".to_string(),
+            result_id: "result-openai-worker-worker-job-impl".to_string(),
+            receipt_id: Some("req-implementation".to_string()),
+            tool_intent_ids: Vec::new(),
+        };
+
+        let result = complete_worker_job_from_assistant_text(
+            &store,
+            &launch_request,
+            "req-implementation",
+            &openai_summary,
+            r#"{"roleId":"implementation","verdict":"commit-created","summary":"Committed the branch turn.","nextSafeMove":"Proprioception should refresh the branch map.","filesInspected":["src/lib.rs"],"branchName":"codex/hands-test","commitSha":"abc123","changedPaths":["src/lib.rs"],"commandsRun":["cargo test --manifest-path ./epiphany-core/Cargo.toml hands_gateway"]}"#,
+        )?;
+
+        assert_eq!(result.verdict, "commit-created");
+        assert!(
+            result
+                .evidence_refs
+                .contains(&"hands-receipt:hands-commit-worker-job-impl".to_string())
+        );
+        let typed_result = epiphany_core::runtime_role_worker_result(&store, "worker-job-impl")?
+            .expect("typed role result");
+        assert_eq!(
+            typed_result.metadata.get("hands.branchName"),
+            Some(&"codex/hands-test".to_string())
+        );
+        assert_eq!(
+            typed_result.metadata.get("hands.commitSha"),
+            Some(&"abc123".to_string())
+        );
+        assert!(
+            typed_result
+                .metadata
+                .get("hands.commandsRun.receiptGap")
+                .is_some()
+        );
+        let intent =
+            epiphany_core::runtime_hands_action_intent(&store, "hands-intent-worker-job-impl")?
+                .expect("Hands intent");
+        assert_eq!(
+            intent.substrate_gate_grant_receipt_id,
+            "substrate-grant-worker-job-impl"
+        );
+        let review =
+            epiphany_core::runtime_hands_action_review(&store, "hands-review-worker-job-impl")?
+                .expect("Hands review");
+        assert!(
+            review
+                .required_receipts
+                .contains(&epiphany_core::HANDS_PATCH_RECEIPT_TYPE.to_string())
+        );
+        assert!(
+            review
+                .required_receipts
+                .contains(&epiphany_core::HANDS_COMMIT_RECEIPT_TYPE.to_string())
+        );
+        assert!(
+            epiphany_core::runtime_hands_patch_receipt(&store, "hands-patch-worker-job-impl")?
+                .is_some()
+        );
+        assert!(
+            epiphany_core::runtime_hands_commit_receipt(&store, "hands-commit-worker-job-impl")?
+                .is_some()
+        );
+        assert!(
+            epiphany_core::runtime_hands_command_receipt(
+                &store,
+                "hands-command-worker-job-impl-0"
+            )?
+            .is_none()
         );
         Ok(())
     }

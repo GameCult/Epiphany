@@ -76,6 +76,17 @@ then stop until Proprioception refreshes the branch map. `roleAccept` still
 refuses Implementation findings, so a Hands worker cannot admit project truth
 or state patches by returning a nice-looking JSON object.
 
-Remaining gap: the launch/grant path exists, but actual implementation edits,
-commands, and commits still need to be emitted as the typed Hands action
-receipt chain during live execution before Soul/Mind call the result accepted.
+Implementation worker completion now turns branch-turn output into typed Hands
+action receipts. When a completed implementation role result reports
+`changedPaths`, the model runtime persists `HandsActionIntent`,
+`HandsActionReview`, and `HandsPatchReceipt` for that runtime job. When it also
+reports `branchName` plus `commitSha`, the runtime persists
+`HandsCommitReceipt`. The result metadata records branch, commit, changed paths,
+persisted receipt ids, and reported commands.
+
+Command receipts are deliberately not synthesized from plain `commandsRun`
+strings. Those strings are stored as a receipt gap until a real tool/MCP command
+execution receipt can back them. A model's claim that a command ran is not proof
+that a command ran. The next live-action cut is to join tool execution receipts
+to `HandsCommandReceipt`, then trigger Proprioception branch-map refresh after a
+Hands commit before another Hands turn is eligible.

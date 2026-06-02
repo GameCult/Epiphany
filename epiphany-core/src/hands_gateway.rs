@@ -274,16 +274,34 @@ pub fn hands_action_review_for_intent(
     reasons: Vec<String>,
     reviewed_at: String,
 ) -> HandsActionReview {
+    let mut required_receipts = Vec::new();
+    for operation in &allowed_operations {
+        match operation.trim() {
+            "patch" => push_unique(&mut required_receipts, HANDS_PATCH_RECEIPT_TYPE),
+            "command" => push_unique(&mut required_receipts, HANDS_COMMAND_RECEIPT_TYPE),
+            "commit" => push_unique(&mut required_receipts, HANDS_COMMIT_RECEIPT_TYPE),
+            _ => {}
+        }
+    }
+    if required_receipts.is_empty() {
+        required_receipts.push(HANDS_PATCH_RECEIPT_TYPE.to_string());
+    }
     HandsActionReview {
         schema_version: HANDS_ACTION_REVIEW_SCHEMA_VERSION.to_string(),
         review_id,
         intent_id: intent.intent_id.clone(),
         decision,
         allowed_operations,
-        required_receipts: vec![HANDS_PATCH_RECEIPT_TYPE.to_string()],
+        required_receipts,
         reasons,
         reviewed_at,
         contract: "Hands review is the execution decision for a bounded action intent; it depends on Substrate Gate access and does not admit durable Mind state.".to_string(),
+    }
+}
+
+fn push_unique(target: &mut Vec<String>, value: &str) {
+    if !target.iter().any(|existing| existing == value) {
+        target.push(value.to_string());
     }
 }
 
@@ -448,5 +466,55 @@ mod tests {
         );
         assert_eq!(command.review_id, review.review_id);
         assert_eq!(commit.intent_id, intent.intent_id);
+        assert!(
+            review
+                .required_receipts
+                .contains(&HANDS_PATCH_RECEIPT_TYPE.to_string())
+        );
+    }
+
+    #[test]
+    fn hands_action_review_names_receipts_for_allowed_operations() {
+        let intent = HandsActionIntent {
+            schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "hands-intent-2".to_string(),
+            runtime_job_id: "job-2".to_string(),
+            binding_id: "implementation-worker".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            requested_action: "branch-turn".to_string(),
+            requested_paths: vec!["src/lib.rs".to_string()],
+            substrate_gate_grant_receipt_id: "substrate-grant-2".to_string(),
+            requested_at: "2026-06-02T00:00:00Z".to_string(),
+            contract: "Hands action intent is bounded by Substrate Gate.".to_string(),
+        };
+        let review = hands_action_review_for_intent(
+            "hands-review-2".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
+            vec!["Branch turn evidence is required.".to_string()],
+            "2026-06-02T00:01:00Z".to_string(),
+        );
+
+        assert!(
+            review
+                .required_receipts
+                .contains(&HANDS_PATCH_RECEIPT_TYPE.to_string())
+        );
+        assert!(
+            review
+                .required_receipts
+                .contains(&HANDS_COMMAND_RECEIPT_TYPE.to_string())
+        );
+        assert!(
+            review
+                .required_receipts
+                .contains(&HANDS_COMMIT_RECEIPT_TYPE.to_string())
+        );
     }
 }
