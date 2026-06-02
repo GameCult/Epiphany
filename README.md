@@ -145,6 +145,8 @@ If you want the human-readable map of the project, start here:
 - `notes/epiphany-current-algorithmic-map.md`: source-grounded control flow of the live machine
 - `notes/epiphany-fork-implementation-plan.md`: distilled forward plan
 - `notes/epiphany-safety-architecture.md`: capability, authority, interruption, and anti-cage doctrine
+- `notes/verse-service-contract.md`: GameCult Verse service contract for the
+  missing Eve GUI/TUI operator surface over existing CultCache/CultMesh state
 - `notes/archive/README.md`: historical ledgers and superseded plans
 - `state/map.yaml`: canonical current project map and accepted design
 
