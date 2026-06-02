@@ -579,6 +579,15 @@ fn run_coordinator(args: &Args) -> Result<Value> {
     let runtime_status = runtime_spine_status(&runtime_store)?;
     let final_rendered = status_cli::render_status(&operator_final_status);
     let operator_steps = status_cli::sanitize_for_operator(Value::Array(steps));
+    let coordination_guards = coordinator_guard_summary(&operator_final_status, &final_action);
+    let implementation_refresh_debt =
+        coordination_guards["implementationCommitRequiresModelingRefresh"]
+            .as_bool()
+            .unwrap_or(false);
+    let implementation_launch_suppressed =
+        coordination_guards["implementationLaunchSuppressedForModelingRefresh"]
+            .as_bool()
+            .unwrap_or(false);
     let artifact_manifest = vec![
         "coordinator-summary.json".to_string(),
         "coordinator-steps.jsonl".to_string(),
@@ -628,6 +637,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 tool_adapter_bin.display().to_string(),
             ),
             ("autoTools".to_string(), args.auto_tools.to_string()),
+            (
+                "implementationCommitRequiresModelingRefresh".to_string(),
+                implementation_refresh_debt.to_string(),
+            ),
+            (
+                "implementationLaunchSuppressedForModelingRefresh".to_string(),
+                implementation_launch_suppressed.to_string(),
+            ),
         ]),
     };
     put_coordinator_run_receipt(&runtime_store, &coordinator_run_receipt)?;
@@ -649,6 +666,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
         "snapshots": snapshots,
         "finalAction": status_cli::sanitize_for_operator(final_action),
         "finalStatus": operator_final_status,
+        "coordinationGuards": coordination_guards,
         "coordinatorRunReceipt": {
             "documentType": COORDINATOR_RUN_RECEIPT_TYPE,
             "receiptId": coordinator_run_receipt.receipt_id,
@@ -1074,6 +1092,39 @@ fn final_action_reason(final_action: &Value) -> Option<String> {
         .map(ToString::to_string)
 }
 
+fn coordinator_guard_summary(final_status: &Value, final_action: &Value) -> Value {
+    let implementation_commit_requires_modeling_refresh = value_bool(
+        final_status,
+        "/coordinator/sourceSignals/implementationCommitRequiresModelingRefresh",
+    );
+    let final_action_name = final_action_name(final_action);
+    let implementation_launch_suppressed_for_modeling_refresh =
+        implementation_commit_requires_modeling_refresh
+            && final_action_name != "continueImplementation";
+    json!({
+        "implementationCommitRequiresModelingRefresh": implementation_commit_requires_modeling_refresh,
+        "implementationLaunchSuppressedForModelingRefresh": implementation_launch_suppressed_for_modeling_refresh,
+        "requiredRefreshRole": if implementation_commit_requires_modeling_refresh {
+            Value::String("modeling".to_string())
+        } else {
+            Value::Null
+        },
+        "finalAction": final_action_name,
+        "note": if implementation_commit_requires_modeling_refresh {
+            "Hands commit evidence is newer than the accepted Proprioception map; coordinator must refresh modeling before another Implementation launch."
+        } else {
+            "No pending Hands/Proprioception refresh debt is visible in the final coordinator status."
+        },
+    })
+}
+
+fn value_bool(value: &Value, pointer: &str) -> bool {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
 fn sanitize_id(value: &str) -> String {
     value
         .chars()
@@ -1434,4 +1485,36 @@ fn home_dir() -> PathBuf {
         .or_else(|| env::var_os("HOME"))
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coordination_guards_show_hands_refresh_debt_suppresses_implementation() {
+        let final_status = json!({
+            "coordinator": {
+                "sourceSignals": {
+                    "implementationCommitRequiresModelingRefresh": true
+                }
+            }
+        });
+        let final_action = json!({
+            "action": "launchModeling",
+            "reason": "Refresh Proprioception before Hands cuts again."
+        });
+
+        let guards = coordinator_guard_summary(&final_status, &final_action);
+
+        assert_eq!(
+            guards["implementationCommitRequiresModelingRefresh"].as_bool(),
+            Some(true)
+        );
+        assert_eq!(
+            guards["implementationLaunchSuppressedForModelingRefresh"].as_bool(),
+            Some(true)
+        );
+        assert_eq!(guards["requiredRefreshRole"].as_str(), Some("modeling"));
+    }
 }

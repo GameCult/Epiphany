@@ -87,6 +87,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
         "cold start should stop at prepareCheckpoint",
     )?;
     require_artifacts(&cold)?;
+    require_coordination_guards(&cold)?;
     require_operator_safe(&cold, "$")?;
 
     let local = run_coordinator(
@@ -109,6 +110,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
         "local bootstrap should provide enough checkpoint state to move past prepareCheckpoint",
     )?;
     require_artifacts(&local)?;
+    require_coordination_guards(&local)?;
     require_operator_safe(&local, "$")?;
 
     let pressure = run_coordinator(
@@ -139,6 +141,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
         "dry compact smoke should record the compaction action",
     )?;
     require_artifacts(&pressure)?;
+    require_coordination_guards(&pressure)?;
     require_operator_safe(&pressure, "$")?;
 
     let rejected = Command::new(&coordinator)
@@ -273,6 +276,34 @@ fn require_artifacts(summary: &Value) -> Result<()> {
     require(
         runtime_status["sessions"].as_u64().unwrap_or(0) >= 1,
         "native runtime spine should record a session",
+    )?;
+    Ok(())
+}
+
+fn require_coordination_guards(summary: &Value) -> Result<()> {
+    let guards = summary
+        .get("coordinationGuards")
+        .ok_or_else(|| anyhow!("summary missing coordinationGuards"))?;
+    require(
+        guards
+            .get("implementationCommitRequiresModelingRefresh")
+            .and_then(Value::as_bool)
+            == Some(false),
+        "fresh coordinator smoke should expose clear Hands/Proprioception refresh debt",
+    )?;
+    require(
+        guards
+            .get("implementationLaunchSuppressedForModelingRefresh")
+            .and_then(Value::as_bool)
+            == Some(false),
+        "fresh coordinator smoke should expose implementation launch suppression state",
+    )?;
+    require(
+        guards
+            .get("note")
+            .and_then(Value::as_str)
+            .is_some_and(|note| note.contains("Hands/Proprioception refresh debt")),
+        "coordination guard note should name the Hands/Proprioception debt",
     )?;
     Ok(())
 }
