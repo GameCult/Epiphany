@@ -166,6 +166,13 @@ bounded semantic memory packet from that graph, and renders both into
 `dynamicPromptContext`. If the graph is thin, the packet says so instead of
 pretending semantic retrieval was rich.
 
+The local-run status path now reads the same native Verse query surface.
+`tools/epiphany_local_run.ps1 -Mode status` builds/calls `epiphany-verse-query`
+and writes `local-verse-context.json` beside `status.json` and the operator
+snapshot artifact. This gives Aquarium/local-run an operator-safe Verse context
+packet without making launcher JSON the owner of status, contracts, prompts, or
+memory.
+
 ## Invariants
 
 - CultCache documents are the data.
@@ -185,14 +192,19 @@ pretending semantic retrieval was rich.
 For swarm migration, the next useful chain is:
 
 1. Keep `epiphany-verse-query` as the local Verse context smoke.
-2. Add semantic memory graph query packets beside the Verse policy/status
-   packet.
-3. Move one Aquarium/local-run read path to the native Verse query before
-   increasing swarm cadence.
+2. Keep semantic memory graph query packets beside the Verse policy/status
+   packet for worker launch context.
+3. Keep local-run status reading native Verse context before Aquarium increases
+   swarm cadence.
 
 The bridge launch-context test is now the first launch/runtime smoke for this
 chain. It renders dynamic context, opens a runtime-spine worker request, reloads
 the persisted launch document, and asserts the Verse/memory packet survived.
+
+The local-run status smoke is now the first operator read proof for this chain.
+It writes `local-verse-context.json` from a CultMesh store under
+`.epiphany-run/cultmesh/local-verse.ccmp` and leaves the compact packet beside
+the operator snapshot.
 
 No live swarm runner is cleared until pause/brake, stale active-turn recovery,
 Face eligibility, and memory lifecycle receipts remain inspectable through the

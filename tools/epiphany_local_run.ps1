@@ -119,6 +119,7 @@ $codexAppServer = Join-Path $TargetDir "debug\codex-app-server.exe"
 $statusExe = Join-Path $TargetDir "debug\epiphany-mvp-status.exe"
 $operatorRunExe = Join-Path $TargetDir "debug\epiphany-operator-run.exe"
 $operatorSnapshotExe = Join-Path $TargetDir "debug\epiphany-operator-snapshot.exe"
+$verseQueryExe = Join-Path $TargetDir "debug\epiphany-verse-query.exe"
 $coordinatorExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator.exe"
 $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smoke.exe"
 $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
@@ -129,6 +130,7 @@ $characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
 $modelProvider = "openai-codex"
 $operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
 $operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
+$localVerseStore = Join-Path $Root ".epiphany-run\cultmesh\local-verse.ccmp"
 $operatorSnapshotId = "$runId-status"
 $agentStore = Join-Path $Root "state\agents.msgpack"
 $heartbeatStore = Join-Path $Root "state\agent-heartbeats.msgpack"
@@ -155,6 +157,7 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-mvp-status",
             "--bin", "epiphany-operator-run",
             "--bin", "epiphany-operator-snapshot",
+            "--bin", "epiphany-verse-query",
             "--bin", "epiphany-mvp-coordinator",
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
@@ -185,7 +188,7 @@ if (-not $SkipBuild) {
     }
 }
 
-$requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe)
+$requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe)
 if ($Mode -ne "status") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
 }
@@ -236,6 +239,7 @@ Invoke-Checked `
 
 if ($Mode -eq "status") {
     $statusJson = Join-Path $artifactRoot "status.json"
+    $localVerseJson = Join-Path $artifactRoot "local-verse-context.json"
     $resultPath = $statusJson
     $statusArgs = @(
         "--source", "native",
@@ -254,6 +258,17 @@ if ($Mode -eq "status") {
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "status.stdout.json") `
         -StderrPath (Join-Path $artifactRoot "status.stderr.log")
+    Invoke-Checked `
+        -Label "read local Verse context" `
+        -FilePath $verseQueryExe `
+        -Arguments @(
+            "seed",
+            "--store", $localVerseStore,
+            "--runtime-id", "epiphany-local"
+        ) `
+        -WorkingDirectory $Root `
+        -StdoutPath $localVerseJson `
+        -StderrPath (Join-Path $artifactRoot "local-verse-context.stderr.log")
     Invoke-Checked `
         -Label "write CultMesh operator snapshot" `
         -FilePath $operatorSnapshotExe `
@@ -447,6 +462,8 @@ $summary = @"
 - operatorRunStore: $operatorRunStore
 - operatorSnapshotBinary: $operatorSnapshotExe
 - operatorSnapshotStore: $operatorSnapshotStore
+- localVerseBinary: $verseQueryExe
+- localVerseStore: $localVerseStore
 - coordinatorBinary: $coordinatorExe
 - runtimeStore: $runtimeStore
 - modelRuntimeBinary: $modelRuntimeExe
@@ -456,11 +473,13 @@ $summary = @"
 - heartbeatBinary: $heartbeatExe
 
 This is an operator entrypoint over the current MVP shell. Status mode is
-Epiphany-native and does not start Codex app-server; coordinator plan/smoke/run
-modes still use the sealed Codex compatibility bridge until their provider
-boundary is cut. MVP mode wraps that bridge-equipped coordinator loop in the
-local product cycle: Face front door, bounded swarm work, then heartbeat
-sleep/dream maintenance.
+Epiphany-native and does not start Codex app-server; it writes native status,
+operator snapshot, and a compact local Verse context read from CultMesh so
+Aquarium/local-run can inspect the same policy/contract packet used for dynamic
+prompt context. Coordinator plan/smoke/run modes still use the sealed Codex
+compatibility bridge until their provider boundary is cut. MVP mode wraps that
+bridge-equipped coordinator loop in the local product cycle: Face front door,
+bounded swarm work, then heartbeat sleep/dream maintenance.
 "@
 Set-Content -LiteralPath (Join-Path $artifactRoot "README.md") -Value $summary -Encoding UTF8
 
