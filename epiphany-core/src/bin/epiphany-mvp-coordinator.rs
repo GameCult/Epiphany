@@ -443,7 +443,10 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 steps.push(step);
                 break;
             }
-            "launchResearch" | "launchModeling" | "launchVerification" => {
+            "launchResearch"
+            | "launchModeling"
+            | "launchVerification"
+            | "continueImplementation" => {
                 let role_id = role_id_for_coordinator_action(&action)
                     .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
                 let launch = launch_role(
@@ -845,6 +848,7 @@ fn role_id_for_coordinator_action(action: &str) -> Option<&'static str> {
         "launchResearch" | "reviewResearchResult" => Some("research"),
         "launchModeling" | "reviewModelingResult" => Some("modeling"),
         "launchVerification" | "reviewVerificationResult" => Some("verification"),
+        "continueImplementation" => Some("implementation"),
         _ => None,
     }
 }
@@ -854,6 +858,7 @@ fn wait_action_for_role(role_id: &str) -> &'static str {
         "research" => "waitForResearchResult",
         "modeling" => "waitForModelingResult",
         "verification" => "waitForVerificationResult",
+        "implementation" => "waitForImplementationResult",
         _ => "waitForRoleResult",
     }
 }
@@ -863,6 +868,7 @@ fn review_action_for_role(role_id: &str) -> &'static str {
         "research" => "reviewResearchResult",
         "modeling" => "reviewModelingResult",
         "verification" => "reviewVerificationResult",
+        "implementation" => "reviewImplementationResult",
         _ => "reviewRoleResult",
     }
 }
@@ -1516,5 +1522,21 @@ mod tests {
             Some(true)
         );
         assert_eq!(guards["requiredRefreshRole"].as_str(), Some("modeling"));
+    }
+
+    #[test]
+    fn continue_implementation_maps_to_hands_launch_role() {
+        assert_eq!(
+            role_id_for_coordinator_action("continueImplementation"),
+            Some("implementation")
+        );
+        assert_eq!(
+            wait_action_for_role("implementation"),
+            "waitForImplementationResult"
+        );
+        assert_eq!(
+            review_action_for_role("implementation"),
+            "reviewImplementationResult"
+        );
     }
 }
