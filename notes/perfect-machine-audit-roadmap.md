@@ -149,9 +149,10 @@ verification-shaped state. Reorient acceptance emits a typed
 runtime-spine, and enforces Continuity recovery proof before Mind admits
 recovery-shaped state. Hands now has a first executable runtime-spine proof
 chain for action documents: `HandsActionIntent` -> `HandsActionReview` ->
-`HandsPatchReceipt` can be persisted and reread from the runtime store, and
-`epiphany-hands-action-smoke` proves the chain without executing a patch. The
-repo-action proof profile now requires the full Hands chain before promotion,
+`HandsPatchReceipt` plus typed command and commit receipts can be persisted and
+reread from the runtime store, and `epiphany-hands-action-smoke` proves the
+chain without executing a patch, command, or commit. The repo-action proof
+profile now requires the full Hands intent/review/patch chain before promotion,
 not only a patch receipt.
 Remaining weakness: live implementation edits, commands, commits, and PRs still
 do not have to pass through that Hands chain before action promotion, and the
@@ -356,9 +357,10 @@ comfort tunnels.
 - Landed: Reorient acceptance produces and enforces typed Continuity recovery
   receipts before Mind admission.
 - Landed: first Hands action receipt spine. `HandsActionIntent`,
-  `HandsActionReview`, and `HandsPatchReceipt` are typed runtime-spine
-  documents with put/get helpers and `epiphany-hands-action-smoke` coverage;
-  the repo-action proof profile requires all three before promotion.
+  `HandsActionReview`, `HandsPatchReceipt`, `HandsCommandReceipt`, and
+  `HandsCommitReceipt` are typed runtime-spine documents with put/get helpers
+  and `epiphany-hands-action-smoke` coverage; the repo-action proof profile
+  requires intent, review, and patch receipt before promotion.
 - Next: connect live implementation edits/commands/commits to the Hands action
   chain, or collapse Mind review/state mutation/commit into one storage-owner
   admission primitive.

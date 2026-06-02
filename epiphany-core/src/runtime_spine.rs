@@ -720,6 +720,8 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<HandsActionIntent>()?;
     cache.register_entry_type::<HandsActionReview>()?;
     cache.register_entry_type::<HandsPatchReceipt>()?;
+    cache.register_entry_type::<HandsCommandReceipt>()?;
+    cache.register_entry_type::<HandsCommitReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<ContinuityRecoveryReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
@@ -1351,6 +1353,70 @@ pub fn runtime_hands_patch_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<HandsPatchReceipt>(receipt_id)
+}
+
+pub fn put_hands_command_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &HandsCommandReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Hands command receipt id")?;
+    validate_non_empty(&receipt.intent_id, "Hands command intent")?;
+    validate_non_empty(&receipt.review_id, "Hands command review")?;
+    validate_non_empty(
+        &receipt.substrate_gate_grant_receipt_id,
+        "Hands command Substrate Gate grant receipt",
+    )?;
+    validate_non_empty(&receipt.runtime_job_id, "Hands command runtime job")?;
+    validate_non_empty(&receipt.command, "Hands command")?;
+    validate_non_empty(&receipt.exit_code, "Hands command exit code")?;
+    validate_non_empty(&receipt.emitted_at, "Hands command timestamp")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_hands_command_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<HandsCommandReceipt>> {
+    validate_non_empty(receipt_id, "Hands command receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<HandsCommandReceipt>(receipt_id)
+}
+
+pub fn put_hands_commit_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &HandsCommitReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Hands commit receipt id")?;
+    validate_non_empty(&receipt.intent_id, "Hands commit intent")?;
+    validate_non_empty(&receipt.review_id, "Hands commit review")?;
+    validate_non_empty(&receipt.runtime_job_id, "Hands commit runtime job")?;
+    validate_non_empty(&receipt.commit_sha, "Hands commit sha")?;
+    validate_non_empty(&receipt.branch, "Hands commit branch")?;
+    validate_non_empty(&receipt.summary, "Hands commit summary")?;
+    validate_non_empty(&receipt.emitted_at, "Hands commit timestamp")?;
+    if receipt.changed_paths.is_empty() {
+        return Err(anyhow!("Hands commit receipt must name changed paths"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_hands_commit_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<HandsCommitReceipt>> {
+    validate_non_empty(receipt_id, "Hands commit receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<HandsCommitReceipt>(receipt_id)
 }
 
 pub fn put_soul_verdict_receipt(
@@ -3464,6 +3530,29 @@ mod tests {
             "2026-05-06T00:06:50Z".to_string(),
         );
         put_hands_patch_receipt(&store, &hands_patch)?;
+        let hands_command = crate::hands_command_receipt_for_review(
+            "hands-command-1".to_string(),
+            &hands_intent,
+            &hands_review,
+            "cargo test".to_string(),
+            "0".to_string(),
+            "artifacts/stdout.log".to_string(),
+            "artifacts/stderr.log".to_string(),
+            "Focused command passed.".to_string(),
+            "2026-05-06T00:07:00Z".to_string(),
+        );
+        put_hands_command_receipt(&store, &hands_command)?;
+        let hands_commit = crate::hands_commit_receipt_for_review(
+            "hands-commit-1".to_string(),
+            &hands_intent,
+            &hands_review,
+            "abc123".to_string(),
+            "main".to_string(),
+            vec!["src/lib.rs".to_string()],
+            "Committed focused patch.".to_string(),
+            "2026-05-06T00:07:10Z".to_string(),
+        );
+        put_hands_commit_receipt(&store, &hands_commit)?;
         let stored_intent = runtime_hands_action_intent(&store, "hands-intent-1")?
             .expect("Hands action intent should persist");
         assert_eq!(stored_intent, hands_intent);
@@ -3473,6 +3562,12 @@ mod tests {
         let stored_patch = runtime_hands_patch_receipt(&store, "hands-patch-1")?
             .expect("Hands patch receipt should persist");
         assert_eq!(stored_patch, hands_patch);
+        let stored_command = runtime_hands_command_receipt(&store, "hands-command-1")?
+            .expect("Hands command receipt should persist");
+        assert_eq!(stored_command, hands_command);
+        let stored_commit = runtime_hands_commit_receipt(&store, "hands-commit-1")?
+            .expect("Hands commit receipt should persist");
+        assert_eq!(stored_commit, hands_commit);
         let stored_verdict = runtime_soul_verdict_receipt(&store, "soul-verdict-1")?
             .expect("Soul verdict should persist");
         assert_eq!(stored_verdict, soul_verdict);

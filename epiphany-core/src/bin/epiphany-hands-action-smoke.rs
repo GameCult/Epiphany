@@ -3,13 +3,19 @@ use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
 use epiphany_core::HandsActionIntent;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::hands_action_review_for_intent;
+use epiphany_core::hands_command_receipt_for_review;
+use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
+use epiphany_core::put_hands_command_receipt;
+use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::runtime_hands_action_intent;
 use epiphany_core::runtime_hands_action_review;
+use epiphany_core::runtime_hands_command_receipt;
+use epiphany_core::runtime_hands_commit_receipt;
 use epiphany_core::runtime_hands_patch_receipt;
 use serde_json::json;
 use std::path::PathBuf;
@@ -66,12 +72,41 @@ fn main() -> Result<()> {
     );
     put_hands_patch_receipt(&store, &patch)?;
 
+    let command = hands_command_receipt_for_review(
+        "hands-command-smoke".to_string(),
+        &intent,
+        &review,
+        "cargo test --manifest-path .\\epiphany-core\\Cargo.toml hands_gateway".to_string(),
+        "0".to_string(),
+        ".epiphany-smoke/runtime-spine/hands-action-smoke.stdout.log".to_string(),
+        ".epiphany-smoke/runtime-spine/hands-action-smoke.stderr.log".to_string(),
+        "Recorded a typed command receipt for the bounded Hands action path.".to_string(),
+        "2026-06-02T00:00:40Z".to_string(),
+    );
+    put_hands_command_receipt(&store, &command)?;
+
+    let commit = hands_commit_receipt_for_review(
+        "hands-commit-smoke".to_string(),
+        &intent,
+        &review,
+        "dry-run-no-commit".to_string(),
+        "main".to_string(),
+        vec!["tools/epiphany_local_run.ps1".to_string()],
+        "Recorded a typed commit receipt shape for the bounded Hands action path.".to_string(),
+        "2026-06-02T00:00:50Z".to_string(),
+    );
+    put_hands_commit_receipt(&store, &commit)?;
+
     let stored_intent =
         runtime_hands_action_intent(&store, "hands-intent-smoke")?.expect("stored Hands intent");
     let stored_review =
         runtime_hands_action_review(&store, "hands-review-smoke")?.expect("stored Hands review");
     let stored_patch =
         runtime_hands_patch_receipt(&store, "hands-patch-smoke")?.expect("stored Hands patch");
+    let stored_command = runtime_hands_command_receipt(&store, "hands-command-smoke")?
+        .expect("stored Hands command");
+    let stored_commit =
+        runtime_hands_commit_receipt(&store, "hands-commit-smoke")?.expect("stored Hands commit");
 
     if stored_review.intent_id != stored_intent.intent_id {
         anyhow::bail!("Hands review lost its intent edge");
@@ -80,6 +115,16 @@ fn main() -> Result<()> {
         || stored_patch.review_id != stored_review.review_id
     {
         anyhow::bail!("Hands patch receipt lost its intent/review edge");
+    }
+    if stored_command.intent_id != stored_intent.intent_id
+        || stored_command.review_id != stored_review.review_id
+    {
+        anyhow::bail!("Hands command receipt lost its intent/review edge");
+    }
+    if stored_commit.intent_id != stored_intent.intent_id
+        || stored_commit.review_id != stored_review.review_id
+    {
+        anyhow::bail!("Hands commit receipt lost its intent/review edge");
     }
 
     println!(
@@ -90,6 +135,8 @@ fn main() -> Result<()> {
             "intentId": stored_intent.intent_id,
             "reviewId": stored_review.review_id,
             "patchReceiptId": stored_patch.receipt_id,
+            "commandReceiptId": stored_command.receipt_id,
+            "commitReceiptId": stored_commit.receipt_id,
             "changedPaths": stored_patch.changed_paths,
         }))?
     );

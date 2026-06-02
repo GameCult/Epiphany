@@ -51,12 +51,15 @@ The first runtime-spine proof chain now exists:
 HandsActionIntent
 -> HandsActionReview
 -> HandsPatchReceipt
+-> HandsCommandReceipt
+-> HandsCommitReceipt
 ```
 
 `epiphany-core::hands_gateway` owns the typed document bodies and constructors.
-`epiphany-core::runtime_spine` can persist and reread the intent, review, and
-patch receipt from the runtime-spine CultCache store. `epiphany-hands-action-smoke`
-proves the compact chain without executing shell commands or editing files.
+`epiphany-core::runtime_spine` can persist and reread the intent, review, patch,
+command, and commit receipts from the runtime-spine CultCache store.
+`epiphany-hands-action-smoke` proves the compact chain without executing shell
+commands, editing files, or creating a real commit.
 The launch organ contract's repo-action proof profile now requires the full
 Hands chain, not only the final patch receipt.
 

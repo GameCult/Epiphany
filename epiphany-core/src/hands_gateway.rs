@@ -95,6 +95,67 @@ pub struct HandsPatchReceipt {
     pub contract: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.hands.command_receipt",
+    schema = "HandsCommandReceipt"
+)]
+pub struct HandsCommandReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub review_id: String,
+    #[cultcache(key = 4)]
+    pub substrate_gate_grant_receipt_id: String,
+    #[cultcache(key = 5)]
+    pub runtime_job_id: String,
+    #[cultcache(key = 6)]
+    pub command: String,
+    #[cultcache(key = 7)]
+    pub exit_code: String,
+    #[cultcache(key = 8)]
+    pub stdout_artifact: String,
+    #[cultcache(key = 9)]
+    pub stderr_artifact: String,
+    #[cultcache(key = 10)]
+    pub summary: String,
+    #[cultcache(key = 11)]
+    pub emitted_at: String,
+    #[cultcache(key = 12)]
+    pub contract: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "epiphany.hands.commit_receipt", schema = "HandsCommitReceipt")]
+pub struct HandsCommitReceipt {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub receipt_id: String,
+    #[cultcache(key = 2)]
+    pub intent_id: String,
+    #[cultcache(key = 3)]
+    pub review_id: String,
+    #[cultcache(key = 4)]
+    pub runtime_job_id: String,
+    #[cultcache(key = 5)]
+    pub commit_sha: String,
+    #[cultcache(key = 6)]
+    pub branch: String,
+    #[cultcache(key = 7)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 8)]
+    pub summary: String,
+    #[cultcache(key = 9)]
+    pub emitted_at: String,
+    #[cultcache(key = 10)]
+    pub contract: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HandsCultNetContract {
@@ -248,6 +309,60 @@ pub fn hands_patch_receipt_for_review(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn hands_command_receipt_for_review(
+    receipt_id: String,
+    intent: &HandsActionIntent,
+    review: &HandsActionReview,
+    command: String,
+    exit_code: String,
+    stdout_artifact: String,
+    stderr_artifact: String,
+    summary: String,
+    emitted_at: String,
+) -> HandsCommandReceipt {
+    HandsCommandReceipt {
+        schema_version: HANDS_COMMAND_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        intent_id: intent.intent_id.clone(),
+        review_id: review.review_id.clone(),
+        substrate_gate_grant_receipt_id: intent.substrate_gate_grant_receipt_id.clone(),
+        runtime_job_id: intent.runtime_job_id.clone(),
+        command,
+        exit_code,
+        stdout_artifact,
+        stderr_artifact,
+        summary,
+        emitted_at,
+        contract: "Hands command receipt proves which command ran, where output evidence lives, and which reviewed action plus Substrate Gate grant authorized it.".to_string(),
+    }
+}
+
+pub fn hands_commit_receipt_for_review(
+    receipt_id: String,
+    intent: &HandsActionIntent,
+    review: &HandsActionReview,
+    commit_sha: String,
+    branch: String,
+    changed_paths: Vec<String>,
+    summary: String,
+    emitted_at: String,
+) -> HandsCommitReceipt {
+    HandsCommitReceipt {
+        schema_version: HANDS_COMMIT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        intent_id: intent.intent_id.clone(),
+        review_id: review.review_id.clone(),
+        runtime_job_id: intent.runtime_job_id.clone(),
+        commit_sha,
+        branch,
+        changed_paths,
+        summary,
+        emitted_at,
+        contract: "Hands commit receipt proves source publication consequences after a reviewed action; it is still subject to Soul verification and Mind admission.".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -310,5 +425,28 @@ mod tests {
         assert_eq!(review.intent_id, intent.intent_id);
         assert_eq!(receipt.review_id, review.review_id);
         assert_eq!(receipt.substrate_gate_grant_receipt_id, "substrate-grant-1");
+        let command = hands_command_receipt_for_review(
+            "hands-command-1".to_string(),
+            &intent,
+            &review,
+            "cargo test".to_string(),
+            "0".to_string(),
+            "artifacts/stdout.log".to_string(),
+            "artifacts/stderr.log".to_string(),
+            "Focused command passed.".to_string(),
+            "2026-06-02T00:03:00Z".to_string(),
+        );
+        let commit = hands_commit_receipt_for_review(
+            "hands-commit-1".to_string(),
+            &intent,
+            &review,
+            "abc123".to_string(),
+            "main".to_string(),
+            vec!["src/lib.rs".to_string()],
+            "Committed focused patch.".to_string(),
+            "2026-06-02T00:04:00Z".to_string(),
+        );
+        assert_eq!(command.review_id, review.review_id);
+        assert_eq!(commit.intent_id, intent.intent_id);
     }
 }
