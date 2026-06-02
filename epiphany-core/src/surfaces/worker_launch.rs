@@ -55,6 +55,15 @@ impl EpiphanyWorkerLaunchDocument {
             Self::Reorient(document) => &document.thread_id,
         }
     }
+
+    pub fn dynamic_prompt_context(&self) -> Option<&str> {
+        match self {
+            Self::Role(document) => document.dynamic_prompt_context.as_deref(),
+            Self::Reorient(document) => document.dynamic_prompt_context.as_deref(),
+        }
+        .map(str::trim)
+        .filter(|context| !context.is_empty())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -65,6 +74,8 @@ pub struct EpiphanyRoleWorkerLaunchDocument {
     pub state_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub objective: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamic_prompt_context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_subgoal_id: Option<String>,
     #[serde(default)]
@@ -101,6 +112,8 @@ pub struct EpiphanyReorientWorkerLaunchDocument {
     pub checkpoint_id: String,
     pub checkpoint_kind: String,
     pub checkpoint_disposition: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dynamic_prompt_context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub checkpoint_focus: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,6 +162,7 @@ pub struct EpiphanyReorientLaunchRequestInput<'a> {
     pub state: &'a EpiphanyThreadState,
     pub checkpoint: &'a EpiphanyInvestigationCheckpoint,
     pub decision: &'a EpiphanyReorientDecision,
+    pub dynamic_prompt_context: Option<String>,
 }
 
 pub fn build_reorient_job_launch_request(
@@ -168,6 +182,7 @@ pub fn build_reorient_job_launch_request(
             input.decision,
             linked_subgoal_ids.clone(),
             linked_graph_node_ids.clone(),
+            input.dynamic_prompt_context,
         ));
     let output_contract_id = launch_document.output_contract_id().to_string();
     let organ_launch_contract = crate::default_launch_organ_contract(
@@ -200,6 +215,7 @@ fn build_reorient_worker_launch_document(
     decision: &EpiphanyReorientDecision,
     linked_subgoal_ids: Vec<String>,
     linked_graph_node_ids: Vec<String>,
+    dynamic_prompt_context: Option<String>,
 ) -> EpiphanyReorientWorkerLaunchDocument {
     EpiphanyReorientWorkerLaunchDocument {
         thread_id: thread_id.to_string(),
@@ -207,6 +223,7 @@ fn build_reorient_worker_launch_document(
         checkpoint_id: checkpoint.checkpoint_id.clone(),
         checkpoint_kind: checkpoint.kind.clone(),
         checkpoint_disposition: investigation_disposition_label(checkpoint.disposition).to_string(),
+        dynamic_prompt_context,
         checkpoint_focus: Some(checkpoint.focus.clone()),
         checkpoint_summary: checkpoint.summary.clone(),
         checkpoint_next_action: checkpoint
@@ -404,6 +421,10 @@ mod tests {
             state: &state,
             checkpoint: &checkpoint,
             decision: &decision,
+            dynamic_prompt_context: Some(
+                "<epiphany_dynamic_context>\ncheckpoint weather\n</epiphany_dynamic_context>"
+                    .to_string(),
+            ),
         });
 
         assert_eq!(request.binding_id, "reorient-worker");
@@ -424,5 +445,9 @@ mod tests {
         assert_eq!(document.retrieval_status, "stale");
         assert_eq!(document.graph_status, "changed");
         assert_eq!(document.watcher_status, "dirty");
+        assert_eq!(
+            document.dynamic_prompt_context.as_deref(),
+            Some("<epiphany_dynamic_context>\ncheckpoint weather\n</epiphany_dynamic_context>")
+        );
     }
 }

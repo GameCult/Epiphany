@@ -453,6 +453,24 @@ pub fn build_epiphany_role_launch_request(
     max_runtime_seconds: Option<u64>,
     state: &EpiphanyThreadState,
 ) -> Result<EpiphanyJobLaunchRequest, String> {
+    build_epiphany_role_launch_request_with_dynamic_context(
+        thread_id,
+        role_id,
+        expected_revision,
+        max_runtime_seconds,
+        state,
+        None,
+    )
+}
+
+pub fn build_epiphany_role_launch_request_with_dynamic_context(
+    thread_id: &str,
+    role_id: EpiphanyRoleResultRoleId,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+    state: &EpiphanyThreadState,
+    dynamic_prompt_context: Option<String>,
+) -> Result<EpiphanyJobLaunchRequest, String> {
     let binding_id = epiphany_role_binding_id(role_id)?;
     let owner_role = epiphany_role_owner(role_id)?;
     let linked_subgoal_ids = epiphany_active_subgoal_ids(Some(state));
@@ -487,6 +505,7 @@ pub fn build_epiphany_role_launch_request(
         role_id: epiphany_role_label(role_id).to_string(),
         state_revision: state.revision,
         objective: state.objective.clone(),
+        dynamic_prompt_context,
         active_subgoal_id: state.active_subgoal_id.clone(),
         active_subgoals: state
             .subgoals
@@ -552,6 +571,26 @@ pub fn build_epiphany_reorient_launch_request(
     checkpoint: &EpiphanyInvestigationCheckpoint,
     decision: &CoreEpiphanyReorientDecision,
 ) -> EpiphanyJobLaunchRequest {
+    build_epiphany_reorient_launch_request_with_dynamic_context(
+        thread_id,
+        expected_revision,
+        max_runtime_seconds,
+        state,
+        checkpoint,
+        decision,
+        None,
+    )
+}
+
+pub fn build_epiphany_reorient_launch_request_with_dynamic_context(
+    thread_id: &str,
+    expected_revision: Option<u64>,
+    max_runtime_seconds: Option<u64>,
+    state: &EpiphanyThreadState,
+    checkpoint: &EpiphanyInvestigationCheckpoint,
+    decision: &CoreEpiphanyReorientDecision,
+    dynamic_prompt_context: Option<String>,
+) -> EpiphanyJobLaunchRequest {
     let instruction = build_epiphany_reorient_launch_instruction(decision.action);
     build_reorient_job_launch_request(EpiphanyReorientLaunchRequestInput {
         thread_id,
@@ -563,6 +602,7 @@ pub fn build_epiphany_reorient_launch_request(
         state,
         checkpoint,
         decision,
+        dynamic_prompt_context,
     })
 }
 

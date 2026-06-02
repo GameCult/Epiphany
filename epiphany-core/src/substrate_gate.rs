@@ -201,6 +201,7 @@ mod tests {
                     role_id: "research".to_string(),
                     state_revision: 7,
                     objective: None,
+                    dynamic_prompt_context: None,
                     active_subgoal_id: None,
                     active_subgoals: Vec::new(),
                     active_graph_node_ids: Vec::new(),

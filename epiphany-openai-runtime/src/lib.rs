@@ -500,7 +500,11 @@ fn flush_text_buffer(
 ) {
     if !buffer.is_empty() {
         let text = std::mem::take(buffer);
-        push_compacted_event(compacted, source, EpiphanyOpenAiStreamPayload::TextDelta { text });
+        push_compacted_event(
+            compacted,
+            source,
+            EpiphanyOpenAiStreamPayload::TextDelta { text },
+        );
     }
 }
 
@@ -1176,9 +1180,13 @@ fn worker_instructions(
     launch_document: &EpiphanyWorkerLaunchDocument,
 ) -> String {
     let output_contract = worker_output_contract_text(launch_document);
+    let dynamic_context = launch_document
+        .dynamic_prompt_context()
+        .map(|context| format!("\n\n{context}"))
+        .unwrap_or_default();
     format!(
-        "{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}",
-        launch_request.instruction, output_contract
+        "{}{}\n\nReturn only one JSON object. No Markdown, no commentary.\n\n{}",
+        launch_request.instruction, dynamic_context, output_contract
     )
 }
 
@@ -1614,6 +1622,10 @@ mod tests {
                         role_id: "modeling".to_string(),
                         state_revision: 1,
                         objective: Some("Map the machine.".to_string()),
+                        dynamic_prompt_context: Some(
+                            "<epiphany_dynamic_context>\nlocal Verse: bounded\n</epiphany_dynamic_context>"
+                                .to_string(),
+                        ),
                         active_subgoal_id: None,
                         active_subgoals: Vec::new(),
                         active_graph_node_ids: Vec::new(),
@@ -1647,6 +1659,12 @@ mod tests {
         );
         assert_eq!(model_request.reasoning_effort.as_deref(), Some("low"));
         assert_eq!(model_request.reasoning_summary.as_deref(), Some("concise"));
+        assert!(
+            model_request
+                .instructions
+                .contains("<epiphany_dynamic_context>")
+        );
+        assert!(model_request.instructions.contains("local Verse: bounded"));
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
             session_id: "openai-worker-session-modeling-checkpoint-worker".to_string(),

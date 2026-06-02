@@ -115,9 +115,10 @@ operator/human request
 -> Mind reviews any durable state effect
 ```
 
-The current smokes prove prompt rendering and bounded specialist prompt
-ownership. They do not yet prove Verse-backed dynamic prompt assembly. That is
-the next prompt proof to build after the local query surface exists.
+The current smokes prove prompt rendering, bounded specialist prompt ownership,
+and the first launch-document handoff: `epiphany-prompt-context-smoke` renders
+Verse plus semantic-memory context and proves a fixed role launch document can
+carry that bounded packet.
 
 ## Query Surface
 
@@ -146,10 +147,16 @@ future prompt assembler can depend on.
 
 `epiphany-prompt-context-smoke` is the first prompt-context proof on top of
 that packet. It seeds local Verse context, builds a memory graph context cut,
-renders the combined dynamic prompt packet, and asserts that Verse/Odin/
+renders the combined dynamic prompt packet, asserts that Verse/Odin/
 Yggdrasil/Bifrost context plus relevant semantic memory appear while unrelated
-private-looking text stays absent. It is still a local proof, not a live swarm
-runner.
+private-looking text stays absent, and proves the packet is preserved on a role
+worker launch document. It is still a local proof, not a live swarm runner.
+
+Role and reorient worker launch documents now carry optional
+`dynamicPromptContext`. The launch document owns this context for one worker
+launch. Runtime prompt assembly reads that field and inserts it between the
+role-local instruction and the output contract, so dynamic Verse/memory context
+is executable worker input without becoming durable state authority.
 
 ## Invariants
 
@@ -172,10 +179,10 @@ For swarm migration, the next useful chain is:
 1. Keep `epiphany-verse-query` as the local Verse context smoke.
 2. Add semantic memory graph query packets beside the Verse policy/status
    packet.
-3. Teach worker launch prompt assembly to consume those packets explicitly.
-4. Extend the prompt-context smoke into a launch-document smoke that proves a
-   worker prompt includes relevant Verse/memory context and omits unrelated
-   private sludge.
+3. Feed `dynamicPromptContext` from the real coordinator/local-run launch path,
+   not only the smoke binary.
+4. Add a launch/runtime smoke that proves a persisted worker request includes
+   relevant Verse/memory context and omits unrelated private sludge.
 5. Move one Aquarium/local-run read path to the native Verse query before
    increasing swarm cadence.
 

@@ -9,6 +9,10 @@ use epiphany_core::EpiphanyMemoryNodeKind;
 use epiphany_core::EpiphanyMemoryProfile;
 use epiphany_core::EpiphanyMemorySummary;
 use epiphany_core::EpiphanyPromptContextInput;
+use epiphany_core::EpiphanyRoleResultRoleId;
+use epiphany_core::EpiphanyThreadState;
+use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
 use epiphany_core::memory_graph_domain_id;
 use epiphany_core::memory_graph_node_id;
 use epiphany_core::plan_memory_graph_context_cut;
@@ -65,6 +69,26 @@ fn main() -> Result<()> {
         anyhow::bail!("prompt context smoke failed rendered packet checks:\n{rendered}");
     }
 
+    let launch_request = build_epiphany_role_launch_request_with_dynamic_context(
+        "thread-prompt-context-smoke",
+        EpiphanyRoleResultRoleId::Modeling,
+        Some(1),
+        Some(60),
+        &EpiphanyThreadState {
+            revision: 1,
+            objective: Some("Launch a worker with bounded dynamic context.".to_string()),
+            ..Default::default()
+        },
+        Some(rendered.clone()),
+    )
+    .map_err(anyhow::Error::msg)?;
+    let EpiphanyWorkerLaunchDocument::Role(role_document) = &launch_request.launch_document else {
+        anyhow::bail!("prompt context smoke expected a role launch document");
+    };
+    if role_document.dynamic_prompt_context.as_deref() != Some(rendered.as_str()) {
+        anyhow::bail!("prompt context smoke failed to preserve dynamic launch context");
+    }
+
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
@@ -73,6 +97,7 @@ fn main() -> Result<()> {
             "renderedBytes": rendered.len(),
             "containsVerseContext": true,
             "containsMemoryContext": true,
+            "launchDocumentCarriesContext": true,
             "omitsUnselectedPrivateText": true,
         }))?
     );
