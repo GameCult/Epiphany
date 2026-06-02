@@ -11,6 +11,7 @@ use cultmesh_rs::CultMesh;
 use cultmesh_rs::CultMeshNode;
 use cultmesh_rs::CultMeshNodeOptions;
 use cultmesh_rs::cultmesh_documents;
+use serde::Serialize;
 use serde_json::Value;
 use std::path::Path;
 
@@ -464,6 +465,36 @@ pub struct EpiphanyCultMeshContinuityContractEntry {
     pub notes: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyLocalVerseContext {
+    pub schema_version: String,
+    pub runtime_id: String,
+    pub store_path: String,
+    pub summary: String,
+    pub odin_scope: String,
+    pub yggdrasil_scope: String,
+    pub prompt_assembly_note: String,
+    pub verse_policies: Vec<EpiphanyCultMeshVersePolicyEntry>,
+    pub global_room_policies: Vec<EpiphanyCultMeshGlobalRoomPolicyEntry>,
+    pub operator_status: Option<EpiphanyCultMeshOperatorStatusEntry>,
+    pub latest_operator_snapshot: Option<EpiphanyCultMeshOperatorSnapshotEntry>,
+    pub latest_operator_run_intent: Option<EpiphanyCultMeshOperatorRunIntentEntry>,
+    pub latest_operator_run_receipt: Option<EpiphanyCultMeshOperatorRunReceiptEntry>,
+    pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyLocalVerseContractSummary {
+    pub contract_id: String,
+    pub verse_id: String,
+    pub authority: String,
+    pub document_type: String,
+    pub operations: Vec<String>,
+    pub receipt_document_types: Vec<String>,
+}
+
 cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshStatusEntry => EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorStatusEntry => EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION,
@@ -681,6 +712,177 @@ pub fn load_latest_epiphany_cultmesh_operator_run_receipt(
 ) -> Result<Option<EpiphanyCultMeshOperatorRunReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)
+}
+
+pub fn seed_epiphany_local_verse_context(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+    generated_at_utc: impl Into<String>,
+) -> Result<()> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let status = EpiphanyCultMeshStatusEntry {
+        schema_version: EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.to_string(),
+        runtime_id: runtime_id.clone(),
+        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+        verse_tier: EPIPHANY_CULTMESH_INTERNAL_TIER.to_string(),
+        app_id: "epiphany".to_string(),
+        note: "Epiphany local Verse query context is typed CultMesh state; prompt assembly may read it, but Mind still owns durable adoption.".to_string(),
+    };
+    write_epiphany_cultmesh_status(store_path, status)?;
+    write_epiphany_cultmesh_verse_policies(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_global_room_policies(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_mind_contracts(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_substrate_gate_contracts(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_eyes_contracts(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_hands_contracts(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_soul_contracts(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_continuity_contracts(store_path, runtime_id.clone())?;
+    write_epiphany_cultmesh_operator_status(
+        store_path,
+        default_epiphany_cultmesh_operator_status(runtime_id, generated_at_utc),
+    )?;
+    Ok(())
+}
+
+pub fn query_epiphany_local_verse_context(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<EpiphanyLocalVerseContext> {
+    let store_path = store_path.as_ref();
+    let runtime_id = runtime_id.into();
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id.clone())?;
+    let mut verse_policies = Vec::new();
+    for policy in epiphany_cultmesh_verse_policies() {
+        if let Some(loaded) = node.get::<EpiphanyCultMeshVersePolicyEntry>(&policy.verse_id)? {
+            verse_policies.push(loaded);
+        }
+    }
+
+    let mut global_room_policies = Vec::new();
+    for room in epiphany_cultmesh_global_room_policies() {
+        if let Some(loaded) = node.get::<EpiphanyCultMeshGlobalRoomPolicyEntry>(&room.room_id)? {
+            global_room_policies.push(loaded);
+        }
+    }
+
+    let mut contract_summaries = Vec::new();
+    collect_contract_summaries(
+        &node,
+        epiphany_cultmesh_mind_contracts(),
+        &mut contract_summaries,
+    )?;
+    collect_contract_summaries(
+        &node,
+        epiphany_cultmesh_substrate_gate_contracts(),
+        &mut contract_summaries,
+    )?;
+    collect_contract_summaries(
+        &node,
+        epiphany_cultmesh_eyes_contracts(),
+        &mut contract_summaries,
+    )?;
+    collect_contract_summaries(
+        &node,
+        epiphany_cultmesh_hands_contracts(),
+        &mut contract_summaries,
+    )?;
+    collect_contract_summaries(
+        &node,
+        epiphany_cultmesh_soul_contracts(),
+        &mut contract_summaries,
+    )?;
+    collect_contract_summaries(
+        &node,
+        epiphany_cultmesh_continuity_contracts(),
+        &mut contract_summaries,
+    )?;
+
+    Ok(EpiphanyLocalVerseContext {
+        schema_version: "epiphany.local_verse_context.v0".to_string(),
+        runtime_id: runtime_id.clone(),
+        store_path: store_path.display().to_string(),
+        summary: "Local Verse query context for compact Epiphany prompt assembly and operator inspection.".to_string(),
+        odin_scope: "Odin is the all-seer coordinator of Verse discovery: it may know every Verse's advertised public/operator-safe surface, but it must not bypass Verse trust boundaries or Mind adoption gates.".to_string(),
+        yggdrasil_scope: "Yggdrasil is the hosting spine for important trusted GameCult Verses such as Bifrost; local-area writes require explicit trusted tunnel/lease policy and never carry private internal state.".to_string(),
+        prompt_assembly_note: "Prompt assembly should query this compact typed bundle plus semantic memory context cuts; Verse context is injected dynamically as bounded context, not as durable truth.".to_string(),
+        verse_policies,
+        global_room_policies,
+        operator_status: node.get(EPIPHANY_CULTMESH_OPERATOR_STATUS_KEY)?,
+        latest_operator_snapshot: node.get(EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_LATEST_KEY)?,
+        latest_operator_run_intent: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY)?,
+        latest_operator_run_receipt: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)?,
+        contract_summaries,
+    })
+}
+
+pub trait EpiphanyCultMeshContractSummarySource: DatabaseEntry {
+    fn contract_id(&self) -> &str;
+    fn verse_id(&self) -> &str;
+    fn authority(&self) -> &str;
+    fn document_type(&self) -> &str;
+    fn operations(&self) -> &[String];
+    fn receipt_document_types(&self) -> &[String];
+}
+
+macro_rules! impl_contract_summary_source {
+    ($ty:ty) => {
+        impl EpiphanyCultMeshContractSummarySource for $ty {
+            fn contract_id(&self) -> &str {
+                &self.contract_id
+            }
+
+            fn verse_id(&self) -> &str {
+                &self.verse_id
+            }
+
+            fn authority(&self) -> &str {
+                &self.authority
+            }
+
+            fn document_type(&self) -> &str {
+                &self.document_type
+            }
+
+            fn operations(&self) -> &[String] {
+                &self.operations
+            }
+
+            fn receipt_document_types(&self) -> &[String] {
+                &self.receipt_document_types
+            }
+        }
+    };
+}
+
+impl_contract_summary_source!(EpiphanyCultMeshMindContractEntry);
+impl_contract_summary_source!(EpiphanyCultMeshSubstrateGateContractEntry);
+impl_contract_summary_source!(EpiphanyCultMeshEyesContractEntry);
+impl_contract_summary_source!(EpiphanyCultMeshHandsContractEntry);
+impl_contract_summary_source!(EpiphanyCultMeshSoulContractEntry);
+impl_contract_summary_source!(EpiphanyCultMeshContinuityContractEntry);
+
+fn collect_contract_summaries<T>(
+    node: &CultMeshNode,
+    contracts: Vec<T>,
+    out: &mut Vec<EpiphanyLocalVerseContractSummary>,
+) -> Result<()>
+where
+    T: EpiphanyCultMeshContractSummarySource,
+{
+    for contract in contracts {
+        if let Some(loaded) = node.get::<T>(contract.contract_id())? {
+            out.push(EpiphanyLocalVerseContractSummary {
+                contract_id: loaded.contract_id().to_string(),
+                verse_id: loaded.verse_id().to_string(),
+                authority: loaded.authority().to_string(),
+                document_type: loaded.document_type().to_string(),
+                operations: loaded.operations().to_vec(),
+                receipt_document_types: loaded.receipt_document_types().to_vec(),
+            });
+        }
+    }
+    Ok(())
 }
 
 fn epiphany_cultmesh_operator_snapshot_key(snapshot_id: &str) -> String {
@@ -1245,6 +1447,38 @@ mod tests {
         assert!(dreams.face_posting_allowed);
         assert!(dreams.untrusted_ingress_allowed);
         assert!(architecture.purpose.contains("ownership"));
+        Ok(())
+    }
+
+    #[test]
+    fn local_verse_context_queries_compact_policy_status_and_contracts() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-local-verse.ccmp");
+        seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
+
+        let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
+
+        assert_eq!(context.verse_policies.len(), 3);
+        assert!(context.verse_policies.iter().any(|policy| policy.verse_id
+            == EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID
+            && policy.yggdrasil_tunnel_allowed));
+        assert_eq!(context.global_room_policies.len(), 6);
+        assert!(context.operator_status.is_some());
+        assert!(
+            context
+                .contract_summaries
+                .iter()
+                .any(|contract| contract.authority == "mind")
+        );
+        assert!(
+            context
+                .contract_summaries
+                .iter()
+                .any(|contract| contract.authority == "substrateGate")
+        );
+        assert!(context.odin_scope.contains("all-seer"));
+        assert!(context.yggdrasil_scope.contains("Bifrost"));
+        assert!(context.prompt_assembly_note.contains("bounded context"));
         Ok(())
     }
 

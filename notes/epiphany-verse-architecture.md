@@ -1,0 +1,175 @@
+# Epiphany Verse Architecture
+
+This note names the Verse model Epiphany should grow into before the swarm is
+migrated onto it.
+
+## Objective
+
+Make Epiphany light on prompt context by making its context dynamic, typed, and
+queryable.
+
+An Epiphany should not carry every memory, repo fact, prompt scar, and project
+doctrine in one swollen turn. It should query its local Verse, retrieve compact
+semantic context cuts, and assemble only the state needed for the current rite.
+
+The machine should know more than it says. The prompt should carry only what it
+must.
+
+## Current Mechanism
+
+Epiphany already has the first organs:
+
+- CultCache-shaped typed documents for thread state, runtime-spine jobs,
+  heartbeat physiology, role memory, memory graph state, and operator
+  receipts.
+- CultMesh local stores for Verse policies, global room policies, organ
+  contracts, operator status, operator snapshots, and operator run
+  intents/receipts.
+- Memory graph context cuts over repo, agent, heartbeat, incubation, agency,
+  and evidence profiles.
+- Prompt assembly tests for bounded worker prompts, rendered Epiphany state,
+  and the Face Projector -> Face -> Mind Interpreter membrane.
+
+The missing organ is not another prompt rule. It is a local Verse query path
+that prompt assembly, Aquarium, CLI tools, and future workers can use to fetch
+compact state packets by authority and semantic relevance.
+
+## Vocabulary
+
+### Verse
+
+A Verse is a scoped typed-state world.
+
+It contains documents, policies, leases, receipts, rooms, and context surfaces
+for one trust boundary. Every project is an extension of the Verse. Every
+Epiphany is a series of nested Verses:
+
+- private sub-agent Verse
+- trusted GameCult local-area Verse
+- public/global dream Verse
+- project/repo/topic/tool-specific sub-Verse surfaces
+
+Verse membership is authority-bearing. A document being visible in one Verse
+does not make it safe to export into another.
+
+### Local Verse
+
+The local Verse is the Epiphany-owned queryable state surface for one instance.
+
+It should expose compact TUI/API packets for:
+
+- operator status
+- role and heartbeat state
+- runtime jobs and receipts
+- memory graph context cuts
+- organ contract policy
+- local Verse policies
+- admissible tool/query affordances
+
+Local Verse context is prompt input, not durable truth by itself. Mind still
+owns durable adoption.
+
+### Odin
+
+Odin is the all-seer coordinator of Verse discovery.
+
+Odin may know every Verse's advertised public/operator-safe surface: schemas,
+leases, status, public rooms, hosted services, and discovery metadata. Odin
+must not bypass Verse trust boundaries, Mind adoption gates, Substrate Gate
+access receipts, or private-state export rules.
+
+Odin sees the map. Odin does not get to steal the throne.
+
+### Yggdrasil
+
+Yggdrasil is the hosting spine for important trusted GameCult Verses.
+
+It hosts or tunnels key services such as Bifrost, schema publication, shared
+CultNet/CultMesh nodes, and other infrastructure whose availability matters to
+multiple projects.
+
+`gamecult-local` may use explicit Yggdrasil tunnel policy for trusted sharing.
+`epiphany-internal` must not. `epiphany-global` is public thought weather, not
+a private-state bridge.
+
+### Bifrost
+
+Bifrost is a hosted governance and labor Verse.
+
+It owns topics, work items, dispatch packets, review receipts, ledger/credit
+pressure, and public operator-safe proof. It can consume Epiphany results, but
+it does not become Epiphany's private memory or scheduler.
+
+## Prompt Assembly Direction
+
+Prompt assembly should become:
+
+```text
+operator/human request
+-> Self routes the authority question
+-> local Verse query gathers compact typed context
+-> memory graph semantic search retrieves relevant shared memories
+-> Substrate Gate / Eyes provide source-grounded context when repo facts are needed
+-> prompt assembler renders a bounded packet for the chosen organ
+-> model output returns as thought/proposal/receipt
+-> Mind reviews any durable state effect
+```
+
+The current smokes prove prompt rendering and bounded specialist prompt
+ownership. They do not yet prove Verse-backed dynamic prompt assembly. That is
+the next prompt proof to build after the local query surface exists.
+
+## Query Surface
+
+The first native query tool is:
+
+```powershell
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- smoke
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- seed
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- query
+```
+
+This writes and reads a compact CultMesh-backed local Verse context bundle:
+
+- three Verse policies: `epiphany-internal`, `gamecult-local`,
+  `epiphany-global`
+- Yggdrasil tunnel policy for `gamecult-local`
+- public global room policies for Face/dream surfaces
+- operator status
+- latest operator run/snapshot receipts when present
+- organ contract summaries for Mind, Substrate Gate, Eyes, Hands, Soul, and
+  Continuity
+
+This is not semantic search yet. It is the first typed inspection packet the
+future prompt assembler can depend on.
+
+## Invariants
+
+- CultCache documents are the data.
+- CultMesh is the ergonomic local/distributed Verse surface.
+- CultNet is the wire.
+- Qdrant/vector search is rebuildable resonance, not canonical memory.
+- Private state is never exported by flipping a visibility flag.
+- Foreign/public Verse material is thought weather until a reviewed local
+  adoption receipt digests it.
+- Prompt assembly may read Verse context; it may not grant itself state,
+  action, repo, or public-speech authority.
+- Every tool exposed to agents should have a compact, inspectable TUI/API
+  surface before it becomes ambient prompt power.
+
+## Migration Cut
+
+For swarm migration, the next useful chain is:
+
+1. Keep `epiphany-verse-query` as the local Verse context smoke.
+2. Add semantic memory graph query packets beside the Verse policy/status
+   packet.
+3. Teach worker launch prompt assembly to consume those packets explicitly.
+4. Add a smoke that proves a worker prompt includes relevant Verse/memory
+   context and omits unrelated private sludge.
+5. Move one Aquarium/local-run read path to the native Verse query before
+   increasing swarm cadence.
+
+No live swarm runner is cleared until pause/brake, stale active-turn recovery,
+Face eligibility, and memory lifecycle receipts remain inspectable through the
+same Verse model.
