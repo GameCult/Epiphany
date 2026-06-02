@@ -1,9 +1,9 @@
 use epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE;
 use epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID;
-use epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EPIPHANY_REORIENT_OWNER_ROLE;
+use epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_VERIFICATION_ROLE_BINDING_ID;
 use epiphany_core::EpiphanyCoordinatorAutomationAction as CoreEpiphanyCoordinatorAutomationAction;
 use epiphany_core::EpiphanyCoordinatorDecision as CoreEpiphanyCoordinatorDecision;
@@ -31,7 +31,7 @@ use epiphany_core::EpiphanyRoleBoardLane;
 use epiphany_core::EpiphanyRoleBoardPlanningSummary;
 use epiphany_core::EpiphanyRoleResultRoleId;
 use epiphany_core::EpiphanyTokenUsageSnapshot;
-use epiphany_core::build_epiphany_reorient_launch_request;
+use epiphany_core::build_epiphany_reorient_launch_request_with_dynamic_context;
 use epiphany_core::derive_coordinator_finding_signals;
 use epiphany_core::derive_coordinator_status;
 use epiphany_core::derive_role_board;
@@ -43,6 +43,8 @@ use epiphany_core::select_coordinator_automation_action;
 use epiphany_state_model::EpiphanyRetrievalState;
 use epiphany_state_model::EpiphanyThreadState;
 
+use crate::launch_context::render_launch_dynamic_prompt_context;
+use crate::launch_context::reorient_launch_context_focus;
 use crate::pressure::derive_epiphany_pressure;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
@@ -296,13 +298,20 @@ pub async fn select_epiphany_coordinator_automation(
             .investigation_checkpoint
             .as_ref()
             .map(|checkpoint| {
-                build_epiphany_reorient_launch_request(
+                let dynamic_prompt_context = render_launch_dynamic_prompt_context(
+                    input.runtime_store_path,
+                    input.state,
+                    reorient_launch_context_focus(input.state, &reorient_decision.next_action),
+                )
+                .ok();
+                build_epiphany_reorient_launch_request_with_dynamic_context(
                     input.thread_id,
                     Some(input.state.revision),
                     None,
                     input.state,
                     checkpoint,
                     &reorient_decision,
+                    dynamic_prompt_context,
                 )
             }),
         EpiphanyCoordinatorAutomationAction::None

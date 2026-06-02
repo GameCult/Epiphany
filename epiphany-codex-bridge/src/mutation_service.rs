@@ -31,8 +31,8 @@ use epiphany_core::RuntimeSpineHeartbeatLaunchPlanOptions;
 use epiphany_core::SOUL_VERDICT_RECEIPT_TYPE;
 use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE;
 use epiphany_core::apply_epiphany_state_update;
-use epiphany_core::build_epiphany_reorient_launch_request;
-use epiphany_core::build_epiphany_role_launch_request;
+use epiphany_core::build_epiphany_reorient_launch_request_with_dynamic_context;
+use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
 use epiphany_core::clear_epiphany_job_binding_backend;
 use epiphany_core::continuity_recovery_receipt_from_reorient_finding;
 use epiphany_core::epiphany_role_label;
@@ -73,6 +73,9 @@ use crate::jobs::derive_epiphany_jobs;
 use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::map_interrupted_epiphany_job;
 use crate::jobs::map_launched_epiphany_job;
+use crate::launch_context::render_launch_dynamic_prompt_context;
+use crate::launch_context::reorient_launch_context_focus;
+use crate::launch_context::role_launch_context_focus;
 use crate::mutation::build_reorient_acceptance_update;
 use crate::mutation::build_role_acceptance_update;
 use crate::mutation::epiphany_job_launch_changed_fields;
@@ -698,12 +701,22 @@ pub async fn launch_thread_epiphany_role(
                 .to_string(),
         )
     })?;
-    let launch_request = build_epiphany_role_launch_request(
+    validate_expected_revision(expected_revision, state.revision)?;
+    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let role_label = epiphany_role_label(role_id);
+    let dynamic_prompt_context = render_launch_dynamic_prompt_context(
+        runtime_store_path.as_path(),
+        &state,
+        role_launch_context_focus(&state, role_label),
+    )
+    .map_err(EpiphanyBridgeError::Fatal)?;
+    let launch_request = build_epiphany_role_launch_request_with_dynamic_context(
         thread_id,
         role_id,
         expected_revision,
         max_runtime_seconds,
         &state,
+        Some(dynamic_prompt_context),
     )
     .map_err(EpiphanyBridgeError::InvalidRequest)?;
     launch_thread_epiphany_job(
@@ -801,6 +814,7 @@ pub async fn launch_thread_epiphany_reorient(
             decision.note
         ))
     })?;
+    validate_expected_revision(expected_revision, state.revision)?;
     let checkpoint = state.investigation_checkpoint.as_ref().ok_or_else(|| {
         EpiphanyBridgeError::InvalidRequest(format!(
             "cannot launch a reorientation worker without a durable investigation checkpoint: {}",
@@ -808,13 +822,21 @@ pub async fn launch_thread_epiphany_reorient(
         ))
     })?;
 
-    let launch_request = build_epiphany_reorient_launch_request(
+    let runtime_store_path = thread.epiphany_runtime_spine_store_path().await;
+    let dynamic_prompt_context = render_launch_dynamic_prompt_context(
+        runtime_store_path.as_path(),
+        state,
+        reorient_launch_context_focus(state, &decision.next_action),
+    )
+    .map_err(EpiphanyBridgeError::Fatal)?;
+    let launch_request = build_epiphany_reorient_launch_request_with_dynamic_context(
         thread_id,
         expected_revision,
         max_runtime_seconds,
         state,
         checkpoint,
         &decision,
+        Some(dynamic_prompt_context),
     );
     let changed_fields = epiphany_job_launch_changed_fields();
     let launched = launch_epiphany_job_on_thread(thread, launch_request).await?;

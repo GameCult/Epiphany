@@ -492,7 +492,10 @@ pub fn load_launch_organ_contract_for_runtime_job(
         )));
     }
     if request.organ_launch_contract.dependencies.is_empty()
-        || request.organ_launch_contract.receipt_proof_profiles.is_empty()
+        || request
+            .organ_launch_contract
+            .receipt_proof_profiles
+            .is_empty()
     {
         return Err(EpiphanyBridgeError::InvalidRequest(format!(
             "cannot accept runtime job {:?}: worker launch request has no organ dependency/proof-profile contract",

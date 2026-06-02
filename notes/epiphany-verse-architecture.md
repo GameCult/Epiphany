@@ -158,6 +158,12 @@ launch. Runtime prompt assembly reads that field and inserts it between the
 role-local instruction and the output contract, so dynamic Verse/memory context
 is executable worker input without becoming durable state authority.
 
+The bridge launch path now feeds that field for live role/reorient launches.
+It derives a sibling `local-verse.ccmp` CultMesh store from the runtime-spine
+store path, seeds/queries the local Verse context, and renders it into
+`dynamicPromptContext`. Semantic memory search is intentionally not claimed on
+that path yet; the packet says when it is local-Verse-only.
+
 ## Invariants
 
 - CultCache documents are the data.
@@ -179,8 +185,8 @@ For swarm migration, the next useful chain is:
 1. Keep `epiphany-verse-query` as the local Verse context smoke.
 2. Add semantic memory graph query packets beside the Verse policy/status
    packet.
-3. Feed `dynamicPromptContext` from the real coordinator/local-run launch path,
-   not only the smoke binary.
+3. Add the real memory graph store input to bridge launch-context rendering so
+   live workers receive semantic context cuts, not only local Verse context.
 4. Add a launch/runtime smoke that proves a persisted worker request includes
    relevant Verse/memory context and omits unrelated private sludge.
 5. Move one Aquarium/local-run read path to the native Verse query before
