@@ -4,6 +4,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use epiphany_core::CONTINUITY_RECOVERY_RECEIPT_TYPE;
+use epiphany_core::EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EPIPHANY_RESEARCH_ROLE_BINDING_ID;
 use epiphany_core::EYES_EVIDENCE_PACKET_TYPE;
@@ -60,6 +61,7 @@ use epiphany_core::runtime_soul_verdict_receipt;
 use epiphany_core::runtime_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::soul_verdict_receipt_from_verification_finding;
 use epiphany_core::substrate_gate_repo_access_grant_for_launch;
+use epiphany_core::substrate_gate_repo_mutation_grant_for_launch;
 use epiphany_state_model::EpiphanyEvidenceRecord;
 use epiphany_state_model::EpiphanyJobKind as CoreEpiphanyJobKind;
 use epiphany_state_model::EpiphanyRetrievalState;
@@ -1042,18 +1044,25 @@ fn maybe_put_substrate_gate_launch_grant(
     request: &EpiphanyJobLaunchRequest,
     backend_job_id: &str,
 ) -> BridgeResult<()> {
-    if request.binding_id != EPIPHANY_RESEARCH_ROLE_BINDING_ID {
-        return Ok(());
-    }
-    let grant = substrate_gate_repo_access_grant_for_launch(
-        substrate_gate_grant_receipt_id(backend_job_id),
-        backend_job_id.to_string(),
-        request,
-        Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
-    );
+    let granted_at = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    let grant = match request.binding_id.as_str() {
+        EPIPHANY_RESEARCH_ROLE_BINDING_ID => substrate_gate_repo_access_grant_for_launch(
+            substrate_gate_grant_receipt_id(backend_job_id),
+            backend_job_id.to_string(),
+            request,
+            granted_at,
+        ),
+        EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID => substrate_gate_repo_mutation_grant_for_launch(
+            substrate_gate_grant_receipt_id(backend_job_id),
+            backend_job_id.to_string(),
+            request,
+            granted_at,
+        ),
+        _ => return Ok(()),
+    };
     put_substrate_gate_repo_access_grant_receipt(runtime_store_path, &grant).map_err(|err| {
         EpiphanyBridgeError::Fatal(format!(
-            "failed to persist Substrate Gate access grant for research launch: {err}"
+            "failed to persist Substrate Gate access grant for worker launch: {err}"
         ))
     })
 }

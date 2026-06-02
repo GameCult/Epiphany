@@ -25,6 +25,8 @@ mod thread_state_store;
 
 pub use agent_launch::EPIPHANY_IMAGINATION_OWNER_ROLE;
 pub use agent_launch::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
+pub use agent_launch::EPIPHANY_IMPLEMENTATION_OWNER_ROLE;
+pub use agent_launch::EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID;
 pub use agent_launch::EPIPHANY_MODELING_OWNER_ROLE;
 pub use agent_launch::EPIPHANY_MODELING_ROLE_BINDING_ID;
 pub use agent_launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -491,6 +493,7 @@ pub use substrate_gate::SubstrateGateCultNetContract;
 pub use substrate_gate::SubstrateGateRepoAccessGrantReceipt;
 pub use substrate_gate::default_substrate_gate_cultnet_contracts;
 pub use substrate_gate::substrate_gate_repo_access_grant_for_launch;
+pub use substrate_gate::substrate_gate_repo_mutation_grant_for_launch;
 pub use surfaces::EpiphanyAcceptanceBundle;
 pub use surfaces::EpiphanyContext;
 pub use surfaces::EpiphanyContextMissing;

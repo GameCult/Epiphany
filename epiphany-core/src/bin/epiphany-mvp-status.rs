@@ -55,6 +55,8 @@ const DEFAULT_CARGO_TARGET_DIR: &str = r"C:\Users\Meta\.cargo-target-codex";
 const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.msgpack";
 const DEFAULT_RUNTIME_STORE: &str = "state/runtime-spine.msgpack";
 const REORIENT_BINDING_ID: &str = "reorient-worker";
+const IMPLEMENTATION_BINDING_ID: &str = "implementation-branch-turn-worker";
+const IMPLEMENTATION_OWNER_ROLE: &str = "epiphany-hands";
 const IMAGINATION_BINDING_ID: &str = "imagination-synthesis-worker";
 const RESEARCH_BINDING_ID: &str = "research-source-gather-worker";
 const MODELING_BINDING_ID: &str = "modeling-checkpoint-worker";
@@ -310,10 +312,12 @@ fn run_native_status(args: &Args) -> Result<Value> {
             .iter()
             .find(|job| job.id == REORIENT_BINDING_ID)
             .cloned(),
+        implementation_binding_id: IMPLEMENTATION_BINDING_ID.to_string(),
         imagination_binding_id: IMAGINATION_BINDING_ID.to_string(),
         research_binding_id: RESEARCH_BINDING_ID.to_string(),
         modeling_binding_id: MODELING_BINDING_ID.to_string(),
         verification_binding_id: VERIFICATION_BINDING_ID.to_string(),
+        implementation_owner_role: IMPLEMENTATION_OWNER_ROLE.to_string(),
         reorient_owner_role: "epiphany-reorienter".to_string(),
         imagination_owner_role: "epiphany-imagination".to_string(),
         research_owner_role: "epiphany-eyes".to_string(),

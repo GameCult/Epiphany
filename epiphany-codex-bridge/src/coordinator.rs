@@ -1,5 +1,7 @@
 use epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE;
 use epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
+use epiphany_core::EPIPHANY_IMPLEMENTATION_OWNER_ROLE;
+use epiphany_core::EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EPIPHANY_REORIENT_OWNER_ROLE;
@@ -389,10 +391,12 @@ pub fn map_epiphany_roles(
         pressure_level: format!("{:?}", pressure.level),
         reorient_result_status: result_status,
         reorient_job: reorient_job.map(map_core_role_board_job),
+        implementation_binding_id: EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID.to_string(),
         imagination_binding_id: EPIPHANY_IMAGINATION_ROLE_BINDING_ID.to_string(),
         research_binding_id: EPIPHANY_RESEARCH_ROLE_BINDING_ID.to_string(),
         modeling_binding_id: EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
         verification_binding_id: EPIPHANY_VERIFICATION_ROLE_BINDING_ID.to_string(),
+        implementation_owner_role: EPIPHANY_IMPLEMENTATION_OWNER_ROLE.to_string(),
         reorient_owner_role: EPIPHANY_REORIENT_OWNER_ROLE.to_string(),
         imagination_owner_role: EPIPHANY_IMAGINATION_OWNER_ROLE.to_string(),
         research_owner_role: epiphany_core::EPIPHANY_RESEARCH_OWNER_ROLE.to_string(),

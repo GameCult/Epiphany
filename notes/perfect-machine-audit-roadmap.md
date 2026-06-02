@@ -153,11 +153,18 @@ chain for action documents: `HandsActionIntent` -> `HandsActionReview` ->
 reread from the runtime store, and `epiphany-hands-action-smoke` proves the
 chain without executing a patch, command, or commit. The repo-action proof
 profile now requires the full Hands intent/review/patch chain before promotion,
-not only a patch receipt.
+not only a patch receipt. Hands is now a launchable fixed role:
+`implementation-branch-turn-worker` owned by `epiphany-hands`. The launch
+document carries the Coordinator task and dynamic Proprioception/Verse context,
+the prompt requires one branch and at most one commit, the output schema asks
+for branch/commit/changed-path/command evidence plus a Proprioception refresh
+request, and the bridge writes a Substrate Gate mutation grant for that runtime
+job. `roleAccept` still refuses Implementation findings, preserving Mind as the
+state admission gate.
 Remaining weakness: live implementation edits, commands, commits, and PRs still
-do not have to pass through that Hands chain before action promotion, and the
-current Mind state mutation plus post-commit receipt is not a single transaction
-yet.
+need to emit the typed Hands chain during execution before action promotion, and
+the current Mind state mutation plus post-commit receipt is not a single
+transaction yet.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
 
@@ -361,9 +368,10 @@ comfort tunnels.
   `HandsCommitReceipt` are typed runtime-spine documents with put/get helpers
   and `epiphany-hands-action-smoke` coverage; the repo-action proof profile
   requires intent, review, and patch receipt before promotion.
-- Next: connect live implementation edits/commands/commits to the Hands action
-  chain, or collapse Mind review/state mutation/commit into one storage-owner
-  admission primitive.
+- Next: connect live implementation execution to the Hands action receipt path:
+  actual file edits, commands, and the one branch-turn commit should emit typed
+  Hands receipts before Soul/Mind acceptance, then trigger Proprioception branch
+  map refresh before another Hands cut.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and

@@ -6,6 +6,8 @@
 
 pub use epiphany_core::EPIPHANY_IMAGINATION_OWNER_ROLE;
 pub use epiphany_core::EPIPHANY_IMAGINATION_ROLE_BINDING_ID;
+pub use epiphany_core::EPIPHANY_IMPLEMENTATION_OWNER_ROLE;
+pub use epiphany_core::EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID;
 pub use epiphany_core::EPIPHANY_MODELING_OWNER_ROLE;
 pub use epiphany_core::EPIPHANY_MODELING_ROLE_BINDING_ID;
 pub use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;

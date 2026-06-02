@@ -60,10 +60,12 @@ pub struct EpiphanyRoleBoardInput {
     pub pressure_level: String,
     pub reorient_result_status: EpiphanyCrrcResultStatus,
     pub reorient_job: Option<EpiphanyRoleBoardJob>,
+    pub implementation_binding_id: String,
     pub imagination_binding_id: String,
     pub research_binding_id: String,
     pub modeling_binding_id: String,
     pub verification_binding_id: String,
+    pub implementation_owner_role: String,
     pub reorient_owner_role: String,
     pub imagination_owner_role: String,
     pub research_owner_role: String,
@@ -191,7 +193,7 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
         EpiphanyRoleBoardLane {
             id: EpiphanyCoordinatorRoleId::Implementation,
             title: "Implementation".to_string(),
-            owner_role: "coding-agent".to_string(),
+            owner_role: input.implementation_owner_role.clone(),
             status: if input.crrc_action == EpiphanyCrrcAction::Continue {
                 EpiphanyCoordinatorRoleStatus::Ready
             } else {
@@ -206,14 +208,19 @@ pub fn derive_role_board(input: EpiphanyRoleBoardInput) -> Vec<EpiphanyRoleBoard
                 .jobs
                 .iter()
                 .filter(|job| {
-                    matches!(
-                        job.owner_role.as_str(),
-                        "coding-agent" | "implementation" | "epiphany-implementation"
-                    )
+                    job.id == input.implementation_binding_id
+                        || job.owner_role == input.implementation_owner_role
+                        || matches!(
+                            job.owner_role.as_str(),
+                            "coding-agent" | "implementation" | "epiphany-implementation"
+                        )
                 })
                 .cloned()
                 .collect(),
-            authority_scopes: Vec::new(),
+            authority_scopes: vec![
+                "thread/epiphany/roleLaunch".to_string(),
+                "thread/epiphany/roleResult".to_string(),
+            ],
             recommended_action: if input.crrc_action == EpiphanyCrrcAction::Continue {
                 None
             } else {
@@ -478,10 +485,12 @@ mod tests {
             pressure_level: "Low".to_string(),
             reorient_result_status: EpiphanyCrrcResultStatus::MissingBinding,
             reorient_job: None,
+            implementation_binding_id: "implementation-branch-turn-worker".to_string(),
             imagination_binding_id: "imagination-synthesis-worker".to_string(),
             research_binding_id: "research-source-gather-worker".to_string(),
             modeling_binding_id: "modeling-checkpoint-worker".to_string(),
             verification_binding_id: "verification-review-worker".to_string(),
+            implementation_owner_role: "epiphany-hands".to_string(),
             reorient_owner_role: "epiphany-reorienter".to_string(),
             imagination_owner_role: "epiphany-imagination".to_string(),
             research_owner_role: "epiphany-eyes".to_string(),

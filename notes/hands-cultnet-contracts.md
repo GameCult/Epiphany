@@ -63,7 +63,19 @@ commands, editing files, or creating a real commit.
 The launch organ contract's repo-action proof profile now requires the full
 Hands chain, not only the final patch receipt.
 
-This is still a receipt artery, not full action execution. The next live-action
-cut must connect actual implementation edits/commands/commits to this path
-after Substrate Gate grants access and before Soul/Mind call the result
-accepted.
+Hands is now launchable as the fixed `implementation-branch-turn-worker` role
+owned by `epiphany-hands`. A Hands launch receives dynamic prompt context,
+including the Coordinator task and Proprioception retrieval packet, and the
+bridge persists a Substrate Gate mutation grant for that runtime job. Research
+launches remain read/snapshot-only; implementation launches are one-turn
+mutation grants with read/snapshot/patch/command/commit operations.
+
+The Hands branch-turn contract is deliberately narrow: create or use one task
+branch, make at most one commit, report branch/commit/changed paths/commands,
+then stop until Proprioception refreshes the branch map. `roleAccept` still
+refuses Implementation findings, so a Hands worker cannot admit project truth
+or state patches by returning a nice-looking JSON object.
+
+Remaining gap: the launch/grant path exists, but actual implementation edits,
+commands, and commits still need to be emitted as the typed Hands action
+receipt chain during live execution before Soul/Mind call the result accepted.

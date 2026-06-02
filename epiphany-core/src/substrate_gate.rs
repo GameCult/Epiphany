@@ -156,6 +156,32 @@ pub fn substrate_gate_repo_access_grant_for_launch(
     }
 }
 
+pub fn substrate_gate_repo_mutation_grant_for_launch(
+    receipt_id: String,
+    runtime_job_id: String,
+    request: &EpiphanyJobLaunchRequest,
+    granted_at: String,
+) -> SubstrateGateRepoAccessGrantReceipt {
+    SubstrateGateRepoAccessGrantReceipt {
+        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id,
+        runtime_job_id,
+        binding_id: request.binding_id.clone(),
+        role: request.owner_role.clone(),
+        authority_scope: request.authority_scope.clone(),
+        granted_operations: vec![
+            "read".to_string(),
+            "snapshot".to_string(),
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+        ],
+        granted_paths: vec![".".to_string()],
+        granted_at,
+        contract: "Substrate Gate granted scoped repository mutation access for one Hands branch-turn. Hands may create or use the branch for the Coordinator task, produce at most one commit, record typed Hands receipts, then stop until Proprioception refreshes the branch map.".to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -234,5 +260,66 @@ mod tests {
         assert!(grant.granted_operations.contains(&"read".to_string()));
         assert!(!grant.granted_operations.contains(&"write".to_string()));
         assert!(grant.contract.contains("mutation remains forbidden"));
+    }
+
+    #[test]
+    fn substrate_gate_mutation_grant_for_launch_is_one_hands_branch_turn() {
+        let request = EpiphanyJobLaunchRequest {
+            expected_revision: Some(8),
+            binding_id: "implementation-branch-turn-worker".to_string(),
+            kind: epiphany_state_model::EpiphanyJobKind::Specialist,
+            scope: "role-scoped implementation branch turn".to_string(),
+            owner_role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            linked_subgoal_ids: Vec::new(),
+            linked_graph_node_ids: Vec::new(),
+            instruction: "Make one bounded branch-turn commit.".to_string(),
+            launch_document: crate::EpiphanyWorkerLaunchDocument::Role(
+                crate::EpiphanyRoleWorkerLaunchDocument {
+                    thread_id: "thread-1".to_string(),
+                    role_id: "implementation".to_string(),
+                    state_revision: 8,
+                    objective: None,
+                    dynamic_prompt_context: None,
+                    active_subgoal_id: None,
+                    active_subgoals: Vec::new(),
+                    active_graph_node_ids: Vec::new(),
+                    investigation_checkpoint: None,
+                    scratch: None,
+                    invariants: Vec::new(),
+                    graphs: None,
+                    recent_evidence: Vec::new(),
+                    recent_observations: Vec::new(),
+                    graph_frontier: None,
+                    graph_checkpoint: None,
+                    planning: None,
+                    churn: None,
+                },
+            ),
+            output_contract_id: crate::ROLE_WORKER_OUTPUT_CONTRACT_ID.to_string(),
+            organ_launch_contract: crate::default_launch_organ_contract(
+                "epiphany.role.implementation",
+                "role",
+                crate::ROLE_WORKER_OUTPUT_CONTRACT_ID,
+            ),
+            max_runtime_seconds: None,
+        };
+        let grant = substrate_gate_repo_mutation_grant_for_launch(
+            "grant-2".to_string(),
+            "job-2".to_string(),
+            &request,
+            "2026-06-02T00:00:00Z".to_string(),
+        );
+
+        assert_eq!(grant.role, "epiphany-hands");
+        assert!(grant.granted_operations.contains(&"patch".to_string()));
+        assert!(grant.granted_operations.contains(&"command".to_string()));
+        assert!(grant.granted_operations.contains(&"commit".to_string()));
+        assert!(grant.contract.contains("one Hands branch-turn"));
+        assert!(
+            grant
+                .contract
+                .contains("Proprioception refreshes the branch map")
+        );
     }
 }

@@ -27,6 +27,8 @@ pub const EPIPHANY_MODELING_ROLE_BINDING_ID: &str = "modeling-checkpoint-worker"
 pub const EPIPHANY_MODELING_OWNER_ROLE: &str = "epiphany-modeler";
 pub const EPIPHANY_VERIFICATION_ROLE_BINDING_ID: &str = "verification-review-worker";
 pub const EPIPHANY_VERIFICATION_OWNER_ROLE: &str = "epiphany-verifier";
+pub const EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID: &str = "implementation-branch-turn-worker";
+pub const EPIPHANY_IMPLEMENTATION_OWNER_ROLE: &str = "epiphany-hands";
 pub const EPIPHANY_REORIENT_LAUNCH_BINDING_ID: &str = "reorient-worker";
 pub const EPIPHANY_REORIENT_OWNER_ROLE: &str = "epiphany-reorient";
 
@@ -36,10 +38,7 @@ pub fn epiphany_role_binding_id(role_id: EpiphanyRoleResultRoleId) -> Result<&'s
         EpiphanyRoleResultRoleId::Research => Ok(EPIPHANY_RESEARCH_ROLE_BINDING_ID),
         EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_ROLE_BINDING_ID),
         EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_ROLE_BINDING_ID),
-        EpiphanyRoleResultRoleId::Implementation => Err(
-            "implementation is owned by the main coding agent; no role specialist launch template exists"
-                .to_string(),
-        ),
+        EpiphanyRoleResultRoleId::Implementation => Ok(EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID),
         EpiphanyRoleResultRoleId::Reorientation => Err(
             "reorientation uses thread/epiphany/reorientLaunch and thread/epiphany/reorientResult"
                 .to_string(),
@@ -53,7 +52,8 @@ pub fn epiphany_role_owner(role_id: EpiphanyRoleResultRoleId) -> Result<&'static
         EpiphanyRoleResultRoleId::Research => Ok(EPIPHANY_RESEARCH_OWNER_ROLE),
         EpiphanyRoleResultRoleId::Modeling => Ok(EPIPHANY_MODELING_OWNER_ROLE),
         EpiphanyRoleResultRoleId::Verification => Ok(EPIPHANY_VERIFICATION_OWNER_ROLE),
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Implementation => Ok(EPIPHANY_IMPLEMENTATION_OWNER_ROLE),
+        EpiphanyRoleResultRoleId::Reorientation => {
             Err(epiphany_role_binding_id(role_id).unwrap_err())
         }
     }
@@ -88,9 +88,10 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         EpiphanyRoleResultRoleId::Verification => {
             vec!["pass", "needs-review", "needs-evidence", "fail"]
         }
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
-            vec![]
+        EpiphanyRoleResultRoleId::Implementation => {
+            vec!["commit-created", "needs-proprioception", "blocked"]
         }
+        EpiphanyRoleResultRoleId::Reorientation => vec![],
     };
     let mut properties = serde_json::json!({
         "roleId": {
@@ -308,6 +309,65 @@ pub fn epiphany_role_launch_output_schema(role_id: EpiphanyRoleResultRoleId) -> 
         }
         required.push("frontierNodeIds");
         required.push("statePatch");
+    } else if role_id == EpiphanyRoleResultRoleId::Implementation {
+        if let Some(map) = properties.as_object_mut() {
+            map.insert(
+                "branchName".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Git branch created or used for this bounded Hands turn."
+                }),
+            );
+            map.insert(
+                "commitSha".to_string(),
+                serde_json::json!({
+                    "type": "string",
+                    "description": "Commit created by this Hands turn. Empty only when verdict is blocked or needs-proprioception."
+                }),
+            );
+            map.insert(
+                "changedPaths".to_string(),
+                serde_json::json!({
+                    "type": "array",
+                    "items": {"type": "string"}
+                }),
+            );
+            map.insert(
+                "commandsRun".to_string(),
+                serde_json::json!({
+                    "type": "array",
+                    "items": {"type": "string"}
+                }),
+            );
+            map.insert(
+                "handsReceiptIds".to_string(),
+                serde_json::json!({
+                    "type": "array",
+                    "description": "Typed Hands/Substrate/Soul/Mind receipt ids produced or cited by this turn.",
+                    "items": {"type": "string"}
+                }),
+            );
+            map.insert(
+                "proprioceptionRefreshRequest".to_string(),
+                serde_json::json!({
+                    "type": "object",
+                    "description": "Required branch-map refresh request for Proprioception after a commit.",
+                    "properties": {
+                        "required": {"type": "boolean"},
+                        "reason": {"type": "string"},
+                        "branchName": {"type": "string"},
+                        "commitSha": {"type": "string"},
+                        "changedPaths": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        }
+                    },
+                    "additionalProperties": true
+                }),
+            );
+        }
+        required.push("branchName");
+        required.push("changedPaths");
     }
     serde_json::json!({
         "type": "object",
@@ -496,7 +556,12 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
             "epiphany.role.verification",
             build_epiphany_role_launch_instruction(role_id),
         ),
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
+        EpiphanyRoleResultRoleId::Implementation => (
+            "role-scoped implementation branch turn",
+            "epiphany.role.implementation",
+            build_epiphany_role_launch_instruction(role_id),
+        ),
+        EpiphanyRoleResultRoleId::Reorientation => {
             return Err(epiphany_role_binding_id(role_id).unwrap_err());
         }
     };
@@ -550,15 +615,17 @@ pub fn build_epiphany_role_launch_request_with_dynamic_context(
 }
 
 fn build_epiphany_role_launch_instruction(role_id: EpiphanyRoleResultRoleId) -> String {
-    let prompts = &epiphany_specialist_prompt_config().roles;
+    let config = epiphany_specialist_prompt_config();
+    let prompts = &config.roles;
     let body = match role_id {
         EpiphanyRoleResultRoleId::Imagination => prompts.imagination.as_str(),
         EpiphanyRoleResultRoleId::Research => prompts.research.as_str(),
         EpiphanyRoleResultRoleId::Modeling => prompts.modeling.as_str(),
         EpiphanyRoleResultRoleId::Verification => prompts.verification.as_str(),
-        EpiphanyRoleResultRoleId::Implementation | EpiphanyRoleResultRoleId::Reorientation => {
-            "Unsupported Epiphany role specialist template."
+        EpiphanyRoleResultRoleId::Implementation => {
+            config.implementation.continue_template.as_str()
         }
+        EpiphanyRoleResultRoleId::Reorientation => "Unsupported Epiphany role specialist template.",
     };
     epiphany_worker_prompt(body)
 }
@@ -820,5 +887,58 @@ mod tests {
         assert!(prompt.contains("Epiphany Worker Boundary"));
         assert!(!prompt.contains("## Epiphany Persistent Memory"));
         assert!(!prompt.contains("Heartbeat: every lane"));
+    }
+
+    #[test]
+    fn implementation_role_launches_as_hands_branch_turn() {
+        let state = EpiphanyThreadState {
+            revision: 12,
+            objective: Some("Wire Hands branch-turn launches.".to_string()),
+            ..Default::default()
+        };
+        let request = build_epiphany_role_launch_request_with_dynamic_context(
+            "thread-1",
+            EpiphanyRoleResultRoleId::Implementation,
+            Some(12),
+            Some(300),
+            &state,
+            Some("Proprioception context: branch map is current.".to_string()),
+        )
+        .expect("implementation launch request");
+
+        assert_eq!(request.binding_id, EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID);
+        assert_eq!(request.owner_role, EPIPHANY_IMPLEMENTATION_OWNER_ROLE);
+        assert_eq!(request.authority_scope, "epiphany.role.implementation");
+        assert!(request.scope.contains("implementation branch turn"));
+        assert!(request.instruction.contains("one commit"));
+        assert!(request.instruction.contains("Proprioception"));
+        match request.launch_document {
+            EpiphanyWorkerLaunchDocument::Role(document) => {
+                assert_eq!(document.role_id, "implementation");
+                assert_eq!(
+                    document.dynamic_prompt_context.as_deref(),
+                    Some("Proprioception context: branch map is current.")
+                );
+            }
+            EpiphanyWorkerLaunchDocument::Reorient(_) => panic!("expected role launch document"),
+        }
+    }
+
+    #[test]
+    fn implementation_output_schema_requires_branch_turn_evidence() {
+        let schema = epiphany_role_launch_output_schema(EpiphanyRoleResultRoleId::Implementation);
+        let required = schema
+            .get("required")
+            .and_then(|required| required.as_array())
+            .expect("required array");
+        let required_values = required
+            .iter()
+            .filter_map(|value| value.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(required_values.contains(&"branchName"));
+        assert!(required_values.contains(&"changedPaths"));
+        assert!(schema.to_string().contains("commitSha"));
+        assert!(schema.to_string().contains("proprioceptionRefreshRequest"));
     }
 }
