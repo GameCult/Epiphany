@@ -114,6 +114,7 @@ pub struct EpiphanyCoordinatorSourceSignals {
     pub modeling_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub verification_result_status: EpiphanyCoordinatorRoleResultStatus,
     pub reorient_result_status: super::EpiphanyCrrcResultStatus,
+    pub implementation_commit_requires_modeling_refresh: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -143,6 +144,7 @@ pub struct EpiphanyCoordinatorInput {
     pub verification_result_accepted: bool,
     pub verification_result_allows_implementation: bool,
     pub verification_result_needs_evidence: bool,
+    pub implementation_commit_requires_modeling_refresh: bool,
     pub reorient_finding_accepted: bool,
 }
 
@@ -181,6 +183,7 @@ pub struct EpiphanyCoordinatorStatusInput {
     pub verification_result_accepted: bool,
     pub verification_result_allows_implementation: bool,
     pub verification_result_needs_evidence: bool,
+    pub implementation_commit_requires_modeling_refresh: bool,
     pub reorient_finding_accepted: bool,
 }
 
@@ -233,6 +236,8 @@ pub fn derive_coordinator_status(
         modeling_result_status: input.modeling_result_status,
         verification_result_status: input.verification_result_status,
         reorient_result_status: input.reorient_result_status,
+        implementation_commit_requires_modeling_refresh: input
+            .implementation_commit_requires_modeling_refresh,
     };
     let coordinator_roles = input
         .roles
@@ -272,6 +277,8 @@ pub fn derive_coordinator_status(
         verification_result_accepted: input.verification_result_accepted,
         verification_result_allows_implementation: input.verification_result_allows_implementation,
         verification_result_needs_evidence: input.verification_result_needs_evidence,
+        implementation_commit_requires_modeling_refresh: input
+            .implementation_commit_requires_modeling_refresh,
         reorient_finding_accepted: input.reorient_finding_accepted,
     });
     EpiphanyCoordinatorStatus {
@@ -789,6 +796,17 @@ pub fn recommend_coordinator_action(
         );
     }
 
+    if input.implementation_commit_requires_modeling_refresh {
+        return build(
+            EpiphanyCoordinatorAction::LaunchModeling,
+            Some(EpiphanyCoordinatorRoleId::Modeling),
+            Some(EpiphanyCoordinatorSceneAction::RoleLaunch),
+            false,
+            true,
+            "A Hands commit landed after the latest accepted Proprioception map; refresh modeling before another implementation cut.",
+        );
+    }
+
     if input.signals.verification_result_status == EpiphanyCoordinatorRoleResultStatus::Completed
         && !input.verification_result_covers_current_modeling
     {
@@ -1123,6 +1141,7 @@ mod tests {
             verification_result_accepted: false,
             verification_result_allows_implementation: false,
             verification_result_needs_evidence: false,
+            implementation_commit_requires_modeling_refresh: false,
             reorient_finding_accepted: false,
         }
     }
@@ -1399,6 +1418,20 @@ mod tests {
         assert_eq!(
             stale_verification.action,
             EpiphanyCoordinatorAction::LaunchVerification
+        );
+
+        let refresh_after_commit = recommend_coordinator_action(EpiphanyCoordinatorInput {
+            signals: verification_done,
+            modeling_result_accepted: true,
+            modeling_result_reviewable: true,
+            verification_result_accepted: true,
+            verification_result_allows_implementation: true,
+            implementation_commit_requires_modeling_refresh: true,
+            ..input()
+        });
+        assert_eq!(
+            refresh_after_commit.action,
+            EpiphanyCoordinatorAction::LaunchModeling
         );
 
         let review_verification = recommend_coordinator_action(EpiphanyCoordinatorInput {

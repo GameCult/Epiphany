@@ -20,11 +20,13 @@ use epiphany_core::complete_runtime_job;
 use epiphany_core::create_runtime_job;
 use epiphany_core::ensure_runtime_session;
 use epiphany_core::hands_action_review_for_intent;
+use epiphany_core::hands_command_receipt_for_review;
 use epiphany_core::hands_commit_receipt_for_review;
 use epiphany_core::hands_patch_receipt_for_review;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_hands_action_intent;
 use epiphany_core::put_hands_action_review;
+use epiphany_core::put_hands_command_receipt;
 use epiphany_core::put_hands_commit_receipt;
 use epiphany_core::put_hands_patch_receipt;
 use epiphany_core::put_runtime_reorient_worker_result;
@@ -53,6 +55,7 @@ use epiphany_tool_adapter::EpiphanyToolInvocationReceipt;
 use epiphany_tool_adapter::tool_invocation_intent_key;
 use epiphany_tool_adapter::tool_invocation_receipt_key;
 use serde::de::DeserializeOwned;
+use serde_json::Value;
 
 pub const OPENAI_RUNTIME_ROLE: &str = "openai-model-adapter";
 pub const OPENAI_RUNTIME_SOURCE: &str = "epiphany-openai-runtime";
@@ -646,6 +649,7 @@ pub fn complete_worker_job_from_assistant_text(
                         store_path.as_ref(),
                         launch_request,
                         parsed,
+                        openai_request_id,
                         &mut typed_result,
                     )?;
                 }
@@ -1373,6 +1377,7 @@ fn persist_hands_receipts_for_implementation_result(
     store_path: &Path,
     launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
     result: &RoleWorkerResultIngress,
+    openai_request_id: &str,
     typed_result: &mut EpiphanyRuntimeRoleWorkerResult,
 ) -> Result<Vec<String>> {
     let branch = clean_optional_string(result.branch_name.as_deref());
@@ -1381,6 +1386,8 @@ fn persist_hands_receipts_for_implementation_result(
     let commands_run = clean_string_vec(&result.commands_run);
     let model_reported_receipts = clean_string_vec(&result.hands_receipt_ids);
     let grant_receipt_id = substrate_gate_grant_receipt_id(&launch_request.job_id);
+    let command_proofs =
+        command_proofs_from_tool_receipts(store_path, launch_request, openai_request_id)?;
 
     if let Some(branch) = branch.as_ref() {
         typed_result
@@ -1404,8 +1411,26 @@ fn persist_hands_receipts_for_implementation_result(
             serde_json::to_string(&commands_run)?,
         );
         typed_result.metadata.insert(
-            "hands.commandsRun.receiptGap".to_string(),
-            "command strings were reported by the worker result; command receipts require tool execution receipts and are not synthesized here".to_string(),
+            "hands.commandsRun.receiptStatus".to_string(),
+            if command_proofs.is_empty() {
+                "command strings were reported by the worker result, but no matching command tool execution receipts were available".to_string()
+            } else {
+                format!(
+                    "matched {} command tool execution receipt(s)",
+                    command_proofs.len()
+                )
+            },
+        );
+    }
+    if !command_proofs.is_empty() {
+        typed_result.metadata.insert(
+            "hands.commandsRun.proofReceiptIds".to_string(),
+            serde_json::to_string(
+                &command_proofs
+                    .iter()
+                    .map(|proof| proof.tool_receipt_id.clone())
+                    .collect::<Vec<_>>(),
+            )?,
         );
     }
     if !model_reported_receipts.is_empty() {
@@ -1453,6 +1478,9 @@ fn persist_hands_receipts_for_implementation_result(
     if commit_sha.is_some() {
         allowed_operations.push("commit".to_string());
     }
+    if !command_proofs.is_empty() {
+        allowed_operations.push("command".to_string());
+    }
     let intent = HandsActionIntent {
         schema_version: epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
         intent_id: intent_id.clone(),
@@ -1494,6 +1522,21 @@ fn persist_hands_receipts_for_implementation_result(
         put_hands_patch_receipt(store_path, &patch)?;
         receipt_ids.push(patch.receipt_id);
     }
+    for (index, proof) in command_proofs.into_iter().enumerate() {
+        let command = hands_command_receipt_for_review(
+            format!("hands-command-{}-{index}", launch_request.job_id),
+            &intent,
+            &review,
+            proof.command,
+            proof.exit_code,
+            proof.stdout_artifact,
+            proof.stderr_artifact,
+            proof.summary,
+            now(),
+        );
+        put_hands_command_receipt(store_path, &command)?;
+        receipt_ids.push(command.receipt_id);
+    }
     if let (Some(commit_sha), Some(branch)) = (commit_sha, branch) {
         let commit = hands_commit_receipt_for_review(
             format!("hands-commit-{}", launch_request.job_id),
@@ -1509,11 +1552,189 @@ fn persist_hands_receipts_for_implementation_result(
         receipt_ids.push(commit.receipt_id);
     }
     receipt_ids.extend(model_reported_receipts);
+    typed_result.evidence_ids.extend(
+        receipt_ids
+            .iter()
+            .map(|receipt_id| format!("hands-receipt:{receipt_id}")),
+    );
     typed_result.metadata.insert(
         "hands.persistedReceiptIds".to_string(),
         serde_json::to_string(&receipt_ids)?,
     );
     Ok(receipt_ids)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CommandToolProof {
+    tool_receipt_id: String,
+    command: String,
+    exit_code: String,
+    stdout_artifact: String,
+    stderr_artifact: String,
+    summary: String,
+}
+
+fn command_proofs_from_tool_receipts(
+    store_path: &Path,
+    launch_request: &EpiphanyRuntimeWorkerLaunchRequest,
+    openai_request_id: &str,
+) -> Result<Vec<CommandToolProof>> {
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    let worker_request_prefix = format!("worker-{}-", sanitize_request_id(&launch_request.job_id));
+    let mut intents = cache
+        .get_all::<EpiphanyToolInvocationIntent>()?
+        .into_iter()
+        .filter(|intent| {
+            intent.model_request_id.as_deref() == Some(openai_request_id)
+                || intent
+                    .model_request_id
+                    .as_deref()
+                    .is_some_and(|id| id.starts_with(&worker_request_prefix))
+                || intent.intent_id.starts_with(&format!(
+                    "model-{}-",
+                    sanitize_request_id(openai_request_id)
+                ))
+                || intent.intent_id.starts_with(&format!(
+                    "model-{}-",
+                    sanitize_request_id(&worker_request_prefix)
+                ))
+        })
+        .collect::<Vec<_>>();
+    intents.sort_by(|left, right| {
+        left.created_at
+            .cmp(&right.created_at)
+            .then_with(|| left.intent_id.cmp(&right.intent_id))
+    });
+
+    let mut proofs = Vec::new();
+    for intent in intents {
+        let Some(receipt) = cache.get::<EpiphanyToolInvocationReceipt>(
+            &tool_invocation_receipt_key(&intent.intent_id),
+        )?
+        else {
+            continue;
+        };
+        if let Some(proof) = command_tool_proof_from_intent_receipt(&intent, &receipt) {
+            proofs.push(proof);
+        }
+    }
+    Ok(proofs)
+}
+
+fn command_tool_proof_from_intent_receipt(
+    intent: &EpiphanyToolInvocationIntent,
+    receipt: &EpiphanyToolInvocationReceipt,
+) -> Option<CommandToolProof> {
+    if receipt.status != "completed" || !tool_identity_is_command_like(intent, receipt) {
+        return None;
+    }
+    let result = receipt
+        .result_json
+        .as_deref()
+        .and_then(|raw| serde_json::from_str::<Value>(raw).ok());
+    let command = result
+        .as_ref()
+        .and_then(extract_command_from_tool_result)
+        .or_else(|| {
+            serde_json::from_str::<Value>(&intent.arguments_json)
+                .ok()
+                .and_then(|value| extract_command_from_tool_result(&value))
+        })?;
+    let exit_code = result
+        .as_ref()
+        .and_then(extract_exit_code_from_tool_result)?;
+    let stdout_artifact = result
+        .as_ref()
+        .and_then(|value| {
+            extract_string_path(
+                value,
+                &[
+                    "stdoutArtifact",
+                    "stdout_artifact",
+                    "stdoutRef",
+                    "stdout_ref",
+                ],
+            )
+        })
+        .unwrap_or_else(|| format!("tool-receipt:{}:result_json.stdout", receipt.receipt_id));
+    let stderr_artifact = result
+        .as_ref()
+        .and_then(|value| {
+            extract_string_path(
+                value,
+                &[
+                    "stderrArtifact",
+                    "stderr_artifact",
+                    "stderrRef",
+                    "stderr_ref",
+                ],
+            )
+        })
+        .unwrap_or_else(|| format!("tool-receipt:{}:result_json.stderr", receipt.receipt_id));
+    Some(CommandToolProof {
+        tool_receipt_id: receipt.receipt_id.clone(),
+        command,
+        exit_code,
+        stdout_artifact,
+        stderr_artifact,
+        summary: format!(
+            "Command tool {}.{} completed under typed tool receipt {}.",
+            receipt.server, receipt.tool_name, receipt.receipt_id
+        ),
+    })
+}
+
+fn tool_identity_is_command_like(
+    intent: &EpiphanyToolInvocationIntent,
+    receipt: &EpiphanyToolInvocationReceipt,
+) -> bool {
+    let haystack = format!(
+        "{} {} {} {}",
+        intent.server, intent.tool_name, receipt.server, receipt.tool_name
+    )
+    .to_ascii_lowercase();
+    haystack.contains("shell") || haystack.contains("command") || haystack.contains("terminal")
+}
+
+fn extract_command_from_tool_result(value: &Value) -> Option<String> {
+    extract_string_path(value, &["command", "commandText", "command_text"])
+        .or_else(|| value.get("args").and_then(extract_command_from_tool_result))
+        .or_else(|| {
+            value
+                .get("input")
+                .and_then(extract_command_from_tool_result)
+        })
+        .or_else(|| {
+            value
+                .get("request")
+                .and_then(extract_command_from_tool_result)
+        })
+}
+
+fn extract_exit_code_from_tool_result(value: &Value) -> Option<String> {
+    extract_string_path(value, &["exitCode", "exit_code", "code"])
+        .or_else(|| extract_integer_path(value, &["exitCode", "exit_code", "code"]))
+}
+
+fn extract_string_path(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        value
+            .get(*key)
+            .and_then(Value::as_str)
+            .map(str::trim)
+            .filter(|text| !text.is_empty())
+            .map(ToOwned::to_owned)
+    })
+}
+
+fn extract_integer_path(value: &Value, keys: &[&str]) -> Option<String> {
+    keys.iter().find_map(|key| {
+        value
+            .get(*key)
+            .and_then(Value::as_i64)
+            .map(|number| number.to_string())
+    })
 }
 
 fn substrate_gate_grant_receipt_id(runtime_job_id: &str) -> String {
@@ -1964,6 +2185,39 @@ mod tests {
                 contract: "Test mutation grant for one Hands branch-turn.".to_string(),
             },
         )?;
+        let mut cache = runtime_spine_cache(&store)?;
+        cache.pull_all_backing_stores()?;
+        let command_intent = EpiphanyToolInvocationIntent::new(
+            "model-req-implementation-0-call-shell",
+            epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID,
+            "codex_shell",
+            "shell_command",
+            r#"{"command":"cargo test --manifest-path ./epiphany-core/Cargo.toml hands_gateway"}"#,
+            "model-runtime:openai-codex",
+            "Implementation worker requested a focused command.",
+            now(),
+        )
+        .with_model_call("call-shell", "req-implementation");
+        cache.put(
+            tool_invocation_intent_key(&command_intent.intent_id),
+            &command_intent,
+        )?;
+        let mut command_tool_receipt = EpiphanyToolInvocationReceipt::new(
+            "tool-receipt-shell",
+            command_intent.intent_id.clone(),
+            epiphany_tool_adapter::CODEX_MCP_TOOL_ADAPTER_ID,
+            "codex_shell",
+            "shell_command",
+            "completed",
+            now(),
+        );
+        command_tool_receipt.result_json = Some(
+            r#"{"command":"cargo test --manifest-path ./epiphany-core/Cargo.toml hands_gateway","exitCode":0,"stdoutArtifact":"artifact:stdout","stderrArtifact":"artifact:stderr"}"#.to_string(),
+        );
+        cache.put(
+            tool_invocation_receipt_key(&command_tool_receipt.intent_id),
+            &command_tool_receipt,
+        )?;
         let launch_request = load_worker_launch_request(&store, "worker-job-impl")?;
         let openai_summary = EpiphanyOpenAiRuntimeRunSummary {
             store: store.display().to_string(),
@@ -2005,7 +2259,7 @@ mod tests {
         assert!(
             typed_result
                 .metadata
-                .get("hands.commandsRun.receiptGap")
+                .get("hands.commandsRun.receiptStatus")
                 .is_some()
         );
         let intent =
@@ -2029,6 +2283,11 @@ mod tests {
                 .contains(&epiphany_core::HANDS_COMMIT_RECEIPT_TYPE.to_string())
         );
         assert!(
+            review
+                .required_receipts
+                .contains(&epiphany_core::HANDS_COMMAND_RECEIPT_TYPE.to_string())
+        );
+        assert!(
             epiphany_core::runtime_hands_patch_receipt(&store, "hands-patch-worker-job-impl")?
                 .is_some()
         );
@@ -2041,7 +2300,7 @@ mod tests {
                 &store,
                 "hands-command-worker-job-impl-0"
             )?
-            .is_none()
+            .is_some()
         );
         Ok(())
     }

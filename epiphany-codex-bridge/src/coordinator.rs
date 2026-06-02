@@ -151,6 +151,31 @@ pub async fn derive_epiphany_coordinator_status(
     } else {
         (CoreEpiphanyCoordinatorRoleResultStatus::MissingState, None)
     };
+    let (implementation_result_status, implementation_finding, implementation_completed_at) =
+        if let Some(state) = state {
+            let snapshot = load_core_epiphany_role_result_snapshot(
+                state,
+                runtime_store_path,
+                EpiphanyRoleResultRoleId::Implementation,
+                EPIPHANY_IMPLEMENTATION_ROLE_BINDING_ID,
+            )
+            .await;
+            (snapshot.status, snapshot.finding, snapshot.completed_at)
+        } else {
+            (
+                CoreEpiphanyCoordinatorRoleResultStatus::MissingState,
+                None,
+                None,
+            )
+        };
+    let implementation_commit_requires_modeling_refresh =
+        implementation_commit_requires_modeling_refresh(
+            state,
+            implementation_result_status,
+            implementation_finding.as_ref(),
+            implementation_completed_at.as_deref(),
+            modeling_finding.as_ref(),
+        );
     let finding_signals = derive_coordinator_finding_signals(
         state,
         research_finding.as_ref(),
@@ -188,6 +213,7 @@ pub async fn derive_epiphany_coordinator_status(
         verification_result_allows_implementation: finding_signals
             .verification_result_allows_implementation,
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
+        implementation_commit_requires_modeling_refresh,
         reorient_finding_accepted: finding_signals.reorient_finding_accepted,
     });
     let note = render_epiphany_coordinator_note(
@@ -200,6 +226,53 @@ pub async fn derive_epiphany_coordinator_status(
     );
 
     EpiphanyCoordinatorStatus { core, note }
+}
+
+fn implementation_commit_requires_modeling_refresh(
+    state: Option<&EpiphanyThreadState>,
+    implementation_status: CoreEpiphanyCoordinatorRoleResultStatus,
+    implementation_finding: Option<&epiphany_core::EpiphanyRoleFindingInterpretation>,
+    implementation_completed_at: Option<&str>,
+    modeling_finding: Option<&epiphany_core::EpiphanyRoleFindingInterpretation>,
+) -> bool {
+    if implementation_status != CoreEpiphanyCoordinatorRoleResultStatus::Completed {
+        return false;
+    }
+    let Some(implementation_finding) = implementation_finding else {
+        return false;
+    };
+    if !implementation_finding
+        .evidence_ids
+        .iter()
+        .any(|id| id.starts_with("hands-receipt:hands-commit-") || id.starts_with("hands-commit-"))
+    {
+        return false;
+    }
+    let Some(completed_at) = implementation_completed_at else {
+        return true;
+    };
+    !modeling_accepted_after(state, modeling_finding, completed_at)
+}
+
+fn modeling_accepted_after(
+    state: Option<&EpiphanyThreadState>,
+    modeling_finding: Option<&epiphany_core::EpiphanyRoleFindingInterpretation>,
+    completed_at: &str,
+) -> bool {
+    let Some(state) = state else {
+        return false;
+    };
+    let Some(result_id) = modeling_finding.and_then(|finding| finding.runtime_result_id.as_deref())
+    else {
+        return false;
+    };
+    state.acceptance_receipts.iter().any(|receipt| {
+        receipt.result_id == result_id
+            && receipt.status == "accepted"
+            && receipt.surface == "roleAccept"
+            && receipt.role_id == "modeling"
+            && receipt.accepted_at.as_str() > completed_at
+    })
 }
 
 pub type EpiphanyCoordinatorAutomationAction = CoreEpiphanyCoordinatorAutomationAction;
@@ -439,4 +512,90 @@ pub fn render_epiphany_roles_note(
         format!("{:?}", state_status).as_str(),
         recommendation,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn finding(
+        result_id: &str,
+        evidence_ids: Vec<String>,
+    ) -> epiphany_core::EpiphanyRoleFindingInterpretation {
+        epiphany_core::EpiphanyRoleFindingInterpretation {
+            verdict: Some("pass".to_string()),
+            summary: Some("Finding.".to_string()),
+            next_safe_move: None,
+            checkpoint_summary: None,
+            scratch_summary: None,
+            files_inspected: Vec::new(),
+            frontier_node_ids: Vec::new(),
+            evidence_ids,
+            artifact_refs: Vec::new(),
+            runtime_result_id: Some(result_id.to_string()),
+            runtime_job_id: Some(format!("job-{result_id}")),
+            open_questions: Vec::new(),
+            evidence_gaps: Vec::new(),
+            risks: Vec::new(),
+            state_patch: None,
+            self_patch: None,
+            self_persistence: None,
+            job_error: None,
+            item_error: None,
+        }
+    }
+
+    fn state_with_modeling_acceptance(accepted_at: &str) -> EpiphanyThreadState {
+        EpiphanyThreadState {
+            acceptance_receipts: vec![epiphany_state_model::EpiphanyAcceptanceReceipt {
+                id: "accept-modeling".to_string(),
+                result_id: "modeling-result".to_string(),
+                job_id: "modeling-job".to_string(),
+                binding_id: EPIPHANY_MODELING_ROLE_BINDING_ID.to_string(),
+                surface: "roleAccept".to_string(),
+                role_id: "modeling".to_string(),
+                status: "accepted".to_string(),
+                accepted_at: accepted_at.to_string(),
+                accepted_observation_id: None,
+                accepted_evidence_id: None,
+                summary: None,
+            }],
+            ..EpiphanyThreadState::default()
+        }
+    }
+
+    #[test]
+    fn hands_commit_requires_modeling_refresh_until_newer_modeling_acceptance() {
+        let implementation = finding(
+            "implementation-result",
+            vec!["hands-receipt:hands-commit-worker-job-impl".to_string()],
+        );
+        let modeling = finding("modeling-result", Vec::new());
+
+        assert!(implementation_commit_requires_modeling_refresh(
+            None,
+            CoreEpiphanyCoordinatorRoleResultStatus::Completed,
+            Some(&implementation),
+            Some("2026-06-02T12:00:00Z"),
+            Some(&modeling),
+        ));
+
+        let stale_state = state_with_modeling_acceptance("2026-06-02T11:59:00Z");
+        assert!(implementation_commit_requires_modeling_refresh(
+            Some(&stale_state),
+            CoreEpiphanyCoordinatorRoleResultStatus::Completed,
+            Some(&implementation),
+            Some("2026-06-02T12:00:00Z"),
+            Some(&modeling),
+        ));
+
+        let refreshed_state = state_with_modeling_acceptance("2026-06-02T12:01:00Z");
+        assert!(!implementation_commit_requires_modeling_refresh(
+            Some(&refreshed_state),
+            CoreEpiphanyCoordinatorRoleResultStatus::Completed,
+            Some(&implementation),
+            Some("2026-06-02T12:00:00Z"),
+            Some(&modeling),
+        ));
+    }
 }

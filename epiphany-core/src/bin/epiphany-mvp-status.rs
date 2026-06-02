@@ -33,6 +33,7 @@ use epiphany_core::load_thread_state_entry;
 use epiphany_core::recommend_crrc_action;
 use epiphany_core::recommend_reorientation;
 use epiphany_core::runtime_job_snapshot;
+use epiphany_core::runtime_role_worker_result;
 use epiphany_state_model::EpiphanyThreadState;
 use serde_json::Value;
 use serde_json::json;
@@ -260,6 +261,8 @@ fn run_native_status(args: &Args) -> Result<Value> {
         native_role_result_status(state_ref, &runtime_store_path, RESEARCH_BINDING_ID);
     let verification_result_status =
         native_role_result_status(state_ref, &runtime_store_path, VERIFICATION_BINDING_ID);
+    let implementation_commit_requires_modeling_refresh =
+        native_implementation_commit_requires_modeling_refresh(state_ref, &runtime_store_path);
     let recommendation = recommend_crrc_action(EpiphanyCrrcInput {
         loaded,
         state_status,
@@ -353,6 +356,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         verification_result_allows_implementation: finding_signals
             .verification_result_allows_implementation,
         verification_result_needs_evidence: finding_signals.verification_result_needs_evidence,
+        implementation_commit_requires_modeling_refresh,
         reorient_finding_accepted: finding_signals.reorient_finding_accepted,
     });
     let coordinator_json = coordinator_status_json(&coordinator)?;
@@ -739,6 +743,62 @@ fn native_role_result_status(
         Ok(None) => EpiphanyCoordinatorRoleResultStatus::BackendMissing,
         Err(_) => EpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
     }
+}
+
+fn native_implementation_commit_requires_modeling_refresh(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+) -> bool {
+    let Some(job_id) = latest_runtime_job_id_for_binding(state, IMPLEMENTATION_BINDING_ID) else {
+        return false;
+    };
+    let Ok(Some(snapshot)) = runtime_job_snapshot(runtime_store, job_id) else {
+        return false;
+    };
+    if map_runtime_role_result_status(&snapshot) != EpiphanyCoordinatorRoleResultStatus::Completed {
+        return false;
+    }
+    let Ok(Some(result)) = runtime_role_worker_result(runtime_store, job_id) else {
+        return false;
+    };
+    if !result
+        .evidence_ids
+        .iter()
+        .any(|id| id.starts_with("hands-receipt:hands-commit-") || id.starts_with("hands-commit-"))
+    {
+        return false;
+    }
+    let Some(completed_at) = snapshot
+        .result
+        .as_ref()
+        .map(|receipt| receipt.completed_at.as_str())
+    else {
+        return true;
+    };
+    !native_modeling_accepted_after(state, runtime_store, completed_at)
+}
+
+fn native_modeling_accepted_after(
+    state: Option<&EpiphanyThreadState>,
+    runtime_store: &Path,
+    completed_at: &str,
+) -> bool {
+    let Some(state) = state else {
+        return false;
+    };
+    let Some(job_id) = latest_runtime_job_id_for_binding(Some(state), MODELING_BINDING_ID) else {
+        return false;
+    };
+    let Ok(Some(result)) = runtime_role_worker_result(runtime_store, job_id) else {
+        return false;
+    };
+    state.acceptance_receipts.iter().any(|receipt| {
+        receipt.result_id == result.result_id
+            && receipt.status == "accepted"
+            && receipt.surface == "roleAccept"
+            && receipt.role_id == "modeling"
+            && receipt.accepted_at.as_str() > completed_at
+    })
 }
 
 fn native_reorient_result_status(

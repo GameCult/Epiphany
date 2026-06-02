@@ -29,6 +29,7 @@ use crate::results::render_core_role_result_note;
 pub struct EpiphanyRoleResultSnapshot {
     pub status: CoreEpiphanyCoordinatorRoleResultStatus,
     pub finding: Option<EpiphanyRoleFindingInterpretation>,
+    pub completed_at: Option<String>,
     pub note: String,
 }
 
@@ -48,6 +49,7 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
         return EpiphanyRoleResultSnapshot {
             status: CoreEpiphanyCoordinatorRoleResultStatus::Pending,
             finding: None,
+            completed_at: None,
             note: "Heartbeat activation owns this role specialist; no loaded runtime-spine store is available yet."
                 .to_string(),
         };
@@ -58,6 +60,7 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
             return EpiphanyRoleResultSnapshot {
                 status: CoreEpiphanyCoordinatorRoleResultStatus::Pending,
                 finding: None,
+                completed_at: None,
                 note: format!(
                     "Heartbeat runtime job {:?} has not reported typed state yet.",
                     job_id
@@ -68,6 +71,7 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
             return EpiphanyRoleResultSnapshot {
                 status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
                 finding: None,
+                completed_at: None,
                 note: format!(
                     "Failed to read heartbeat runtime-spine job {:?}: {err}",
                     job_id
@@ -84,6 +88,10 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
                     return EpiphanyRoleResultSnapshot {
                         status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
                         finding: None,
+                        completed_at: snapshot
+                            .result
+                            .as_ref()
+                            .map(|result| result.completed_at.clone()),
                         note: format!(
                             "Heartbeat runtime job {:?} completed without an EpiphanyRuntimeRoleWorkerResult typed document; generic lifecycle receipts are not reviewable findings.",
                             job_id
@@ -94,6 +102,10 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
                     return EpiphanyRoleResultSnapshot {
                         status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
                         finding: None,
+                        completed_at: snapshot
+                            .result
+                            .as_ref()
+                            .map(|result| result.completed_at.clone()),
                         note: format!(
                             "Failed to read typed role worker result for heartbeat runtime job {:?}: {err}",
                             job_id
@@ -116,6 +128,10 @@ pub fn load_core_epiphany_role_result_from_runtime_spine_job(
     EpiphanyRoleResultSnapshot {
         status,
         finding,
+        completed_at: snapshot
+            .result
+            .as_ref()
+            .map(|result| result.completed_at.clone()),
         note,
     }
 }
@@ -310,12 +326,14 @@ pub async fn load_core_epiphany_role_result_snapshot(
         return EpiphanyRoleResultSnapshot {
             status: CoreEpiphanyCoordinatorRoleResultStatus::MissingBinding,
             finding: None,
+            completed_at: None,
             note: "No matching Epiphany role specialist binding exists.".to_string(),
         };
     }
     EpiphanyRoleResultSnapshot {
         status: CoreEpiphanyCoordinatorRoleResultStatus::BackendUnavailable,
         finding: None,
+        completed_at: None,
         note: "Role binding has no runtime-spine job id; launch a runtime-linked role worker for typed results.".to_string(),
     }
 }
