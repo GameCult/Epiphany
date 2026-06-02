@@ -1,21 +1,35 @@
 use chrono::SecondsFormat;
 use chrono::Utc;
 use epiphany_core::EpiphanyMemoryContextPacket;
+use epiphany_core::EpiphanyMemoryContextQuery;
+use epiphany_core::EpiphanyMemoryProfile;
 use epiphany_core::EpiphanyPromptContextInput;
 use epiphany_core::EpiphanyThreadState;
+use epiphany_core::load_memory_graph_snapshot;
+use epiphany_core::memory_graph_from_epiphany_graphs;
+use epiphany_core::plan_memory_graph_context_cut;
 use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::render_epiphany_prompt_context;
 use epiphany_core::seed_epiphany_local_verse_context;
+use epiphany_core::write_memory_graph_snapshot;
 use std::path::Path;
 use std::path::PathBuf;
 
 pub const EPIPHANY_LOCAL_VERSE_RUNTIME_ID: &str = "epiphany-local";
 
 pub fn local_verse_store_path(runtime_store_path: &Path) -> PathBuf {
+    sibling_state_store_path(runtime_store_path, "local-verse.ccmp")
+}
+
+pub fn memory_graph_store_path(runtime_store_path: &Path) -> PathBuf {
+    sibling_state_store_path(runtime_store_path, "memory-graph.msgpack")
+}
+
+fn sibling_state_store_path(runtime_store_path: &Path, filename: &str) -> PathBuf {
     runtime_store_path
         .parent()
         .unwrap_or_else(|| Path::new("."))
-        .join("local-verse.ccmp")
+        .join(filename)
 }
 
 pub fn role_launch_context_focus(state: &EpiphanyThreadState, role_label: &str) -> String {
@@ -63,14 +77,13 @@ pub fn render_launch_dynamic_prompt_context(
                     local_verse_store.display()
                 )
             })?;
-    let memory_context = EpiphanyMemoryContextPacket {
-        id: format!("memctx-launch-state-rev-{}", state.revision),
-        query_id: "bridge-launch-local-verse-only".to_string(),
-        warnings: vec![
-            "Semantic memory graph context is not connected to this bridge launch path yet; this packet carries local Verse context only.".to_string(),
-        ],
-        ..Default::default()
-    };
+    let memory_context =
+        launch_memory_context(runtime_store_path, state, focus.as_str()).map_err(|error| {
+            format!(
+                "failed to build launch memory context beside {}: {error}",
+                runtime_store_path.display()
+            )
+        })?;
     Ok(render_epiphany_prompt_context(
         &EpiphanyPromptContextInput {
             focus,
@@ -78,6 +91,59 @@ pub fn render_launch_dynamic_prompt_context(
             memory_context,
         },
     ))
+}
+
+fn launch_memory_context(
+    runtime_store_path: &Path,
+    state: &EpiphanyThreadState,
+    focus: &str,
+) -> Result<EpiphanyMemoryContextPacket, String> {
+    let memory_graph_store = memory_graph_store_path(runtime_store_path);
+    let (snapshot, refreshed_from_state) = match load_memory_graph_snapshot(&memory_graph_store)
+        .map_err(|error| {
+            format!(
+                "failed to load memory graph store {}: {error}",
+                memory_graph_store.display()
+            )
+        })? {
+        Some(snapshot) => (snapshot, false),
+        None => {
+            let snapshot = memory_graph_from_epiphany_graphs(
+                format!("bridge-launch-state-rev-{}", state.revision),
+                &state.graphs,
+            );
+            write_memory_graph_snapshot(&memory_graph_store, &snapshot).map_err(|error| {
+                format!(
+                    "failed to write memory graph store {} from thread state: {error}",
+                    memory_graph_store.display()
+                )
+            })?;
+            (snapshot, true)
+        }
+    };
+
+    let mut packet = plan_memory_graph_context_cut(
+        &snapshot,
+        &EpiphanyMemoryContextQuery {
+            id: format!("bridge-launch-query-state-rev-{}", state.revision),
+            profile: Some(EpiphanyMemoryProfile::RepoArchitecture),
+            text: Some(focus.to_string()),
+            budget: Some(5),
+            ..Default::default()
+        },
+    );
+    if refreshed_from_state {
+        packet.warnings.push(format!(
+            "Memory graph store was refreshed from current thread-state repo graph at {}.",
+            memory_graph_store.display()
+        ));
+    }
+    if packet.nodes.is_empty() && packet.summaries.is_empty() {
+        packet.warnings.push(
+            "Memory graph context is empty for this launch focus; the accepted repo graph may be thin or stale.".to_string(),
+        );
+    }
+    Ok(packet)
 }
 
 #[cfg(test)]
@@ -109,8 +175,9 @@ mod tests {
         assert!(rendered.contains("Test launch context."));
         assert!(rendered.contains("Odin"));
         assert!(rendered.contains("Yggdrasil"));
-        assert!(rendered.contains("local Verse context only"));
+        assert!(rendered.contains("Memory graph"));
         assert!(local_verse_store_path(&runtime_store).exists());
+        assert!(memory_graph_store_path(&runtime_store).exists());
         fs::remove_dir_all(&temp)?;
         Ok(())
     }

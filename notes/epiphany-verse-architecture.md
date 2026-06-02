@@ -160,9 +160,11 @@ is executable worker input without becoming durable state authority.
 
 The bridge launch path now feeds that field for live role/reorient launches.
 It derives a sibling `local-verse.ccmp` CultMesh store from the runtime-spine
-store path, seeds/queries the local Verse context, and renders it into
-`dynamicPromptContext`. Semantic memory search is intentionally not claimed on
-that path yet; the packet says when it is local-Verse-only.
+store path, seeds/queries the local Verse context, refreshes/loads a sibling
+`memory-graph.msgpack` from the current typed thread-state repo graph, cuts a
+bounded semantic memory packet from that graph, and renders both into
+`dynamicPromptContext`. If the graph is thin, the packet says so instead of
+pretending semantic retrieval was rich.
 
 ## Invariants
 
@@ -185,11 +187,9 @@ For swarm migration, the next useful chain is:
 1. Keep `epiphany-verse-query` as the local Verse context smoke.
 2. Add semantic memory graph query packets beside the Verse policy/status
    packet.
-3. Add the real memory graph store input to bridge launch-context rendering so
-   live workers receive semantic context cuts, not only local Verse context.
-4. Add a launch/runtime smoke that proves a persisted worker request includes
+3. Add a launch/runtime smoke that proves a persisted worker request includes
    relevant Verse/memory context and omits unrelated private sludge.
-5. Move one Aquarium/local-run read path to the native Verse query before
+4. Move one Aquarium/local-run read path to the native Verse query before
    increasing swarm cadence.
 
 No live swarm runner is cleared until pause/brake, stale active-turn recovery,
