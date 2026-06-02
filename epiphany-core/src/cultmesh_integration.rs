@@ -165,6 +165,8 @@ pub struct EpiphanyCultMeshOperatorSnapshotEntry {
     pub available_actions: Vec<String>,
     #[cultcache(key = 17)]
     pub notes: Vec<String>,
+    #[cultcache(key = 18, default)]
+    pub implementation_commit_requires_modeling_refresh: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -609,8 +611,14 @@ pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
     let state_status = pointer_text(status_json, "/scene/scene/stateStatus", "unknown");
     let crrc_action = pointer_text(status_json, "/crrc/recommendation/action", "unknown");
     let reorient_action = pointer_text(status_json, "/reorient/decision/action", "unknown");
+    let implementation_commit_requires_modeling_refresh = pointer_bool(
+        status_json,
+        "/coordinator/sourceSignals/implementationCommitRequiresModelingRefresh",
+    );
     let operator_status = if state_status == "missing" || crrc_action == "regatherManually" {
         "needs-regather"
+    } else if implementation_commit_requires_modeling_refresh {
+        "needs-modeling-refresh"
     } else {
         "ready"
     };
@@ -637,11 +645,22 @@ pub fn epiphany_cultmesh_operator_snapshot_from_status_json(
         next_action: pointer_text(status_json, "/reorient/decision/nextAction", "none"),
         artifact_refs,
         available_actions: pointer_string_array(status_json, "/scene/scene/availableActions")?,
-        notes: vec![
+        notes: operator_snapshot_notes(implementation_commit_requires_modeling_refresh),
+        implementation_commit_requires_modeling_refresh,
+    })
+}
+
+fn operator_snapshot_notes(implementation_commit_requires_modeling_refresh: bool) -> Vec<String> {
+    let mut notes = vec![
             "Snapshot is derived from the operator-safe MVP status artifact; raw JSON remains an edge artifact, not internal state.".to_string(),
             "Codex app-server remains compatibility transport for this source until the status surface is native end to end.".to_string(),
-        ],
-    })
+        ];
+    if implementation_commit_requires_modeling_refresh {
+        notes.push(
+            "Hands commit evidence is newer than the accepted Proprioception map; refresh modeling before another Implementation turn.".to_string(),
+        );
+    }
+    notes
 }
 
 pub fn write_epiphany_cultmesh_operator_snapshot(
@@ -904,6 +923,13 @@ fn pointer_text(value: &Value, pointer: &str, fallback: &str) -> String {
         .filter(|text| !text.trim().is_empty())
         .unwrap_or(fallback)
         .to_string()
+}
+
+fn pointer_bool(value: &Value, pointer: &str) -> bool {
+    value
+        .pointer(pointer)
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 fn pointer_string_array(value: &Value, pointer: &str) -> Result<Vec<String>> {
@@ -1299,7 +1325,10 @@ mod tests {
                 }
             },
             "coordinator": {
-                "action": "wait"
+                "action": "wait",
+                "sourceSignals": {
+                    "implementationCommitRequiresModelingRefresh": true
+                }
             },
             "rawResult": {
                 "sealed": true
@@ -1318,6 +1347,25 @@ mod tests {
         assert_eq!(snapshot.thread_id, "thread-test");
         assert_eq!(snapshot.available_actions, vec!["crrc", "roles"]);
         assert_eq!(snapshot.artifact_refs, vec![".epiphany-run/status.json"]);
+        assert!(snapshot.implementation_commit_requires_modeling_refresh);
+        assert!(
+            snapshot
+                .notes
+                .iter()
+                .any(|note| note.contains("refresh modeling"))
+        );
+        let mut ready_debt_status_json = status_json.clone();
+        ready_debt_status_json["scene"]["scene"]["stateStatus"] = serde_json::json!("ready");
+        ready_debt_status_json["crrc"]["recommendation"]["action"] = serde_json::json!("continue");
+        let ready_debt_snapshot = epiphany_cultmesh_operator_snapshot_from_status_json(
+            "epiphany-test",
+            "snapshot-test-ready-debt",
+            "2026-05-27T00:00:00Z",
+            "status",
+            ".epiphany-run/status.json",
+            &ready_debt_status_json,
+        )?;
+        assert_eq!(ready_debt_snapshot.status, "needs-modeling-refresh");
 
         write_epiphany_cultmesh_operator_snapshot(&store, snapshot.clone())?;
         assert_eq!(

@@ -4038,6 +4038,7 @@ pub struct ThreadEpiphanyCoordinatorSignals {
     pub modeling_result_status: ThreadEpiphanyRoleResultStatus,
     pub verification_result_status: ThreadEpiphanyRoleResultStatus,
     pub reorient_result_status: ThreadEpiphanyReorientResultStatus,
+    pub implementation_commit_requires_modeling_refresh: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

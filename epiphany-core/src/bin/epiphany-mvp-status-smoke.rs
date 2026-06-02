@@ -233,6 +233,14 @@ fn validate_status(status: &Value, rendered: &str) -> Result<()> {
         rendered.contains("regatherManually"),
         "rendered status should expose the CRRC recommendation",
     )?;
+    require(
+        status
+            .pointer("/coordinator/sourceSignals/implementationCommitRequiresModelingRefresh")
+            .and_then(Value::as_bool)
+            == Some(false)
+            && rendered.contains("Hands/Proprioception refresh debt: clear"),
+        "status artifacts should expose Hands/Proprioception refresh debt",
+    )?;
     let lane_ids = status
         .pointer("/roles/roles")
         .and_then(Value::as_array)

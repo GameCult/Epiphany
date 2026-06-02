@@ -9030,6 +9030,7 @@
       "type": "object",
       "required": [
         "crrcAction",
+        "implementationCommitRequiresModelingRefresh",
         "modelingResultStatus",
         "pressureLevel",
         "researchResultStatus",
@@ -9041,6 +9042,9 @@
       "properties": {
         "crrcAction": {
           "$ref": "#/definitions/ThreadEpiphanyCrrcAction"
+        },
+        "implementationCommitRequiresModelingRefresh": {
+          "type": "boolean"
         },
         "modelingResultStatus": {
           "$ref": "#/definitions/ThreadEpiphanyRoleResultStatus"

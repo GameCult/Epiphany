@@ -47,6 +47,8 @@ fn protocol_coordinator_source_signals(
         modeling_result_status: protocol_role_result_status(signals.modeling_result_status),
         verification_result_status: protocol_role_result_status(signals.verification_result_status),
         reorient_result_status: protocol_reorient_result_status(signals.reorient_result_status),
+        implementation_commit_requires_modeling_refresh: signals
+            .implementation_commit_requires_modeling_refresh,
     }
 }
 

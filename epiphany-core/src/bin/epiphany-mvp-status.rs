@@ -1327,6 +1327,18 @@ pub fn render_status(status: &Value) -> String {
             maybe(&coordinator["action"], "none"),
             maybe(&coordinator["targetRole"], "none")
         ),
+        format!(
+            "- Hands/Proprioception refresh debt: {}",
+            if coordinator
+                .pointer("/sourceSignals/implementationCommitRequiresModelingRefresh")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                "pending"
+            } else {
+                "clear"
+            }
+        ),
         String::new(),
         "Continuity".to_string(),
         format!(
