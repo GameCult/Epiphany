@@ -42,3 +42,23 @@ Mind admits durable state after the action and verification receipts exist.
 
 Hands is not a permission organ. It is the actuator. The wrench does not bless
 itself.
+
+## Executable Slice
+
+The first runtime-spine proof chain now exists:
+
+```text
+HandsActionIntent
+-> HandsActionReview
+-> HandsPatchReceipt
+```
+
+`epiphany-core::hands_gateway` owns the typed document bodies and constructors.
+`epiphany-core::runtime_spine` can persist and reread the intent, review, and
+patch receipt from the runtime-spine CultCache store. `epiphany-hands-action-smoke`
+proves the compact chain without executing shell commands or editing files.
+
+This is still a receipt artery, not full action execution. The next live-action
+cut must connect actual implementation edits/commands/commits to this path
+after Substrate Gate grants access and before Soul/Mind call the result
+accepted.

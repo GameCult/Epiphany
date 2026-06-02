@@ -717,6 +717,9 @@ pub fn runtime_spine_cache(store_path: impl AsRef<Path>) -> Result<CultCache> {
     cache.register_entry_type::<MindStateCommitReceipt>()?;
     cache.register_entry_type::<EyesEvidencePacket>()?;
     cache.register_entry_type::<SubstrateGateRepoAccessGrantReceipt>()?;
+    cache.register_entry_type::<HandsActionIntent>()?;
+    cache.register_entry_type::<HandsActionReview>()?;
+    cache.register_entry_type::<HandsPatchReceipt>()?;
     cache.register_entry_type::<SoulVerdictReceipt>()?;
     cache.register_entry_type::<ContinuityRecoveryReceipt>()?;
     cache.register_entry_type::<EpiphanyOpenAiAdapterStatus>()?;
@@ -1251,6 +1254,103 @@ pub fn runtime_substrate_gate_repo_access_grant_receipt(
     let mut cache = runtime_spine_cache(store_path)?;
     cache.pull_all_backing_stores()?;
     cache.get::<SubstrateGateRepoAccessGrantReceipt>(receipt_id)
+}
+
+pub fn put_hands_action_intent(
+    store_path: impl AsRef<Path>,
+    intent: &HandsActionIntent,
+) -> Result<()> {
+    validate_non_empty(&intent.intent_id, "Hands action intent id")?;
+    validate_non_empty(&intent.runtime_job_id, "Hands action runtime job")?;
+    validate_non_empty(&intent.binding_id, "Hands action binding")?;
+    validate_non_empty(&intent.role, "Hands action role")?;
+    validate_non_empty(&intent.authority_scope, "Hands action authority scope")?;
+    validate_non_empty(&intent.requested_action, "Hands requested action")?;
+    validate_non_empty(
+        &intent.substrate_gate_grant_receipt_id,
+        "Hands Substrate Gate grant receipt",
+    )?;
+    validate_non_empty(&intent.requested_at, "Hands action requested timestamp")?;
+    if intent.requested_paths.is_empty() {
+        return Err(anyhow!("Hands action intent must name requested paths"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&intent.intent_id, intent)?;
+    Ok(())
+}
+
+pub fn runtime_hands_action_intent(
+    store_path: impl AsRef<Path>,
+    intent_id: &str,
+) -> Result<Option<HandsActionIntent>> {
+    validate_non_empty(intent_id, "Hands action intent id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<HandsActionIntent>(intent_id)
+}
+
+pub fn put_hands_action_review(
+    store_path: impl AsRef<Path>,
+    review: &HandsActionReview,
+) -> Result<()> {
+    validate_non_empty(&review.review_id, "Hands action review id")?;
+    validate_non_empty(&review.intent_id, "Hands action review intent")?;
+    validate_non_empty(&review.decision, "Hands action review decision")?;
+    validate_non_empty(&review.reviewed_at, "Hands action review timestamp")?;
+    if review.allowed_operations.is_empty() {
+        return Err(anyhow!("Hands action review must name allowed operations"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&review.review_id, review)?;
+    Ok(())
+}
+
+pub fn runtime_hands_action_review(
+    store_path: impl AsRef<Path>,
+    review_id: &str,
+) -> Result<Option<HandsActionReview>> {
+    validate_non_empty(review_id, "Hands action review id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<HandsActionReview>(review_id)
+}
+
+pub fn put_hands_patch_receipt(
+    store_path: impl AsRef<Path>,
+    receipt: &HandsPatchReceipt,
+) -> Result<()> {
+    validate_non_empty(&receipt.receipt_id, "Hands patch receipt id")?;
+    validate_non_empty(&receipt.intent_id, "Hands patch intent")?;
+    validate_non_empty(&receipt.review_id, "Hands patch review")?;
+    validate_non_empty(
+        &receipt.substrate_gate_grant_receipt_id,
+        "Hands patch Substrate Gate grant receipt",
+    )?;
+    validate_non_empty(&receipt.runtime_job_id, "Hands patch runtime job")?;
+    validate_non_empty(&receipt.summary, "Hands patch summary")?;
+    validate_non_empty(&receipt.emitted_at, "Hands patch timestamp")?;
+    if receipt.changed_paths.is_empty() {
+        return Err(anyhow!("Hands patch receipt must name changed paths"));
+    }
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    require_identity(&cache)?;
+    cache.put(&receipt.receipt_id, receipt)?;
+    Ok(())
+}
+
+pub fn runtime_hands_patch_receipt(
+    store_path: impl AsRef<Path>,
+    receipt_id: &str,
+) -> Result<Option<HandsPatchReceipt>> {
+    validate_non_empty(receipt_id, "Hands patch receipt id")?;
+    let mut cache = runtime_spine_cache(store_path)?;
+    cache.pull_all_backing_stores()?;
+    cache.get::<HandsPatchReceipt>(receipt_id)
 }
 
 pub fn put_soul_verdict_receipt(
@@ -3332,6 +3432,47 @@ mod tests {
             runtime_substrate_gate_repo_access_grant_receipt(&store, "substrate-grant-1")?
                 .expect("Substrate Gate grant should persist");
         assert_eq!(stored_grant, substrate_grant);
+        let hands_intent = HandsActionIntent {
+            schema_version: crate::HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "hands-intent-1".to_string(),
+            runtime_job_id: "job-implementation-1".to_string(),
+            binding_id: "implementation-worker".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            requested_action: "patch".to_string(),
+            requested_paths: vec!["src/lib.rs".to_string()],
+            substrate_gate_grant_receipt_id: "substrate-grant-1".to_string(),
+            requested_at: "2026-05-06T00:06:30Z".to_string(),
+            contract: "Hands action intent persists as runtime-spine proof.".to_string(),
+        };
+        put_hands_action_intent(&store, &hands_intent)?;
+        let hands_review = crate::hands_action_review_for_intent(
+            "hands-review-1".to_string(),
+            &hands_intent,
+            "approved".to_string(),
+            vec!["patch".to_string()],
+            vec!["Substrate Gate grant is present.".to_string()],
+            "2026-05-06T00:06:40Z".to_string(),
+        );
+        put_hands_action_review(&store, &hands_review)?;
+        let hands_patch = crate::hands_patch_receipt_for_review(
+            "hands-patch-1".to_string(),
+            &hands_intent,
+            &hands_review,
+            vec!["src/lib.rs".to_string()],
+            "Applied focused patch.".to_string(),
+            "2026-05-06T00:06:50Z".to_string(),
+        );
+        put_hands_patch_receipt(&store, &hands_patch)?;
+        let stored_intent = runtime_hands_action_intent(&store, "hands-intent-1")?
+            .expect("Hands action intent should persist");
+        assert_eq!(stored_intent, hands_intent);
+        let stored_review = runtime_hands_action_review(&store, "hands-review-1")?
+            .expect("Hands action review should persist");
+        assert_eq!(stored_review, hands_review);
+        let stored_patch = runtime_hands_patch_receipt(&store, "hands-patch-1")?
+            .expect("Hands patch receipt should persist");
+        assert_eq!(stored_patch, hands_patch);
         let stored_verdict = runtime_soul_verdict_receipt(&store, "soul-verdict-1")?
             .expect("Soul verdict should persist");
         assert_eq!(stored_verdict, soul_verdict);

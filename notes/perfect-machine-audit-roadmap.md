@@ -147,10 +147,14 @@ runtime-spine, and enforces Soul verdict proof before Mind admits
 verification-shaped state. Reorient acceptance emits a typed
 `epiphany.continuity.recovery_receipt`, persists/rereads it through
 runtime-spine, and enforces Continuity recovery proof before Mind admits
-recovery-shaped state. Remaining weakness: Hands receipts are still mostly
-launch-carried expectations, not enforced proof chains before action promotion,
-and the current Mind state mutation plus post-commit receipt is not a single
-transaction yet.
+recovery-shaped state. Hands now has a first executable runtime-spine proof
+chain for action documents: `HandsActionIntent` -> `HandsActionReview` ->
+`HandsPatchReceipt` can be persisted and reread from the runtime store, and
+`epiphany-hands-action-smoke` proves the chain without executing a patch.
+Remaining weakness: live implementation edits, commands, commits, and PRs still
+do not have to pass through that Hands chain before action promotion, and the
+current Mind state mutation plus post-commit receipt is not a single transaction
+yet.
 
 ### 4. Self Still Shares A Throne With Compatibility Plumbing
 
@@ -349,8 +353,12 @@ comfort tunnels.
   receipts before Mind admission.
 - Landed: Reorient acceptance produces and enforces typed Continuity recovery
   receipts before Mind admission.
-- Next: add Hands action receipts when action lanes become live, or collapse
-  Mind review/state mutation/commit into one storage-owner admission primitive.
+- Landed: first Hands action receipt spine. `HandsActionIntent`,
+  `HandsActionReview`, and `HandsPatchReceipt` are typed runtime-spine
+  documents with put/get helpers and `epiphany-hands-action-smoke` coverage.
+- Next: connect live implementation edits/commands/commits to the Hands action
+  chain, or collapse Mind review/state mutation/commit into one storage-owner
+  admission primitive.
 - Make Aquarium read the contract catalog and available receipts instead of
   hard-coding the route zoo.
 - Starve `codex_message_processor` down to Codex auth/model transport and
