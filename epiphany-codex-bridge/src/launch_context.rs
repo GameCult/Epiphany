@@ -149,11 +149,16 @@ fn launch_memory_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use epiphany_core::EpiphanyRoleResultRoleId;
+    use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+    use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
+    use epiphany_core::open_runtime_spine_heartbeat_job;
+    use epiphany_core::runtime_worker_launch_request;
     use std::fs;
     use uuid::Uuid;
 
     #[test]
-    fn launch_context_renders_local_verse_packet() -> anyhow::Result<()> {
+    fn launch_context_persists_on_runtime_worker_request() -> anyhow::Result<()> {
         let temp =
             std::env::temp_dir().join(format!("epiphany-bridge-launch-context-{}", Uuid::new_v4()));
         fs::create_dir_all(&temp)?;
@@ -178,6 +183,45 @@ mod tests {
         assert!(rendered.contains("Memory graph"));
         assert!(local_verse_store_path(&runtime_store).exists());
         assert!(memory_graph_store_path(&runtime_store).exists());
+
+        let launch_request = build_epiphany_role_launch_request_with_dynamic_context(
+            "thread-1",
+            EpiphanyRoleResultRoleId::Modeling,
+            Some(state.revision),
+            Some(60),
+            &state,
+            Some(rendered.clone()),
+        )
+        .map_err(anyhow::Error::msg)?;
+        open_runtime_spine_heartbeat_job(
+            &runtime_store,
+            RuntimeSpineHeartbeatJobOptions {
+                runtime_id: EPIPHANY_LOCAL_VERSE_RUNTIME_ID.to_string(),
+                display_name: "Epiphany Local".to_string(),
+                session_id: "epiphany-main".to_string(),
+                objective: "Test persisted launch context.".to_string(),
+                coordinator_note: "Bridge launch-context smoke.".to_string(),
+                job_id: "job-launch-context".to_string(),
+                role: launch_request.owner_role.clone(),
+                binding_id: launch_request.binding_id.clone(),
+                authority_scope: launch_request.authority_scope.clone(),
+                instruction: launch_request.instruction.clone(),
+                launch_document: launch_request.launch_document.clone(),
+                output_contract_id: launch_request.output_contract_id.clone(),
+                organ_launch_contract: launch_request.organ_launch_contract.clone(),
+                created_at: "2026-06-02T00:00:00Z".to_string(),
+            },
+        )?;
+        let stored = runtime_worker_launch_request(&runtime_store, "job-launch-context")?
+            .expect("runtime worker launch request should be persisted");
+        let stored_document = stored.launch_document()?;
+        let stored_context = stored_document
+            .dynamic_prompt_context()
+            .expect("stored launch document should carry dynamic context");
+        assert!(stored_context.contains("Odin"));
+        assert!(stored_context.contains("Memory graph"));
+        assert!(stored_context.contains("Test launch context."));
+
         fs::remove_dir_all(&temp)?;
         Ok(())
     }

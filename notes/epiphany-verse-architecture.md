@@ -187,10 +187,12 @@ For swarm migration, the next useful chain is:
 1. Keep `epiphany-verse-query` as the local Verse context smoke.
 2. Add semantic memory graph query packets beside the Verse policy/status
    packet.
-3. Add a launch/runtime smoke that proves a persisted worker request includes
-   relevant Verse/memory context and omits unrelated private sludge.
-4. Move one Aquarium/local-run read path to the native Verse query before
+3. Move one Aquarium/local-run read path to the native Verse query before
    increasing swarm cadence.
+
+The bridge launch-context test is now the first launch/runtime smoke for this
+chain. It renders dynamic context, opens a runtime-spine worker request, reloads
+the persisted launch document, and asserts the Verse/memory packet survived.
 
 No live swarm runner is cleared until pause/brake, stale active-turn recovery,
 Face eligibility, and memory lifecycle receipts remain inspectable through the
