@@ -57,6 +57,8 @@ HandsActionIntent
 `epiphany-core::runtime_spine` can persist and reread the intent, review, and
 patch receipt from the runtime-spine CultCache store. `epiphany-hands-action-smoke`
 proves the compact chain without executing shell commands or editing files.
+The launch organ contract's repo-action proof profile now requires the full
+Hands chain, not only the final patch receipt.
 
 This is still a receipt artery, not full action execution. The next live-action
 cut must connect actual implementation edits/commands/commits to this path

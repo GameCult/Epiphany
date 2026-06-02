@@ -6,8 +6,8 @@ use crate::continuity_gateway::{
 };
 use crate::eyes_gateway::{EYES_EVIDENCE_PACKET_TYPE, EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE};
 use crate::hands_gateway::{
-    HANDS_ACTION_REFUSAL_RECEIPT_TYPE, HANDS_COMMIT_RECEIPT_TYPE, HANDS_PATCH_RECEIPT_TYPE,
-    HANDS_ROLLBACK_RECEIPT_TYPE,
+    HANDS_ACTION_INTENT_TYPE, HANDS_ACTION_REFUSAL_RECEIPT_TYPE, HANDS_ACTION_REVIEW_TYPE,
+    HANDS_COMMIT_RECEIPT_TYPE, HANDS_PATCH_RECEIPT_TYPE, HANDS_ROLLBACK_RECEIPT_TYPE,
 };
 use crate::mind_gateway::{
     MIND_GATEWAY_REVIEW_TYPE, MIND_STATE_COMMIT_RECEIPT_TYPE, MIND_STATE_REJECTION_RECEIPT_TYPE,
@@ -159,6 +159,8 @@ pub fn default_receipt_proof_profiles() -> Vec<EpiphanyReceiptProofProfile> {
             owner_organ: "hands".to_string(),
             required_before_promotion_document_types: vec![
                 SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_TYPE.to_string(),
+                HANDS_ACTION_INTENT_TYPE.to_string(),
+                HANDS_ACTION_REVIEW_TYPE.to_string(),
                 HANDS_PATCH_RECEIPT_TYPE.to_string(),
                 SOUL_VERDICT_RECEIPT_TYPE.to_string(),
                 MIND_GATEWAY_REVIEW_TYPE.to_string(),
@@ -219,6 +221,8 @@ pub fn default_launch_required_receipts() -> Vec<String> {
         SUBSTRATE_GATE_REPO_MUTATION_RECEIPT_TYPE,
         EYES_EVIDENCE_PACKET_TYPE,
         EYES_EVIDENCE_REFUSAL_RECEIPT_TYPE,
+        HANDS_ACTION_INTENT_TYPE,
+        HANDS_ACTION_REVIEW_TYPE,
         HANDS_PATCH_RECEIPT_TYPE,
         HANDS_COMMIT_RECEIPT_TYPE,
         HANDS_ROLLBACK_RECEIPT_TYPE,
@@ -400,6 +404,16 @@ mod tests {
                 .required_receipt_document_types
                 .contains(&SOUL_VERDICT_RECEIPT_TYPE.to_string())
         );
+        assert!(
+            contract
+                .required_receipt_document_types
+                .contains(&HANDS_ACTION_INTENT_TYPE.to_string())
+        );
+        assert!(
+            contract
+                .required_receipt_document_types
+                .contains(&HANDS_ACTION_REVIEW_TYPE.to_string())
+        );
         assert!(contract.receipt_proof_profiles.iter().any(|profile| {
             profile.effect_kind == EpiphanyReceiptEffectKind::StateAdmission
                 && profile
@@ -411,6 +425,12 @@ mod tests {
         }));
         assert!(contract.receipt_proof_profiles.iter().any(|profile| {
             profile.effect_kind == EpiphanyReceiptEffectKind::RepoAction
+                && profile
+                    .required_before_promotion_document_types
+                    .contains(&HANDS_ACTION_INTENT_TYPE.to_string())
+                && profile
+                    .required_before_promotion_document_types
+                    .contains(&HANDS_ACTION_REVIEW_TYPE.to_string())
                 && profile
                     .required_before_promotion_document_types
                     .contains(&HANDS_PATCH_RECEIPT_TYPE.to_string())
