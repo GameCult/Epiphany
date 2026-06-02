@@ -127,6 +127,7 @@ The first native query tool is:
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- smoke
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- seed
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- query
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prompt-context-smoke
 ```
 
 This writes and reads a compact CultMesh-backed local Verse context bundle:
@@ -142,6 +143,13 @@ This writes and reads a compact CultMesh-backed local Verse context bundle:
 
 This is not semantic search yet. It is the first typed inspection packet the
 future prompt assembler can depend on.
+
+`epiphany-prompt-context-smoke` is the first prompt-context proof on top of
+that packet. It seeds local Verse context, builds a memory graph context cut,
+renders the combined dynamic prompt packet, and asserts that Verse/Odin/
+Yggdrasil/Bifrost context plus relevant semantic memory appear while unrelated
+private-looking text stays absent. It is still a local proof, not a live swarm
+runner.
 
 ## Invariants
 
@@ -165,8 +173,9 @@ For swarm migration, the next useful chain is:
 2. Add semantic memory graph query packets beside the Verse policy/status
    packet.
 3. Teach worker launch prompt assembly to consume those packets explicitly.
-4. Add a smoke that proves a worker prompt includes relevant Verse/memory
-   context and omits unrelated private sludge.
+4. Extend the prompt-context smoke into a launch-document smoke that proves a
+   worker prompt includes relevant Verse/memory context and omits unrelated
+   private sludge.
 5. Move one Aquarium/local-run read path to the native Verse query before
    increasing swarm cadence.
 
