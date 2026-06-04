@@ -65,6 +65,7 @@ It should expose compact TUI/API packets for:
 - organ contract policy
 - local Verse policies
 - admissible tool/query affordances
+- Odin/Gjallar daemon affordances for provider-owned GameCult services
 
 Local Verse context is prompt input, not durable truth by itself. Mind still
 owns durable adoption.
@@ -79,6 +80,12 @@ must not bypass Verse trust boundaries, Mind adoption gates, Substrate Gate
 access receipts, or private-state export rules.
 
 Odin sees the map. Odin does not get to steal the throne.
+
+Gjallar is the herald path from Odin-owned sight into agent context. Epiphany
+should consume Gjallar affordance records as compact context, not crawl sockets
+or ask MCP what tools happen to exist. The affordance says what can be
+inspected or requested, where the source record lives, and which provider owns
+the real command/state boundary.
 
 ### Yggdrasil
 
@@ -128,6 +135,7 @@ The first native query tool is:
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- smoke
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- seed
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- query
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-verse-query -- query --gjallar-affordance-store E:\Projects\Odin\scratch\gjallar\gjallar.affordances.cc
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-prompt-context-smoke
 ```
 
@@ -141,9 +149,26 @@ This writes and reads a compact CultMesh-backed local Verse context bundle:
 - latest operator run/snapshot receipts when present
 - organ contract summaries for Mind, Substrate Gate, Eyes, Hands, Soul, and
   Continuity
+- imported `gjallar.affordance.v1` daemon affordance summaries when a Gjallar
+  store is provided
 
 This is not semantic search yet. It is the first typed inspection packet the
 future prompt assembler can depend on.
+
+Daemon affordance context follows the pure GameCult path:
+
+```text
+Odin owns accepted Verse/service/interface discovery
+-> Gjallar publishes compact `gjallar.affordance.v1` records
+-> Epiphany imports/queries those records into the local Verse context packet
+-> agents inspect Eve/CultUI TUI surfaces and request provider-owned CultMesh commands
+-> provider daemons emit accepted/denied/reconciled receipts
+```
+
+MCP is not the native Epiphany control path for GameCult daemons. It may remain
+as external compatibility scaffolding, but daemon discovery and interaction for
+GameCult-owned services should travel through Odin, Gjallar, Eve, CultMesh, and
+provider-owned command documents.
 
 `epiphany-prompt-context-smoke` is the first prompt-context proof on top of
 that packet. It seeds local Verse context, builds a memory graph context cut,
@@ -186,6 +211,9 @@ memory.
   action, repo, or public-speech authority.
 - Every tool exposed to agents should have a compact, inspectable TUI/API
   surface before it becomes ambient prompt power.
+- Epiphany may cache/import Gjallar affordance records for prompt context, but
+  Odin remains the source of discovery truth and providers remain the owners of
+  command side effects.
 
 ## Migration Cut
 

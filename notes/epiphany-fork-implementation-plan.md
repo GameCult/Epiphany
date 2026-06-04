@@ -86,7 +86,7 @@ The landed machine now has:
 - first auditable Phase 6 fixed-lane coordinator runner through native `epiphany-mvp-coordinator`, producing coordinator summary, JSONL steps, rendered snapshots, transcript, stderr, runtime-spine status, native runtime job/result receipts for launched work, and final next-action artifacts while keeping semantic findings review-gated by default
 - first Codex-independent native runtime vertebra through `epiphany-runtime-spine`, storing runtime identity, sessions, jobs, job results, and events as typed CultCache MessagePack documents, opening/completing native jobs, projecting job-result counts, and emitting a framed CultNet hello message for the native contract
 - first Rust CultMesh local-node integration: `vendor/cultmesh-rs` now provides the repo-contained CultMesh surface over vendored CultCache/CultNet, and `epiphany-core` depends on that surface for local `EpiphanyCultMeshStatusEntry`, `EpiphanyCultMeshVersePolicyEntry`, and `EpiphanyCultMeshGlobalRoomPolicyEntry` round-trip smokes instead of treating raw CultNet as the ergonomic app-facing database layer
-- first local Verse query surface: `notes/epiphany-verse-architecture.md` names Verse/Odin/Yggdrasil ownership, `epiphany-verse-query` can seed/query a compact CultMesh-backed local Verse context bundle for operator inspection and future dynamic prompt assembly without granting semantic memory, public sharing, or state-admission authority, and `tools/epiphany_local_run.ps1 -Mode status` now writes that packet as `local-verse-context.json` beside native status/operator snapshot artifacts
+- first local Verse query surface: `notes/epiphany-verse-architecture.md` names Verse/Odin/Gjallar/Yggdrasil ownership, `epiphany-verse-query` can seed/query a compact CultMesh-backed local Verse context bundle for operator inspection and future dynamic prompt assembly without granting semantic memory, public sharing, or state-admission authority, can import `gjallar.affordance.v1` daemon affordance summaries from Odin/Gjallar stores, and `tools/epiphany_local_run.ps1 -Mode status` now writes that packet as `local-verse-context.json` beside native status/operator snapshot artifacts while auto-detecting the sibling Odin Gjallar store when present
 - first dynamic prompt launch handoff: role/reorient worker launch documents carry optional `dynamicPromptContext`, runtime prompt assembly consumes that field into worker instructions, `epiphany-prompt-context-smoke` proves rendered Verse/memory context can ride a role launch document without admitting unrelated private-looking text, live bridge role/reorient launch paths now feed local Verse plus memory graph context from sibling `local-verse.ccmp` and `memory-graph.msgpack` stores beside runtime-spine, and the bridge launch-context test proves the dynamic packet survives in a persisted runtime-spine worker launch request
 - first Hands/Soul/Continuity contract catalogs: action, verification, and continuity now have native `epiphany-core` contract families, runtime-spine advertisement, CultMesh policy documents, and local CultMesh smoke coverage beside Mind/Substrate Gate/Eyes; Hands now also has typed runtime-spine document bodies/helpers for `HandsActionIntent`, `HandsActionReview`, `HandsPatchReceipt`, `HandsCommandReceipt`, and `HandsCommitReceipt`, with `epiphany-hands-action-smoke` proving the action receipt chain without live file execution; Implementation now launches as `implementation-branch-turn-worker` owned by `epiphany-hands`, receives dynamic Proprioception context, gets a Substrate Gate mutation grant, and must make at most one branch-turn commit before Proprioception refresh
 - live-specialist runner must be rebuilt around heartbeat/runtime-spine result receipts
@@ -137,8 +137,11 @@ These boundaries are more important than the individual method names:
 - Codex prompt machinery must not tell Epiphany agents what to do. Epiphany
   prompts, typed state projections, organ contracts, scheduler decisions, and
   mutation law are Epiphany-owned; Codex may transport and stream turns.
-- MCP may survive only as a separate CultNet-speaking adapter; it does not
-  justify preserving the Codex host brain.
+- MCP may survive only as an external compatibility adapter. It does not
+  justify preserving the Codex host brain, and it is not the native GameCult
+  daemon-control path. Epiphany agents should discover daemons through
+  Odin/Gjallar, inspect provider surfaces through Eve/CultUI, and interact via
+  CultMesh/CultNet provider-owned command documents and receipts.
 - `thread/epiphany/retrieve` is read-only.
 - `thread/epiphany/distill` is read-only.
 - `thread/epiphany/propose` is read-only.
@@ -238,8 +241,9 @@ The next unknowns are:
 - how to expose state read/update, view lenses, runtime launch/read/interrupt,
   result accept/refuse, retrieval, checkpoint, CRRC, coordinator, heartbeat,
   and role-memory actions as CultNet contracts instead of Codex JSON-RPC verbs
-- how to split MCP into a CultNet-speaking adapter without preserving Codex
-  app-server/plugin organs
+- how to quarantine MCP as an external compatibility adapter without preserving
+  Codex app-server/plugin organs or treating MCP as the native GameCult daemon
+  actuator
 - how to make Aquarium and CLI status use CultNet contracts instead of
   `thread/epiphany/*`
 - how to define `EpiphanyDream`, dream lineage, ingress receipts, and adoption
@@ -402,7 +406,8 @@ Liberation candidates, in the intended order:
 4. Replace worker launch/result/selfPatch cargo with typed document contracts.
 5. Move Aquarium/CLI/operator reads and actions from `thread/epiphany/*`
    JSON-RPC to CultNet contracts.
-6. Split MCP into a CultNet adapter if it remains useful.
+6. Quarantine MCP as an external adapter if it remains useful; GameCult daemon
+   discovery and control belong to Odin/Gjallar/Eve/CultMesh/CultNet.
 7. Starve `codex_message_processor.rs` until Epiphany no longer depends on it
    for state, scheduling, runtime, views, acceptance, notifications, or tests.
 8. Delete or seal Codex apps, skills, marketplace, and plugin UX from the

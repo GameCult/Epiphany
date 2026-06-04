@@ -5,6 +5,7 @@ use epiphany_core::EpiphanyMemoryContextQuery;
 use epiphany_core::EpiphanyMemoryProfile;
 use epiphany_core::EpiphanyPromptContextInput;
 use epiphany_core::EpiphanyThreadState;
+use epiphany_core::import_gjallar_daemon_affordances;
 use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::plan_memory_graph_context_cut;
@@ -12,6 +13,7 @@ use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::render_epiphany_prompt_context;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_memory_graph_snapshot;
+use std::env;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -69,6 +71,20 @@ pub fn render_launch_dynamic_prompt_context(
             local_verse_store.display()
         )
     })?;
+    if let Some(gjallar_store) = gjallar_affordance_store_path() {
+        import_gjallar_daemon_affordances(
+            &local_verse_store,
+            &gjallar_store,
+            EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
+        )
+        .map_err(|error| {
+            format!(
+                "failed to import Gjallar daemon affordances from {} into {}: {error}",
+                gjallar_store.display(),
+                local_verse_store.display()
+            )
+        })?;
+    }
     let local_verse =
         query_epiphany_local_verse_context(&local_verse_store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
             .map_err(|error| {
@@ -91,6 +107,12 @@ pub fn render_launch_dynamic_prompt_context(
             memory_context,
         },
     ))
+}
+
+fn gjallar_affordance_store_path() -> Option<PathBuf> {
+    env::var_os("EPIPHANY_GJALLAR_AFFORDANCE_STORE")
+        .map(PathBuf::from)
+        .filter(|path| path.exists())
 }
 
 fn launch_memory_context(

@@ -13,7 +13,8 @@ param(
     [switch]$SkipBuild,
     [switch]$AutoReview,
     [switch]$NoEphemeral,
-    [switch]$SkipSleep
+    [switch]$SkipSleep,
+    [string]$GjallarAffordanceStore = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -188,6 +189,21 @@ if (-not $SkipBuild) {
     }
 }
 
+if ($GjallarAffordanceStore -eq "") {
+    if ($env:EPIPHANY_GJALLAR_AFFORDANCE_STORE) {
+        $GjallarAffordanceStore = $env:EPIPHANY_GJALLAR_AFFORDANCE_STORE
+    } else {
+        $candidateOdinStore = Join-Path (Split-Path -Parent $Root) "Odin\scratch\gjallar\gjallar.affordances.cc"
+        if (Test-Path -LiteralPath $candidateOdinStore) {
+            $GjallarAffordanceStore = $candidateOdinStore
+        }
+    }
+}
+if ($GjallarAffordanceStore -ne "") {
+    $GjallarAffordanceStore = (Resolve-Path -LiteralPath $GjallarAffordanceStore).Path
+    $env:EPIPHANY_GJALLAR_AFFORDANCE_STORE = $GjallarAffordanceStore
+}
+
 $requiredBinaries = @($statusExe, $operatorRunExe, $operatorSnapshotExe, $verseQueryExe)
 if ($Mode -ne "status") {
     $requiredBinaries += @($codexAppServer, $coordinatorExe)
@@ -258,14 +274,18 @@ if ($Mode -eq "status") {
         -WorkingDirectory $Root `
         -StdoutPath (Join-Path $artifactRoot "status.stdout.json") `
         -StderrPath (Join-Path $artifactRoot "status.stderr.log")
+    $localVerseArgs = @(
+        "seed",
+        "--store", $localVerseStore,
+        "--runtime-id", "epiphany-local"
+    )
+    if ($GjallarAffordanceStore -ne "") {
+        $localVerseArgs += @("--gjallar-affordance-store", $GjallarAffordanceStore)
+    }
     Invoke-Checked `
         -Label "read local Verse context" `
         -FilePath $verseQueryExe `
-        -Arguments @(
-            "seed",
-            "--store", $localVerseStore,
-            "--runtime-id", "epiphany-local"
-        ) `
+        -Arguments $localVerseArgs `
         -WorkingDirectory $Root `
         -StdoutPath $localVerseJson `
         -StderrPath (Join-Path $artifactRoot "local-verse-context.stderr.log")
@@ -464,6 +484,7 @@ $summary = @"
 - operatorSnapshotStore: $operatorSnapshotStore
 - localVerseBinary: $verseQueryExe
 - localVerseStore: $localVerseStore
+- gjallarAffordanceStore: $GjallarAffordanceStore
 - coordinatorBinary: $coordinatorExe
 - runtimeStore: $runtimeStore
 - modelRuntimeBinary: $modelRuntimeExe

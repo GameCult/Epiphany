@@ -391,8 +391,8 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     break;
                 }
                 let can_accept = args.auto_review
-                    && result.pointer("/finding/statePatch").is_some()
-                    && revision.is_some();
+                    && revision.is_some()
+                    && role_result_auto_acceptable(role_id, &result);
                 if !can_accept {
                     final_action = json!({
                         "action": review_action_for_role(role_id),
@@ -870,6 +870,27 @@ fn review_action_for_role(role_id: &str) -> &'static str {
         "verification" => "reviewVerificationResult",
         "implementation" => "reviewImplementationResult",
         _ => "reviewRoleResult",
+    }
+}
+
+fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
+    if result["status"].as_str() != Some("completed") {
+        return false;
+    }
+    let Some(finding) = result.get("finding").filter(|value| value.is_object()) else {
+        return false;
+    };
+    if finding
+        .get("itemError")
+        .and_then(Value::as_str)
+        .is_some_and(|error| !error.trim().is_empty())
+    {
+        return false;
+    }
+    match role_id {
+        "verification" => true,
+        "research" | "modeling" => finding.get("statePatch").is_some(),
+        _ => false,
     }
 }
 
@@ -1538,5 +1559,39 @@ mod tests {
             review_action_for_role("implementation"),
             "reviewImplementationResult"
         );
+    }
+
+    #[test]
+    fn auto_review_accepts_patchless_verification_but_not_patchless_modeling() {
+        let verification = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "needs-evidence",
+                "summary": "Soul asks Hands for one bounded evidence-gathering turn.",
+                "nextSafeMove": "Continue implementation for evidence.",
+                "filesInspected": ["state/map.yaml"]
+            }
+        });
+        assert!(role_result_auto_acceptable("verification", &verification));
+
+        let modeling = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "checkpoint-ready",
+                "summary": "Looks plausible, but no statePatch was supplied."
+            }
+        });
+        assert!(!role_result_auto_acceptable("modeling", &modeling));
+
+        let errored_verification = json!({
+            "status": "completed",
+            "finding": {
+                "itemError": "verification result is malformed"
+            }
+        });
+        assert!(!role_result_auto_acceptable(
+            "verification",
+            &errored_verification
+        ));
     }
 }

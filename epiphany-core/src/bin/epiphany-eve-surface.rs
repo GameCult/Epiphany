@@ -1,9 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
 use chrono::Utc;
-use epiphany_core::query_epiphany_local_verse_context;
-use epiphany_core::seed_epiphany_local_verse_context;
-use epiphany_core::EpiphanyLocalVerseContext;
 use epiphany_core::EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_EYES_CONTRACT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION;
@@ -19,8 +16,12 @@ use epiphany_core::EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_SUBSTRATE_GATE_CONTRACT_SCHEMA_VERSION;
 use epiphany_core::EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION;
-use serde_json::json;
+use epiphany_core::EpiphanyLocalVerseContext;
+use epiphany_core::GJALLAR_AFFORDANCE_SCHEMA_VERSION;
+use epiphany_core::query_epiphany_local_verse_context;
+use epiphany_core::seed_epiphany_local_verse_context;
 use serde_json::Value;
+use serde_json::json;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -196,6 +197,7 @@ fn surface_document(args: &Args, context: Option<&EpiphanyLocalVerseContext>) ->
                 "children": [
                     operator_status_panel(context),
                     local_verse_panel(context),
+                    daemon_affordance_panel(context),
                     runtime_spine_panel(context),
                     memory_graph_panel(context),
                     persona_panel()
@@ -257,6 +259,46 @@ fn local_verse_panel(context: Option<&EpiphanyLocalVerseContext>) -> Value {
             "authority": "CultMesh Verse policies and contract summaries",
             "freshness": context.map(|context| context.store_path.as_str()).unwrap_or("store missing"),
             "rows": verse_rows
+        },
+        "children": []
+    })
+}
+
+fn daemon_affordance_panel(context: Option<&EpiphanyLocalVerseContext>) -> Value {
+    let rows: Vec<Value> = context
+        .map(|context| {
+            context
+                .daemon_affordances
+                .iter()
+                .take(12)
+                .map(|affordance| {
+                    json!({
+                        "label": affordance.affordance_id,
+                        "value": format!(
+                            "{}:{}; authority={}; status={}; source={}",
+                            affordance.surface_kind,
+                            affordance.action,
+                            affordance.authority,
+                            affordance.status,
+                            affordance.source_record
+                        )
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    json!({
+        "id": "epiphany.daemon.affordances",
+        "kind": "inspector.kv",
+        "props": {
+            "title": "Daemon Affordances",
+            "authority": "Gjallar affordance records derived from Odin-owned sight",
+            "freshness": context
+                .and_then(|context| context.daemon_affordances.first())
+                .map(|affordance| affordance.observed_at.as_str())
+                .unwrap_or("missing"),
+            "rows": rows,
+            "emptyState": "No Gjallar affordances loaded; import an Odin/Gjallar CultMesh store rather than probing sockets or calling MCP."
         },
         "children": []
     })
@@ -444,6 +486,14 @@ fn schema_catalog(context: Option<&EpiphanyLocalVerseContext>) -> Vec<Value> {
             "cultmesh://huginn/persona/{personaId}",
             true,
         ),
+        schema_entry(
+            GJALLAR_AFFORDANCE_SCHEMA_VERSION,
+            "gjallar",
+            "imported-affordance",
+            "cultcache-cc",
+            "cultmesh://odin/gjallar/affordances",
+            true,
+        ),
     ];
     if let Some(context) = context {
         for contract in &context.contract_summaries {
@@ -487,7 +537,8 @@ fn witnesses(args: &Args, context: Option<&EpiphanyLocalVerseContext>) -> Vec<Va
             "schemas": [
                 EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
                 EPIPHANY_CULTMESH_OPERATOR_STATUS_SCHEMA_VERSION,
-                EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION
+                EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
+                GJALLAR_AFFORDANCE_SCHEMA_VERSION
             ],
             "redaction": "private worker transcripts and raw model payloads are not exposed",
             "freshness": {

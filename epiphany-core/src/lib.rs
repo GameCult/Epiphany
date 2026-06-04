@@ -158,8 +158,11 @@ pub use cultmesh_integration::EpiphanyCultMeshSoulContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshStatusEntry;
 pub use cultmesh_integration::EpiphanyCultMeshSubstrateGateContractEntry;
 pub use cultmesh_integration::EpiphanyCultMeshVersePolicyEntry;
+pub use cultmesh_integration::EpiphanyLocalDaemonAffordanceSummary;
 pub use cultmesh_integration::EpiphanyLocalVerseContext;
 pub use cultmesh_integration::EpiphanyLocalVerseContractSummary;
+pub use cultmesh_integration::GJALLAR_AFFORDANCE_SCHEMA_VERSION;
+pub use cultmesh_integration::GjallarAffordanceEntry;
 pub use cultmesh_integration::default_epiphany_cultmesh_operator_status;
 pub use cultmesh_integration::epiphany_cultmesh_continuity_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_eyes_contracts;
@@ -170,6 +173,7 @@ pub use cultmesh_integration::epiphany_cultmesh_operator_snapshot_from_status_js
 pub use cultmesh_integration::epiphany_cultmesh_soul_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_substrate_gate_contracts;
 pub use cultmesh_integration::epiphany_cultmesh_verse_policies;
+pub use cultmesh_integration::import_gjallar_daemon_affordances;
 pub use cultmesh_integration::load_epiphany_cultmesh_operator_snapshot;
 pub use cultmesh_integration::load_epiphany_cultmesh_operator_status;
 pub use cultmesh_integration::load_epiphany_cultmesh_status;
@@ -178,6 +182,7 @@ pub use cultmesh_integration::load_latest_epiphany_cultmesh_operator_run_receipt
 pub use cultmesh_integration::load_latest_epiphany_cultmesh_operator_snapshot;
 pub use cultmesh_integration::open_epiphany_cultmesh_node;
 pub use cultmesh_integration::query_epiphany_local_verse_context;
+pub use cultmesh_integration::query_gjallar_daemon_affordances;
 pub use cultmesh_integration::seed_epiphany_local_verse_context;
 pub use cultmesh_integration::write_epiphany_cultmesh_continuity_contracts;
 pub use cultmesh_integration::write_epiphany_cultmesh_eyes_contracts;

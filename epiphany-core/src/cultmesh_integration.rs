@@ -64,6 +64,7 @@ pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_TYPE: &str =
     "epiphany.cultmesh.continuity_contract";
 pub const EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.continuity_contract.v0";
+pub const GJALLAR_AFFORDANCE_SCHEMA_VERSION: &str = "gjallar.affordance.v1";
 pub const EPIPHANY_CULTMESH_INTERNAL_VERSE_ID: &str = "epiphany-internal";
 pub const EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID: &str = "gamecult-local";
 pub const EPIPHANY_CULTMESH_GLOBAL_VERSE_ID: &str = "epiphany-global";
@@ -467,6 +468,29 @@ pub struct EpiphanyCultMeshContinuityContractEntry {
     pub notes: Vec<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(type = "gjallar.affordance", schema = "gjallar.affordance.v1")]
+pub struct GjallarAffordanceEntry {
+    #[cultcache(key = 0)]
+    pub affordance_id: String,
+    #[cultcache(key = 1)]
+    pub source_record: String,
+    #[cultcache(key = 2)]
+    pub verse_id: Option<String>,
+    #[cultcache(key = 3)]
+    pub surface_kind: String,
+    #[cultcache(key = 4)]
+    pub action: String,
+    #[cultcache(key = 5)]
+    pub authority: String,
+    #[cultcache(key = 6)]
+    pub status: String,
+    #[cultcache(key = 7)]
+    pub provenance: String,
+    #[cultcache(key = 8)]
+    pub observed_at: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EpiphanyLocalVerseContext {
@@ -484,6 +508,7 @@ pub struct EpiphanyLocalVerseContext {
     pub latest_operator_run_intent: Option<EpiphanyCultMeshOperatorRunIntentEntry>,
     pub latest_operator_run_receipt: Option<EpiphanyCultMeshOperatorRunReceiptEntry>,
     pub contract_summaries: Vec<EpiphanyLocalVerseContractSummary>,
+    pub daemon_affordances: Vec<EpiphanyLocalDaemonAffordanceSummary>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -495,6 +520,20 @@ pub struct EpiphanyLocalVerseContractSummary {
     pub document_type: String,
     pub operations: Vec<String>,
     pub receipt_document_types: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EpiphanyLocalDaemonAffordanceSummary {
+    pub affordance_id: String,
+    pub source_record: String,
+    pub verse_id: Option<String>,
+    pub surface_kind: String,
+    pub action: String,
+    pub authority: String,
+    pub status: String,
+    pub provenance: String,
+    pub observed_at: String,
 }
 
 cultmesh_documents!(EpiphanyCultMeshDocuments {
@@ -511,6 +550,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshHandsContractEntry => EPIPHANY_CULTMESH_HANDS_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshSoulContractEntry => EPIPHANY_CULTMESH_SOUL_CONTRACT_SCHEMA_VERSION,
     EpiphanyCultMeshContinuityContractEntry => EPIPHANY_CULTMESH_CONTINUITY_CONTRACT_SCHEMA_VERSION,
+    GjallarAffordanceEntry => GJALLAR_AFFORDANCE_SCHEMA_VERSION,
 });
 
 pub fn open_epiphany_cultmesh_node(
@@ -832,7 +872,67 @@ pub fn query_epiphany_local_verse_context(
         latest_operator_run_intent: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_LATEST_KEY)?,
         latest_operator_run_receipt: node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)?,
         contract_summaries,
+        daemon_affordances: query_gjallar_daemon_affordances_from_node(&node)?,
     })
+}
+
+pub fn query_gjallar_daemon_affordances(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyLocalDaemonAffordanceSummary>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    query_gjallar_daemon_affordances_from_node(&node)
+}
+
+pub fn import_gjallar_daemon_affordances(
+    local_store_path: impl AsRef<Path>,
+    gjallar_store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Vec<EpiphanyLocalDaemonAffordanceSummary>> {
+    let runtime_id = runtime_id.into();
+    let gjallar_node =
+        open_epiphany_cultmesh_node(gjallar_store_path, format!("{runtime_id}-gjallar-import"))?;
+    let affordances = gjallar_node.cache().get_all::<GjallarAffordanceEntry>()?;
+
+    let mut local_node = open_epiphany_cultmesh_node(local_store_path, runtime_id)?;
+    for affordance in &affordances {
+        local_node.put(affordance.affordance_id.clone(), affordance)?;
+    }
+    local_node.flush()?;
+
+    Ok(affordances
+        .into_iter()
+        .map(EpiphanyLocalDaemonAffordanceSummary::from)
+        .collect())
+}
+
+fn query_gjallar_daemon_affordances_from_node(
+    node: &CultMeshNode,
+) -> Result<Vec<EpiphanyLocalDaemonAffordanceSummary>> {
+    let mut summaries: Vec<_> = node
+        .cache()
+        .get_all::<GjallarAffordanceEntry>()?
+        .into_iter()
+        .map(EpiphanyLocalDaemonAffordanceSummary::from)
+        .collect();
+    summaries.sort_by(|left, right| left.affordance_id.cmp(&right.affordance_id));
+    Ok(summaries)
+}
+
+impl From<GjallarAffordanceEntry> for EpiphanyLocalDaemonAffordanceSummary {
+    fn from(value: GjallarAffordanceEntry) -> Self {
+        Self {
+            affordance_id: value.affordance_id,
+            source_record: value.source_record,
+            verse_id: value.verse_id,
+            surface_kind: value.surface_kind,
+            action: value.action,
+            authority: value.authority,
+            status: value.status,
+            provenance: value.provenance,
+            observed_at: value.observed_at,
+        }
+    }
 }
 
 pub trait EpiphanyCultMeshContractSummarySource: DatabaseEntry {
@@ -1527,6 +1627,43 @@ mod tests {
         assert!(context.odin_scope.contains("all-seer"));
         assert!(context.yggdrasil_scope.contains("Bifrost"));
         assert!(context.prompt_assembly_note.contains("bounded context"));
+        Ok(())
+    }
+
+    #[test]
+    fn local_verse_context_imports_gjallar_daemon_affordances() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let local_store = temp.path().join("epiphany-local-verse.ccmp");
+        let gjallar_store = temp.path().join("gjallar-affordances.cc");
+        seed_epiphany_local_verse_context(&local_store, "epiphany-test", "2026-06-02T00:00:00Z")?;
+
+        let mut gjallar_node = open_epiphany_cultmesh_node(&gjallar_store, "gjallar-test")?;
+        let affordance = GjallarAffordanceEntry {
+            affordance_id: "gjallar:odin.service:bifrost:0".to_string(),
+            source_record: "odin.service:bifrost".to_string(),
+            verse_id: Some(EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID.to_string()),
+            surface_kind: "service".to_string(),
+            action: "inspect-eve-tui".to_string(),
+            authority: "odin".to_string(),
+            status: "available".to_string(),
+            provenance: "cultmesh://odin/gjallar".to_string(),
+            observed_at: "2026-06-04T00:00:00Z".to_string(),
+        };
+        gjallar_node.put(affordance.affordance_id.clone(), &affordance)?;
+        gjallar_node.flush()?;
+
+        let imported =
+            import_gjallar_daemon_affordances(&local_store, &gjallar_store, "epiphany-test")?;
+        let context = query_epiphany_local_verse_context(&local_store, "epiphany-test")?;
+
+        assert_eq!(imported.len(), 1);
+        assert_eq!(context.daemon_affordances.len(), 1);
+        assert_eq!(
+            context.daemon_affordances[0].source_record,
+            "odin.service:bifrost"
+        );
+        assert_eq!(context.daemon_affordances[0].authority, "odin");
+        assert_eq!(context.daemon_affordances[0].action, "inspect-eve-tui");
         Ok(())
     }
 

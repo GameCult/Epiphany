@@ -71,6 +71,31 @@ pub fn render_epiphany_prompt_context(input: &EpiphanyPromptContextInput) -> Str
         );
     }
 
+    if !input.local_verse.daemon_affordances.is_empty() {
+        lines.push("## Odin/Gjallar Daemon Affordances".to_string());
+        lines.push(
+            "- Native path: ask Odin/Gjallar for daemon affordances, inspect Eve/CultUI TUI surfaces, and send provider-owned CultMesh command intents; MCP is not the Epiphany control path.".to_string(),
+        );
+        for affordance in input.local_verse.daemon_affordances.iter().take(8) {
+            lines.push(format!(
+                "- `{}` [{}:{}]: source={}, authority={}, status={}, provenance={}",
+                affordance.affordance_id,
+                affordance.surface_kind,
+                affordance.action,
+                compact_line(&affordance.source_record),
+                compact_line(&affordance.authority),
+                compact_line(&affordance.status),
+                compact_line(&affordance.provenance)
+            ));
+        }
+        push_omitted_count(
+            &mut lines,
+            input.local_verse.daemon_affordances.len(),
+            8,
+            "daemon affordances",
+        );
+    }
+
     lines.push("## Semantic Memory Context".to_string());
     lines.push(format!(
         "- Packet `{}` from query `{}`",
