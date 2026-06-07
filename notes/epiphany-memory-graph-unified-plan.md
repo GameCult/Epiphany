@@ -18,7 +18,7 @@ typed domain claim
 -> embedding manifest
 -> semantic cache
 -> context cut
--> role/repo/Face/coordinator packet
+-> role/repo/Persona/coordinator packet
 ```
 
 ## Core Principle
@@ -148,7 +148,7 @@ Lifecycle:
 
 Owns:
 
-- possible Face speech
+- possible Persona speech
 - possible coordinator note
 - possible selfPatch
 - possible future review action
@@ -288,7 +288,7 @@ Repo work gets architecture/dataflow-heavy packets.
 
 Role work gets role_self/short_term/incubation/agency-heavy packets.
 
-Face gets candidate/agency/incubation packets with public-surface filters.
+Persona gets candidate/agency/incubation packets with public-surface filters.
 
 Coordinator gets pressure, stale state, obligations, and receipts.
 

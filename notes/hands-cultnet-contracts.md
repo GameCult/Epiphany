@@ -14,7 +14,7 @@ and leave receipts that can be verified, refused, or admitted into Mind state.
   receipts, PR receipts, rollback receipts, and action refusal receipts.
 - Derived state: diffs, command logs, commits, PR URLs, and rollback notes are
   action receipts. They are not durable Mind state until Mind admits them.
-- Forbidden writers: raw workers, Face, Eyes, Imagination, Self, compatibility
+- Forbidden writers: raw workers, Persona, Eyes, Imagination, Self, compatibility
   JSON-RPC routes, and bridge tools must not execute repo-affecting commands,
   edit files, commit, publish, or roll back without the Hands path after Body
   access.

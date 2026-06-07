@@ -166,7 +166,7 @@ pub fn default_mind_cultnet_contracts() -> Vec<MindCultNetContract> {
             ],
             notes: vec![
                 "Mind is the persistent state guardian: every proposed durable state effect is reviewed here.".to_string(),
-                "Role acceptance, reorientation acceptance, Face Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.".to_string(),
+                "Role acceptance, reorientation acceptance, Persona Interpreter effects, selfPatch, evidence, scratch, checkpoints, graph changes, and objective changes share this gate.".to_string(),
             ],
         },
         MindCultNetContract {

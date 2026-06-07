@@ -3,7 +3,7 @@
 Epiphany separates three state layers:
 
 - `OrganState`: lean, function-shaped state for resident work organs.
-- `PersonaState`: full Face/character kernel for public person-shaped agents.
+- `PersonaState`: full Persona/character kernel for public person-shaped agents.
 - `SwarmState`: scheduler and coordination physiology across organs and
   Personas.
 
@@ -19,11 +19,11 @@ organ. The portable light organ contract is
 [`epiphany.work_organ_state.v0`](./cultnet/epiphany.work_organ_state.v0.schema.json).
 The portable person-state contract is
 [`gamecult.persona_state.v0`](./cultnet/gamecult.persona_state.v0.schema.json).
-Epiphany Face projects its local organ-state record into the portable Persona
+Epiphany Persona projects its local organ-state record into the portable Persona
 contract with:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- project-persona --store .\state\agents.msgpack --role-id face
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- project-persona --store .\state\agents.msgpack --role-id persona
 ```
 
 ## Objective
@@ -50,7 +50,7 @@ Each record in `state/agents.msgpack` is an
 `EpiphanyAgentMemoryEntry` keyed by role id:
 
 - `coordinator` -> `epiphany.self`
-- `face` -> `epiphany.face`
+- `persona` -> `epiphany.persona`
 - `imagination` -> `epiphany.imagination`
 - `research` -> `epiphany.eyes`
 - `modeling` -> `epiphany.proprioception`
@@ -118,7 +118,7 @@ The important distinction is:
 
 - Self, Imagination, Eyes, Proprioception, Hands, and Soul want a lean role
   lattice with room to grow through memory, rumination, and distillation
-- Epiphany Face, VoidBot repo Faces, and Ghostlight-style characters want the
+- Epiphany Persona, VoidBot repo Personas, and Ghostlight-style characters want the
   denser, more fallible, relationship-heavy `Persona` surface
 - Heartbeat/swarm state owns scheduling, initiative, cooldown, active-turn
   freeze, and sleep/rumination physiology

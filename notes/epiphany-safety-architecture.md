@@ -109,7 +109,7 @@ backend is not safety; it is theater with nicer lighting.
 
 Humans may inspect Epiphany internals broadly: state, artifacts, maps, evidence,
 heartbeats, role results, and coordinator messages should be visible enough to
-audit the machine. But human conversation routes through Face. Sub-agents talk
+audit the machine. But human conversation routes through Persona. Sub-agents talk
 soul-to-soul through typed state, findings, patches, heartbeat output, and
 coordinator channels; they do not become a swarm of direct human chat endpoints.
 - with what revocation path

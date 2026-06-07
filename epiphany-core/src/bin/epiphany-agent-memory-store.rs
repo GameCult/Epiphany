@@ -192,7 +192,7 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
         && forbidden.status == "rejected"
         && applied.status == "accepted"
         && temp_validation_errors.is_empty()
-        && project_persona_state_for_role(store, "face")?["schemaVersion"]
+        && project_persona_state_for_role(store, "persona")?["schemaVersion"]
             == epiphany_core::PERSONA_STATE_SCHEMA_VERSION;
     Ok(serde_json::json!({
         "ok": ok,

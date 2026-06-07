@@ -56,7 +56,7 @@ host seam.
   reorientResult
 - `thread/epiphany/stateUpdated` notifications
 - runtime-spine job/result/event receipts
-- heartbeat/routine artifacts and Face/character-loop packets
+- heartbeat/routine artifacts and Persona/character-loop packets
 
 ### Stage Ownership
 
@@ -317,7 +317,7 @@ works, but it concentrates policy, projection, lifecycle, prompt packet
 assembly, coordinator sequencing, and tests in a vendored host file. That is
 architectural Jenga with a good demo standing in front of it.
 
-The next phase is not more outward bridge/UI/Face work. The next phase is
+The next phase is not more outward bridge/UI/Persona work. The next phase is
 control-plane purification:
 
 1. extract Epiphany view/coordinator policy into `epiphany-core`

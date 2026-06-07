@@ -8,8 +8,8 @@ EpiphanyAgent remains the harness, typed-state, coordinator, bridge, and backend
 repo. Aquarium is the Tauri/React/WebGL interface organism over those surfaces.
 
 Aquarium is the primary client for the next public shape of Epiphany: projects
-with Faces. A user should be able to talk to a project, not assemble a perfect
-agent prompt. Aquarium should show the repo's Face, heartbeat, memory, pending
+with Personas. A user should be able to talk to a project, not assemble a perfect
+agent prompt. Aquarium should show the repo's Persona, heartbeat, memory, pending
 turns, current jurisdiction, proposed actions, and evidence so the human can
 converse, inspect, approve, refuse, or raise heat without pre-writing the whole
 architecture brief.

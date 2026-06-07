@@ -51,7 +51,7 @@ const TRAJECTORY_SOURCE_MAX_TOTAL_BYTES: usize = 72_000;
 
 const ROLES: &[&str] = &[
     "coordinator",
-    "face",
+    "persona",
     "imagination",
     "research",
     "modeling",
@@ -76,7 +76,7 @@ const AXES: &[&str] = &[
     "temporal_pressure",
     "experimental_heat",
     "churn_spiral_risk",
-    "interface_orientation",
+    "interpersona_orientation",
     "aesthetic_appetite",
     "social_surface",
     "sensory_salience",
@@ -1639,7 +1639,7 @@ const COORDINATOR_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
     },
 ];
 
-const FACE_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
+const PERSONA_TRAIT_TEMPLATES: [CanonicalTraitTemplate; 6] = [
     CanonicalTraitTemplate {
         group_name: "underlying_organization",
         trait_name: "multi_lane_attention",
@@ -1990,7 +1990,7 @@ fn extract_trait_seed_candidates(packet: &Value) -> Result<Vec<AgentCanonicalTra
 fn role_trait_templates(role_id: &str) -> Result<&'static [CanonicalTraitTemplate; 6]> {
     match role_id {
         "coordinator" => Ok(&COORDINATOR_TRAIT_TEMPLATES),
-        "face" => Ok(&FACE_TRAIT_TEMPLATES),
+        "persona" => Ok(&PERSONA_TRAIT_TEMPLATES),
         "imagination" => Ok(&IMAGINATION_TRAIT_TEMPLATES),
         "research" => Ok(&RESEARCH_TRAIT_TEMPLATES),
         "modeling" => Ok(&MODELING_TRAIT_TEMPLATES),
@@ -2227,7 +2227,7 @@ fn extract_memory_self_patches(result: &Value) -> Result<Vec<InitializationSelfP
 fn role_id_for_agent_id(agent_id: &str) -> Option<&'static str> {
     match agent_id {
         "epiphany.self" => Some("coordinator"),
-        "epiphany.face" => Some("face"),
+        "epiphany.persona" => Some("persona"),
         "epiphany.imagination" => Some("imagination"),
         "epiphany.eyes" => Some("research"),
         "epiphany.proprioception" => Some("modeling"),
@@ -2422,7 +2422,7 @@ fn memory_role_filter(role_id: &str) -> &'static str {
         "coordinator" => {
             "Distill routing doctrine, authority boundaries, review gates, state acceptance rules, and failure patterns that should make Self stricter."
         }
-        "face" => {
+        "persona" => {
             "Distill public voice, Aquarium affordances, Discord/social boundaries, user preference, and what internal state may be surfaced without leaking sealed thoughts."
         }
         "imagination" => {
@@ -2447,7 +2447,7 @@ fn memory_role_filter(role_id: &str) -> &'static str {
 fn memory_role_source_kinds(role_id: &str) -> &'static [&'static str] {
     match role_id {
         "coordinator" => &["doctrine", "state", "documentation", "contract"],
-        "face" => &["doctrine", "documentation", "state"],
+        "persona" => &["doctrine", "documentation", "state"],
         "imagination" => &["documentation", "state", "research"],
         "research" => &["research", "documentation", "readme", "code"],
         "modeling" => &["documentation", "code", "contract", "state"],
@@ -3555,7 +3555,7 @@ fn score_axes(
     record!(
         "verification_environment_need",
         (score(&scores, "runtime_proximity") * 0.55
-            + score(&scores, "interface_orientation") * 0.2
+            + score(&scores, "interpersona_orientation") * 0.2
             + score(&scores, "actuation_risk") * 0.35)
             .min(1.0),
         "claims need runtime, editor, browser, provider, or service receipts"
@@ -3596,7 +3596,7 @@ fn score_axes(
         "large churn, experiment heat, and weak receipts"
     );
     record!(
-        "interface_orientation",
+        "interpersona_orientation",
         (ui_ratio * 5.0
             + touch_ratio(history.ui_touches, changed)
             + family(families, "epiphany_spine") * 0.2)
@@ -3605,7 +3605,7 @@ fn score_axes(
     );
     record!(
         "aesthetic_appetite",
-        (score(&scores, "interface_orientation") * 0.45
+        (score(&scores, "interpersona_orientation") * 0.45
             + family(families, "research_workbench") * 0.25
             + content_ratio * 1.5)
             .min(1.0),
@@ -3621,7 +3621,7 @@ fn score_axes(
     );
     record!(
         "sensory_salience",
-        (score(&scores, "interface_orientation") * 0.45
+        (score(&scores, "interpersona_orientation") * 0.45
             + score(&scores, "aesthetic_appetite") * 0.45
             + score(&scores, "runtime_proximity") * 0.15)
             .min(1.0),
@@ -3635,7 +3635,8 @@ fn score_axes(
     );
     record!(
         "speech_pressure",
-        (score(&scores, "social_surface") * 0.45 + score(&scores, "interface_orientation") * 0.2)
+        (score(&scores, "social_surface") * 0.45
+            + score(&scores, "interpersona_orientation") * 0.2)
             .min(1.0),
         "public speech or user-facing surfaces"
     );
@@ -3878,9 +3879,9 @@ fn role_axes(role_id: &str) -> &'static [&'static str] {
             "churn_spiral_risk",
             "production_pressure",
         ],
-        "face" => &[
+        "persona" => &[
             "social_surface",
-            "interface_orientation",
+            "interpersona_orientation",
             "sensory_salience",
             "speech_pressure",
             "editorial_restraint",
@@ -3917,7 +3918,7 @@ fn role_axes(role_id: &str) -> &'static [&'static str] {
             "evidence_appetite",
             "verification_environment_need",
             "actuation_risk",
-            "interface_orientation",
+            "interpersona_orientation",
             "content_canon_bias",
         ],
         "reorientation" => &[
@@ -3941,7 +3942,7 @@ fn role_axis_average(axes: &BTreeMap<String, f64>, names: &[&str]) -> f64 {
 fn role_display(role_id: &str) -> &'static str {
     match role_id {
         "coordinator" => "Self",
-        "face" => "Face",
+        "persona" => "Persona",
         "imagination" => "Imagination",
         "research" => "Eyes",
         "modeling" => "Proprioception",
@@ -3956,7 +3957,7 @@ fn role_value_candidate(role_id: &str) -> &'static str {
         "coordinator" => {
             "Coordinate through typed authority and challenge pattern-completion theater."
         }
-        "face" => {
+        "persona" => {
             "Surface state through the public mouth without turning internals into chat endpoints."
         }
         "imagination" => {

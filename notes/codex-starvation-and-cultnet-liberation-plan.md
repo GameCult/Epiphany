@@ -8,7 +8,7 @@ inside the Codex organ. The target is Epiphany as its own CultCache/CultNet
 machine, with a relatively vanilla vendored Codex retained as the bridge to
 OpenAI and Codex-native runtime affordances.
 
-No outward product, bridge, Aquarium, Face, dogfood, Unity, Rider, planning, or
+No outward product, bridge, Aquarium, Persona, dogfood, Unity, Rider, planning, or
 personality work outranks this liberation pass unless the user explicitly
 overrides it.
 

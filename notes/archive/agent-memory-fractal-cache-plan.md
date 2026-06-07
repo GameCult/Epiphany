@@ -52,7 +52,7 @@ experience / role output / rumination / sleep pressure
 -> conservative memory summaries and clusters
 -> Qdrant semantic resonance cache
 -> memory context packet
--> role / Face / coordinator / sleep pass
+-> role / Persona / coordinator / sleep pass
 ```
 
 The cache is allowed to help the machine remember. It is not allowed to decide
@@ -148,7 +148,7 @@ role dossier memories / selfPatch requests / heartbeat rumination / sleep pass
 -> conservative summaries
 -> Qdrant memory graph embeddings
 -> resonance/incubation/context packet
--> role prompt / Face surface / coordinator / sleep maintenance
+-> role prompt / Persona surface / coordinator / sleep maintenance
 ```
 
 Durable truth stays in typed CultCache documents. Qdrant stores vectors keyed to
@@ -162,7 +162,7 @@ context packets instead of inventing its own free-form memory weather.
 - Heartbeat rumination receipts
 - Sleep-cycle pressure
 - Role worker findings and accepted/rejected result receipts
-- Face speech receipts and candidate interventions
+- Persona speech receipts and candidate interventions
 - User-visible conversation summaries when explicitly reviewed
 - Repo-model context packets when a memory is grounded in project architecture
 - Evidence ids and anchor refs
@@ -196,7 +196,7 @@ Use typed CultCache documents:
     requests; not speech text
 
 - `epiphany.agent_memory.candidate_intervention`
-  - possible Face speech, coordinator note, selfPatch request, or future
+  - possible Persona speech, coordinator note, selfPatch request, or future
     review action
 
 - `epiphany.agent_memory.summary`
@@ -208,7 +208,7 @@ Use typed CultCache documents:
     source hashes, and stale records
 
 - `epiphany.agent_memory.context_packet`
-  - the memory neighborhood selected for a role turn, Face bubble, sleep pass,
+  - the memory neighborhood selected for a role turn, Persona bubble, sleep pass,
     or coordinator decision
 
 ## Core Transformations
@@ -778,7 +778,7 @@ Exit criteria:
 Behavior:
 
 - role worker launches receive memory context packets
-- Face receives candidate/agency/incubation context without direct transcript
+- Persona receives candidate/agency/incubation context without direct transcript
   leakage
 - coordinator sees pressure and receipts, not raw thought streams
 - `AgentSelfPatch` remains a narrow lane-local mutation surface

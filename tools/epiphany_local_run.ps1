@@ -9,7 +9,7 @@ param(
     [int]$MaxSteps = 4,
     [int]$TimeoutSeconds = 600,
     [int]$MaxRuntimeSeconds = 180,
-    [string]$FaceInput = "",
+    [string]$PersonaInput = "",
     [switch]$SkipBuild,
     [switch]$AutoReview,
     [switch]$NoEphemeral,
@@ -126,7 +126,7 @@ $coordinatorSmokeExe = Join-Path $TargetDir "debug\epiphany-mvp-coordinator-smok
 $modelRuntimeExe = Join-Path $TargetDir "debug\epiphany-model-runtime.exe"
 $toolAdapterExe = Join-Path $TargetDir "debug\epiphany-tool-codex-mcp-spine.exe"
 $heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
-$faceExe = Join-Path $TargetDir "debug\epiphany-face-discord.exe"
+$faceExe = Join-Path $TargetDir "debug\epiphany-persona-discord.exe"
 $characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
 $modelProvider = "openai-codex"
 $operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
@@ -162,7 +162,7 @@ if (-not $SkipBuild) {
             "--bin", "epiphany-mvp-coordinator",
             "--bin", "epiphany-mvp-coordinator-smoke",
             "--bin", "epiphany-heartbeat-store",
-            "--bin", "epiphany-face-discord",
+            "--bin", "epiphany-persona-discord",
             "--bin", "epiphany-character-loop",
             "--bin", "epiphany-agent-telemetry",
             "--bin", "epiphany-void-memory"
@@ -348,22 +348,22 @@ if ($Mode -eq "smoke") {
 }
 
 if ($Mode -eq "mvp") {
-    if ($FaceInput.Trim() -eq "") {
-        $FaceInput = "Operator requested the local Epiphany MVP cycle. Face should surface the swarm state, then the coordinator may continue bounded work and sleep afterward."
+    if ($PersonaInput.Trim() -eq "") {
+        $PersonaInput = "Operator requested the local Epiphany MVP cycle. Persona should surface the swarm state, then the coordinator may continue bounded work and sleep afterward."
     }
-    $faceArtifactDir = Join-Path $dogfoodRoot "face"
+    $faceArtifactDir = Join-Path $dogfoodRoot "persona"
     $characterArtifactDir = Join-Path $dogfoodRoot "character-loop"
-    $faceBubblePath = Join-Path $artifactRoot "face-bubble.stdout.json"
-    $characterTurnPath = Join-Path $artifactRoot "face-character-turn.stdout.json"
+    $personaBubblePath = Join-Path $artifactRoot "persona-bubble.stdout.json"
+    $characterTurnPath = Join-Path $artifactRoot "persona-character-turn.stdout.json"
     Invoke-Checked `
-        -Label "project Face character turn" `
+        -Label "project Persona character turn" `
         -FilePath $characterLoopExe `
         -Arguments @(
             "turn",
-            "--role", "face",
+            "--role", "persona",
             "--agent-store", $agentStore,
             "--artifact-dir", $characterArtifactDir,
-            "--stimulus", $FaceInput,
+            "--stimulus", $PersonaInput,
             "--source", "epiphany/local-mvp",
             "--mode", "local-mvp-front-door",
             "--status", "ready",
@@ -371,21 +371,21 @@ if ($Mode -eq "mvp") {
         ) `
         -WorkingDirectory $Root `
         -StdoutPath $characterTurnPath `
-        -StderrPath (Join-Path $artifactRoot "face-character-turn.stderr.log")
+        -StderrPath (Join-Path $artifactRoot "persona-character-turn.stderr.log")
     Invoke-Checked `
-        -Label "write Face Aquarium bubble" `
+        -Label "write Persona Aquarium bubble" `
         -FilePath $faceExe `
         -Arguments @(
             "bubble",
             "--artifact-dir", $faceArtifactDir,
-            "--content", $FaceInput,
+            "--content", $PersonaInput,
             "--source", "epiphany/local-mvp",
             "--status", "ready",
             "--mood", "attentive"
         ) `
         -WorkingDirectory $Root `
-        -StdoutPath $faceBubblePath `
-        -StderrPath (Join-Path $artifactRoot "face-bubble.stderr.log")
+        -StdoutPath $personaBubblePath `
+        -StderrPath (Join-Path $artifactRoot "persona-bubble.stderr.log")
 }
 
 if ($liveRuntimeMode) {
@@ -408,7 +408,7 @@ if ($liveRuntimeMode) {
         $runArgs += "--auto-review"
     }
     if ($Mode -eq "mvp" -and $ThreadId -eq "") {
-        $runArgs += @("--bootstrap-local-state", "--bootstrap-objective", $FaceInput)
+        $runArgs += @("--bootstrap-local-state", "--bootstrap-objective", $PersonaInput)
     }
     if ($Mode -eq "mvp" -or $NoEphemeral) {
         $runArgs += "--no-ephemeral"
@@ -499,7 +499,7 @@ operator snapshot, and a compact local Verse context read from CultMesh so
 Aquarium/local-run can inspect the same policy/contract packet used for dynamic
 prompt context. Coordinator plan/smoke/run modes still use the sealed Codex
 compatibility bridge until their provider boundary is cut. MVP mode wraps that
-bridge-equipped coordinator loop in the local product cycle: Face front door,
+bridge-equipped coordinator loop in the local product cycle: Persona front door,
 bounded swarm work, then heartbeat sleep/dream maintenance.
 "@
 Set-Content -LiteralPath (Join-Path $artifactRoot "README.md") -Value $summary -Encoding UTF8

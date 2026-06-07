@@ -6,11 +6,11 @@ personality ontology for every organ. That was the old mush vector.
 The live profile split is:
 
 - `work_organ`: lean state for resident Epiphany sub-agents.
-- `persona`: portable person-state for Epiphany Face, VoidBot repo Faces, and
+- `persona`: portable person-state for Epiphany Persona, VoidBot repo Personas, and
   Ghostlight characters.
 
-`Face` is the Epiphany organ. `Persona` is the cross-runtime state contract.
-VoidBot's older "FaceState" phrasing maps to `persona` here.
+`Persona` is the Epiphany organ. `Persona` is the cross-runtime state contract.
+VoidBot's older "PersonaState" phrasing maps to `persona` here.
 
 Swarm state is separate again: heartbeat, scheduler, initiative, cooldown,
 active-turn freeze, lane coordination, and sleep/rumination physiology live in
@@ -63,15 +63,15 @@ Forbidden sludge:
 
 - treating mood as proof
 - storing repo truth in self-memory
-- giving Hands, Eyes, Soul, or Proprioception Face-style attention hunger,
+- giving Hands, Eyes, Soul, or Proprioception Persona-style attention hunger,
   status reads, social bonds, or performative personality loops
 
 ## `persona`
 
 Intended for:
 
-- Epiphany Face
-- VoidBot repo Faces
+- Epiphany Persona
+- VoidBot repo Personas
 - Ghostlight scene characters
 - future public or dramatic agents that must react as situated people
 
@@ -94,11 +94,11 @@ Persona state needs:
 
 The portable schema is
 [`gamecult.persona_state.v0`](./cultnet/gamecult.persona_state.v0.schema.json).
-It is deliberately close to VoidBot's mature repo Face state while remaining
-usable by Ghostlight and Epiphany Face.
+It is deliberately close to VoidBot's mature repo Persona state while remaining
+usable by Ghostlight and Epiphany Persona.
 
 The generic action surface is `candidateActions`. VoidBot may project those
-actions back into `voidbotProjection.candidateInterventions` for repo-Face
+actions back into `voidbotProjection.candidateInterventions` for repo-Persona
 routine compatibility, but that projection does not own the portable contract.
 Candidate actions are typed records with action type, target, optional delivery
 target, readiness, risk level, urgency, confidence, evidence, and expiry. They
@@ -125,7 +125,7 @@ pretends every social fact has the same bones.
 
 Failure mode if underbuilt:
 
-- Face becomes a status printer with eyeliner
+- Persona becomes a status printer with eyeliner
 - Ghostlight characters become omniscient utility daemons wearing skin
 
 Failure mode if over-applied:
@@ -143,15 +143,15 @@ The distinction is visible to tools through `organStateProfile`:
 Current typed surfaces expose profile classification through:
 
 - `epiphany-agent-memory-store status`
-- `epiphany-agent-memory-store project-persona --role-id face`
+- `epiphany-agent-memory-store project-persona --role-id persona`
 - `epiphany-character-loop` packets
 - `epiphany.agent_utterance_state.v0`
 
 If a surface consumes local organ state without surfacing the profile kind, it
 is already drifting back toward folklore.
 
-`project-persona` is the current Epiphany Face bridge into
-`gamecult.persona_state.v0`: it reads the local Face organ-state record from
+`project-persona` is the current Epiphany Persona bridge into
+`gamecult.persona_state.v0`: it reads the local Persona organ-state record from
 `state/agents.msgpack` and emits the portable Persona document with provenance,
 presentation, activation profile, memories, agency pressure, typed candidate
 actions, typed affect projections, and the VoidBot projection slot. The local

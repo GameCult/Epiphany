@@ -198,7 +198,7 @@ fn import_candidate_interventions(
             question: "Should this candidate intervention be spoken, deferred, or retired?"
                 .to_string(),
             tension: "Candidate speech is not authority and still requires review.".to_string(),
-            action_implication: "Route through Face/coordinator review before public surfacing."
+            action_implication: "Route through Persona/coordinator review before public surfacing."
                 .to_string(),
             source_hashes: vec!["anchor:missing".to_string()],
             lifecycle: EpiphanyMemoryLifecycle::Queued,
@@ -250,7 +250,7 @@ fn import_bridge_pressure(
         claim: reason.to_string(),
         question: "Does this bridge pressure require action, cooling, or silence?".to_string(),
         tension: "Bridge pressure can steer attention but cannot mutate durable truth.".to_string(),
-        action_implication: "Coordinator or Face may review this pressure; no automatic speech or state write follows.".to_string(),
+        action_implication: "Coordinator or Persona may review this pressure; no automatic speech or state write follows.".to_string(),
         source_hashes: vec!["anchor:missing".to_string()],
         lifecycle: if decision == "draft" {
             EpiphanyMemoryLifecycle::Obligated
@@ -439,7 +439,7 @@ mod tests {
                     summary: "Possible note".to_string(),
                     draft: "Evidence boundaries are lighting up.".to_string(),
                     decision: "draft".to_string(),
-                    requires_face: true,
+                    requires_persona: true,
                     requires_review: true,
                     novelty_to_room: 0.7,
                     saturation_score: 0.1,

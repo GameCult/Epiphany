@@ -13,7 +13,7 @@ typed domain claim
 -> lifecycle state
 -> conservative context cut
 -> semantic embedding cache
--> role/repo/Face/coordinator context packet
+-> role/repo/Persona/coordinator context packet
 ```
 
 The repo graph uses this substrate for architecture/dataflow/source domains.

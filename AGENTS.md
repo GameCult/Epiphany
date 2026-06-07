@@ -154,7 +154,7 @@ When the user says to prepare for imminent compaction:
   state richly to the human, but must not inspect or edit another Epiphany
   workspace. Cross-agent needs travel coordinator-to-coordinator through
   visible swarm messages and callbacks.
-- Humans talk to Face. Sub-agents may talk soul-to-soul through typed
+- Humans talk to Persona. Sub-agents may talk soul-to-soul through typed
   coordinator channels, findings, patches, heartbeat outputs, and swarm
   communications; Aquarium should surface their internals for inspection
   without making every organ a human chat endpoint.

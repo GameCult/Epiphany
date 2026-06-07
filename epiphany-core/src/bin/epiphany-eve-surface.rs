@@ -167,7 +167,7 @@ fn provider_advertisement(args: &Args, context: Option<&EpiphanyLocalVerseContex
         "stewardship": {
             "persona": {
                 "schema": "gamecult.persona_state.v0",
-                "owner": "public Face or Persona projection",
+                "owner": "public Persona or Persona projection",
                 "runtimeSteward": "Huginn",
                 "boundary": "Private work-organ state remains epiphany.work_organ_state.v0 or organ-specific typed state; Persona is not a dumping ground for runtime authority."
             },
@@ -361,7 +361,7 @@ fn persona_panel() -> Value {
         "kind": "inspector.kv",
         "props": {
             "title": "Persona Projection",
-            "authority": "gamecult.persona_state.v0 for public Face/Persona projections only",
+            "authority": "gamecult.persona_state.v0 for public Persona/Persona projections only",
             "rows": [
                 {"label": "schema", "value": "gamecult.persona_state.v0"},
                 {"label": "steward", "value": "Huginn coordinates Persona-state and .cc inspection runtime stewardship"},
@@ -579,8 +579,8 @@ fn nested_verses(context: Option<&EpiphanyLocalVerseContext>) -> Vec<Value> {
         nested_verse(
             EPIPHANY_CULTMESH_GLOBAL_VERSE_ID,
             EPIPHANY_CULTMESH_LOCAL_AREA_VERSE_ID,
-            "public-face",
-            "Public Face/Persona projection crosses this boundary through Persona state and Mind adoption gates.",
+            "public-persona",
+            "Public Persona/Persona projection crosses this boundary through Persona state and Mind adoption gates.",
             vec![SURFACE_ID],
             vec!["gamecult.persona_state.v0"],
         ),

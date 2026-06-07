@@ -12,7 +12,7 @@ Convert useful doctrine, durable lessons, and repo-local planning/modeling surfa
 - typed role memory for Epiphany's standing lanes:
 
 - Self / coordinator
-- Face / public surface
+- Persona / public surface
 - Imagination / planning and future shape
 - Eyes / research and existing-work scout
 - Proprioception / modeling, graph, checkpoint, source anatomy
@@ -111,7 +111,7 @@ Good memories for Self sound like:
 - "A completed-looking artifact is not acceptance; acceptance requires the right reviewer and evidence."
 - "If the source repo has domain ownership boundaries, route work through those boundaries instead of centralizing comfort."
 
-### Face / Public Surface
+### Persona / Public Surface
 
 Look for lessons about public-facing speech, Discord surfaces, operator UX, and how to surface thought without turning into a moderator or a status spammer.
 
@@ -122,7 +122,7 @@ Likely sources:
 - AetheriaLore's tone discipline for emotionally resonant but controlled prose.
 - gamecult-site's live-DOM-before-guessing rule where public presentation is involved.
 
-Good memories for Face sound like:
+Good memories for Persona sound like:
 
 - "Public speech should be brief, situated, and tied to actual agent state."
 - "Do not confuse visible charm with legibility; a cute surface still needs honest affordance."

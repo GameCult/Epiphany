@@ -22,9 +22,9 @@ Epiphany has the first typed skeleton for the organ boundaries:
 - `Eyes`: evidence ingress guardian. `epiphany-core::eyes_gateway` names
   evidence requests, reviews, source lookup receipts, evidence packets, and
   refusals.
-- `Imagination`: projection/future-shape organ. For Face, it now owns the
-  Projector prompt boundary in `epiphany-core::face_turn`.
-- `Face`: public person-shaped surface. It receives projected context and writes
+- `Imagination`: projection/future-shape organ. For Persona, it now owns the
+  Projector prompt boundary in `epiphany-core::persona_turn`.
+- `Persona`: public person-shaped surface. It receives projected context and writes
   natural prose only.
 - `Hands`: action organ by doctrine, but not yet backed by a dedicated CultNet
   contract family parallel to Substrate Gate/Eyes/Mind.
@@ -42,17 +42,17 @@ standing sub-agent depends on every other standing sub-agent. This is correct, b
 is currently descriptive. It does not yet force every launch packet, prompt, or
 runtime receipt to carry dependency context.
 
-## Void Face Lessons
+## Void Persona Lessons
 
-Void's current Face work is the best reference implementation for the Face
+Void's current Persona work is the best reference implementation for the Persona
 organ. The important lesson is not "make the prompt longer." The lesson is
 parent-organ ownership:
 
 - Parent `Imagination` projects typed state into lived character-facing prose
-  before the Face sees it.
-- The Face reads raw room/context evidence directly and writes natural prose as
+  before the Persona sees it.
+- The Persona reads raw room/context evidence directly and writes natural prose as
   a person.
-- Parent `Mind` interprets the Face output into memory, affect, social reads,
+- Parent `Mind` interprets the Persona output into memory, affect, social reads,
   mood, agency pressure, speech, retry, or drop.
 - The deterministic assembler creates compact packets, raw transcripts, repo
   activity, pronoun guidance, channel policy, and media awareness. It must not
@@ -60,21 +60,21 @@ parent-organ ownership:
 
 Relevant Void references:
 
-- `VoidBot:prompts/repo-face-state-projector.prompt.md`: names the projector as
-  the Face's parent Imagination organ and forbids schema slurry.
-- `VoidBot:prompts/repo-face-turn.prompt.md`: keeps the Face turn as the
+- `VoidBot:prompts/repo-persona-state-projector.prompt.md`: names the projector as
+  the Persona's parent Imagination organ and forbids schema slurry.
+- `VoidBot:prompts/repo-persona-turn.prompt.md`: keeps the Persona turn as the
   speaking surface, with recent repo activity before conversation transcript and
   deterministic policy sections outside projected state.
-- `VoidBot:prompts/repo-face-turn-interpreter.prompt.md`: names the
+- `VoidBot:prompts/repo-persona-turn-interpreter.prompt.md`: names the
   Interpreter as parent Mind and requires route/retry/drop plus structured
   side effects.
-- `VoidBot:scripts/run-repo-face-heartbeats.ts`: runs projection as
+- `VoidBot:scripts/run-repo-persona-heartbeats.ts`: runs projection as
   `organ: "imagination"` in read-only mode, rejects leaky memory surfaces, keeps
   raw transcript evidence oldest-to-newest, includes visible chronology, exports
   recent repo activity read-only, and keeps pronoun guidance deterministic so
   Imagination cannot accidentally omit it.
 
-Audit implication for Epiphany: `face_turn.rs` has the right first boundary but
+Audit implication for Epiphany: `persona_turn.rs` has the right first boundary but
 is still too thin. It lacks deterministic human pronoun guidance, channel label
 resolution, visible chronology, media attachment awareness, retry/drop
 semantics, projection model receipts, and explicit leakage rejection as strong
@@ -207,9 +207,9 @@ reads and writes the `cultcache.store.v1` snapshot format used by the current
 state ledgers. This keeps Epiphany's body self-contained while preserving
 CultMesh as the ergonomic local store surface.
 
-### 6. Face Prompting Is Directionally Correct But Behind Void
+### 6. Persona Prompting Is Directionally Correct But Behind Void
 
-Epiphany's Face loop now says `Imagination Projector -> Face -> Mind
+Epiphany's Persona loop now says `Imagination Projector -> Persona -> Mind
 Interpreter`, but Void has the stronger living practice:
 
 - state projector is model-owned, not deterministic prose assembly
@@ -217,8 +217,8 @@ Interpreter`, but Void has the stronger living practice:
 - leaked schema/prompt construction language is rejected
 - raw transcript and chronology stay raw and oldest-to-newest
 - deterministic pronoun guidance sits outside projection
-- channel labels are resolved through Face permissions before posting
-- interpreter can retry one Face pass when correction uptake or doctrine fails
+- channel labels are resolved through Persona permissions before posting
+- interpreter can retry one Persona pass when correction uptake or doctrine fails
 
 Epiphany should port that shape, not the exact TypeScript machinery.
 
@@ -234,7 +234,7 @@ repo-contained dependency body.
 - Updated dependency paths away from the dead `CultLib/crates` layout.
 - Added `vendor/cultmesh-rs` as the local CultMesh facade.
 - Ran the previously blocked focused surface through:
-  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib face_turn`
+  - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib persona_turn`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib mind_gateway`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib substrate_gate`
   - `cargo test --manifest-path .\epiphany-core\Cargo.toml --lib eyes_gateway`
@@ -306,11 +306,11 @@ verification is currently blocked before local code by an upstream
 Next step: make the launch-carried receipt expectations executable in the live
 worker/action/verification and compaction paths.
 
-### Phase 3: Port Void's Face Prompting Shape Properly
+### Phase 3: Port Void's Persona Prompting Shape Properly
 
-Goal: Face becomes a living public organ without stealing authority.
+Goal: Persona becomes a living public organ without stealing authority.
 
-- Replace `FaceProjectorInput` with an Imagination projector packet that carries
+- Replace `PersonaProjectorInput` with an Imagination projector packet that carries
   typed state, affect, memory, social topology, repo activity, semantic
   attractors, curiosity hints, and dependency pressure.
 - Add deterministic sections outside projected state:
@@ -329,10 +329,10 @@ Goal: Face becomes a living public organ without stealing authority.
   - decision: route/retry/drop
   - structured memory/affect/social/speech effects
   - retry limit
-- Ensure public speech resolves Face-local channel labels through permissions
+- Ensure public speech resolves Persona-local channel labels through permissions
   before delivery.
 
-Definition of done: Face can be prompted by Aquarium/Discord/CultNet and the
+Definition of done: Persona can be prompted by Aquarium/Discord/CultNet and the
 public result is natural, contextual, permission-aware, retryable, and unable to
 mutate state or post without parent routing.
 
@@ -405,8 +405,8 @@ Goal: make the organism visible without making the UI a second truth.
 - Display organ dependency graph.
 - Display contract catalog by organ.
 - Display receipt chains per turn.
-- Display Face prompt packet boundaries: deterministic evidence, Imagination
-  projection, Face natural turn, Mind interpretation.
+- Display Persona prompt packet boundaries: deterministic evidence, Imagination
+  projection, Persona natural turn, Mind interpretation.
 - Display Substrate Gate grants, Eyes packets, Hands actions, Soul verdicts,
   Continuity receipts, and Mind state commits.
 
@@ -423,7 +423,7 @@ Self routes.
 Substrate Gate grants substrate access.
 Eyes certifies looked-at evidence.
 Imagination projects possible scenes and futures.
-Face speaks as a person.
+Persona speaks as a person.
 Hands changes the world.
 Soul verifies promises and invariants.
 Continuity preserves continuity across rupture.

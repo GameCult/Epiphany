@@ -26,7 +26,7 @@ pub const EPIPHANY_LAUNCH_ORGAN_CONTRACT_SCHEMA_VERSION: &str = "epiphany.launch
 
 pub const EPIPHANY_STANDING_ORGANS: [&str; 7] = [
     "self",
-    "face",
+    "persona",
     "imagination",
     "eyes",
     "proprioception",
@@ -98,7 +98,7 @@ pub fn default_organ_dependencies_for(organ_id: &str) -> EpiphanyOrganDependency
             .filter(|candidate| **candidate != normalized)
             .map(|candidate| (*candidate).to_string())
             .collect(),
-        contract: "Every sub-agent depends on the other sub-agents: Self routes, Face speaks, Imagination projects futures/scenes, Eyes seeks evidence, Proprioception models the Body, Hands acts through Substrate Gate grants, and Soul verifies. Continuity is protocol machinery, not a sub-agent identity.".to_string(),
+        contract: "Every sub-agent depends on the other sub-agents: Self routes, Persona speaks, Imagination projects futures/scenes, Eyes seeks evidence, Proprioception models the Body, Hands acts through Substrate Gate grants, and Soul verifies. Continuity is protocol machinery, not a sub-agent identity.".to_string(),
     }
 }
 
@@ -324,8 +324,8 @@ pub fn render_organ_dependencies(dependencies: &[EpiphanyOrganDependency]) -> St
 
 fn owner_organ_for_authority_scope(authority_scope: &str) -> &'static str {
     let normalized = authority_scope.trim().to_ascii_lowercase();
-    if normalized.contains("face") {
-        "face"
+    if normalized.contains("persona") {
+        "persona"
     } else if normalized.contains("imagination") {
         "imagination"
     } else if normalized.contains("eyes") || normalized.contains("evidence") {

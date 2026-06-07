@@ -121,7 +121,7 @@ pub fn default_eyes_cultnet_contracts() -> Vec<EyesCultNetContract> {
             intent_document_types: Vec::new(),
             receipt_document_types: Vec::new(),
             notes: vec![
-                "Evidence packets carry provenance, uncertainty, and source refs for Imagination, Mind, Hands, Soul, Face, Self, Proprioception, and Continuity protocols.".to_string(),
+                "Evidence packets carry provenance, uncertainty, and source refs for Imagination, Mind, Hands, Soul, Persona, Self, Proprioception, and Continuity protocols.".to_string(),
             ],
         },
     ]

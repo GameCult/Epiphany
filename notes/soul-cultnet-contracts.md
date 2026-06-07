@@ -14,7 +14,7 @@ polish from impersonating truth.
   receipts, and verification refusal receipts.
 - Derived state: passing tests, review notes, risk lists, and regression traces
   are verification receipts. They are not durable Mind state by themselves.
-- Forbidden writers: Hands, Face, Imagination, Mind, Self, raw workers,
+- Forbidden writers: Hands, Persona, Imagination, Mind, Self, raw workers,
   compatibility JSON-RPC routes, and bridge tools must not mark work verified
   without a Soul receipt.
 - Shared path: code review, invariant checks, smoke tests, negative checks, and

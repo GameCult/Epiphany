@@ -9,7 +9,7 @@ For the canonical anatomy split, read [epiphany-anatomy.md](./epiphany-anatomy.m
 ## Standing Sub-Agents
 
 - `self`: routing, authority boundaries, and coordination.
-- `face`: public presence and person-shaped conversation.
+- `persona`: public presence and person-shaped conversation.
 - `imagination`: projection, possible worlds, plans, and narrative scene
   construction.
 - `eyes`: evidence seeking and source inspection.
@@ -33,12 +33,12 @@ For every standing sub-agent `X`, `X.dependsOn` is every other standing sub-agen
 That does not mean every organ owns every decision. It means every organ's turn
 must be projected with awareness of the whole organism:
 
-- Face speaks with Body substrate facts, Mind-reviewed memory, Soul constraints,
+- Persona speaks with Body substrate facts, Mind-reviewed memory, Soul constraints,
   Continuity pressure, Self routing pressure, Eyes uncertainty, Hands consequence, and
   Imagination scene.
 - Hands acts only after Substrate Gate grants substrate access, Eyes supplies enough
   evidence, Soul keeps the invariant visible, Self routes authority, Continuity keeps
-  continuity recoverable, Face preserves public dignity when relevant, and
+  continuity recoverable, Persona preserves public dignity when relevant, and
   Imagination models the future shape.
 - Mind admits state only after it can see which organ produced the thought and
   which other organs shaped the proposal.
@@ -47,16 +47,16 @@ must be projected with awareness of the whole organism:
 
 ## Projector Ownership
 
-The Projector is Imagination acting for Face. It turns typed state, Body substrate facts,
+The Projector is Imagination acting for Persona. It turns typed state, Body substrate facts,
 social pressure, memory, and organ dependencies into a lived scene. It does not
 speak publicly, grant repo access, or admit state.
 
-The Face loop is:
+The Persona loop is:
 
 ```text
 Substrate-Gate-scoped facts + Mind state + social stimulus + organ dependencies
         -> Imagination Projector
-        -> Face natural turn
+        -> Persona natural turn
         -> Mind Interpreter
         -> reviewed state effects / side effects / silence
 ```
@@ -64,6 +64,6 @@ Substrate-Gate-scoped facts + Mind state + social stimulus + organ dependencies
 Mind is the Interpreter and persistent state guardian. Body is the substrate.
 Continuity is recovery protocol machinery. Substrate Gate is the repository
 access protocol. Eyes is the evidence ingress guardian. Proprioception is the
-internal model of the Body. Imagination is the Projector. Face is the public
+internal model of the Body. Imagination is the Projector. Persona is the public
 person. The dependency web is how the machine avoids lonely little monarchies
 in costumes.

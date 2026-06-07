@@ -54,7 +54,7 @@ Core duties:
    - Hands receives what kinds of cuts would betray the repo's grain.
    - Soul receives what kinds of false progress to distrust.
    - Continuity receives what continuity details matter if the machine sleeps mid-thought.
-   - Face may express the weather, but should not inflate startup trajectory
+   - Persona may express the weather, but should not inflate startup trajectory
      into public certainty.
 
 5. Preserve uncertainty and contradictions.

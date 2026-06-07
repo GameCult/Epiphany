@@ -10,8 +10,8 @@ Rust structures live in
 
 This document now covers two things:
 
-1. the dense Persona vocabulary used by Face, Ghostlight characters, and
-   VoidBot-style repo Faces
+1. the dense Persona vocabulary used by Persona, Ghostlight characters, and
+   VoidBot-style repo Personas
 2. the lean standing Epiphany role lattice used by resident work organs
 
 Those are related, not identical.
@@ -41,8 +41,8 @@ This is enough to separate character from moment, which is a small mercy.
 
 ## Dense Embodied Profile Vocabulary
 
-These are the canonical Persona-family labels appropriate for Epiphany Face,
-VoidBot repo Faces, and Ghostlight scene characters.
+These are the canonical Persona-family labels appropriate for Epiphany Persona,
+VoidBot repo Personas, and Ghostlight scene characters.
 
 ### Underlying Organization
 
@@ -186,7 +186,7 @@ The current live swarm carries one named trait per family per organ.
 | `voice_style` | `dry_direct_operator` | concise operator speech with low ornamental fluff |
 | `situational_state` | `lane_skepticism` | treats sub-agent success claims as something to verify |
 
-### Face
+### Persona
 
 | Family | Trait | Working Meaning |
 | --- | --- | --- |

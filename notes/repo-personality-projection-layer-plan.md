@@ -25,7 +25,7 @@ The shared conclusion is that repo personality should combine three projections:
 2. **History temperament:** how the repo changes over time.
 3. **Memory doctrine:** how the repo preserves intention, evidence, and identity.
 
-Only after those three are scored should Epiphany modulate Self, Face,
+Only after those three are scored should Epiphany modulate Self, Persona,
 Imagination, Eyes, Proprioception, Hands, Soul, and Continuity.
 
 ## Source Families
@@ -209,7 +209,7 @@ with an explanation and source evidence.
 
 ### Ghostlight-Derived Inner State
 
-- `speech_pressure`: how readily Face should speak instead of emitting silence
+- `speech_pressure`: how readily Persona should speak instead of emitting silence
   or a local bubble.
 - `novelty_hunger`: how strongly Eyes/Imagination should seek fresh seams.
 - `guardedness`: caution around authority, state mutation, trust boundaries,
@@ -240,7 +240,7 @@ Projection:
 - Lowers tolerance for implementation turns that produce plausible motion
   without objective evidence.
 
-### Face
+### Persona
 
 Primary inputs:
 
@@ -254,7 +254,7 @@ Projection:
 
 - Determines whether public output is chatty, sparse, poetic, sleepy, formal,
   or local-only.
-- Keeps humans talking to Face while internals remain inspectable.
+- Keeps humans talking to Persona while internals remain inspectable.
 
 ### Imagination
 
@@ -543,7 +543,7 @@ verification, runtime, and code surfaces. The packet includes one role-specific
 distiller brief for each standing sub-agent, plus Continuity protocol pressure:
 
 - Self receives routing, authority, review-gate, and cross-swarm boundary memory.
-- Face receives public-surface, Aquarium, Discord, voice, and sealed-thought boundary memory.
+- Persona receives public-surface, Aquarium, Discord, voice, and sealed-thought boundary memory.
 - Imagination receives roadmap, backlog, objective-shaping, dream, and rejected-path memory.
 - Eyes receives research, prior-art, canonical algorithm, vendor/API, and invention-avoidance memory.
 - Proprioception receives architecture, graph, control/data-flow, invariant, and checkpoint memory.

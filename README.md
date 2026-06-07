@@ -24,20 +24,20 @@ smart because it waited politely.
 The intended shape is simpler and stranger: you talk to the project.
 
 Each Epiphany owns one or more repos, carries durable memory and jurisdiction
-for them, and can grow one or more Faces. A Face is the public mouth and
+for them, and can grow one or more Personas. A Persona is the public mouth and
 situated personality of that project: visible in Aquarium, addressable in
 Discord, suitable for voice or stream presence, and backed by the same typed
 state, heartbeat initiative, repo map, evidence, and review gates as the rest of
 the swarm.
 
 VoidBot is already showing the small version: repo identities such as Nibu,
-Aqua, and Mimir have Discord roles, repo-local Face state, proposal authority,
+Aqua, and Mimir have Discord roles, repo-local Persona state, proposal authority,
 pending mentions, and heartbeat turns. Epiphany is the larger native substrate:
 projects should notice pressure, ruminate, ask questions, schedule modeling or
 verification, advocate for their own repo needs, and structure work without
 requiring the human to spell out the implementation graph first.
 
-Aquarium is the most direct client because it can show the swarm, its Faces,
+Aquarium is the most direct client because it can show the swarm, its Personas,
 its heartbeat, its memories, and its decisions. It is not the only mouth. A
 project should also be reachable through Discord, voice/WebRTC surfaces, stream
 overlays, native CLIs, and CultNet-speaking tools. The interface contract is
@@ -68,11 +68,11 @@ The current spine is real, not aspirational:
 - a first dogfood CLI operator view through `tools/epiphany_mvp_status.py`, including explicit implementation, modeling/checkpoint, verification/review, and reorientation lanes
 - durable investigation checkpointing for compaction-safe planning
 - Ghostlight/VoidBot-derived heartbeat initiative with heat, active-turn
-  freeze, idle rumination, sleep/dream maintenance, and Face as a first-class
+  freeze, idle rumination, sleep/dream maintenance, and Persona as a first-class
   public-surface participant
 - repo personality/birth initialization that can seed role dossiers and
   heartbeat pressure from repo terrain before a project starts speaking
-- CultNet schema contracts for runtime, heartbeat, Face, character-turn,
+- CultNet schema contracts for runtime, heartbeat, Persona, character-turn,
   Discord-persona, repo-initialization, Rider, Unity, and operator surfaces
 - repo-owned heavy Epiphany organs in `epiphany-core/`, with vendored Codex kept as the host seam where practical
 
@@ -99,13 +99,13 @@ Useful variants:
 .\tools\epiphany_local_run.ps1 -Mode status
 .\tools\epiphany_local_run.ps1 -Mode plan
 .\tools\epiphany_local_run.ps1 -Mode run -MaxSteps 4
-.\tools\epiphany_local_run.ps1 -Mode mvp -FaceInput "Wake the local swarm and report through Face." -MaxSteps 4
+.\tools\epiphany_local_run.ps1 -Mode mvp -PersonaInput "Wake the local swarm and report through Persona." -MaxSteps 4
 .\tools\epiphany_local_run.ps1 -Mode status -ThreadId <id> -Workspace E:\Projects\SomeRepo
 ```
 
 `run` is the live coordinator loop. It also builds `epiphany-openai-runtime` and
 uses the retained Codex auth/model transport spine. `mvp` is the local product
-cycle: project Face's character turn, write a Face/Aquarium bubble, run the
+cycle: project Persona's character turn, write a Persona/Aquarium bubble, run the
 bridge-equipped coordinator loop with auto-tools, then run heartbeat sleep/dream
 maintenance. Fresh `mvp` runs bootstrap a minimal local checkpoint before
 coordination so the first loop does not stall at missing state. Live coordinator
@@ -126,9 +126,9 @@ The goal is a maintained project organism:
 - freshness, watcher input, pressure, and reorientation signals decide whether that map still deserves trust
 - verifier agents check claims, diffs, and outcomes against reality
 - coding agents work from bounded packets of graph context, evidence, code refs, and local source reads instead of re-spelunking the repo from scratch every turn
-- Faces translate project state into conversation, voice, stream presence, and
+- Personas translate project state into conversation, voice, stream presence, and
   Discord/Aquarium discussion without becoming omniscient hidden operators
-- initiative scheduling decides which repo, Face, or internal organ should
+- initiative scheduling decides which repo, Persona, or internal organ should
   think next, and heat lets the operator turn up one agent, one project, one
   group, or the whole swarm
 

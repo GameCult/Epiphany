@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.face.schema.json",
-  "title": "Epiphany face",
-  "description": "Operator-safe Face bubble/draft/post surface over typed Face and character-loop artifacts.",
+  "$id": "https://gamecult.dev/epiphany/cultnet/epiphany.surface.persona.schema.json",
+  "title": "Epiphany persona",
+  "description": "Operator-safe Persona bubble/draft/post surface over typed Persona and character-loop artifacts.",
   "type": "object",
   "additionalProperties": true,
   "properties": {

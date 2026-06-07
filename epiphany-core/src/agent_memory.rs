@@ -30,7 +30,7 @@ const ROLE_TARGETS: &[(&str, &str, &str)] = &[
     ("verification", "epiphany.soul", "soul.agent-state.json"),
     ("implementation", "epiphany.hands", "hands.agent-state.json"),
     ("research", "epiphany.eyes", "eyes.agent-state.json"),
-    ("face", "epiphany.face", "face.agent-state.json"),
+    ("persona", "epiphany.persona", "persona.agent-state.json"),
     ("coordinator", "epiphany.self", "self.agent-state.json"),
 ];
 
@@ -836,9 +836,9 @@ fn persona_value(value: &GhostlightValue) -> Value {
         "label": value.label,
         "priority": value.priority,
         "summary": if value.unforgivable_if_betrayed {
-            "Protected value; betrayal is marked as unforgivable in local Face state."
+            "Protected value; betrayal is marked as unforgivable in local Persona state."
         } else {
-            "Value projected from local Face organ memory."
+            "Value projected from local Persona organ memory."
         },
     })
 }
@@ -858,13 +858,13 @@ fn persona_memory_thought(memory: &GhostlightMemory, persona_id: &str, timestamp
         "target": persona_target("self", persona_id, persona_id),
         "summary": memory.summary,
         "claim": memory.summary,
-        "tension": "Projected from local Face memory; consumers should preserve provenance and avoid treating this as omniscient project truth.",
+        "tension": "Projected from local Persona memory; consumers should preserve provenance and avoid treating this as omniscient project truth.",
         "actionImplication": "Use as Persona memory pressure, not as direct action authority.",
         "intensity": memory.salience,
         "valence": 0,
         "createdAt": timestamp,
         "updatedAt": timestamp,
-        "tags": ["epiphany", "face-memory"],
+        "tags": ["epiphany", "persona-memory"],
     })
 }
 
@@ -876,11 +876,11 @@ fn persona_goal_thought(goal: &GhostlightGoal, persona_id: &str, timestamp: &str
         "summary": goal.description,
         "claim": goal.description,
         "tension": goal.emotional_stake,
-        "actionImplication": "This goal may create Face agency pressure, but action still requires the caller's review path.",
+        "actionImplication": "This goal may create Persona agency pressure, but action still requires the caller's review path.",
         "intensity": goal.priority,
         "createdAt": timestamp,
         "updatedAt": timestamp,
-        "tags": ["epiphany", "face-goal", &goal.scope],
+        "tags": ["epiphany", "persona-goal", &goal.scope],
     })
 }
 
@@ -914,7 +914,7 @@ fn persona_doctrine_stance(value: &GhostlightValue, persona_id: &str, timestamp:
         "stanceKind": "aligned",
         "principle": value.label,
         "summary": value.label,
-        "actionImplication": "Let this value bend Face speech and interpretation without granting automatic action authority.",
+        "actionImplication": "Let this value bend Persona speech and interpretation without granting automatic action authority.",
         "intensity": value.priority,
         "updatedAt": timestamp,
     })
@@ -936,7 +936,7 @@ fn now_rfc3339() -> String {
 
 pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile {
     match role_id {
-        "face" => EpiphanyOrganStateProfile {
+        "persona" => EpiphanyOrganStateProfile {
             profile_kind: EpiphanyOrganStateProfileKind::Persona,
             state_density: "persona_grade".to_string(),
             portable_contract: "gamecult.persona_state.v0".to_string(),
@@ -952,7 +952,7 @@ pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile 
                 "sleep/distillation".to_string(),
             ],
             notes: vec![
-                "Epiphany Face is an organ; Persona is the portable person-state contract shared with Ghostlight and VoidBot-style repo Faces.".to_string(),
+                "Epiphany Persona is an organ; Persona is the portable person-state contract shared with Ghostlight and VoidBot-style repo Personas.".to_string(),
                 "Dense canonical families, affect, perceived overlays, and relationship pressure are appropriate for Persona state.".to_string(),
             ],
         },
@@ -970,7 +970,7 @@ pub fn organ_state_profile_for_role(role_id: &str) -> EpiphanyOrganStateProfile 
                 "birth-time repo memory and light operating-pressure seeding".to_string(),
             ],
             notes: vec![
-                "Work organs need sharp role identity, durable mission memory, values/goals, and heartbeat activation; they do not need Face affect or full Persona machinery.".to_string(),
+                "Work organs need sharp role identity, durable mission memory, values/goals, and heartbeat activation; they do not need Persona affect or full Persona machinery.".to_string(),
                 "Sparse canonical bundles are acceptable here as long as memory, goals, values, and private notes can deepen over time.".to_string(),
             ],
         },
@@ -1761,12 +1761,12 @@ mod tests {
     }
 
     #[test]
-    fn organ_state_profiles_distinguish_face_from_lane_organs() {
-        let face = organ_state_profile_for_role("face");
-        assert_eq!(face.profile_kind, EpiphanyOrganStateProfileKind::Persona);
-        assert_eq!(face.state_density, "persona_grade");
-        assert_eq!(face.portable_contract, "gamecult.persona_state.v0");
-        assert_eq!(face.affect_model, "persona_affect_allowed_and_expected");
+    fn organ_state_profiles_distinguish_persona_from_lane_organs() {
+        let persona = organ_state_profile_for_role("persona");
+        assert_eq!(persona.profile_kind, EpiphanyOrganStateProfileKind::Persona);
+        assert_eq!(persona.state_density, "persona_grade");
+        assert_eq!(persona.portable_contract, "gamecult.persona_state.v0");
+        assert_eq!(persona.affect_model, "persona_affect_allowed_and_expected");
 
         let hands = organ_state_profile_for_role("implementation");
         assert_eq!(hands.profile_kind, EpiphanyOrganStateProfileKind::WorkOrgan);

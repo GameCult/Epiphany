@@ -55,7 +55,7 @@ EpiphanyAgent should publish an Eve GUI/TUI DSL surface with these panels:
    blocked or denied intents.
 4. `Memory Graph`: profile availability, thin-state warnings, last refresh, and
    public/private boundary.
-5. `Persona Projection`: present only for public Face/Persona projections using
+5. `Persona Projection`: present only for public Persona/Persona projections using
    `gamecult.persona_state.v0`; private organ state must not leak through this
    panel.
 

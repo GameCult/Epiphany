@@ -123,7 +123,7 @@ These boundaries are more important than the individual method names:
 - CultCache documents are the data model. CultNet is the wire for
   Epiphany-controlled subsystems.
 - CultMesh is the preferred ergonomic runtime/database surface over local CultCache plus CultNet contracts. Epiphany should start local Verse, dream, status, and operator-store work through CultMesh unless the task is explicitly implementing a lower-level CultMesh/CultNet/CultCache primitive.
-- Verse boundaries are three-tiered: `epiphany-internal` owns private sub-agent typed state, `gamecult-local` owns trusted LAN/Yggdrasil-tunnel sharing with other GameCult projects, and `epiphany-global` owns untrusted public dream surfaces plus topic-specific threaded rooms for Face posts. Do not route private state through the local-area or global Verse.
+- Verse boundaries are three-tiered: `epiphany-internal` owns private sub-agent typed state, `gamecult-local` owns trusted LAN/Yggdrasil-tunnel sharing with other GameCult projects, and `epiphany-global` owns untrusted public dream surfaces plus topic-specific threaded rooms for Persona posts. Do not route private state through the local-area or global Verse.
 - JSON is allowed only for schema description, hostile/external ingress before
   immediate typed parsing, sealed forensic artifacts, or named quarantine
   experiments with an expiration path. Generic `serde_json::Value` must not be

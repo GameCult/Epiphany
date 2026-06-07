@@ -439,7 +439,7 @@ fn run_native_status(args: &Args) -> Result<Value> {
         "coordinator": coordinator_json,
         "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
-        "face": native_aux.face,
+        "persona": native_aux.persona,
         "voidMemory": native_aux.void_memory,
     });
     Ok(sanitize_for_operator(status))
@@ -555,7 +555,7 @@ fn run_codex_status(args: &Args) -> Result<Value> {
         "coordinator": coordinator,
         "tools": tool_invocations,
         "heartbeat": native_aux.heartbeat,
-        "face": native_aux.face,
+        "persona": native_aux.persona,
         "voidMemory": native_aux.void_memory,
     });
     Ok(sanitize_for_operator(status))
@@ -563,13 +563,13 @@ fn run_codex_status(args: &Args) -> Result<Value> {
 
 struct NativeAuxiliaryStatus {
     heartbeat: Value,
-    face: Value,
+    persona: Value,
     void_memory: Value,
 }
 
 fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     let heartbeat_dir = root.join(".epiphany-heartbeats");
-    let face_dir = root.join(".epiphany-face");
+    let persona_dir = root.join(".epiphany-persona");
     let heartbeat = native_json(
         "epiphany-heartbeat-store",
         &[
@@ -582,12 +582,12 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
             "8",
         ],
     )?;
-    let latest_face = native_json(
-        "epiphany-face-discord",
+    let latest_persona = native_json(
+        "epiphany-persona-discord",
         &[
             "latest",
             "--artifact-dir",
-            &face_dir.to_string_lossy(),
+            &persona_dir.to_string_lossy(),
             "--limit",
             "8",
         ],
@@ -595,11 +595,11 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
     .unwrap_or_else(
         |error| json!({"status": "error", "error": error.to_string(), "latestArtifacts": []}),
     );
-    let face = json!({
+    let persona = json!({
         "status": "ready",
-        "artifactDir": face_dir,
-        "latestArtifacts": latest_face.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
-        "availableActions": ["faceBubble", "characterTurn", "discordPersonaPost"],
+        "artifactDir": persona_dir,
+        "latestArtifacts": latest_persona.get("latestArtifacts").cloned().unwrap_or_else(|| json!([])),
+        "availableActions": ["personaBubble", "characterTurn", "discordPersonaPost"],
     });
     let void_memory = native_json(
         "epiphany-void-memory",
@@ -609,7 +609,7 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
 
     Ok(NativeAuxiliaryStatus {
         heartbeat,
-        face,
+        persona,
         void_memory,
     })
 }
@@ -1294,12 +1294,12 @@ pub fn render_status(status: &Value) -> String {
     let recommendation = &status["crrc"]["recommendation"];
     let coordinator = &status["coordinator"];
     let heartbeat = &status["heartbeat"];
-    let face = &status["face"];
+    let persona = &status["persona"];
     let planning_response = &status["planning"];
     let planning_summary = &planning_response["summary"];
     let checkpoint = &scene["investigationCheckpoint"];
     let latest_heartbeat = heartbeat["latestEvent"].clone();
-    let latest_face = face["latestArtifacts"]
+    let latest_persona = persona["latestArtifacts"]
         .as_array()
         .and_then(|items| items.first())
         .cloned()
@@ -1373,11 +1373,14 @@ pub fn render_status(status: &Value) -> String {
             maybe(&latest_heartbeat["coordinatorAction"], "none")
         ),
         String::new(),
-        "Face".to_string(),
-        format!("- latest artifact: {}", maybe(&latest_face["name"], "none")),
+        "Persona".to_string(),
+        format!(
+            "- latest artifact: {}",
+            maybe(&latest_persona["name"], "none")
+        ),
         format!(
             "- latest content: {}",
-            maybe(&latest_face["content"], "none")
+            maybe(&latest_persona["content"], "none")
         ),
         String::new(),
         "Planning".to_string(),
