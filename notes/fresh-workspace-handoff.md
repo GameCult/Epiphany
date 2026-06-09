@@ -823,13 +823,19 @@ now live in `epiphany-codex-bridge::view`. The same bridge view module now owns
 role/reorient result response construction too: it loads the mapped
 runtime-spine status/finding, projects the matching job, and builds
 `ThreadEpiphanyRoleResultResponse` /
-`ThreadEpiphanyReorientResultResponse`. App-server keeps only role binding
-validation, live/stored source selection, runtime-store path lookup, and
-response emission for those compatibility verbs. `epiphany_read_routes.rs` is
+`ThreadEpiphanyReorientResultResponse`. App-server keeps only live/stored state
+loading, runtime-store path lookup, and response emission for those
+compatibility verbs. `epiphany_read_routes.rs` is
 about 648 lines after these cuts. The remaining read-route bodies are mostly individual
 legacy read verbs (`roleResult`, `freshness`, `context`, `graphQuery`,
 `reorientResult`, `retrieve`, `distill`, `propose`) plus host loading and
 response/error shaping.
+
+View route planning is bridge-owned at the route boundary now. App-server calls
+`plan_thread_epiphany_view` to convert protocol lenses, apply default lenses,
+and learn which host facts to gather. It no longer imports the raw
+`core_epiphany_view_needs_*`, default-lens, or protocol-lens conversion helpers.
+`epiphany_read_routes.rs` is about 516 lines after this cut.
 
 Freshness/context/graph-query response construction is also bridge-owned now.
 `epiphany-codex-bridge::view` builds `ThreadEpiphanyFreshnessResponse`,

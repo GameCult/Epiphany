@@ -4,12 +4,6 @@ use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
-use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_jobs;
-use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_pressure;
-use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation_inputs;
-use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_runtime_store;
-use epiphany_codex_bridge::protocol_edge::default_core_epiphany_view_lenses;
-use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths;
 use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
@@ -22,6 +16,7 @@ use epiphany_codex_bridge::view_protocol::map_thread_epiphany_graph_query_respon
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_propose_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_role_result_response;
+use epiphany_codex_bridge::view_protocol::plan_thread_epiphany_view;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -35,12 +30,8 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyViewParams,
     ) {
-        let ThreadEpiphanyViewParams { thread_id, lenses } = params;
-        let lenses = if lenses.is_empty() {
-            default_core_epiphany_view_lenses()
-        } else {
-            protocol_view_lenses_to_core(lenses)
-        };
+        let view_plan = plan_thread_epiphany_view(params);
+        let thread_id = view_plan.thread_id.clone();
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
             Ok(id) => id,
@@ -65,10 +56,7 @@ impl CodexMessageProcessor {
             }
         };
 
-        let needs_jobs = core_epiphany_view_needs_jobs(&lenses);
-        let needs_reorientation_inputs = core_epiphany_view_needs_reorientation_inputs(&lenses);
-        let needs_pressure = core_epiphany_view_needs_pressure(&lenses);
-        let retrieval_override = if (needs_jobs || needs_reorientation_inputs)
+        let retrieval_override = if (view_plan.needs_jobs || view_plan.needs_reorientation_inputs)
             && thread
                 .epiphany_state
                 .as_ref()
@@ -83,7 +71,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let watcher_snapshot = if needs_reorientation_inputs {
+        let watcher_snapshot = if view_plan.needs_reorientation_inputs {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
                 let config_snapshot = loaded_thread.config_snapshot().await;
                 self.epiphany_invalidation_manager
@@ -100,7 +88,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let token_usage_info = if needs_pressure {
+        let token_usage_info = if view_plan.needs_pressure {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
                 loaded_thread.token_usage_info().await
             } else {
@@ -112,7 +100,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let runtime_store_path = if core_epiphany_view_needs_runtime_store(&lenses) {
+        let runtime_store_path = if view_plan.needs_runtime_store {
             if let Some(loaded_thread) = loaded_thread.as_ref() {
                 Some(loaded_thread.epiphany_runtime_spine_store_path().await)
             } else {
@@ -124,7 +112,7 @@ impl CodexMessageProcessor {
         let token_usage_snapshot = epiphany_token_usage_snapshot(token_usage_info.as_ref());
         let response = map_epiphany_view_response(EpiphanyViewResponseInput {
             thread_id: thread_id.clone(),
-            lenses,
+            lenses: view_plan.lenses,
             loaded,
             state: thread.epiphany_state.as_ref(),
             retrieval_override: retrieval_override.as_ref(),

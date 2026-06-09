@@ -40,6 +40,11 @@ use crate::error::Result as BridgeResult;
 use crate::jobs::map_epiphany_jobs;
 use crate::launch::epiphany_role_binding_id;
 use crate::pressure::derive_epiphany_pressure;
+use crate::protocol_edge::core_epiphany_view_needs_jobs;
+use crate::protocol_edge::core_epiphany_view_needs_pressure;
+use crate::protocol_edge::core_epiphany_view_needs_reorientation_inputs;
+use crate::protocol_edge::core_epiphany_view_needs_runtime_store;
+use crate::protocol_edge::default_core_epiphany_view_lenses;
 use crate::protocol_edge::protocol_context_params_to_core;
 use crate::protocol_edge::protocol_distill_params_to_core;
 use crate::protocol_edge::protocol_freshness_response_from_surface;
@@ -57,6 +62,7 @@ use crate::protocol_edge::protocol_role_id_to_core;
 use crate::protocol_edge::protocol_role_result_status;
 use crate::protocol_edge::protocol_roles_source;
 use crate::protocol_edge::protocol_view_lens_from_core;
+use crate::protocol_edge::protocol_view_lenses_to_core;
 use crate::reorient::EpiphanyFreshnessWatcherSnapshot;
 use crate::reorient::derive_epiphany_freshness_view;
 use crate::reorient::derive_epiphany_reorient;
@@ -178,6 +184,32 @@ pub struct EpiphanyViewResponseInput<'a> {
     pub watcher_snapshot: Option<EpiphanyFreshnessWatcherSnapshot<'a>>,
     pub token_usage_info: Option<&'a EpiphanyTokenUsageSnapshot>,
     pub runtime_store_path: Option<&'a Path>,
+}
+
+pub struct EpiphanyViewRoutePlan {
+    pub thread_id: String,
+    pub lenses: Vec<EpiphanyViewLens>,
+    pub needs_jobs: bool,
+    pub needs_reorientation_inputs: bool,
+    pub needs_pressure: bool,
+    pub needs_runtime_store: bool,
+}
+
+pub fn plan_thread_epiphany_view(params: ThreadEpiphanyViewParams) -> EpiphanyViewRoutePlan {
+    let ThreadEpiphanyViewParams { thread_id, lenses } = params;
+    let lenses = if lenses.is_empty() {
+        default_core_epiphany_view_lenses()
+    } else {
+        protocol_view_lenses_to_core(lenses)
+    };
+    EpiphanyViewRoutePlan {
+        thread_id,
+        needs_jobs: core_epiphany_view_needs_jobs(&lenses),
+        needs_reorientation_inputs: core_epiphany_view_needs_reorientation_inputs(&lenses),
+        needs_pressure: core_epiphany_view_needs_pressure(&lenses),
+        needs_runtime_store: core_epiphany_view_needs_runtime_store(&lenses),
+        lenses,
+    }
 }
 
 pub async fn map_epiphany_view_response(
