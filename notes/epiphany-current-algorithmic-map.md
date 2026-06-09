@@ -752,9 +752,16 @@ The app-server handler:
 
 1. parses the thread id.
 2. requires the thread to be loaded.
-3. reads the current Epiphany revision, defaulting to `0` if the thread has not yet created state.
-4. calls `distill_observation`.
-5. returns a `ThreadEpiphanyUpdatePatch` containing one observation and one evidence record.
+3. reads the current Epiphany state as a host fact.
+4. calls `epiphany-codex-bridge::view_protocol::map_thread_epiphany_distill_response`.
+5. maps bridge invalid-request errors to JSON-RPC errors.
+
+`map_thread_epiphany_distill_response`:
+
+1. chooses `expectedRevision` from the supplied Epiphany state, defaulting to `0` if the thread has not yet created state.
+2. converts the Codex protocol params into the core distillation input.
+3. calls `distill_observation`.
+4. returns a `ThreadEpiphanyUpdatePatch` containing one observation and one evidence record.
 
 `distill_observation`:
 
@@ -768,9 +775,8 @@ The app-server handler:
 
 Code refs:
 
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4173)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4202)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4225)
+- [epiphany_read_routes.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_read_routes.rs:479)
+- [view_protocol.rs](E:/Projects/EpiphanyAgent/epiphany-codex-bridge/src/view_protocol.rs:576)
 - [epiphany-core/src/distillation.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/distillation.rs:28)
 
 ### Output
@@ -794,7 +800,7 @@ A client sends experimental `thread/epiphany/propose` for a loaded thread with:
 
 Proposal is the tracing-paper path. It starts from observations that are already in the thread's typed state, chooses a small proposal-ready set when `observationIds` is omitted, requires selected observations to have verified/accepted status, requires each selected observation to cite accepting `recent_evidence`, requires source-grounding through code refs, and returns a candidate patch that can replace graph/frontier/churn fields only if a later promotion accepts it.
 
-This is the first shipped chewing motion. It is deliberately small: no model call, no watcher invalidation, no automatic graph truth. When ids are omitted, proposal now ranks proposal-ready observations by source/evidence strength, code refs, and current map focus, then keeps a bounded coherent path cluster instead of grabbing every shiny pebble in the yard. It then checks that selected observations are backed by current accepting evidence, scores the selected observations so the strongest verifier/test/smoke-backed signal becomes the proposal's primary summary, and tries to match observed code refs against existing architecture nodes. Concrete matching still wins: exact code refs, same-path refs, and deterministic path-node ids are tried before anything semantic. Only after those fail can strict semantic overlap reuse an existing architecture node, and only when that graph node has no code refs yet; anchored nodes stay governed by concrete refs because otherwise the map starts doing interpretive dance in a trench coat. Proposal then enriches matching nodes with newly observed refs, creates path-derived candidate nodes only for genuinely unmapped surfaces, expands frontier focus through graph links, marks named incident edges active, emits a proposal observation/evidence pair, and judges the map delta by match kind: exact-ref reuse is a narrow refinement, same-path reuse is broadening, deterministic-id reuse preserves a known candidate, semantic reuse anchors previously unanchored prose, and new nodes expand the map. Diff pressure now reflects that judgment, touched paths, observation count, and unresolved write risk instead of blindly inheriting the previous pressure. It is a candidate, not an oracle. We do not crown the goblin because it found a wrench.
+This is the first shipped chewing motion. It is deliberately small: no model call, no watcher invalidation, no automatic graph truth. When ids are omitted, proposal now ranks proposal-ready observations by source/evidence strength, code refs, and current map focus, then keeps a bounded coherent path cluster instead of grabbing every shiny pebble in the yard. It then checks that selected observations are backed by current accepting evidence, scores the selected observations so the strongest verifier/test/smoke-backed signal becomes the proposal's primary summary, and tries to match observed code refs against existing architecture nodes. Concrete matching still wins: exact code refs, same-path refs, and deterministic path-node ids are tried before anything semantic. Only after those fail can strict semantic overlap reuse an existing architecture node, and only when that graph node has no code refs yet; anchored nodes stay governed by concrete refs because otherwise the map starts doing interpretive dance in a trench coat. Proposal then enriches matching nodes with newly observed refs, creates path-derived candidate nodes only for genuinely unmapped surfaces, expands frontier focus through graph links, marks named incident edges active, emits a proposal observation/evidence pair, and judges the map delta by match kind: exact-ref reuse is a narrow refinement, same-path reuse is broadening, deterministic-id reuse preserves a known candidate, semantic reuse anchors previously unanchored prose, and new nodes expand the map. Diff pressure now reflects that judgment, touched paths, observation count, and unresolved write risk instead of blindly inheriting the previous pressure. It is a candidate, not an oracle.
 
 Protocol shape:
 
@@ -823,10 +829,16 @@ The app-server handler:
 
 1. parses the thread id.
 2. requires the thread to be loaded.
-3. requires existing Epiphany state.
-4. reads the current state revision as `expectedRevision`.
-5. calls `propose_map_update`.
-6. returns a `ThreadEpiphanyUpdatePatch` containing proposal observation/evidence, replacement graphs/frontier, and churn.
+3. reads the current Epiphany state as a host fact.
+4. calls `epiphany-codex-bridge::view_protocol::map_thread_epiphany_propose_response`.
+5. maps bridge invalid-request errors to JSON-RPC errors.
+
+`map_thread_epiphany_propose_response`:
+
+1. requires existing Epiphany state.
+2. reads the current state revision as `expectedRevision`.
+3. calls `propose_map_update`.
+4. returns a `ThreadEpiphanyUpdatePatch` containing proposal observation/evidence, replacement graphs/frontier, and churn.
 
 `propose_map_update`:
 
@@ -853,9 +865,8 @@ The app-server handler:
 
 Code refs:
 
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4244)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4287)
-- [codex_message_processor.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor.rs:4301)
+- [epiphany_read_routes.rs](E:/Projects/EpiphanyAgent/vendor/codex/codex-rs/app-server/src/codex_message_processor/epiphany_read_routes.rs:528)
+- [view_protocol.rs](E:/Projects/EpiphanyAgent/epiphany-codex-bridge/src/view_protocol.rs:613)
 - [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:115)
 - [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:244)
 - [epiphany-core/src/proposal.rs](E:/Projects/EpiphanyAgent/epiphany-core/src/proposal.rs:271)

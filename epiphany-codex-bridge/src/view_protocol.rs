@@ -35,8 +35,11 @@ use crate::coordinator_protocol::protocol_crrc_recommendation;
 use crate::coordinator_protocol::protocol_role_board_lanes;
 use crate::cultnet::EpiphanyFreshnessSurface;
 use crate::cultnet::EpiphanySurfaceSource;
+use crate::error::EpiphanyBridgeError;
+use crate::error::Result as BridgeResult;
 use crate::jobs::map_epiphany_jobs;
 use crate::pressure::derive_epiphany_pressure;
+use crate::protocol_edge::protocol_distill_params_to_core;
 use crate::protocol_edge::protocol_job_from_surface;
 use crate::protocol_edge::protocol_pressure_from_core;
 use crate::protocol_edge::protocol_reorient_decision;
@@ -570,6 +573,19 @@ pub fn map_epiphany_distill_response(
     })
 }
 
+pub fn map_thread_epiphany_distill_response(
+    params: ThreadEpiphanyDistillParams,
+    state: Option<&EpiphanyThreadState>,
+) -> BridgeResult<ThreadEpiphanyDistillResponse> {
+    let expected_revision = state.map(|state| state.revision).unwrap_or(0);
+    let input = protocol_distill_params_to_core(params);
+    map_epiphany_distill_response(expected_revision, input).map_err(|err| {
+        EpiphanyBridgeError::InvalidRequest(format!(
+            "failed to distill Epiphany observation: {err}"
+        ))
+    })
+}
+
 pub fn map_epiphany_propose_response(
     state: EpiphanyThreadState,
     observation_ids: Vec<String>,
@@ -591,5 +607,20 @@ pub fn map_epiphany_propose_response(
             churn: Some(proposal.churn),
             ..Default::default()
         },
+    })
+}
+
+pub fn map_thread_epiphany_propose_response(
+    params: ThreadEpiphanyProposeParams,
+    state: Option<EpiphanyThreadState>,
+) -> BridgeResult<ThreadEpiphanyProposeResponse> {
+    let thread_id = params.thread_id.clone();
+    let Some(state) = state else {
+        return Err(EpiphanyBridgeError::InvalidRequest(format!(
+            "thread has no Epiphany state: {thread_id}"
+        )));
+    };
+    map_epiphany_propose_response(state, params.observation_ids).map_err(|err| {
+        EpiphanyBridgeError::InvalidRequest(format!("failed to propose Epiphany map update: {err}"))
     })
 }

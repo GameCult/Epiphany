@@ -13,7 +13,6 @@ use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::protocol_edge::default_core_epiphany_view_lenses;
 use epiphany_codex_bridge::protocol_edge::protocol_context_params_to_core;
-use epiphany_codex_bridge::protocol_edge::protocol_distill_params_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_freshness_response_from_surface;
 use epiphany_codex_bridge::protocol_edge::protocol_graph_query_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
@@ -26,12 +25,12 @@ use epiphany_codex_bridge::view_protocol::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view_protocol::derive_epiphany_freshness_surface;
 use epiphany_codex_bridge::view_protocol::map_epiphany_context_response;
-use epiphany_codex_bridge::view_protocol::map_epiphany_distill_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_graph_query_response;
-use epiphany_codex_bridge::view_protocol::map_epiphany_propose_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_view_response;
+use epiphany_codex_bridge::view_protocol::map_thread_epiphany_distill_response;
+use epiphany_codex_bridge::view_protocol::map_thread_epiphany_propose_response;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -502,20 +501,15 @@ impl CodexMessageProcessor {
             }
         };
 
-        let expected_revision = thread
-            .epiphany_state()
-            .await
-            .map(|state| state.revision)
-            .unwrap_or(0);
-        let input = protocol_distill_params_to_core(params);
-        let response = match map_epiphany_distill_response(expected_revision, input) {
+        let state = thread.epiphany_state().await;
+        let response = match map_thread_epiphany_distill_response(params, state.as_ref()) {
             Ok(response) => response,
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
             Err(err) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("failed to distill Epiphany observation: {err}"),
-                )
-                .await;
+                self.send_internal_error(request_id, err.to_string()).await;
                 return;
             }
         };
@@ -552,25 +546,15 @@ impl CodexMessageProcessor {
             }
         };
 
-        let state = match thread.epiphany_state().await {
-            Some(state) => state,
-            None => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("thread has no Epiphany state: {thread_uuid}"),
-                )
-                .await;
+        let state = thread.epiphany_state().await;
+        let response = match map_thread_epiphany_propose_response(params, state) {
+            Ok(response) => response,
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
                 return;
             }
-        };
-        let response = match map_epiphany_propose_response(state, params.observation_ids) {
-            Ok(response) => response,
             Err(err) => {
-                self.send_invalid_request_error(
-                    request_id,
-                    format!("failed to propose Epiphany map update: {err}"),
-                )
-                .await;
+                self.send_internal_error(request_id, err.to_string()).await;
                 return;
             }
         };

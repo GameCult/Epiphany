@@ -840,7 +840,7 @@ loading and watcher registration because those are host lifecycle seams.
 propose patch-response builders have followed into the same bridge view module;
 app-server still checks that the target thread is loaded and maps errors onto
 JSON-RPC responses, but it no longer shapes those patches itself.
-`epiphany_read_routes.rs` is about 579 lines after this cut.
+`epiphany_read_routes.rs` is about 570 lines after this latest cut.
 
 The retrieve read route has now lost its local normalization/projection opinion
 too. `epiphany-codex-bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths`
@@ -848,6 +848,13 @@ owns raw query normalization, core retrieval invocation, and Codex JSON-RPC
 retrieve response projection. App-server keeps thread-id parsing, loaded-thread
 lookup, config/Codex-home fact supply, response emission, and bridge-error to
 JSON-RPC mapping.
+
+Distill/propose route response policy is bridge-owned too.
+`map_thread_epiphany_distill_response` and
+`map_thread_epiphany_propose_response` own expected-revision selection,
+missing-state rejection, protocol-to-core input conversion, candidate patch
+construction, and invalid-request text. App-server supplies the loaded thread
+state as a host fact and maps bridge errors to JSON-RPC responses.
 
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
