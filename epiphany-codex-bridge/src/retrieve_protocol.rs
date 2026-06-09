@@ -1,5 +1,6 @@
 use codex_app_server_protocol::ThreadEpiphanyIndexResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveIndexSummary;
+use codex_app_server_protocol::ThreadEpiphanyRetrieveParams;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResponse;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResult;
 use codex_app_server_protocol::ThreadEpiphanyRetrieveResultKind;
@@ -15,6 +16,21 @@ use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
 use crate::retrieve::normalize_thread_epiphany_retrieve_query;
 use crate::retrieve::retrieve_epiphany_for_paths;
+
+pub async fn retrieve_thread_epiphany(
+    params: ThreadEpiphanyRetrieveParams,
+    workspace_root: PathBuf,
+    codex_home: PathBuf,
+) -> BridgeResult<ThreadEpiphanyRetrieveResponse> {
+    let ThreadEpiphanyRetrieveParams {
+        thread_id: _,
+        query,
+        limit,
+        path_prefixes,
+    } = params;
+    retrieve_thread_epiphany_for_paths(workspace_root, codex_home, query, limit, path_prefixes)
+        .await
+}
 
 pub async fn retrieve_thread_epiphany_for_paths(
     workspace_root: PathBuf,

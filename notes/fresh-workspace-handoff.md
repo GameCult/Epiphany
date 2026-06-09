@@ -837,6 +837,13 @@ and learn which host facts to gather. It no longer imports the raw
 `core_epiphany_view_needs_*`, default-lens, or protocol-lens conversion helpers.
 `epiphany_read_routes.rs` is about 516 lines after this cut.
 
+Retrieve route param ownership followed. App-server still parses the thread id
+and supplies loaded-thread workspace/Codex-home paths, but
+`retrieve_thread_epiphany` now accepts the full protocol retrieve params and
+keeps query/limit/path-prefix normalization inside the bridge. The route no
+longer destructures retrieve query fields. `epiphany_read_routes.rs` is about
+504 lines after this cut.
+
 Freshness/context/graph-query response construction is also bridge-owned now.
 `epiphany-codex-bridge::view` builds `ThreadEpiphanyFreshnessResponse`,
 `ThreadEpiphanyContextResponse`, and `ThreadEpiphanyGraphQueryResponse` from
@@ -849,11 +856,11 @@ JSON-RPC responses, but it no longer shapes those patches itself.
 `epiphany_read_routes.rs` is about 570 lines after this latest cut.
 
 The retrieve read route has now lost its local normalization/projection opinion
-too. `epiphany-codex-bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths`
-owns raw query normalization, core retrieval invocation, and Codex JSON-RPC
-retrieve response projection. App-server keeps thread-id parsing, loaded-thread
-lookup, config/Codex-home fact supply, response emission, and bridge-error to
-JSON-RPC mapping.
+too. `epiphany-codex-bridge::retrieve_protocol::retrieve_thread_epiphany`
+accepts the protocol params and owns raw query normalization, core retrieval
+invocation, and Codex JSON-RPC retrieve response projection. App-server keeps
+thread-id parsing, loaded-thread lookup, config/Codex-home fact supply,
+response emission, and bridge-error to JSON-RPC mapping.
 
 Distill/propose route response policy is bridge-owned too.
 `map_thread_epiphany_distill_response` and

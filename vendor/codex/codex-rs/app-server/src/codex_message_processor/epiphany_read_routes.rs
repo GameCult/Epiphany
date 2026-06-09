@@ -5,7 +5,7 @@ use codex_protocol::protocol::EpiphanyRetrievalState;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
-use epiphany_codex_bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths;
+use epiphany_codex_bridge::retrieve_protocol::retrieve_thread_epiphany;
 use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view_protocol::map_epiphany_freshness_response;
@@ -362,12 +362,7 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyRetrieveParams,
     ) {
-        let ThreadEpiphanyRetrieveParams {
-            thread_id,
-            query,
-            limit,
-            path_prefixes,
-        } = params;
+        let thread_id = params.thread_id.clone();
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
             Ok(id) => id,
@@ -392,29 +387,22 @@ impl CodexMessageProcessor {
 
         let config = thread.config_snapshot().await;
         let codex_home = thread.codex_home().await;
-        let response = match retrieve_thread_epiphany_for_paths(
-            config.cwd.to_path_buf(),
-            codex_home,
-            query,
-            limit,
-            path_prefixes,
-        )
-        .await
-        {
-            Ok(response) => response,
-            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
-                self.send_invalid_request_error(request_id, message).await;
-                return;
-            }
-            Err(err) => {
-                self.send_internal_error(
-                    request_id,
-                    format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
-                )
-                .await;
-                return;
-            }
-        };
+        let response =
+            match retrieve_thread_epiphany(params, config.cwd.to_path_buf(), codex_home).await {
+                Ok(response) => response,
+                Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                    self.send_invalid_request_error(request_id, message).await;
+                    return;
+                }
+                Err(err) => {
+                    self.send_internal_error(
+                        request_id,
+                        format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
+                    )
+                    .await;
+                    return;
+                }
+            };
 
         self.outgoing.send_response(request_id, response).await;
     }
