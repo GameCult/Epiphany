@@ -620,6 +620,31 @@ pub async fn map_epiphany_reorient_result_response(
     }
 }
 
+pub async fn map_thread_epiphany_reorient_result_response(
+    params: ThreadEpiphanyReorientResultParams,
+    loaded: bool,
+    state: Option<&EpiphanyThreadState>,
+    runtime_store_path: Option<&Path>,
+) -> ThreadEpiphanyReorientResultResponse {
+    let ThreadEpiphanyReorientResultParams {
+        thread_id,
+        binding_id,
+    } = params;
+    let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into());
+    map_epiphany_reorient_result_response(EpiphanyReorientResultResponseInput {
+        thread_id,
+        source: if loaded {
+            EpiphanySurfaceSource::Live
+        } else {
+            EpiphanySurfaceSource::Stored
+        },
+        binding_id,
+        state,
+        runtime_store_path,
+    })
+    .await
+}
+
 pub fn map_epiphany_distill_response(
     expected_revision: u64,
     input: EpiphanyDistillInput,

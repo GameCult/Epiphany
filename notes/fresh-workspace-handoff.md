@@ -869,6 +869,12 @@ role-id conversion, default binding selection, unsupported-role rejection, and
 response projection. `epiphany_read_routes.rs` is about 540 lines after this
 cut.
 
+Reorient-result route policy followed too. App-server still parses the thread
+id, loads the live/stored thread view, and looks up the runtime-store path, but
+`map_thread_epiphany_reorient_result_response` now owns the fixed reorient
+binding default, live/stored protocol source projection, and response mapping.
+`epiphany_read_routes.rs` is about 528 lines after this cut.
+
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC
 responses, but `map_thread_epiphany_context_response` and

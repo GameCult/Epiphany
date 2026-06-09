@@ -2,10 +2,8 @@ use codex_app_server_protocol::*;
 use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
-use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
-use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_jobs;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_pressure;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation_inputs;
@@ -15,15 +13,14 @@ use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths;
 use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
-use epiphany_codex_bridge::view_protocol::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view_protocol::map_epiphany_freshness_response;
-use epiphany_codex_bridge::view_protocol::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_view_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_context_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_distill_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_graph_query_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_propose_response;
+use epiphany_codex_bridge::view_protocol::map_thread_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_role_result_response;
 
 use super::CodexMessageProcessor;
@@ -331,11 +328,7 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyReorientResultParams,
     ) {
-        let ThreadEpiphanyReorientResultParams {
-            thread_id,
-            binding_id,
-        } = params;
-        let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into());
+        let thread_id = params.thread_id.clone();
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
             Ok(id) => id,
@@ -359,23 +352,18 @@ impl CodexMessageProcessor {
             }
         };
 
-        let source = if loaded_thread.is_some() {
-            EpiphanySurfaceSource::Live
-        } else {
-            EpiphanySurfaceSource::Stored
-        };
+        let loaded = loaded_thread.is_some();
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
             Some(loaded_thread.epiphany_runtime_spine_store_path().await)
         } else {
             None
         };
-        let response = map_epiphany_reorient_result_response(EpiphanyReorientResultResponseInput {
-            thread_id: thread_uuid.to_string(),
-            source,
-            binding_id,
-            state: thread.epiphany_state.as_ref(),
-            runtime_store_path: runtime_store_path.as_deref(),
-        })
+        let response = map_thread_epiphany_reorient_result_response(
+            params,
+            loaded,
+            thread.epiphany_state.as_ref(),
+            runtime_store_path.as_deref(),
+        )
         .await;
 
         self.outgoing.send_response(request_id, response).await;
