@@ -18,6 +18,7 @@ use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_job_launch;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_reorient_accept;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_role_accept;
+use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_role_launch;
 use epiphany_codex_bridge::protocol_edge::protocol_job_from_surface;
 use epiphany_codex_bridge::protocol_edge::protocol_patch_from_core;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_decision;
@@ -25,7 +26,6 @@ use epiphany_codex_bridge::protocol_edge::protocol_reorient_finding;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_source;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_state_status;
 use epiphany_codex_bridge::protocol_edge::protocol_role_finding;
-use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_fields;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
 use epiphany_codex_bridge::protocol_edge::protocol_update_patch_to_core;
@@ -98,26 +98,22 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyRoleLaunchParams,
     ) {
-        let ThreadEpiphanyRoleLaunchParams {
-            thread_id,
-            role_id,
-            expected_revision,
-            max_runtime_seconds,
-        } = params;
-        let core_role_id = protocol_role_id_to_core(role_id);
+        let launch_plan = plan_thread_epiphany_role_launch(params);
 
-        let (thread_uuid, loaded_thread) =
-            match self.load_epiphany_thread(&request_id, &thread_id).await {
-                Some(thread) => thread,
-                None => return,
-            };
+        let (thread_uuid, loaded_thread) = match self
+            .load_epiphany_thread(&request_id, &launch_plan.thread_id)
+            .await
+        {
+            Some(thread) => thread,
+            None => return,
+        };
         let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match launch_thread_epiphany_role(
             &host,
-            &thread_id,
-            core_role_id,
-            expected_revision,
-            max_runtime_seconds,
+            &launch_plan.thread_id,
+            launch_plan.core_role_id,
+            launch_plan.expected_revision,
+            launch_plan.max_runtime_seconds,
         )
         .await
         {
@@ -144,7 +140,7 @@ impl CodexMessageProcessor {
                 request_id,
                 ThreadEpiphanyRoleLaunchResponse {
                     thread_id: thread_uuid.to_string(),
-                    role_id,
+                    role_id: launch_plan.protocol_role_id,
                     revision: applied.revision,
                     changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),

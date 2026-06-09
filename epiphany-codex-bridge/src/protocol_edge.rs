@@ -47,6 +47,7 @@ use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleAcceptParams;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
+use codex_app_server_protocol::ThreadEpiphanyRoleLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
@@ -337,6 +338,32 @@ pub struct ThreadEpiphanyRoleAcceptPlan {
     pub core_role_id: EpiphanyRoleResultRoleId,
     pub expected_revision: Option<u64>,
     pub binding_id: String,
+}
+
+pub struct ThreadEpiphanyRoleLaunchPlan {
+    pub thread_id: String,
+    pub protocol_role_id: ThreadEpiphanyRoleId,
+    pub core_role_id: EpiphanyRoleResultRoleId,
+    pub expected_revision: Option<u64>,
+    pub max_runtime_seconds: Option<u64>,
+}
+
+pub fn plan_thread_epiphany_role_launch(
+    params: ThreadEpiphanyRoleLaunchParams,
+) -> ThreadEpiphanyRoleLaunchPlan {
+    let ThreadEpiphanyRoleLaunchParams {
+        thread_id,
+        role_id,
+        expected_revision,
+        max_runtime_seconds,
+    } = params;
+    ThreadEpiphanyRoleLaunchPlan {
+        thread_id,
+        protocol_role_id: role_id,
+        core_role_id: protocol_role_id_to_core(role_id),
+        expected_revision,
+        max_runtime_seconds,
+    }
 }
 
 pub fn plan_thread_epiphany_role_accept(
