@@ -94,8 +94,8 @@ impl Args {
                 .map(PathBuf::from)
                 .unwrap_or_else(|| home_dir().join(".codex")),
             artifact_dir: root.join(".epiphany-dogfood").join("coordinator"),
-            agent_memory_dir: root.join("state").join("agents.msgpack"),
-            runtime_store: root.join("state").join("runtime-spine.msgpack"),
+            agent_memory_dir: root.join("state").join("agents.cc"),
+            runtime_store: root.join("state").join("runtime-spine.cc"),
             mode: "plan".to_string(),
             max_steps: 4,
             poll_seconds: 5.0,
@@ -760,7 +760,7 @@ fn collect_coordinator_status(
         &[
             "status",
             "--store",
-            "state/agent-heartbeats.msgpack",
+            "state/agent-heartbeats.cc",
             "--artifact-dir",
             &heartbeat_dir.to_string_lossy(),
             "--limit",

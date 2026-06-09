@@ -589,9 +589,9 @@ Files:
 Commands:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- scan --workspace . --store .\state\repo-model.msgpack
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- status --store .\state\repo-model.msgpack
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- context --store .\state\repo-model.msgpack --query "heartbeat scheduling split"
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- scan --workspace . --store .\state\repo-model.cc
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- status --store .\state\repo-model.cc
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-model -- context --store .\state\repo-model.cc --query "heartbeat scheduling split"
 ```
 
 Tests:

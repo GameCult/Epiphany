@@ -95,7 +95,7 @@ impl Args {
     fn parse() -> Result<Self> {
         let mut values = env::args().skip(1);
         let command = values.next().unwrap_or_else(|| "query".to_string());
-        let mut store = PathBuf::from(".epiphany-run/cultmesh/epiphany-local.ccmp");
+        let mut store = PathBuf::from(".epiphany-run/cultmesh/epiphany-local.cc");
         let mut runtime_id = "epiphany-local".to_string();
         let mut gjallar_affordance_store = None;
 

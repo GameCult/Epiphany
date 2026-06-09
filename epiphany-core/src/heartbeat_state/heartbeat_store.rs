@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn round_trips_state_and_cognition_documents() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("heartbeats.msgpack");
+        let store_path = temp.path().join("heartbeats.cc");
         let state = default_heartbeat_state(1.0);
 
         write_heartbeat_state_entry(&store_path, &state)?;

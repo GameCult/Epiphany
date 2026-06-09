@@ -109,7 +109,7 @@ cycle: project Persona's character turn, write a Persona/Aquarium bubble, run th
 bridge-equipped coordinator loop with auto-tools, then run heartbeat sleep/dream
 maintenance. Fresh `mvp` runs bootstrap a minimal local checkpoint before
 coordination so the first loop does not stall at missing state. Live coordinator
-modes use the workspace `state/runtime-spine.msgpack` for worker lifecycle
+modes use the workspace `state/runtime-spine.cc` for worker lifecycle
 documents; run bundles remain evidence. Live model-worker turns default to a
 600-second timeout because ChatGPT Codex model latency can exceed four minutes.
 `status`, `plan`, and `smoke` do not spend model calls; `run` and `mvp` do.

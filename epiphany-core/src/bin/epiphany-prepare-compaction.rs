@@ -20,7 +20,7 @@ fn main() -> Result<()> {
     let notes_dir = root.join("notes");
     let map_path = state_dir.join("map.yaml");
     let scratch_path = state_dir.join("scratch.md");
-    let ledger_path = state_dir.join("ledgers.msgpack");
+    let ledger_path = state_dir.join("ledgers.cc");
     let handoff_path = notes_dir.join("fresh-workspace-handoff.md");
     let plan_path = notes_dir.join("epiphany-fork-implementation-plan.md");
     let algo_map_path = notes_dir.join("epiphany-current-algorithmic-map.md");
@@ -138,11 +138,11 @@ fn add_content_checks(
                 .filter(|branch| branch.status == "active")
                 .count();
             findings.push(ok(format!(
-                "state/ledgers.msgpack parses ({} evidence record(s))",
+                "state/ledgers.cc parses ({} evidence record(s))",
                 entry.evidence.len()
             )));
             findings.push(ok(format!(
-                "state/ledgers.msgpack has {active} active branch(es)"
+                "state/ledgers.cc has {active} active branch(es)"
             )));
         }
         Err(err) => findings.push(error(format!("state ledger parse failed: {err}"))),

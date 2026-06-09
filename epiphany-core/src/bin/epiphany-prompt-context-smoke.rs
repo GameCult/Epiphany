@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     let store = env::args().nth(1).map(PathBuf::from).unwrap_or_else(|| {
         PathBuf::from(".epiphany-smoke")
             .join("cultmesh")
-            .join("epiphany-prompt-context.ccmp")
+            .join("epiphany-prompt-context.cc")
     });
     if let Some(parent) = store.parent() {
         std::fs::create_dir_all(parent)?;

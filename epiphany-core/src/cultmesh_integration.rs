@@ -1358,7 +1358,7 @@ mod tests {
     #[test]
     fn epiphany_status_round_trips_through_cultmesh() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-local.ccmp");
+        let store = temp.path().join("epiphany-local.cc");
         let status = EpiphanyCultMeshStatusEntry {
             schema_version: EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.to_string(),
             runtime_id: "epiphany-test".to_string(),
@@ -1379,7 +1379,7 @@ mod tests {
     #[test]
     fn operator_status_round_trips_as_native_cultmesh_document() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-operator-status.ccmp");
+        let store = temp.path().join("epiphany-operator-status.cc");
         let status =
             default_epiphany_cultmesh_operator_status("epiphany-test", "2026-05-27T00:00:00Z");
 
@@ -1399,7 +1399,7 @@ mod tests {
     #[test]
     fn operator_snapshot_distills_status_json_into_typed_cultmesh_document() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-operator-snapshot.ccmp");
+        let store = temp.path().join("epiphany-operator-snapshot.cc");
         let status_json = serde_json::json!({
             "threadId": "thread-test",
             "scene": {
@@ -1488,7 +1488,7 @@ mod tests {
     #[test]
     fn operator_run_intent_and_receipt_round_trip_as_native_cultmesh_documents() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-operator-run.ccmp");
+        let store = temp.path().join("epiphany-operator-run.cc");
         let intent = EpiphanyCultMeshOperatorRunIntentEntry {
             schema_version: EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION.to_string(),
             runtime_id: "epiphany-test".to_string(),
@@ -1519,7 +1519,7 @@ mod tests {
             result_path: ".epiphany-run/run-test/status.json".to_string(),
             artifact_root: ".epiphany-run/run-test".to_string(),
             dogfood_root: ".epiphany-dogfood/run-test".to_string(),
-            operator_snapshot_store: ".epiphany-run/cultmesh/operator-snapshots.ccmp".to_string(),
+            operator_snapshot_store: ".epiphany-run/cultmesh/operator-snapshots.cc".to_string(),
             operator_snapshot_id: "run-test-status".to_string(),
             artifact_refs: vec![".epiphany-run/run-test/status.json".to_string()],
             notes: vec!["receipt".to_string()],
@@ -1553,7 +1553,7 @@ mod tests {
     #[test]
     fn builtin_verse_policies_keep_public_and_private_boundaries_apart() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-verses.ccmp");
+        let store = temp.path().join("epiphany-verses.cc");
         let written = write_epiphany_cultmesh_verse_policies(&store, "epiphany-test")?;
         assert_eq!(written.len(), 3);
 
@@ -1579,7 +1579,7 @@ mod tests {
     #[test]
     fn global_room_policies_make_public_threaded_rooms_for_personas() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-global-rooms.ccmp");
+        let store = temp.path().join("epiphany-global-rooms.cc");
         let written = write_epiphany_cultmesh_global_room_policies(&store, "epiphany-test")?;
         assert!(written.len() >= 5);
 
@@ -1601,7 +1601,7 @@ mod tests {
     #[test]
     fn local_verse_context_queries_compact_policy_status_and_contracts() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-local-verse.ccmp");
+        let store = temp.path().join("epiphany-local-verse.cc");
         seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
 
         let context = query_epiphany_local_verse_context(&store, "epiphany-test")?;
@@ -1633,7 +1633,7 @@ mod tests {
     #[test]
     fn local_verse_context_imports_gjallar_daemon_affordances() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let local_store = temp.path().join("epiphany-local-verse.ccmp");
+        let local_store = temp.path().join("epiphany-local-verse.cc");
         let gjallar_store = temp.path().join("gjallar-affordances.cc");
         seed_epiphany_local_verse_context(&local_store, "epiphany-test", "2026-06-02T00:00:00Z")?;
 
@@ -1670,7 +1670,7 @@ mod tests {
     #[test]
     fn mind_contracts_use_verses_to_keep_state_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-mind-contracts.ccmp");
+        let store = temp.path().join("epiphany-mind-contracts.cc");
         let written = write_epiphany_cultmesh_mind_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 4);
 
@@ -1703,7 +1703,7 @@ mod tests {
     #[test]
     fn substrate_gate_contracts_use_verses_to_keep_repo_access_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-substrate-gate-contracts.ccmp");
+        let store = temp.path().join("epiphany-substrate-gate-contracts.cc");
         let written = write_epiphany_cultmesh_substrate_gate_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 4);
 
@@ -1726,7 +1726,7 @@ mod tests {
     #[test]
     fn eyes_contracts_use_verses_to_keep_evidence_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-eyes-contracts.ccmp");
+        let store = temp.path().join("epiphany-eyes-contracts.cc");
         let written = write_epiphany_cultmesh_eyes_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 4);
 
@@ -1748,7 +1748,7 @@ mod tests {
     #[test]
     fn hands_contracts_use_verses_to_keep_action_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-hands-contracts.ccmp");
+        let store = temp.path().join("epiphany-hands-contracts.cc");
         let written = write_epiphany_cultmesh_hands_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 5);
 
@@ -1770,7 +1770,7 @@ mod tests {
     #[test]
     fn soul_contracts_use_verses_to_keep_verification_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-soul-contracts.ccmp");
+        let store = temp.path().join("epiphany-soul-contracts.cc");
         let written = write_epiphany_cultmesh_soul_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 5);
 
@@ -1793,7 +1793,7 @@ mod tests {
     #[test]
     fn continuity_contracts_use_verses_to_keep_continuity_guarded() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-continuity-contracts.ccmp");
+        let store = temp.path().join("epiphany-continuity-contracts.cc");
         let written = write_epiphany_cultmesh_continuity_contracts(&store, "epiphany-test")?;
         assert!(written.len() >= 5);
 

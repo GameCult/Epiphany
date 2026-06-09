@@ -25,7 +25,7 @@ fn main() -> Result<()> {
     let mut store = PathBuf::from(".epiphany-smoke");
     store.push("cultmesh");
     std::fs::create_dir_all(&store)?;
-    store.push("epiphany-local.ccmp");
+    store.push("epiphany-local.cc");
 
     let status = EpiphanyCultMeshStatusEntry {
         schema_version: EPIPHANY_CULTMESH_STATUS_SCHEMA_VERSION.to_string(),

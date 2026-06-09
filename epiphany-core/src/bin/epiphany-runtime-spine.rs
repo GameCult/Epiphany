@@ -25,7 +25,7 @@ use std::env;
 use std::path::PathBuf;
 use uuid::Uuid;
 
-const DEFAULT_STORE: &str = "state/runtime-spine.msgpack";
+const DEFAULT_STORE: &str = "state/runtime-spine.cc";
 
 fn main() -> Result<()> {
     let args = Args::parse()?;

@@ -344,7 +344,7 @@ fn main() -> Result<()> {
             println!("{}", result);
         }
         "smoke" => {
-            let agent_store = agent_store.unwrap_or_else(|| PathBuf::from("state/agents.msgpack"));
+            let agent_store = agent_store.unwrap_or_else(|| PathBuf::from("state/agents.cc"));
             let result = run_smoke(&agent_store)?;
             let ok = result["ok"].as_bool().unwrap_or(false);
             println!("{}", serde_json::to_string_pretty(&result)?);
@@ -397,8 +397,8 @@ fn parse_scene_participant(raw: &str) -> Result<GhostlightSceneParticipantSeed> 
 
 fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
     let temp_dir = scoped_temp_dir("epiphany-heartbeat-smoke")?;
-    let temp_agent_store = temp_dir.join("agents.msgpack");
-    let store_path = temp_dir.join("heartbeats.msgpack");
+    let temp_agent_store = temp_dir.join("agents.cc");
+    let store_path = temp_dir.join("heartbeats.cc");
     let artifact_dir = temp_dir.join("artifacts");
     fs::copy(agent_store, &temp_agent_store).with_context(|| {
         format!(
@@ -517,7 +517,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
         },
     )?;
     let routine_status = heartbeat_status_projection(&store_path, &artifact_dir, 1.0, 8)?;
-    let relaxed_store_path = temp_dir.join("relaxed-heartbeats.msgpack");
+    let relaxed_store_path = temp_dir.join("relaxed-heartbeats.cc");
     initialize_heartbeat_store(&relaxed_store_path, 1.0)?;
     let relaxed_pump = pump_heartbeat_store(
         &relaxed_store_path,
@@ -537,7 +537,7 @@ fn run_smoke(agent_store: &Path) -> Result<serde_json::Value> {
             agent_store: Some(temp_agent_store.clone()),
         },
     )?;
-    let alarmed_store_path = temp_dir.join("alarmed-heartbeats.msgpack");
+    let alarmed_store_path = temp_dir.join("alarmed-heartbeats.cc");
     initialize_heartbeat_store(&alarmed_store_path, 1.0)?;
     let alarmed_pump = pump_heartbeat_store(
         &alarmed_store_path,

@@ -476,7 +476,7 @@ fn print_usage() {
 }
 
 fn scoped_temp_store(prefix: &str) -> PathBuf {
-    env::temp_dir().join(format!("{prefix}-{}.msgpack", uuid::Uuid::new_v4()))
+    env::temp_dir().join(format!("{prefix}-{}.cc", uuid::Uuid::new_v4()))
 }
 
 fn run_smoke(store: PathBuf) -> Result<serde_json::Value> {

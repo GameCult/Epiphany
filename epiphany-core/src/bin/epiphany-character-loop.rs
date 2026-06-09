@@ -35,7 +35,7 @@ fn main() -> Result<()> {
         return usage();
     };
     let mut role = "persona".to_string();
-    let mut agent_store = PathBuf::from("state/agents.msgpack");
+    let mut agent_store = PathBuf::from("state/agents.cc");
     let mut artifact_dir = PathBuf::from(".epiphany-character-loop");
     let mut stimulus: Option<String> = None;
     let mut source = "epiphany/character-loop".to_string();
@@ -433,7 +433,7 @@ fn deterministic_appraisal_seed(
         review_status: "generated_unreviewed".to_string(),
         participant_agent_id: entry.agent.agent_id.clone(),
         role_id: entry.role_id.clone(),
-        current_character_state_ref: format!("state/agents.msgpack#{}", entry.role_id),
+        current_character_state_ref: format!("state/agents.cc#{}", entry.role_id),
         thought_cluster_ref: format!("{}#stimulus", source),
         participant_local_context: HeartbeatParticipantLocalContext {
             display_name: entry.agent.identity.name.clone(),
@@ -764,7 +764,7 @@ fn run_smoke() -> Result<Value> {
     let artifact_dir = temp_dir.join("artifacts");
     let result = run_turn(
         "persona",
-        Path::new("state/agents.msgpack"),
+        Path::new("state/agents.cc"),
         &artifact_dir,
         "Aquarium hover selected Persona and asked what the swarm is feeling.",
         "smoke/character-loop",

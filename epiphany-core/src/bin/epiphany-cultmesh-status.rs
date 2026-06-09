@@ -71,7 +71,7 @@ impl Args {
     fn parse() -> Result<Self> {
         let mut values = env::args().skip(1);
         let command = values.next().unwrap_or_else(|| "read".to_string());
-        let mut store = PathBuf::from(".epiphany-run/cultmesh/operator-status.ccmp");
+        let mut store = PathBuf::from(".epiphany-run/cultmesh/operator-status.cc");
         let mut runtime_id = "epiphany-local".to_string();
 
         while let Some(arg) = values.next() {

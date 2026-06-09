@@ -14,7 +14,7 @@ fn main() -> Result<()> {
     let root = env::current_dir().context("failed to resolve current directory")?;
     let state_dir = root.join("state");
     let map_path = state_dir.join("map.yaml");
-    let ledger_store = state_dir.join("ledgers.msgpack");
+    let ledger_store = state_dir.join("ledgers.cc");
     let mut args = env::args().skip(1);
     let Some(command) = args.next() else {
         print_usage();

@@ -28,10 +28,10 @@ host seam.
 ### Durable State Stores
 
 - `EpiphanyThreadState` in Codex protocol/session/rollout state
-- native runtime-spine documents in `state/runtime-spine.msgpack`
-- heartbeat physiology in `state/agent-heartbeats.msgpack`
-- role dossiers in `state/agents.msgpack`
-- distilled project memory in `state/map.yaml`, `state/ledgers.msgpack`, and
+- native runtime-spine documents in `state/runtime-spine.cc`
+- heartbeat physiology in `state/agent-heartbeats.cc`
+- role dossiers in `state/agents.cc`
+- distilled project memory in `state/map.yaml`, `state/ledgers.cc`, and
   handoff notes
 - retrieval manifests and optional Qdrant collections outside the thread state
 

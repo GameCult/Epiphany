@@ -100,9 +100,9 @@ Current sanctioned routes are:
 
 ## Related Stores
 
-- canonical organ state: `state/agents.msgpack`
-- heartbeat physiology: `state/agent-heartbeats.msgpack`
-- initialization receipts: `state/repo-initialization.msgpack`
+- canonical organ state: `state/agents.cc`
+- heartbeat physiology: `state/agent-heartbeats.cc`
+- initialization receipts: `state/repo-initialization.cc`
 
 ## Operator Rule
 

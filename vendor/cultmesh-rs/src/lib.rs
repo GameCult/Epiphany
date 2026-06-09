@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn node_round_trips_registered_documents() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("cultmesh.ccmp");
+        let store_path = temp.path().join("cultmesh.cc");
         let note = Note {
             body: "blessed circuit".to_string(),
         };

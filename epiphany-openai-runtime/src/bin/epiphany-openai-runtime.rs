@@ -39,7 +39,7 @@ use epiphany_openai_runtime::run_worker_launch;
 use serde_json::json;
 use uuid::Uuid;
 
-const DEFAULT_STORE: &str = "state/runtime-spine.msgpack";
+const DEFAULT_STORE: &str = "state/runtime-spine.cc";
 const DEFAULT_PROVIDER: &str = "openai-codex";
 
 #[tokio::main]
@@ -733,7 +733,7 @@ fn parse_tool_followup_turn_options(args: Vec<String>) -> Result<ToolFollowupTur
 fn parse_smoke_options(args: Vec<String>) -> Result<SmokeCliOptions> {
     let mut provider = DEFAULT_PROVIDER.to_string();
     let mut store_path = PathBuf::from(format!(
-        ".epiphany-dogfood/model-runtime/smoke-{}.msgpack",
+        ".epiphany-dogfood/model-runtime/smoke-{}.cc",
         Uuid::new_v4()
     ));
     let mut codex_home = default_codex_home()?;

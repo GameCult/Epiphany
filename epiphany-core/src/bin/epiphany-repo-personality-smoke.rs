@@ -202,7 +202,7 @@ fn run_smoke() -> Result<Value> {
         "trajectory packet should write summary markdown",
     )?;
 
-    let init_store = artifacts.join("repo-initialization.msgpack");
+    let init_store = artifacts.join("repo-initialization.cc");
     let startup = run_personality(
         &root,
         &[
@@ -255,17 +255,17 @@ fn run_smoke() -> Result<Value> {
             "--init-store",
             artifacts
                 .join("birth-runner-plan")
-                .join("repo-initialization.msgpack")
+                .join("repo-initialization.cc")
                 .to_str()
                 .unwrap_or_default(),
             "--agent-store",
             root.join("state")
-                .join("agents.msgpack")
+                .join("agents.cc")
                 .to_str()
                 .unwrap_or_default(),
             "--heartbeat-store",
             root.join("state")
-                .join("agent-heartbeats.msgpack")
+                .join("agent-heartbeats.cc")
                 .to_str()
                 .unwrap_or_default(),
             "--mode",
@@ -288,7 +288,7 @@ fn run_smoke() -> Result<Value> {
             .all(|execution| execution["heartbeatParticipant"].is_null()),
         "birth runner executions should not be heartbeat participants",
     )?;
-    let heartbeat_store = artifacts.join("startup-heartbeats.msgpack");
+    let heartbeat_store = artifacts.join("startup-heartbeats.cc");
     run_heartbeat(
         &root,
         &[
@@ -356,7 +356,7 @@ fn run_smoke() -> Result<Value> {
             trajectory_result_path.to_str().unwrap_or_default(),
             "--agent-store",
             root.join("state")
-                .join("agents.msgpack")
+                .join("agents.cc")
                 .to_str()
                 .unwrap_or_default(),
             "--apply-self-patches",
@@ -367,8 +367,8 @@ fn run_smoke() -> Result<Value> {
         accepted_trajectory["record"]["kind"] == "repo-trajectory",
         "accept-init should record trajectory birth",
     )?;
-    let agent_store = artifacts.join("startup-agents.msgpack");
-    fs::copy(root.join("state").join("agents.msgpack"), &agent_store)
+    let agent_store = artifacts.join("startup-agents.cc");
+    fs::copy(root.join("state").join("agents.cc"), &agent_store)
         .context("failed to copy role memory store for startup smoke")?;
     let accepted_personality = run_personality(
         &root,

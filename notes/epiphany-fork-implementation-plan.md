@@ -5,7 +5,7 @@ Codex.
 
 It is not a changelog. Git history, commit messages, smoke artifacts, and
 targeted logs already do the proof job without turning this file into a hay
-bale; `state/ledgers.msgpack` carries only distilled belief-changing evidence.
+bale; `state/ledgers.cc` carries only distilled belief-changing evidence.
 
 The purpose of this note is to answer four questions:
 
@@ -28,7 +28,7 @@ forever becomes the documentation equivalent of the Jenga tower.
 Historical detail belongs in:
 
 - `git log`
-- `state/ledgers.msgpack`, when the detail changes what a future agent should believe
+- `state/ledgers.cc`, when the detail changes what a future agent should believe
 - `notes/fresh-workspace-handoff.md`
 - `notes/epiphany-current-algorithmic-map.md`
 
@@ -87,7 +87,7 @@ The landed machine now has:
 - first Codex-independent native runtime vertebra through `epiphany-runtime-spine`, storing runtime identity, sessions, jobs, job results, and events as typed CultCache MessagePack documents, opening/completing native jobs, projecting job-result counts, and emitting a framed CultNet hello message for the native contract
 - first Rust CultMesh local-node integration: `vendor/cultmesh-rs` now provides the repo-contained CultMesh surface over vendored CultCache/CultNet, and `epiphany-core` depends on that surface for local `EpiphanyCultMeshStatusEntry`, `EpiphanyCultMeshVersePolicyEntry`, and `EpiphanyCultMeshGlobalRoomPolicyEntry` round-trip smokes instead of treating raw CultNet as the ergonomic app-facing database layer
 - first local Verse query surface: `notes/epiphany-verse-architecture.md` names Verse/Odin/Gjallar/Yggdrasil ownership, `epiphany-verse-query` can seed/query a compact CultMesh-backed local Verse context bundle for operator inspection and future dynamic prompt assembly without granting semantic memory, public sharing, or state-admission authority, can import `gjallar.affordance.v1` daemon affordance summaries from Odin/Gjallar stores, and `tools/epiphany_local_run.ps1 -Mode status` now writes that packet as `local-verse-context.json` beside native status/operator snapshot artifacts while auto-detecting the sibling Odin Gjallar store when present
-- first dynamic prompt launch handoff: role/reorient worker launch documents carry optional `dynamicPromptContext`, runtime prompt assembly consumes that field into worker instructions, `epiphany-prompt-context-smoke` proves rendered Verse/memory context can ride a role launch document without admitting unrelated private-looking text, live bridge role/reorient launch paths now feed local Verse plus memory graph context from sibling `local-verse.ccmp` and `memory-graph.msgpack` stores beside runtime-spine, and the bridge launch-context test proves the dynamic packet survives in a persisted runtime-spine worker launch request
+- first dynamic prompt launch handoff: role/reorient worker launch documents carry optional `dynamicPromptContext`, runtime prompt assembly consumes that field into worker instructions, `epiphany-prompt-context-smoke` proves rendered Verse/memory context can ride a role launch document without admitting unrelated private-looking text, live bridge role/reorient launch paths now feed local Verse plus memory graph context from sibling `local-verse.cc` and `memory-graph.cc` stores beside runtime-spine, and the bridge launch-context test proves the dynamic packet survives in a persisted runtime-spine worker launch request
 - first Hands/Soul/Continuity contract catalogs: action, verification, and continuity now have native `epiphany-core` contract families, runtime-spine advertisement, CultMesh policy documents, and local CultMesh smoke coverage beside Mind/Substrate Gate/Eyes; Hands now also has typed runtime-spine document bodies/helpers for `HandsActionIntent`, `HandsActionReview`, `HandsPatchReceipt`, `HandsCommandReceipt`, and `HandsCommitReceipt`, with `epiphany-hands-action-smoke` proving the action receipt chain without live file execution; Implementation now launches as `implementation-branch-turn-worker` owned by `epiphany-hands`, receives dynamic Proprioception context, gets a Substrate Gate mutation grant, and must make at most one branch-turn commit before Proprioception refresh
 - live-specialist runner must be rebuilt around heartbeat/runtime-spine result receipts
 - first Phase 6 Aquarium operator shell extracted to sibling repo `E:\Projects\EpiphanyAquarium`, a Tauri v2 + React/WebGL client over the existing status bridge, dogfood artifacts, and GUI action artifacts, with its own distilled interface state/memory/doctrine plus durable checkpoint preparation, bounded status/coordinator artifact buttons, fixed modeling/verification/reorient launch and read-back buttons, and explicit review-gated reorient acceptance
@@ -195,7 +195,7 @@ The current lessons:
 - Keep the implementation plan as a distilled forward plan, not a trophy wall.
 - Keep the harness-surfaces note as a surface contract, not a dump of every possible future type.
 - Keep `fresh-workspace-handoff.md` as a re-entry packet, not a substitute brain.
-- Keep `state/ledgers.msgpack` as a durable distilled ledger, not an activity feed.
+- Keep `state/ledgers.cc` as a durable distilled ledger, not an activity feed.
 - Revert failed code hypotheses immediately.
 - Distill failed or obsolete state hypotheses just as aggressively.
 - Treat unpersisted source-gathering and slice-planning work as volatile. If compaction interrupts it, the correct recovery is re-gathering from source or a persisted checkpoint, not continuing from the ghost of the old context.

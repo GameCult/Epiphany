@@ -1,6 +1,6 @@
 # Organ State Profiles
 
-Epiphany uses one local `state/agents.msgpack` store, but it does not use one
+Epiphany uses one local `state/agents.cc` store, but it does not use one
 personality ontology for every organ. That was the old mush vector.
 
 The live profile split is:
@@ -152,7 +152,7 @@ is already drifting back toward folklore.
 
 `project-persona` is the current Epiphany Persona bridge into
 `gamecult.persona_state.v0`: it reads the local Persona organ-state record from
-`state/agents.msgpack` and emits the portable Persona document with provenance,
+`state/agents.cc` and emits the portable Persona document with provenance,
 presentation, activation profile, memories, agency pressure, typed candidate
 actions, typed affect projections, and the VoidBot projection slot. The local
 store remains Epiphany-owned; the Persona document is the interchange nerve.

@@ -23,7 +23,7 @@ Epiphany Persona projects its local organ-state record into the portable Persona
 contract with:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- project-persona --store .\state\agents.msgpack --role-id persona
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- project-persona --store .\state\agents.cc --role-id persona
 ```
 
 ## Objective
@@ -46,7 +46,7 @@ in personality memory. That way lies a small cult of confused blobs.
 
 ## Stored Shape
 
-Each record in `state/agents.msgpack` is an
+Each record in `state/agents.cc` is an
 `EpiphanyAgentMemoryEntry` keyed by role id:
 
 - `coordinator` -> `epiphany.self`

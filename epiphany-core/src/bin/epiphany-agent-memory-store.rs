@@ -73,7 +73,7 @@ fn main() -> Result<()> {
         }
         "smoke" => {
             let store = optional_path_arg(&mut args, "--store")?
-                .unwrap_or_else(|| PathBuf::from("state/agents.msgpack"));
+                .unwrap_or_else(|| PathBuf::from("state/agents.cc"));
             let result = run_smoke(&store)?;
             let ok = result["ok"].as_bool().unwrap_or(false);
             print_json(&result)?;
@@ -175,7 +175,7 @@ fn run_smoke(store: &Path) -> Result<serde_json::Value> {
     let forbidden = review_agent_self_patch_document("modeling", &forbidden_patch, store);
 
     let temp_dir = scoped_temp_dir("epiphany-agent-memory-smoke")?;
-    let temp_store = temp_dir.join("agents.msgpack");
+    let temp_store = temp_dir.join("agents.cc");
     fs::copy(store, &temp_store).with_context(|| {
         format!(
             "failed to copy {} to {}",

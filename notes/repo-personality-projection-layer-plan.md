@@ -466,8 +466,8 @@ Initial commands:
 
 ```powershell
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- scout --root E:\Projects --artifact-dir .\.epiphany-imports\repo-personality-terrain
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- project --repo E:\Projects\AetheriaLore --baseline .\.epiphany-imports\repo-personality-terrain\baseline.msgpack --artifact-dir .\.epiphany-imports\aetheria-lore-personality
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- memory-packet --store .\.epiphany-imports\aetheria-lore-personality\projection.msgpack --artifact-dir .\.epiphany-imports\aetheria-lore-memory
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- project --repo E:\Projects\AetheriaLore --baseline .\.epiphany-imports\repo-personality-terrain\baseline.cc --artifact-dir .\.epiphany-imports\aetheria-lore-personality
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-repo-personality -- memory-packet --store .\.epiphany-imports\aetheria-lore-personality\projection.cc --artifact-dir .\.epiphany-imports\aetheria-lore-memory
 ```
 
 The first version can use deterministic scoring from local filesystem and git
@@ -493,12 +493,12 @@ The native `epiphany-repo-personality` binary now exists in
 It provides:
 
 - `scout --root <path> --artifact-dir <path> [--max-repos <n>]`
-- `project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>`
-- `agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
-- `memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]`
-- `startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>`
-- `accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]`
-- `status --store <baseline-or-projection.msgpack>`
+- `project --repo <path> --baseline <baseline.cc> --artifact-dir <path>`
+- `agent-packet --store <projection.cc> --artifact-dir <path> [--repo-id <id>]`
+- `memory-packet --store <projection.cc> --artifact-dir <path> [--repo-id <id>]`
+- `startup --repo <path> --baseline <baseline.cc> --artifact-dir <path> --init-store <init.cc>`
+- `accept-init --init-store <init.cc> --packet <packet.json> --kind <repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.cc>] [--apply-self-patches <true|false>] [--heartbeat-store <heartbeats.cc>] [--apply-heartbeat-seeds <true|false>]`
+- `status --store <baseline-or-projection.cc>`
 
 The first implementation is intentionally deterministic. It inventories git
 repos, instruction/state/test/runtime surfaces, file-extension/body shape,

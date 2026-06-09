@@ -20,7 +20,7 @@ Only thinking lanes get embodiment titles.
   actuators.
 - `Soul`: verification, invariants, ethics, falsification, and promise-keeping.
 
-Each embodied sub-agent may have lean work-organ state in `state/agents.msgpack`,
+Each embodied sub-agent may have lean work-organ state in `state/agents.cc`,
 may be represented as a heartbeat participant, and may request reviewed
 `selfPatch` changes to its own lane memory. Persona may additionally project or
 adopt portable `Persona` state because public personhood is part of its job.

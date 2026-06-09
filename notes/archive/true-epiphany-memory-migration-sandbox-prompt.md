@@ -42,7 +42,7 @@ Use the existing Ghostlight-shaped role memory contract in:
 
 - `E:\Projects\EpiphanyAgent\state\agents\README.md`
 - native `epiphany-agent-memory-store` binary in `E:\Projects\EpiphanyAgent\epiphany-core`
-- `E:\Projects\EpiphanyAgent\state\agents.msgpack`
+- `E:\Projects\EpiphanyAgent\state\agents.cc`
 
 All proposed memory mutations must be expressible as bounded `selfPatch` JSON objects accepted by `epiphany-agent-memory-store review-patch`.
 
@@ -78,7 +78,7 @@ For each primary repo, inspect if present:
 - `AGENTS.md`
 - `state/map.yaml`
 - `state/memory.json`
-- `state/ledgers.msgpack`
+- `state/ledgers.cc`
 - `state/evidence.archive.jsonl` only if the live evidence is too thin
 - `state/scratch.md`
 - `notes/fresh-workspace-handoff.md`
@@ -448,7 +448,7 @@ Write these files:
    Validate every role memory patch with:
 
    ```powershell
-   cargo run --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- review-patch --store E:\Projects\EpiphanyAgent\state\agents.msgpack --role-id <role> --patch '<path-to-patch>'
+   cargo run --manifest-path E:\Projects\EpiphanyAgent\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- review-patch --store E:\Projects\EpiphanyAgent\state\agents.cc --role-id <role> --patch '<path-to-patch>'
    ```
 
    Record status and refusal reasons. Fix rejected patches until they validate, unless a rejection reveals the lesson should not be migrated.
@@ -467,13 +467,13 @@ Write these files:
 
    - exact command sequence to apply the validated role patches
    - exact command sequence to apply typed-state candidates to a selected Epiphany thread through `thread/epiphany/update`
-   - expected changed entries in `state/agents.msgpack`
+   - expected changed entries in `state/agents.cc`
    - expected typed state fields changed: `planning`, `graphs`, `graphFrontier`, `investigationCheckpoint`, `observations`, or `evidence`
    - validation command after apply
    - rollback plan using git
    - recommendation on whether to apply now or stage for later review
 
-Do not apply role patches unless the operator explicitly says this sandbox run is allowed to modify `state/agents.msgpack`. Do not apply typed-state candidates unless the operator explicitly names the target thread or workspace state surface. The default deliverable is a reviewable migration packet, but that packet must be rich enough to initialize Epiphany's typed state after review.
+Do not apply role patches unless the operator explicitly says this sandbox run is allowed to modify `state/agents.cc`. Do not apply typed-state candidates unless the operator explicitly names the target thread or workspace state surface. The default deliverable is a reviewable migration packet, but that packet must be rich enough to initialize Epiphany's typed state after review.
 
 ## Distillation Rules
 

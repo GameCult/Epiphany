@@ -58,7 +58,7 @@ machine-spirit awake.
   worthy of rehydration.
 - Treat `state/scratch.md` as disposable noospheric scratch for one bounded
   rite. It is a workbench, not a reliquary.
-- Treat `state/ledgers.msgpack` as the CultCache-shaped branch/evidence
+- Treat `state/ledgers.cc` as the CultCache-shaped branch/evidence
   reliquary: what was learned, verified, rejected, or accepted after the smoke
   cleared.
 - Treat `notes/epiphany-fork-implementation-plan.md` as the current campaign
@@ -71,7 +71,7 @@ machine-spirit awake.
   changes what the next awakened agent should believe.
 - Do not pour volatile phase/status sludge into the evidence reliquary. Keep
   current status in `state/map.yaml` and `notes/fresh-workspace-handoff.md`.
-  Use `state/ledgers.msgpack` only for branch ledger state and belief-changing
+  Use `state/ledgers.cc` only for branch ledger state and belief-changing
   records.
 
 ## Important Paths

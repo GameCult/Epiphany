@@ -112,8 +112,7 @@ fn main() -> Result<()> {
                 result_path: ".epiphany-run/local-smoke/status.json".to_string(),
                 artifact_root: ".epiphany-run/local-smoke".to_string(),
                 dogfood_root: ".epiphany-dogfood/local-smoke".to_string(),
-                operator_snapshot_store: ".epiphany-run/cultmesh/operator-snapshots.ccmp"
-                    .to_string(),
+                operator_snapshot_store: ".epiphany-run/cultmesh/operator-snapshots.cc".to_string(),
                 operator_snapshot_id: "local-smoke-status".to_string(),
                 artifact_refs: vec![".epiphany-run/local-smoke/status.json".to_string()],
                 notes: vec!["smoke receipt".to_string()],
@@ -168,7 +167,7 @@ impl Args {
         let command = values.next().unwrap_or_else(|| "latest".to_string());
         let mut args = Args {
             command,
-            store: PathBuf::from(".epiphany-run/cultmesh/operator-runs.ccmp"),
+            store: PathBuf::from(".epiphany-run/cultmesh/operator-runs.cc"),
             runtime_id: "epiphany-local".to_string(),
             run_id: format!("run-{}", Utc::now().timestamp()),
             mode: "status".to_string(),

@@ -3195,7 +3195,7 @@ mod tests {
     #[test]
     fn runtime_spine_initializes_sessions_events_and_status() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {
@@ -3265,7 +3265,7 @@ mod tests {
     #[test]
     fn runtime_spine_derives_tool_invocation_statuses() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {
@@ -3332,7 +3332,7 @@ mod tests {
     #[test]
     fn runtime_spine_opens_and_completes_native_jobs() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {
@@ -3397,7 +3397,7 @@ mod tests {
     #[test]
     fn runtime_spine_persists_mind_gateway_review_receipts() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {
@@ -3580,7 +3580,7 @@ mod tests {
     #[test]
     fn runtime_spine_opens_heartbeat_job_from_single_typed_call() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
 
         let job = open_runtime_spine_heartbeat_job(
             &store,
@@ -3808,7 +3808,7 @@ mod tests {
     #[test]
     fn runtime_spine_emits_cultnet_hello_frame() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         initialize_runtime_spine(
             &store,
             RuntimeSpineInitOptions {

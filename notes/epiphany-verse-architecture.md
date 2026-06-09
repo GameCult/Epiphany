@@ -184,9 +184,9 @@ role-local instruction and the output contract, so dynamic Verse/memory context
 is executable worker input without becoming durable state authority.
 
 The bridge launch path now feeds that field for live role/reorient launches.
-It derives a sibling `local-verse.ccmp` CultMesh store from the runtime-spine
+It derives a sibling `local-verse.cc` CultMesh store from the runtime-spine
 store path, seeds/queries the local Verse context, refreshes/loads a sibling
-`memory-graph.msgpack` from the current typed thread-state repo graph, cuts a
+`memory-graph.cc` from the current typed thread-state repo graph, cuts a
 bounded semantic memory packet from that graph, and renders both into
 `dynamicPromptContext`. If the graph is thin, the packet says so instead of
 pretending semantic retrieval was rich.
@@ -231,7 +231,7 @@ the persisted launch document, and asserts the Verse/memory packet survived.
 
 The local-run status smoke is now the first operator read proof for this chain.
 It writes `local-verse-context.json` from a CultMesh store under
-`.epiphany-run/cultmesh/local-verse.ccmp` and leaves the compact packet beside
+`.epiphany-run/cultmesh/local-verse.cc` and leaves the compact packet beside
 the operator snapshot.
 
 No live swarm runner is cleared until pause/brake, stale active-turn recovery,

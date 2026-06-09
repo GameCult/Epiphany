@@ -20,11 +20,11 @@ use std::path::PathBuf;
 pub const EPIPHANY_LOCAL_VERSE_RUNTIME_ID: &str = "epiphany-local";
 
 pub fn local_verse_store_path(runtime_store_path: &Path) -> PathBuf {
-    sibling_state_store_path(runtime_store_path, "local-verse.ccmp")
+    sibling_state_store_path(runtime_store_path, "local-verse.cc")
 }
 
 pub fn memory_graph_store_path(runtime_store_path: &Path) -> PathBuf {
-    sibling_state_store_path(runtime_store_path, "memory-graph.msgpack")
+    sibling_state_store_path(runtime_store_path, "memory-graph.cc")
 }
 
 fn sibling_state_store_path(runtime_store_path: &Path, filename: &str) -> PathBuf {
@@ -184,7 +184,7 @@ mod tests {
         let temp =
             std::env::temp_dir().join(format!("epiphany-bridge-launch-context-{}", Uuid::new_v4()));
         fs::create_dir_all(&temp)?;
-        let runtime_store = temp.join("runtime-spine.msgpack");
+        let runtime_store = temp.join("runtime-spine.cc");
         let state = EpiphanyThreadState {
             revision: 7,
             objective: Some("Test launch context.".to_string()),

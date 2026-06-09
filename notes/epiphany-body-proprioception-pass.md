@@ -97,25 +97,29 @@ The root body has these major organs:
 
 ## State Body
 
+Canonical CultCache store files use the `.cc` extension. The local state body
+has been migrated to that naming directly; serialization details are
+implementation, not file authority.
+
 `state/` currently contains:
 
 - `map.yaml`: canonical slow machine map.
-- `ledgers.msgpack`: distilled evidence and branch ledger.
-- `agents.msgpack`: resident organ state and Persona projection source.
-- `agent-heartbeats.msgpack`: heartbeat initiative and cognition physiology.
-- `runtime-spine.msgpack`: runtime identity, sessions, jobs, job results,
+- `ledgers.cc`: distilled evidence and branch ledger.
+- `agents.cc`: resident organ state and Persona projection source.
+- `agent-heartbeats.cc`: heartbeat initiative and cognition physiology.
+- `runtime-spine.cc`: runtime identity, sessions, jobs, job results,
   events, receipts, tool calls, model calls, launch requests, and schema catalog
   surfaces.
-- `thread-state.msgpack`: native thread-state store.
-- `local-verse.ccmp`: local CultMesh Verse context.
-- `memory-graph.msgpack`: local memory graph store.
+- `thread-state.cc`: native thread-state store.
+- `local-verse.cc`: local CultMesh Verse context.
+- `memory-graph.cc`: local memory graph store.
 - `persona-discord.toml`: Persona Discord boundary configuration.
 - `void-memory.toml`: Void memory bridge configuration.
 - `scratch.md` and `scratch-compaction-*.md`: scratch and compaction emergency
   context.
 
 Lock files exist beside several stores. Generated local stores
-`state/local-verse.ccmp`, `state/memory-graph.msgpack`, and
+`state/local-verse.cc`, `state/memory-graph.cc`, and
 `.epiphany-character-loop/` are currently untracked.
 
 ## Schema Body

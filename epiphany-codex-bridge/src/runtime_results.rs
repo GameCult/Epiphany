@@ -676,7 +676,7 @@ mod tests {
 
     fn temp_store_path() -> PathBuf {
         std::env::temp_dir().join(format!(
-            "epiphany-runtime-results-{}.msgpack",
+            "epiphany-runtime-results-{}.cc",
             uuid::Uuid::new_v4()
         ))
     }

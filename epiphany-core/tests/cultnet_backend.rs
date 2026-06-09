@@ -9,9 +9,9 @@ use epiphany_core::agent_memory_status;
 #[test]
 fn epiphany_agent_memory_can_move_over_cultnet_documents() -> Result<()> {
     let temp = tempfile::tempdir()?;
-    let source_store = temp.path().join("source-agents.msgpack");
-    let target_store = temp.path().join("target-agents.msgpack");
-    std::fs::copy("../state/agents.msgpack", &source_store)?;
+    let source_store = temp.path().join("source-agents.cc");
+    let target_store = temp.path().join("target-agents.cc");
+    std::fs::copy("../state/agents.cc", &source_store)?;
 
     let mut source_cache = CultCache::new();
     source_cache.register_entry_type::<EpiphanyAgentMemoryEntry>()?;

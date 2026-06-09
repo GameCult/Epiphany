@@ -198,7 +198,7 @@ fn run_coordinator(
         .arg("--artifact-dir")
         .arg(&artifact_dir)
         .arg("--runtime-store")
-        .arg(artifact_dir.join("runtime-spine.msgpack"))
+        .arg(artifact_dir.join("runtime-spine.cc"))
         .arg("--codex-home")
         .arg(artifact_dir.join("codex-home"))
         .arg("--cwd")
@@ -263,7 +263,7 @@ fn require_artifacts(summary: &Value) -> Result<()> {
         )?;
     }
     require(
-        artifact_dir.join("runtime-spine.msgpack").exists(),
+        artifact_dir.join("runtime-spine.cc").exists(),
         "missing native runtime spine store",
     )?;
     let runtime_status: Value = serde_json::from_str(&fs::read_to_string(

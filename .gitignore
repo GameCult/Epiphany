@@ -20,10 +20,13 @@ apps/epiphany-gui/src-tauri/target/
 .epiphany-heartbeats/
 .epiphany-face/
 .epiphany-rumination/
+.epiphany-character-loop/
 .epiphany-run/
 .voidbot/
 state/agent-heartbeats.json
-state/runtime-spine.msgpack
-state/thread-state.msgpack
-state/*.msgpack.lock
+state/runtime-spine.cc
+state/thread-state.cc
+state/local-verse.cc
+state/memory-graph.cc
+state/*.cc.lock
 state/*.projection.json

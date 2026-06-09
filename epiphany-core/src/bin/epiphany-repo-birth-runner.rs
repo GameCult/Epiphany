@@ -50,12 +50,12 @@ impl Args {
             baseline: root
                 .join(".epiphany-imports")
                 .join("repo-personality-terrain")
-                .join("baseline.msgpack"),
+                .join("baseline.cc"),
             artifact_dir: root.join(".epiphany-birth-runner"),
-            init_store: root.join("state").join("repo-initialization.msgpack"),
-            agent_store: root.join("state").join("agents.msgpack"),
-            heartbeat_store: root.join("state").join("agent-heartbeats.msgpack"),
-            runtime_store: root.join("state").join("runtime-spine.msgpack"),
+            init_store: root.join("state").join("repo-initialization.cc"),
+            agent_store: root.join("state").join("agents.cc"),
+            heartbeat_store: root.join("state").join("agent-heartbeats.cc"),
+            runtime_store: root.join("state").join("runtime-spine.cc"),
             model_runtime_bin: DEFAULT_MODEL_RUNTIME_BIN.to_string(),
             model_provider: "openai-codex".to_string(),
             executor: "model-runtime".to_string(),

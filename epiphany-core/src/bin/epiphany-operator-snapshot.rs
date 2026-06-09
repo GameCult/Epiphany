@@ -114,7 +114,7 @@ impl Args {
     fn parse() -> Result<Self> {
         let mut values = env::args().skip(1);
         let command = values.next().unwrap_or_else(|| "latest".to_string());
-        let mut store = PathBuf::from(".epiphany-run/cultmesh/operator-snapshots.ccmp");
+        let mut store = PathBuf::from(".epiphany-run/cultmesh/operator-snapshots.cc");
         let mut runtime_id = "epiphany-local".to_string();
         let mut snapshot_id = format!("snapshot-{}", Utc::now().timestamp());
         let mut source_mode = "status".to_string();

@@ -23,7 +23,7 @@ use std::path::PathBuf;
 fn main() -> Result<()> {
     let store = PathBuf::from(".epiphany-smoke")
         .join("runtime-spine")
-        .join("hands-action-smoke.msgpack");
+        .join("hands-action-smoke.cc");
 
     initialize_runtime_spine(
         &store,

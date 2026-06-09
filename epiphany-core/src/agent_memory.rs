@@ -1676,7 +1676,7 @@ mod tests {
                 sample_agent_json(agent_id, &format!("Agent {role_id}")),
             )?;
         }
-        let store = temp.path().join("agents.msgpack");
+        let store = temp.path().join("agents.cc");
         migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
         assert!(validate_agent_memory_store(&store)?.is_empty());
 
@@ -1721,7 +1721,7 @@ mod tests {
                 sample_agent_json(agent_id, &format!("Agent {role_id}")),
             )?;
         }
-        let store = temp.path().join("agents.msgpack");
+        let store = temp.path().join("agents.cc");
         migrate_agent_memory_json_dir_to_cultcache(&agent_dir, &store)?;
 
         let applied = apply_agent_canonical_trait_seeds(

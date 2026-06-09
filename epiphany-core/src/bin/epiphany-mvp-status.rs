@@ -53,8 +53,8 @@ use std::time::{Duration, Instant};
 
 const DEFAULT_APP_SERVER: &str = r"C:\Users\Meta\.cargo-target-codex\debug\codex-app-server.exe";
 const DEFAULT_CARGO_TARGET_DIR: &str = r"C:\Users\Meta\.cargo-target-codex";
-const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.msgpack";
-const DEFAULT_RUNTIME_STORE: &str = "state/runtime-spine.msgpack";
+const DEFAULT_THREAD_STATE_STORE: &str = "state/thread-state.cc";
+const DEFAULT_RUNTIME_STORE: &str = "state/runtime-spine.cc";
 const REORIENT_BINDING_ID: &str = "reorient-worker";
 const IMPLEMENTATION_BINDING_ID: &str = "implementation-branch-turn-worker";
 const IMPLEMENTATION_OWNER_ROLE: &str = "epiphany-hands";
@@ -575,7 +575,7 @@ fn native_auxiliary_status(root: &Path) -> Result<NativeAuxiliaryStatus> {
         &[
             "status",
             "--store",
-            "state/agent-heartbeats.msgpack",
+            "state/agent-heartbeats.cc",
             "--artifact-dir",
             &heartbeat_dir.to_string_lossy(),
             "--limit",

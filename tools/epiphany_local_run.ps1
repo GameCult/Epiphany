@@ -129,13 +129,13 @@ $heartbeatExe = Join-Path $TargetDir "debug\epiphany-heartbeat-store.exe"
 $faceExe = Join-Path $TargetDir "debug\epiphany-persona-discord.exe"
 $characterLoopExe = Join-Path $TargetDir "debug\epiphany-character-loop.exe"
 $modelProvider = "openai-codex"
-$operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.ccmp"
-$operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.ccmp"
-$localVerseStore = Join-Path $Root ".epiphany-run\cultmesh\local-verse.ccmp"
+$operatorRunStore = Join-Path $Root ".epiphany-run\cultmesh\operator-runs.cc"
+$operatorSnapshotStore = Join-Path $Root ".epiphany-run\cultmesh\operator-snapshots.cc"
+$localVerseStore = Join-Path $Root ".epiphany-run\cultmesh\local-verse.cc"
 $operatorSnapshotId = "$runId-status"
-$agentStore = Join-Path $Root "state\agents.msgpack"
-$heartbeatStore = Join-Path $Root "state\agent-heartbeats.msgpack"
-$runtimeStore = Join-Path $Workspace "state\runtime-spine.msgpack"
+$agentStore = Join-Path $Root "state\agents.cc"
+$heartbeatStore = Join-Path $Root "state\agent-heartbeats.cc"
+$runtimeStore = Join-Path $Workspace "state\runtime-spine.cc"
 $liveRuntimeMode = @("run", "mvp") -contains $Mode
 
 if (-not $SkipBuild) {
@@ -260,7 +260,7 @@ if ($Mode -eq "status") {
     $statusArgs = @(
         "--source", "native",
         "--cwd", $Workspace,
-        "--thread-state-store", (Join-Path $Root "state\thread-state.msgpack"),
+        "--thread-state-store", (Join-Path $Root "state\thread-state.cc"),
         "--json",
         "--result", $statusJson
     )

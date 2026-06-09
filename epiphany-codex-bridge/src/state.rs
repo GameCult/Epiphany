@@ -28,7 +28,7 @@ pub async fn client_visible_epiphany_state_for_paths(
 }
 
 pub fn thread_state_store_path(workspace_root: &Path) -> PathBuf {
-    workspace_root.join("state").join("thread-state.msgpack")
+    workspace_root.join("state").join("thread-state.cc")
 }
 
 pub fn mirror_thread_state_to_workspace(

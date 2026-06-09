@@ -200,7 +200,7 @@ mod tests {
     #[test]
     fn prompt_context_renders_verse_and_memory_without_state_authority() -> anyhow::Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("epiphany-local-verse.ccmp");
+        let store = temp.path().join("epiphany-local-verse.cc");
         seed_epiphany_local_verse_context(&store, "epiphany-test", "2026-06-02T00:00:00Z")?;
         let local_verse = query_epiphany_local_verse_context(&store, "epiphany-test")?;
         let memory_context = EpiphanyMemoryContextPacket {

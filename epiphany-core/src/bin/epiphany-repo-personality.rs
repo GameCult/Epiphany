@@ -608,7 +608,7 @@ fn parse_bool_arg(name: &str, value: &str) -> Result<bool> {
 fn run_scout(args: ScoutArgs) -> Result<Value> {
     fs::create_dir_all(&args.artifact_dir)
         .with_context(|| format!("failed to create {}", args.artifact_dir.display()))?;
-    let store_path = args.artifact_dir.join("baseline.msgpack");
+    let store_path = args.artifact_dir.join("baseline.cc");
     let mut cache = repo_personality_cache(&store_path)?;
     cache.pull_all_backing_stores()?;
 
@@ -725,7 +725,7 @@ fn project_repo_to_store(
     let profile = reduce_report(&report);
     let trajectory = derive_trajectory_report(repo, &report, &profile)?;
 
-    let store_path = artifact_dir.join("projection.msgpack");
+    let store_path = artifact_dir.join("projection.cc");
     let mut cache = repo_personality_cache(&store_path)?;
     cache.pull_all_backing_stores()?;
     cache.put::<RepoTerrainReport>(report.repo_id.clone(), &report)?;
@@ -4504,12 +4504,12 @@ fn print_usage() {
     eprintln!(
         "usage: epiphany-repo-personality <scout|project|agent-packet|trajectory-packet|memory-packet|startup|accept-init|status> ...\n\
          scout --root <path> --artifact-dir <path> [--max-repos <n>]\n\
-         project --repo <path> --baseline <baseline.msgpack> --artifact-dir <path>\n\
-         agent-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
-         trajectory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
-         memory-packet --store <projection.msgpack> --artifact-dir <path> [--repo-id <id>]\n\
-         startup --repo <path> --baseline <baseline.msgpack> --artifact-dir <path> --init-store <init.msgpack>\n\
-         accept-init --init-store <init.msgpack> --packet <packet.json> --kind <repo-trajectory|repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.msgpack>] [--apply-self-patches <true|false>] [--apply-trait-seeds <true|false>] [--heartbeat-store <heartbeats.msgpack>] [--apply-heartbeat-seeds <true|false>]\n\
-         status --store <baseline-or-projection.msgpack>"
+         project --repo <path> --baseline <baseline.cc> --artifact-dir <path>\n\
+         agent-packet --store <projection.cc> --artifact-dir <path> [--repo-id <id>]\n\
+         trajectory-packet --store <projection.cc> --artifact-dir <path> [--repo-id <id>]\n\
+         memory-packet --store <projection.cc> --artifact-dir <path> [--repo-id <id>]\n\
+         startup --repo <path> --baseline <baseline.cc> --artifact-dir <path> --init-store <init.cc>\n\
+         accept-init --init-store <init.cc> --packet <packet.json> --kind <repo-trajectory|repo-personality|repo-memory> [--accepted-by <name>] [--summary <text>] [--result <distiller-result.json>] [--agent-store <agents.cc>] [--apply-self-patches <true|false>] [--apply-trait-seeds <true|false>] [--heartbeat-store <heartbeats.cc>] [--apply-heartbeat-seeds <true|false>]\n\
+         status --store <baseline-or-projection.cc>"
     );
 }

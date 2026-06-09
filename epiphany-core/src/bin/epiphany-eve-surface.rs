@@ -73,7 +73,7 @@ impl Args {
     fn parse() -> Result<Self> {
         let mut values = env::args().skip(1);
         let command = values.next().unwrap_or_else(|| "bundle".to_string());
-        let mut store = PathBuf::from(".epiphany-run/cultmesh/epiphany-local.ccmp");
+        let mut store = PathBuf::from(".epiphany-run/cultmesh/epiphany-local.cc");
         let mut runtime_id = "epiphany-local".to_string();
         let mut updated_at = Utc::now().to_rfc3339();
 
@@ -532,7 +532,7 @@ fn witnesses(args: &Args, context: Option<&EpiphanyLocalVerseContext>) -> Vec<Va
     vec![
         json!({
             "id": "epiphany.local-verse.store",
-            "kind": "ccmp-store",
+            "kind": "cc-store",
             "path": args.store,
             "schemas": [
                 EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
@@ -680,7 +680,7 @@ fn run_smoke(args: Args) -> Result<()> {
         Utc::now().timestamp_nanos_opt().unwrap_or_default()
     ));
     fs::create_dir_all(&temp_root)?;
-    let store = temp_root.join("epiphany-local.ccmp");
+    let store = temp_root.join("epiphany-local.cc");
     seed_epiphany_local_verse_context(&store, args.runtime_id.clone(), "2026-06-03T00:00:00Z")?;
     let smoke_args = Args {
         command: "bundle".to_string(),

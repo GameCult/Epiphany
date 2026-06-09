@@ -40,7 +40,7 @@ while ((Get-Date) -lt $target) {
     $cycleArtifactDir = Join-Path $artifactDir ("cycle-{0:D3}" -f $cycles)
     New-Item -ItemType Directory -Force -Path $cycleArtifactDir | Out-Null
 
-    & cargo run --manifest-path ".\epiphany-core\Cargo.toml" --bin epiphany-heartbeat-store -- routine --store ".\state\agent-heartbeats.msgpack" --artifact-dir $cycleArtifactDir --agent-store ".\state\agents.msgpack" --source "epiphany/perfect-machine-rumination" *> (Join-Path $cycleArtifactDir "routine.out")
+    & cargo run --manifest-path ".\epiphany-core\Cargo.toml" --bin epiphany-heartbeat-store -- routine --store ".\state\agent-heartbeats.cc" --artifact-dir $cycleArtifactDir --agent-store ".\state\agents.cc" --source "epiphany/perfect-machine-rumination" *> (Join-Path $cycleArtifactDir "routine.out")
     if ($LASTEXITCODE -ne 0) {
         $failures += 1
         Write-Log "Cycle ${cycles}: routine failed with exit code $LASTEXITCODE."
@@ -48,7 +48,7 @@ while ((Get-Date) -lt $target) {
         Write-Log "Cycle ${cycles}: routine completed."
     }
 
-    & cargo run --manifest-path ".\epiphany-core\Cargo.toml" --bin epiphany-heartbeat-store -- status --store ".\state\agent-heartbeats.msgpack" *> $statusPath
+    & cargo run --manifest-path ".\epiphany-core\Cargo.toml" --bin epiphany-heartbeat-store -- status --store ".\state\agent-heartbeats.cc" *> $statusPath
     if ($LASTEXITCODE -ne 0) {
         $failures += 1
         Write-Log "Cycle ${cycles}: status failed with exit code $LASTEXITCODE."
@@ -73,7 +73,7 @@ while ((Get-Date) -lt $target) {
 - log: $logPath
 - latestStatus: $statusPath
 
-This pass repeatedly ran the native heartbeat routine over `state/agent-heartbeats.msgpack`,
+This pass repeatedly ran the native heartbeat routine over `state/agent-heartbeats.cc`,
 projecting memory resonance, thought lanes, appraisals, reactions, sleep, and dream
 maintenance through the typed Rust/CultCache surface.
 "@ | Set-Content -LiteralPath $summaryPath -Encoding UTF8

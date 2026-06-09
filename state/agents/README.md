@@ -1,7 +1,7 @@
 # Epiphany Role Memory
 
 Epiphany's lane dossiers are Ghostlight-shaped persistent memory reliquaries
-stored in `state/agents.msgpack` through CultCache. They are not project truth.
+stored in `state/agents.cc` through CultCache. They are not project truth.
 The active objective, graphs, checkpoint, scratch, planning records, evidence,
 and job bindings still live in authoritative `EpiphanyThreadState`; role memory
 is a lane's soul-polish, not a counterfeit throne.
@@ -67,11 +67,11 @@ speech itself.
 Use:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- validate --store .\state\agents.msgpack
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- smoke --store .\state\agents.msgpack
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- status --store .\state\agents.msgpack
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- tick --store .\state\agent-heartbeats.msgpack --artifact-dir .\.epiphany-heartbeats --coordinator-action continueImplementation --urgency 0.95 --agent-store .\state\agents.msgpack --apply-rumination
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- smoke --agent-store .\state\agents.msgpack
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- validate --store .\state\agents.cc
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- smoke --store .\state\agents.cc
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- status --store .\state\agents.cc
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- tick --store .\state\agent-heartbeats.cc --artifact-dir .\.epiphany-heartbeats --coordinator-action continueImplementation --urgency 0.95 --agent-store .\state\agents.cc --apply-rumination
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-heartbeat-store -- smoke --agent-store .\state\agents.cc
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-discord -- draft --content 'Persona notices the organs are arguing about evidence again.'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-discord -- post --content 'Persona has entered the aquarium.' --persona-name 'Epiphany Persona'
 cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-persona-discord -- smoke

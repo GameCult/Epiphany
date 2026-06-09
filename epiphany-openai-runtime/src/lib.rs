@@ -1929,7 +1929,7 @@ mod tests {
     #[test]
     fn records_typed_openai_documents_in_runtime_store() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         let request = EpiphanyOpenAiModelRequest::new(
             "req-1",
             "conversation-1",
@@ -2003,7 +2003,7 @@ mod tests {
     #[test]
     fn completes_worker_job_from_model_json_without_codex_worker_runtime() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         open_runtime_spine_heartbeat_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
@@ -2116,7 +2116,7 @@ mod tests {
     #[test]
     fn implementation_worker_completion_emits_hands_patch_and_commit_receipts() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         open_runtime_spine_heartbeat_job(
             &store,
             RuntimeSpineHeartbeatJobOptions {
@@ -2337,7 +2337,7 @@ mod tests {
     #[test]
     fn builds_tool_followup_model_request_from_receipts() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("runtime.msgpack");
+        let store = temp.path().join("runtime.cc");
         let request = EpiphanyOpenAiModelRequest::new(
             "req-tools",
             "conversation-1",

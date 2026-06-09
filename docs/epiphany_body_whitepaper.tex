@@ -72,10 +72,10 @@ Durable thread state & \code{epiphany-state-model}, \code{epiphany-core} & State
 Domain policy & \code{epiphany-core} & Verdicts, launch policy, acceptance rules, runtime lifecycle, and mutation law live here, not in bridge DTOs. \\
 Compatibility bridge & \code{epiphany-codex-bridge} & Translate Codex edge shapes; never become a second policy throne. \\
 Vendored Codex & \code{vendor/codex} & Retain host/app-server/auth/model compatibility where useful; do not let Codex own Epiphany prompts, scheduler, or state. \\
-Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.msgpack} & Runtime identity, jobs, events, receipts, tool/model documents are typed CultCache records. \\
-Organ memory & \code{state/agents.msgpack}; agent-memory CLI & Resident work organs use lean work-organ state; Persona uses portable Persona state. \\
-Heartbeat physiology & \code{state/agent-heartbeats.msgpack} via \code{epiphany-heartbeat-store} & Scheduling, cooldown, rumination, routine, cognition lanes, and active-turn freeze are scheduler physiology, not project truth. \\
-Local Verse & CultMesh over \code{state/local-verse.ccmp} & Local Verse context is compact prompt/operator context; private state does not become public by flipping a flag. \\
+Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.cc} & Runtime identity, jobs, events, receipts, tool/model documents are typed CultCache records. \\
+Organ memory & \code{state/agents.cc}; agent-memory CLI & Resident work organs use lean work-organ state; Persona uses portable Persona state. \\
+Heartbeat physiology & \code{state/agent-heartbeats.cc} via \code{epiphany-heartbeat-store} & Scheduling, cooldown, rumination, routine, cognition lanes, and active-turn freeze are scheduler physiology, not project truth. \\
+Local Verse & CultMesh over \code{state/local-verse.cc} & Local Verse context is compact prompt/operator context; private state does not become public by flipping a flag. \\
 Schema catalog & \code{schemas/cultnet/index.json} & JSON schema publishes contracts; typed Rust documents remain runtime authority. \\
 Operator artifacts & \code{.epiphany-*}, \code{tools/epiphany_local_run.ps1} & Artifacts witness and lower state; they do not become state owners. \\
 \end{longtable}
@@ -127,25 +127,29 @@ The vendored region contains:
 The \code{state/} directory is the local persistent body. The important stores
 are:
 
+Canonical CultCache store files use the \code{.cc} extension. The local state
+body has been migrated to that naming directly; serialization details are
+implementation, not file authority.
+
 \begin{longtable}{>{\raggedright\arraybackslash}p{0.30\linewidth}>{\raggedright\arraybackslash}p{0.60\linewidth}}
 \textbf{Store} & \textbf{Role} \\
 \hline
 \code{state/map.yaml} & Canonical slow project map: objective, constraints, invariants, dataflow, active subgoals, current status, guardrails, and rejected paths. \\
-\code{state/ledgers.msgpack} & CultCache-shaped evidence and branch ledger. Future behavior-changing lessons go here, not in an endless activity feed. \\
-\code{state/agents.msgpack} & Organ self-memory and Persona projection source. Resident work organs use \code{work_organ}; public/person-shaped agents use \code{persona}. \\
-\code{state/agent-heartbeats.msgpack} & Heartbeat initiative, cooldown, pending turns, cognition lanes, routine physiology, and scheduler pressure. \\
-\code{state/runtime-spine.msgpack} & Runtime identity, sessions, jobs, job results, events, worker launch requests, role/reorient findings, receipts, model/tool documents, and schema catalog surfaces. \\
-\code{state/thread-state.msgpack} & Native thread-state store. \\
-\code{state/local-verse.ccmp} & Local CultMesh Verse context for compact operator and prompt-context packets. \\
-\code{state/memory-graph.msgpack} & Local memory graph store. \\
+\code{state/ledgers.cc} & CultCache-shaped evidence and branch ledger. Future behavior-changing lessons go here, not in an endless activity feed. \\
+\code{state/agents.cc} & Organ self-memory and Persona projection source. Resident work organs use \code{work_organ}; public/person-shaped agents use \code{persona}. \\
+\code{state/agent-heartbeats.cc} & Heartbeat initiative, cooldown, pending turns, cognition lanes, routine physiology, and scheduler pressure. \\
+\code{state/runtime-spine.cc} & Runtime identity, sessions, jobs, job results, events, worker launch requests, role/reorient findings, receipts, model/tool documents, and schema catalog surfaces. \\
+\code{state/thread-state.cc} & Native thread-state store. \\
+\code{state/local-verse.cc} & Local CultMesh Verse context for compact operator and prompt-context packets. \\
+\code{state/memory-graph.cc} & Local memory graph store. \\
 \code{state/persona-discord.toml} & Persona Discord boundary configuration. \\
 \code{state/void-memory.toml} & Void memory bridge configuration. \\
 \code{state/scratch.md} and \code{state/scratch-compaction-*.md} & Scratch surfaces. Scratch is a workbench, not canonical memory. \\
 \end{longtable}
 
 Lock files sit beside several stores. Some local generated state is currently
-untracked, including \code{state/local-verse.ccmp},
-\code{state/memory-graph.msgpack}, and \code{.epiphany-character-loop/}.
+untracked, including \code{state/local-verse.cc},
+\code{state/memory-graph.cc}, and \code{.epiphany-character-loop/}.
 
 \section{CultNet Schema Body}
 

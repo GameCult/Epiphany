@@ -175,7 +175,7 @@ fn memory_graph_documents_round_trip_through_serde() {
 #[test]
 fn memory_graph_entry_round_trips_through_cultcache() -> Result<()> {
     let temp = tempfile::tempdir()?;
-    let store_path = temp.path().join("memory-graph.msgpack");
+    let store_path = temp.path().join("memory-graph.cc");
     let snapshot = fixture_snapshot();
 
     let written = write_memory_graph_snapshot(&store_path, &snapshot)?;

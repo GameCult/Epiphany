@@ -100,7 +100,7 @@ mod tests {
     #[test]
     fn thread_state_round_trips_through_cultcache() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store = temp.path().join("thread-state.msgpack");
+        let store = temp.path().join("thread-state.cc");
         let state = EpiphanyThreadState {
             revision: 7,
             objective: Some("Keep the graph native.".to_string()),

@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn state_ledgers_add_branch_and_append_native_evidence() -> Result<()> {
         let temp = tempdir()?;
-        let store = temp.path().join("ledgers.msgpack");
+        let store = temp.path().join("ledgers.cc");
         add_state_branch(
             &store,
             EpiphanyBranchRecord {

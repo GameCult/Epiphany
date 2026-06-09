@@ -1386,7 +1386,7 @@ fn apply_personality_timing_profiles(
         participant.personality_cooldown_multiplier = timing.cooldown_multiplier;
         participant.personality_timing = Some(HeartbeatPersonalityTiming {
             schema_version: "epiphany.personality_timing.v0".to_string(),
-            source: "state/agents.msgpack".to_string(),
+            source: "state/agents.cc".to_string(),
             cooldown_multiplier: timing.cooldown_multiplier,
             work_drive: timing.work_drive,
             handsiness: timing.handsiness,
@@ -2255,7 +2255,7 @@ fn build_agent_appraisals(
                 review_status: "generated_unreviewed".to_string(),
                 participant_agent_id: profile.agent_id.clone(),
                 role_id: profile.role_id.clone(),
-                current_character_state_ref: format!("state/agents.msgpack#{}", profile.role_id),
+                current_character_state_ref: format!("state/agents.cc#{}", profile.role_id),
                 thought_cluster_ref: focus.to_string(),
                 participant_local_context: HeartbeatParticipantLocalContext {
                     display_name: profile.display_name.clone(),
@@ -3214,7 +3214,7 @@ mod tests {
     #[test]
     fn native_heartbeat_store_ticks_and_completes_without_json_state() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("heartbeats.msgpack");
+        let store_path = temp.path().join("heartbeats.cc");
         let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
 
@@ -3290,7 +3290,7 @@ mod tests {
     #[test]
     fn high_heat_cannot_requeue_running_participant() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("hot-heartbeats.msgpack");
+        let store_path = temp.path().join("hot-heartbeats.cc");
         let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
         update_heartbeat_heat_store(
@@ -3365,7 +3365,7 @@ mod tests {
     #[test]
     fn ghostlight_scene_heartbeat_selects_character_turns() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("ghostlight-heartbeats.msgpack");
+        let store_path = temp.path().join("ghostlight-heartbeats.cc");
         let artifact_dir = temp.path().join("artifacts");
         initialize_ghostlight_scene_heartbeat_store(
             &store_path,
@@ -3420,7 +3420,7 @@ mod tests {
     #[test]
     fn pending_persona_mention_selects_persona_turn_and_consumes_queue() -> Result<()> {
         let temp = tempfile::tempdir()?;
-        let store_path = temp.path().join("persona-heartbeats.msgpack");
+        let store_path = temp.path().join("persona-heartbeats.cc");
         let artifact_dir = temp.path().join("artifacts");
         initialize_heartbeat_store(&store_path, 1.0)?;
         let queued = queue_heartbeat_pending_mention_store(

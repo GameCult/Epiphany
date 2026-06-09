@@ -111,7 +111,7 @@ typed documents plus CultNet contracts.
 Epiphany already has partial organs:
 
 - `epiphany-core/src/agent_memory.rs`
-  - stores each role's Ghostlight-shaped dossier in `state/agents.msgpack`
+  - stores each role's Ghostlight-shaped dossier in `state/agents.cc`
   - exposes typed `AgentSelfPatch`
   - reviews/applies bounded lane memory, goal, value, and private-note patches
   - rejects project truth, authority, graphs, checkpoints, jobs, planning,
@@ -157,7 +157,7 @@ context packets instead of inventing its own free-form memory weather.
 
 ## Core Inputs
 
-- Role dossiers from `state/agents.msgpack`
+- Role dossiers from `state/agents.cc`
 - Reviewed `AgentSelfPatch` requests
 - Heartbeat rumination receipts
 - Sleep-cycle pressure
@@ -590,9 +590,9 @@ Files:
 Commands:
 
 ```powershell
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- memory-status --store .\state\agent-memory.msgpack
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- memory-apply-operation --store .\state\agent-memory.msgpack --operation <json-or-path>
-cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- memory-context --store .\state\agent-memory.msgpack --role-id modeling --query "graph ownership"
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- memory-status --store .\state\agent-memory.cc
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- memory-apply-operation --store .\state\agent-memory.cc --operation <json-or-path>
+cargo run --manifest-path .\epiphany-core\Cargo.toml --bin epiphany-agent-memory-store -- memory-context --store .\state\agent-memory.cc --role-id modeling --query "graph ownership"
 ```
 
 Tests:
@@ -820,7 +820,7 @@ Out of scope:
 - no prompt/model runner
 - no heartbeat integration
 - no Aquarium surface
-- no migration of existing `state/agents.msgpack`
+- no migration of existing `state/agents.cc`
 
 Verification:
 
