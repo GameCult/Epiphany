@@ -8,7 +8,6 @@ use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
-use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
@@ -18,6 +17,7 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
+use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_role_accept;
 use epiphany_codex_bridge::protocol_edge::protocol_job_from_surface;
 use epiphany_codex_bridge::protocol_edge::protocol_patch_from_core;
 use epiphany_codex_bridge::protocol_edge::protocol_reorient_decision;
@@ -171,34 +171,27 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyRoleAcceptParams,
     ) {
-        let ThreadEpiphanyRoleAcceptParams {
-            thread_id,
-            role_id,
-            expected_revision,
-            binding_id,
-        } = params;
-        let core_role_id = protocol_role_id_to_core(role_id);
-
-        let default_binding_id = match epiphany_role_binding_id(core_role_id) {
-            Ok(binding_id) => binding_id,
+        let accept_plan = match plan_thread_epiphany_role_accept(params) {
+            Ok(plan) => plan,
             Err(message) => {
                 self.send_invalid_request_error(request_id, message).await;
                 return;
             }
         };
-        let binding_id = binding_id.unwrap_or_else(|| default_binding_id.into());
 
-        let (thread_uuid, loaded_thread) =
-            match self.load_epiphany_thread(&request_id, &thread_id).await {
-                Some(thread) => thread,
-                None => return,
-            };
+        let (thread_uuid, loaded_thread) = match self
+            .load_epiphany_thread(&request_id, &accept_plan.thread_id)
+            .await
+        {
+            Some(thread) => thread,
+            None => return,
+        };
         let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match apply_thread_epiphany_role_accept(
             &host,
-            core_role_id,
-            expected_revision,
-            &binding_id,
+            accept_plan.core_role_id,
+            accept_plan.expected_revision,
+            &accept_plan.binding_id,
         )
         .await
         {
@@ -227,13 +220,13 @@ impl CodexMessageProcessor {
                     revision: applied.revision,
                     changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
-                    role_id,
-                    binding_id: binding_id.clone(),
+                    role_id: accept_plan.protocol_role_id,
+                    binding_id: accept_plan.binding_id.clone(),
                     accepted_receipt_id: applied.accepted_receipt_id,
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,
                     applied_patch: protocol_patch_from_core(applied.applied_patch),
-                    finding: protocol_role_finding(role_id, applied.finding),
+                    finding: protocol_role_finding(accept_plan.protocol_role_id, applied.finding),
                 },
             )
             .await;

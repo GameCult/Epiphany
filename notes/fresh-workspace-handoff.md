@@ -79,7 +79,7 @@ remembers doctrine; the branch remembers the blade.
 - Role/reorient acceptance service results now carry core typed findings, and role acceptance carries a typed `EpiphanyRoleStatePatchDocument` for the applied patch. App-server mutation routes project those into `ThreadEpiphany*Finding` / `ThreadEpiphanyUpdatePatch` only for legacy accept responses.
 - Generic update/promote service entry points now accept typed `EpiphanyRoleStatePatchDocument` patches. Vendored app-server converts `ThreadEpiphanyUpdatePatch` request cargo before invoking the bridge, so the mutation service no longer treats the JSON-RPC patch as its native write document.
 - Changed-field authority is native now. `EpiphanyStateUpdatedField` lives in `epiphany-core`; bridge mutation results carry that typed enum, while app-server projects it into `ThreadEpiphanyStateUpdatedField` only for JSON-RPC responses and notifications.
-- Role launch, role accept, and role-result runtime lookup now use core `EpiphanyRoleResultRoleId` inside the bridge. App-server maps `ThreadEpiphanyRoleId` at the JSON-RPC boundary and keeps it only for legacy request/response shape.
+- Role launch, role accept, and role-result runtime lookup now use core `EpiphanyRoleResultRoleId` inside the bridge. Role accept and role result now plan protocol role/default binding conversion in the bridge; app-server keeps `ThreadEpiphanyRoleId` only for legacy response shape where needed.
 - Reorient launch service results now use typed `EpiphanySurfaceSource`; app-server projects it into `ThreadEpiphanyReorientSource` only for the legacy launch response.
 - Generic job launch now converts protocol `ThreadEpiphanyWorkerLaunchDocument` cargo at the app-server edge before building the core `EpiphanyJobLaunchRequest`; the bridge launch builder takes a typed `EpiphanyWorkerLaunchDocument`.
 - Coordinator note rendering now consumes core CRRC/coordinator actions, pressure, role/reorient result statuses, and reorient state status. `ThreadEpiphany*` status/action DTOs are no longer the native shape for that prompt/text policy helper.
@@ -887,6 +887,13 @@ id, loads the live/stored thread view, and looks up the runtime-store path, but
 `map_thread_epiphany_reorient_result_response` now owns the fixed reorient
 binding default, live/stored protocol source projection, and response mapping.
 `epiphany_read_routes.rs` is about 528 lines after this cut.
+
+Role-accept write-route planning has moved to the bridge protocol edge.
+`plan_thread_epiphany_role_accept` owns protocol role conversion, default
+binding selection, and unsupported-role rejection before the mutation service
+accepts the finding. App-server still loads the thread, calls the mutation
+service, builds the legacy accept response DTO, and emits the state-updated
+notification. `epiphany_mutation_routes.rs` is about 749 lines after this cut.
 
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC

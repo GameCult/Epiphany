@@ -42,6 +42,7 @@ use codex_app_server_protocol::ThreadEpiphanyReorientStateStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
+use codex_app_server_protocol::ThreadEpiphanyRoleAcceptParams;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
@@ -78,6 +79,7 @@ use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyViewLens;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
 use epiphany_core::default_epiphany_view_lenses;
+use epiphany_core::epiphany_role_binding_id;
 use epiphany_core::epiphany_view_needs_jobs;
 use epiphany_core::epiphany_view_needs_pressure;
 use epiphany_core::epiphany_view_needs_reorientation_inputs;
@@ -322,6 +324,34 @@ pub fn protocol_state_updated_notification(
         changed_fields: protocol_state_updated_fields(changed_fields),
         epiphany_state,
     }
+}
+
+pub struct ThreadEpiphanyRoleAcceptPlan {
+    pub thread_id: String,
+    pub protocol_role_id: ThreadEpiphanyRoleId,
+    pub core_role_id: EpiphanyRoleResultRoleId,
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+}
+
+pub fn plan_thread_epiphany_role_accept(
+    params: ThreadEpiphanyRoleAcceptParams,
+) -> Result<ThreadEpiphanyRoleAcceptPlan, String> {
+    let ThreadEpiphanyRoleAcceptParams {
+        thread_id,
+        role_id,
+        expected_revision,
+        binding_id,
+    } = params;
+    let core_role_id = protocol_role_id_to_core(role_id);
+    let default_binding_id = epiphany_role_binding_id(core_role_id)?;
+    Ok(ThreadEpiphanyRoleAcceptPlan {
+        thread_id,
+        protocol_role_id: role_id,
+        core_role_id,
+        expected_revision,
+        binding_id: binding_id.unwrap_or_else(|| default_binding_id.to_string()),
+    })
 }
 
 pub fn protocol_state_updated_fields(
