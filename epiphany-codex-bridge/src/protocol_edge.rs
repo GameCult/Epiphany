@@ -29,6 +29,7 @@ use codex_app_server_protocol::ThreadEpiphanyJobInterruptParams;
 use codex_app_server_protocol::ThreadEpiphanyJobInterruptResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
+use codex_app_server_protocol::ThreadEpiphanyJobLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
@@ -99,6 +100,7 @@ use epiphany_core::epiphany_view_needs_runtime_store;
 use epiphany_state_model::EpiphanyThreadState;
 
 use crate::mutation_service::EpiphanyJobInterruptApplied;
+use crate::mutation_service::EpiphanyJobLaunchApplied;
 use crate::mutation_service::EpiphanyThreadPromoteApplied;
 use crate::mutation_service::EpiphanyThreadUpdateApplied;
 
@@ -466,6 +468,34 @@ pub fn plan_thread_epiphany_job_launch(
         thread_id,
         launch_request,
         kind,
+    }
+}
+
+pub struct ThreadEpiphanyJobLaunchRouteOutput {
+    pub response: ThreadEpiphanyJobLaunchResponse,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+}
+
+pub fn thread_epiphany_job_launch_output(
+    applied: EpiphanyJobLaunchApplied,
+) -> ThreadEpiphanyJobLaunchRouteOutput {
+    let changed_fields = applied.changed_fields;
+    let epiphany_state = applied.epiphany_state;
+    let response = ThreadEpiphanyJobLaunchResponse {
+        revision: applied.revision,
+        changed_fields: protocol_state_updated_fields(changed_fields.clone()),
+        epiphany_state: epiphany_state.clone(),
+        job: protocol_job_from_surface(
+            applied.job,
+            Some(applied.launcher_job_id),
+            Some(applied.backend_job_id),
+        ),
+    };
+    ThreadEpiphanyJobLaunchRouteOutput {
+        response,
+        changed_fields,
+        epiphany_state,
     }
 }
 

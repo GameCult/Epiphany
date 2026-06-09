@@ -31,6 +31,7 @@ use epiphany_codex_bridge::protocol_edge::protocol_role_finding;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_fields;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_job_interrupt_output;
+use epiphany_codex_bridge::protocol_edge::thread_epiphany_job_launch_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_promote_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_update_output;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -586,30 +587,16 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
-        let epiphany_state = applied.epiphany_state;
+        let output = thread_epiphany_job_launch_output(applied);
 
         self.outgoing
-            .send_response(
-                request_id,
-                ThreadEpiphanyJobLaunchResponse {
-                    revision: applied.revision,
-                    changed_fields: protocol_changed_fields,
-                    epiphany_state: epiphany_state.clone(),
-                    job: protocol_job_from_surface(
-                        applied.job,
-                        Some(applied.launcher_job_id),
-                        Some(applied.backend_job_id),
-                    ),
-                },
-            )
+            .send_response(request_id, output.response)
             .await;
         self.send_epiphany_state_updated(
             thread_uuid,
             ThreadEpiphanyStateUpdatedSource::JobLaunch,
-            changed_fields,
-            epiphany_state,
+            output.changed_fields,
+            output.epiphany_state,
         )
         .await;
     }
