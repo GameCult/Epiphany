@@ -6,28 +6,25 @@ use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
-use epiphany_codex_bridge::launch::epiphany_role_binding_id;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_jobs;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_pressure;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::protocol_edge::default_core_epiphany_view_lenses;
-use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths;
 use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyReorientResultResponseInput;
-use epiphany_codex_bridge::view_protocol::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view_protocol::map_epiphany_freshness_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_reorient_result_response;
-use epiphany_codex_bridge::view_protocol::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_view_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_context_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_distill_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_graph_query_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_propose_response;
+use epiphany_codex_bridge::view_protocol::map_thread_epiphany_role_result_response;
 
 use super::CodexMessageProcessor;
 use super::ConnectionRequestId;
@@ -149,23 +146,7 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyRoleResultParams,
     ) {
-        let ThreadEpiphanyRoleResultParams {
-            thread_id,
-            role_id,
-            binding_id,
-        } = params;
-        let core_role_id = protocol_role_id_to_core(role_id);
-
-        let binding_id = match binding_id {
-            Some(binding_id) => binding_id,
-            None => match epiphany_role_binding_id(core_role_id) {
-                Ok(binding_id) => binding_id.to_string(),
-                Err(message) => {
-                    self.send_invalid_request_error(request_id, message).await;
-                    return;
-                }
-            },
-        };
+        let thread_id = params.thread_id.clone();
 
         let thread_uuid = match ThreadId::from_string(&thread_id) {
             Ok(id) => id,
@@ -188,31 +169,31 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let source = if loaded_thread.is_some() {
-            EpiphanySurfaceSource::Live
-        } else {
-            EpiphanySurfaceSource::Stored
-        };
-
-        if let Err(message) = epiphany_role_binding_id(core_role_id) {
-            self.send_invalid_request_error(request_id, message).await;
-            return;
-        }
+        let loaded = loaded_thread.is_some();
 
         let runtime_store_path = if let Some(loaded_thread) = loaded_thread.as_ref() {
             Some(loaded_thread.epiphany_runtime_spine_store_path().await)
         } else {
             None
         };
-        let response = map_epiphany_role_result_response(EpiphanyRoleResultResponseInput {
-            thread_id: thread_uuid.to_string(),
-            role_id: core_role_id,
-            source,
-            binding_id,
-            state: thread.epiphany_state.as_ref(),
-            runtime_store_path: runtime_store_path.as_deref(),
-        })
-        .await;
+        let response = match map_thread_epiphany_role_result_response(
+            params,
+            loaded,
+            thread.epiphany_state.as_ref(),
+            runtime_store_path.as_deref(),
+        )
+        .await
+        {
+            Ok(response) => response,
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(request_id, err.to_string()).await;
+                return;
+            }
+        };
 
         self.outgoing.send_response(request_id, response).await;
     }

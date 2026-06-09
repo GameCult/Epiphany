@@ -862,6 +862,13 @@ well. App-server still gathers host-owned live retrieval and watcher facts, but
 protocol response projection. `epiphany_read_routes.rs` is about 559 lines
 after this cut.
 
+Role-result route policy followed. App-server still parses the thread id, loads
+the live/stored thread view, looks up the runtime-store path, and maps bridge
+errors to JSON-RPC; `map_thread_epiphany_role_result_response` now owns protocol
+role-id conversion, default binding selection, unsupported-role rejection, and
+response projection. `epiphany_read_routes.rs` is about 540 lines after this
+cut.
+
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC
 responses, but `map_thread_epiphany_context_response` and

@@ -38,6 +38,7 @@ use crate::cultnet::EpiphanySurfaceSource;
 use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
 use crate::jobs::map_epiphany_jobs;
+use crate::launch::epiphany_role_binding_id;
 use crate::pressure::derive_epiphany_pressure;
 use crate::protocol_edge::protocol_context_params_to_core;
 use crate::protocol_edge::protocol_distill_params_to_core;
@@ -52,6 +53,7 @@ use crate::protocol_edge::protocol_reorient_source;
 use crate::protocol_edge::protocol_reorient_state_status;
 use crate::protocol_edge::protocol_role_finding;
 use crate::protocol_edge::protocol_role_id_from_core;
+use crate::protocol_edge::protocol_role_id_to_core;
 use crate::protocol_edge::protocol_role_result_status;
 use crate::protocol_edge::protocol_roles_source;
 use crate::protocol_edge::protocol_view_lens_from_core;
@@ -526,6 +528,38 @@ pub async fn map_epiphany_role_result_response(
             .map(|finding| protocol_role_finding(protocol_role_id, finding)),
         note: result.note,
     }
+}
+
+pub async fn map_thread_epiphany_role_result_response(
+    params: ThreadEpiphanyRoleResultParams,
+    loaded: bool,
+    state: Option<&EpiphanyThreadState>,
+    runtime_store_path: Option<&Path>,
+) -> BridgeResult<ThreadEpiphanyRoleResultResponse> {
+    let ThreadEpiphanyRoleResultParams {
+        thread_id,
+        role_id,
+        binding_id,
+    } = params;
+    let role_id = protocol_role_id_to_core(role_id);
+    let default_binding_id =
+        epiphany_role_binding_id(role_id).map_err(EpiphanyBridgeError::InvalidRequest)?;
+    let binding_id = binding_id.unwrap_or_else(|| default_binding_id.to_string());
+    Ok(
+        map_epiphany_role_result_response(EpiphanyRoleResultResponseInput {
+            thread_id,
+            role_id,
+            source: if loaded {
+                EpiphanySurfaceSource::Live
+            } else {
+                EpiphanySurfaceSource::Stored
+            },
+            binding_id,
+            state,
+            runtime_store_path,
+        })
+        .await,
+    )
 }
 
 pub struct EpiphanyReorientResultResponseInput<'a> {
