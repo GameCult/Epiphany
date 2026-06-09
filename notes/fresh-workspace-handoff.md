@@ -856,6 +856,13 @@ missing-state rejection, protocol-to-core input conversion, candidate patch
 construction, and invalid-request text. App-server supplies the loaded thread
 state as a host fact and maps bridge errors to JSON-RPC responses.
 
+Context and graph-query route-level conversion followed. App-server still
+parses thread ids, loads live/stored thread views, and emits JSON-RPC
+responses, but `map_thread_epiphany_context_response` and
+`map_thread_epiphany_graph_query_response` now own protocol-to-core selector
+conversion plus response projection. `epiphany_read_routes.rs` is about 561
+lines after this cut.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

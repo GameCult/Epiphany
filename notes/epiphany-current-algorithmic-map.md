@@ -1197,10 +1197,15 @@ The app-server handler:
 1. parses the thread id.
 2. checks whether the thread is loaded so the response can report live/stored source.
 3. calls `read_thread_view(..., include_turns: false)` to reuse the live/stored Epiphany projection path.
-4. maps protocol selectors into `epiphany-core::EpiphanyContextParams`.
-5. calls `epiphany-core::derive_context`.
-6. maps the core context view back into the protocol response.
-7. returns the derived context shard and missing-id lists.
+4. delegates protocol-to-core selector conversion and response projection to
+   `epiphany-codex-bridge::view_protocol::map_thread_epiphany_context_response`.
+5. returns the derived context shard and missing-id lists.
+
+`map_thread_epiphany_context_response`:
+
+1. maps protocol selectors into `epiphany-core::EpiphanyContextParams`.
+2. calls `epiphany-core::derive_context`.
+3. maps the core context view back into the protocol response.
 
 `epiphany-core::derive_context`:
 
@@ -1273,10 +1278,15 @@ The app-server handler:
 1. parses the thread id.
 2. requires a loaded thread.
 3. calls `read_thread_view(..., include_turns: false)` to reuse the live Epiphany projection path.
-4. maps the protocol query into `epiphany-core::EpiphanyGraphQuery`.
-5. calls `epiphany-core::derive_graph_query`.
-6. maps the core graph query view back into the protocol response.
-7. returns the selected graph records, current frontier/checkpoint, matched selectors, and missing explicit ids.
+4. delegates protocol-to-core query conversion and response projection to
+   `epiphany-codex-bridge::view_protocol::map_thread_epiphany_graph_query_response`.
+5. returns the selected graph records, current frontier/checkpoint, matched selectors, and missing explicit ids.
+
+`map_thread_epiphany_graph_query_response`:
+
+1. maps the protocol query into `epiphany-core::EpiphanyGraphQuery`.
+2. calls `epiphany-core::derive_graph_query`.
+3. maps the core graph query view back into the protocol response.
 
 `epiphany-core::derive_graph_query`:
 

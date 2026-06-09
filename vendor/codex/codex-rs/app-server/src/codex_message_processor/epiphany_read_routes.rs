@@ -12,9 +12,7 @@ use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_pressure;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::protocol_edge::default_core_epiphany_view_lenses;
-use epiphany_codex_bridge::protocol_edge::protocol_context_params_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_freshness_response_from_surface;
-use epiphany_codex_bridge::protocol_edge::protocol_graph_query_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -24,12 +22,12 @@ use epiphany_codex_bridge::view_protocol::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
 use epiphany_codex_bridge::view_protocol::derive_epiphany_freshness_surface;
-use epiphany_codex_bridge::view_protocol::map_epiphany_context_response;
-use epiphany_codex_bridge::view_protocol::map_epiphany_graph_query_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_view_response;
+use epiphany_codex_bridge::view_protocol::map_thread_epiphany_context_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_distill_response;
+use epiphany_codex_bridge::view_protocol::map_thread_epiphany_graph_query_response;
 use epiphany_codex_bridge::view_protocol::map_thread_epiphany_propose_response;
 
 use super::CodexMessageProcessor;
@@ -308,13 +306,8 @@ impl CodexMessageProcessor {
             }
         };
 
-        let core_params = protocol_context_params_to_core(&params);
-        let response = map_epiphany_context_response(
-            thread_id,
-            loaded,
-            thread.epiphany_state.as_ref(),
-            &core_params,
-        );
+        let response =
+            map_thread_epiphany_context_response(params, loaded, thread.epiphany_state.as_ref());
         self.outgoing.send_response(request_id, response).await;
     }
 
@@ -346,12 +339,10 @@ impl CodexMessageProcessor {
             }
         };
 
-        let core_query = protocol_graph_query_to_core(&params.query);
-        let response = map_epiphany_graph_query_response(
-            thread_id,
+        let response = map_thread_epiphany_graph_query_response(
+            params,
             loaded,
             thread.epiphany_state.as_ref(),
-            &core_query,
         );
         self.outgoing.send_response(request_id, response).await;
     }

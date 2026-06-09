@@ -39,7 +39,9 @@ use crate::error::EpiphanyBridgeError;
 use crate::error::Result as BridgeResult;
 use crate::jobs::map_epiphany_jobs;
 use crate::pressure::derive_epiphany_pressure;
+use crate::protocol_edge::protocol_context_params_to_core;
 use crate::protocol_edge::protocol_distill_params_to_core;
+use crate::protocol_edge::protocol_graph_query_to_core;
 use crate::protocol_edge::protocol_job_from_surface;
 use crate::protocol_edge::protocol_pressure_from_core;
 use crate::protocol_edge::protocol_reorient_decision;
@@ -113,6 +115,16 @@ pub fn map_epiphany_context_response(
     }
 }
 
+pub fn map_thread_epiphany_context_response(
+    params: ThreadEpiphanyContextParams,
+    loaded: bool,
+    state: Option<&EpiphanyThreadState>,
+) -> ThreadEpiphanyContextResponse {
+    let thread_id = params.thread_id.clone();
+    let core_params = protocol_context_params_to_core(&params);
+    map_epiphany_context_response(thread_id, loaded, state, &core_params)
+}
+
 pub fn map_epiphany_graph_query_response(
     thread_id: String,
     loaded: bool,
@@ -136,6 +148,16 @@ pub fn map_epiphany_graph_query_response(
         matched,
         missing,
     }
+}
+
+pub fn map_thread_epiphany_graph_query_response(
+    params: ThreadEpiphanyGraphQueryParams,
+    loaded: bool,
+    state: Option<&EpiphanyThreadState>,
+) -> ThreadEpiphanyGraphQueryResponse {
+    let thread_id = params.thread_id.clone();
+    let core_query = protocol_graph_query_to_core(&params.query);
+    map_epiphany_graph_query_response(thread_id, loaded, state, &core_query)
 }
 
 pub struct EpiphanyViewResponseInput<'a> {
