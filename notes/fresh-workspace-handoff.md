@@ -888,19 +888,24 @@ id, loads the live/stored thread view, and looks up the runtime-store path, but
 binding default, live/stored protocol source projection, and response mapping.
 `epiphany_read_routes.rs` is about 528 lines after this cut.
 
-Role-accept write-route planning has moved to the bridge protocol edge.
-`plan_thread_epiphany_role_accept` owns protocol role conversion, default
-binding selection, and unsupported-role rejection before the mutation service
-accepts the finding. App-server still loads the thread, calls the mutation
-service, builds the legacy accept response DTO, and emits the state-updated
-notification. `epiphany_mutation_routes.rs` is about 749 lines after this cut.
+Role-accept write-route planning and response shaping moved to the bridge
+protocol edge. `plan_thread_epiphany_role_accept` owns protocol role
+conversion, default binding selection, and unsupported-role rejection before the
+mutation service accepts the finding; `thread_epiphany_role_accept_output` owns
+the legacy accept response DTO plus notification payload handoff from
+`EpiphanyRoleAcceptApplied`. App-server still loads the thread, calls the
+mutation service, sends the response, and emits the state-updated notification.
+`epiphany_mutation_routes.rs` is about 580 lines after this cut.
 
-Reorient-accept write-route planning has moved to the bridge protocol edge too.
+Reorient-accept write-route planning and response shaping moved to the bridge
+protocol edge too.
 `plan_thread_epiphany_reorient_accept` owns the fixed reorient binding default
-and carries the explicit scratch/checkpoint flags forward. App-server still
-loads the thread, calls the mutation service, builds the legacy accept response
-DTO, and emits the state-updated notification. `epiphany_mutation_routes.rs` is
-about 744 lines after this cut.
+and carries the explicit scratch/checkpoint flags forward;
+`thread_epiphany_reorient_accept_output` owns the legacy accept response DTO
+plus notification payload handoff from `EpiphanyReorientAcceptApplied`.
+App-server still loads the thread, calls the mutation service, sends the
+response, and emits the state-updated notification.
+`epiphany_mutation_routes.rs` is about 580 lines after this cut.
 
 Job-launch write-route planning and response shaping moved to the bridge
 protocol edge. `plan_thread_epiphany_job_launch` owns protocol worker-launch

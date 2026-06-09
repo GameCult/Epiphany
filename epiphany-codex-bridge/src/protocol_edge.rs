@@ -38,6 +38,7 @@ use codex_app_server_protocol::ThreadEpiphanyPressureStatus;
 use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
 use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientAcceptParams;
+use codex_app_server_protocol::ThreadEpiphanyReorientAcceptResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
@@ -52,6 +53,7 @@ use codex_app_server_protocol::ThreadEpiphanyReorientWorkerLaunchDocument;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshness;
 use codex_app_server_protocol::ThreadEpiphanyRetrievalFreshnessStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleAcceptParams;
+use codex_app_server_protocol::ThreadEpiphanyRoleAcceptResponse;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleLaunchParams;
@@ -104,7 +106,9 @@ use epiphany_state_model::EpiphanyThreadState;
 
 use crate::mutation_service::EpiphanyJobInterruptApplied;
 use crate::mutation_service::EpiphanyJobLaunchApplied;
+use crate::mutation_service::EpiphanyReorientAcceptApplied;
 use crate::mutation_service::EpiphanyReorientLaunchApplied;
+use crate::mutation_service::EpiphanyRoleAcceptApplied;
 use crate::mutation_service::EpiphanyThreadPromoteApplied;
 use crate::mutation_service::EpiphanyThreadUpdateApplied;
 
@@ -434,6 +438,38 @@ pub fn plan_thread_epiphany_role_accept(
     })
 }
 
+pub struct ThreadEpiphanyRoleAcceptRouteOutput {
+    pub response: ThreadEpiphanyRoleAcceptResponse,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+}
+
+pub fn thread_epiphany_role_accept_output(
+    role_id: ThreadEpiphanyRoleId,
+    binding_id: String,
+    applied: EpiphanyRoleAcceptApplied,
+) -> ThreadEpiphanyRoleAcceptRouteOutput {
+    let changed_fields = applied.changed_fields;
+    let epiphany_state = applied.epiphany_state;
+    let response = ThreadEpiphanyRoleAcceptResponse {
+        revision: applied.revision,
+        changed_fields: protocol_state_updated_fields(changed_fields.clone()),
+        epiphany_state: epiphany_state.clone(),
+        role_id,
+        binding_id,
+        accepted_receipt_id: applied.accepted_receipt_id,
+        accepted_observation_id: applied.accepted_observation_id,
+        accepted_evidence_id: applied.accepted_evidence_id,
+        applied_patch: protocol_patch_from_core(applied.applied_patch),
+        finding: protocol_role_finding(role_id, applied.finding),
+    };
+    ThreadEpiphanyRoleAcceptRouteOutput {
+        response,
+        changed_fields,
+        epiphany_state,
+    }
+}
+
 pub struct ThreadEpiphanyReorientLaunchPlan {
     pub thread_id: String,
     pub expected_revision: Option<u64>,
@@ -513,6 +549,35 @@ pub fn plan_thread_epiphany_reorient_accept(
         binding_id: binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string()),
         update_scratch,
         update_investigation_checkpoint,
+    }
+}
+
+pub struct ThreadEpiphanyReorientAcceptRouteOutput {
+    pub response: ThreadEpiphanyReorientAcceptResponse,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+}
+
+pub fn thread_epiphany_reorient_accept_output(
+    binding_id: String,
+    applied: EpiphanyReorientAcceptApplied,
+) -> ThreadEpiphanyReorientAcceptRouteOutput {
+    let changed_fields = applied.changed_fields;
+    let epiphany_state = applied.epiphany_state;
+    let response = ThreadEpiphanyReorientAcceptResponse {
+        revision: applied.revision,
+        changed_fields: protocol_state_updated_fields(changed_fields.clone()),
+        epiphany_state: epiphany_state.clone(),
+        binding_id,
+        accepted_receipt_id: applied.accepted_receipt_id,
+        accepted_observation_id: applied.accepted_observation_id,
+        accepted_evidence_id: applied.accepted_evidence_id,
+        finding: protocol_reorient_finding(applied.finding),
+    };
+    ThreadEpiphanyReorientAcceptRouteOutput {
+        response,
+        changed_fields,
+        epiphany_state,
     }
 }
 

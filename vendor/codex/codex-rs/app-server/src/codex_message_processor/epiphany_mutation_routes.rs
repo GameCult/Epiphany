@@ -22,15 +22,13 @@ use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_reorient_launch;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_role_accept;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_role_launch;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_update;
-use epiphany_codex_bridge::protocol_edge::protocol_patch_from_core;
-use epiphany_codex_bridge::protocol_edge::protocol_reorient_finding;
-use epiphany_codex_bridge::protocol_edge::protocol_role_finding;
-use epiphany_codex_bridge::protocol_edge::protocol_state_updated_fields;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_job_interrupt_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_job_launch_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_promote_output;
+use epiphany_codex_bridge::protocol_edge::thread_epiphany_reorient_accept_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_reorient_launch_output;
+use epiphany_codex_bridge::protocol_edge::thread_epiphany_role_accept_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_role_launch_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_update_output;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -196,32 +194,20 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
-        let epiphany_state = applied.epiphany_state;
+        let output = thread_epiphany_role_accept_output(
+            accept_plan.protocol_role_id,
+            accept_plan.binding_id.clone(),
+            applied,
+        );
 
         self.outgoing
-            .send_response(
-                request_id,
-                ThreadEpiphanyRoleAcceptResponse {
-                    revision: applied.revision,
-                    changed_fields: protocol_changed_fields,
-                    epiphany_state: epiphany_state.clone(),
-                    role_id: accept_plan.protocol_role_id,
-                    binding_id: accept_plan.binding_id.clone(),
-                    accepted_receipt_id: applied.accepted_receipt_id,
-                    accepted_observation_id: applied.accepted_observation_id,
-                    accepted_evidence_id: applied.accepted_evidence_id,
-                    applied_patch: protocol_patch_from_core(applied.applied_patch),
-                    finding: protocol_role_finding(accept_plan.protocol_role_id, applied.finding),
-                },
-            )
+            .send_response(request_id, output.response)
             .await;
         self.send_epiphany_state_updated(
             thread_uuid,
             ThreadEpiphanyStateUpdatedSource::RoleAccept,
-            changed_fields,
-            epiphany_state,
+            output.changed_fields,
+            output.epiphany_state,
         )
         .await;
     }
@@ -344,30 +330,17 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
-        let epiphany_state = applied.epiphany_state;
+        let output =
+            thread_epiphany_reorient_accept_output(accept_plan.binding_id.clone(), applied);
 
         self.outgoing
-            .send_response(
-                request_id,
-                ThreadEpiphanyReorientAcceptResponse {
-                    revision: applied.revision,
-                    changed_fields: protocol_changed_fields,
-                    epiphany_state: epiphany_state.clone(),
-                    binding_id: accept_plan.binding_id.clone(),
-                    accepted_receipt_id: applied.accepted_receipt_id,
-                    accepted_observation_id: applied.accepted_observation_id,
-                    accepted_evidence_id: applied.accepted_evidence_id,
-                    finding: protocol_reorient_finding(applied.finding),
-                },
-            )
+            .send_response(request_id, output.response)
             .await;
         self.send_epiphany_state_updated(
             thread_uuid,
             ThreadEpiphanyStateUpdatedSource::ReorientAccept,
-            changed_fields,
-            epiphany_state,
+            output.changed_fields,
+            output.epiphany_state,
         )
         .await;
     }
