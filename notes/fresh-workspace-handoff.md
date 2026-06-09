@@ -902,6 +902,13 @@ loads the thread, calls the mutation service, builds the legacy accept response
 DTO, and emits the state-updated notification. `epiphany_mutation_routes.rs` is
 about 744 lines after this cut.
 
+Job-launch write-route planning has moved to the bridge protocol edge.
+`plan_thread_epiphany_job_launch` owns protocol worker-launch document
+conversion and core `EpiphanyJobLaunchRequest` construction. App-server still
+loads the thread, invokes the mutation service, builds the legacy launch
+response DTO, and emits the state-updated notification.
+`epiphany_mutation_routes.rs` is about 718 lines after this cut.
+
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC
 responses, but `map_thread_epiphany_context_response` and

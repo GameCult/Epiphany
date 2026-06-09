@@ -26,6 +26,7 @@ use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
 use codex_app_server_protocol::ThreadEpiphanyJob;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
+use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
 use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
@@ -65,6 +66,7 @@ use epiphany_core::EpiphanyDistillInput;
 use epiphany_core::EpiphanyGraphQuery;
 use epiphany_core::EpiphanyGraphQueryDirection;
 use epiphany_core::EpiphanyGraphQueryKind;
+use epiphany_core::EpiphanyJobLaunchRequest;
 use epiphany_core::EpiphanyPressure;
 use epiphany_core::EpiphanyPressureBasis;
 use epiphany_core::EpiphanyPressureLevel;
@@ -80,6 +82,7 @@ use epiphany_core::EpiphanyRoleWorkerLaunchDocument;
 use epiphany_core::EpiphanyStateUpdatedField;
 use epiphany_core::EpiphanyViewLens;
 use epiphany_core::EpiphanyWorkerLaunchDocument;
+use epiphany_core::build_epiphany_job_launch_request;
 use epiphany_core::default_epiphany_view_lenses;
 use epiphany_core::epiphany_role_binding_id;
 use epiphany_core::epiphany_view_needs_jobs;
@@ -380,6 +383,52 @@ pub fn plan_thread_epiphany_reorient_accept(
         binding_id: binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string()),
         update_scratch,
         update_investigation_checkpoint,
+    }
+}
+
+pub struct ThreadEpiphanyJobLaunchPlan {
+    pub thread_id: String,
+    pub launch_request: EpiphanyJobLaunchRequest,
+    pub kind: EpiphanyJobKind,
+}
+
+pub fn plan_thread_epiphany_job_launch(
+    params: ThreadEpiphanyJobLaunchParams,
+) -> ThreadEpiphanyJobLaunchPlan {
+    let ThreadEpiphanyJobLaunchParams {
+        thread_id,
+        expected_revision,
+        binding_id,
+        kind,
+        scope,
+        owner_role,
+        authority_scope,
+        linked_subgoal_ids,
+        linked_graph_node_ids,
+        instruction,
+        launch_document,
+        output_contract_id,
+        max_runtime_seconds,
+    } = params;
+    let launch_document = protocol_worker_launch_document_to_core(launch_document);
+    let launch_request = build_epiphany_job_launch_request(
+        expected_revision,
+        binding_id,
+        kind,
+        scope,
+        owner_role,
+        authority_scope,
+        linked_subgoal_ids,
+        linked_graph_node_ids,
+        instruction,
+        launch_document,
+        output_contract_id,
+        max_runtime_seconds,
+    );
+    ThreadEpiphanyJobLaunchPlan {
+        thread_id,
+        launch_request,
+        kind,
     }
 }
 

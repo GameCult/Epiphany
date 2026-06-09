@@ -6,7 +6,6 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_codex_bridge::cultnet::EpiphanyStateUpdatedField;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
-use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_reorient_accept;
@@ -16,6 +15,7 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
+use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_job_launch;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_reorient_accept;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_role_accept;
 use epiphany_codex_bridge::protocol_edge::protocol_job_from_surface;
@@ -29,7 +29,6 @@ use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_fields;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
 use epiphany_codex_bridge::protocol_edge::protocol_update_patch_to_core;
-use epiphany_codex_bridge::protocol_edge::protocol_worker_launch_document_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
 use epiphany_codex_bridge::retrieve::index_epiphany_retrieval_for_paths;
 use epiphany_codex_bridge::retrieve_protocol::protocol_index_response;
@@ -584,46 +583,21 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyJobLaunchParams,
     ) {
-        let ThreadEpiphanyJobLaunchParams {
-            thread_id,
-            expected_revision,
-            binding_id,
-            kind,
-            scope,
-            owner_role,
-            authority_scope,
-            linked_subgoal_ids,
-            linked_graph_node_ids,
-            instruction,
-            launch_document,
-            output_contract_id,
-            max_runtime_seconds,
-        } = params;
+        let launch_plan = plan_thread_epiphany_job_launch(params);
 
-        let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
+        let (thread_uuid, thread) = match self
+            .load_epiphany_thread(&request_id, &launch_plan.thread_id)
+            .await
+        {
             Some(thread) => thread,
             None => return,
         };
 
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
-        let core_launch_document = protocol_worker_launch_document_to_core(launch_document);
         let applied = match launch_thread_epiphany_job(
             &host,
-            build_epiphany_job_launch_request(
-                expected_revision,
-                binding_id.clone(),
-                kind,
-                scope,
-                owner_role,
-                authority_scope,
-                linked_subgoal_ids,
-                linked_graph_node_ids,
-                instruction,
-                core_launch_document,
-                output_contract_id,
-                max_runtime_seconds,
-            ),
-            kind,
+            launch_plan.launch_request,
+            launch_plan.kind,
             "missing launched job projection",
         )
         .await
