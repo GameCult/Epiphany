@@ -12,7 +12,6 @@ use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_pressure;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_reorientation_inputs;
 use epiphany_codex_bridge::protocol_edge::core_epiphany_view_needs_runtime_store;
 use epiphany_codex_bridge::protocol_edge::default_core_epiphany_view_lenses;
-use epiphany_codex_bridge::protocol_edge::protocol_freshness_response_from_surface;
 use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -21,7 +20,7 @@ use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyRoleResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyViewResponseInput;
-use epiphany_codex_bridge::view_protocol::derive_epiphany_freshness_surface;
+use epiphany_codex_bridge::view_protocol::map_epiphany_freshness_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_reorient_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_role_result_response;
 use epiphany_codex_bridge::view_protocol::map_epiphany_view_response;
@@ -265,7 +264,7 @@ impl CodexMessageProcessor {
         } else {
             None
         };
-        let surface = derive_epiphany_freshness_surface(EpiphanyFreshnessResponseInput {
+        let response = map_epiphany_freshness_response(EpiphanyFreshnessResponseInput {
             thread_id,
             loaded: loaded_thread.is_some(),
             state: thread.epiphany_state.as_ref(),
@@ -274,7 +273,6 @@ impl CodexMessageProcessor {
                 .as_ref()
                 .map(epiphany_freshness_watcher_snapshot),
         });
-        let response = protocol_freshness_response_from_surface(surface);
         self.outgoing.send_response(request_id, response).await;
     }
 

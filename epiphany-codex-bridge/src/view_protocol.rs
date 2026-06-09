@@ -41,6 +41,7 @@ use crate::jobs::map_epiphany_jobs;
 use crate::pressure::derive_epiphany_pressure;
 use crate::protocol_edge::protocol_context_params_to_core;
 use crate::protocol_edge::protocol_distill_params_to_core;
+use crate::protocol_edge::protocol_freshness_response_from_surface;
 use crate::protocol_edge::protocol_graph_query_to_core;
 use crate::protocol_edge::protocol_job_from_surface;
 use crate::protocol_edge::protocol_pressure_from_core;
@@ -91,6 +92,12 @@ pub fn derive_epiphany_freshness_surface(
         graph: freshness.graph,
         watcher: freshness.watcher,
     }
+}
+
+pub fn map_epiphany_freshness_response(
+    input: EpiphanyFreshnessResponseInput<'_>,
+) -> ThreadEpiphanyFreshnessResponse {
+    protocol_freshness_response_from_surface(derive_epiphany_freshness_surface(input))
 }
 
 pub fn map_epiphany_context_response(

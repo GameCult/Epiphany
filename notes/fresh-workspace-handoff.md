@@ -856,6 +856,12 @@ missing-state rejection, protocol-to-core input conversion, candidate patch
 construction, and invalid-request text. App-server supplies the loaded thread
 state as a host fact and maps bridge errors to JSON-RPC responses.
 
+Freshness route response construction now terminates in one bridge mapper as
+well. App-server still gathers host-owned live retrieval and watcher facts, but
+`map_epiphany_freshness_response` owns freshness surface derivation and
+protocol response projection. `epiphany_read_routes.rs` is about 559 lines
+after this cut.
+
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC
 responses, but `map_thread_epiphany_context_response` and
