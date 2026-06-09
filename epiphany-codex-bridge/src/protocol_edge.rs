@@ -32,6 +32,8 @@ use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
 use codex_app_server_protocol::ThreadEpiphanyPressureStatus;
+use codex_app_server_protocol::ThreadEpiphanyPromoteParams;
+use codex_app_server_protocol::ThreadEpiphanyPromoteResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientAcceptParams;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
@@ -56,7 +58,9 @@ use codex_app_server_protocol::ThreadEpiphanyRolesSource;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedField;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedNotification;
 use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
+use codex_app_server_protocol::ThreadEpiphanyUpdateParams;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
+use codex_app_server_protocol::ThreadEpiphanyUpdateResponse;
 use codex_app_server_protocol::ThreadEpiphanyViewLens;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
 use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
@@ -91,6 +95,9 @@ use epiphany_core::epiphany_view_needs_pressure;
 use epiphany_core::epiphany_view_needs_reorientation_inputs;
 use epiphany_core::epiphany_view_needs_runtime_store;
 use epiphany_state_model::EpiphanyThreadState;
+
+use crate::mutation_service::EpiphanyThreadPromoteApplied;
+use crate::mutation_service::EpiphanyThreadUpdateApplied;
 
 pub fn default_core_epiphany_view_lenses() -> Vec<EpiphanyViewLens> {
     default_epiphany_view_lenses()
@@ -456,6 +463,107 @@ pub fn plan_thread_epiphany_job_launch(
         thread_id,
         launch_request,
         kind,
+    }
+}
+
+pub struct ThreadEpiphanyUpdatePlan {
+    pub thread_id: String,
+    pub expected_revision: Option<u64>,
+    pub patch: EpiphanyRoleStatePatchDocument,
+}
+
+pub fn plan_thread_epiphany_update(params: ThreadEpiphanyUpdateParams) -> ThreadEpiphanyUpdatePlan {
+    let ThreadEpiphanyUpdateParams {
+        thread_id,
+        expected_revision,
+        patch,
+    } = params;
+    ThreadEpiphanyUpdatePlan {
+        thread_id,
+        expected_revision,
+        patch: protocol_update_patch_to_core(&patch),
+    }
+}
+
+pub struct ThreadEpiphanyPromotePlan {
+    pub thread_id: String,
+    pub expected_revision: Option<u64>,
+    pub patch: EpiphanyRoleStatePatchDocument,
+    pub verifier_evidence: epiphany_state_model::EpiphanyEvidenceRecord,
+}
+
+pub fn plan_thread_epiphany_promote(
+    params: ThreadEpiphanyPromoteParams,
+) -> ThreadEpiphanyPromotePlan {
+    let ThreadEpiphanyPromoteParams {
+        thread_id,
+        expected_revision,
+        patch,
+        verifier_evidence,
+    } = params;
+    ThreadEpiphanyPromotePlan {
+        thread_id,
+        expected_revision,
+        patch: protocol_update_patch_to_core(&patch),
+        verifier_evidence,
+    }
+}
+
+pub struct ThreadEpiphanyUpdateRouteOutput {
+    pub response: ThreadEpiphanyUpdateResponse,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+}
+
+pub fn thread_epiphany_update_output(
+    applied: EpiphanyThreadUpdateApplied,
+) -> ThreadEpiphanyUpdateRouteOutput {
+    let changed_fields = applied.changed_fields;
+    let epiphany_state = applied.epiphany_state;
+    let response = ThreadEpiphanyUpdateResponse {
+        revision: applied.revision,
+        changed_fields: protocol_state_updated_fields(changed_fields.clone()),
+        epiphany_state: epiphany_state.clone(),
+    };
+    ThreadEpiphanyUpdateRouteOutput {
+        response,
+        changed_fields,
+        epiphany_state,
+    }
+}
+
+pub struct ThreadEpiphanyPromoteRouteOutput {
+    pub response: ThreadEpiphanyPromoteResponse,
+    pub accepted: Option<ThreadEpiphanyUpdateRouteOutput>,
+}
+
+pub fn thread_epiphany_promote_output(
+    applied: EpiphanyThreadPromoteApplied,
+) -> ThreadEpiphanyPromoteRouteOutput {
+    match applied {
+        EpiphanyThreadPromoteApplied::Rejected { reasons } => ThreadEpiphanyPromoteRouteOutput {
+            response: ThreadEpiphanyPromoteResponse {
+                accepted: false,
+                reasons,
+                revision: None,
+                changed_fields: Vec::new(),
+                epiphany_state: None,
+            },
+            accepted: None,
+        },
+        EpiphanyThreadPromoteApplied::Accepted(applied) => {
+            let accepted = thread_epiphany_update_output(applied);
+            ThreadEpiphanyPromoteRouteOutput {
+                response: ThreadEpiphanyPromoteResponse {
+                    accepted: true,
+                    reasons: Vec::new(),
+                    revision: Some(accepted.response.revision),
+                    changed_fields: accepted.response.changed_fields.clone(),
+                    epiphany_state: Some(accepted.epiphany_state.clone()),
+                },
+                accepted: Some(accepted),
+            }
+        }
     }
 }
 

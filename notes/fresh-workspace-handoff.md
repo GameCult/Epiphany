@@ -77,7 +77,7 @@ remembers doctrine; the branch remembers the blade.
 - Job reflection is now core-shaped inside the bridge. `map_epiphany_jobs` returns typed `EpiphanyJobView`, role-board/view/result assembly consumes that typed job surface, and `ThreadEpiphanyJob` is projected only when building legacy JSON-RPC response structs.
 - Context and graph-query derivation now receive core `EpiphanyContextParams` / `EpiphanyGraphQuery` documents. The bridge converts `ThreadEpiphanyContextParams` / `ThreadEpiphanyGraphQuery` before invoking core policy, so Codex JSON-RPC request DTOs no longer define the internal graph question.
 - Role/reorient acceptance service results now carry core typed findings, and role acceptance carries a typed `EpiphanyRoleStatePatchDocument` for the applied patch. App-server mutation routes project those into `ThreadEpiphany*Finding` / `ThreadEpiphanyUpdatePatch` only for legacy accept responses.
-- Generic update/promote service entry points now accept typed `EpiphanyRoleStatePatchDocument` patches. Vendored app-server converts `ThreadEpiphanyUpdatePatch` request cargo before invoking the bridge, so the mutation service no longer treats the JSON-RPC patch as its native write document.
+- Generic update/promote service entry points now accept typed `EpiphanyRoleStatePatchDocument` patches. The bridge protocol edge converts `ThreadEpiphanyUpdatePatch` request cargo and shapes update/promote legacy responses before app-server emits them, so neither vendored app-server nor the mutation service treats the JSON-RPC patch as its native write document.
 - Changed-field authority is native now. `EpiphanyStateUpdatedField` lives in `epiphany-core`; bridge mutation results carry that typed enum, while app-server projects it into `ThreadEpiphanyStateUpdatedField` only for JSON-RPC responses and notifications.
 - Role launch, role accept, and role-result runtime lookup now use core `EpiphanyRoleResultRoleId` inside the bridge. Role accept and role result now plan protocol role/default binding conversion in the bridge; app-server keeps `ThreadEpiphanyRoleId` only for legacy response shape where needed.
 - Reorient launch service results now use typed `EpiphanySurfaceSource`; app-server projects it into `ThreadEpiphanyReorientSource` only for the legacy launch response.
@@ -915,6 +915,15 @@ preserving the legacy response role id. App-server still loads the thread,
 invokes the role launch mutation service, builds the legacy launch response
 DTO, and emits the state-updated notification. `epiphany_mutation_routes.rs` is
 about 714 lines after this cut.
+
+Update/promote write-route planning and response shaping moved to the bridge
+protocol edge. `plan_thread_epiphany_update` and
+`plan_thread_epiphany_promote` own protocol patch conversion, while
+`thread_epiphany_update_output` and `thread_epiphany_promote_output` own the
+legacy response DTOs plus the notification payload handoff for accepted writes.
+App-server still loads the thread, calls the mutation service, sends the
+response, and emits `stateUpdated`. `epiphany_mutation_routes.rs` is about 686
+lines after this cut.
 
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC
