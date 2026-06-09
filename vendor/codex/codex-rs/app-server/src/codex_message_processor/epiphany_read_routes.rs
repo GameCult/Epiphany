@@ -3,6 +3,7 @@ use codex_core::CodexThread;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::EpiphanyRetrievalState;
 use epiphany_codex_bridge::cultnet::EpiphanySurfaceSource;
+use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
 use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::epiphany_role_binding_id;
@@ -18,9 +19,7 @@ use epiphany_codex_bridge::protocol_edge::protocol_graph_query_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_role_id_to_core;
 use epiphany_codex_bridge::protocol_edge::protocol_view_lenses_to_core;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
-use epiphany_codex_bridge::retrieve::normalize_thread_epiphany_retrieve_query;
-use epiphany_codex_bridge::retrieve::retrieve_epiphany_for_paths;
-use epiphany_codex_bridge::retrieve_protocol::protocol_retrieve_response;
+use epiphany_codex_bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths;
 use epiphany_codex_bridge::view_protocol::EpiphanyFreshnessResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyReorientResultResponseInput;
 use epiphany_codex_bridge::view_protocol::EpiphanyRoleResultResponseInput;
@@ -434,15 +433,6 @@ impl CodexMessageProcessor {
             }
         };
 
-        let query = match normalize_thread_epiphany_retrieve_query(query, limit, path_prefixes) {
-            Ok(query) => query,
-            Err(message) => {
-                self.send_invalid_request_error(request_id, message.to_string())
-                    .await;
-                return;
-            }
-        };
-
         let thread = match self.thread_manager.get_thread(thread_uuid).await {
             Ok(thread) => thread,
             Err(_) => {
@@ -457,21 +447,29 @@ impl CodexMessageProcessor {
 
         let config = thread.config_snapshot().await;
         let codex_home = thread.codex_home().await;
-        let response =
-            match retrieve_epiphany_for_paths(config.cwd.to_path_buf(), codex_home, query)
-                .await
-                .and_then(protocol_retrieve_response)
-            {
-                Ok(response) => response,
-                Err(err) => {
-                    self.send_internal_error(
-                        request_id,
-                        format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
-                    )
-                    .await;
-                    return;
-                }
-            };
+        let response = match retrieve_thread_epiphany_for_paths(
+            config.cwd.to_path_buf(),
+            codex_home,
+            query,
+            limit,
+            path_prefixes,
+        )
+        .await
+        {
+            Ok(response) => response,
+            Err(EpiphanyBridgeError::InvalidRequest(message)) => {
+                self.send_invalid_request_error(request_id, message).await;
+                return;
+            }
+            Err(err) => {
+                self.send_internal_error(
+                    request_id,
+                    format!("failed to retrieve Epiphany results for {thread_uuid}: {err}"),
+                )
+                .await;
+                return;
+            }
+        };
 
         self.outgoing.send_response(request_id, response).await;
     }

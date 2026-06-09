@@ -472,8 +472,10 @@ current_status:
     `ThreadEpiphanyScene` plus scene-action DTOs for view responses.
     Retrieval follows the boundary too: `retrieve.rs` executes normalization,
     indexing, state lookup, and typed retrieval responses; `retrieve_protocol.rs`
-    owns Codex JSON-RPC retrieve/index response projection and absolute-path DTO
-    validation.
+    owns Codex JSON-RPC retrieve/index response projection, absolute-path DTO
+    validation, and the route-facing retrieve service that normalizes raw
+    request fields before invoking core retrieval. App-server supplies loaded
+    thread cwd/Codex-home facts and maps bridge errors to JSON-RPC responses.
     View response assembly no longer owns private lens/source/reorient-status
     projection helpers; those small enum conversions route through
     `protocol_edge`, and the Codex response assembler is now named

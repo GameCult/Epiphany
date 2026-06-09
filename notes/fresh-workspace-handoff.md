@@ -842,6 +842,13 @@ app-server still checks that the target thread is loaded and maps errors onto
 JSON-RPC responses, but it no longer shapes those patches itself.
 `epiphany_read_routes.rs` is about 579 lines after this cut.
 
+The retrieve read route has now lost its local normalization/projection opinion
+too. `epiphany-codex-bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths`
+owns raw query normalization, core retrieval invocation, and Codex JSON-RPC
+retrieve response projection. App-server keeps thread-id parsing, loaded-thread
+lookup, config/Codex-home fact supply, response emission, and bridge-error to
+JSON-RPC mapping.
+
 Also: MCP itself is allowed to be JSON. The target is not "replace MCP JSON";
 the target is an Epiphany-owned boundary that speaks typed Epiphany
 intent/result/receipt documents internally and normal MCP JSON-RPC externally.

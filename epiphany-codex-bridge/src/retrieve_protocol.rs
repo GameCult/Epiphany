@@ -9,6 +9,33 @@ use epiphany_core::EpiphanyRetrieveResponse as CoreEpiphanyRetrieveResponse;
 use epiphany_core::EpiphanyRetrieveResult as CoreEpiphanyRetrieveResult;
 use epiphany_core::EpiphanyRetrieveResultKind as CoreEpiphanyRetrieveResultKind;
 use epiphany_state_model::EpiphanyRetrievalState;
+use std::path::PathBuf;
+
+use crate::error::EpiphanyBridgeError;
+use crate::error::Result as BridgeResult;
+use crate::retrieve::normalize_thread_epiphany_retrieve_query;
+use crate::retrieve::retrieve_epiphany_for_paths;
+
+pub async fn retrieve_thread_epiphany_for_paths(
+    workspace_root: PathBuf,
+    codex_home: PathBuf,
+    query: String,
+    limit: Option<u32>,
+    path_prefixes: Vec<PathBuf>,
+) -> BridgeResult<ThreadEpiphanyRetrieveResponse> {
+    let query = normalize_thread_epiphany_retrieve_query(query, limit, path_prefixes)
+        .map_err(EpiphanyBridgeError::InvalidRequest)?;
+    let response = retrieve_epiphany_for_paths(workspace_root, codex_home, query)
+        .await
+        .map_err(|err| {
+            EpiphanyBridgeError::Fatal(format!("failed to retrieve Epiphany results: {err}"))
+        })?;
+    protocol_retrieve_response(response).map_err(|err| {
+        EpiphanyBridgeError::Fatal(format!(
+            "failed to project Epiphany retrieve response: {err}"
+        ))
+    })
+}
 
 pub fn protocol_retrieve_response(
     response: CoreEpiphanyRetrieveResponse,

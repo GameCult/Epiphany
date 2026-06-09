@@ -464,14 +464,12 @@ Code refs:
 The app-server handler:
 
 1. parses the thread id.
-2. trims and rejects empty queries.
-3. rejects zero limits.
-4. requires the thread to be loaded.
-5. clamps limit to Epiphany bounds.
-6. calls `epiphany-codex-bridge::retrieve_thread_epiphany`.
-7. maps core results into app-server protocol DTOs.
+2. requires the thread to be loaded.
+3. reads the loaded thread config and Codex home as host facts.
+4. calls `epiphany-codex-bridge::retrieve_protocol::retrieve_thread_epiphany_for_paths`.
+5. maps bridge errors to JSON-RPC invalid-request or internal-error responses.
 
-`retrieve_thread_epiphany` snapshots the host config, extracts `cwd` as workspace root, gets Codex home from the host seam, and runs `epiphany_core::retrieve_workspace` in `spawn_blocking`.
+`retrieve_thread_epiphany_for_paths` owns raw request normalization, including query trimming, empty-query rejection, zero-limit rejection, limit clamping, and path-prefix handling. It then runs `epiphany_core::retrieve_workspace` through the bridge retrieval worker and projects typed core results into the legacy Codex JSON-RPC retrieve response.
 
 `epiphany-core::retrieve_workspace`:
 
