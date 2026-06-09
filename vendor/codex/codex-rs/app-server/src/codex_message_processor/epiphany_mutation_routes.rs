@@ -6,7 +6,6 @@ use codex_protocol::protocol::EpiphanyThreadState;
 use epiphany_codex_bridge::cultnet::EpiphanyStateUpdatedField;
 use epiphany_codex_bridge::error::EpiphanyBridgeError;
 use epiphany_codex_bridge::invalidation::epiphany_freshness_watcher_snapshot;
-use epiphany_codex_bridge::launch::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_codex_bridge::launch::build_epiphany_job_launch_request;
 use epiphany_codex_bridge::mutation_service::EpiphanyThreadPromoteApplied;
 use epiphany_codex_bridge::mutation_service::apply_thread_epiphany_promote;
@@ -17,6 +16,7 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
+use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_reorient_accept;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_role_accept;
 use epiphany_codex_bridge::protocol_edge::protocol_job_from_surface;
 use epiphany_codex_bridge::protocol_edge::protocol_patch_from_core;
@@ -345,27 +345,22 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyReorientAcceptParams,
     ) {
-        let ThreadEpiphanyReorientAcceptParams {
-            thread_id,
-            expected_revision,
-            binding_id,
-            update_scratch,
-            update_investigation_checkpoint,
-        } = params;
-        let binding_id = binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.into());
+        let accept_plan = plan_thread_epiphany_reorient_accept(params);
 
-        let (thread_uuid, loaded_thread) =
-            match self.load_epiphany_thread(&request_id, &thread_id).await {
-                Some(thread) => thread,
-                None => return,
-            };
+        let (thread_uuid, loaded_thread) = match self
+            .load_epiphany_thread(&request_id, &accept_plan.thread_id)
+            .await
+        {
+            Some(thread) => thread,
+            None => return,
+        };
         let host = EpiphanyCodexThreadHost::new(loaded_thread.as_ref());
         let applied = match apply_thread_epiphany_reorient_accept(
             &host,
-            expected_revision,
-            binding_id.as_str(),
-            update_scratch,
-            update_investigation_checkpoint,
+            accept_plan.expected_revision,
+            accept_plan.binding_id.as_str(),
+            accept_plan.update_scratch,
+            accept_plan.update_investigation_checkpoint,
         )
         .await
         {
@@ -394,7 +389,7 @@ impl CodexMessageProcessor {
                     revision: applied.revision,
                     changed_fields: protocol_changed_fields,
                     epiphany_state: epiphany_state.clone(),
-                    binding_id: binding_id.clone(),
+                    binding_id: accept_plan.binding_id.clone(),
                     accepted_receipt_id: applied.accepted_receipt_id,
                     accepted_observation_id: applied.accepted_observation_id,
                     accepted_evidence_id: applied.accepted_evidence_id,

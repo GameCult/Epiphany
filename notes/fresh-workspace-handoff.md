@@ -895,6 +895,13 @@ accepts the finding. App-server still loads the thread, calls the mutation
 service, builds the legacy accept response DTO, and emits the state-updated
 notification. `epiphany_mutation_routes.rs` is about 749 lines after this cut.
 
+Reorient-accept write-route planning has moved to the bridge protocol edge too.
+`plan_thread_epiphany_reorient_accept` owns the fixed reorient binding default
+and carries the explicit scratch/checkpoint flags forward. App-server still
+loads the thread, calls the mutation service, builds the legacy accept response
+DTO, and emits the state-updated notification. `epiphany_mutation_routes.rs` is
+about 744 lines after this cut.
+
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC
 responses, but `map_thread_epiphany_context_response` and

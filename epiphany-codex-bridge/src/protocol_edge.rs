@@ -31,6 +31,7 @@ use codex_app_server_protocol::ThreadEpiphanyPressure;
 use codex_app_server_protocol::ThreadEpiphanyPressureBasis;
 use codex_app_server_protocol::ThreadEpiphanyPressureLevel;
 use codex_app_server_protocol::ThreadEpiphanyPressureStatus;
+use codex_app_server_protocol::ThreadEpiphanyReorientAcceptParams;
 use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
@@ -56,6 +57,7 @@ use codex_app_server_protocol::ThreadEpiphanyStateUpdatedSource;
 use codex_app_server_protocol::ThreadEpiphanyUpdatePatch;
 use codex_app_server_protocol::ThreadEpiphanyViewLens;
 use codex_app_server_protocol::ThreadEpiphanyWorkerLaunchDocument;
+use epiphany_core::EPIPHANY_REORIENT_LAUNCH_BINDING_ID;
 use epiphany_core::EpiphanyContextParams;
 use epiphany_core::EpiphanyCoordinatorRoleResultStatus;
 use epiphany_core::EpiphanyCrrcResultStatus;
@@ -352,6 +354,33 @@ pub fn plan_thread_epiphany_role_accept(
         expected_revision,
         binding_id: binding_id.unwrap_or_else(|| default_binding_id.to_string()),
     })
+}
+
+pub struct ThreadEpiphanyReorientAcceptPlan {
+    pub thread_id: String,
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    pub update_scratch: bool,
+    pub update_investigation_checkpoint: bool,
+}
+
+pub fn plan_thread_epiphany_reorient_accept(
+    params: ThreadEpiphanyReorientAcceptParams,
+) -> ThreadEpiphanyReorientAcceptPlan {
+    let ThreadEpiphanyReorientAcceptParams {
+        thread_id,
+        expected_revision,
+        binding_id,
+        update_scratch,
+        update_investigation_checkpoint,
+    } = params;
+    ThreadEpiphanyReorientAcceptPlan {
+        thread_id,
+        expected_revision,
+        binding_id: binding_id.unwrap_or_else(|| EPIPHANY_REORIENT_LAUNCH_BINDING_ID.to_string()),
+        update_scratch,
+        update_investigation_checkpoint,
+    }
 }
 
 pub fn protocol_state_updated_fields(
