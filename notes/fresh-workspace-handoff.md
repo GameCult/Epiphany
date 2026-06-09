@@ -913,10 +913,11 @@ lines after this cut.
 
 Role-launch write-route planning has moved to the bridge protocol edge.
 `plan_thread_epiphany_role_launch` owns protocol role conversion while
-preserving the legacy response role id. App-server still loads the thread,
-invokes the role launch mutation service, builds the legacy launch response
-DTO, and emits the state-updated notification. `epiphany_mutation_routes.rs` is
-about 714 lines after this cut.
+preserving the legacy response role id; `thread_epiphany_role_launch_output`
+now owns the legacy response DTO plus notification payload handoff from
+`EpiphanyJobLaunchApplied`. App-server still loads the thread, invokes the role
+launch mutation service, sends the response, and emits the state-updated
+notification. `epiphany_mutation_routes.rs` is about 645 lines after this cut.
 
 Update/promote write-route planning and response shaping moved to the bridge
 protocol edge. `plan_thread_epiphany_update` and

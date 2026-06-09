@@ -53,6 +53,7 @@ use codex_app_server_protocol::ThreadEpiphanyRoleAcceptParams;
 use codex_app_server_protocol::ThreadEpiphanyRoleFinding;
 use codex_app_server_protocol::ThreadEpiphanyRoleId;
 use codex_app_server_protocol::ThreadEpiphanyRoleLaunchParams;
+use codex_app_server_protocol::ThreadEpiphanyRoleLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyRoleResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceReview;
 use codex_app_server_protocol::ThreadEpiphanyRoleSelfPersistenceStatus;
@@ -375,6 +376,38 @@ pub fn plan_thread_epiphany_role_launch(
         core_role_id: protocol_role_id_to_core(role_id),
         expected_revision,
         max_runtime_seconds,
+    }
+}
+
+pub struct ThreadEpiphanyRoleLaunchRouteOutput {
+    pub response: ThreadEpiphanyRoleLaunchResponse,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+}
+
+pub fn thread_epiphany_role_launch_output(
+    thread_id: String,
+    role_id: ThreadEpiphanyRoleId,
+    applied: EpiphanyJobLaunchApplied,
+) -> ThreadEpiphanyRoleLaunchRouteOutput {
+    let changed_fields = applied.changed_fields;
+    let epiphany_state = applied.epiphany_state;
+    let response = ThreadEpiphanyRoleLaunchResponse {
+        thread_id,
+        role_id,
+        revision: applied.revision,
+        changed_fields: protocol_state_updated_fields(changed_fields.clone()),
+        epiphany_state: epiphany_state.clone(),
+        job: protocol_job_from_surface(
+            applied.job,
+            Some(applied.launcher_job_id),
+            Some(applied.backend_job_id),
+        ),
+    };
+    ThreadEpiphanyRoleLaunchRouteOutput {
+        response,
+        changed_fields,
+        epiphany_state,
     }
 }
 
