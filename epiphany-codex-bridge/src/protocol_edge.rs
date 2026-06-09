@@ -25,6 +25,8 @@ use codex_app_server_protocol::ThreadEpiphanyGraphQueryKind;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationInput;
 use codex_app_server_protocol::ThreadEpiphanyInvalidationStatus;
 use codex_app_server_protocol::ThreadEpiphanyJob;
+use codex_app_server_protocol::ThreadEpiphanyJobInterruptParams;
+use codex_app_server_protocol::ThreadEpiphanyJobInterruptResponse;
 use codex_app_server_protocol::ThreadEpiphanyJobKind;
 use codex_app_server_protocol::ThreadEpiphanyJobLaunchParams;
 use codex_app_server_protocol::ThreadEpiphanyJobStatus;
@@ -96,6 +98,7 @@ use epiphany_core::epiphany_view_needs_reorientation_inputs;
 use epiphany_core::epiphany_view_needs_runtime_store;
 use epiphany_state_model::EpiphanyThreadState;
 
+use crate::mutation_service::EpiphanyJobInterruptApplied;
 use crate::mutation_service::EpiphanyThreadPromoteApplied;
 use crate::mutation_service::EpiphanyThreadUpdateApplied;
 
@@ -564,6 +567,56 @@ pub fn thread_epiphany_promote_output(
                 accepted: Some(accepted),
             }
         }
+    }
+}
+
+pub struct ThreadEpiphanyJobInterruptPlan {
+    pub thread_id: String,
+    pub expected_revision: Option<u64>,
+    pub binding_id: String,
+    pub reason: Option<String>,
+}
+
+pub fn plan_thread_epiphany_job_interrupt(
+    params: ThreadEpiphanyJobInterruptParams,
+) -> ThreadEpiphanyJobInterruptPlan {
+    let ThreadEpiphanyJobInterruptParams {
+        thread_id,
+        expected_revision,
+        binding_id,
+        reason,
+    } = params;
+    ThreadEpiphanyJobInterruptPlan {
+        thread_id,
+        expected_revision,
+        binding_id,
+        reason,
+    }
+}
+
+pub struct ThreadEpiphanyJobInterruptRouteOutput {
+    pub response: ThreadEpiphanyJobInterruptResponse,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+}
+
+pub fn thread_epiphany_job_interrupt_output(
+    applied: EpiphanyJobInterruptApplied,
+) -> ThreadEpiphanyJobInterruptRouteOutput {
+    let changed_fields = applied.changed_fields;
+    let epiphany_state = applied.epiphany_state;
+    let response = ThreadEpiphanyJobInterruptResponse {
+        cancel_requested: applied.cancel_requested,
+        interrupted_thread_ids: applied.interrupted_thread_ids,
+        revision: applied.revision,
+        changed_fields: protocol_state_updated_fields(changed_fields.clone()),
+        epiphany_state: epiphany_state.clone(),
+        job: protocol_job_from_surface(applied.job, None, None),
+    };
+    ThreadEpiphanyJobInterruptRouteOutput {
+        response,
+        changed_fields,
+        epiphany_state,
     }
 }
 

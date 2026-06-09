@@ -925,6 +925,14 @@ App-server still loads the thread, calls the mutation service, sends the
 response, and emits `stateUpdated`. `epiphany_mutation_routes.rs` is about 686
 lines after this cut.
 
+Job-interrupt write-route planning and response shaping moved to the bridge
+protocol edge. `plan_thread_epiphany_job_interrupt` owns protocol param
+unpacking and `thread_epiphany_job_interrupt_output` owns the legacy interrupt
+response DTO plus notification payload handoff. App-server still loads the
+thread, calls the mutation service, sends the response, and emits
+`stateUpdated`. `epiphany_mutation_routes.rs` is about 674 lines after this
+cut.
+
 Context and graph-query route-level conversion followed. App-server still
 parses thread ids, loads live/stored thread views, and emits JSON-RPC
 responses, but `map_thread_epiphany_context_response` and

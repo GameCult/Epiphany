@@ -14,6 +14,7 @@ use epiphany_codex_bridge::mutation_service::interrupt_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_job;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_reorient;
 use epiphany_codex_bridge::mutation_service::launch_thread_epiphany_role;
+use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_job_interrupt;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_job_launch;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_promote;
 use epiphany_codex_bridge::protocol_edge::plan_thread_epiphany_reorient_accept;
@@ -29,6 +30,7 @@ use epiphany_codex_bridge::protocol_edge::protocol_reorient_state_status;
 use epiphany_codex_bridge::protocol_edge::protocol_role_finding;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_fields;
 use epiphany_codex_bridge::protocol_edge::protocol_state_updated_notification;
+use epiphany_codex_bridge::protocol_edge::thread_epiphany_job_interrupt_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_promote_output;
 use epiphany_codex_bridge::protocol_edge::thread_epiphany_update_output;
 use epiphany_codex_bridge::retrieve::epiphany_retrieval_state_for_paths;
@@ -617,14 +619,12 @@ impl CodexMessageProcessor {
         request_id: ConnectionRequestId,
         params: ThreadEpiphanyJobInterruptParams,
     ) {
-        let ThreadEpiphanyJobInterruptParams {
-            thread_id,
-            expected_revision,
-            binding_id,
-            reason,
-        } = params;
+        let interrupt_plan = plan_thread_epiphany_job_interrupt(params);
 
-        let (thread_uuid, thread) = match self.load_epiphany_thread(&request_id, &thread_id).await {
+        let (thread_uuid, thread) = match self
+            .load_epiphany_thread(&request_id, &interrupt_plan.thread_id)
+            .await
+        {
             Some(thread) => thread,
             None => return,
         };
@@ -632,9 +632,9 @@ impl CodexMessageProcessor {
         let host = EpiphanyCodexThreadHost::new(thread.as_ref());
         let applied = match interrupt_thread_epiphany_job(
             &host,
-            expected_revision,
-            &binding_id,
-            reason,
+            interrupt_plan.expected_revision,
+            &interrupt_plan.binding_id,
+            interrupt_plan.reason,
         )
         .await
         {
@@ -652,28 +652,16 @@ impl CodexMessageProcessor {
                 return;
             }
         };
-        let changed_fields = applied.changed_fields;
-        let protocol_changed_fields = protocol_state_updated_fields(changed_fields.clone());
-        let epiphany_state = applied.epiphany_state;
+        let output = thread_epiphany_job_interrupt_output(applied);
 
         self.outgoing
-            .send_response(
-                request_id,
-                ThreadEpiphanyJobInterruptResponse {
-                    cancel_requested: applied.cancel_requested,
-                    interrupted_thread_ids: applied.interrupted_thread_ids.clone(),
-                    revision: applied.revision,
-                    changed_fields: protocol_changed_fields,
-                    epiphany_state: epiphany_state.clone(),
-                    job: protocol_job_from_surface(applied.job, None, None),
-                },
-            )
+            .send_response(request_id, output.response)
             .await;
         self.send_epiphany_state_updated(
             thread_uuid,
             ThreadEpiphanyStateUpdatedSource::JobInterrupt,
-            changed_fields,
-            epiphany_state,
+            output.changed_fields,
+            output.epiphany_state,
         )
         .await;
     }
