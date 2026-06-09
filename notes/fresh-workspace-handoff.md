@@ -919,6 +919,15 @@ now owns the legacy response DTO plus notification payload handoff from
 launch mutation service, sends the response, and emits the state-updated
 notification. `epiphany_mutation_routes.rs` is about 645 lines after this cut.
 
+Reorient-launch write-route planning and response shaping moved to the bridge
+protocol edge too. `plan_thread_epiphany_reorient_launch` owns protocol param
+unpacking, while `thread_epiphany_reorient_launch_output` owns the legacy
+response DTO plus notification payload handoff from
+`EpiphanyReorientLaunchApplied`. App-server still owns host fact gathering:
+loaded thread, read view, retrieval override, watcher snapshot, token snapshot,
+mutation-service invocation, response emission, and `stateUpdated`.
+`epiphany_mutation_routes.rs` is about 617 lines after this cut.
+
 Update/promote write-route planning and response shaping moved to the bridge
 protocol edge. `plan_thread_epiphany_update` and
 `plan_thread_epiphany_promote` own protocol patch conversion, while

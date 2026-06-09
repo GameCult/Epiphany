@@ -42,6 +42,8 @@ use codex_app_server_protocol::ThreadEpiphanyReorientAction;
 use codex_app_server_protocol::ThreadEpiphanyReorientCheckpointStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientDecision;
 use codex_app_server_protocol::ThreadEpiphanyReorientFinding;
+use codex_app_server_protocol::ThreadEpiphanyReorientLaunchParams;
+use codex_app_server_protocol::ThreadEpiphanyReorientLaunchResponse;
 use codex_app_server_protocol::ThreadEpiphanyReorientReason;
 use codex_app_server_protocol::ThreadEpiphanyReorientResultStatus;
 use codex_app_server_protocol::ThreadEpiphanyReorientSource;
@@ -102,6 +104,7 @@ use epiphany_state_model::EpiphanyThreadState;
 
 use crate::mutation_service::EpiphanyJobInterruptApplied;
 use crate::mutation_service::EpiphanyJobLaunchApplied;
+use crate::mutation_service::EpiphanyReorientLaunchApplied;
 use crate::mutation_service::EpiphanyThreadPromoteApplied;
 use crate::mutation_service::EpiphanyThreadUpdateApplied;
 
@@ -429,6 +432,61 @@ pub fn plan_thread_epiphany_role_accept(
         expected_revision,
         binding_id: binding_id.unwrap_or_else(|| default_binding_id.to_string()),
     })
+}
+
+pub struct ThreadEpiphanyReorientLaunchPlan {
+    pub thread_id: String,
+    pub expected_revision: Option<u64>,
+    pub max_runtime_seconds: Option<u64>,
+}
+
+pub fn plan_thread_epiphany_reorient_launch(
+    params: ThreadEpiphanyReorientLaunchParams,
+) -> ThreadEpiphanyReorientLaunchPlan {
+    let ThreadEpiphanyReorientLaunchParams {
+        thread_id,
+        expected_revision,
+        max_runtime_seconds,
+    } = params;
+    ThreadEpiphanyReorientLaunchPlan {
+        thread_id,
+        expected_revision,
+        max_runtime_seconds,
+    }
+}
+
+pub struct ThreadEpiphanyReorientLaunchRouteOutput {
+    pub response: ThreadEpiphanyReorientLaunchResponse,
+    pub changed_fields: Vec<EpiphanyStateUpdatedField>,
+    pub epiphany_state: EpiphanyThreadState,
+}
+
+pub fn thread_epiphany_reorient_launch_output(
+    thread_id: String,
+    applied: EpiphanyReorientLaunchApplied,
+) -> ThreadEpiphanyReorientLaunchRouteOutput {
+    let changed_fields = applied.changed_fields;
+    let epiphany_state = applied.epiphany_state;
+    let response = ThreadEpiphanyReorientLaunchResponse {
+        thread_id,
+        source: protocol_reorient_source(applied.source),
+        state_status: protocol_reorient_state_status(applied.state_status),
+        state_revision: applied.state_revision,
+        decision: protocol_reorient_decision(applied.decision),
+        revision: applied.revision,
+        changed_fields: protocol_state_updated_fields(changed_fields.clone()),
+        epiphany_state: epiphany_state.clone(),
+        job: protocol_job_from_surface(
+            applied.job,
+            Some(applied.launcher_job_id),
+            Some(applied.backend_job_id),
+        ),
+    };
+    ThreadEpiphanyReorientLaunchRouteOutput {
+        response,
+        changed_fields,
+        epiphany_state,
+    }
 }
 
 pub struct ThreadEpiphanyReorientAcceptPlan {
