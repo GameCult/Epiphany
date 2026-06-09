@@ -350,21 +350,24 @@ GameCult daemon-control path.
   verifies; Mind admits durable state; Self routes; Proprioception maps Body.
 \end{enumerate}
 
-\section{Current Gaps And Pressure}
+\section{Current Cut Line}
 
-The Body is coherent enough to inspect, but not finished:
+The Body is coherent enough to inspect and extend. The next cuts are concrete:
 
 \begin{itemize}
-  \item \code{thread/epiphany/*} JSON-RPC remains as a compatibility surface.
-  Native CultNet/CultMesh operator contracts are the desired authority.
+  \item Keep \code{thread/epiphany/*} JSON-RPC as compatibility projection
+  only. New operator authority belongs in typed CultNet/CultMesh contracts.
   \item \code{codex_message_processor.rs} still participates in routing and
-  response projection.
+  response projection; move Epiphany-owned routing out through the bridge and
+  native runtime surfaces.
   \item Some \code{serde_json::Value} and JSON payloads survive at ingress,
-  model output, schema, sealed artifacts, and quarantine seams. Each internal
-  blob needs a typed replacement or expiration rite.
-  \item Eve/CultUI publication is designed but not complete.
-  \item The local Verse and memory graph stores are useful local generated
-  state, but not tracked canonical repository content.
+  model output, schema, sealed artifacts, and quarantine seams. Preserve them
+  only at those boundaries; typed documents own Epiphany-internal state.
+  \item Publish Eve/CultUI compositions from provider-owned CultMesh state;
+  renderers lower the composition graph without becoming state owners.
+  \item Treat local Verse and memory graph stores as generated runtime state.
+  They are inspected through tools and receipts, not tracked as repository
+  canon.
   \item The persisted next action after this pass remains the non-ephemeral
   Hands branch-turn smoke and Proprioception refresh proof.
 \end{itemize}
@@ -375,11 +378,11 @@ Epiphany's Body is no longer a prompt style pasted onto Codex. It is a growing
 typed substrate: Rust domain organs, CultCache stores, CultMesh local Verse
 documents, CultNet schema contracts, runtime-spine receipts, heartbeat
 physiology, memory graph state, model/tool adapter documents, and local
-operator surfaces. The remaining danger is not absence of structure. It is
-split authority: Codex host routes, JSON-RPC compatibility, JSON cargo, and
-operator artifacts still trying to act like organs.
+operator surfaces. The current cut line is split authority: Codex host routes,
+JSON-RPC compatibility, JSON cargo, and operator artifacts must remain
+compatibility or witness surfaces rather than organs.
 
-The purification path is therefore architectural, not cosmetic. Keep Codex as a
+The cut line is therefore architectural, not cosmetic. Keep Codex as a
 narrow auth/model/compatibility reliquary. Move Epiphany-owned state, scheduler
 policy, prompt authority, worker lifecycle, operator surfaces, daemon discovery,
 and action receipts through typed CultCache, CultMesh, CultNet, and Eve/CultUI.

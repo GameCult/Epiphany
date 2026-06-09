@@ -217,16 +217,18 @@ Operator access currently exists through:
 Operator artifacts are witnesses unless they are typed CultCache/CultMesh
 documents. Dashboards and wrappers must not become fact owners.
 
-## Current Gaps
+## Current Cut Line
 
-- `thread/epiphany/*` JSON-RPC remains a bridge compatibility surface rather
-  than the final native contract.
+- `thread/epiphany/*` JSON-RPC remains a bridge compatibility projection.
+  New operator authority belongs in typed CultNet/CultMesh contracts.
 - `codex_message_processor.rs` still participates in routing and response
-  projection even after many authority cuts.
+  projection; Epiphany-owned routing should keep moving out through the bridge
+  and native runtime surfaces.
 - Some JSON survives as schema, hostile ingress, model output, sealed artifact,
-  quarantine, or edge DTO cargo; each load-bearing internal blob should keep
-  moving toward typed documents.
-- Eve/CultUI surface publication is designed but not complete.
+  quarantine, or edge DTO cargo. Inside Epiphany-owned flow, typed documents
+  own state.
+- Eve/CultUI publication should lower provider-owned CultMesh composition
+  graphs without becoming a parallel dashboard truth.
 - The non-ephemeral Hands branch-turn smoke remains the persisted next action
   after this documentation pass.
 - Local Verse and memory graph stores are untracked generated state, useful for
@@ -237,8 +239,8 @@ documents. Dashboards and wrappers must not become fact owners.
 Epiphany's Body is already partially native: core domain logic, runtime spine,
 heartbeat physiology, state ledgers, memory graph, local Verse, model/tool
 contracts, and CultMesh operator documents all exist as typed Rust/CultCache
-surfaces. The remaining impurity is not lack of organs; it is ownership still
-passing through the Codex host and JSON-RPC compatibility body. The coherent
-direction is to keep Codex as a narrow auth/model/compatibility reliquary while
-Epiphany's own state, scheduler, prompt authority, operator surfaces, and daemon
-control move through CultCache, CultMesh, CultNet, and Eve/CultUI.
+surfaces. The current cut line is ownership still passing through the Codex
+host and JSON-RPC compatibility body. The coherent direction is to keep Codex
+as a narrow auth/model/compatibility reliquary while Epiphany's own state,
+scheduler, prompt authority, operator surfaces, and daemon control move through
+CultCache, CultMesh, CultNet, and Eve/CultUI.

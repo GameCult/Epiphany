@@ -761,8 +761,8 @@ compatibility paths, while
 `epiphany-core::apply_epiphany_state_update` own typed validation/application.
 `codex-core` re-exports the contract only so older callers keep compiling.
 `CodexThread` is now a compatibility caller around revision checks,
-persistence validation, and rollout/session writeback. The remaining impurity
-is route-facing orchestration in `codex_message_processor.rs` /
+persistence validation, and rollout/session writeback. The current cut line is
+route-facing orchestration in `codex_message_processor.rs` /
 `epiphany_mutation_routes.rs`; move that behind a native service boundary next.
 
 The first route-facing mutation service cut has started. Update/promote
