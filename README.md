@@ -141,6 +141,9 @@ verification stop living in the same overworked skull.
 
 If you want the human-readable map of the project, start here:
 
+- `docs/epiphany_investor_brief.md`: investor-facing one-page value summary
+- `docs/epiphany_body_whitepaper.pdf`: shareable Proprioception whitepaper
+- `docs/epiphany_body_whitepaper.tex`: source for the Body architecture paper
 - `notes/epiphany-anatomy.md`: current organ/sub-agent/substrate/protocol split
 - `notes/epiphany-current-algorithmic-map.md`: source-grounded control flow of the live machine
 - `notes/epiphany-fork-implementation-plan.md`: distilled forward plan

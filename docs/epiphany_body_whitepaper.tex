@@ -1,0 +1,392 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{microtype}
+
+\DeclareUrlCommand{\code}{\urlstyle{tt}}
+\newcommand{\bodyterm}[1]{\textbf{#1}}
+\emergencystretch=3em
+\sloppy
+\setlist[itemize]{leftmargin=1.5em}
+\setlist[enumerate]{leftmargin=1.5em}
+\titleformat{\section}{\Large\bfseries}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection}{0.8em}{}
+
+\title{Epiphany's Body: A Proprioception Whitepaper}
+\author{GameCult / EpiphanyAgent}
+\date{June 9, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Epiphany is an opinionated Codex-derived agent substrate built around a hard
+requirement: the model must model the thing it changes. This whitepaper maps
+Epiphany's \bodyterm{Body}: the repository, Rust crates, vendored bridge
+machinery, typed state stores, schema catalog, runtime binaries, protocol
+surfaces, operator artifacts, and external interface boundaries through which
+Epiphany senses and acts. The map is written from the Proprioception faculty:
+not as product copy, not as lore, but as an architecture overview whose owner,
+input, output, invariant, and cut lines remain inspectable.
+\end{abstract}
+
+\section{Definition}
+
+In Epiphany doctrine, the Body is the substrate Epiphany acts through and
+senses: repository files, tools, runtime state, prompts, logs, interfaces,
+permissions, hosted systems, and editor/runtime bridges. Body is not Mind. Body
+is changed and sensed; Mind admits durable state. Proprioception is the faculty
+that models the Body: architecture, dataflow, seams, constraints, invariants,
+and the difference between the map and the substrate.
+
+The practical definition in this repository is:
+
+\begin{itemize}
+  \item the root checkout at \code{E:\Projects\EpiphanyAgent};
+  \item Epiphany Rust crates such as \code{epiphany-core}, \code{epiphany-state-model}, \code{epiphany-codex-bridge}, model/tool adapters, and OpenAI transport crates;
+  \item vendored substrate in \code{vendor/codex}, \code{vendor/cultcache-rs}, \code{vendor/cultnet-rs}, and \code{vendor/cultmesh-rs};
+  \item typed state stores under \code{state/};
+  \item schemas under \code{schemas/cultnet/};
+  \item local operator scripts and generated witness artifacts;
+  \item adjacent service/client bodies: Aquarium, Odin/Gjallar, Eve/CultUI, Bifrost, VoidBot, Rider, Unity, Discord, and future GameCult Verse hosts.
+\end{itemize}
+
+\section{Executive Map}
+
+Epiphany's current Body is a hybrid machine in transition. Its center of gravity
+has moved into typed Rust/CultCache organs, but compatibility arteries still
+run through vendored Codex. The live target is not a cleaner pile of Codex
+routes. The target is an Epiphany-native CultCache/CultMesh/CultNet body with a
+relatively vanilla Codex-derived reliquary retained for OpenAI subscription
+auth and model transport.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.23\linewidth}>{\raggedright\arraybackslash}p{0.32\linewidth}>{\raggedright\arraybackslash}p{0.35\linewidth}}
+\textbf{Body Region} & \textbf{Current Owner} & \textbf{Invariant} \\
+\hline
+Durable thread state & \code{epiphany-state-model}, \code{epiphany-core} & State shape is typed; prompt rendering is a projection, not authority. \\
+Domain policy & \code{epiphany-core} & Verdicts, launch policy, acceptance rules, runtime lifecycle, and mutation law live here, not in bridge DTOs. \\
+Compatibility bridge & \code{epiphany-codex-bridge} & Translate Codex edge shapes; never become a second policy throne. \\
+Vendored Codex & \code{vendor/codex} & Retain host/app-server/auth/model compatibility where useful; do not let Codex own Epiphany prompts, scheduler, or state. \\
+Runtime spine & \code{epiphany-core/src/runtime_spine.rs} and \code{state/runtime-spine.cc} & Runtime identity, jobs, events, receipts, tool/model documents are typed CultCache records. \\
+Organ memory & \code{state/agents.cc}; agent-memory CLI & Resident work organs use lean work-organ state; Persona uses portable Persona state. \\
+Heartbeat physiology & \code{state/agent-heartbeats.cc} via \code{epiphany-heartbeat-store} & Scheduling, cooldown, rumination, routine, cognition lanes, and active-turn freeze are scheduler physiology, not project truth. \\
+Local Verse & CultMesh over \code{state/local-verse.cc} & Local Verse context is compact prompt/operator context; private state does not become public by flipping a flag. \\
+Schema catalog & \code{schemas/cultnet/index.json} & JSON schema publishes contracts; typed Rust documents remain runtime authority. \\
+Operator artifacts & \code{.epiphany-*}, \code{tools/epiphany_local_run.ps1} & Artifacts witness and lower state; they do not become state owners. \\
+\end{longtable}
+
+\section{Repository Body}
+
+The checkout has ten primary Epiphany Rust crates:
+
+\begin{itemize}
+  \item \code{epiphany-core}: the main domain organ. It owns state-update
+  validation, launch documents, runtime spine, heartbeat, memory graph, Persona
+  projection, Substrate Gate, Mind, Eyes, Hands, Soul, Continuity, CultMesh
+  integration, surface derivation, smokes, and local operator binaries.
+  \item \code{epiphany-state-model}: the durable \code{EpiphanyThreadState}
+  type plus \code{render_epiphany_state}. This is the typed Mind surface that
+  prompt fragments and views read.
+  \item \code{epiphany-codex-bridge}: the translation layer between typed
+  Epiphany documents and vendored Codex JSON-RPC/app-server shapes. Its own
+  crate header states that it is a bridge, not an authority organ.
+  \item \code{epiphany-model-adapter}: provider-neutral model request, stream
+  event, receipt, and status documents.
+  \item \code{epiphany-openai-adapter}: OpenAI-shaped request/event/receipt and
+  status documents.
+  \item \code{epiphany-openai-auth-spine}: Codex-derived auth boundary over
+  \code{codex-login}. It preserves honest Codex-compatible credential and token
+  behavior rather than impersonating it from scratch.
+  \item \code{epiphany-openai-codex-spine}: model transport over vendored Codex
+  client machinery.
+  \item \code{epiphany-openai-runtime}: executable model runtime, including
+  \code{epiphany-model-runtime}.
+  \item \code{epiphany-tool-adapter}: typed tool capability, invocation intent,
+  and invocation receipt documents.
+  \item \code{epiphany-tool-codex-mcp-spine}: quarantined Codex MCP adapter. It
+  consumes typed tool invocation intents and emits typed receipts; raw MCP JSON
+  remains adapter-edge cargo.
+\end{itemize}
+
+The vendored region contains:
+
+\begin{itemize}
+  \item \code{vendor/codex}: the Codex-derived host and compatibility substrate.
+  It is tracked directly, not as a submodule.
+  \item \code{vendor/cultcache-rs}, \code{vendor/cultnet-rs}, and
+  \code{vendor/cultmesh-rs}: repo-contained Rust Cult substrate.
+\end{itemize}
+
+\section{State Body}
+
+The \code{state/} directory is the local persistent body. The important stores
+are:
+
+Canonical CultCache store files use the \code{.cc} extension. The local state
+body has been migrated to that naming directly; serialization details are
+implementation, not file authority.
+
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.30\linewidth}>{\raggedright\arraybackslash}p{0.60\linewidth}}
+\textbf{Store} & \textbf{Role} \\
+\hline
+\code{state/map.yaml} & Canonical slow project map: objective, constraints, invariants, dataflow, active subgoals, current status, guardrails, and rejected paths. \\
+\code{state/ledgers.cc} & CultCache-shaped evidence and branch ledger. Future behavior-changing lessons go here, not in an endless activity feed. \\
+\code{state/agents.cc} & Organ self-memory and Persona projection source. Resident work organs use \code{work_organ}; public/person-shaped agents use \code{persona}. \\
+\code{state/agent-heartbeats.cc} & Heartbeat initiative, cooldown, pending turns, cognition lanes, routine physiology, and scheduler pressure. \\
+\code{state/runtime-spine.cc} & Runtime identity, sessions, jobs, job results, events, worker launch requests, role/reorient findings, receipts, model/tool documents, and schema catalog surfaces. \\
+\code{state/thread-state.cc} & Native thread-state store. \\
+\code{state/local-verse.cc} & Local CultMesh Verse context for compact operator and prompt-context packets. \\
+\code{state/memory-graph.cc} & Local memory graph store. \\
+\code{state/persona-discord.toml} & Persona Discord boundary configuration. \\
+\code{state/void-memory.toml} & Void memory bridge configuration. \\
+\code{state/scratch.md} and \code{state/scratch-compaction-*.md} & Scratch surfaces. Scratch is a workbench, not canonical memory. \\
+\end{longtable}
+
+Lock files sit beside several stores. Some local generated state is currently
+untracked, including \code{state/local-verse.cc},
+\code{state/memory-graph.cc}, and \code{.epiphany-character-loop/}.
+
+\section{CultNet Schema Body}
+
+The schema catalog in \code{schemas/cultnet/index.json} is the public nerve
+chart. Current local grouping from the catalog is approximately:
+
+\begin{itemize}
+  \item 10 agent-state schemas;
+  \item 5 heartbeat schemas;
+  \item 21 intent schemas;
+  \item 8 model/OpenAI schemas;
+  \item 3 tool schemas;
+  \item 6 runtime schemas;
+  \item 17 surface schemas;
+  \item 4 receipt/ledger schemas;
+  \item 7 other schemas.
+\end{itemize}
+
+The catalog includes runtime identity/session/job/event/result documents, model
+requests and receipts, tool invocation intents and receipts, Persona and
+work-organ state, heartbeat state, operator CultMesh documents, scene/freshness
+/context/graph/pressure/reorient/roles/coordinator surfaces, Unity and Rider
+bridge surfaces, Void memory, and repo-initialization documents.
+
+The invariant is simple: schema JSON describes the contract. Load-bearing
+runtime state should be typed Rust documents persisted through CultCache or
+projected through CultMesh/CultNet. JSON may remain at hostile edges, schema
+publication, sealed forensic artifacts, or named quarantine experiments.
+
+\section{Runtime Spine}
+
+\code{epiphany-core/src/runtime_spine.rs} is one of the main spinal cords of
+the Body. It imports and registers:
+
+\begin{itemize}
+  \item runtime identity, session, job, job-result, and event records;
+  \item worker launch requests and role/reorient worker result documents;
+  \item model adapter, OpenAI adapter, and tool adapter documents;
+  \item surface document types for scene, freshness, context, graph query,
+  pressure, reorient, CRRC, jobs, roles, role result, reorient result,
+  planning, coordinator, Persona, Void memory, repo initialization, repo birth
+  runner, Rider bridge, and Unity bridge;
+  \item organ receipts for Mind, Eyes, Hands, Soul, Continuity, and Substrate
+  Gate;
+  \item CultMesh operator status, snapshots, run intents, run receipts, Verse
+  policy, global room policy, and organ contract documents.
+\end{itemize}
+
+Runtime state is machinery telemetry. It is not project truth. Durable thread
+state may link to runtime records through runtime links, but it must not mirror
+or duplicate their lifecycle fields as a competing owner.
+
+\section{Faculties And Protocol Machinery}
+
+The embodied sub-agents are:
+
+\begin{itemize}
+  \item \bodyterm{Self}: coordination, routing, authority boundaries.
+  \item \bodyterm{Persona}: public and social expression.
+  \item \bodyterm{Imagination}: futures, plans, objective drafts, projection.
+  \item \bodyterm{Eyes}: research, source inspection, evidence ingress.
+  \item \bodyterm{Proprioception}: internal model of Body shape, dataflow,
+  architecture, checkpoints, and seams.
+  \item \bodyterm{Hands}: commands, edits, commits, rollbacks, external action.
+  \item \bodyterm{Soul}: verification, invariants, ethics, falsification.
+\end{itemize}
+
+The machinery surfaces are:
+
+\begin{itemize}
+  \item \bodyterm{Body}: substrate. It is sensed and changed; it does not decide.
+  \item \bodyterm{Mind}: persistent state and state admission.
+  \item \bodyterm{Continuity}: compaction, recovery, sleep, stale-turn repair,
+  and reorientation receipts.
+  \item \bodyterm{Substrate Gate}: scoped repository/substrate access.
+\end{itemize}
+
+Every embodied sub-agent depends on the other embodied sub-agents, but
+dependency does not collapse ownership. A Persona turn, for example, should
+move through Substrate-Gate-scoped facts, Mind state, social stimulus, organ
+dependencies, Imagination as Projector, Persona as natural-language actor, and
+Mind as Interpreter. None of those steps grants Persona hidden state authority.
+
+\section{Bridge And Codex Reliquary}
+
+\code{epiphany-codex-bridge} states its boundary plainly: it translates Codex
+\code{ThreadEpiphany*} DTOs into Epiphany core documents, projects typed
+Epiphany surfaces back into legacy Codex responses, and calls narrow host traits
+while Codex still owns some thread persistence. It must not own verdicts,
+launch policy, reorientation policy, acceptance rules, runtime-spine lifecycle,
+or durable invariants.
+
+The retained Codex body currently matters for:
+
+\begin{itemize}
+  \item Codex-compatible auth identity and token refresh through
+  \code{codex-login};
+  \item OpenAI/Codex model transport through vendored client machinery;
+  \item useful app-server and streaming compatibility affordances while
+  Epiphany surfaces are still evacuating to native CultNet/CultMesh contracts.
+\end{itemize}
+
+The starvation doctrine is the deletion line: Codex may be a bridge and a
+reliquary, but not Epiphany's prompt authority, state owner, scheduler, runtime
+truth, operator API owner, or plugin marketplace brain.
+
+\section{Operator And Interface Body}
+
+Current operator access is partly native and partly witness-artifact based:
+
+\begin{itemize}
+  \item \code{tools/epiphany_local_run.ps1} is the one-command local operator
+  wrapper.
+  \item Native binaries such as \code{epiphany-mvp-status},
+  \code{epiphany-mvp-coordinator}, \code{epiphany-verse-query},
+  \code{epiphany-operator-run}, \code{epiphany-operator-snapshot},
+  \code{epiphany-eve-surface}, \code{epiphany-runtime-spine},
+  \code{epiphany-heartbeat-store}, and \code{epiphany-agent-memory-store}
+  inspect or update typed state.
+  \item Local artifact directories such as \code{.epiphany-run/},
+  \code{.epiphany-dogfood/}, \code{.epiphany-smoke/},
+  \code{.epiphany-rumination/}, \code{.epiphany-gui/}, and
+  \code{.epiphany-character-loop/} witness work and lower typed state for
+  operator inspection.
+  \item Aquarium is the richer adjacent operator client. It should render and
+  steer typed state, not become a state owner.
+  \item Eve/CultUI is the intended GUI/TUI projection mechanism for typed
+  CultMesh surfaces.
+  \item Odin/Gjallar/Yggdrasil are the intended GameCult Verse discovery and
+  hosting organs for daemon affordances and important trusted Verses.
+\end{itemize}
+
+The service contract invariant is that status surfaces, dashboards, shell
+wrappers, bridge adapters, app-server compatibility layers, and renderers must
+read typed projections or emit typed command intents. They must not directly
+mutate Epiphany truth.
+
+\section{Primary Dataflows}
+
+\subsection{State Rehydration And Prompt Projection}
+
+Durable thread state lives as typed \code{EpiphanyThreadState}. On re-entry,
+state is reconstructed from rollout/native state, then rendered into bounded
+prompt-facing context through \code{render_epiphany_state}. Prompt injection is
+read-only. If a model learns something from that prompt, admitting it back into
+durable state requires an explicit update, proposal, promotion, role acceptance,
+or other reviewed write path.
+
+\subsection{View And Surface Projection}
+
+Scene, jobs, freshness, context, graph query, planning, pressure, reorientation,
+CRRC, roles, role result, reorient result, coordinator, Persona, bridge, and
+environment surfaces are projections. Their job is to make typed state visible
+and actionable. A projection does not own its inputs. A dashboard is a window,
+not the vault.
+
+\subsection{Worker Launch And Runtime Results}
+
+Launch requests are typed documents. Runtime spine opens jobs, links them to
+durable bindings, records model/tool activity, and stores results/receipts.
+Role and reorientation findings remain reviewable until Mind and relevant gates
+accept them. Implementation now routes through Hands-shaped branch-turn
+constraints and should yield one branch/commit evidence slice before
+Proprioception refresh.
+
+\subsection{Tool Calls}
+
+Tool use travels through typed capability, invocation intent, and invocation
+receipt documents. The Codex MCP adapter is an external compatibility executor.
+MCP's raw JSON belongs at that boundary; Epiphany's internal tool state is the
+typed intent/receipt pair.
+
+\subsection{Local Verse And Daemon Awareness}
+
+Local Verse context is queried through CultMesh-backed state and can import
+Gjallar daemon affordance summaries. The desired daemon path is Odin/Gjallar for
+discovery, Eve/CultUI for inspection surfaces, CultMesh/CultNet for state and
+commands, and provider-owned receipts for actions. MCP is not the native
+GameCult daemon-control path.
+
+\section{Invariants}
+
+\begin{enumerate}
+  \item CultCache documents are the data model.
+  \item CultNet is the wire for Epiphany-controlled subsystems.
+  \item CultMesh is the preferred ergonomic local Verse and operator-store
+  layer over raw CultCache/CultNet.
+  \item JSON schema may publish the contract; generic JSON must not become
+  load-bearing internal state when both sides are Epiphany-owned.
+  \item Codex is retained for honest compatibility, especially OpenAI auth and
+  model transport. It must not become Epiphany's state/process/prompt owner.
+  \item Runtime state is machinery telemetry, not project truth.
+  \item Operator artifacts are witnesses, not owners.
+  \item Persona is public/person-shaped state; resident work organs use lean
+  work-organ state.
+  \item Heartbeat is scheduler physiology, not project truth.
+  \item Substrate Gate grants access; Eyes inspects evidence; Hands acts; Soul
+  verifies; Mind admits durable state; Self routes; Proprioception maps Body.
+\end{enumerate}
+
+\section{Current Cut Line}
+
+The Body is coherent enough to inspect and extend. The next cuts are concrete:
+
+\begin{itemize}
+  \item Keep \code{thread/epiphany/*} JSON-RPC as compatibility projection
+  only. New operator authority belongs in typed CultNet/CultMesh contracts.
+  \item \code{codex_message_processor.rs} still participates in routing and
+  response projection; move Epiphany-owned routing out through the bridge and
+  native runtime surfaces.
+  \item Some \code{serde_json::Value} and JSON payloads survive at ingress,
+  model output, schema, sealed artifacts, and quarantine seams. Preserve them
+  only at those boundaries; typed documents own Epiphany-internal state.
+  \item Publish Eve/CultUI compositions from provider-owned CultMesh state;
+  renderers lower the composition graph without becoming state owners.
+  \item Treat local Verse and memory graph stores as generated runtime state.
+  They are inspected through tools and receipts, not tracked as repository
+  canon.
+  \item The persisted next action after this pass remains the non-ephemeral
+  Hands branch-turn smoke and Proprioception refresh proof.
+\end{itemize}
+
+\section{Conclusion}
+
+Epiphany's Body is no longer a prompt style pasted onto Codex. It is a growing
+typed substrate: Rust domain organs, CultCache stores, CultMesh local Verse
+documents, CultNet schema contracts, runtime-spine receipts, heartbeat
+physiology, memory graph state, model/tool adapter documents, and local
+operator surfaces. The current cut line is split authority: Codex host routes,
+JSON-RPC compatibility, JSON cargo, and operator artifacts must remain
+compatibility or witness surfaces rather than organs.
+
+The cut line is therefore architectural, not cosmetic. Keep Codex as a
+narrow auth/model/compatibility reliquary. Move Epiphany-owned state, scheduler
+policy, prompt authority, worker lifecycle, operator surfaces, daemon discovery,
+and action receipts through typed CultCache, CultMesh, CultNet, and Eve/CultUI.
+That is the Body becoming legible enough to be trusted and sharp enough to keep
+building.
+
+\end{document}
