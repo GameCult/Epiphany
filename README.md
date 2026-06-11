@@ -1,192 +1,220 @@
-# EpiphanyAgent
+# Epiphany
 
-Epiphany is an opinionated fork of Codex built around one demand: the model
-must model the thing it is changing.
+<p align="center">
+  <img src="docs/assets/epiphany-avatar-4x.png" width="1024" alt="Epiphany avatar portrait targeting JSON heresy" />
+</p>
 
-The problem this repo is chasing is not "LLMs can't write code." They can. The
-problem is that they can keep making plausible local moves after the global
-design has already wandered off and died in a ditch.
+Epiphany is GameCult's agent-control body: the system that lets AI agents do
+real project work without hiding their memory, authority, evidence, or mistakes
+inside a chat transcript.
 
-Epiphany answers that by moving important state out of transcript fog and into
-typed, inspectable surfaces: maps, evidence, retrieval state, graph/frontier
-state, churn pressure, and compact client reflections. The goal is not maximal
-output. The goal is a machine whose parts visibly deserve to exist.
+The bet is simple and unpleasantly large:
 
-## Project Direction
+> AI agents are becoming capable enough to matter, but organizations cannot
+> safely route important work through them until the work is inspectable,
+> reviewable, permissioned, and attached to receipts.
 
-Epiphany is moving toward project-native agency.
+Epiphany is the control plane for that missing layer. It makes the agent show
+its map, preserve evidence, separate roles, survive context loss, and stop when
+it no longer understands the machine it is changing.
 
-The user should not have to write a perfect brief, name every subsystem, and
-pre-plan the code flow for the whole architecture before the machine can help.
-That is just outsourcing project management to the human and calling the agent
-smart because it waited politely.
+This is not a faster autocomplete costume. It is the beginning of governed
+human/agent labor.
 
-The intended shape is simpler and stranger: you talk to the project.
+## The GameCult Bet
 
-Each Epiphany owns one or more repos, carries durable memory and jurisdiction
-for them, and can grow one or more Faces. A Face is the public mouth and
-situated personality of that project: visible in Aquarium, addressable in
-Discord, suitable for voice or stream presence, and backed by the same typed
-state, heartbeat initiative, repo map, evidence, and review gates as the rest of
-the swarm.
+GameCult is building infrastructure for coordinated work between humans,
+projects, communities, and agents.
 
-VoidBot is already showing the small version: repo identities such as Nibu,
-Aqua, and Mimir have Discord roles, repo-local Face state, proposal authority,
-pending mentions, and heartbeat turns. Epiphany is the larger native substrate:
-projects should notice pressure, ruminate, ask questions, schedule modeling or
-verification, advocate for their own repo needs, and structure work without
-requiring the human to spell out the implementation graph first.
+The investable loop is Bifrost-first:
 
-Aquarium is the most direct client because it can show the swarm, its Faces,
-its heartbeat, its memories, and its decisions. It is not the only mouth. A
-project should also be reachable through Discord, voice/WebRTC surfaces, stream
-overlays, native CLIs, and CultNet-speaking tools. The interface contract is
-not "prompt an agent." It is "speak to the project; inspect how it thinks; grant
-or refuse authority when it wants to act."
+```text
+work request or topic
+-> scoped agent execution
+-> bounded artifacts
+-> maintainer review
+-> accepted or rejected outcome
+-> receipts, credit, cost, and lessons
+```
+
+Bifrost owns work records, dispatch, receipts, credit, reward pressure, and
+governance. Epiphany owns agent execution, durable project memory, role
+coordination, evidence, verification pressure, and continuity. CultMesh and
+CultNet carry typed state between organs instead of letting private chats,
+Discord bots, scripts, or dashboards become shadow governments.
+
+That is the core of the GameCult thesis: not "AI writes code," but "AI work
+becomes accountable enough to govern, fund, review, credit, and repeat."
+
+## Why Epiphany Exists
+
+Current agents can write plausible code. That is no longer the hard part.
+
+The expensive failure is architectural drift: an agent keeps moving after it
+has lost the global design. It adds an adapter around a compensator around a
+cache, passes a narrow test, and leaves the next worker inheriting fog as if it
+were architecture.
+
+Epiphany attacks that failure by turning understanding into shared state:
+
+- the current objective
+- architecture and dataflow maps
+- scratch that is disposable
+- evidence that survives
+- role lanes for research, modeling, implementation, verification, planning,
+  Persona, and reorientation
+- runtime, tool, model, command, patch, and commit receipts
+- review gates before findings become project truth
+- public/operator-safe artifacts that can be shown without leaking private
+  worker context
+
+The point is not maximal motion. The point is coherent motion.
+
+## What She Is
+
+Epiphany is an opinionated Codex-derived harness being cut into a native
+GameCult runtime.
+
+Her body is made of:
+
+- typed Rust domain organs in `epiphany-core` and `epiphany-state-model`
+- CultCache `.cc` stores for runtime, heartbeat, agent state, local Verse,
+  memory graph, and thread state
+- CultMesh and CultNet contracts for local and distributed state
+- provider-neutral model and tool request/receipt documents
+- Mind, Substrate Gate, Eyes, Hands, Soul, Continuity, Persona, and heartbeat
+  authority surfaces
+- a Codex compatibility spine retained for honest OpenAI subscription auth and
+  model transport while Epiphany-owned state leaves Codex behind
+
+That last clause matters. Epiphany began inside Codex because Codex already had
+useful practical machinery. The product is not "Codex with better vibes." The
+product is the extraction: agent memory, execution, receipts, review, and
+operator surfaces moving into typed GameCult infrastructure.
+
+## What She Makes Possible
+
+For engineering teams:
+
+- agents that preserve project memory across long work and compaction
+- visible separation between research, modeling, implementation, and
+  verification
+- less review time spent reverse-engineering whether the agent still
+  understands the repo
+- explicit permission and receipt trails for commands, edits, commits, and
+  tool calls
+- durable postmortem evidence when a path fails
+
+For GameCult:
+
+- project Personas that can speak from repo state without becoming hidden
+  operators
+- Bifrost-routed work that produces artifacts, review, receipts, and credit
+- a commercial-grade agent substrate while free/reference layers can remain
+  open where that is the right covenant
+- a way for public work logs, design pressure, and contributor effort to become
+  governed production instead of ambient room noise
+
+For investors and partners:
+
+- a differentiated wedge in AI-native work governance
+- measurable proof targets: accepted useful work per human review hour, cost
+  per accepted artifact, fresh-repo success rate, review load, and public-proof
+  export quality
+- a path from internal agent tooling to design-partner workflows, enterprise
+  services, commercial licensing, and mission-aligned infrastructure funding
 
 ## What Exists Now
 
-The current spine is real, not aspirational:
+The machine is not finished. Good. Finished machines in this category are
+usually toys or sales pages with a backend quietly sweating through its shirt.
 
-- durable `EpiphanyThreadState` in the vendored Codex protocol/core session
-- rollout snapshots and replay for resume, rollback, fork, and compaction
-- bounded `<epiphany_state>` prompt injection
-- typed client reads through `Thread.epiphanyState`
-- read-only retrieval through `thread/epiphany/retrieve`
-- explicit semantic indexing through `thread/epiphany/index`
-- durable typed writes through `thread/epiphany/update`
-- read-only observation distillation through `thread/epiphany/distill`
-- read-only map/churn proposal through `thread/epiphany/propose`
-- verifier-backed promotion through `thread/epiphany/promote`
-- successful-write notifications through `thread/epiphany/stateUpdated`
-- durable `jobBindings` as a thin Epiphany-owned launcher seam over runtime job backends
-- explicit launch and interrupt authority through `thread/epiphany/jobLaunch` and `thread/epiphany/jobInterrupt`, still backed by runtime `agent_jobs`
-- a bounded reorient-guided worker launch through `thread/epiphany/reorientLaunch`
-- read-only CRRC next-action recommendations through `thread/epiphany/crrc`
-- live bound-job progress notifications through `thread/epiphany/jobsUpdated`
-- read-only reflection surfaces through `thread/epiphany/scene`, `jobs`, `freshness`, `context`, `pressure`, and `reorient`
-- a first dogfood CLI operator view through `tools/epiphany_mvp_status.py`, including explicit implementation, modeling/checkpoint, verification/review, and reorientation lanes
-- durable investigation checkpointing for compaction-safe planning
-- Ghostlight/VoidBot-derived heartbeat initiative with heat, active-turn
-  freeze, idle rumination, sleep/dream maintenance, and Face as a first-class
-  public-surface participant
-- repo personality/birth initialization that can seed role dossiers and
-  heartbeat pressure from repo terrain before a project starts speaking
-- CultNet schema contracts for runtime, heartbeat, Face, character-turn,
-  Discord-persona, repo-initialization, Rider, Unity, and operator surfaces
-- repo-owned heavy Epiphany organs in `epiphany-core/`, with vendored Codex kept as the host seam where practical
+What exists now is enough to evaluate the thesis:
 
-Phase 1 through Phase 6 are landed enough for the current experiment. The open
-questions are now about observability, invalidation, coordination, authority,
-and safe capability growth, not whether typed state can exist at all.
+- durable typed state and prompt projection
+- typed update, proposal, promotion, role-result, and review paths
+- runtime-spine job, worker, model, and tool documents
+- local operator status and coordinator commands
+- heartbeat, sleep, memory, and Persona-state machinery inherited from live
+  VoidBot lessons
+- Hands, Eyes, Soul, Mind, Continuity, and Substrate Gate receipt families
+- a Proprioception whitepaper mapping Epiphany's body, owners, invariants, and
+  cut lines
+- an investor brief tying Epiphany to the Bifrost-first proof loop
+
+The next proof is not another impressive paragraph. The next proof is repeated
+external work:
+
+```text
+Bifrost work item
+-> Epiphany execution
+-> reviewed artifact
+-> accepted or rejected outcome
+-> cost/review/receipt/credit record
+```
+
+If that loop produces accepted work with lower coordination cost than the usual
+pile of meetings, tickets, freelancers, and brittle agent transcripts, the bet
+gets teeth.
+
+## Start Here
+
+For investors and serious business-development readers:
+
+- [Epiphany investor brief](docs/epiphany_investor_brief.md)
+- [Epiphany Body whitepaper PDF](docs/epiphany_body_whitepaper.pdf)
+- [Epiphany Body whitepaper TeX](docs/epiphany_body_whitepaper.tex)
+- [GameCult / Epiphany / Bifrost integrated dossier](https://github.com/GameCult/gamecult-site/blob/main/docs/gamecult_integrated_dossier.tex)
+  for the broader investment thesis
+
+For engineers:
+
+- [Docs index](docs/README.md)
+- [Current algorithmic map](notes/epiphany-current-algorithmic-map.md)
+- [Fork implementation plan](notes/epiphany-fork-implementation-plan.md)
+- [Anatomy map](notes/epiphany-anatomy.md)
+- [Safety architecture](notes/epiphany-safety-architecture.md)
+- [Canonical project map](state/map.yaml)
+
+For agents:
+
+- [AGENTS.md](AGENTS.md)
+
+Read that before touching the machine. It contains the operating law, re-entry
+rites, and enough anti-Jenga doctrine to keep the next clever patch from
+becoming tomorrow's cleanup sermon.
 
 ## Run Locally
 
-The current one-command operator path is:
+The current local operator wrapper is:
 
 ```powershell
 .\tools\epiphany_local_run.ps1
 ```
 
-Default mode is `smoke`: it builds the retained Codex app-server compatibility
-edge, builds the native Epiphany operator binaries, runs the coordinator smoke,
-and writes launcher artifacts under `.epiphany-run/` plus coordinator evidence
-under `.epiphany-dogfood/`.
-
-Useful variants:
+Useful modes:
 
 ```powershell
 .\tools\epiphany_local_run.ps1 -Mode status
 .\tools\epiphany_local_run.ps1 -Mode plan
+.\tools\epiphany_local_run.ps1 -Mode smoke
 .\tools\epiphany_local_run.ps1 -Mode run -MaxSteps 4
-.\tools\epiphany_local_run.ps1 -Mode mvp -FaceInput "Wake the local swarm and report through Face." -MaxSteps 4
-.\tools\epiphany_local_run.ps1 -Mode status -ThreadId <id> -Workspace E:\Projects\SomeRepo
+.\tools\epiphany_local_run.ps1 -Mode mvp -PersonaInput "Wake the local swarm and report."
 ```
 
-`run` is the live coordinator loop. It also builds `epiphany-openai-runtime` and
-uses the retained Codex auth/model transport spine. `mvp` is the local product
-cycle: project Face's character turn, write a Face/Aquarium bubble, run the
-bridge-equipped coordinator loop with auto-tools, then run heartbeat sleep/dream
-maintenance. Fresh `mvp` runs bootstrap a minimal local checkpoint before
-coordination so the first loop does not stall at missing state. Live coordinator
-modes use the workspace `state/runtime-spine.msgpack` for worker lifecycle
-documents; run bundles remain evidence. Live model-worker turns default to a
-600-second timeout because ChatGPT Codex model latency can exceed four minutes.
-`status`, `plan`, and `smoke` do not spend model calls; `run` and `mvp` do.
-
-## Where This Leads
-
-The architectural goal is not one giant agent that does archaeology, design,
-patching, and self-grading in a single token fog. It is also not a chat box
-where the human must already know the solution architecture before asking.
-
-The goal is a maintained project organism:
-
-- graph and source-modeling agents keep the machine map current
-- freshness, watcher input, pressure, and reorientation signals decide whether that map still deserves trust
-- verifier agents check claims, diffs, and outcomes against reality
-- coding agents work from bounded packets of graph context, evidence, code refs, and local source reads instead of re-spelunking the repo from scratch every turn
-- Faces translate project state into conversation, voice, stream presence, and
-  Discord/Aquarium discussion without becoming omniscient hidden operators
-- initiative scheduling decides which repo, Face, or internal organ should
-  think next, and heat lets the operator turn up one agent, one project, one
-  group, or the whole swarm
-
-That still leaves direct source reading where it belongs: at the last mile,
-when a patch has to be grounded in the real files. The difference is that broad
-exploration, coherence maintenance, social interface, scheduling, and
-verification stop living in the same overworked skull.
-
-## Repo Tour
-
-If you want the human-readable map of the project, start here:
-
-- `docs/epiphany_investor_brief.md`: investor-facing one-page value summary
-- `docs/epiphany_body_whitepaper.pdf`: shareable Proprioception whitepaper
-- `docs/epiphany_body_whitepaper.tex`: source for the Body architecture paper
-- `notes/epiphany-anatomy.md`: current organ/sub-agent/substrate/protocol split
-- `notes/epiphany-current-algorithmic-map.md`: source-grounded control flow of the live machine
-- `notes/epiphany-fork-implementation-plan.md`: distilled forward plan
-- `notes/epiphany-safety-architecture.md`: capability, authority, interruption, and anti-cage doctrine
-- `notes/archive/README.md`: historical ledgers and superseded plans
-- `state/map.yaml`: canonical current project map and accepted design
-
-If you want the code:
-
-- `epiphany-core/`: repo-owned Epiphany logic
-- `vendor/codex/`: vendored Codex host substrate
-- `tools/`: smoke tests and state helpers
-
-If you are an agent or you are steering one, read `AGENTS.md`. That file is
-for operating discipline, re-entry protocol, and session hygiene. The README is
-for people, which is a lower-crime use of everyone's time.
-
-## Design Stance
-
-Epiphany is built on a few stubborn ideas:
-
-- externalized state is better than pretending the transcript is a brain
-- local plausibility is not the same thing as global coherence
-- evidence should survive, but activity feed sludge should not
-- cognition should grow faster than authority
-- interruption, legibility, and explicit permissions matter more as the machine becomes more coherent
-
-This repo is not trying to make the model louder. It is trying to make it less
-likely to build a Jenga tower and call it understanding.
+`status`, `plan`, and `smoke` are operator-safe and do not spend model calls.
+`run` and `mvp` can use the retained OpenAI/Codex model transport.
 
 ## License
 
-The root `LICENSE` is the operative repository notice. In short:
-`vendor/codex/**` and other third-party material keep their upstream licenses;
-project-authored material outside `vendor/codex/**` is publicly available under
-PolyForm Noncommercial 1.0.0 and is intended to be available under separate
-commercial terms by written agreement.
+The root `LICENSE` is the operative repository notice.
 
-External contributions require `CONTRIBUTOR_LICENSE_AGREEMENT.md` or a separate
-written agreement accepted by the project steward.
+In short: vendored upstream material keeps its upstream license. GameCult-authored
+Epiphany material is source-available under PolyForm Noncommercial 1.0.0, with
+separate commercial terms available by written agreement.
 
-The publishing stance is:
+The publishing stance is direct:
 
-- FOSS where that is viable
-- source-available where the economics or capability profile make unrestricted release a bad idea
-- commercial terms where organizations are extracting real enterprise value
+- free where freedom is the right covenant
+- source-available where unrestricted extraction would be bad governance
+- commercial where organizations are extracting enterprise value
