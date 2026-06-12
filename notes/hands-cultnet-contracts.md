@@ -62,8 +62,11 @@ command, and commit receipts from the runtime-spine CultCache store.
 commands, editing files, or creating a real commit.
 The launch organ contract's repo-action proof profile now requires the full
 Hands chain, not only the final patch receipt.
+`epiphany-mvp-coordinator` now turns `continueImplementation` into a persisted
+Substrate Gate grant plus Hands intent/review gate and exposes the receipt ids in
+the operator step.
 
-This is still a receipt artery, not full action execution. The next live-action
-cut must connect actual implementation edits/commands/commits to this path
-after Substrate Gate grants access and before Soul/Mind call the result
-accepted.
+This is still a gate and receipt artery, not full action execution. The next
+live-action cut must emit actual patch/command/commit receipts against the
+persisted gate after Substrate Gate grants access and before Soul/Mind call the
+result accepted.

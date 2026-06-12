@@ -5,13 +5,24 @@ use chrono::SecondsFormat;
 use epiphany_core::COORDINATOR_RUN_RECEIPT_SCHEMA_VERSION;
 use epiphany_core::COORDINATOR_RUN_RECEIPT_TYPE;
 use epiphany_core::EpiphanyCoordinatorRunReceipt;
+use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+use epiphany_core::HANDS_COMMAND_RECEIPT_TYPE;
+use epiphany_core::HANDS_COMMIT_RECEIPT_TYPE;
+use epiphany_core::HANDS_PATCH_RECEIPT_TYPE;
+use epiphany_core::HandsActionIntent;
 use epiphany_core::RuntimeSpineEventOptions;
 use epiphany_core::RuntimeSpineInitOptions;
 use epiphany_core::RuntimeSpineSessionOptions;
+use epiphany_core::SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION;
+use epiphany_core::SubstrateGateRepoAccessGrantReceipt;
 use epiphany_core::append_runtime_event;
 use epiphany_core::create_runtime_session;
+use epiphany_core::hands_action_review_for_intent;
 use epiphany_core::initialize_runtime_spine;
 use epiphany_core::put_coordinator_run_receipt;
+use epiphany_core::put_hands_action_intent;
+use epiphany_core::put_hands_action_review;
+use epiphany_core::put_substrate_gate_repo_access_grant_receipt;
 use epiphany_core::runtime_spine_status;
 use serde_json::Value;
 use serde_json::json;
@@ -443,6 +454,19 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                 steps.push(step);
                 break;
             }
+            "continueImplementation" => {
+                let gate =
+                    record_hands_implementation_gate(&runtime_store, &thread_id, index, &status)?;
+                push_event(
+                    &mut step,
+                    json!({"type": "handsActionGate", "gate": gate.clone()}),
+                );
+                coordinator["handsActionGate"] = gate;
+                final_action = coordinator;
+                append_operator_step_jsonl(&steps_path, &step)?;
+                steps.push(step);
+                break;
+            }
             "launchResearch" | "launchModeling" | "launchVerification" => {
                 let role_id = role_id_for_coordinator_action(&action)
                     .ok_or_else(|| anyhow!("unsupported launch action {action}"))?;
@@ -805,6 +829,145 @@ fn resolve_model_runtime_bin(root: &Path, configured: &Path) -> Result<PathBuf> 
         }
     }
     Ok(configured.to_path_buf())
+}
+
+fn record_hands_implementation_gate(
+    runtime_store: &Path,
+    thread_id: &str,
+    step_index: usize,
+    status: &Value,
+) -> Result<Value> {
+    let requested_at = now();
+    let suffix = format!(
+        "{}-{}-{}",
+        sanitize_id(thread_id),
+        step_index,
+        uuid::Uuid::new_v4()
+    );
+    let runtime_job_id = format!("hands-implementation-{suffix}");
+    let grant_id = format!("substrate-grant-{runtime_job_id}");
+    let requested_paths = implementation_requested_paths(status);
+
+    let substrate_grant = SubstrateGateRepoAccessGrantReceipt {
+        schema_version: SUBSTRATE_GATE_REPO_ACCESS_GRANT_RECEIPT_SCHEMA_VERSION.to_string(),
+        receipt_id: grant_id.clone(),
+        runtime_job_id: runtime_job_id.clone(),
+        binding_id: "implementation-worker".to_string(),
+        role: "epiphany-hands".to_string(),
+        authority_scope: "epiphany.role.implementation".to_string(),
+        granted_operations: vec![
+            "read".to_string(),
+            "snapshot".to_string(),
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+        ],
+        granted_paths: requested_paths.clone(),
+        granted_at: requested_at.clone(),
+        contract: "Substrate Gate grants the main Hands agent scoped repository access for the coordinator-approved implementation continuation; every mutation still needs Hands receipts."
+            .to_string(),
+    };
+    put_substrate_gate_repo_access_grant_receipt(runtime_store, &substrate_grant)?;
+
+    let intent = HandsActionIntent {
+        schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+        intent_id: format!("hands-intent-{suffix}"),
+        runtime_job_id: runtime_job_id.clone(),
+        binding_id: "implementation-worker".to_string(),
+        role: "epiphany-hands".to_string(),
+        authority_scope: "epiphany.role.implementation".to_string(),
+        requested_action: "continueImplementation".to_string(),
+        requested_paths: requested_paths.clone(),
+        substrate_gate_grant_receipt_id: grant_id.clone(),
+        requested_at: requested_at.clone(),
+        contract: "Coordinator continuation becomes a typed Hands action intent before any file edit, command, or commit may count as implementation evidence."
+            .to_string(),
+    };
+    put_hands_action_intent(runtime_store, &intent)?;
+
+    let mut review = hands_action_review_for_intent(
+        format!("hands-review-{suffix}"),
+        &intent,
+        "approved".to_string(),
+        vec![
+            "patch".to_string(),
+            "command".to_string(),
+            "commit".to_string(),
+        ],
+        vec![
+            "Coordinator selected continueImplementation for the current thread state."
+                .to_string(),
+            "Hands remains the action owner; Mind and Soul still own state admission and verification."
+                .to_string(),
+        ],
+        requested_at,
+    );
+    review.required_receipts = vec![
+        HANDS_PATCH_RECEIPT_TYPE.to_string(),
+        HANDS_COMMAND_RECEIPT_TYPE.to_string(),
+        HANDS_COMMIT_RECEIPT_TYPE.to_string(),
+    ];
+    put_hands_action_review(runtime_store, &review)?;
+
+    Ok(json!({
+        "status": "ready",
+        "runtimeJobId": runtime_job_id,
+        "substrateGateGrantReceiptId": grant_id,
+        "intentId": intent.intent_id,
+        "reviewId": review.review_id,
+        "requestedPaths": requested_paths,
+        "requiredReceipts": review.required_receipts,
+        "store": runtime_store,
+    }))
+}
+
+fn implementation_requested_paths(status: &Value) -> Vec<String> {
+    let mut paths = Vec::new();
+    for pointer in [
+        "/read/thread/epiphanyState/investigationCheckpoint/codeRefs",
+        "/read/thread/epiphanyState/investigationCheckpoint/code_refs",
+        "/read/thread/epiphanyState/investigation_checkpoint/code_refs",
+        "/scene/scene/investigationCheckpoint/codeRefs",
+        "/scene/scene/investigationCheckpoint/code_refs",
+        "/read/thread/epiphanyState/graphFrontier/dirtyPaths",
+        "/read/thread/epiphanyState/graphFrontier/dirty_paths",
+        "/read/thread/epiphanyState/graph_frontier/dirty_paths",
+        "/scene/scene/graphFrontier/dirtyPaths",
+        "/scene/scene/graphFrontier/dirty_paths",
+    ] {
+        collect_requested_paths_at(status, pointer, &mut paths);
+    }
+    paths.sort();
+    paths.dedup();
+    if paths.is_empty() {
+        paths.push(".".to_string());
+    }
+    paths
+}
+
+fn collect_requested_paths_at(status: &Value, pointer: &str, paths: &mut Vec<String>) {
+    match status.pointer(pointer) {
+        Some(Value::Array(items)) => {
+            for item in items {
+                if let Some(path) = item
+                    .as_str()
+                    .or_else(|| item.get("path").and_then(Value::as_str))
+                {
+                    push_requested_path(paths, path);
+                }
+            }
+        }
+        Some(Value::String(path)) => push_requested_path(paths, path),
+        _ => {}
+    }
+}
+
+fn push_requested_path(paths: &mut Vec<String>, path: &str) {
+    let normalized = path.trim().replace('\\', "/");
+    if normalized.is_empty() {
+        return;
+    }
+    paths.push(normalized);
 }
 
 fn launch_role(
@@ -1373,7 +1536,6 @@ fn is_stop_action(action: &str) -> bool {
             | "regatherManually"
             | "reviewModelingResult"
             | "reviewVerificationResult"
-            | "continueImplementation"
     )
 }
 
@@ -1434,4 +1596,96 @@ fn home_dir() -> PathBuf {
         .or_else(|| env::var_os("HOME"))
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn continue_implementation_is_not_a_passive_stop_action() {
+        assert!(!is_stop_action("continueImplementation"));
+    }
+
+    #[test]
+    fn implementation_requested_paths_use_checkpoint_and_frontier_scope() {
+        let status = json!({
+            "read": {
+                "thread": {
+                    "epiphanyState": {
+                        "investigationCheckpoint": {
+                            "codeRefs": [
+                                {"path": "src\\main.rs"},
+                                {"path": "src/main.rs"},
+                                {"path": " notes/demo.md "}
+                            ]
+                        },
+                        "graphFrontier": {
+                            "dirtyPaths": ["tests/demo.rs"]
+                        }
+                    }
+                }
+            }
+        });
+
+        assert_eq!(
+            implementation_requested_paths(&status),
+            vec![
+                "notes/demo.md".to_string(),
+                "src/main.rs".to_string(),
+                "tests/demo.rs".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn hands_implementation_gate_persists_grant_intent_and_review() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("runtime-spine.msgpack");
+        initialize_runtime_spine(
+            &store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-test".to_string(),
+                display_name: "Epiphany Test".to_string(),
+                created_at: "2026-06-02T00:00:00Z".to_string(),
+            },
+        )?;
+        let status = json!({
+            "scene": {
+                "scene": {
+                    "investigationCheckpoint": {
+                        "codeRefs": [{"path": "epiphany-core/src/lib.rs"}]
+                    }
+                }
+            }
+        });
+
+        let gate = record_hands_implementation_gate(&store, "thread-test", 2, &status)?;
+        let grant_id = gate["substrateGateGrantReceiptId"]
+            .as_str()
+            .expect("grant id");
+        let intent_id = gate["intentId"].as_str().expect("intent id");
+        let review_id = gate["reviewId"].as_str().expect("review id");
+
+        let grant =
+            epiphany_core::runtime_substrate_gate_repo_access_grant_receipt(&store, grant_id)?
+                .expect("stored substrate grant");
+        let intent = epiphany_core::runtime_hands_action_intent(&store, intent_id)?
+            .expect("stored Hands intent");
+        let review = epiphany_core::runtime_hands_action_review(&store, review_id)?
+            .expect("stored Hands review");
+
+        assert_eq!(grant.receipt_id, intent.substrate_gate_grant_receipt_id);
+        assert_eq!(intent.intent_id, review.intent_id);
+        assert_eq!(intent.requested_action, "continueImplementation");
+        assert_eq!(
+            review.required_receipts,
+            vec![
+                HANDS_PATCH_RECEIPT_TYPE.to_string(),
+                HANDS_COMMAND_RECEIPT_TYPE.to_string(),
+                HANDS_COMMIT_RECEIPT_TYPE.to_string(),
+            ]
+        );
+        Ok(())
+    }
 }
