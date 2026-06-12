@@ -1428,12 +1428,16 @@ pub fn runtime_hands_receipt_chain_after(
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeHandsReceiptChainSummary {
+    pub patch_schema_version: String,
     pub patch_receipt_id: String,
+    pub command_schema_version: String,
     pub command_receipt_id: String,
+    pub commit_schema_version: String,
     pub commit_receipt_id: String,
     pub intent_id: String,
     pub review_id: String,
     pub runtime_job_id: String,
+    pub substrate_gate_grant_receipt_id: String,
     pub changed_paths: Vec<String>,
     pub command: String,
     pub exit_code: String,
@@ -1479,12 +1483,16 @@ pub fn runtime_latest_hands_receipt_chain_after(
             continue;
         };
         summaries.push(RuntimeHandsReceiptChainSummary {
+            patch_schema_version: patch.schema_version.clone(),
             patch_receipt_id: patch.receipt_id.clone(),
+            command_schema_version: command.schema_version.clone(),
             command_receipt_id: command.receipt_id.clone(),
+            commit_schema_version: commit.schema_version.clone(),
             commit_receipt_id: commit.receipt_id.clone(),
             intent_id: commit.intent_id.clone(),
             review_id: commit.review_id.clone(),
             runtime_job_id: commit.runtime_job_id.clone(),
+            substrate_gate_grant_receipt_id: command.substrate_gate_grant_receipt_id.clone(),
             changed_paths: commit.changed_paths.clone(),
             command: command.command.clone(),
             exit_code: command.exit_code.clone(),

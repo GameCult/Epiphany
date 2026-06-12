@@ -13,6 +13,7 @@ use epiphany_core::render_epiphany_prompt_context;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::seed_epiphany_local_verse_context;
 use epiphany_core::write_memory_graph_snapshot;
+use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -117,18 +118,42 @@ pub fn append_verification_hands_receipt_context(
     context.push_str(&format!("- reviewId: {}\n", chain.review_id));
     context.push_str(&format!("- runtimeJobId: {}\n", chain.runtime_job_id));
     context.push_str(&format!(
+        "- substrateGateGrantReceiptId: {}\n",
+        chain.substrate_gate_grant_receipt_id
+    ));
+    context.push_str(&format!(
         "- receiptIds: patch={}, command={}, commit={}\n",
         chain.patch_receipt_id, chain.command_receipt_id, chain.commit_receipt_id
     ));
+    context.push_str("- resolvedReceiptPayloads:\n");
     context.push_str(&format!(
-        "- command: `{}` exitCode={}\n",
-        chain.command, chain.exit_code
+        "  - patch: schemaVersion={} changedPaths={}\n",
+        chain.patch_schema_version,
+        chain.changed_paths.join(", ")
     ));
-    context.push_str(&format!("- stdoutArtifact: {}\n", chain.stdout_artifact));
-    context.push_str(&format!("- stderrArtifact: {}\n", chain.stderr_artifact));
     context.push_str(&format!(
-        "- commit: {} on branch {}\n",
-        chain.commit_sha, chain.branch
+        "  - command: schemaVersion={} command=`{}` exitCode={} stdoutArtifact={} stderrArtifact={}\n",
+        chain.command_schema_version,
+        chain.command,
+        chain.exit_code,
+        chain.stdout_artifact,
+        chain.stderr_artifact
+    ));
+    context.push_str(&format!(
+        "  - commit: schemaVersion={} commitSha={} branch={} changedPaths={}\n",
+        chain.commit_schema_version,
+        chain.commit_sha,
+        chain.branch,
+        chain.changed_paths.join(", ")
+    ));
+    context.push_str("- artifactPreviews:\n");
+    context.push_str(&format!(
+        "  - stdout: {}\n",
+        artifact_preview(&chain.stdout_artifact)
+    ));
+    context.push_str(&format!(
+        "  - stderr: {}\n",
+        artifact_preview(&chain.stderr_artifact)
     ));
     if !chain.changed_paths.is_empty() {
         context.push_str("- changedPaths:\n");
@@ -143,6 +168,19 @@ pub fn append_verification_hands_receipt_context(
     context.push_str("  - epiphany-core/src/runtime_spine.rs\n");
     context.push_str("  - epiphany-core/src/bin/epiphany-mvp-coordinator.rs\n");
     context.push_str("  - epiphany-codex-bridge/src/coordinator.rs\n");
+    context.push_str("- sourcePathProof:\n");
+    context.push_str(
+        "  - epiphany-hands-action `record-pass` records patch, command, and commit receipts through runtime-spine put functions.\n",
+    );
+    context.push_str(
+        "  - runtime_spine registers Hands receipt document types, persists/rereads them through the shared CultCache runtime-spine store, and exposes latest-chain readback.\n",
+    );
+    context.push_str(
+        "  - mutation_service appends this packet only for Verification role launches after dynamic context assembly.\n",
+    );
+    context.push_str(
+        "  - coordinator treats a complete post-verification Hands chain as implementation evidence that requires a fresh Soul pass.\n",
+    );
     context.push_str(
         "Use these receipts, artifacts, and source references as the concrete Hands evidence under review. Do not ask for generic receipt-path evidence without first judging this packet.\n",
     );
@@ -161,6 +199,33 @@ fn latest_accepted_verification_timestamp(state: &EpiphanyThreadState) -> Option
         })
         .map(|receipt| receipt.accepted_at.as_str())
         .max()
+}
+
+fn artifact_preview(path: &str) -> String {
+    let path = Path::new(path);
+    let text = fs::read_to_string(path)
+        .or_else(|_| {
+            path.strip_prefix("./")
+                .map(Path::to_path_buf)
+                .map_err(|_| std::io::Error::from(std::io::ErrorKind::NotFound))
+                .and_then(fs::read_to_string)
+        })
+        .unwrap_or_else(|_| "<artifact not readable from launch context>".to_string());
+    compact_preview(&text, 1200)
+}
+
+fn compact_preview(text: &str, limit: usize) -> String {
+    let compact = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" | ");
+    if compact.len() <= limit {
+        compact
+    } else {
+        format!("{} ...<truncated>", &compact[..limit])
+    }
 }
 
 fn launch_memory_context(
@@ -220,10 +285,24 @@ fn launch_memory_context(
 mod tests {
     use super::*;
     use epiphany_core::EpiphanyRoleResultRoleId;
+    use epiphany_core::HANDS_ACTION_INTENT_SCHEMA_VERSION;
+    use epiphany_core::HandsActionIntent;
     use epiphany_core::RuntimeSpineHeartbeatJobOptions;
+    use epiphany_core::RuntimeSpineInitOptions;
     use epiphany_core::build_epiphany_role_launch_request_with_dynamic_context;
+    use epiphany_core::hands_action_review_for_intent;
+    use epiphany_core::hands_command_receipt_for_review;
+    use epiphany_core::hands_commit_receipt_for_review;
+    use epiphany_core::hands_patch_receipt_for_review;
+    use epiphany_core::initialize_runtime_spine;
     use epiphany_core::open_runtime_spine_heartbeat_job;
+    use epiphany_core::put_hands_action_intent;
+    use epiphany_core::put_hands_action_review;
+    use epiphany_core::put_hands_command_receipt;
+    use epiphany_core::put_hands_commit_receipt;
+    use epiphany_core::put_hands_patch_receipt;
     use epiphany_core::runtime_worker_launch_request;
+    use epiphany_state_model::EpiphanyAcceptanceReceipt;
     use std::fs;
     use uuid::Uuid;
 
@@ -291,6 +370,119 @@ mod tests {
         assert!(stored_context.contains("Odin"));
         assert!(stored_context.contains("Memory graph"));
         assert!(stored_context.contains("Test launch context."));
+
+        fs::remove_dir_all(&temp)?;
+        Ok(())
+    }
+
+    #[test]
+    fn verification_launch_context_includes_hands_receipt_chain() -> anyhow::Result<()> {
+        let temp = std::env::temp_dir().join(format!("epiphany-hands-context-{}", Uuid::new_v4()));
+        fs::create_dir_all(&temp)?;
+        let runtime_store = temp.join("runtime-spine.msgpack");
+        initialize_runtime_spine(
+            &runtime_store,
+            RuntimeSpineInitOptions {
+                runtime_id: "epiphany-hands-context-test".to_string(),
+                display_name: "Epiphany Hands Context Test".to_string(),
+                created_at: "2026-06-12T00:00:00Z".to_string(),
+            },
+        )?;
+        let stdout = temp.join("stdout.log");
+        let stderr = temp.join("stderr.log");
+        fs::write(&stdout, "running 5 tests\ntest result: ok")?;
+        fs::write(&stderr, "Finished test profile")?;
+        let intent = HandsActionIntent {
+            schema_version: HANDS_ACTION_INTENT_SCHEMA_VERSION.to_string(),
+            intent_id: "hands-intent-context".to_string(),
+            runtime_job_id: "hands-job-context".to_string(),
+            binding_id: "implementation-worker".to_string(),
+            role: "epiphany-hands".to_string(),
+            authority_scope: "epiphany.role.implementation".to_string(),
+            requested_action: "continueImplementation".to_string(),
+            requested_paths: vec![".".to_string()],
+            substrate_gate_grant_receipt_id: "substrate-grant-context".to_string(),
+            requested_at: "2026-06-12T00:00:01Z".to_string(),
+            contract: "Test Hands intent.".to_string(),
+        };
+        put_hands_action_intent(&runtime_store, &intent)?;
+        let review = hands_action_review_for_intent(
+            "hands-review-context".to_string(),
+            &intent,
+            "approved".to_string(),
+            vec![
+                "patch".to_string(),
+                "command".to_string(),
+                "commit".to_string(),
+            ],
+            vec!["test review".to_string()],
+            "2026-06-12T00:00:02Z".to_string(),
+        );
+        put_hands_action_review(&runtime_store, &review)?;
+        let patch = hands_patch_receipt_for_review(
+            "hands-patch-context".to_string(),
+            &intent,
+            &review,
+            vec!["epiphany-core/src/runtime_spine.rs".to_string()],
+            "patch summary".to_string(),
+            "2026-06-12T00:00:04Z".to_string(),
+        );
+        put_hands_patch_receipt(&runtime_store, &patch)?;
+        let command = hands_command_receipt_for_review(
+            "hands-command-context".to_string(),
+            &intent,
+            &review,
+            "cargo test --manifest-path .\\epiphany-core\\Cargo.toml --bin epiphany-mvp-coordinator"
+                .to_string(),
+            "0".to_string(),
+            stdout.display().to_string(),
+            stderr.display().to_string(),
+            "command summary".to_string(),
+            "2026-06-12T00:00:05Z".to_string(),
+        );
+        put_hands_command_receipt(&runtime_store, &command)?;
+        let commit = hands_commit_receipt_for_review(
+            "hands-commit-context".to_string(),
+            &intent,
+            &review,
+            "abc123".to_string(),
+            "codex/test".to_string(),
+            vec!["epiphany-core/src/runtime_spine.rs".to_string()],
+            "commit summary".to_string(),
+            "2026-06-12T00:00:06Z".to_string(),
+        );
+        put_hands_commit_receipt(&runtime_store, &commit)?;
+        let state = EpiphanyThreadState {
+            revision: 11,
+            objective: Some("Verify Hands receipts.".to_string()),
+            acceptance_receipts: vec![EpiphanyAcceptanceReceipt {
+                id: "accept-verification-context".to_string(),
+                result_id: "result-verification-context".to_string(),
+                job_id: "verification-job-context".to_string(),
+                binding_id: "verification-review-worker".to_string(),
+                surface: "roleAccept".to_string(),
+                role_id: "verification".to_string(),
+                status: "accepted".to_string(),
+                accepted_at: "2026-06-12T00:00:03Z".to_string(),
+                accepted_observation_id: None,
+                accepted_evidence_id: None,
+                summary: Some("accepted prior verification".to_string()),
+            }],
+            ..Default::default()
+        };
+        let context = append_verification_hands_receipt_context(
+            "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),
+            &runtime_store,
+            &state,
+        );
+
+        assert!(context.contains("<verification_hands_receipt_context>"));
+        assert!(context.contains("hands-patch-context"));
+        assert!(context.contains("hands-command-context"));
+        assert!(context.contains("hands-commit-context"));
+        assert!(context.contains("resolvedReceiptPayloads"));
+        assert!(context.contains("test result: ok"));
+        assert!(context.contains("sourcePathProof"));
 
         fs::remove_dir_all(&temp)?;
         Ok(())
