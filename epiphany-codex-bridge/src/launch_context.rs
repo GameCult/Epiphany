@@ -1,10 +1,15 @@
 use chrono::SecondsFormat;
 use chrono::Utc;
+use epiphany_core::EPIPHANY_CULTMESH_INTERNAL_VERSE_ID;
+use epiphany_core::EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION;
+use epiphany_core::EpiphanyCultMeshWorkLoopTelemetryEntry;
 use epiphany_core::EpiphanyMemoryContextPacket;
 use epiphany_core::EpiphanyMemoryContextQuery;
 use epiphany_core::EpiphanyMemoryProfile;
 use epiphany_core::EpiphanyPromptContextInput;
 use epiphany_core::EpiphanyThreadState;
+use epiphany_core::RuntimeHandsReceiptChainSummary;
+use epiphany_core::load_latest_epiphany_cultmesh_work_loop_telemetry;
 use epiphany_core::load_memory_graph_snapshot;
 use epiphany_core::memory_graph_from_epiphany_graphs;
 use epiphany_core::plan_memory_graph_context_cut;
@@ -12,10 +17,13 @@ use epiphany_core::query_epiphany_local_verse_context;
 use epiphany_core::render_epiphany_prompt_context;
 use epiphany_core::runtime_latest_hands_receipt_chain_after;
 use epiphany_core::seed_epiphany_local_verse_context;
+use epiphany_core::write_epiphany_cultmesh_work_loop_telemetry;
 use epiphany_core::write_memory_graph_snapshot;
+use epiphany_state_model::EpiphanyAcceptanceReceipt;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
+use uuid::Uuid;
 
 pub const EPIPHANY_LOCAL_VERSE_RUNTIME_ID: &str = "epiphany-local";
 
@@ -99,32 +107,29 @@ pub fn append_verification_hands_receipt_context(
     mut context: String,
     runtime_store_path: &Path,
     state: &EpiphanyThreadState,
-) -> String {
+) -> Result<String, String> {
     let Some(accepted_at) = latest_accepted_verification_timestamp(state) else {
-        return context;
+        return Ok(context);
     };
     let Ok(Some(chain)) = runtime_latest_hands_receipt_chain_after(runtime_store_path, accepted_at)
     else {
-        return context;
+        return Ok(context);
     };
-    context.push_str("\n\n<verification_hands_receipt_context>\n");
+    let telemetry = work_loop_telemetry_from_hands_chain(&chain, state, accepted_at, Vec::new());
+    let telemetry_store = local_verse_store_path(runtime_store_path);
+    write_epiphany_cultmesh_work_loop_telemetry(&telemetry_store, telemetry.clone()).map_err(
+        |error| {
+            format!(
+                "failed to write work-loop telemetry to internal CultMesh store {}: {error}",
+                telemetry_store.display()
+            )
+        },
+    )?;
+    context.push_str("\n\n<verification_work_loop_telemetry>\n");
     context.push_str(
-        "Soul is reviewing concrete Hands consequence evidence produced after the latest accepted Verification finding.\n",
+        "Soul is reviewing typed internal CultMesh telemetry for concrete Hands consequence evidence produced after the latest accepted Verification finding.\n",
     );
-    context.push_str(&format!(
-        "- lowerBoundAcceptedVerificationAt: {accepted_at}\n"
-    ));
-    context.push_str(&format!("- intentId: {}\n", chain.intent_id));
-    context.push_str(&format!("- reviewId: {}\n", chain.review_id));
-    context.push_str(&format!("- runtimeJobId: {}\n", chain.runtime_job_id));
-    context.push_str(&format!(
-        "- substrateGateGrantReceiptId: {}\n",
-        chain.substrate_gate_grant_receipt_id
-    ));
-    context.push_str(&format!(
-        "- receiptIds: patch={}, command={}, commit={}\n",
-        chain.patch_receipt_id, chain.command_receipt_id, chain.commit_receipt_id
-    ));
+    context.push_str(&render_work_loop_telemetry(&telemetry));
     context.push_str("- resolvedReceiptPayloads:\n");
     context.push_str(&format!(
         "  - patch: schemaVersion={} changedPaths={}\n",
@@ -182,10 +187,75 @@ pub fn append_verification_hands_receipt_context(
         "  - coordinator treats a complete post-verification Hands chain as implementation evidence that requires a fresh Soul pass.\n",
     );
     context.push_str(
-        "Use these receipts, artifacts, and source references as the concrete Hands evidence under review. Do not ask for generic receipt-path evidence without first judging this packet.\n",
+        "Use these typed internal Verse receipts, artifacts, and source references as the concrete Hands evidence under review. Do not ask for generic receipt-path evidence without first judging this packet.\n",
     );
-    context.push_str("</verification_hands_receipt_context>");
-    context
+    context.push_str("</verification_work_loop_telemetry>");
+    Ok(context)
+}
+
+pub fn append_modeling_work_loop_telemetry_context(
+    mut context: String,
+    runtime_store_path: &Path,
+    state: &EpiphanyThreadState,
+) -> Result<String, String> {
+    let store = local_verse_store_path(runtime_store_path);
+    let Some(mut telemetry) =
+        load_latest_epiphany_cultmesh_work_loop_telemetry(&store, EPIPHANY_LOCAL_VERSE_RUNTIME_ID)
+            .map_err(|error| {
+                format!(
+                    "failed to load work-loop telemetry from internal CultMesh store {}: {error}",
+                    store.display()
+                )
+            })?
+    else {
+        return Ok(context);
+    };
+    let soul_receipts = latest_accepted_soul_receipts(state);
+    if !soul_receipts.is_empty() {
+        telemetry.telemetry_id = format!("{}-soul-{}", telemetry.telemetry_id, state.revision);
+        telemetry.produced_at_utc = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+        telemetry.source_stage = "hands+soul".to_string();
+        telemetry.target_stages = vec!["proprioception".to_string()];
+        telemetry.soul_receipt_ids = soul_receipts
+            .iter()
+            .map(|receipt| receipt.id.clone())
+            .collect();
+        telemetry.summary = format!(
+            "{} Soul acceptance telemetry attached for Proprioception model update.",
+            telemetry.summary
+        );
+        write_epiphany_cultmesh_work_loop_telemetry(&store, telemetry.clone()).map_err(
+            |error| {
+                format!(
+                    "failed to enrich work-loop telemetry in internal CultMesh store {}: {error}",
+                    store.display()
+                )
+            },
+        )?;
+    }
+    context.push_str("\n\n<proprioception_work_loop_telemetry>\n");
+    context.push_str(
+        "Proprioception is modeling the machine after Soul has reviewed the latest Hands consequence telemetry. This packet is loaded from the internal CultMesh Verse, not reconstructed from chat memory.\n",
+    );
+    context.push_str(&render_work_loop_telemetry(&telemetry));
+    if !soul_receipts.is_empty() {
+        context.push_str("- soulAcceptedReceipts:\n");
+        for receipt in soul_receipts {
+            context.push_str(&format!(
+                "  - id={} resultId={} jobId={} acceptedAt={} summary={}\n",
+                receipt.id,
+                receipt.result_id,
+                receipt.job_id,
+                receipt.accepted_at,
+                receipt.summary.unwrap_or_default()
+            ));
+        }
+    }
+    context.push_str(
+        "Update the machine model from this verified consequence before another Hands turn. Do not request a new Eyes step merely to rediscover this already-typed telemetry.\n",
+    );
+    context.push_str("</proprioception_work_loop_telemetry>");
+    Ok(context)
 }
 
 fn latest_accepted_verification_timestamp(state: &EpiphanyThreadState) -> Option<&str> {
@@ -199,6 +269,142 @@ fn latest_accepted_verification_timestamp(state: &EpiphanyThreadState) -> Option
         })
         .map(|receipt| receipt.accepted_at.as_str())
         .max()
+}
+
+fn latest_accepted_soul_receipts(state: &EpiphanyThreadState) -> Vec<EpiphanyAcceptanceReceipt> {
+    let Some(latest_at) = latest_accepted_verification_timestamp(state) else {
+        return Vec::new();
+    };
+    state
+        .acceptance_receipts
+        .iter()
+        .filter(|receipt| {
+            receipt.role_id == "verification"
+                && receipt.surface == "roleAccept"
+                && receipt.status == "accepted"
+                && receipt.accepted_at == latest_at
+        })
+        .cloned()
+        .collect()
+}
+
+fn work_loop_telemetry_from_hands_chain(
+    chain: &RuntimeHandsReceiptChainSummary,
+    state: &EpiphanyThreadState,
+    lower_bound_receipt_at: &str,
+    soul_receipt_ids: Vec<String>,
+) -> EpiphanyCultMeshWorkLoopTelemetryEntry {
+    EpiphanyCultMeshWorkLoopTelemetryEntry {
+        schema_version: EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION.to_string(),
+        runtime_id: EPIPHANY_LOCAL_VERSE_RUNTIME_ID.to_string(),
+        verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+        telemetry_id: format!(
+            "work-loop-telemetry-{}-{}",
+            state.revision,
+            Uuid::new_v4()
+        ),
+        thread_id: state.last_updated_turn_id.clone().unwrap_or_default(),
+        produced_at_utc: Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true),
+        source_stage: "hands".to_string(),
+        target_stages: vec!["soul".to_string(), "proprioception".to_string()],
+        lower_bound_receipt_at: lower_bound_receipt_at.to_string(),
+        hands_intent_id: chain.intent_id.clone(),
+        hands_review_id: chain.review_id.clone(),
+        hands_runtime_job_id: chain.runtime_job_id.clone(),
+        substrate_gate_grant_receipt_id: chain.substrate_gate_grant_receipt_id.clone(),
+        hands_patch_receipt_id: chain.patch_receipt_id.clone(),
+        hands_command_receipt_id: chain.command_receipt_id.clone(),
+        hands_commit_receipt_id: chain.commit_receipt_id.clone(),
+        command: chain.command.clone(),
+        exit_code: chain.exit_code.clone(),
+        stdout_artifact: chain.stdout_artifact.clone(),
+        stderr_artifact: chain.stderr_artifact.clone(),
+        commit_sha: chain.commit_sha.clone(),
+        branch: chain.branch.clone(),
+        changed_paths: chain.changed_paths.clone(),
+        artifact_previews: vec![
+            format!("stdout: {}", artifact_preview(&chain.stdout_artifact)),
+            format!("stderr: {}", artifact_preview(&chain.stderr_artifact)),
+        ],
+        source_refs: vec![
+            "epiphany-core/src/bin/epiphany-hands-action.rs".to_string(),
+            "epiphany-core/src/hands_gateway.rs".to_string(),
+            "epiphany-core/src/runtime_spine.rs".to_string(),
+            "epiphany-core/src/bin/epiphany-mvp-coordinator.rs".to_string(),
+            "epiphany-codex-bridge/src/coordinator.rs".to_string(),
+        ],
+        source_path_proof: vec![
+            "epiphany-hands-action `record-pass` records patch, command, and commit receipts through runtime-spine put functions.".to_string(),
+            "runtime_spine registers Hands receipt document types, persists/rereads them through the shared CultCache runtime-spine store, and exposes latest-chain readback.".to_string(),
+            "bridge launch context writes this typed packet to the internal CultMesh Verse before Soul receives the rendered projection.".to_string(),
+            "coordinator treats a complete post-verification Hands chain as implementation evidence that requires a fresh Soul pass.".to_string(),
+        ],
+        soul_receipt_ids,
+        summary: chain.summary.clone(),
+    }
+}
+
+fn render_work_loop_telemetry(telemetry: &EpiphanyCultMeshWorkLoopTelemetryEntry) -> String {
+    let mut rendered = String::new();
+    rendered.push_str(&format!("- schemaVersion: {}\n", telemetry.schema_version));
+    rendered.push_str(&format!("- verseId: {}\n", telemetry.verse_id));
+    rendered.push_str(&format!("- telemetryId: {}\n", telemetry.telemetry_id));
+    rendered.push_str(&format!("- sourceStage: {}\n", telemetry.source_stage));
+    rendered.push_str(&format!(
+        "- targetStages: {}\n",
+        telemetry.target_stages.join(", ")
+    ));
+    rendered.push_str(&format!(
+        "- lowerBoundAcceptedVerificationAt: {}\n",
+        telemetry.lower_bound_receipt_at
+    ));
+    rendered.push_str(&format!("- intentId: {}\n", telemetry.hands_intent_id));
+    rendered.push_str(&format!("- reviewId: {}\n", telemetry.hands_review_id));
+    rendered.push_str(&format!(
+        "- runtimeJobId: {}\n",
+        telemetry.hands_runtime_job_id
+    ));
+    rendered.push_str(&format!(
+        "- substrateGateGrantReceiptId: {}\n",
+        telemetry.substrate_gate_grant_receipt_id
+    ));
+    rendered.push_str(&format!(
+        "- receiptIds: patch={}, command={}, commit={}\n",
+        telemetry.hands_patch_receipt_id,
+        telemetry.hands_command_receipt_id,
+        telemetry.hands_commit_receipt_id
+    ));
+    if !telemetry.soul_receipt_ids.is_empty() {
+        rendered.push_str(&format!(
+            "- soulReceiptIds: {}\n",
+            telemetry.soul_receipt_ids.join(", ")
+        ));
+    }
+    rendered.push_str(&format!(
+        "- command: `{}` exitCode={} stdoutArtifact={} stderrArtifact={}\n",
+        telemetry.command,
+        telemetry.exit_code,
+        telemetry.stdout_artifact,
+        telemetry.stderr_artifact
+    ));
+    rendered.push_str(&format!(
+        "- commit: sha={} branch={}\n",
+        telemetry.commit_sha, telemetry.branch
+    ));
+    if !telemetry.changed_paths.is_empty() {
+        rendered.push_str("- changedPaths:\n");
+        for path in &telemetry.changed_paths {
+            rendered.push_str(&format!("  - {path}\n"));
+        }
+    }
+    if !telemetry.artifact_previews.is_empty() {
+        rendered.push_str("- artifactPreviews:\n");
+        for preview in &telemetry.artifact_previews {
+            rendered.push_str(&format!("  - {preview}\n"));
+        }
+    }
+    rendered.push_str(&format!("- summary: {}\n", telemetry.summary));
+    rendered
 }
 
 fn artifact_preview(path: &str) -> String {
@@ -474,15 +680,54 @@ mod tests {
             "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),
             &runtime_store,
             &state,
-        );
+        )
+        .map_err(anyhow::Error::msg)?;
 
-        assert!(context.contains("<verification_hands_receipt_context>"));
+        assert!(context.contains("<verification_work_loop_telemetry>"));
         assert!(context.contains("hands-patch-context"));
         assert!(context.contains("hands-command-context"));
         assert!(context.contains("hands-commit-context"));
         assert!(context.contains("resolvedReceiptPayloads"));
         assert!(context.contains("test result: ok"));
         assert!(context.contains("sourcePathProof"));
+        let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
+            local_verse_store_path(&runtime_store),
+            EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
+        )?
+        .expect("Verification launch should write internal CultMesh telemetry");
+        assert_eq!(
+            telemetry.verse_id,
+            EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string()
+        );
+        assert_eq!(telemetry.hands_patch_receipt_id, "hands-patch-context");
+        assert_eq!(telemetry.hands_command_receipt_id, "hands-command-context");
+        assert_eq!(telemetry.hands_commit_receipt_id, "hands-commit-context");
+        assert_eq!(
+            telemetry.target_stages,
+            vec!["soul".to_string(), "proprioception".to_string()]
+        );
+
+        let modeling_context = append_modeling_work_loop_telemetry_context(
+            "<epiphany_dynamic_context></epiphany_dynamic_context>".to_string(),
+            &runtime_store,
+            &state,
+        )
+        .map_err(anyhow::Error::msg)?;
+        assert!(modeling_context.contains("<proprioception_work_loop_telemetry>"));
+        assert!(modeling_context.contains("hands-patch-context"));
+        assert!(modeling_context.contains("accept-verification-context"));
+        assert!(modeling_context.contains("Soul acceptance telemetry"));
+        let telemetry = load_latest_epiphany_cultmesh_work_loop_telemetry(
+            local_verse_store_path(&runtime_store),
+            EPIPHANY_LOCAL_VERSE_RUNTIME_ID,
+        )?
+        .expect("Modeling launch should preserve enriched CultMesh telemetry");
+        assert_eq!(telemetry.source_stage, "hands+soul");
+        assert_eq!(telemetry.target_stages, vec!["proprioception".to_string()]);
+        assert_eq!(
+            telemetry.soul_receipt_ids,
+            vec!["accept-verification-context".to_string()]
+        );
 
         fs::remove_dir_all(&temp)?;
         Ok(())

@@ -39,6 +39,12 @@ pub const EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION: &str =
     "epiphany.cultmesh.operator_run_receipt.v0";
 pub const EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY: &str =
     "epiphany-local/operator-run-receipt/latest";
+pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_TYPE: &str =
+    "epiphany.cultmesh.work_loop_telemetry";
+pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION: &str =
+    "epiphany.cultmesh.work_loop_telemetry.v0";
+pub const EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY: &str =
+    "epiphany-internal/work-loop-telemetry/latest";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_TYPE: &str = "epiphany.cultmesh.verse_policy";
 pub const EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION: &str = "epiphany.cultmesh.verse_policy.v0";
 pub const EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_TYPE: &str = "epiphany.cultmesh.global_room_policy";
@@ -243,6 +249,70 @@ pub struct EpiphanyCultMeshOperatorRunReceiptEntry {
     pub artifact_refs: Vec<String>,
     #[cultcache(key = 13)]
     pub notes: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
+#[cultcache(
+    type = "epiphany.cultmesh.work_loop_telemetry",
+    schema = "EpiphanyCultMeshWorkLoopTelemetryEntry"
+)]
+pub struct EpiphanyCultMeshWorkLoopTelemetryEntry {
+    #[cultcache(key = 0)]
+    pub schema_version: String,
+    #[cultcache(key = 1)]
+    pub runtime_id: String,
+    #[cultcache(key = 2)]
+    pub verse_id: String,
+    #[cultcache(key = 3)]
+    pub telemetry_id: String,
+    #[cultcache(key = 4)]
+    pub thread_id: String,
+    #[cultcache(key = 5)]
+    pub produced_at_utc: String,
+    #[cultcache(key = 6)]
+    pub source_stage: String,
+    #[cultcache(key = 7)]
+    pub target_stages: Vec<String>,
+    #[cultcache(key = 8)]
+    pub lower_bound_receipt_at: String,
+    #[cultcache(key = 9)]
+    pub hands_intent_id: String,
+    #[cultcache(key = 10)]
+    pub hands_review_id: String,
+    #[cultcache(key = 11)]
+    pub hands_runtime_job_id: String,
+    #[cultcache(key = 12)]
+    pub substrate_gate_grant_receipt_id: String,
+    #[cultcache(key = 13)]
+    pub hands_patch_receipt_id: String,
+    #[cultcache(key = 14)]
+    pub hands_command_receipt_id: String,
+    #[cultcache(key = 15)]
+    pub hands_commit_receipt_id: String,
+    #[cultcache(key = 16)]
+    pub command: String,
+    #[cultcache(key = 17)]
+    pub exit_code: String,
+    #[cultcache(key = 18)]
+    pub stdout_artifact: String,
+    #[cultcache(key = 19)]
+    pub stderr_artifact: String,
+    #[cultcache(key = 20)]
+    pub commit_sha: String,
+    #[cultcache(key = 21)]
+    pub branch: String,
+    #[cultcache(key = 22)]
+    pub changed_paths: Vec<String>,
+    #[cultcache(key = 23)]
+    pub artifact_previews: Vec<String>,
+    #[cultcache(key = 24)]
+    pub source_refs: Vec<String>,
+    #[cultcache(key = 25)]
+    pub source_path_proof: Vec<String>,
+    #[cultcache(key = 26)]
+    pub soul_receipt_ids: Vec<String>,
+    #[cultcache(key = 27)]
+    pub summary: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, DatabaseEntry)]
@@ -501,6 +571,7 @@ cultmesh_documents!(EpiphanyCultMeshDocuments {
     EpiphanyCultMeshOperatorSnapshotEntry => EPIPHANY_CULTMESH_OPERATOR_SNAPSHOT_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorRunIntentEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_INTENT_SCHEMA_VERSION,
     EpiphanyCultMeshOperatorRunReceiptEntry => EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_SCHEMA_VERSION,
+    EpiphanyCultMeshWorkLoopTelemetryEntry => EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION,
     EpiphanyCultMeshVersePolicyEntry => EPIPHANY_CULTMESH_VERSE_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshGlobalRoomPolicyEntry => EPIPHANY_CULTMESH_GLOBAL_ROOM_POLICY_SCHEMA_VERSION,
     EpiphanyCultMeshMindContractEntry => EPIPHANY_CULTMESH_MIND_CONTRACT_SCHEMA_VERSION,
@@ -712,6 +783,25 @@ pub fn load_latest_epiphany_cultmesh_operator_run_receipt(
 ) -> Result<Option<EpiphanyCultMeshOperatorRunReceiptEntry>> {
     let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
     node.get(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_LATEST_KEY)
+}
+
+pub fn write_epiphany_cultmesh_work_loop_telemetry(
+    store_path: impl AsRef<Path>,
+    telemetry: EpiphanyCultMeshWorkLoopTelemetryEntry,
+) -> Result<EpiphanyCultMeshWorkLoopTelemetryEntry> {
+    let mut node = open_epiphany_cultmesh_node(&store_path, telemetry.runtime_id.clone())?;
+    let written = node.put(telemetry.telemetry_id.clone(), &telemetry)?;
+    node.put(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY, &written)?;
+    node.flush()?;
+    Ok(written)
+}
+
+pub fn load_latest_epiphany_cultmesh_work_loop_telemetry(
+    store_path: impl AsRef<Path>,
+    runtime_id: impl Into<String>,
+) -> Result<Option<EpiphanyCultMeshWorkLoopTelemetryEntry>> {
+    let node = open_epiphany_cultmesh_node(store_path, runtime_id)?;
+    node.get(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_LATEST_KEY)
 }
 
 pub fn seed_epiphany_local_verse_context(
@@ -1397,6 +1487,56 @@ mod tests {
         assert!(
             node.documents()
                 .binding(EPIPHANY_CULTMESH_OPERATOR_RUN_RECEIPT_TYPE)
+                .is_some()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn work_loop_telemetry_round_trips_as_internal_cultmesh_document() -> Result<()> {
+        let temp = tempfile::tempdir()?;
+        let store = temp.path().join("epiphany-local-verse.ccmp");
+        let telemetry = EpiphanyCultMeshWorkLoopTelemetryEntry {
+            schema_version: EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_SCHEMA_VERSION.to_string(),
+            runtime_id: "epiphany-test".to_string(),
+            verse_id: EPIPHANY_CULTMESH_INTERNAL_VERSE_ID.to_string(),
+            telemetry_id: "work-loop-telemetry-test".to_string(),
+            thread_id: "thread-test".to_string(),
+            produced_at_utc: "2026-06-12T00:00:00Z".to_string(),
+            source_stage: "hands".to_string(),
+            target_stages: vec!["soul".to_string(), "proprioception".to_string()],
+            lower_bound_receipt_at: "2026-06-12T00:00:01Z".to_string(),
+            hands_intent_id: "hands-intent-test".to_string(),
+            hands_review_id: "hands-review-test".to_string(),
+            hands_runtime_job_id: "hands-job-test".to_string(),
+            substrate_gate_grant_receipt_id: "substrate-grant-test".to_string(),
+            hands_patch_receipt_id: "hands-patch-test".to_string(),
+            hands_command_receipt_id: "hands-command-test".to_string(),
+            hands_commit_receipt_id: "hands-commit-test".to_string(),
+            command: "cargo test".to_string(),
+            exit_code: "0".to_string(),
+            stdout_artifact: "stdout.log".to_string(),
+            stderr_artifact: "stderr.log".to_string(),
+            commit_sha: "abc123".to_string(),
+            branch: "codex/test".to_string(),
+            changed_paths: vec!["epiphany-core/src/runtime_spine.rs".to_string()],
+            artifact_previews: vec!["stdout: ok".to_string()],
+            source_refs: vec!["epiphany-core/src/runtime_spine.rs".to_string()],
+            source_path_proof: vec!["runtime-spine persisted Hands receipts".to_string()],
+            soul_receipt_ids: vec!["accept-verification-test".to_string()],
+            summary: "Hands consequence telemetry for the work loop.".to_string(),
+        };
+
+        write_epiphany_cultmesh_work_loop_telemetry(&store, telemetry.clone())?;
+
+        assert_eq!(
+            load_latest_epiphany_cultmesh_work_loop_telemetry(&store, "epiphany-test")?,
+            Some(telemetry)
+        );
+        let node = open_epiphany_cultmesh_node(&store, "epiphany-test")?;
+        assert!(
+            node.documents()
+                .binding(EPIPHANY_CULTMESH_WORK_LOOP_TELEMETRY_TYPE)
                 .is_some()
         );
         Ok(())

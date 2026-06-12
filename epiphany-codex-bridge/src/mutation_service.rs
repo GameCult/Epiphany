@@ -73,6 +73,7 @@ use crate::jobs::derive_epiphany_jobs;
 use crate::jobs::epiphany_blocked_state_job;
 use crate::jobs::map_interrupted_epiphany_job;
 use crate::jobs::map_launched_epiphany_job;
+use crate::launch_context::append_modeling_work_loop_telemetry_context;
 use crate::launch_context::append_verification_hands_receipt_context;
 use crate::launch_context::render_launch_dynamic_prompt_context;
 use crate::launch_context::reorient_launch_context_focus;
@@ -716,7 +717,15 @@ pub async fn launch_thread_epiphany_role(
             dynamic_prompt_context,
             runtime_store_path.as_path(),
             &state,
-        );
+        )
+        .map_err(EpiphanyBridgeError::Fatal)?;
+    } else if role_id == EpiphanyRoleResultRoleId::Modeling {
+        dynamic_prompt_context = append_modeling_work_loop_telemetry_context(
+            dynamic_prompt_context,
+            runtime_store_path.as_path(),
+            &state,
+        )
+        .map_err(EpiphanyBridgeError::Fatal)?;
     }
     let launch_request = build_epiphany_role_launch_request_with_dynamic_context(
         thread_id,
