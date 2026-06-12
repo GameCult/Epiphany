@@ -72,6 +72,9 @@ operations, and keep patch/commit changed paths inside the requested scope.
 `record-pass --gate-summary <coordinator-summary.json>` consumes the
 coordinator artifact and emits patch, command, and commit receipts in one
 post-implementation call.
+`epiphany-mvp-coordinator-smoke` now proves the deterministic chain from
+simulated `continueImplementation` through gate emission to `record-pass`
+receipts.
 
 This is still a gate and receipt artery, not full action execution. The next
 live-action cut must call the recorder from the implementation turn or local

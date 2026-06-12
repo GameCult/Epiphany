@@ -65,7 +65,9 @@ fn run_smoke(args: &Args) -> Result<Value> {
         Some(path) => absolute_path(path)?,
         None => sibling_exe("epiphany-mvp-coordinator")?,
     };
+    let hands_action = sibling_exe("epiphany-hands-action")?;
     ensure_coordinator_built(&root, &coordinator)?;
+    ensure_epiphany_bin_built(&root, &hands_action, "epiphany-hands-action")?;
 
     let cold = run_coordinator(
         &root,
@@ -78,6 +80,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
             bootstrap_smoke_state: false,
             bootstrap_local_state: false,
             simulate_high_pressure: false,
+            simulate_continue_implementation: false,
             dry_compact: false,
             max_steps: 1,
         },
@@ -100,6 +103,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
             bootstrap_smoke_state: false,
             bootstrap_local_state: true,
             simulate_high_pressure: false,
+            simulate_continue_implementation: false,
             dry_compact: false,
             max_steps: 1,
         },
@@ -122,6 +126,7 @@ fn run_smoke(args: &Args) -> Result<Value> {
             bootstrap_smoke_state: true,
             bootstrap_local_state: false,
             simulate_high_pressure: true,
+            simulate_continue_implementation: false,
             dry_compact: true,
             max_steps: 1,
         },
@@ -141,6 +146,49 @@ fn run_smoke(args: &Args) -> Result<Value> {
     require_artifacts(&pressure)?;
     require_operator_safe(&pressure, "$")?;
 
+    let hands_gate = run_coordinator(
+        &root,
+        &coordinator,
+        &app_server,
+        &artifact_root,
+        RunOptions {
+            name: "hands-gate",
+            mode: "run",
+            bootstrap_smoke_state: false,
+            bootstrap_local_state: true,
+            simulate_high_pressure: false,
+            simulate_continue_implementation: true,
+            dry_compact: false,
+            max_steps: 1,
+        },
+    )?;
+    require(
+        hands_gate
+            .pointer("/finalAction/action")
+            .and_then(Value::as_str)
+            == Some("continueImplementation"),
+        "simulated implementation continuation should select continueImplementation",
+    )?;
+    require(
+        hands_gate
+            .pointer("/finalAction/handsActionGate/intentId")
+            .and_then(Value::as_str)
+            .is_some(),
+        "implementation continuation should emit a Hands action gate",
+    )?;
+    require_artifacts(&hands_gate)?;
+    require_operator_safe(&hands_gate, "$")?;
+    let hands_pass = record_hands_pass(&hands_action, &hands_gate)?;
+    require(
+        hands_pass.pointer("/patch/status").and_then(Value::as_str) == Some("ok")
+            && hands_pass
+                .pointer("/command/status")
+                .and_then(Value::as_str)
+                == Some("ok")
+            && hands_pass.pointer("/commit/status").and_then(Value::as_str) == Some("ok"),
+        "Hands record-pass should emit patch, command, and commit receipts",
+    )?;
+
     let rejected = Command::new(&coordinator)
         .current_dir(&root)
         .arg("--artifact-dir")
@@ -159,6 +207,8 @@ fn run_smoke(args: &Args) -> Result<Value> {
         "coldAction": cold["finalAction"]["action"],
         "localBootstrapAction": local["finalAction"]["action"],
         "pressureAction": pressure["steps"][0]["action"],
+        "handsGateAction": hands_gate["finalAction"]["action"],
+        "handsPass": hands_pass,
         "directBackendCompletionRejected": true,
         "note": "Native smoke does not fake specialist completion by mutating Codex state storage; full completion smoke needs live workers while execution is cauterized into CultNet.",
     });
@@ -175,6 +225,7 @@ struct RunOptions {
     bootstrap_smoke_state: bool,
     bootstrap_local_state: bool,
     simulate_high_pressure: bool,
+    simulate_continue_implementation: bool,
     dry_compact: bool,
     max_steps: usize,
 }
@@ -220,6 +271,9 @@ fn run_coordinator(
     if options.simulate_high_pressure {
         command.arg("--simulate-high-pressure");
     }
+    if options.simulate_continue_implementation {
+        command.arg("--simulate-continue-implementation");
+    }
     if options.dry_compact {
         command.arg("--dry-compact");
     }
@@ -234,6 +288,51 @@ fn run_coordinator(
         ));
     }
     serde_json::from_slice(&output.stdout).context("failed to decode coordinator summary")
+}
+
+fn record_hands_pass(hands_action: &Path, summary: &Value) -> Result<Value> {
+    let artifact_dir = PathBuf::from(
+        summary
+            .get("artifactDir")
+            .and_then(Value::as_str)
+            .ok_or_else(|| anyhow!("summary missing artifactDir"))?,
+    );
+    let stdout_artifact = artifact_dir.join("hands-pass-command.stdout.log");
+    let stderr_artifact = artifact_dir.join("hands-pass-command.stderr.log");
+    fs::write(&stdout_artifact, "hands pass smoke command output\n")?;
+    fs::write(&stderr_artifact, "")?;
+    let output = Command::new(hands_action)
+        .arg("--store")
+        .arg(artifact_dir.join("runtime-spine.msgpack"))
+        .arg("record-pass")
+        .arg("--gate-summary")
+        .arg(artifact_dir.join("coordinator-summary.json"))
+        .arg("--summary")
+        .arg("Coordinator smoke recorded typed Hands consequence receipts.")
+        .arg("--changed-path")
+        .arg("tools/epiphany_local_run.ps1")
+        .arg("--command")
+        .arg("coordinator-smoke hands-pass synthetic command")
+        .arg("--exit-code")
+        .arg("0")
+        .arg("--stdout-artifact")
+        .arg(&stdout_artifact)
+        .arg("--stderr-artifact")
+        .arg(&stderr_artifact)
+        .arg("--commit-sha")
+        .arg("dry-run-smoke")
+        .arg("--branch")
+        .arg("coordinator-smoke")
+        .output()
+        .context("failed to run Hands action recorder")?;
+    if !output.status.success() {
+        return Err(anyhow!(
+            "Hands action recorder failed: {}{}",
+            String::from_utf8_lossy(&output.stderr),
+            String::from_utf8_lossy(&output.stdout)
+        ));
+    }
+    serde_json::from_slice(&output.stdout).context("failed to decode Hands pass summary")
 }
 
 fn require_artifacts(summary: &Value) -> Result<()> {
@@ -333,27 +432,34 @@ fn sibling_exe(name: &str) -> Result<PathBuf> {
 }
 
 fn ensure_coordinator_built(root: &Path, coordinator: &Path) -> Result<()> {
+    ensure_epiphany_bin_built(root, coordinator, "epiphany-mvp-coordinator")
+}
+
+fn ensure_epiphany_bin_built(root: &Path, binary: &Path, bin_name: &str) -> Result<()> {
+    if binary.exists() {
+        return Ok(());
+    }
     let status = Command::new("cargo")
         .current_dir(root)
         .arg("build")
         .arg("--manifest-path")
         .arg(root.join("epiphany-core").join("Cargo.toml"))
         .arg("--bin")
-        .arg("epiphany-mvp-coordinator")
+        .arg(bin_name)
         .status()
-        .context("failed to build epiphany-mvp-coordinator")?;
+        .with_context(|| format!("failed to build {bin_name}"))?;
     require(
-        status.success() && coordinator.exists(),
-        &format!(
-            "native coordinator binary was not built: {}",
-            coordinator.display()
-        ),
+        status.success() && binary.exists(),
+        &format!("native binary was not built: {}", binary.display()),
     )
 }
 
 fn ensure_default_app_server_built(root: &Path, app_server: &Path) -> Result<()> {
     let default_app_server = PathBuf::from(DEFAULT_APP_SERVER);
     if app_server != default_app_server {
+        return Ok(());
+    }
+    if app_server.exists() {
         return Ok(());
     }
     let status = Command::new("cargo")

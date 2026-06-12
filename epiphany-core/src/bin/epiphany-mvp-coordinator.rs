@@ -86,6 +86,7 @@ struct Args {
     bootstrap_local_state: bool,
     bootstrap_objective: Option<String>,
     simulate_high_pressure: bool,
+    simulate_continue_implementation: bool,
     simulate_source_drift: bool,
     dry_compact: bool,
 }
@@ -119,6 +120,7 @@ impl Args {
             bootstrap_local_state: false,
             bootstrap_objective: None,
             simulate_high_pressure: false,
+            simulate_continue_implementation: false,
             simulate_source_drift: false,
             dry_compact: false,
         };
@@ -179,6 +181,9 @@ impl Args {
                         Some(take_string(&mut args, "--bootstrap-objective")?);
                 }
                 "--simulate-high-pressure" => parsed.simulate_high_pressure = true,
+                "--simulate-continue-implementation" => {
+                    parsed.simulate_continue_implementation = true
+                }
                 "--simulate-source-drift" => parsed.simulate_source_drift = true,
                 "--dry-compact" => parsed.dry_compact = true,
                 other => return Err(anyhow!("unknown argument: {other}")),
@@ -346,6 +351,14 @@ fn run_coordinator(args: &Args) -> Result<Value> {
             coordinator["canAutoRun"] = json!(true);
             coordinator["requiresReview"] = json!(false);
             coordinator["reason"] = json!("Simulated high pressure requested by smoke test.");
+        } else if args.simulate_continue_implementation && index == 0 {
+            action = "continueImplementation".to_string();
+            coordinator["action"] = json!(action);
+            coordinator["canAutoRun"] = json!(true);
+            coordinator["requiresReview"] = json!(false);
+            coordinator["targetRole"] = json!("implementation");
+            coordinator["reason"] =
+                json!("Simulated implementation continuation requested by smoke test.");
         }
 
         let snapshot_name = format!("step-{index:02}-{action}.txt");
