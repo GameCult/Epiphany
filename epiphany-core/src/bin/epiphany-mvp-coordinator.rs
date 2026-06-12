@@ -415,7 +415,7 @@ fn run_coordinator(args: &Args) -> Result<Value> {
                     break;
                 }
                 let can_accept = args.auto_review
-                    && result.pointer("/finding/statePatch").is_some()
+                    && role_result_auto_acceptable(role_id, &result)
                     && revision.is_some();
                 if !can_accept {
                     final_action = json!({
@@ -1061,6 +1061,30 @@ fn review_action_for_role(role_id: &str) -> &'static str {
     }
 }
 
+fn role_result_auto_acceptable(role_id: &str, result: &Value) -> bool {
+    if result["status"].as_str() != Some("completed") {
+        return false;
+    }
+    let finding = &result["finding"];
+    if finding["jobError"].is_string() || finding["itemError"].is_string() {
+        return false;
+    }
+    let has_runtime_identity = finding["runtimeResultId"]
+        .as_str()
+        .is_some_and(|id| !id.trim().is_empty())
+        && finding["runtimeJobId"]
+            .as_str()
+            .is_some_and(|id| !id.trim().is_empty());
+    if !has_runtime_identity {
+        return false;
+    }
+    match role_id {
+        "verification" => true,
+        "research" | "modeling" | "imagination" => finding.get("statePatch").is_some(),
+        _ => false,
+    }
+}
+
 fn launch_reorient(
     client: &mut status_cli::AppServerClient,
     thread_id: &str,
@@ -1654,6 +1678,46 @@ mod tests {
     #[test]
     fn continue_implementation_is_not_a_passive_stop_action() {
         assert!(!is_stop_action("continueImplementation"));
+    }
+
+    #[test]
+    fn auto_review_accepts_receipt_only_verification_findings() {
+        let result = json!({
+            "status": "completed",
+            "finding": {
+                "verdict": "needs-evidence",
+                "summary": "Soul needs a source-backed receipt path.",
+                "runtimeResultId": "result-verification-1",
+                "runtimeJobId": "job-verification-1"
+            }
+        });
+
+        assert!(role_result_auto_acceptable("verification", &result));
+        assert!(!role_result_auto_acceptable("modeling", &result));
+    }
+
+    #[test]
+    fn auto_review_refuses_identityless_or_errored_findings() {
+        let missing_identity = json!({
+            "status": "completed",
+            "finding": {
+                "statePatch": {"scratch": {"summary": "mapped"}},
+                "runtimeResultId": "",
+                "runtimeJobId": "job-modeling-1"
+            }
+        });
+        let errored = json!({
+            "status": "completed",
+            "finding": {
+                "statePatch": {"scratch": {"summary": "mapped"}},
+                "runtimeResultId": "result-modeling-1",
+                "runtimeJobId": "job-modeling-1",
+                "itemError": "missing required field"
+            }
+        });
+
+        assert!(!role_result_auto_acceptable("modeling", &missing_identity));
+        assert!(!role_result_auto_acceptable("modeling", &errored));
     }
 
     #[test]
